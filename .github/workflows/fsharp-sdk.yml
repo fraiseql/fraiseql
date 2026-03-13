@@ -1,0 +1,57 @@
+name: F# SDK
+
+on:
+  push:
+    paths:
+      - 'sdks/official/fraiseql-fsharp/**'
+    tags:
+      - 'fsharp-sdk/v*'
+  pull_request:
+    paths:
+      - 'sdks/official/fraiseql-fsharp/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-fsharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --verbosity normal
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-fsharp-sdk
+          path: sdks/official/fraiseql-fsharp/tests/FraiseQL.Tests/TestResults/
+          retention-days: 30
+
+  publish:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/fsharp-sdk/v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-fsharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Pack library
+        run: dotnet pack src/FraiseQL --configuration Release --no-restore -o nupkg
+      - name: Pack tool
+        run: dotnet pack tool/FraiseQL.Tool --configuration Release --no-restore -o nupkg
+      - name: Push to NuGet
+        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

@@ -1,3 +1,10 @@
+//! Configuration validation for `fraiseql.toml` settings.
+//!
+//! [`ConfigValidator`] checks a loaded [`RuntimeConfig`] for semantic errors
+//! (e.g. missing required environment variables, invalid combinations of
+//! settings) and collects all errors before returning so the developer sees
+//! every problem in one pass.
+
 use std::{collections::HashSet, env};
 
 use fraiseql_error::ConfigError;
@@ -6,30 +13,47 @@ use crate::config::RuntimeConfig;
 
 /// Validation result with all errors collected
 pub struct ValidationResult {
+    /// Collected configuration errors; non-empty means the config is invalid.
     pub errors:   Vec<ConfigError>,
+    /// Non-fatal warnings about potentially unintended settings.
     pub warnings: Vec<String>,
 }
 
 impl ValidationResult {
-    pub fn new() -> Self {
+    /// Create an empty validation result.
+    pub const fn new() -> Self {
         Self {
             errors:   Vec::new(),
             warnings: Vec::new(),
         }
     }
 
-    pub fn is_ok(&self) -> bool {
+    /// Return `true` if no errors were collected.
+    pub const fn is_ok(&self) -> bool {
         self.errors.is_empty()
     }
 
+    /// Return `true` if any errors were collected.
+    pub const fn is_err(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Add a configuration error to the result.
     pub fn add_error(&mut self, error: ConfigError) {
         self.errors.push(error);
     }
 
+    /// Add a non-fatal warning to the result.
     pub fn add_warning(&mut self, warning: impl Into<String>) {
         self.warnings.push(warning.into());
     }
 
+    /// Convert the validation result into a standard `Result`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the single `ConfigError` if exactly one error was collected.
+    /// Returns `ConfigError::MultipleErrors` if more than one error was collected.
     pub fn into_result(self) -> Result<Vec<String>, ConfigError> {
         if self.errors.is_empty() {
             Ok(self.warnings)
@@ -57,6 +81,7 @@ pub struct ConfigValidator<'a> {
 }
 
 impl<'a> ConfigValidator<'a> {
+    /// Create a new validator bound to the given runtime configuration.
     pub fn new(config: &'a RuntimeConfig) -> Self {
         Self {
             config,
@@ -74,7 +99,72 @@ impl<'a> ConfigValidator<'a> {
         self.validate_files();
         self.validate_cross_field();
         self.validate_env_vars();
+        self.validate_placeholder_sections();
         self.result
+    }
+
+    /// Error on config sections that are parsed but have no runtime effect.
+    ///
+    /// Silently-ignored config is a common source of operational incidents. By
+    /// refusing to start, we ensure operators know their configuration has no
+    /// effect and must be removed or replaced.
+    fn validate_placeholder_sections(&mut self) {
+        if self.config.notifications.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "notifications".to_string(),
+                message: "config section 'notifications' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
+        }
+        if self.config.logging.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "logging".to_string(),
+                message: "config section 'logging' is not yet implemented; \
+                          use the 'tracing' section for observability"
+                    .to_string(),
+            });
+        }
+        if self.config.search.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "search".to_string(),
+                message: "config section 'search' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
+        }
+        if self.config.cache.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "cache".to_string(),
+                message: "config section 'cache' is not yet implemented; \
+                          use fraiseql_core::cache::CacheConfig for query-result caching"
+                    .to_string(),
+            });
+        }
+        if self.config.queues.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "queues".to_string(),
+                message: "config section 'queues' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
+        }
+        if self.config.realtime.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "realtime".to_string(),
+                message: "config section 'realtime' is not yet implemented; \
+                          use the 'subscriptions' feature for real-time updates"
+                    .to_string(),
+            });
+        }
+        if self.config.custom_endpoints.is_some() {
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "custom_endpoints".to_string(),
+                message: "config section 'custom_endpoints' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
+        }
     }
 
     fn validate_server(&mut self) {

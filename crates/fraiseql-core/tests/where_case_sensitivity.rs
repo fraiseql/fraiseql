@@ -12,6 +12,7 @@
 //! - Case-sensitive queries could incorrectly match different cases
 //! - Data consistency would be violated
 
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used to satisfy destructuring patterns in test assertions
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 

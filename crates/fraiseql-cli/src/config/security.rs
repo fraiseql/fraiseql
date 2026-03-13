@@ -164,6 +164,20 @@ impl RateLimitConfig {
                 anyhow::bail!("{name} must be positive");
             }
         }
+        for (name, max_req) in &[
+            ("auth_start_max_requests", self.auth_start_max_requests),
+            ("auth_callback_max_requests", self.auth_callback_max_requests),
+            ("auth_refresh_max_requests", self.auth_refresh_max_requests),
+            ("auth_logout_max_requests", self.auth_logout_max_requests),
+            ("failed_login_max_requests", self.failed_login_max_requests),
+        ] {
+            if *max_req == 0 {
+                anyhow::bail!(
+                    "{name} must be at least 1; \
+                     setting it to 0 blocks all requests permanently"
+                );
+            }
+        }
         Ok(())
     }
 
@@ -223,9 +237,19 @@ impl Default for StateEncryptionConfig {
     }
 }
 
+/// Supported encryption algorithms for `[security.state_encryption]`.
+const SUPPORTED_ALGORITHMS: &[&str] = &["chacha20-poly1305", "aes-256-gcm"];
+
 impl StateEncryptionConfig {
     /// Validate state encryption configuration
     pub fn validate(&self) -> Result<()> {
+        if !SUPPORTED_ALGORITHMS.contains(&self.algorithm.as_str()) {
+            anyhow::bail!(
+                "algorithm {:?} is not supported; must be one of: {}",
+                self.algorithm,
+                SUPPORTED_ALGORITHMS.join(", ")
+            );
+        }
         if ![16, 24, 32].contains(&self.key_size) {
             anyhow::bail!("key_size must be 16, 24, or 32 bytes");
         }
@@ -386,6 +410,9 @@ impl SecurityConfig {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]                 // Reason: test code, panics acceptable
+    #![allow(clippy::field_reassign_with_default)] // Reason: test code, mutate-after-default is clearer
+
     use super::*;
 
     #[test]
@@ -417,6 +444,35 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limiting_zero_max_requests_rejected() {
+        let mut config = RateLimitConfig::default();
+        config.auth_start_max_requests = 0;
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("auth_start_max_requests"),
+            "error should name the field: {err}"
+        );
+        assert!(
+            err.to_string().contains("blocks all requests"),
+            "error should explain the impact: {err}"
+        );
+    }
+
+    #[test]
+    fn test_rate_limiting_one_max_requests_accepted() {
+        let mut config = RateLimitConfig::default();
+        config.auth_start_max_requests = 1;
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_rate_limiting_callback_zero_max_requests_rejected() {
+        let mut config = RateLimitConfig::default();
+        config.auth_callback_max_requests = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
     fn test_state_encryption_validation() {
         let mut config = StateEncryptionConfig::default();
         assert!(config.validate().is_ok());
@@ -427,6 +483,35 @@ mod tests {
         config.key_size = 32;
         config.nonce_size = 16;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_state_encryption_unsupported_algorithm_rejected() {
+        let mut config = StateEncryptionConfig::default();
+        config.algorithm = "rot13".to_string();
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("rot13"),
+            "error should name the bad algorithm: {err}"
+        );
+        assert!(
+            err.to_string().contains("chacha20-poly1305"),
+            "error should list supported algorithms: {err}"
+        );
+    }
+
+    #[test]
+    fn test_state_encryption_aes_256_gcm_accepted() {
+        let mut config = StateEncryptionConfig::default();
+        config.algorithm = "aes-256-gcm".to_string();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_state_encryption_chacha20_poly1305_accepted() {
+        let config = StateEncryptionConfig::default();
+        // default is "chacha20-poly1305"
+        assert!(config.validate().is_ok());
     }
 
     #[test]

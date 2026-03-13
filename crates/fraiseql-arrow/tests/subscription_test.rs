@@ -1,4 +1,5 @@
-//! Tests for real-time event subscription (do_exchange)
+//! Tests for real-time event subscription (`do_exchange`)
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use chrono::Utc;
 use fraiseql_arrow::{HistoricalEvent, SubscriptionManager};

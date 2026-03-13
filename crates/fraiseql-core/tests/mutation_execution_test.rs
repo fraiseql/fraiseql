@@ -1,7 +1,7 @@
 //! Integration-style tests for the mutation execution pathway (issue #294).
 //!
 //! These tests exercise `populate_error_fields` with a realistic schema and
-//! verify that scalar fields (DateTime, Int, UUID, String) are correctly
+//! verify that scalar fields (`DateTime`, Int, UUID, String) are correctly
 //! populated from `metadata` JSONB, without requiring a database.
 
 use fraiseql_core::schema::FieldDenyPolicy;

@@ -19,7 +19,8 @@ use crate::metrics_server::MetricsCollector;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// // Requires: running Axum application with a MetricsCollector instance.
 /// use axum::{Router, middleware};
 /// use fraiseql_server::middleware::metrics_middleware;
 ///
@@ -60,6 +61,16 @@ pub async fn metrics_middleware(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use axum::{
         Router,
         body::Body,

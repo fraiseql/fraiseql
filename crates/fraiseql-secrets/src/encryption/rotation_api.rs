@@ -104,6 +104,25 @@ pub struct ManualRotationRequest {
     pub dry_run: Option<bool>,
 }
 
+/// Outcome of a single manual rotation attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManualRotationStatus {
+    /// The rotation completed successfully.
+    Success,
+    /// The rotation failed; see `ManualRotationResponse::error` for details.
+    Failed,
+}
+
+impl std::fmt::Display for ManualRotationStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Success => write!(f, "success"),
+            Self::Failed => write!(f, "failed"),
+        }
+    }
+}
+
 /// Manual rotation response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManualRotationResponse {
@@ -111,8 +130,8 @@ pub struct ManualRotationResponse {
     pub new_version: u16,
     /// Old version number
     pub old_version: u16,
-    /// Rotation status: "success" or "failed"
-    pub status:      String,
+    /// Whether the rotation succeeded or failed.
+    pub status:      ManualRotationStatus,
     /// Rotation duration in milliseconds
     pub duration_ms: u64,
     /// Error message if failed
@@ -125,7 +144,7 @@ impl ManualRotationResponse {
         Self {
             new_version,
             old_version,
-            status: "success".to_string(),
+            status: ManualRotationStatus::Success,
             duration_ms,
             error: None,
         }
@@ -136,7 +155,7 @@ impl ManualRotationResponse {
         Self {
             new_version: old_version,
             old_version,
-            status: "failed".to_string(),
+            status: ManualRotationStatus::Failed,
             duration_ms: 0,
             error: Some(error.into()),
         }
@@ -828,5 +847,106 @@ mod tests {
         let display = status.to_display();
         assert_eq!(display.urgency_score, 100);
         assert!(display.recommended_action.contains("CRITICAL"));
+    }
+
+    // ── Behavioral edge-case tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_rotation_config_update_validates_zero_threshold() {
+        // Threshold of 0 is invalid (must be 1-99)
+        let update = RotationConfigUpdateRequest {
+            auto_refresh_enabled:         None,
+            refresh_check_interval_hours: None,
+            refresh_threshold_percent:    Some(0),
+            ttl_days:                     None,
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
+        };
+        assert!(update.validate().is_err());
+    }
+
+    #[test]
+    fn test_rotation_config_update_validates_zero_ttl() {
+        let update = RotationConfigUpdateRequest {
+            auto_refresh_enabled:         None,
+            refresh_check_interval_hours: None,
+            refresh_threshold_percent:    None,
+            ttl_days:                     Some(0),
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
+        };
+        assert!(update.validate().is_err());
+    }
+
+    #[test]
+    fn test_rotation_config_update_validates_zero_interval() {
+        let update = RotationConfigUpdateRequest {
+            auto_refresh_enabled:         None,
+            refresh_check_interval_hours: Some(0),
+            refresh_threshold_percent:    None,
+            ttl_days:                     None,
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
+        };
+        assert!(update.validate().is_err());
+    }
+
+    #[test]
+    fn test_rotation_config_update_valid_boundary_values() {
+        // Test the valid edges: threshold=1, ttl=1, interval=1
+        let update = RotationConfigUpdateRequest {
+            auto_refresh_enabled:         None,
+            refresh_check_interval_hours: Some(1),
+            refresh_threshold_percent:    Some(1),
+            ttl_days:                     Some(1),
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
+        };
+        assert!(update.validate().is_ok());
+    }
+
+    #[test]
+    fn test_rotation_history_query_max_limit() {
+        let query = RotationHistoryQuery {
+            limit:        Some(9999),
+            offset:       Some(0),
+            from:         None,
+            to:           None,
+            reason:       None,
+            triggered_by: None,
+            format:       None,
+        };
+        // effective_limit caps at 1000
+        assert_eq!(query.effective_limit(), 1000);
+    }
+
+    #[test]
+    fn test_config_preset_pci_dss_key_rotation() {
+        // PCI-DSS requires annual key rotation (365 days or less)
+        let config = ConfigPreset::PciDss.get_config();
+        assert!(config.ttl_days <= 365);
+        assert!(config.auto_refresh_enabled);
+    }
+
+    #[test]
+    fn test_config_preset_hipaa_shorter_rotation_than_soc2() {
+        // HIPAA is typically more aggressive on key rotation than SOC2
+        let hipaa = ConfigPreset::Hipaa.get_config();
+        let soc2 = ConfigPreset::Soc2.get_config();
+        assert!(hipaa.ttl_days <= soc2.ttl_days);
+    }
+
+    #[test]
+    fn test_rotation_history_query_default_offset() {
+        let query = RotationHistoryQuery {
+            limit:        None,
+            offset:       None,
+            from:         None,
+            to:           None,
+            reason:       None,
+            triggered_by: None,
+            format:       None,
+        };
+        assert_eq!(query.effective_offset(), 0);
     }
 }

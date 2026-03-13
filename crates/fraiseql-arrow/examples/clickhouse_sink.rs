@@ -1,14 +1,15 @@
-//! ClickHouse sink example demonstrating end-to-end event ingestion
+//! `ClickHouse` sink example demonstrating end-to-end event ingestion
+#![allow(clippy::unwrap_used, clippy::cast_possible_truncation, clippy::cast_possible_wrap, clippy::items_after_statements)]
 //!
 //! This example shows how to:
 //! 1. Create test event data
-//! 2. Convert events to Arrow RecordBatches
-//! 3. Send batches to ClickHouse via the sink
+//! 2. Convert events to Arrow `RecordBatches`
+//! 3. Send batches to `ClickHouse` via the sink
 //! 4. Verify insertion with a query
 //!
 //! # Prerequisites
 //!
-//! - ClickHouse running on localhost:8123
+//! - `ClickHouse` running on localhost:8123
 //! - Tables created via: `docker-compose -f docker-compose.clickhouse.yml up -d`
 //!
 //! # Running

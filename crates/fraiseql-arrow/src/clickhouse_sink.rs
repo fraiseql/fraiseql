@@ -1,7 +1,7 @@
-//! ClickHouse sink for consuming Arrow RecordBatches and inserting analytics events.
+//! `ClickHouse` sink for consuming Arrow `RecordBatches` and inserting analytics events.
 //!
-//! This module provides a high-performance sink that converts Arrow RecordBatches
-//! (from the NATS→Arrow bridge) into ClickHouse database events. It handles batching,
+//! This module provides a high-performance sink that converts Arrow `RecordBatches`
+//! (from the NATS→Arrow bridge) into `ClickHouse` database events. It handles batching,
 //! retry logic, and graceful shutdown.
 //!
 //! # Architecture
@@ -32,10 +32,10 @@ use tracing::{error, info, warn};
 
 use crate::error::{ArrowFlightError, Result};
 
-/// ClickHouse sink configuration
+/// `ClickHouse` sink configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClickHouseSinkConfig {
-    /// ClickHouse HTTP endpoint (e.g., "http://localhost:8123")
+    /// `ClickHouse` HTTP endpoint (e.g., `<http://localhost:8123>`)
     #[serde(default = "default_clickhouse_url")]
     pub url: String,
 
@@ -43,7 +43,7 @@ pub struct ClickHouseSinkConfig {
     #[serde(default = "default_clickhouse_database")]
     pub database: String,
 
-    /// Table name (default: "fraiseql_events")
+    /// Table name (default: `fraiseql_events`)
     #[serde(default = "default_clickhouse_table")]
     pub table: String,
 
@@ -60,17 +60,17 @@ pub struct ClickHouseSinkConfig {
     pub max_retries: usize,
 }
 
-/// Default ClickHouse URL
+/// Default `ClickHouse` URL
 fn default_clickhouse_url() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
 }
 
-/// Default ClickHouse database
+/// Default `ClickHouse` database
 fn default_clickhouse_database() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string())
 }
 
-/// Default ClickHouse table
+/// Default `ClickHouse` table
 fn default_clickhouse_table() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_TABLE").unwrap_or_else(|_| "fraiseql_events".to_string())
 }
@@ -97,6 +97,75 @@ fn default_clickhouse_max_retries() -> usize {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(3)
+}
+
+/// Validate that the `ClickHouse` URL is safe to connect to (SSRF protection).
+///
+/// Rejects:
+/// - Non-HTTP(S) schemes (file://, ftp://, etc.)
+/// - Loopback addresses (`localhost`, `127.x.x.x`, `::1`)
+/// - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
+/// - Link-local (169.254/16, fe80::/10)
+/// - CGNAT (100.64/10), ULA (fc00::/7)
+fn validate_clickhouse_url(url: &str) -> Result<()> {
+    let lower = url.to_ascii_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(ArrowFlightError::Configuration(format!(
+            "ClickHouse URL must use http:// or https:// scheme: {url}"
+        )));
+    }
+
+    // Extract the host portion (strip scheme, then take up to the first / : ? #)
+    let after_scheme = if lower.starts_with("https://") { &url[8..] } else { &url[7..] };
+    let host = after_scheme
+        .split(['/', ':', '?', '#'])
+        .next()
+        .unwrap_or("");
+
+    if is_ssrf_blocked_host_ch(host) {
+        return Err(ArrowFlightError::Configuration(format!(
+            "ClickHouse URL targets a private/loopback address (SSRF protection): {url}"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Returns `true` for hostnames/IPs that are blocked as SSRF targets.
+fn is_ssrf_blocked_host_ch(host: &str) -> bool {
+    let lower = host.to_ascii_lowercase();
+    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
+        return true;
+    }
+
+    // Literal IPv4
+    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
+        return addr.is_loopback()    // 127.0.0.0/8
+            || addr.is_private()     // 10/8, 172.16/12, 192.168/16
+            || addr.is_link_local()  // 169.254/16
+            || is_cgnat_v4(addr);    // 100.64/10
+    }
+
+    // Literal IPv6 (strip optional brackets)
+    let ipv6_host = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(addr) = ipv6_host.parse::<std::net::Ipv6Addr>() {
+        return addr.is_loopback()       // ::1
+            || addr.is_unspecified()    // ::
+            || is_ula_v6(addr);         // fc00::/7
+    }
+
+    false
+}
+
+/// Returns `true` for addresses in the CGNAT range 100.64.0.0/10.
+fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
+    let [a, b, ..] = addr.octets();
+    a == 100 && (b & 0xC0) == 64
+}
+
+/// Returns `true` for addresses in the ULA range fc00::/7.
+fn is_ula_v6(addr: std::net::Ipv6Addr) -> bool {
+    (addr.segments()[0] & 0xFE00) == 0xFC00
 }
 
 impl Default for ClickHouseSinkConfig {
@@ -150,6 +219,7 @@ impl ClickHouseSinkConfig {
                 "ClickHouse URL cannot be empty".to_string(),
             ));
         }
+        validate_clickhouse_url(&self.url)?;
         if self.database.is_empty() {
             return Err(ArrowFlightError::Configuration(
                 "ClickHouse database cannot be empty".to_string(),
@@ -174,7 +244,7 @@ impl ClickHouseSinkConfig {
     }
 }
 
-/// Event row for ClickHouse insertion
+/// Event row for `ClickHouse` insertion
 #[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
 pub struct EventRow {
     /// Unique event identifier
@@ -195,7 +265,7 @@ pub struct EventRow {
     pub org_id:      Option<String>,
 }
 
-/// ClickHouse sink for consuming Arrow RecordBatches
+/// `ClickHouse` sink for consuming Arrow `RecordBatches`
 pub struct ClickHouseSink {
     config: ClickHouseSinkConfig,
     #[cfg(feature = "clickhouse")]
@@ -203,7 +273,7 @@ pub struct ClickHouseSink {
 }
 
 impl ClickHouseSink {
-    /// Create a new ClickHouse sink with the given configuration
+    /// Create a new `ClickHouse` sink with the given configuration
     pub fn new(config: ClickHouseSinkConfig) -> Result<Self> {
         config.validate()?;
 
@@ -233,14 +303,14 @@ impl ClickHouseSink {
         }
     }
 
-    /// Run the sink, consuming RecordBatches from the channel
+    /// Run the sink, consuming `RecordBatches` from the channel
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - The channel is closed unexpectedly
-    /// - Conversion fails (Arrow → EventRow)
-    /// - ClickHouse insertion fails permanently after retries
+    /// - Conversion fails (Arrow → `EventRow`)
+    /// - `ClickHouse` insertion fails permanently after retries
     #[cfg(feature = "clickhouse")]
     pub async fn run(&self, mut rx: mpsc::Receiver<RecordBatch>) -> Result<()> {
         let mut batch_buffer: Vec<EventRow> = Vec::with_capacity(self.config.batch_size);
@@ -266,7 +336,7 @@ impl ClickHouseSink {
                 }
 
                 // Flush on timeout
-                _ = tokio::time::sleep(batch_timeout) => {
+                () = tokio::time::sleep(batch_timeout) => {
                     if !batch_buffer.is_empty() {
                         info!(count = batch_buffer.len(), "Flushing batch due to timeout");
                         self.flush_batch(&batch_buffer).await?;
@@ -277,7 +347,7 @@ impl ClickHouseSink {
         }
     }
 
-    /// Process a single Arrow RecordBatch, converting to EventRows
+    /// Process a single Arrow `RecordBatch`, converting to `EventRows`
     fn process_batch(&self, batch: &RecordBatch) -> Result<Vec<EventRow>> {
         let num_rows = batch.num_rows();
 
@@ -385,7 +455,7 @@ impl ClickHouseSink {
         Ok(rows)
     }
 
-    /// Flush a batch of rows to ClickHouse with retry logic
+    /// Flush a batch of rows to `ClickHouse` with retry logic
     #[cfg(feature = "clickhouse")]
     async fn flush_batch(&self, rows: &[EventRow]) -> Result<()> {
         let mut last_error = None;
@@ -428,7 +498,7 @@ impl ClickHouseSink {
         }))
     }
 
-    /// Attempt to insert rows into ClickHouse
+    /// Attempt to insert rows into `ClickHouse`
     #[cfg(feature = "clickhouse")]
     async fn try_insert(&self, rows: &[EventRow]) -> Result<()> {
         use clickhouse::inserter::Inserter;
@@ -458,8 +528,12 @@ impl ClickHouseSink {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use super::*;
+
+    /// A safe non-loopback URL used by tests that exercise non-URL validation paths.
+    const TEST_URL: &str = "http://clickhouse.example.com:8123";
 
     #[test]
     fn test_config_default() {
@@ -481,6 +555,7 @@ mod tests {
     #[test]
     fn test_config_validate_empty_database() {
         let config = ClickHouseSinkConfig {
+            url:      TEST_URL.to_string(),
             database: String::new(),
             ..Default::default()
         };
@@ -490,6 +565,7 @@ mod tests {
     #[test]
     fn test_config_validate_empty_table() {
         let config = ClickHouseSinkConfig {
+            url:   TEST_URL.to_string(),
             table: String::new(),
             ..Default::default()
         };
@@ -499,12 +575,14 @@ mod tests {
     #[test]
     fn test_config_validate_invalid_batch_size() {
         let config = ClickHouseSinkConfig {
+            url:        TEST_URL.to_string(),
             batch_size: 0,
             ..Default::default()
         };
         assert!(config.validate().is_err());
 
         let config = ClickHouseSinkConfig {
+            url:        TEST_URL.to_string(),
             batch_size: 200_000,
             ..Default::default()
         };
@@ -514,6 +592,7 @@ mod tests {
     #[test]
     fn test_config_validate_invalid_timeout() {
         let config = ClickHouseSinkConfig {
+            url:                TEST_URL.to_string(),
             batch_timeout_secs: 0,
             ..Default::default()
         };
@@ -522,13 +601,19 @@ mod tests {
 
     #[test]
     fn test_config_validate_valid() {
-        let config = ClickHouseSinkConfig::default();
+        let config = ClickHouseSinkConfig {
+            url: TEST_URL.to_string(),
+            ..Default::default()
+        };
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_is_transient_error() {
-        let config = ClickHouseSinkConfig::default();
+        let config = ClickHouseSinkConfig {
+            url: TEST_URL.to_string(),
+            ..Default::default()
+        };
         let sink = ClickHouseSink::new(config).unwrap();
 
         assert!(sink.is_transient_error("Connection refused"));
@@ -536,5 +621,67 @@ mod tests {
         assert!(sink.is_transient_error("TEMPORARY_ERROR"));
         assert!(sink.is_transient_error("503 Service Unavailable"));
         assert!(!sink.is_transient_error("Invalid schema"));
+    }
+
+    // --- SSRF protection tests ---
+
+    #[test]
+    fn test_clickhouse_url_scheme_must_be_http() {
+        for bad_url in &[
+            "file:///etc/passwd",
+            "ftp://clickhouse.example.com:8123",
+            "clickhouse.example.com:8123",
+        ] {
+            assert!(
+                validate_clickhouse_url(bad_url).is_err(),
+                "Expected SSRF rejection for: {bad_url}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_clickhouse_url_blocks_loopback() {
+        for url in &[
+            "http://localhost:8123",
+            "http://127.0.0.1:8123",
+            "http://127.1.2.3:8123",
+            "http://[::1]:8123",
+        ] {
+            assert!(
+                validate_clickhouse_url(url).is_err(),
+                "Expected SSRF rejection for: {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_clickhouse_url_blocks_private_ranges() {
+        for url in &[
+            "http://10.0.0.1:8123",
+            "http://172.16.0.1:8123",
+            "http://172.31.255.255:8123",
+            "http://192.168.1.100:8123",
+            "http://169.254.1.1:8123", // link-local
+            "http://100.64.0.1:8123",  // CGNAT
+        ] {
+            assert!(
+                validate_clickhouse_url(url).is_err(),
+                "Expected SSRF rejection for: {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_clickhouse_url_allows_public_addresses() {
+        for url in &[
+            "http://clickhouse.example.com:8123",
+            "https://analytics.production.example.com:8443",
+            "http://203.0.113.10:8123", // TEST-NET-3 (documentation range)
+        ] {
+            assert!(
+                validate_clickhouse_url(url).is_ok(),
+                "Expected SSRF pass for: {url}"
+            );
+        }
     }
 }

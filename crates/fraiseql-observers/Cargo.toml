@@ -7,13 +7,11 @@ base64 = "0.22"
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
 chrono = {version = "0.4", features = ["serde"]}
-clap = {version = "4.5", features = ["derive"]}
-colored = "2.1"
+clap = {version = "4.5", features = ["derive"], optional = true}
+colored = {version = "2.1", optional = true}
 dashmap = "6.1"
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
-# Observer Macros Dependencies
-fraiseql-observers-macros = {workspace = true, optional = true}
 futures = "0.3"
 http = "1.1"
 prometheus = {version = "0.14", optional = true}
@@ -25,10 +23,11 @@ serde_json = "1.0"
 sha2 = "0.10"
 # sqlx with multiple database backends (features enabled conditionally)
 sqlx = {version = "0.8", features = ["runtime-tokio", "uuid", "chrono"]}
-tabwriter = "1.4"
+tabwriter = {version = "1.4", optional = true}
 thiserror = "2.0"
 # SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
-tiberius = {version = "0.12", default-features = false, features = ["rustls", "chrono"], optional = true}
+# SECURITY: use native-tls instead of rustls to avoid EOL rustls 0.21 (GHSA-6g18-jhpc-69jc)
+tiberius = {version = "0.12", default-features = false, features = ["native-tls", "chrono"], optional = true}
 tokio = {version = "1.45", features = ["full"]}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
 tracing = "0.1"
@@ -36,19 +35,25 @@ uuid = {version = "1.0", features = ["v4", "serde"]}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+proptest = {workspace = true}
+temp-env = {workspace = true}
 tokio-test = "0.4"
+wiremock = "0.6"
 
 [features]
 all-db = ["postgres", "mysql", "mssql"]
+analytics = ["arrow"]
 # Arrow Features
 arrow = ["fraiseql-arrow", "dep:arrow"]
 caching = ["redis"]
 checkpoint = []
+cli = ["dep:clap", "dep:colored", "dep:tabwriter"]
 dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]
-# Macro Features
-macros = ["fraiseql-observers-macros"]
+# Descriptive bundles
+enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 metrics = ["prometheus"]
 # SQL Server uses tiberius crate (sqlx doesn't support MSSQL in v0.8)
 mssql = ["tiberius", "tokio-util", "bb8", "bb8-tiberius"]
@@ -57,13 +62,6 @@ multi-db = ["postgres", "mysql"]
 mysql = ["sqlx/mysql"]
 # NATS Features
 nats = ["async-nats"]
-# Descriptive bundles — use these instead of the deprecated phase aliases below.
-enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
-analytics = ["macros", "arrow"]
-# NOTE: phase8/phase9 are deprecated aliases from development. Use enterprise/analytics instead.
-# Will be removed in 2.3.0.
-phase8 = ["enterprise"]
-phase9 = ["analytics"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
 queue = ["redis"]

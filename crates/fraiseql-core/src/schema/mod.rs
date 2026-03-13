@@ -24,7 +24,8 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema JSON file from `fraiseql-cli compile`.
 //! use fraiseql_core::schema::CompiledSchema;
 //!
 //! // From schema.compiled.json produced by `fraiseql-cli compile`
@@ -43,27 +44,41 @@ mod config_types;
 mod dependency_graph;
 pub mod domain_types;
 mod field_type;
+pub mod graphql_value;
+mod graphql_type_defs;
 mod introspection;
+pub mod introspection_types;
+mod observer_types;
 mod scalar_types;
+pub mod security_config;
+mod subscription_types;
 
 pub use compiled::{
-    ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
-    DirectiveLocationKind, EnumDefinition, EnumValueDefinition, FilterOperator,
-    InjectedParamSource, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
-    MutationDefinition, MutationOperation, ObserverDefinition, QueryDefinition, RetryConfig,
-    RoleDefinition, SecurityConfig, SqlProjectionHint, StaticFilterCondition,
-    SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
+    ArgumentDefinition, AutoParams, CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION, CursorType,
+    DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
+    QueryDefinition, is_safe_sql_identifier,
 };
+pub use graphql_type_defs::{
+    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
+};
+pub use observer_types::{ObserverDefinition, RetryConfig};
+pub use subscription_types::{
+    FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
+};
+pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
-    EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,
-    FederationEntity, FieldAuthRule, ObserversConfig,
+    DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
+    FederationConfig, FederationEntity, FieldAuthRule, McpConfig, ObserversConfig,
+    SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
     FieldType, VectorConfig, VectorIndexType,
 };
+pub use graphql_value::GraphQLValue;
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,

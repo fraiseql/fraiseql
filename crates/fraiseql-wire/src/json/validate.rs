@@ -4,7 +4,7 @@ use crate::protocol::{BackendMessage, FieldDescription};
 use crate::util::oid::is_json_oid;
 use crate::{Error, Result};
 
-/// Validate that RowDescription matches our requirements
+/// Validate that `RowDescription` matches our requirements
 pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,
@@ -40,7 +40,7 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
     Ok(())
 }
 
-/// Extract field description from RowDescription
+/// Extract field description from `RowDescription`
 pub fn extract_field_description(msg: &BackendMessage) -> Result<FieldDescription> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,

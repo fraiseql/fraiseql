@@ -16,6 +16,8 @@ use fraiseql_core::{
 use serde_json::json;
 use tokio_postgres::NoTls;
 
+use crate::output::OutputFormatter;
+
 /// Output format for introspection results.
 #[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
@@ -74,9 +76,9 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql introspect facts --database postgresql://localhost/mydb --format python
 /// ```
-pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
-    eprintln!("🔍 Introspecting database for fact tables...");
-    eprintln!("   Database: {database_url}");
+pub async fn run(database_url: &str, format: OutputFormat, formatter: &OutputFormatter) -> Result<()> {
+    formatter.progress("Introspecting database for fact tables...");
+    formatter.progress(&format!("   Database: {database_url}"));
 
     // Create database introspector
     let introspector = create_introspector(database_url).await?;
@@ -88,16 +90,16 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to list fact tables: {e}"))?;
 
     if fact_tables.is_empty() {
-        eprintln!("\n⚠️  No fact tables found (tables starting with 'tf_')");
-        eprintln!("   Fact tables should be named like: tf_sales, tf_events, tf_orders");
+        formatter.progress("\nwarn: No fact tables found (tables starting with 'tf_')");
+        formatter.progress("   Fact tables should be named like: tf_sales, tf_events, tf_orders");
         return Ok(());
     }
 
-    eprintln!("\n📋 Found {} fact table(s):", fact_tables.len());
+    formatter.progress(&format!("\nFound {} fact table(s):", fact_tables.len()));
     for table in &fact_tables {
-        eprintln!("   - {table}");
+        formatter.progress(&format!("   - {table}"));
     }
-    eprintln!();
+    formatter.progress("");
 
     // Introspect each fact table
     let mut metadata_list: Vec<FactTableMetadata> = Vec::new();
@@ -116,11 +118,11 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
 
     // Report any errors
     if !errors.is_empty() {
-        eprintln!("⚠️  Failed to introspect {} table(s):", errors.len());
+        formatter.progress(&format!("warn: Failed to introspect {} table(s):", errors.len()));
         for (table, error) in &errors {
-            eprintln!("   - {table}: {error}");
+            formatter.progress(&format!("   - {table}: {error}"));
         }
-        eprintln!();
+        formatter.progress("");
     }
 
     // Output results
@@ -196,10 +198,10 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
         },
     }
 
-    eprintln!("\n✅ Introspection complete");
-    eprintln!("   {} table(s) introspected successfully", metadata_list.len());
+    formatter.progress("\nok: Introspection complete");
+    formatter.progress(&format!("   {} table(s) introspected successfully", metadata_list.len()));
     if !errors.is_empty() {
-        eprintln!("   {} table(s) failed", errors.len());
+        formatter.progress(&format!("   {} table(s) failed", errors.len()));
     }
 
     Ok(())

@@ -1,5 +1,7 @@
-// Audit logging module for security-critical operations
-// Tracks all secret access, authentication events, and security decisions
+//! Audit logging for security-critical authentication operations.
+//!
+//! Tracks all secret access, authentication events, and security decisions.
+//! See the [`AuditLogger`] trait and [`StructuredAuditLogger`] for usage.
 //
 // # Bounds Documentation
 //
@@ -65,25 +67,46 @@ pub mod bounds {
     pub const BYTES_PER_ENTRY: usize = 4096;
 }
 
-/// Audit log event types
+/// Discriminates the kind of security event recorded in an [`AuditEntry`].
+///
+/// Each variant maps directly to one of the operations performed by the auth layer.
+/// String representations (via [`AuditEventType::as_str`]) are stable across releases
+/// and are the values written to log sinks and compliance audit trails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuditEventType {
+    /// A JWT was checked for validity (signature, expiry, claims).
     JwtValidation,
+    /// A JWT access token was refreshed using a refresh token.
     JwtRefresh,
+    /// OIDC client credentials were accessed from the secret store.
     OidcCredentialAccess,
+    /// An authorization code was exchanged for OIDC tokens.
     OidcTokenExchange,
+    /// A new session token pair (access + refresh) was issued.
     SessionTokenCreated,
+    /// A session token was validated against the session store.
     SessionTokenValidation,
+    /// A session token was explicitly revoked (logout).
     SessionTokenRevoked,
+    /// An OAuth CSRF state token was generated for a new authorization flow.
     CsrfStateGenerated,
+    /// An incoming OAuth callback's `state` parameter was validated.
     CsrfStateValidated,
+    /// An OAuth authorization flow was initiated (`/auth/start`).
     OauthStart,
+    /// The OAuth provider redirected back (`/auth/callback`).
     OauthCallback,
+    /// An authentication flow completed successfully.
     AuthSuccess,
+    /// An authentication attempt failed.
     AuthFailure,
 }
 
 impl AuditEventType {
+    /// Return a stable, lowercase snake_case string representation of this event type.
+    ///
+    /// These strings are written to log sinks and compliance systems and will not
+    /// change between releases.
     pub fn as_str(&self) -> &'static str {
         match self {
             AuditEventType::JwtValidation => "jwt_validation",
@@ -103,19 +126,33 @@ impl AuditEventType {
     }
 }
 
-/// Secret type being accessed
+/// Classifies the secret credential that was accessed or operated on.
+///
+/// Used in [`AuditEntry`] to identify the category of credential involved in a
+/// security event.  This enables compliance queries such as "show all events
+/// involving client secrets" or "which refresh tokens were revoked today".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SecretType {
+    /// A JWT access token (short-lived bearer credential).
     JwtToken,
+    /// A session token issued by FraiseQL's session store.
     SessionToken,
+    /// An OAuth 2.0 client secret used for provider authentication.
     ClientSecret,
+    /// A long-lived refresh token used to obtain new access tokens.
     RefreshToken,
+    /// A one-time authorization code returned by the OAuth provider.
     AuthorizationCode,
+    /// An OAuth `state` token used to carry CSRF and flow metadata.
     StateToken,
+    /// A CSRF token used to bind a user-agent session to an OAuth flow.
     CsrfToken,
 }
 
 impl SecretType {
+    /// Return a stable, lowercase snake_case string representation of this secret type.
+    ///
+    /// Written to log sinks and compliance systems; will not change between releases.
     pub fn as_str(&self) -> &'static str {
         match self {
             SecretType::JwtToken => "jwt_token",
@@ -236,10 +273,18 @@ pub trait AuditLogger: Send + Sync {
     }
 }
 
-/// Structured logging audit logger - uses tracing for audit events
+/// Audit logger that emits structured log records via [`tracing`].
+///
+/// Successful operations are logged at `INFO` level; failures at `WARN` level.
+/// All fields of the [`AuditEntry`] are included as tracing fields so that
+/// log aggregators (Loki, Elasticsearch, Splunk, etc.) can filter and query them.
+///
+/// This is the default logger used when [`init_audit_logger`] is never called.
+/// For production compliance requirements, consider a database-backed logger.
 pub struct StructuredAuditLogger;
 
 impl StructuredAuditLogger {
+    /// Create a new `StructuredAuditLogger`.
     pub fn new() -> Self {
         Self
     }
@@ -276,7 +321,16 @@ impl AuditLogger for StructuredAuditLogger {
     }
 }
 
-/// Global audit logger instance
+/// Global audit logger instance.
+///
+/// Initialized once per process via [`init_audit_logger`]. Subsequent calls to
+/// `init_audit_logger` are silently ignored — the first caller wins.
+///
+/// **Test isolation**: In a test binary all tests share this singleton. The first
+/// test that calls `init_audit_logger` sets the logger for the entire process; later
+/// tests see that logger regardless of what they pass. Do not assert on specific
+/// logger state across test functions in the same binary. Use
+/// [`get_audit_logger`] to read the current value.
 pub static AUDIT_LOGGER: std::sync::OnceLock<Arc<dyn AuditLogger>> = std::sync::OnceLock::new();
 
 /// Initialize the global audit logger
@@ -289,8 +343,17 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
     AUDIT_LOGGER.get_or_init(|| Arc::new(StructuredAuditLogger::new())).clone()
 }
 
-/// Helper trait for audit logging results
-/// Makes it easy to add audit logging to Result types
+/// Extension trait that adds audit logging to any `Result<T, E>`.
+///
+/// Calling `.audit_log(...)` on a result logs the success or failure via the
+/// global [`AuditLogger`] and then returns the result unchanged.  This allows
+/// audit logging to be inserted into call chains without altering the return type:
+///
+/// ```ignore
+/// let claims = validator
+///     .validate(token, &public_key)
+///     .audit_log(AuditEventType::JwtValidation, SecretType::JwtToken, None, "validate")?;
+/// ```
 pub trait AuditableResult<T, E> {
     /// Log success or failure of a result
     fn audit_log(
@@ -321,10 +384,12 @@ impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     struct TestAuditLogger {

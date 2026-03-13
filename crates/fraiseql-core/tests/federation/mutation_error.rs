@@ -1,5 +1,6 @@
 //! Mutation error scenarios.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::{
     mutation_executor::FederationMutationExecutor,
     mutation_query_builder::{build_insert_query, build_update_query},
@@ -20,7 +21,7 @@ fn test_mutation_entity_not_found() {
 
     // Query builds successfully but returns error when executed against DB
     let query = build_update_query("User", &variables, &metadata).unwrap();
-    assert!(query.contains("WHERE id = 'nonexistent_user'"));
+    assert!(query.contains("WHERE \"id\" = 'nonexistent_user'"), "Expected quoted column in: {query}");
 }
 
 #[test]

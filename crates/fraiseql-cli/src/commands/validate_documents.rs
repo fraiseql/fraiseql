@@ -12,6 +12,8 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::output::OutputFormatter;
+
 /// Validation result for a single document entry.
 struct EntryResult {
     key:   String,
@@ -19,21 +21,49 @@ struct EntryResult {
     error: Option<String>,
 }
 
+const SUPPORTED_MANIFEST_VERSION: u32 = 1;
+
+/// Maximum manifest file size accepted (10 MiB).
+///
+/// Manifests larger than this limit are rejected before reading into memory to
+/// prevent trivial OOM attacks via a crafted large file.
+const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024;
+
 #[derive(Deserialize)]
 struct Manifest {
-    #[allow(dead_code)]
     version:   u32,
     documents: HashMap<String, String>,
 }
 
 /// Run the `validate-documents` command.
-pub fn run(manifest_path: &str) -> Result<bool> {
+pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
+
+    // Reject oversized files before reading into memory.
+    let metadata = std::fs::metadata(path)
+        .context(format!("Failed to read manifest: {manifest_path}"))?;
+    if metadata.len() > MAX_MANIFEST_BYTES {
+        anyhow::bail!(
+            "Manifest file {manifest_path} is too large ({} bytes); \
+             the maximum accepted size is {} bytes (10 MiB)",
+            metadata.len(),
+            MAX_MANIFEST_BYTES,
+        );
+    }
+
     let contents = std::fs::read_to_string(path)
         .context(format!("Failed to read manifest: {manifest_path}"))?;
 
     let manifest: Manifest = serde_json::from_str(&contents)
         .context(format!("Failed to parse manifest JSON: {manifest_path}"))?;
+
+    if manifest.version != SUPPORTED_MANIFEST_VERSION {
+        anyhow::bail!(
+            "Unsupported manifest version {}; this version of fraiseql-cli supports version {}",
+            manifest.version,
+            SUPPORTED_MANIFEST_VERSION,
+        );
+    }
 
     let total = manifest.documents.len();
     let mut results: Vec<EntryResult> = Vec::with_capacity(total);
@@ -75,28 +105,65 @@ pub fn run(manifest_path: &str) -> Result<bool> {
     let error_count = results.iter().filter(|r| !r.valid).count();
 
     // Print summary
-    println!("Trusted documents manifest: {manifest_path}");
-    println!("Total documents: {total}");
-    println!("Valid: {valid_count}");
+    formatter.progress(&format!("Trusted documents manifest: {manifest_path}"));
+    formatter.progress(&format!("Total documents: {total}"));
+    formatter.progress(&format!("Valid: {valid_count}"));
 
     if error_count > 0 {
-        println!("Errors: {error_count}");
-        println!();
+        formatter.progress(&format!("Errors: {error_count}"));
+        formatter.progress("");
         for r in &results {
             if let Some(ref err) = r.error {
-                println!("  {} — {err}", r.key);
+                formatter.progress(&format!("  {} - {err}", r.key));
             }
         }
         Ok(false)
     } else {
-        println!("All documents valid.");
+        formatter.progress("All documents valid.");
         Ok(true)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
+    use crate::output::OutputFormatter;
+
+    #[test]
+    fn test_rejects_manifest_exceeding_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.json");
+
+        // Write a file of MAX_MANIFEST_BYTES + 1 bytes (just over the limit).
+        let size = usize::try_from(MAX_MANIFEST_BYTES).unwrap() + 1;
+        std::fs::write(&path, vec![b'x'; size]).unwrap();
+
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("too large"), "expected size error, got: {msg}");
+    }
+
+    #[test]
+    fn test_rejects_unknown_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("manifest.json");
+
+        let manifest = serde_json::json!({
+            "version": 99,
+            "documents": {}
+        });
+        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
+
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Unsupported manifest version"), "expected version error, got: {msg}");
+    }
 
     #[test]
     fn valid_manifest_passes() {
@@ -113,7 +180,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(result);
     }
 
@@ -130,7 +198,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(!result);
     }
 
@@ -147,7 +216,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(!result);
     }
 }

@@ -5,6 +5,12 @@
 //! - Memory usage during analysis
 //! - Latency percentiles (p50, p95, p99)
 
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::format_push_string)] // Reason: bench builders use push_str(&format!()) for readability
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+#![allow(clippy::needless_pass_by_ref_mut)] // Reason: bench helper takes &mut for API uniformity but doesn't mutate
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#![allow(clippy::match_same_arms)] // Reason: bench match arms are intentionally explicit for clarity
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::design::DesignAudit;
 
@@ -146,7 +152,7 @@ fn design_analysis_complex(c: &mut Criterion) {
 fn design_analysis_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("design_analysis_suite");
 
-    for schema_type in ["minimal", "typical", "complex"].iter() {
+    for schema_type in &["minimal", "typical", "complex"] {
         group.bench_with_input(
             BenchmarkId::from_parameter(schema_type),
             schema_type,

@@ -152,6 +152,7 @@ pub trait CacheBackendDyn: Send + Sync {
     fn ttl_seconds(&self) -> u64;
 }
 
+
 /// Cached action result with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedActionResult {

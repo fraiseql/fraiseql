@@ -41,7 +41,8 @@
 //!
 //! ## Integration with AuthenticatedUser
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: AuthenticatedUser from live JWT validation.
 //! use fraiseql_core::security::{AuthenticatedUser, FieldFilter};
 //!
 //! fn check_field_access(
@@ -240,7 +241,7 @@ pub struct FieldFilter {
 impl FieldFilter {
     /// Create a new field filter with the given configuration
     #[must_use]
-    pub fn new(config: FieldFilterConfig) -> Self {
+    pub const fn new(config: FieldFilterConfig) -> Self {
         Self { config }
     }
 
@@ -331,7 +332,7 @@ impl FieldFilter {
 
     /// Get the configuration (for inspection/debugging)
     #[must_use]
-    pub fn config(&self) -> &FieldFilterConfig {
+    pub const fn config(&self) -> &FieldFilterConfig {
         &self.config
     }
 }
@@ -384,6 +385,8 @@ impl FieldFilterBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     // ========================================================================

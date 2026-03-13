@@ -1,6 +1,12 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_wrap)] // Reason: test data casts
+#![allow(clippy::items_after_statements)] // Reason: test helper closures defined near use site
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize→f64 for reporting
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+
 //! Extended property-based tests for wire protocol correctness.
 //!
-//! Builds on property_protocol.rs with additional properties covering
+//! Builds on `property_protocol.rs` with additional properties covering
 //! message framing, encoding consistency, and edge cases.
 
 use bytes::{BufMut, BytesMut};

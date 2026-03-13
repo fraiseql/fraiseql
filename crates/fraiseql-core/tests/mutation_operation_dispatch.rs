@@ -25,7 +25,7 @@ fn test_mutation_and_query_are_distinct() {
     // The key invariant: mutations and queries are separate fields in CompiledSchema
     // They cannot be confused at compile time (Rust type system enforces this)
     let _mutations_vec: Vec<_> = schema.mutations.clone();
-    let _queries_vec: Vec<_> = schema.queries.clone();
+    let _queries_vec: Vec<_> = schema.queries;
 
     // This test verifies the schema structure exists (no panics above)
 }

@@ -79,12 +79,12 @@ fraiseql-groovy/
 │       └── SecuritySpec.groovy
 ├── build.gradle
 ├── README.md
-└── GROOVY_FEATURE_PARITY.md
+└── groovy-feature-parity.md
 ```
 
 ## Documentation
 
-- [GROOVY_FEATURE_PARITY.md](./GROOVY_FEATURE_PARITY.md) - Feature parity status
+- [groovy-feature-parity.md](./groovy-feature-parity.md) - Feature parity status
 - [Groovy Documentation](https://groovy-lang.org/documentation.html)
 - [Spock Framework](http://spockframework.org/)
 

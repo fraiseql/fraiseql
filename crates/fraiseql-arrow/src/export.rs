@@ -1,6 +1,6 @@
 //! Bulk export functionality for multiple data formats.
 //!
-//! Supports exporting Arrow RecordBatches to Parquet, CSV, and JSON formats.
+//! Supports exporting Arrow `RecordBatches` to Parquet, CSV, and JSON formats.
 
 use std::str::FromStr;
 
@@ -48,7 +48,7 @@ impl ExportFormat {
 
     /// Get file extension for this format.
     #[must_use]
-    pub fn extension(&self) -> &'static str {
+    pub const fn extension(&self) -> &'static str {
         match self {
             Self::Parquet => "parquet",
             Self::Csv => "csv",
@@ -58,7 +58,7 @@ impl ExportFormat {
 
     /// Get MIME type for this format.
     #[must_use]
-    pub fn mime_type(&self) -> &'static str {
+    pub const fn mime_type(&self) -> &'static str {
         match self {
             Self::Parquet => "application/octet-stream",
             Self::Csv => "text/csv",
@@ -67,15 +67,15 @@ impl ExportFormat {
     }
 }
 
-/// Bulk exporter for converting Arrow RecordBatches to various formats.
+/// Bulk exporter for converting Arrow `RecordBatches` to various formats.
 pub struct BulkExporter;
 
 impl BulkExporter {
-    /// Export a RecordBatch to the specified format.
+    /// Export a `RecordBatch` to the specified format.
     ///
     /// # Arguments
     ///
-    /// * `batch` - Arrow RecordBatch to export
+    /// * `batch` - Arrow `RecordBatch` to export
     /// * `format` - Target export format
     ///
     /// # Returns
@@ -93,7 +93,7 @@ impl BulkExporter {
         }
     }
 
-    /// Export RecordBatch to Parquet format.
+    /// Export `RecordBatch` to Parquet format.
     ///
     /// Parquet provides efficient columnar storage with compression.
     /// Ideal for large datasets and analytical workloads.
@@ -116,7 +116,7 @@ impl BulkExporter {
         Ok(buf)
     }
 
-    /// Export RecordBatch to CSV format.
+    /// Export `RecordBatch` to CSV format.
     ///
     /// CSV is widely compatible and human-readable.
     /// Good for data interchange and spreadsheet applications.
@@ -134,7 +134,7 @@ impl BulkExporter {
         Ok(buf)
     }
 
-    /// Export RecordBatch to JSON Lines format (NDJSON).
+    /// Export `RecordBatch` to JSON Lines format (NDJSON).
     ///
     /// Each row is a separate JSON object (one per line).
     /// Good for streaming and log-based consumption.
@@ -170,7 +170,7 @@ impl BulkExporter {
     }
 }
 
-/// Statistics about an exported RecordBatch
+/// Statistics about an exported `RecordBatch`
 #[derive(Debug, Clone)]
 pub struct BatchStats {
     /// Number of rows
@@ -195,6 +195,7 @@ impl BatchStats {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use std::sync::Arc;
 
@@ -321,5 +322,113 @@ mod tests {
         assert!(csv.is_ok());
         assert!(json.is_ok());
         assert!(parquet.is_ok());
+    }
+
+    // --- Additional export format tests ---
+
+    #[test]
+    fn test_export_format_parse_trait_lowercase_csv() {
+        let fmt: ExportFormat = "csv".parse().unwrap();
+        assert_eq!(fmt, ExportFormat::Csv);
+    }
+
+    #[test]
+    fn test_export_format_parse_trait_uppercase_json() {
+        let fmt: ExportFormat = "JSON".parse().unwrap();
+        assert_eq!(fmt, ExportFormat::Json);
+    }
+
+    #[test]
+    fn test_export_format_parse_trait_mixed_case_parquet() {
+        let fmt: ExportFormat = "Parquet".parse().unwrap();
+        assert_eq!(fmt, ExportFormat::Parquet);
+    }
+
+    #[test]
+    fn test_export_format_parse_unknown_returns_err() {
+        let result: Result<ExportFormat, _> = "avro".parse();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unsupported export format"));
+    }
+
+    #[test]
+    fn test_export_format_clone_and_eq() {
+        let fmt = ExportFormat::Parquet;
+        let cloned = fmt;
+        assert_eq!(fmt, cloned);
+    }
+
+    #[test]
+    fn test_csv_export_contains_all_row_data() {
+        let batch = create_test_batch();
+        let bytes = BulkExporter::export_batch(&batch, ExportFormat::Csv).unwrap();
+        let csv_str = String::from_utf8(bytes).unwrap();
+        assert!(csv_str.contains("Bob"));
+        assert!(csv_str.contains("Charlie"));
+    }
+
+    #[test]
+    fn test_json_export_contains_all_row_data() {
+        let batch = create_test_batch();
+        let bytes = BulkExporter::export_batch(&batch, ExportFormat::Json).unwrap();
+        let json_str = String::from_utf8(bytes).unwrap();
+        assert!(json_str.contains("Bob"));
+        assert!(json_str.contains("Charlie"));
+    }
+
+    #[test]
+    fn test_parquet_export_ends_with_magic_bytes() {
+        let batch = create_test_batch();
+        let bytes = BulkExporter::export_batch(&batch, ExportFormat::Parquet).unwrap();
+        // Parquet files start AND end with "PAR1"
+        assert_eq!(&bytes[0..4], b"PAR1");
+        let len = bytes.len();
+        assert!(len >= 4);
+        assert_eq!(&bytes[len - 4..], b"PAR1");
+    }
+
+    #[test]
+    fn test_batch_stats_empty_batch_has_zero_rows() {
+        let schema = Schema::new(vec![Field::new("x", DataType::Utf8, false)]);
+        let empty_str_vec: Vec<&str> = vec![];
+        let empty_array = Arc::new(StringArray::from(empty_str_vec)) as ArrayRef;
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![empty_array])
+            .expect("should create empty batch");
+        let stats = BulkExporter::batch_stats(&batch);
+        assert_eq!(stats.num_rows, 0);
+        assert_eq!(stats.num_columns, 1);
+    }
+
+    #[test]
+    fn test_batch_stats_summary_format() {
+        let batch = create_test_batch();
+        let stats = BulkExporter::batch_stats(&batch);
+        let summary = stats.summary();
+        // Should include rows, columns, MB
+        assert!(summary.contains("rows"));
+        assert!(summary.contains("columns"));
+        assert!(summary.contains("MB"));
+    }
+
+    #[test]
+    fn test_json_export_is_valid_ndjson() {
+        let batch = create_test_batch();
+        let bytes = BulkExporter::export_batch(&batch, ExportFormat::Json).unwrap();
+        let json_str = String::from_utf8(bytes).unwrap();
+        // Each non-empty line should be valid JSON
+        let non_empty_lines: Vec<&str> =
+            json_str.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert!(!non_empty_lines.is_empty(), "expected at least one line");
+        for line in non_empty_lines {
+            let parsed: Result<serde_json::Value, _> = serde_json::from_str(line);
+            assert!(parsed.is_ok(), "line is not valid JSON: {line}");
+        }
+    }
+
+    #[test]
+    fn test_export_format_debug_is_nonempty() {
+        let fmt = ExportFormat::Csv;
+        let s = format!("{fmt:?}");
+        assert!(!s.is_empty());
     }
 }

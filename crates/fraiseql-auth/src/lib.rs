@@ -3,22 +3,19 @@
 //! Handles JWT validation, OAuth/OIDC flows, session management, and authorization.
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)] // Reason: migrated from fraiseql-server; docs are a separate effort
-#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
-#![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain
+// module_name_repetitions, must_use_candidate, similar_names, unnecessary_wraps:
+// allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
 #![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
 #![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
-#![allow(clippy::similar_names)] // Reason: domain terms are conventional pairs
 #![allow(clippy::unused_self)] // Reason: trait implementations require &self
-#![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result
-#![allow(clippy::too_many_lines)] // Reason: OAuth/OIDC flows are inherently verbose
+//  clippy::too_many_lines — removed from module level; applied per-function where warranted.
+//  clippy::wildcard_imports — removed from module level; applied per-site on `use super::*`.
 #![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags
 #![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
 #![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
 #![allow(clippy::return_self_not_must_use)] // Reason: builder pattern compatibility
-#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
 #![allow(clippy::items_after_statements)] // Reason: helper structs near point of use in tests
 #![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for metrics
 #![allow(clippy::cast_sign_loss)] // Reason: timestamp values are positive
@@ -38,7 +35,6 @@
 #![allow(clippy::map_unwrap_or)] // Reason: map().unwrap_or() reads left-to-right
 #![allow(clippy::cast_lossless)] // Reason: explicit cast preferred for readability
 #![allow(clippy::unnecessary_map_or)] // Reason: map_or reads left-to-right at call site
-#![allow(clippy::duration_suboptimal_units)] // Reason: explicit millis clearer for timeout configs
 #![allow(clippy::single_char_pattern)] // Reason: single-char str patterns are conventional
 #![allow(clippy::float_cmp)] // Reason: exact float comparison intentional in timing tests
 #![allow(clippy::ignored_unit_patterns)] // Reason: _ pattern in Ok(()) destructuring
@@ -105,8 +101,8 @@ pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oauth::{
-    ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client, OAuth2ClientConfig,
-    OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig, PKCEChallenge,
+    AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
+    OAuth2ClientConfig, OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig, PKCEChallenge,
     ProviderFailoverManager, ProviderRegistry, ProviderType, StateParameter, TokenRefreshScheduler,
     TokenRefreshWorker, TokenRefresher,
 };
@@ -115,7 +111,7 @@ pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
-pub use rate_limiting::{KeyedRateLimiter, RateLimitConfig, RateLimiters};
+pub use rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter, RateLimiters};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
     SecurityConfigFromSchema, StateEncryptionSettings,

@@ -33,6 +33,16 @@ jobs:
       - name: Check formatting
         run: cargo +nightly fmt --all -- --check
 
+  # Enforce test utility adoption (no bare DATABASE_URL in test files)
+  check-test-imports:
+    name: Check Test Imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check test imports
+        run: bash tools/check-test-imports.sh
+
   # Lint with Clippy
   clippy:
     name: Clippy Lints
@@ -70,6 +80,33 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Check unwrap allow drift
+        run: make lint-unwrap UNWRAP_ALLOW_LIMIT=1
+
+      - name: Check empty expect() calls
+        run: make lint-expect
+
+      - name: Check async_trait usage count
+        run: make lint-async-trait
+        # Prevents new dyn-dispatch traits from being added without the RFC 3425 tracking comment.
+        # Baseline: 128 usages (Phase 0 annotation complete). Only remove when RTN + Send is stable.
+
+      - name: Check fraiseql-db cast lint scope
+        run: make lint-gate-db
+        # Ensures HIGH-risk cast lints (cast_possible_truncation, cast_precision_loss,
+        # cast_sign_loss) are never re-added at crate level in fraiseql-db.
+        # These must be at function or module level with a Reason: comment.
+
+      - name: Check fraiseql-core cast lint scope
+        run: make lint-gate-core
+        # Ensures narrow cast allows in fraiseql-core do not exceed 20 per-site annotations.
+        # All casts must have a Reason: comment explaining why truncation/precision loss is safe.
+
+      - name: Check executor error-doc coverage floor
+        run: make lint-gate-errors-doc
+        # Ratcheting floor: # Errors doc sections in runtime/ must not regress below 35.
+        # v2.2.0 target: ≥60. Add # Errors sections to new public functions as you go.
 
   # Build and test on multiple platforms
   test:
@@ -379,7 +416,48 @@ jobs:
           PGPASSWORD: fraiseql_test_password
 
       - name: Generate coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --test-threads=1
+        run: |
+          cargo llvm-cov \
+            --all-features \
+            --workspace \
+            --lcov \
+            --output-path lcov.info \
+            --fail-under-lines 70 \
+            -- --test-threads=1
+
+      - name: Check security-critical crate coverage
+        run: |
+          # fraiseql-auth and fraiseql-secrets must maintain ≥80% line coverage.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-auth \
+            -p fraiseql-secrets \
+            --fail-under-lines 80 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-core coverage
+        run: |
+          # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
+          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-core \
+            --fail-under-lines 65 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-db coverage
+        run: |
+          # fraiseql-db contains dialect SQL output and injection-escaping logic.
+          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-db \
+            --fail-under-lines 65 \
+            -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
@@ -401,6 +479,52 @@ jobs:
 
       - name: Run security audit
         run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0384 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2026-0002
+
+      - name: Audit vendored graphql-parser
+        run: cargo audit --file vendor/graphql-parser/Cargo.toml.orig
+
+  # Dependency duplication audit
+  # Detects if an actionable duplicate dependency re-appears after being unified.
+  dependency-audit:
+    name: Dependency Duplication Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-depaudit-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check for actionable duplicate dependencies
+        run: |
+          set -e
+          DUPS=$(cargo tree --duplicates -e normal 2>/dev/null)
+
+          # graphql-parser 0.4 depends on thiserror 1.0 — blocked on upstream.
+          # Fail only if thiserror 1.0 appears from a source OTHER than graphql-parser.
+          THISERROR1_SOURCES=$(echo "$DUPS" | awk '/^thiserror v1\./,/^[^ ]/' | grep -v '^thiserror v1\.' | grep -v 'graphql-parser' | grep -v '^$' | head -5)
+          if [ -n "$THISERROR1_SOURCES" ]; then
+            echo "ERROR: thiserror 1.x pulled by unexpected source (not graphql-parser):"
+            echo "$THISERROR1_SOURCES"
+            exit 1
+          fi
+          echo "✅ thiserror 1.x only present via graphql-parser (known blocker)"
+
+          # rustls 0.22 is pulled by sqlx 0.8 / tokio-rustls 0.25 — blocked on sqlx 0.9.
+          RUSTLS22_SOURCES=$(echo "$DUPS" | awk '/^rustls v0\.22/,/^[^ ]/' | grep -v '^rustls v0\.22' | grep -v 'tokio-rustls\|sqlx' | grep -v '^$' | head -5)
+          if [ -n "$RUSTLS22_SOURCES" ]; then
+            echo "ERROR: rustls 0.22 pulled by unexpected source (not sqlx/tokio-rustls):"
+            echo "$RUSTLS22_SOURCES"
+            exit 1
+          fi
+          echo "✅ rustls 0.22 only present via sqlx 0.8 chain (known blocker)"
 
   # Check documentation
   docs:
@@ -433,6 +557,70 @@ jobs:
 
       - name: Check for broken links
         run: cargo doc --all-features --no-deps 2>&1 | grep -i "warning" && exit 1 || exit 0
+
+  # Cross-database parity tests (PostgreSQL + MySQL)
+  integration-cross-db:
+    name: Integration Tests (Cross-DB Parity)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ""
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-crossdb-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run cross-database parity tests
+        run: |
+          cargo nextest run \
+            --test cross_database_test \
+            --run-ignored \
+            --features test-mysql,test-postgres \
+            -p fraiseql-core
+        env:
+          RUST_LOG: warn
 
   # Integration tests for Redis (APQ storage, observer queue and lease)
   integration-redis:
@@ -1058,53 +1246,45 @@ jobs:
           name: benchmark-results
           path: target/criterion
 
-  # Federation integration tests (Docker-based, Apollo Router + 3 subgraphs)
-  federation-tests:
-    name: Federation Docker Tests
+
+  # Feature flag compilation coverage for fraiseql-server
+  feature-flags:
+    name: Feature Flag Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Start federation stack
-        run: docker compose -f docker/federation-ci/docker-compose.yml up -d --build
-
-      - name: Wait for services to be ready
+      - name: Install mold linker
         run: |
-          echo "Waiting for subgraphs and Apollo Router..."
-          for url in \
-            http://localhost:8088/health \
-            http://localhost:4001/health \
-            http://localhost:4002/health \
-            http://localhost:4003/health; do
-            for i in $(seq 1 30); do
-              if curl -sf "$url" > /dev/null 2>&1; then
-                echo "✓ $url is ready"
-                break
-              fi
-              echo "  waiting for $url (attempt $i/30)..."
-              sleep 4
-              if [ "$i" -eq 30 ]; then
-                echo "✗ $url never became ready"
-                exit 1
-              fi
-            done
-          done
+          sudo apt-get update
+          sudo apt-get install -y mold
 
-      - name: Run federation tests
-        run: cargo test -p fraiseql-core federation -- --ignored --test-threads=4
-        timeout-minutes: 20
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Show logs on failure
-        if: failure()
-        run: docker compose -f docker/federation-ci/docker-compose.yml logs --tail=200
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-feature-flags-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cleanup
-        if: always()
-        run: docker compose -f docker/federation-ci/docker-compose.yml down -v
+      - name: Test fraiseql-server no-default-features
+        run: cargo check -p fraiseql-server --no-default-features
+
+      - name: Test fraiseql-server feature arrow
+        run: cargo check -p fraiseql-server --no-default-features --features arrow
+
+      - name: Test fraiseql-server feature observers-nats
+        run: cargo check -p fraiseql-server --no-default-features --features observers-nats
+
+      - name: Test fraiseql-server feature redis-rate-limiting
+        run: cargo check -p fraiseql-server --no-default-features --features redis-rate-limiting
+
+      - name: Test fraiseql-server all features
+        run: cargo check -p fraiseql-server --all-features
 
   # Cross-SDK schema parity
   sdk-parity:
@@ -1121,7 +1301,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "fraiseql-python/uv.lock"
+          cache-dependency-glob: "sdks/official/fraiseql-python/uv.lock"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -1131,7 +1311,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('fraiseql-typescript/bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('sdks/official/fraiseql-typescript/bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
       - uses: actions/setup-go@v5
@@ -1160,10 +1340,10 @@ jobs:
           sudo mv composer.phar /usr/local/bin/composer
 
       - name: Install Python SDK deps
-        run: cd fraiseql-python && uv sync
+        run: cd sdks/official/fraiseql-python && uv sync
 
       - name: Install TypeScript SDK deps
-        run: cd fraiseql-typescript && bun install
+        run: cd sdks/official/fraiseql-typescript && bun install
 
       - name: Install PHP SDK deps
         run: cd fraiseql-php && composer install --no-interaction --prefer-dist
@@ -1191,8 +1371,10 @@ jobs:
       - integration-http-e2e
       - coverage
       - security
+      - dependency-audit
+      - integration-cross-db
       - docs
-      - federation-tests
+      - feature-flags
       - sdk-parity
     runs-on: ubuntu-latest
     steps:

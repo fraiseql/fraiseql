@@ -207,7 +207,7 @@ impl RetryConfig {
         let base_delay = self.backoff_delay_ms(attempt);
         // Add ±10% jitter
         let jitter_percent = base_delay / 10;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::OsRng;
         let jitter = rng.gen_range(0..=jitter_percent);
         let use_add = rng.gen_bool(0.5);
         if use_add {
@@ -238,6 +238,8 @@ pub struct CircuitBreaker {
     /// Circuit state
     state:             Arc<atomic::AtomicUsize>,
     /// Last state change time
+    // std::sync::Mutex is intentional: this lock is never held across .await.
+    // Switch to tokio::sync::Mutex if that constraint ever changes.
     last_change:       Arc<std::sync::Mutex<DateTime<Utc>>>,
 }
 

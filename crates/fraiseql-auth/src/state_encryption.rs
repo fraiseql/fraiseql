@@ -1,5 +1,12 @@
-// State encryption for PKCE protection
-// Encrypts OAuth state parameters using ChaCha20-Poly1305 AEAD
+//! State encryption for PKCE and OAuth state parameter protection.
+//!
+//! Encrypts OAuth `state` (and PKCE) blobs with AEAD ciphers so that the
+//! outbound token sent to the identity provider cannot be deciphered or
+//! tampered with by an attacker who intercepts the redirect.
+//!
+//! Supports two algorithms selectable at runtime:
+//! - [`EncryptionAlgorithm::Chacha20Poly1305`] (default, constant-time in software)
+//! - [`EncryptionAlgorithm::Aes256Gcm`] (hardware-accelerated on modern CPUs)
 
 use std::{fmt, sync::Arc};
 
@@ -176,7 +183,7 @@ pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
 //   - Can be constructed from the compiled schema JSON
 //   - Key never appears in `Debug` output
 //
-// This is the service used by Phase 04 (PKCE) and wired into `Server`.
+// This is the PKCE state encryption service wired into `Server`.
 
 /// Errors that can occur during decryption by `StateEncryptionService`.
 #[derive(Debug, thiserror::Error)]
@@ -408,8 +415,10 @@ impl StateEncryptionService {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod service_tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn chacha_svc() -> StateEncryptionService {
@@ -592,8 +601,10 @@ mod service_tests {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn test_key() -> [u8; 32] {

@@ -24,7 +24,7 @@ pub struct OidcAuthState {
 impl OidcAuthState {
     /// Create new OIDC auth state.
     #[must_use]
-    pub fn new(validator: Arc<OidcValidator>) -> Self {
+    pub const fn new(validator: Arc<OidcValidator>) -> Self {
         Self { validator }
     }
 }
@@ -49,7 +49,8 @@ pub struct AuthUser(pub AuthenticatedUser);
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: OIDC provider reachable for JWKS discovery, running Axum application.
 /// use axum::{middleware, Router};
 ///
 /// let oidc_state = OidcAuthState::new(validator);
@@ -151,7 +152,7 @@ mod tests {
             expires_at: Utc::now(),
         };
 
-        let auth_user = AuthUser(user.clone());
+        let auth_user = AuthUser(user);
         let cloned = auth_user.clone();
 
         assert_eq!(auth_user.0.user_id, cloned.0.user_id);

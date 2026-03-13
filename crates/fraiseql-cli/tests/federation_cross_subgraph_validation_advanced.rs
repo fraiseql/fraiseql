@@ -490,7 +490,7 @@ fn create_federated_type_extends(name: &str, is_extends: bool) -> FederatedType 
 /// fails
 ///
 /// # Examples
-/// ```ignore
+/// ```no_run
 /// let users = FederationMetadata { /* User type owner */ };
 /// let orders = FederationMetadata { /* extends User, owns Order */ };
 /// let payments = FederationMetadata { /* extends User and Order */ };

@@ -72,12 +72,14 @@ pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
 /// * `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
 /// * `X-Frame-Options: DENY` - Prevents embedding in iframes
 /// * `Strict-Transport-Security` - Enforces HTTPS
-/// * `X-XSS-Protection: 1; mode=block` - Enable XSS protections
 /// * `Referrer-Policy: strict-origin-when-cross-origin` - Control referrer leakage
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: running Axum application.
+/// # use axum::Router;
+/// # use fraiseql_server::middleware::security_headers_middleware;
 /// let app = Router::new()
 ///     .layer(axum::middleware::from_fn(security_headers_middleware));
 /// ```
@@ -101,9 +103,6 @@ pub async fn security_headers_middleware(
         "max-age=31536000; includeSubDomains".parse().expect("valid header value"),
     );
 
-    // Enable XSS protection in older browsers
-    headers.insert("X-XSS-Protection", "1; mode=block".parse().expect("valid header value"));
-
     // Control referrer leakage
     headers.insert(
         "Referrer-Policy",
@@ -111,18 +110,27 @@ pub async fn security_headers_middleware(
     );
 
     // Content Security Policy - restrict resource loading
+    // Note: 'unsafe-inline' is intentionally omitted; callers that need
+    // inline styles for a GraphQL playground should set their own CSP.
     headers.insert(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+        "default-src 'self'; script-src 'self'; style-src 'self'"
             .parse()
             .expect("valid header value"),
     );
+
+    // Disable the legacy XSS auditor.  The `0` value is the modern best
+    // practice: the auditor is absent from current browsers and its
+    // "enabled" modes could introduce XSS on certain pages.
+    headers.insert("X-XSS-Protection", "0".parse().expect("valid header value"));
 
     response
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
 
     #[test]
@@ -154,90 +162,56 @@ mod tests {
         let _ = layer;
     }
 
-    // ==================== Security Headers Tests ====================
-    // Note: security_headers_middleware is tested via integration tests
-    // since it requires a full middleware stack with proper Next implementation.
-    // Here we test the header values are correct through code inspection and
-    // integration tests in the server test suite.
+    // ── Security headers middleware tests (15-4) ────────────────────────────
 
-    #[test]
-    fn test_security_headers_values_hardcoded() {
-        // This test verifies the security header values used in production
-        // Actual middleware behavior is tested in fraiseql-server integration tests
+    use axum::{Router, body::Body, http::Request, middleware, routing::get};
+    use tower::ServiceExt;
 
-        // X-Content-Type-Options
-        let header = "nosniff";
-        assert_eq!(header, "nosniff");
+    async fn ok_handler() -> &'static str { "ok" }
 
-        // X-Frame-Options
-        let header = "DENY";
-        assert_eq!(header, "DENY");
-
-        // Strict-Transport-Security
-        let header = "max-age=31536000; includeSubDomains";
-        assert!(header.contains("max-age=31536000"));
-        assert!(header.contains("includeSubDomains"));
-
-        // X-XSS-Protection
-        let header = "1; mode=block";
-        assert_eq!(header, "1; mode=block");
-
-        // Referrer-Policy
-        let header = "strict-origin-when-cross-origin";
-        assert_eq!(header, "strict-origin-when-cross-origin");
-
-        // Content-Security-Policy
-        let header = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
-        assert!(header.contains("default-src 'self'"));
+    fn sec_app() -> Router {
+        Router::new()
+            .route("/", get(ok_handler))
+            .layer(middleware::from_fn(security_headers_middleware))
     }
 
-    #[test]
-    fn test_security_headers_csp_structure() {
-        // Verify CSP headers are properly structured
-        let csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
-        let directives: Vec<&str> = csp.split(';').map(|s| s.trim()).collect();
+    #[tokio::test]
+    async fn test_security_headers_nosniff_present() {
+        let resp = sec_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.headers().get("x-content-type-options").unwrap(), "nosniff");
+    }
 
-        assert_eq!(directives.len(), 3);
-        assert!(directives[0].contains("default-src"));
-        assert!(directives[1].contains("script-src"));
-        assert!(directives[2].contains("style-src"));
+    #[tokio::test]
+    async fn test_security_headers_frame_options_deny() {
+        let resp = sec_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.headers().get("x-frame-options").unwrap(), "DENY");
+    }
+
+    #[tokio::test]
+    async fn test_security_headers_xss_protection_zero() {
+        let resp = sec_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.headers().get("x-xss-protection").unwrap(),
+            "0",
+            "X-XSS-Protection must be 0 (legacy auditor disabled)"
+        );
     }
 
     #[test]
     fn test_cors_layer_config_comprehensive() {
-        // Test comprehensive CORS configuration
         let origins = vec![
             "https://example.com".to_string(),
             "https://app.example.com".to_string(),
         ];
-        let layer = cors_layer_restricted(origins);
-
-        // Layer creation succeeds
-        let _ = layer;
-    }
-
-    #[test]
-    fn test_security_headers_middleware_callable() {
-        // Test that the middleware function can be referenced
-        // This verifies the function signature is correct for middleware use
-        let _ = security_headers_middleware;
-    }
-
-    #[test]
-    fn test_hsts_policy_compliance() {
-        // HSTS policy should enforce HTTPS for at least 1 year
-        let max_age_seconds = 31_536_000; // 1 year in seconds
-        assert!(max_age_seconds >= 31_536_000, "HSTS max-age should be at least 1 year");
-
-        // Verify subdomain inclusion is typically used
-        // Note: actual HSTS header setting happens in middleware configuration
-    }
-
-    #[test]
-    fn test_csp_policy_compliance() {
-        // CSP should restrict resource loading to same-origin
-        let csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
-        assert!(csp.contains("'self'"), "CSP should restrict to same-origin");
-        assert!(!csp.contains("*"), "CSP should not allow wildcards");
+        let _ = cors_layer_restricted(origins);
     }
 }

@@ -10,8 +10,8 @@
 //! we apply explicit type casting:
 //!
 //! - String comparisons: No cast needed (text = text)
-//! - Numeric comparisons: Cast to integer or float (text::integer > $1)
-//! - Boolean comparisons: Cast to boolean (text::boolean = true)
+//! - Numeric comparisons: Cast to integer or float (`text::integer` > $1)
+//! - Boolean comparisons: Cast to boolean (`text::boolean` = true)
 //! - Array comparisons: No special handling (uses array operators)
 //!
 //! Direct columns use native types from the database schema.
@@ -20,10 +20,20 @@ use super::{Field, Value, WhereOperator};
 use crate::Result;
 use std::collections::HashMap;
 
+/// Escapes LIKE metacharacters in a literal string.
+///
+/// Escapes `\`, `%`, and `_` so that user-supplied substrings, prefixes, and
+/// suffixes are always treated as literals inside a `LIKE` or `ILIKE` pattern.
+/// PostgreSQL uses `\` as the default LIKE escape character.
+fn escape_like_literal(s: &str) -> String {
+    // Order matters: escape `\` first to avoid double-escaping.
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 /// Infers the PostgreSQL type cast needed for a value
 ///
-/// Returns the type cast suffix (e.g., "::integer", "::text") if needed
-fn infer_type_cast(value: &Value) -> &'static str {
+/// Returns the type cast suffix (e.g., "`::integer`", "`::text`") if needed
+const fn infer_type_cast(value: &Value) -> &'static str {
     match value {
         Value::String(_) => "::text",
         Value::Number(_) => "::numeric", // numeric handles both int and float
@@ -49,13 +59,15 @@ fn infer_type_cast(value: &Value) -> &'static str {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: fraiseql_wire::operators re-exports; Value has no PartialEq so assert_eq on params omitted.
+/// use std::collections::HashMap;
+/// use fraiseql_wire::operators::{Field, Value, WhereOperator, generate_where_operator_sql};
 /// let mut param_index = 0;
 /// let mut params = HashMap::new();
 /// let op = WhereOperator::Eq(Field::JsonbField("name".to_string()), Value::String("John".to_string()));
-/// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params)?;
-/// assert_eq!(sql, "(data->'name') = $1");
-/// assert_eq!(params[&1], Value::String("John".to_string()));
+/// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+/// assert_eq!(sql, "(data->'name')::text = $1");
 /// ```
 pub fn generate_where_operator_sql(
     operator: &WhereOperator,
@@ -151,6 +163,10 @@ pub fn generate_where_operator_sql(
 
         // ============ Array Operators ============
         WhereOperator::In(field, values) => {
+            // Empty IN () is a syntax error in all databases; semantically equivalent to FALSE.
+            if values.is_empty() {
+                return Ok("FALSE".to_string());
+            }
             let field_sql = field.to_sql();
             let placeholders: Vec<String> = values
                 .iter()
@@ -165,6 +181,10 @@ pub fn generate_where_operator_sql(
         }
 
         WhereOperator::Nin(field, values) => {
+            // Empty NOT IN () is a syntax error in all databases; semantically equivalent to TRUE.
+            if values.is_empty() {
+                return Ok("TRUE".to_string());
+            }
             let field_sql = field.to_sql();
             let placeholders: Vec<String> = values
                 .iter()
@@ -186,7 +206,7 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(substring.clone()));
+            params.insert(param_num, Value::String(escape_like_literal(substring)));
             Ok(format!(
                 "{} LIKE '%' || ${}::text || '%'",
                 field_sql, param_num
@@ -258,7 +278,7 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(substring.clone()));
+            params.insert(param_num, Value::String(escape_like_literal(substring)));
             Ok(format!(
                 "{} ILIKE '%' || ${}::text || '%'",
                 field_sql, param_num
@@ -269,7 +289,10 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(format!("{}%", prefix)));
+            params.insert(
+                param_num,
+                Value::String(format!("{}%", escape_like_literal(prefix))),
+            );
             Ok(format!("{} LIKE ${}", field_sql, param_num))
         }
 
@@ -277,7 +300,10 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(format!("{}%", prefix)));
+            params.insert(
+                param_num,
+                Value::String(format!("{}%", escape_like_literal(prefix))),
+            );
             Ok(format!("{} ILIKE ${}", field_sql, param_num))
         }
 
@@ -285,7 +311,10 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(format!("%{}", suffix)));
+            params.insert(
+                param_num,
+                Value::String(format!("%{}", escape_like_literal(suffix))),
+            );
             Ok(format!("{} LIKE ${}", field_sql, param_num))
         }
 
@@ -293,7 +322,10 @@ pub fn generate_where_operator_sql(
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::String(format!("%{}", suffix)));
+            params.insert(
+                param_num,
+                Value::String(format!("%{}", escape_like_literal(suffix))),
+            );
             Ok(format!("{} ILIKE ${}", field_sql, param_num))
         }
 
@@ -658,6 +690,7 @@ pub fn generate_where_operator_sql(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]
@@ -738,6 +771,89 @@ mod tests {
         let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
         assert_eq!(sql, "(data->'status') IN ($1, $2)");
         assert_eq!(param_index, 2);
+    }
+
+    #[test]
+    fn test_in_empty_list_returns_false() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::In(Field::DirectColumn("status".to_string()), vec![]);
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "FALSE");
+        assert_eq!(param_index, 0, "no parameters consumed for empty IN");
+    }
+
+    #[test]
+    fn test_nin_empty_list_returns_true() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::Nin(Field::DirectColumn("status".to_string()), vec![]);
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "TRUE");
+        assert_eq!(param_index, 0, "no parameters consumed for empty NOT IN");
+    }
+
+    // Helper: extract the inner string from Value::String via Debug, panics otherwise.
+    fn value_as_str(v: &Value) -> &str {
+        match v {
+            Value::String(s) => s.as_str(),
+            other => panic!("expected Value::String, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_contains_escapes_percent() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op =
+            WhereOperator::Contains(Field::DirectColumn("note".to_string()), "50%".to_string());
+        generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(value_as_str(&params[&1]), "50\\%");
+    }
+
+    #[test]
+    fn test_contains_escapes_underscore() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op =
+            WhereOperator::Contains(Field::DirectColumn("code".to_string()), "A_B".to_string());
+        generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(value_as_str(&params[&1]), "A\\_B");
+    }
+
+    #[test]
+    fn test_startswith_escapes_wildcard_in_prefix() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::Startswith(
+            Field::DirectColumn("name".to_string()),
+            "C%D".to_string(),
+        );
+        generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        // prefix escaped, trailing % appended for LIKE
+        assert_eq!(value_as_str(&params[&1]), "C\\%D%");
+    }
+
+    #[test]
+    fn test_endswith_escapes_wildcard_in_suffix() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::Endswith(
+            Field::DirectColumn("name".to_string()),
+            "_suffix".to_string(),
+        );
+        generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        // suffix escaped, leading % prepended for LIKE
+        assert_eq!(value_as_str(&params[&1]), "%\\_suffix");
+    }
+
+    #[test]
+    fn test_escape_like_literal_backslash() {
+        assert_eq!(escape_like_literal("a\\b"), "a\\\\b");
+        assert_eq!(escape_like_literal("a%b"), "a\\%b");
+        assert_eq!(escape_like_literal("a_b"), "a\\_b");
+        // Combined: order matters — backslash must be escaped first
+        assert_eq!(escape_like_literal("100%_\\n"), "100\\%\\_\\\\n");
     }
 
     // ============ LTree Operator Tests ============

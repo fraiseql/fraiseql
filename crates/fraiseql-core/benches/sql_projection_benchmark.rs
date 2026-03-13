@@ -1,13 +1,17 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+
 //! SQL Projection Performance Benchmarks
 //!
-//! This benchmark suite measures the performance of the SQL projection optimization system
-//! validating the 37% latency improvement and 95% payload reduction.
+//! This benchmark suite measures the performance of the SQL projection optimization system.
+//! Run `cargo bench --bench sql_projection_benchmark` to get hardware-specific numbers.
+//! Cross-framework comparisons live in `../velocitybench`.
 //!
 //! # Metrics Measured
 //!
 //! 1. **Projection SQL Generation** - Time to generate projection SQL for varying field counts
 //! 2. **Result Projection** - Time to project JSONB fields (database-side projection)
-//! 3. **ResultProjector Operations** - Time for field filtering and __typename addition
+//! 3. **`ResultProjector` Operations** - Time for field filtering and __typename addition
 //! 4. **Complete Pipeline** - End-to-end latency from raw DB result to GraphQL response
 //! 5. **Payload Size** - Bytes transferred with and without projection
 //!
@@ -24,23 +28,21 @@
 //! cargo bench --bench sql_projection_benchmark -- --baseline main
 //! ```
 //!
-//! # Expected Results (Target)
+//! # Design Targets (run the benchmarks above for actual numbers on your hardware)
 //!
-//! | Operation | Time | Improvement |
-//! |-----------|------|-------------|
-//! | PostgreSQL projection SQL (5 fields) | ~2µs | N/A |
-//! | PostgreSQL projection SQL (20 fields) | ~8µs | N/A |
-//! | Result projection (1K rows) | ~50µs | N/A |
-//! | __typename addition (1K rows) | ~100µs | N/A |
-//! | Complete pipeline (100K rows) | ~5ms | 37% faster than non-projected |
-//! | Payload size (100K rows) | ~450B | 95% smaller |
+//! | Operation | Design target |
+//! |-----------|---------------|
+//! | PostgreSQL projection SQL (5 fields) | ~2µs |
+//! | PostgreSQL projection SQL (20 fields) | ~8µs |
+//! | Result projection (1K rows) | ~50µs |
+//! | __typename addition (1K rows) | ~100µs |
+//! | Complete pipeline (100K rows) | ~5ms |
 
+#![allow(clippy::missing_errors_doc)] // Reason: criterion_group! macro generates undocumented items
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::{
     db::{
-        projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-        },
+        MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
         types::JsonbValue,
     },
     runtime::ResultProjector,
@@ -87,7 +89,7 @@ fn generate_field_list(count: usize) -> Vec<String> {
 fn postgres_projection_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("postgres_projection_generation");
 
-    for field_count in [5, 10, 20, 50].iter() {
+    for field_count in &[5, 10, 20, 50] {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_fields", field_count)),
             field_count,
@@ -106,7 +108,7 @@ fn postgres_projection_generation(c: &mut Criterion) {
 fn mysql_projection_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("mysql_projection_generation");
 
-    for field_count in [5, 10, 20, 50].iter() {
+    for field_count in &[5, 10, 20, 50] {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_fields", field_count)),
             field_count,
@@ -125,7 +127,7 @@ fn mysql_projection_generation(c: &mut Criterion) {
 fn sqlite_projection_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("sqlite_projection_generation");
 
-    for field_count in [5, 10, 20, 50].iter() {
+    for field_count in &[5, 10, 20, 50] {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_fields", field_count)),
             field_count,
@@ -149,7 +151,7 @@ fn result_projection_field_filtering(c: &mut Criterion) {
     let mut group = c.benchmark_group("result_projection_field_filtering");
 
     // Test with varying row counts to measure linear scaling
-    for row_count in [10, 100, 1000].iter() {
+    for row_count in &[10, 100, 1000] {
         let field_count = 5;
         let fields = generate_field_list(field_count);
         let data = generate_sample_data(field_count, *row_count);
@@ -172,7 +174,7 @@ fn result_projection_large_fieldset(c: &mut Criterion) {
     let mut group = c.benchmark_group("result_projection_large_fieldset");
 
     // Test with many fields to measure field-count impact
-    for field_count in [10, 20, 50].iter() {
+    for field_count in &[10, 20, 50] {
         let row_count = 100;
         let fields = generate_field_list(*field_count);
         let data = generate_sample_data(*field_count, row_count);
@@ -198,7 +200,7 @@ fn result_projection_large_fieldset(c: &mut Criterion) {
 fn add_typename_single_object(c: &mut Criterion) {
     let mut group = c.benchmark_group("add_typename_single_object");
 
-    for field_count in [5, 20, 50].iter() {
+    for field_count in &[5, 20, 50] {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_fields", field_count)),
             field_count,
@@ -218,7 +220,7 @@ fn add_typename_single_object(c: &mut Criterion) {
 fn add_typename_array(c: &mut Criterion) {
     let mut group = c.benchmark_group("add_typename_array");
 
-    for row_count in [10, 100, 1000].iter() {
+    for row_count in &[10, 100, 1000] {
         let field_count = 10;
         let fields = generate_field_list(field_count);
         let data = generate_sample_data(field_count, *row_count);
@@ -249,14 +251,14 @@ fn add_typename_array(c: &mut Criterion) {
 fn complete_pipeline_single_row(c: &mut Criterion) {
     let mut group = c.benchmark_group("complete_pipeline_single_row");
 
-    for field_count in [5, 10, 20].iter() {
+    for field_count in &[5, 10, 20] {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_fields", field_count)),
             field_count,
             |b, &field_count| {
                 let fields = generate_field_list(field_count);
                 let data = generate_sample_data(field_count, 1);
-                let projector = ResultProjector::new(fields.clone());
+                let projector = ResultProjector::new(fields);
 
                 b.iter(|| {
                     // Step 1: Project fields (not used directly, but part of pipeline)
@@ -279,7 +281,7 @@ fn complete_pipeline_single_row(c: &mut Criterion) {
 fn complete_pipeline_array(c: &mut Criterion) {
     let mut group = c.benchmark_group("complete_pipeline_array");
 
-    for row_count in [100, 1000, 10000].iter() {
+    for row_count in &[100, 1000, 10000] {
         let field_count = 10;
         let fields = generate_field_list(field_count);
         let data = generate_sample_data(field_count, *row_count);
@@ -311,7 +313,7 @@ fn payload_size_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("payload_size_comparison");
     group.sample_size(10); // Smaller sample for data generation benchmarks
 
-    for row_count in [100, 1000, 10000].iter() {
+    for row_count in &[100, 1000, 10000] {
         let field_count = 10;
         let fields = generate_field_list(field_count);
         let data = generate_sample_data(field_count, *row_count);

@@ -15,28 +15,30 @@ use std::fmt;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::operators::{OrderByClause, FieldSource, SortOrder, NullsHandling};
+///
 /// // Order by JSONB field with collation
-/// OrderByClause {
+/// let _ = OrderByClause {
 ///     field: "name".to_string(),
 ///     field_source: FieldSource::JsonbPayload,
 ///     direction: SortOrder::Asc,
 ///     collation: Some("en-US".to_string()),
 ///     nulls_handling: None,
-/// }
+/// };
 ///
 /// // Order by direct column with NULLS LAST
-/// OrderByClause {
+/// let _ = OrderByClause {
 ///     field: "created_at".to_string(),
 ///     field_source: FieldSource::DirectColumn,
 ///     direction: SortOrder::Desc,
 ///     collation: None,
 ///     nulls_handling: Some(NullsHandling::Last),
-/// }
+/// };
 /// ```
 #[derive(Debug, Clone)]
 pub struct OrderByClause {
-    /// Field name (validated separately based on field_source)
+    /// Field name (validated separately based on `field_source`)
     pub field: String,
 
     /// Where the field comes from
@@ -84,7 +86,7 @@ impl OrderByClause {
     }
 
     /// Add NULLS handling to this clause
-    pub fn with_nulls(mut self, handling: NullsHandling) -> Self {
+    pub const fn with_nulls(mut self, handling: NullsHandling) -> Self {
         self.nulls_handling = Some(handling);
         self
     }
@@ -101,8 +103,7 @@ impl OrderByClause {
                 .field
                 .chars()
                 .next()
-                .map(|c| !c.is_alphabetic() && c != '_')
-                .unwrap_or(false)
+                .is_some_and(|c| !c.is_alphabetic() && c != '_')
         {
             return Err(format!("Invalid field name: {}", self.field));
         }
@@ -272,6 +273,7 @@ impl fmt::Display for Collation {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

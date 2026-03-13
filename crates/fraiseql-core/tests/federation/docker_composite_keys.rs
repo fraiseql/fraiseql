@@ -17,7 +17,7 @@ async fn test_composite_key_setup_validation() {
     println!("\n--- Test: Composite key environment setup validation ---");
 
     // Verify database schema supports composite keys
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier } }")
         .await
         .expect("Query should succeed");
 
@@ -40,7 +40,7 @@ async fn test_composite_key_single_field_federation() {
 
     // Get a user (single field key: id UUID)
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier } }")
             .await
             .expect("Query should succeed");
 
@@ -82,7 +82,7 @@ async fn test_composite_key_multi_field_resolution() {
     // For this test, we verify the infrastructure handles multiple key fields
 
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier email } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier email } }")
             .await
             .expect("Query should succeed");
 
@@ -124,7 +124,7 @@ async fn test_tenant_isolation_with_composite_keys() {
     println!("\n--- Test: Tenant isolation with composite keys ---");
 
     // Get users from database
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier } }")
         .await
         .expect("Query should succeed");
 
@@ -155,7 +155,7 @@ async fn test_composite_key_entity_batch_resolution() {
 
     // Get multiple users (simulating composite key batch)
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 5) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 5) { id identifier } }")
             .await
             .expect("Query should succeed");
 
@@ -193,7 +193,7 @@ async fn test_composite_key_federation_across_boundaries() {
     println!("\n--- Test: Composite key federation across subgraph boundaries ---");
 
     // Create an order that references a user via composite key
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Query should succeed");
 
@@ -259,7 +259,7 @@ async fn test_composite_key_gateway_resolution() {
     println!("\n--- Test: Composite key resolution through gateway ---");
 
     // Query through gateway with composite key resolution
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -274,7 +274,7 @@ async fn test_composite_key_gateway_resolution() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 

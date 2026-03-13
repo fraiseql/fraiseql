@@ -1,14 +1,14 @@
-//! Test LTree operator edge cases: empty paths, deep nesting, special characters.
+//! Test `LTree` operator edge cases: empty paths, deep nesting, special characters.
 //!
 //! This test verifies that:
-//! 1. LTree operators handle empty path components gracefully
+//! 1. `LTree` operators handle empty path components gracefully
 //! 2. Deep nesting (5+ levels) is supported without truncation
 //! 3. Special characters in path components are preserved
-//! 4. LTree operators don't cause SQL injection through path manipulation
+//! 4. `LTree` operators don't cause SQL injection through path manipulation
 //!
 //! # Risk If Missing
 //!
-//! Without this test, LTree queries could:
+//! Without this test, `LTree` queries could:
 //! - Fail on empty path segments (data loss)
 //! - Truncate deeply nested paths (query failure)
 //! - Corrupt special characters in paths (wrong results)
@@ -17,7 +17,7 @@
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 
-/// Test LTree operators with various path configurations
+/// Test `LTree` operators with various path configurations
 const LTREE_OPERATORS: &[WhereOperator] = &[
     WhereOperator::AncestorOf,       // @>
     WhereOperator::DescendantOf,     // <@
@@ -31,9 +31,9 @@ fn test_ltree_empty_path_handling() {
     // Test handling of empty or minimal paths
     let empty_paths = vec![
         vec![],                                                 // Completely empty path
-        vec!["".to_string()],                                   // Single empty component
-        vec!["".to_string(), "".to_string()],                   // Multiple empty components
-        vec!["a".to_string(), "".to_string(), "b".to_string()], // Empty in middle
+        vec![String::new()],                                   // Single empty component
+        vec![String::new(), String::new()],                   // Multiple empty components
+        vec!["a".to_string(), String::new(), "b".to_string()], // Empty in middle
     ];
 
     for path in empty_paths {
@@ -155,7 +155,7 @@ fn test_ltree_combined_complex_paths() {
             "api_v2".to_string(),
             "response".to_string(),
             "data".to_string(),
-            "".to_string(),
+            String::new(),
             "items".to_string(),
             "0".to_string(),
         ],
@@ -254,7 +254,7 @@ fn test_ltree_very_long_component_names() {
             very_long_component.clone(),
             "short".to_string(),
         ],
-        vec![very_long_component.clone(); 5], // Multiple very long components
+        vec![very_long_component; 5], // Multiple very long components
     ];
 
     for path in long_paths {
@@ -319,7 +319,7 @@ fn test_ltree_mixed_edge_cases() {
             "app-v2.0".to_string(),
             "config".to_string(),
             "db_settings".to_string(),
-            "".to_string(),
+            String::new(),
             "host".to_string(),
         ],
         // Very deep all numbers

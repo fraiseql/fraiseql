@@ -4,6 +4,10 @@
 //! - @provides is a hint about what fields the resolver provides
 //! - Validation across both database and HTTP resolvers
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::doc_markdown)] // Reason: test doc comments use non-standard formatting
+#![allow(clippy::doc_link_with_quotes)] // Reason: test doc comments use quote-style links
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
 use fraiseql_core::federation::types::{
     FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection, KeyDirective,
 };
@@ -291,7 +295,7 @@ struct ProvidesValidationResult {
 /// fields that were promised but not delivered
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // Order.shippingEstimate @provides weight but result doesn't include it
 /// let result = json!({"id": "123"});
 /// let validation = validate_provides_contract(&metadata, "Order", "shippingEstimate", &result);
@@ -353,7 +357,7 @@ fn validate_provides_contract(
 /// `true` if the field/path exists in the result, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// let result = json!({"user": {"address": {"city": "SF"}}});
 /// assert!(has_field_in_result(&result, &["user".into(), "address".into(), "city".into()]));
 /// assert!(!has_field_in_result(&result, &["user".into(), "email".into()]));

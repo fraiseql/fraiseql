@@ -1,5 +1,6 @@
 //! Extended entity mutations.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::mutation_executor::FederationMutationExecutor;
 use serde_json::json;
 

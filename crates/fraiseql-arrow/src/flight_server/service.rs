@@ -1,6 +1,7 @@
 //! `FraiseQLFlightService` construction and state management methods.
 
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use arrow::array::RecordBatch;
 use arrow_flight::{FlightData, flight_service_server::FlightServiceServer};
@@ -8,13 +9,15 @@ use chrono::Utc;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream;
 use tonic::{Response, Status};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::{
     ActionResultStream, FlightDataStream, FraiseQLFlightService, QueryExecutor, SecurityContext,
-    build_optimized_sql, execute_placeholder_query, record_batch_to_flight_data,
+    build_optimized_sql, encode_json_to_arrow_batch, record_batch_to_flight_data,
     schema_to_flight_data,
 };
+#[cfg(any(test, feature = "testing"))]
+use super::execute_placeholder_query;
 use crate::{
     cache::QueryCache,
     convert::{ConvertConfig, RowToArrowConverter},
@@ -25,6 +28,36 @@ use crate::{
     metadata::SchemaRegistry,
     subscription::SubscriptionManager,
 };
+
+/// Read `FLIGHT_SESSION_SECRET` from the environment once.
+///
+/// Returns `None` (and logs a warning) if the variable is unset or empty.
+/// This is called at service construction so every request reuses the cached value.
+fn read_flight_session_secret() -> Option<String> {
+    match std::env::var("FLIGHT_SESSION_SECRET") {
+        Ok(s) if s.is_empty() => {
+            tracing::warn!(
+                "FLIGHT_SESSION_SECRET is set but empty; Flight authentication will fail. \
+                 Generate a secret with: openssl rand -hex 32"
+            );
+            None
+        },
+        Ok(s) => Some(s),
+        Err(_) => {
+            tracing::warn!(
+                "FLIGHT_SESSION_SECRET is not set; Flight handshake authentication \
+                 will return an error. Set this variable before starting the server."
+            );
+            None
+        },
+    }
+}
+
+/// Default maximum number of concurrent Arrow Flight `do_get` streams.
+///
+/// When all permits are taken, new `do_get` requests immediately receive
+/// `Status::resource_exhausted` rather than being queued indefinitely.
+const DEFAULT_MAX_CONCURRENT_STREAMS: usize = 50;
 
 impl FraiseQLFlightService {
     /// Create a new Flight service with placeholder data (for testing/development).
@@ -42,6 +75,9 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -54,15 +90,16 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
+    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// // In production, create a real PostgresAdapter from fraiseql-core
     /// // and wrap it to implement the local DatabaseAdapter trait
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create from fraiseql_core::db::PostgresAdapter");
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     ///
     /// let service = FraiseQLFlightService::new_with_db(db_adapter);
     /// # Ok(())
@@ -82,6 +119,9 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -95,13 +135,14 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
+    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
     /// # Ok(())
     /// # }
@@ -120,6 +161,9 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -131,15 +175,21 @@ impl FraiseQLFlightService {
     /// * `cache_ttl_secs` - Query result cache TTL in seconds (optional)
     /// * `oidc_validator` - OIDC validator for JWT authentication
     ///
+    /// # Panics
+    ///
+    /// Panics if `FLIGHT_SESSION_SECRET` environment variable is not set.
+    ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: running PostgreSQL database and OIDC provider for JWT validation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_core::security::OidcValidator;
     /// use std::sync::Arc;
     ///
-    /// let db_adapter = todo!("Create adapter");
-    /// let validator = todo!("Create OidcValidator");
+    /// // Create your adapter and OIDC validator for JWT authentication
+    /// let db_adapter: Arc<dyn fraiseql_arrow::DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// let validator: Arc<OidcValidator> = Arc::new(oidc_validator);
     /// let service = FraiseQLFlightService::new_with_auth(
     ///     Arc::new(db_adapter),
     ///     Some(60),
@@ -157,6 +207,16 @@ impl FraiseQLFlightService {
 
         let cache = cache_ttl_secs.map(|ttl| Arc::new(QueryCache::new(ttl)));
 
+        // Fail fast: authenticated Flight services require FLIGHT_SESSION_SECRET.
+        // Without it, every handshake will fail with an opaque internal error at
+        // request time.  Panicking here gives a clear startup message instead.
+        let session_secret = read_flight_session_secret().unwrap_or_else(|| {
+            panic!(
+                "FLIGHT_SESSION_SECRET must be set when using authenticated Arrow Flight. \
+                 Generate one with: openssl rand -hex 32"
+            )
+        });
+
         Self {
             schema_registry,
             db_adapter: Some(db_adapter),
@@ -166,6 +226,9 @@ impl FraiseQLFlightService {
             oidc_validator: Some(oidc_validator),
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql: false,
+            session_secret: Some(session_secret),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -182,24 +245,25 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: running PostgreSQL database with va_* and ta_* views.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
-    ///     let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
-    ///     // Pre-load schemas from database at startup
-    ///     let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
-    ///     eprintln!("Preloaded {} schemas from database", preloaded);
+    /// // Pre-load schemas from database at startup
+    /// let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
+    /// eprintln!("Preloaded {} schemas from database", preloaded);
     ///
-    ///     // Schemas now available immediately for queries
-    ///     // Without preloading, first query would trigger schema inference
-    ///     Ok(())
-    /// }
+    /// // Schemas now available immediately for queries
+    /// // Without preloading, first query would trigger schema inference
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn preload_schemas_from_db(&self) -> crate::error::Result<usize> {
         if let Some(ref db_adapter) = self.db_adapter {
@@ -219,20 +283,45 @@ impl FraiseQLFlightService {
         &self.schema_registry
     }
 
+    /// Set the HMAC-SHA256 secret used to sign Flight session tokens.
+    ///
+    /// Overrides the value read from the `FLIGHT_SESSION_SECRET` environment variable
+    /// at construction. Use this in tests or when managing the secret programmatically.
+    #[must_use]
+    pub fn with_session_secret(mut self, secret: impl Into<String>) -> Self {
+        self.session_secret = Some(secret.into());
+        self
+    }
+
+    /// Enable raw SQL execution via `BatchedQueries` tickets.
+    ///
+    /// **SECURITY WARNING**: Only call this for trusted internal tooling.
+    /// Enabling raw SQL allows authenticated clients to bypass RLS and execute
+    /// arbitrary queries. It is disabled by default.
+    #[must_use]
+    pub const fn with_raw_sql_enabled(mut self) -> Self {
+        self.allow_raw_sql = true;
+        self
+    }
+
     /// Set the query executor for GraphQL query execution.
     ///
     /// The executor must be passed as `Arc<Executor<A>>` wrapped in Arc for shared ownership.
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: running PostgreSQL database and compiled schema.
     /// use fraiseql_core::runtime::Executor;
     /// use fraiseql_core::db::PostgresAdapter;
     /// use std::sync::Arc;
     ///
+    /// # async fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService, schema: fraiseql_core::schema::CompiledSchema) -> Result<(), Box<dyn std::error::Error>> {
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
     /// service.set_executor(executor);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn set_executor(&mut self, executor: Arc<dyn QueryExecutor>) {
         self.executor = Some(executor);
@@ -246,7 +335,7 @@ impl FraiseQLFlightService {
 
     /// Check if executor is configured for real query execution.
     ///
-    /// Returns true if an executor has been set via set_executor().
+    /// Returns true if an executor has been set via `set_executor()`.
     /// When false, queries return placeholder data.
     #[must_use]
     pub fn has_executor(&self) -> bool {
@@ -257,12 +346,16 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: an EventStorage implementation (e.g., backed by a database or Redis).
     /// use fraiseql_arrow::EventStorage;
     /// use std::sync::Arc;
     ///
-    /// let storage: Arc<dyn EventStorage> = todo!("Create storage");
+    /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
+    /// // Provide your EventStorage implementation (e.g., backed by a database or Redis)
+    /// let storage: Arc<dyn EventStorage> = Arc::new(my_event_storage);
     /// service.set_event_storage(storage);
+    /// # }
     /// ```
     pub fn set_event_storage(&mut self, event_storage: Arc<dyn EventStorage>) {
         self.event_storage = Some(event_storage);
@@ -276,7 +369,7 @@ impl FraiseQLFlightService {
 
     /// Check if event storage is configured for historical event queries.
     ///
-    /// Returns true if event storage has been set via set_event_storage().
+    /// Returns true if event storage has been set via `set_event_storage()`.
     #[must_use]
     pub fn has_event_storage(&self) -> bool {
         self.event_storage.is_some()
@@ -284,7 +377,7 @@ impl FraiseQLFlightService {
 
     /// Get a reference to the subscription manager for real-time event subscriptions.
     #[must_use]
-    pub fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
+    pub const fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
         &self.subscription_manager
     }
 
@@ -293,7 +386,7 @@ impl FraiseQLFlightService {
     /// Returns true if handshake was successful and security context is set.
     /// Subsequent Flight RPC calls require valid authentication.
     #[must_use]
-    pub fn is_authenticated(&self) -> bool {
+    pub const fn is_authenticated(&self) -> bool {
         self.security_context.is_some()
     }
 
@@ -302,7 +395,7 @@ impl FraiseQLFlightService {
     /// Returns the current security context if authentication succeeded.
     /// Contains session token, user ID, and expiration information.
     #[must_use]
-    pub fn security_context(&self) -> Option<&SecurityContext> {
+    pub const fn security_context(&self) -> Option<&SecurityContext> {
         self.security_context.as_ref()
     }
 
@@ -333,7 +426,7 @@ impl FraiseQLFlightService {
     ///
     /// # Security Integration
     ///
-    /// SecurityContext flows through the executor for row-level security (RLS):
+    /// `SecurityContext` flows through the executor for row-level security (RLS):
     ///
     /// **Setup (in fraiseql-server)**:
     /// 1. Import `fraiseql_core::runtime::Executor`
@@ -346,11 +439,11 @@ impl FraiseQLFlightService {
     /// 1. Check `has_executor()` - if true, real execution available
     /// 2. Downcast executor: `executor.downcast_ref::<Executor<A>>()`
     /// 3. Call `executor.execute_with_security(query, variables, &security_context).await`
-    /// 4. Convert JSON to Arrow RecordBatches
+    /// 4. Convert JSON to Arrow `RecordBatches`
     ///
     /// **Result Streaming**:
     /// 1. Schema message (first)
-    /// 2. Data batches (RecordBatch messages)
+    /// 2. Data batches (`RecordBatch` messages)
     /// 3. Empty payload signals completion
     pub(crate) async fn execute_graphql_query(
         &self,
@@ -390,7 +483,7 @@ impl FraiseQLFlightService {
                 // first_batch.schema() returns SchemaRef = &Arc<Schema>
                 // schema_to_flight_data expects &Arc<Schema>
                 let schema_ref = first_batch.schema();
-                messages.push(Ok(schema_to_flight_data(&schema_ref.clone())?));
+                messages.push(Ok(schema_to_flight_data(&schema_ref)?));
             }
 
             for batch in batches {
@@ -400,78 +493,90 @@ impl FraiseQLFlightService {
             let stream = futures::stream::iter(messages);
             Ok(stream)
         } else {
-            // Placeholder mode: no executor configured
-            info!(
+            // No executor configured: refuse rather than return unauthenticated fake data
+            tracing::warn!(
                 user_id = %security_context.user_id,
-                "No executor configured - returning placeholder data (RLS not enforced)"
+                "Arrow Flight query rejected: no database executor configured"
             );
-
-            // Generate placeholder schema and data for demonstration
-            let fields = vec![
-                ("id".to_string(), "ID".to_string(), false),
-                ("result".to_string(), "String".to_string(), true),
-            ];
-
-            // Generate placeholder rows with the query as result
-            let mut rows = Vec::with_capacity(1);
-            let mut row = std::collections::HashMap::new();
-            row.insert("id".to_string(), serde_json::json!("1"));
-            row.insert("result".to_string(), serde_json::json!(query));
-            rows.push(row);
-
-            // Convert to Arrow schema and data
-            let arrow_schema = crate::schema_gen::generate_arrow_schema(&fields);
-            let arrow_values = rows
-                .iter()
-                .map(|row| {
-                    vec![
-                        row.get("id").cloned().and_then(|v| match v {
-                            serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
-                            _ => None,
-                        }),
-                        row.get("result").cloned().and_then(|v| match v {
-                            serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
-                            _ => None,
-                        }),
-                    ]
-                })
-                .collect::<Vec<_>>();
-
-            // Convert to RecordBatches
-            let config = crate::convert::ConvertConfig {
-                batch_size: 10_000,
-                max_rows:   None,
-            };
-            let converter = crate::convert::RowToArrowConverter::new(arrow_schema.clone(), config);
-
-            let batches = arrow_values
-                .chunks(config.batch_size)
-                .map(|chunk| converter.convert_batch(chunk.to_vec()))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
-
-            // Stream schema first, then batches
-            let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
-            messages.push(Ok(schema_to_flight_data(&arrow_schema)?));
-            for batch in batches {
-                messages.push(record_batch_to_flight_data(&batch));
-            }
-
-            let stream = futures::stream::iter(messages);
-            Ok(stream)
+            Err(Status::unavailable(
+                "Arrow Flight server has no database executor configured. \
+                 Initialize the flight server with FraiseFlightServer::with_executor().",
+            ))
         }
     }
 
-    /// Helper: Convert JSON result to Arrow RecordBatches.
+    /// Convert a GraphQL JSON result to Arrow `RecordBatch`es.
     ///
-    /// Infers Arrow schema from JSON structure and converts data rows.
+    /// Handles the standard GraphQL response envelope `{"data": {...}}`.
+    /// Finds the first field inside `data` that is a non-empty array of objects,
+    /// infers an Arrow schema from the first row, and converts all rows to columnar
+    /// Arrow format.
+    ///
+    /// Falls back to wrapping the entire JSON as a single `result` string column when:
+    /// - The result is a scalar (no array of objects found)
+    /// - The `data` field contains only non-array values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if schema inference or Arrow conversion fails.
     fn convert_json_to_arrow_batches(
         &self,
-        _json: &serde_json::Value,
+        json: &serde_json::Value,
     ) -> Result<Vec<RecordBatch>, String> {
-        // For now, return empty batches - full conversion would require inferring schema from JSON
-        // and handling nested types. This is a placeholder that can be enhanced later.
-        Ok(Vec::new())
+        // Extract the data payload from a GraphQL response envelope.
+        // Typical structure: {"data": {"field": [...]}, "errors": [...]}.
+        let data = json.get("data").unwrap_or(json);
+
+        // Find a non-empty array of objects to convert to columnar Arrow format.
+        let rows: Vec<std::collections::HashMap<String, serde_json::Value>> = match data {
+            serde_json::Value::Array(arr) => arr
+                .iter()
+                .filter_map(|v| {
+                    v.as_object()
+                        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                })
+                .collect(),
+            serde_json::Value::Object(map) => map
+                .values()
+                .find_map(|v| {
+                    if let serde_json::Value::Array(arr) = v {
+                        let converted: Vec<_> = arr
+                            .iter()
+                            .filter_map(|item| {
+                                item.as_object().map(|obj| {
+                                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                                })
+                            })
+                            .collect();
+                        (!converted.is_empty()).then_some(converted)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default(),
+            _ => vec![],
+        };
+
+        if rows.is_empty() {
+            // No columnar data found — wrap the entire JSON as a single string column.
+            // This handles scalar results and error-only responses gracefully.
+            return encode_json_to_arrow_batch(&json.to_string()).map(|b| vec![b]);
+        }
+
+        // Infer Arrow schema from the first row, then convert all rows.
+        let schema = crate::schema_gen::infer_schema_from_rows(&rows)
+            .map_err(|e| format!("Schema inference failed: {e}"))?;
+
+        let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
+            .map_err(|e| format!("Row conversion failed: {e}"))?;
+
+        let config = ConvertConfig { batch_size: 10_000, max_rows: None };
+        let converter = RowToArrowConverter::new(schema, config);
+        arrow_rows
+            .chunks(config.batch_size)
+            .map(|chunk| converter.convert_batch(chunk.to_vec()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Arrow conversion failed: {e}"))
     }
 
     /// Execute optimized query on pre-compiled va_* view.
@@ -479,12 +584,12 @@ impl FraiseQLFlightService {
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     /// Results are cached if caching is enabled.
     ///
-    /// SecurityContext is passed through for RLS filtering at the executor level.
+    /// `SecurityContext` is passed through for RLS filtering at the executor level.
     /// When executor is configured, RLS policies determine what rows the user can access.
     ///
     /// # Arguments
     ///
-    /// * `view` - View name (e.g., "va_orders")
+    /// * `view` - View name (e.g., "`va_orders`")
     /// * `filter` - Optional WHERE clause
     /// * `order_by` - Optional ORDER BY clause
     /// * `limit` - Optional LIMIT
@@ -497,7 +602,7 @@ impl FraiseQLFlightService {
     /// - Pre-load and cache pre-compiled Arrow schemas from metadata
     /// - Schema optimization with registry
     /// - Database adapter for real data execution (fallback to placeholder if not configured)
-    /// - RLS filtering via SecurityContext (passed to executor when configured)
+    /// - RLS filtering via `SecurityContext` (passed to executor when configured)
     pub(crate) async fn execute_optimized_view(
         &self,
         view: &str,
@@ -514,8 +619,8 @@ impl FraiseQLFlightService {
             .get(view)
             .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?;
 
-        // 2. Build optimized SQL query
-        let sql = build_optimized_sql(view, filter, order_by, limit, offset);
+        // 2. Build optimized SQL query (validates filter/order_by for injection safety).
+        let sql = build_optimized_sql(view, filter, order_by, limit, offset)?;
         info!(
             user_id = %security_context.user_id,
             "Executing optimized view with RLS: {}",
@@ -525,7 +630,7 @@ impl FraiseQLFlightService {
         // 3. Check cache before executing query
         let db_rows = if let Some(cache) = &self.cache {
             if let Some(cached_result) = cache.get(&sql) {
-                info!("Cache hit for query: {}", sql);
+                debug!("Cache hit for query: {}", sql);
                 (*cached_result).clone()
             } else {
                 // Cache miss: execute query and cache result
@@ -539,7 +644,18 @@ impl FraiseQLFlightService {
                     .await
                     .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
             } else {
-                execute_placeholder_query(view, limit)
+                #[cfg(any(test, feature = "testing"))]
+                {
+                    execute_placeholder_query(view, limit)
+                }
+                #[cfg(not(any(test, feature = "testing")))]
+                {
+                    return Err(Status::failed_precondition(
+                        "Arrow Flight server started without a database adapter. \
+                         Configure a database adapter or enable the `testing` feature \
+                         for development use.",
+                    ));
+                }
             }
         };
 
@@ -606,7 +722,7 @@ impl FraiseQLFlightService {
     /// Improves throughput by 20-30% compared to individual requests.
     /// Results are cached if caching is enabled, improving throughput further for repeated batches.
     ///
-    /// SecurityContext is passed through for RLS filtering.
+    /// `SecurityContext` is passed through for RLS filtering.
     /// When executor is configured, each query respects RLS policies.
     ///
     /// # Arguments
@@ -616,13 +732,22 @@ impl FraiseQLFlightService {
     ///
     /// # Returns
     ///
-    /// Stream of FlightData with combined results from all queries
+    /// Stream of `FlightData` with combined results from all queries
     pub(crate) async fn execute_batched_queries(
         &self,
         queries: Vec<String>,
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
+        // SECURITY: Raw SQL execution is disabled by default.
+        // Clients can supply arbitrary SQL in BatchedQueries tickets, bypassing RLS.
+        // Only allow this if explicitly enabled via `with_raw_sql_enabled()`.
+        if !self.allow_raw_sql {
+            return Err(Status::permission_denied(
+                "BatchedQueries raw SQL execution is disabled. Enable with with_raw_sql_enabled().",
+            ));
+        }
+
         if queries.is_empty() {
             return Err(Status::invalid_argument("BatchedQueries must contain at least one query"));
         }
@@ -638,12 +763,12 @@ impl FraiseQLFlightService {
         let mut first_query = true;
 
         for query in &queries {
-            info!("Executing batched query: {}", query);
+            debug!("Executing batched query: {}", query);
 
             // Try to get from cache first
             let db_rows = if let Some(cache) = &self.cache {
                 if let Some(cached_result) = cache.get(query) {
-                    info!("Cache hit for batched query: {}", query);
+                    debug!("Cache hit for batched query: {}", query);
                     (*cached_result).clone()
                 } else {
                     // Cache miss: execute and cache
@@ -801,25 +926,29 @@ impl FraiseQLFlightService {
             "Starting bulk export"
         );
 
+        // SECURITY: Reject raw WHERE clause filters — they allow SQL injection.
+        // Use server-side RLS (SecurityContext) for row filtering instead.
+        if filter.is_some() {
+            return Err(Status::invalid_argument(
+                "BulkExport filter parameter is not supported. Use server-side RLS for row filtering.",
+            ));
+        }
+
         // Get database adapter
         let db_adapter = self.db_adapter.as_ref().ok_or_else(|| {
             Status::failed_precondition("Database adapter not configured - cannot export data")
         })?;
 
-        // Build SQL query
-        let mut sql = format!("SELECT * FROM {}", table);
-
-        if let Some(f) = &filter {
-            sql.push_str(" WHERE ");
-            sql.push_str(f);
-        }
+        // Build SQL query with quoted table identifier to prevent SQL injection.
+        let quoted_table = format!("\"{}\"", table.replace('"', "\"\""));
+        let mut sql = format!("SELECT * FROM {quoted_table}");
 
         if let Some(l) = limit {
             sql.push_str(" LIMIT ");
             sql.push_str(&l.to_string());
         }
 
-        info!(sql = %sql, "Executing export query");
+        debug!(sql = %sql, "Executing export query");
 
         // Execute query
         let rows = db_adapter
@@ -854,7 +983,7 @@ impl FraiseQLFlightService {
             batch_size: 10_000,
             max_rows:   None,
         };
-        let converter = RowToArrowConverter::new(schema.clone(), config);
+        let converter = RowToArrowConverter::new(schema, config);
 
         let batches: Vec<RecordBatch> = arrow_rows
             .chunks(config.batch_size)
@@ -896,7 +1025,7 @@ impl FraiseQLFlightService {
         Ok(Response::new(Box::pin(stream)))
     }
 
-    /// Handle ClearCache action
+    /// Handle `ClearCache` action
     pub(crate) fn handle_clear_cache(&self) -> ActionResultStream {
         info!("ClearCache action triggered");
 
@@ -963,7 +1092,7 @@ impl FraiseQLFlightService {
     /// Useful for debugging schema reload issues.
     ///
     /// Returns a JSON result with array of:
-    /// - `view_name`: the view name (e.g., "va_orders")
+    /// - `view_name`: the view name (e.g., "`va_orders`")
     /// - `version`: current schema version number
     /// - `created_at`: when this version was created (ISO 8601)
     pub(crate) fn handle_get_schema_versions(&self) -> ActionResultStream {
@@ -995,7 +1124,7 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle HealthCheck action
+    /// Handle `HealthCheck` action
     pub(crate) fn handle_health_check(&self) -> ActionResultStream {
         info!("HealthCheck action triggered");
 
@@ -1004,8 +1133,7 @@ impl FraiseQLFlightService {
             "version": "2.0.0-a1",
             "timestamp": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0),
+                .map_or(0, |d| d.as_secs()),
         });
 
         let message = health_status.to_string();
@@ -1021,5 +1149,65 @@ impl FraiseQLFlightService {
 impl Default for FraiseQLFlightService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
+mod convert_tests {
+    //! Unit tests for `convert_json_to_arrow_batches`.
+    //!
+    //! These live in `service.rs` so they can access the private method directly.
+    use super::*;
+
+    /// A flat JSON array of objects converts to a non-empty batch.
+    #[test]
+    fn test_flat_array_produces_batches() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!([
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"},
+        ]);
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty(), "Must produce at least one batch");
+        assert_eq!(batches[0].num_rows(), 2);
+        assert_eq!(batches[0].num_columns(), 2);
+    }
+
+    /// Standard GraphQL response envelope: first array field in `data` is extracted.
+    #[test]
+    fn test_graphql_envelope_finds_array() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({
+            "data": {
+                "users": [
+                    {"id": 1, "email": "a@test.com"},
+                    {"id": 2, "email": "b@test.com"},
+                    {"id": 3, "email": "c@test.com"},
+                ]
+            }
+        });
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty());
+        assert_eq!(batches[0].num_rows(), 3);
+    }
+
+    /// A scalar (non-array) response falls back to a single `result` string column.
+    #[test]
+    fn test_scalar_falls_back_to_string_column() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({"data": {"ok": true}});
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty(), "Must produce the fallback batch");
+        assert_eq!(batches[0].num_columns(), 1, "Fallback uses a single 'result' column");
+    }
+
+    /// An empty JSON object produces the fallback batch.
+    #[test]
+    fn test_empty_object_produces_fallback() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({});
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty());
     }
 }

@@ -9,6 +9,8 @@
 //! cargo run --example filtering
 //! ```
 
+#![allow(clippy::doc_markdown)]             // Reason: example docs
+
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
 
@@ -65,8 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .where_rust(|json| {
             json.get("priority")
                 .and_then(|p| p.as_str())
-                .map(|p| p == "high")
-                .unwrap_or(false)
+                .is_some_and(|p| p == "high")
         })
         .execute()
         .await
@@ -100,8 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .where_rust(|json| {
             json.get("priority")
                 .and_then(|p| p.as_str())
-                .map(|p| p == "high")
-                .unwrap_or(false)
+                .is_some_and(|p| p == "high")
         })
         .execute()
         .await

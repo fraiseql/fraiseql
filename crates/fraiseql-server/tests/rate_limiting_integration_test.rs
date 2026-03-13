@@ -2,6 +2,10 @@
 //!
 //! Tests to verify rate limiting middleware is properly integrated into the server
 //! and functions correctly for GraphQL and other endpoints.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[cfg(test)]
 mod tests {
@@ -10,12 +14,13 @@ mod tests {
     /// Helper to create a rate limiter with configurable limits.
     fn create_test_limiter(rps_per_ip: u32, burst_size: u32) -> RateLimiter {
         RateLimiter::new(RateLimitConfig {
-            enabled:             true,
+            enabled:               true,
             rps_per_ip,
-            rps_per_user:        1000,
+            rps_per_user:          1000,
             burst_size,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         })
     }
 
@@ -68,6 +73,7 @@ mod tests {
             burst_size:            1,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Even with extremely low limits, should allow through when disabled
@@ -99,6 +105,7 @@ mod tests {
             burst_size:            3,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Should allow 3 requests for authenticated user
@@ -119,6 +126,7 @@ mod tests {
             burst_size:            2,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // User 1 gets 2 requests
@@ -141,6 +149,7 @@ mod tests {
             burst_size:            10,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         let first = limiter.check_user_limit("user123").await;
@@ -173,6 +182,7 @@ mod tests {
             burst_size:            5,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Should be able to get initial burst_size worth of tokens

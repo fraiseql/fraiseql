@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for schema compilation and execution
 //!
 //! Tests the end-to-end schema loading and query validation workflow.

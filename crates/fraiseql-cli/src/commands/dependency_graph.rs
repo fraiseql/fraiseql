@@ -254,8 +254,7 @@ fn build_output(
 
     // Calculate stats
     let total_deps: usize = nodes.iter().map(|n| n.dependency_count).sum();
-    #[allow(clippy::cast_precision_loss)]
-    // Reason: schema type counts won't exceed f64 mantissa precision
+    #[allow(clippy::cast_precision_loss)]  // Reason: schema type counts won't exceed f64 mantissa precision
     let avg_deps = if nodes.is_empty() {
         0.0
     } else {
@@ -642,6 +641,7 @@ fn to_console(output: &DependencyGraphOutput) -> String {
     console
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

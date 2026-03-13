@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline integration tests — codegen → executor end-to-end.
 //!
 //! These tests drive the **core compiler pipeline** end-to-end:
@@ -11,12 +13,12 @@
 //! `Compiler::compile()` so any bug in codegen is caught here.
 
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     compiler::Compiler,
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -42,7 +44,9 @@ impl PipelineMockAdapter {
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for PipelineMockAdapter {
     async fn execute_with_projection(
         &self,
@@ -83,6 +87,14 @@ impl DatabaseAdapter for PipelineMockAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -92,15 +104,17 @@ impl DatabaseAdapter for PipelineMockAdapter {
     }
 }
 
+impl MutationCapable for PipelineMockAdapter {}
+
 // ---------------------------------------------------------------------------
 // compile() → execute() — full pipeline regression for issue #53
 // ---------------------------------------------------------------------------
 
-/// Pipeline 1: Compiler::compile() → Executor::execute()
+/// Pipeline 1: `Compiler::compile()` → `Executor::execute()`
 ///
-/// This test does NOT hand-build CompiledSchema.  It compiles authoring JSON via
+/// This test does NOT hand-build `CompiledSchema`.  It compiles authoring JSON via
 /// `Compiler::compile()` and then executes a real query through the Executor.
-/// If CodeGenerator fails to thread `sql_source` (or any field the executor needs),
+/// If `CodeGenerator` fails to thread `sql_source` (or any field the executor needs),
 /// the executor will return an error and the assertion will fail.
 #[tokio::test]
 async fn pipeline_compile_then_execute_query_succeeds() {
@@ -150,7 +164,7 @@ async fn pipeline_compile_then_execute_query_succeeds() {
     let executor = Executor::new(compiled, adapter);
 
     let result: fraiseql_core::error::Result<String> =
-        executor.execute(r#"{ users { id name email } }"#, None).await;
+        executor.execute(r"{ users { id name email } }", None).await;
 
     assert!(result.is_ok(), "Executor::execute() must succeed: {result:?}");
 
@@ -168,7 +182,7 @@ async fn pipeline_compile_then_execute_query_succeeds() {
 /// the codegen must infer `sql_source = Some("user")` (lowercase return type).
 ///
 /// This is the exact regression from issue #53: the executor calls
-/// `execute_function_call(sql_source, args)`.  If sql_source is None, the
+/// `execute_function_call(sql_source, args)`.  If `sql_source` is None, the
 /// executor returns an error instead of delegating to the adapter.
 #[test]
 fn pipeline_codegen_threads_sql_source_for_create_mutation() {
@@ -228,7 +242,7 @@ fn pipeline_codegen_threads_sql_source_for_create_mutation() {
     );
 }
 
-/// For a `"delete"` operation the inferred sql_source must also be the
+/// For a `"delete"` operation the inferred `sql_source` must also be the
 /// lowercased return type.
 #[test]
 fn pipeline_codegen_threads_sql_source_for_delete_mutation() {

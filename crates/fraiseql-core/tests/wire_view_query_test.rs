@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test querying views with fraiseql-wire
 
 #[cfg(feature = "wire-backend")]

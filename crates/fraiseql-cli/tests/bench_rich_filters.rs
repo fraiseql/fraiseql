@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Performance benchmarks for rich filter compiler.
 //!
 //! Tests measure compilation speed and memory usage for:
@@ -265,7 +266,7 @@ fn bench_lookup_data_access() {
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     let security = compiled.security.as_ref().expect("Security should exist");
-    let lookup = security["lookup_data"].as_object().expect("Lookup data should exist");
+    let lookup = security.additional["lookup_data"].as_object().expect("Lookup data should exist");
 
     let start = std::time::Instant::now();
     let iterations = 10000;

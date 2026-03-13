@@ -1,0 +1,6 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+assertion_line: 791
+expression: sql
+---
+CAST(json_extract(data, '$.score') AS REAL) > ?

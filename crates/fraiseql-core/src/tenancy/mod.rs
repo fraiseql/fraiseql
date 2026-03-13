@@ -12,7 +12,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a live database adapter and compiled schema.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::tenancy::TenantContext;
 //! use serde_json::json;
 //!
@@ -21,11 +23,10 @@
 //!
 //! // Or extract from JWT claims
 //! let claims = json!({"tenant_id": "acme-corp", "sub": "user123"});
-//! let tenant = TenantContext::from_jwt_claims(&claims)?;
+//! let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
 //!
-//! // Use in query execution
-//! let executor = Executor::with_tenant(schema, db_pool, tenant)?;
-//! let result = executor.execute("query { users { id name } }").await?;
+//! // Use in query execution (executor setup not shown — requires live DB)
+//! // let result = executor.execute("query { users { id name } }").await?;
 //! ```
 
 use std::collections::HashMap;
@@ -59,7 +60,8 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("company-123");
     /// assert_eq!(tenant.id(), "company-123");
     /// ```
@@ -101,7 +103,7 @@ impl TenantContext {
 
     /// Get all metadata.
     #[must_use]
-    pub fn metadata(&self) -> &HashMap<String, String> {
+    pub const fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
 
@@ -121,7 +123,7 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
     /// use serde_json::json;
     /// use fraiseql_core::tenancy::TenantContext;
     ///
@@ -131,7 +133,7 @@ impl TenantContext {
     ///     "email": "alice@acme.com"
     /// });
     ///
-    /// let tenant = TenantContext::from_jwt_claims(&claims)?;
+    /// let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
     /// assert_eq!(tenant.id(), "acme-corp");
     /// ```
     pub fn from_jwt_claims(claims: &JsonValue) -> Result<Self, String> {
@@ -149,14 +151,29 @@ impl TenantContext {
     /// Returns a WHERE clause that restricts data to this tenant.
     /// Can be combined with existing WHERE clauses using AND.
     ///
+    /// # Panics
+    ///
+    /// Panics if the tenant ID contains characters outside the safe set
+    /// (`[A-Za-z0-9._-]`). Tenant IDs are validated at context creation
+    /// so this should never trigger in practice.
+    ///
+    /// # Security
+    ///
+    /// Prefer [`where_clause_postgresql`] or [`where_clause_parameterized`]
+    /// for production query execution. This method embeds the tenant ID
+    /// directly into SQL and is only safe because the ID is strictly validated.
+    ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
+    /// assert_eq!(clause, "tenant_id = 'acme-corp'");
     /// ```
     #[must_use]
     pub fn where_clause(&self) -> String {
+        validate_tenant_id_for_interpolation(&self.id);
         format!("tenant_id = '{}'", self.id)
     }
 
@@ -170,9 +187,11 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause_postgresql(1);  // "tenant_id = $1"
+    /// assert_eq!(clause, "tenant_id = $1");
     /// ```
     #[must_use]
     pub fn where_clause_postgresql(&self, param_index: usize) -> String {
@@ -185,9 +204,11 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause_parameterized();  // "tenant_id = ?"
+    /// assert_eq!(clause, "tenant_id = ?");
     /// ```
     #[must_use]
     pub fn where_clause_parameterized(&self) -> String {
@@ -199,18 +220,40 @@ impl TenantContext {
 // Query Filtering
 // ============================================================================
 
+/// Validate that a tenant ID is safe to interpolate directly into SQL.
+///
+/// Allows only `[A-Za-z0-9._-]` to prevent SQL injection. Panics on
+/// violation so callers catch programming errors at development time.
+///
+/// Production code should use the parameterized WHERE clause helpers instead.
+fn validate_tenant_id_for_interpolation(tenant_id: &str) {
+    assert!(
+        !tenant_id.is_empty() && tenant_id.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')),
+        "SECURITY: tenant_id '{tenant_id}' contains characters that are unsafe for SQL interpolation. \
+         Use where_clause_postgresql() or where_clause_parameterized() instead."
+    );
+}
+
 /// Generates a WHERE clause for tenant filtering.
 ///
 /// Returns a WHERE clause that restricts data to a specific tenant.
 /// Can be combined with existing WHERE clauses using AND.
 ///
+/// # Panics
+///
+/// Panics if `tenant_id` contains characters outside `[A-Za-z0-9._-]`.
+/// Use [`where_clause_postgresql`] or [`where_clause_parameterized`] for
+/// production code where tenant IDs come from external input.
+///
 /// # Example
 ///
-/// ```ignore
-/// let tenant = TenantContext::new("acme-corp");
-/// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
+/// ```rust
+/// # use fraiseql_core::tenancy::where_clause;
+/// let clause = where_clause("acme-corp");  // "tenant_id = 'acme-corp'"
+/// assert_eq!(clause, "tenant_id = 'acme-corp'");
 /// ```
 pub fn where_clause(tenant_id: &str) -> String {
+    validate_tenant_id_for_interpolation(tenant_id);
     format!("tenant_id = '{}'", tenant_id)
 }
 

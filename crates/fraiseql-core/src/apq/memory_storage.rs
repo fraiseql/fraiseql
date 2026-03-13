@@ -1,9 +1,9 @@
 //! In-memory APQ storage backend with LRU eviction and TTL support.
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use async_trait::async_trait;
 use serde_json::json;
 
 use super::storage::{ApqError, ApqStats, ApqStorage};
@@ -34,7 +34,7 @@ impl StoredQuery {
 /// and time-to-live. When capacity is reached, expired entries are
 /// purged first, then the least-recently-accessed entry is evicted.
 pub struct InMemoryApqStorage {
-    entries: std::sync::Mutex<HashMap<String, StoredQuery>>,
+    entries: tokio::sync::Mutex<HashMap<String, StoredQuery>>,
     max_entries: usize,
     ttl: Duration,
 }
@@ -44,7 +44,7 @@ impl InMemoryApqStorage {
     #[must_use]
     pub fn new(max_entries: usize) -> Self {
         Self {
-            entries: std::sync::Mutex::new(HashMap::new()),
+            entries: tokio::sync::Mutex::new(HashMap::new()),
             max_entries,
             ttl: DEFAULT_TTL,
         }
@@ -54,7 +54,7 @@ impl InMemoryApqStorage {
     #[must_use]
     pub fn with_ttl(max_entries: usize, ttl: Duration) -> Self {
         Self {
-            entries: std::sync::Mutex::new(HashMap::new()),
+            entries: tokio::sync::Mutex::new(HashMap::new()),
             max_entries,
             ttl,
         }
@@ -67,13 +67,13 @@ impl Default for InMemoryApqStorage {
     }
 }
 
+// Reason: ApqStorage is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl ApqStorage for InMemoryApqStorage {
     async fn get(&self, hash: &str) -> Result<Option<String>, ApqError> {
-        let mut map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let mut map = self.entries.lock().await;
 
         // Check if the entry exists and is not expired.
         if let Some(entry) = map.get_mut(hash) {
@@ -89,10 +89,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn set(&self, hash: String, query: String) -> Result<(), ApqError> {
-        let mut map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let mut map = self.entries.lock().await;
 
         let now = Instant::now();
 
@@ -124,10 +121,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn exists(&self, hash: &str) -> Result<bool, ApqError> {
-        let mut map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let mut map = self.entries.lock().await;
 
         if let Some(entry) = map.get(hash) {
             if entry.is_expired() {
@@ -141,19 +135,13 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn remove(&self, hash: &str) -> Result<(), ApqError> {
-        let mut map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let mut map = self.entries.lock().await;
         map.remove(hash);
         Ok(())
     }
 
     async fn stats(&self) -> Result<ApqStats, ApqError> {
-        let map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let map = self.entries.lock().await;
 
         let total = map.len();
         let expired = map.values().filter(|v| v.is_expired()).count();
@@ -170,10 +158,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn clear(&self) -> Result<(), ApqError> {
-        let mut map = self
-            .entries
-            .lock()
-            .map_err(|e| ApqError::StorageError(e.to_string()))?;
+        let mut map = self.entries.lock().await;
         map.clear();
         Ok(())
     }
@@ -181,6 +166,8 @@ impl ApqStorage for InMemoryApqStorage {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[tokio::test]

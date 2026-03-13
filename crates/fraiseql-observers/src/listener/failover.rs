@@ -3,7 +3,13 @@
 //! Detects listener failures and triggers automatic failover to healthy listeners,
 //! maintaining checkpoint consistency and preventing data loss.
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use tokio::sync::mpsc;
 
@@ -29,22 +35,25 @@ pub struct FailoverManager {
     coordinator:              Arc<MultiListenerCoordinator>,
     health_check_interval_ms: u64,
     failover_threshold_ms:    u64,
+    /// Shutdown signal for the health monitor task.
+    shutdown:                 Arc<AtomicBool>,
 }
 
 impl FailoverManager {
     /// Create a new failover manager
     #[must_use]
-    pub const fn new(coordinator: Arc<MultiListenerCoordinator>) -> Self {
+    pub fn new(coordinator: Arc<MultiListenerCoordinator>) -> Self {
         Self {
             coordinator,
             health_check_interval_ms: 5000,
-            failover_threshold_ms: 60000,
+            failover_threshold_ms: 60_000,
+            shutdown: Arc::new(AtomicBool::new(false)),
         }
     }
 
     /// Create with custom intervals
     #[must_use]
-    pub const fn with_intervals(
+    pub fn with_intervals(
         coordinator: Arc<MultiListenerCoordinator>,
         health_check_interval_ms: u64,
         failover_threshold_ms: u64,
@@ -53,20 +62,25 @@ impl FailoverManager {
             coordinator,
             health_check_interval_ms,
             failover_threshold_ms,
+            shutdown: Arc::new(AtomicBool::new(false)),
         }
     }
 
-    /// Detect failed listeners
+    /// Detect failed listeners using this manager's `failover_threshold_ms`.
+    ///
+    /// A listener is considered failed if it is not in `Running` state or its
+    /// last heartbeat is older than `failover_threshold_ms`.
     pub async fn detect_failures(&self) -> Result<Vec<String>> {
         let health = self.coordinator.check_listener_health().await?;
-        let mut failed = Vec::new();
-
-        for listener in health {
-            if !listener.is_healthy {
-                failed.push(listener.listener_id);
-            }
-        }
-
+        let threshold = Duration::from_millis(self.failover_threshold_ms);
+        let failed = health
+            .into_iter()
+            .filter(|h| {
+                h.state != ListenerState::Running
+                    || h.last_heartbeat.elapsed() >= threshold
+            })
+            .map(|h| h.listener_id)
+            .collect();
         Ok(failed)
     }
 
@@ -103,31 +117,47 @@ impl FailoverManager {
         // Transition listener to Running state (if in Recovering)
         if let Ok(state) = self.coordinator.get_listener_state(listener_id).await {
             if state == ListenerState::Recovering {
-                // In production, would transition state here
-                // For now, checkpoint is updated and listener should resume
+                self.coordinator
+                    .transition_listener_state(listener_id, ListenerState::Running)
+                    .await?;
             }
         }
 
         Ok(())
     }
 
-    /// Start health monitoring loop
+    /// Start the health monitoring loop.
+    ///
+    /// Spawns a background task that periodically checks for failed listeners
+    /// and emits [`FailoverEvent`]s on the returned channel. The task exits
+    /// when [`stop_health_monitor`] is called or the returned receiver is
+    /// dropped.
+    ///
+    /// [`stop_health_monitor`]: Self::stop_health_monitor
     pub async fn start_health_monitor(&self) -> mpsc::Receiver<FailoverEvent> {
+        // Reset the shutdown flag so the monitor can be restarted.
+        self.shutdown.store(false, Ordering::SeqCst);
+
         let (tx, rx) = mpsc::channel(100);
         let manager = self.clone();
 
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(
-                    manager.health_check_interval_ms,
-                ))
-                .await;
+                tokio::time::sleep(Duration::from_millis(manager.health_check_interval_ms))
+                    .await;
+
+                // Exit if shutdown was requested.
+                if manager.shutdown.load(Ordering::SeqCst) {
+                    break;
+                }
 
                 if let Ok(failed_listeners) = manager.detect_failures().await {
                     for failed_id in failed_listeners {
                         if let Ok(event) = manager.trigger_failover(&failed_id).await {
-                            // Send failover event (ignore if receiver dropped)
-                            let _ = tx.send(event).await;
+                            // Exit if the receiver has been dropped.
+                            if tx.send(event).await.is_err() {
+                                return;
+                            }
                         }
                     }
                 }
@@ -137,10 +167,13 @@ impl FailoverManager {
         rx
     }
 
-    /// Stop health monitoring (by dropping receiver)
-    pub const fn stop_health_monitor(&self) {
-        // Receiver will be dropped, causing channel to close
-        // and health monitor task to end
+    /// Stop the health monitoring task.
+    ///
+    /// Sets the shutdown flag; the spawned task will exit after its next
+    /// sleep interval. Returns immediately — the task may still be running
+    /// briefly after this call returns.
+    pub fn stop_health_monitor(&self) {
+        self.shutdown.store(true, Ordering::SeqCst);
     }
 
     /// Get health check interval
@@ -156,6 +189,7 @@ impl FailoverManager {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

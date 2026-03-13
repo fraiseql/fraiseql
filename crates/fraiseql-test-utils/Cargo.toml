@@ -1,3 +1,16 @@
+[dependencies]
+async-trait = {workspace = true}
+fraiseql-core = {workspace = true, features = ["test-utils"]}
+serde_json = {workspace = true}
+tempfile = {workspace = true}
+tokio = {workspace = true}
+uuid = {workspace = true}
+
+[dev-dependencies]
+
+[lints]
+workspace = true
+
 [package]
 name = "fraiseql-test-utils"
 publish = false
@@ -11,15 +24,3 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
-
-[dependencies]
-async-trait = {workspace = true}
-tokio = {workspace = true}
-tempfile = {workspace = true}
-serde_json = {workspace = true}
-fraiseql-core = {workspace = true}
-
-[dev-dependencies]
-
-[lints]
-workspace = true

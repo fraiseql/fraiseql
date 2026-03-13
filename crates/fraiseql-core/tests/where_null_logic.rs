@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test NULL handling in complex WHERE clause logic.
 //!
 //! This test verifies that:
@@ -9,7 +11,7 @@
 //! # Risk If Missing
 //!
 //! Without this test:
-//! - NULL = any_value could incorrectly return TRUE (should be UNKNOWN)
+//! - NULL = `any_value` could incorrectly return TRUE (should be UNKNOWN)
 //! - WHERE clauses could have silent bugs with NULL handling
 //! - NULL filtering could exclude or include wrong rows
 

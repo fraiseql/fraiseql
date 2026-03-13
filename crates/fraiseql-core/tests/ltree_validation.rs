@@ -1,17 +1,19 @@
-//! Test LTree format validation and edge cases.
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+//! Test `LTree` format validation and edge cases.
 //!
 //! This test verifies that:
-//! 1. LTree operators handle various path formats correctly
-//! 2. Invalid LTree values are preserved for SQL layer to handle
-//! 3. LTree with very long paths work without truncation
-//! 4. LTree operator values maintain structural integrity
+//! 1. `LTree` operators handle various path formats correctly
+//! 2. Invalid `LTree` values are preserved for SQL layer to handle
+//! 3. `LTree` with very long paths work without truncation
+//! 4. `LTree` operator values maintain structural integrity
 //!
 //! # Risk If Missing
 //!
 //! Without this test:
 //! - Invalid ltree values could cause PostgreSQL errors
 //! - Very long paths could be silently truncated
-//! - LTree operator behavior could be inconsistent
+//! - `LTree` operator behavior could be inconsistent
 
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;

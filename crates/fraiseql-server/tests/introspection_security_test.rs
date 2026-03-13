@@ -5,6 +5,10 @@
 //! - Introspection can require authentication
 //! - Schema export endpoints follow introspection settings
 //! - Configuration validation
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::ServerConfig;
 

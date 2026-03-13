@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test WHERE clause array and JSON array edge cases.
 //!
 //! This test verifies that:
@@ -13,6 +15,8 @@
 //! - Large arrays could buffer overflow
 //! - Null values in arrays could be mishandled
 
+#![allow(clippy::unreadable_literal)] // Reason: test data uses precise floating-point literals
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 
@@ -99,7 +103,7 @@ fn test_where_array_with_mixed_types() {
     let clause = WhereClause::Field {
         path:     vec!["values".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    mixed_array.clone(),
+        value:    mixed_array,
     };
 
     match clause {
@@ -124,7 +128,7 @@ fn test_where_array_with_null_values() {
     let clause = WhereClause::Field {
         path:     vec!["sparse_array".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    array_with_nulls.clone(),
+        value:    array_with_nulls,
     };
 
     match clause {
@@ -149,7 +153,7 @@ fn test_where_array_duplicate_values() {
     let clause = WhereClause::Field {
         path:     vec!["numbers".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    duplicate_array.clone(),
+        value:    duplicate_array,
     };
 
     match clause {
@@ -183,7 +187,7 @@ fn test_where_array_string_elements_special_chars() {
     let clause = WhereClause::Field {
         path:     vec!["strings".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    special_strings.clone(),
+        value:    special_strings,
     };
 
     match clause {
@@ -206,7 +210,7 @@ fn test_where_array_nested_arrays() {
     let clause = WhereClause::Field {
         path:     vec!["matrix".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    nested_arrays.clone(),
+        value:    nested_arrays,
     };
 
     match clause {
@@ -236,7 +240,7 @@ fn test_where_array_nested_objects() {
     let clause = WhereClause::Field {
         path:     vec!["items".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    object_array.clone(),
+        value:    object_array,
     };
 
     match clause {
@@ -321,7 +325,7 @@ fn test_where_array_numeric_precision() {
     let clause = WhereClause::Field {
         path:     vec!["decimals".to_string()],
         operator: WhereOperator::ArrayContains,
-        value:    precision_array.clone(),
+        value:    precision_array,
     };
 
     match clause {

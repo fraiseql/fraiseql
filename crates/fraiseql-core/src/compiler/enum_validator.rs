@@ -199,7 +199,7 @@ impl EnumValidator {
             });
         }
 
-        if !name.chars().next().unwrap().is_alphabetic() {
+        if !name.chars().next().expect("name is non-empty; empty was rejected above").is_alphabetic() {
             return Err(FraiseQLError::Validation {
                 message: format!("enum name '{}' must start with a letter", name),
                 path:    Some("schema.enums.name".to_string()),
@@ -257,6 +257,8 @@ impl EnumValidator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

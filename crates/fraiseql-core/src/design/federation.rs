@@ -49,13 +49,13 @@ fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
                         *entity_count.entry(entity_name.to_string()).or_insert(0) += 1;
                         entity_subgraphs
                             .entry(entity_name.to_string())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(subgraph_name.to_string());
                     } else if let Some(entity_obj) = entity.get("name").and_then(|v| v.as_str()) {
                         *entity_count.entry(entity_obj.to_string()).or_insert(0) += 1;
                         entity_subgraphs
                             .entry(entity_obj.to_string())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(subgraph_name.to_string());
                     }
                 }
@@ -63,7 +63,7 @@ fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
         }
 
         // Report entities in 3+ subgraphs - one warning per extra occurrence
-        for (entity, count) in entity_count.iter() {
+        for (entity, count) in &entity_count {
             if *count >= 3 {
                 let subgraph_list = entity_subgraphs.get(entity).cloned().unwrap_or_default();
 
@@ -133,9 +133,7 @@ fn check_circular_jsonb_chains(schema: &Value, audit: &mut DesignAudit) {
                     "Circular JSONB reference chain: {} - Causes nested JSONB inefficiency at compile time",
                     cycle.join(" → ")
                 ),
-                suggestion: format!(
-                    "Break the cycle by using one-directional references. E.g., User → Post (forward), but Post references user_id only (no back-reference)."
-                ),
+                suggestion: "Break the cycle by using one-directional references. E.g., User → Post (forward), but Post references user_id only (no back-reference).".to_string(),
                 entity: None,
             });
         }

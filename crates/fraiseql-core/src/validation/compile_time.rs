@@ -22,19 +22,28 @@ pub struct SchemaContext {
 /// Type definition
 #[derive(Debug, Clone)]
 pub struct TypeDef {
+    /// Name of the GraphQL type.
     pub name:   String,
+    /// Names of the fields declared on this type.
     pub fields: Vec<String>,
 }
 
 /// Field type information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FieldType {
+    /// UTF-8 text field.
     String,
+    /// 64-bit signed integer field.
     Integer,
+    /// 64-bit floating-point field.
     Float,
+    /// Boolean field.
     Boolean,
+    /// Calendar date without time.
     Date,
+    /// Timestamp with timezone.
     DateTime,
+    /// User-defined scalar type; the inner string holds the type name.
     Custom(String),
 }
 
@@ -59,17 +68,24 @@ impl FieldType {
 /// Compile-time validation result
 #[derive(Debug, Clone)]
 pub struct CompileTimeValidationResult {
+    /// Whether the rule is valid.
     pub valid:          bool,
+    /// All errors found during validation.
     pub errors:         Vec<CompileTimeError>,
+    /// Non-fatal warnings from validation.
     pub warnings:       Vec<String>,
+    /// SQL constraint expression derived from the rule, if generation succeeded.
     pub sql_constraint: Option<String>,
 }
 
 /// Compile-time validation error
 #[derive(Debug, Clone)]
 pub struct CompileTimeError {
+    /// Field path where the error occurred.
     pub field:      String,
+    /// Human-readable error description.
     pub message:    String,
+    /// Optional suggestion for how to fix the error.
     pub suggestion: Option<String>,
 }
 
@@ -81,7 +97,7 @@ pub struct CompileTimeValidator {
 
 impl CompileTimeValidator {
     /// Create a new compile-time validator
-    pub fn new(context: SchemaContext) -> Self {
+    pub const fn new(context: SchemaContext) -> Self {
         Self { context }
     }
 
@@ -147,7 +163,7 @@ impl CompileTimeValidator {
             errors.push(CompileTimeError {
                 field:      format!("{} {} {}", left_field, operator, right_field),
                 message:    format!("Cannot compare {:?} with {:?}", left_type, right_type),
-                suggestion: Some(format!("Ensure both fields have comparable types")),
+                suggestion: Some("Ensure both fields have comparable types".to_string()),
             });
             return CompileTimeValidationResult {
                 valid: false,
@@ -340,16 +356,12 @@ impl CompileTimeValidator {
             _ => return None,
         };
 
-        // Build constraint based on field type
+        // Build constraint based on field type, quoting column names to avoid SQL injection.
+        let left_quoted = format!("\"{}\"", left_field.replace('"', "\"\""));
+        let right_quoted = format!("\"{}\"", right_field.replace('"', "\"\""));
         let constraint = match left_type {
-            FieldType::Date | FieldType::DateTime => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
-            },
-            FieldType::Integer | FieldType::Float => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
-            },
-            FieldType::String => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
+            FieldType::Date | FieldType::DateTime | FieldType::Integer | FieldType::Float | FieldType::String => {
+                format!("CHECK ({} {} {})", left_quoted, sql_op, right_quoted)
             },
             _ => return None,
         };
@@ -371,6 +383,8 @@ impl CompileTimeValidator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn create_test_context() -> SchemaContext {
@@ -538,7 +552,7 @@ mod tests {
 
             assert!(result.valid);
             let sql = result.sql_constraint.unwrap();
-            assert!(sql.contains(op) || op == "==" && sql.contains("="));
+            assert!(sql.contains(op) || op == "==" && sql.contains('='));
         }
     }
 

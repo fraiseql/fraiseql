@@ -98,7 +98,7 @@ impl TransactionContext {
             "txn_{}_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system clock is always past UNIX epoch")
                 .as_micros(),
             &uuid::Uuid::new_v4().to_string()[..8]
         );
@@ -333,6 +333,7 @@ impl Default for TransactionManager {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

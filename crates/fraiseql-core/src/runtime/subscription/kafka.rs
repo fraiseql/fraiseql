@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::Serialize;
 
 use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
@@ -54,7 +55,7 @@ impl KafkaConfig {
 
     /// Set message timeout.
     #[must_use]
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
     }
@@ -140,7 +141,7 @@ impl KafkaMessage {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
 ///
 /// let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
@@ -210,13 +211,16 @@ impl KafkaAdapter {
 
     /// Get reference to the underlying producer for direct Kafka operations.
     #[must_use = "the producer reference should be used for Kafka operations"]
-    pub fn producer(&self) -> &rdkafka::producer::FutureProducer {
+    pub const fn producer(&self) -> &rdkafka::producer::FutureProducer {
         &self.producer
     }
 }
 
 #[cfg(feature = "kafka")]
-#[async_trait::async_trait]
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
         &self,
@@ -340,7 +344,10 @@ impl KafkaAdapter {
 }
 
 #[cfg(not(feature = "kafka"))]
-#[async_trait::async_trait]
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
         &self,

@@ -3,6 +3,16 @@
 //! Fetches and caches public keys from an OIDC provider's JWKS endpoint,
 //! automatically refreshing when the TTL expires.
 
+/// Request timeout for JWKS endpoint fetches.
+const JWKS_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Maximum byte size for a JWKS response.
+///
+/// A real JWKS document contains a handful of RSA/EC public keys, each a few
+/// hundred bytes. 1 `MiB` is generous while blocking allocation-bomb responses
+/// from a compromised OIDC provider.
+const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
 use std::{
     collections::HashMap,
     sync::RwLock,
@@ -50,12 +60,16 @@ impl JwksCache {
     ///
     /// Keys are lazily fetched on first access.
     pub fn new(jwks_uri: &str, ttl: Duration) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(JWKS_FETCH_TIMEOUT)
+            .build()
+            .unwrap_or_default();
         Self {
             keys: RwLock::new(HashMap::new()),
             jwks_uri: jwks_uri.to_string(),
             last_fetched: RwLock::new(None),
             ttl,
-            client: reqwest::Client::new(),
+            client,
         }
     }
 
@@ -96,15 +110,23 @@ impl JwksCache {
     async fn fetch_keys(&self) -> Result<(), String> {
         debug!(uri = %self.jwks_uri, "Fetching JWKS keys");
 
-        let jwks: JwksDocument = self
+        let body = self
             .client
             .get(&self.jwks_uri)
             .send()
             .await
             .map_err(|e| format!("JWKS fetch failed: {e}"))?
-            .json()
+            .bytes()
             .await
-            .map_err(|e| format!("JWKS parse failed: {e}"))?;
+            .map_err(|e| format!("JWKS read failed: {e}"))?;
+        if body.len() > MAX_JWKS_RESPONSE_BYTES {
+            return Err(format!(
+                "JWKS response too large ({} bytes, max {MAX_JWKS_RESPONSE_BYTES})",
+                body.len()
+            ));
+        }
+        let jwks: JwksDocument =
+            serde_json::from_slice(&body).map_err(|e| format!("JWKS parse failed: {e}"))?;
 
         let mut cache = self.keys.write().map_err(|e| format!("JWKS lock poisoned: {e}"))?;
         cache.clear();
@@ -151,6 +173,7 @@ impl std::fmt::Debug for JwksCache {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -160,6 +183,7 @@ mod tests {
         matchers::{method, path},
     };
 
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn jwks_fixture() -> serde_json::Value {
@@ -264,5 +288,51 @@ mod tests {
         let cache = JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600));
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err());
+    }
+
+    // ── S23-H2: JWKS response size cap ────────────────────────────────────────
+
+    #[test]
+    fn jwks_response_cap_constant_is_reasonable() {
+        const { assert!(MAX_JWKS_RESPONSE_BYTES >= 64 * 1024) }
+        const { assert!(MAX_JWKS_RESPONSE_BYTES <= 100 * 1024 * 1024) }
+    }
+
+    #[tokio::test]
+    async fn jwks_oversized_response_is_rejected() {
+        let mock_server = MockServer::start().await;
+        let oversized = vec![b'x'; MAX_JWKS_RESPONSE_BYTES + 1];
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock_server)
+            .await;
+
+        let cache = JwksCache::new(
+            &format!("{}/.well-known/jwks.json", mock_server.uri()),
+            Duration::from_secs(3600),
+        );
+        let result = cache.get_key("any-kid").await;
+        assert!(result.is_err(), "oversized JWKS response must be rejected");
+        let msg = result.err().unwrap();
+        assert!(msg.contains("too large"), "error must mention size limit: {msg}");
+    }
+
+    #[tokio::test]
+    async fn jwks_within_size_limit_is_accepted() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
+            .mount(&mock_server)
+            .await;
+
+        let cache = JwksCache::new(
+            &format!("{}/.well-known/jwks.json", mock_server.uri()),
+            Duration::from_secs(3600),
+        );
+        let result = cache.get_key("test-key-1").await;
+        assert!(result.is_ok(), "normal JWKS response must be accepted");
+        assert!(result.unwrap().is_some());
     }
 }

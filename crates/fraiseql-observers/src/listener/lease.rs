@@ -521,6 +521,7 @@ impl CheckpointLease {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

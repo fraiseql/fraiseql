@@ -10,11 +10,32 @@ use crate::routes::graphql::AppState;
 /// Health check response.
 #[derive(Debug, Serialize)]
 pub struct HealthResponse {
-    /// Server status.
+    /// Overall server status: `"healthy"`, `"degraded"`, or `"unhealthy"`.
+    ///
+    /// - `"healthy"` — database and all enabled subsystems are reachable.
+    /// - `"degraded"` — database is healthy but an optional subsystem is failing.
+    ///   Returns HTTP 200 so load balancers keep the pod in rotation; alert on the field value.
+    /// - `"unhealthy"` — database is unreachable. Returns HTTP 503.
     pub status: String,
 
     /// Database status.
     pub database: DatabaseStatus,
+
+    /// Observer runtime health (present when the `observers` feature is compiled in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observers: Option<ObserverHealth>,
+
+    /// Cache / Redis health (present when a Redis cache backend is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<CacheHealth>,
+
+    /// Secrets backend health (present when Vault or another secrets backend is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secrets: Option<SecretsHealth>,
+
+    /// Federation circuit breaker state (present when federation is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub federation: Option<FederationHealth>,
 
     /// Server version.
     pub version: String,
@@ -26,6 +47,56 @@ pub struct HealthResponse {
     /// a schema mismatch (e.g. partial rollout or stale deployment).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema_hash: Option<String>,
+}
+
+/// Federation circuit breaker health snapshot.
+#[derive(Debug, Serialize)]
+pub struct FederationHealth {
+    /// Whether federation is configured at all.
+    pub configured: bool,
+    /// Per-entity circuit breaker state.
+    pub subgraphs: Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
+}
+
+/// Observer runtime health snapshot.
+#[derive(Debug, Serialize)]
+pub struct ObserverHealth {
+    /// Whether the observer runtime is currently running.
+    pub running: bool,
+    /// Approximate number of events pending in the internal queue.
+    pub pending_events: usize,
+    /// Last error message from the observer runtime, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+/// Cache subsystem health.
+#[derive(Debug, Serialize)]
+pub struct CacheHealth {
+    /// Whether the cache backend is reachable (Redis ping succeeded, or always
+    /// `true` for the in-memory backend).
+    pub connected: bool,
+    /// Cache backend type: `"redis"` or `"in-memory"`.
+    pub backend: String,
+}
+
+/// Secrets backend health.
+#[derive(Debug, Serialize)]
+pub struct SecretsHealth {
+    /// Whether the secrets backend is reachable and the token is valid.
+    pub connected: bool,
+    /// Backend type: `"vault"`, `"env"`, `"aws-secrets"`, etc.
+    pub backend: String,
+}
+
+/// Readiness response (subset of HealthResponse).
+#[derive(Debug, Serialize)]
+pub struct ReadinessResponse {
+    /// `"ready"` or `"not_ready"`.
+    pub status: String,
+    /// Human-readable reason when `status = "not_ready"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Database status.
@@ -101,9 +172,18 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let schema_hash = Some(state.executor.schema().content_hash());
 
+    let federation = state.circuit_breaker.as_ref().map(|cb| FederationHealth {
+        configured: true,
+        subgraphs:  cb.health_snapshot(),
+    });
+
     let response = HealthResponse {
         status: status.to_string(),
         database,
+        observers: None, // Populated when observer health probe is wired into AppState
+        cache: None,     // Populated when Redis cache probe is wired into AppState
+        secrets: None,   // Populated when Vault probe is wired into AppState
+        federation,
         version: env!("CARGO_PKG_VERSION").to_string(),
         schema_hash,
     };
@@ -117,32 +197,100 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     (status_code, Json(response))
 }
 
+/// Readiness probe handler.
+///
+/// Returns `200 OK` when the server can serve traffic (database reachable),
+/// or `503 Service Unavailable` when it cannot.
+///
+/// Kubernetes usage:
+/// - `livenessProbe` → `GET /health` (always 200 while process is alive)
+/// - `readinessProbe` → `GET /readiness` (503 while not ready to serve traffic)
+pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+) -> impl IntoResponse {
+    debug!("Readiness check requested");
+
+    let db_healthy = state.executor.adapter().health_check().await.is_ok();
+
+    if db_healthy {
+        (
+            StatusCode::OK,
+            Json(ReadinessResponse { status: "ready".to_string(), reason: None }),
+        )
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ReadinessResponse {
+                status:  "not_ready".to_string(),
+                reason:  Some("Database connection unavailable".to_string()),
+            }),
+        )
+    }
+}
+
 /// Federation health check handler.
 ///
-/// Returns federation-specific health status including per-subgraph availability.
+/// Returns federation-specific health status.
 ///
-/// Note: This handler requires a SubgraphHealthChecker instance to be provided.
-/// For now, it returns a placeholder response.
+/// When federation is configured in the compiled schema, reports `healthy`.
+/// When federation is not configured, reports `not_configured`.
 ///
 /// # Response Codes
 ///
-/// - 200: Federation status retrieved (see status field for actual status)
-/// - 503: Federation unhealthy
-pub async fn federation_health_handler() -> impl IntoResponse {
+/// - 200: Federation status retrieved
+pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+) -> impl IntoResponse {
     debug!("Federation health check requested");
 
+    let schema = state.executor.schema();
+    let (status, status_code) = match schema.federation.as_ref() {
+        Some(fed) if fed.enabled => ("healthy", StatusCode::OK),
+        _ => ("not_configured", StatusCode::OK),
+    };
+
+    let subgraphs = state.circuit_breaker.as_ref().map_or_else(Vec::new, |cb| {
+        cb.health_snapshot()
+            .into_iter()
+            .map(|entry| {
+                let available = matches!(
+                    entry.state,
+                    crate::federation::circuit_breaker::CircuitHealthState::Closed
+                        | crate::federation::circuit_breaker::CircuitHealthState::HalfOpen
+                );
+                crate::federation::SubgraphHealthStatus {
+                    name:                 entry.subgraph,
+                    available,
+                    latency_ms:           0.0,
+                    last_check:           chrono::Utc::now().to_rfc3339(),
+                    error_count_last_60s: 0,
+                    error_rate_percent:   0.0,
+                }
+            })
+            .collect()
+    });
+
     let response = FederationHealthResponse {
-        status:    "healthy".to_string(),
-        subgraphs: vec![],
+        status:    status.to_string(),
+        subgraphs,
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
 
-    let status_code = StatusCode::OK;
     (status_code, Json(response))
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
@@ -155,6 +303,10 @@ mod tests {
                 active_connections: Some(2),
                 idle_connections:   Some(8),
             },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  None,
             version:     "2.0.0-a1".to_string(),
             schema_hash: Some("abc123def456abc1".to_string()),
         };
@@ -162,5 +314,60 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("healthy"));
         assert!(json.contains("PostgreSQL"));
+    }
+
+    #[test]
+    fn test_health_response_omits_federation_when_none() {
+        let response = HealthResponse {
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
+                active_connections: None,
+                idle_connections:   None,
+            },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  None,
+            version:     "2.0.0".to_string(),
+            schema_hash: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(!json.contains("federation"), "federation key must be absent when field is None");
+    }
+
+    #[test]
+    fn test_health_response_includes_federation_when_present() {
+        use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
+
+        let response = HealthResponse {
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
+                active_connections: None,
+                idle_connections:   None,
+            },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  Some(FederationHealth {
+                configured: true,
+                subgraphs:  vec![SubgraphCircuitHealth {
+                    subgraph: "Product".to_string(),
+                    state:    CircuitHealthState::Open,
+                }],
+            }),
+            version:     "2.0.0".to_string(),
+            schema_hash: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("federation"), "federation key must be present");
+        assert!(json.contains("configured"), "configured field must appear");
+        assert!(json.contains("Product"), "subgraph name must appear");
+        assert!(json.contains("open"), "circuit state must be serialised as snake_case");
     }
 }

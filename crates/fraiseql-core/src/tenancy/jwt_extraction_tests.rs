@@ -2,6 +2,7 @@
 //!
 //! Tests for extracting tenant context from JWT claims
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use serde_json::json;
 
 // ============================================================================
@@ -143,7 +144,7 @@ fn test_tenant_filter_with_other_conditions() {
 #[test]
 fn test_tenant_filter_postgresql() {
     // PostgreSQL with parameterized query
-    let sql = format!("WHERE tenant_id = $1");
+    let sql = "WHERE tenant_id = $1".to_string();
 
     assert!(sql.contains("tenant_id"));
     assert!(sql.contains("$1"));
@@ -153,20 +154,20 @@ fn test_tenant_filter_postgresql() {
 #[test]
 fn test_tenant_filter_mysql() {
     // MySQL with parameterized query
-    let sql = format!("WHERE tenant_id = ?");
+    let sql = "WHERE tenant_id = ?".to_string();
 
     assert!(sql.contains("tenant_id"));
-    assert!(sql.contains("?"));
+    assert!(sql.contains('?'));
 }
 
 /// Test that tenant filter works with SQLite
 #[test]
 fn test_tenant_filter_sqlite() {
     // SQLite with parameterized query
-    let sql = format!("WHERE tenant_id = ?");
+    let sql = "WHERE tenant_id = ?".to_string();
 
     assert!(sql.contains("tenant_id"));
-    assert!(sql.contains("?"));
+    assert!(sql.contains('?'));
 }
 
 // ============================================================================

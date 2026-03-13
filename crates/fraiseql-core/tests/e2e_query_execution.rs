@@ -1,16 +1,19 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Tests end-to-end query execution scenarios:
 //! - Mock database with sample data
 //! - Query execution with field projection
-//! - ResultProjector with projected data
+//! - `ResultProjector` with projected data
 //! - GraphQL response envelope generation
 //! - Error handling and edge cases
 
+#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use std::collections::HashMap;
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -112,7 +115,9 @@ impl MockDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -165,6 +170,14 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -174,6 +187,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for MockDatabaseAdapter {}
 
 // ============================================================================
 // Seed Data Tests

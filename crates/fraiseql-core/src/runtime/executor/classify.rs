@@ -22,19 +22,14 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// - **Windows** (root field ends with `_window`) → Time-series queries
     /// - **Regular** (default) → Standard field selections
     ///
-    /// # Performance Notes
-    ///
-    /// - Introspection and federation use cheap text scans (no parsing)
-    /// - Other queries require full GraphQL parsing
-    /// - Classification result is used to route to specialized handlers
-    ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Parse` if the query string is malformed GraphQL.
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: live executor with compiled schema.
     /// // Regular query
     /// let query_type = executor.classify_query("{ users { id } }")?;
     /// assert_eq!(query_type, QueryType::Regular);
@@ -48,20 +43,22 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // Routes to introspection.schema_response
     /// ```
     pub(super) fn classify_query(&self, query: &str) -> Result<QueryType> {
-        // Check for introspection queries first (highest priority).
-        // These use a cheap text scan to avoid parsing queries that only
-        // need the built-in introspection response.
-        if let Some(introspection_type) = self.detect_introspection(query) {
-            return Ok(introspection_type);
-        }
+        self.classify_query_with_parse(query).map(|(qt, _)| qt)
+    }
 
-        // Check for federation queries (higher priority than regular queries).
-        // Also a text scan — federation queries bypass normal execution.
-        if let Some(federation_type) = self.detect_federation(query) {
-            return Ok(federation_type);
-        }
-
-        // Parse the query to extract the root field name and operation type.
+    /// Classify a query and simultaneously return the parsed AST for `Regular`
+    /// queries, avoiding a redundant parse in the multi-root pipeline path.
+    ///
+    /// Returns `(QueryType, Some(ParsedQuery))` for `Regular` queries and
+    /// `(QueryType, None)` for all other types (introspection, federation, etc.).
+    pub(super) fn classify_query_with_parse(
+        &self,
+        query: &str,
+    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
+        // Parse the query once; the AST is the canonical source of truth.
+        // Substring scans on the raw string produce false-positives on aliases,
+        // comments, and string argument values (e.g. `{ search(q: "_service") }`
+        // would be mis-routed as a federation query by a text scan).
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
             message:  e.to_string(),
             location: "query".to_string(),
@@ -69,104 +66,44 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         let root_field = &parsed.root_field;
 
-        // Relay global node lookup: root field is exactly "node" on a query operation.
+        // Introspection (highest priority): `__schema` or `__type`.
+        // These are meta-fields defined by the GraphQL spec — always a root query.
+        if root_field == "__schema" {
+            return Ok((QueryType::IntrospectionSchema, None));
+        }
+        if root_field == "__type" {
+            let type_name = extract_root_string_arg(&parsed, "name");
+            return Ok((QueryType::IntrospectionType(type_name.unwrap_or_default()), None));
+        }
+
+        // Federation (Apollo Federation v1/v2 entry-points).
+        if root_field == "_service" || root_field == "_entities" {
+            return Ok((QueryType::Federation(root_field.clone()), None));
+        }
+
+        // Relay global node lookup: root field is exactly "node" on a query.
         if parsed.operation_type == "query" && root_field == "node" {
-            return Ok(QueryType::NodeQuery);
+            return Ok((QueryType::NodeQuery, None));
         }
 
-        // Mutations are routed by operation type
+        // Mutations are routed by operation type.
         if parsed.operation_type == "mutation" {
-            return Ok(QueryType::Mutation(root_field.clone()));
+            return Ok((QueryType::Mutation(root_field.clone()), None));
         }
 
-        // Check if it's an aggregate query (ends with _aggregate)
+        // Aggregate queries (root field ends with `_aggregate`).
         if root_field.ends_with("_aggregate") {
-            return Ok(QueryType::Aggregate(root_field.clone()));
+            return Ok((QueryType::Aggregate(root_field.clone()), None));
         }
 
-        // Check if it's a window query (ends with _window)
+        // Window queries (root field ends with `_window`).
         if root_field.ends_with("_window") {
-            return Ok(QueryType::Window(root_field.clone()));
+            return Ok((QueryType::Window(root_field.clone()), None));
         }
 
-        // Otherwise, it's a regular query
-        Ok(QueryType::Regular)
-    }
-
-    /// Detect if a query is an introspection query.
-    ///
-    /// Returns `Some(QueryType)` for introspection queries, `None` otherwise.
-    pub(super) fn detect_introspection(&self, query: &str) -> Option<QueryType> {
-        let query_trimmed = query.trim();
-
-        // Check for __schema query
-        if query_trimmed.contains("__schema") {
-            return Some(QueryType::IntrospectionSchema);
-        }
-
-        // Check for __type(name: "...") query
-        if query_trimmed.contains("__type") {
-            // Extract the type name from __type(name: "TypeName")
-            if let Some(type_name) = self.extract_type_argument(query_trimmed) {
-                return Some(QueryType::IntrospectionType(type_name));
-            }
-            // If no type name found, return schema introspection as fallback
-            return Some(QueryType::IntrospectionSchema);
-        }
-
-        None
-    }
-
-    /// Detect if a query is a federation query (_service or _entities).
-    ///
-    /// Returns `Some(QueryType)` for federation queries, `None` otherwise.
-    pub(super) fn detect_federation(&self, query: &str) -> Option<QueryType> {
-        let query_trimmed = query.trim();
-
-        // Check for _service query
-        if query_trimmed.contains("_service") {
-            return Some(QueryType::Federation("_service".to_string()));
-        }
-
-        // Check for _entities query
-        if query_trimmed.contains("_entities") {
-            return Some(QueryType::Federation("_entities".to_string()));
-        }
-
-        None
-    }
-
-    /// Extract the type name argument from `__type(name: "TypeName")`.
-    pub(super) fn extract_type_argument(&self, query: &str) -> Option<String> {
-        // Find __type(name: "..." pattern
-        // Supports: __type(name: "User"), __type(name:"User"), __type(name: 'User')
-        let type_pos = query.find("__type")?;
-        let after_type = &query[type_pos + 6..];
-
-        // Find the opening parenthesis
-        let paren_pos = after_type.find('(')?;
-        let after_paren = &after_type[paren_pos + 1..];
-
-        // Find name: and extract the value
-        let name_pos = after_paren.find("name")?;
-        let after_name = &after_paren[name_pos + 4..].trim_start();
-
-        // Skip colon
-        let after_colon = if let Some(stripped) = after_name.strip_prefix(':') {
-            stripped.trim_start()
-        } else {
-            after_name
-        };
-
-        // Extract string value (either "..." or '...')
-        let quote_char = after_colon.chars().next()?;
-        if quote_char != '"' && quote_char != '\'' {
-            return None;
-        }
-
-        let after_quote = &after_colon[1..];
-        let end_quote = after_quote.find(quote_char)?;
-        Some(after_quote[..end_quote].to_string())
+        // Regular query — return the already-parsed AST to avoid re-parsing in
+        // the multi-root pipeline path.
+        Ok((QueryType::Regular, Some(parsed)))
     }
 
     /// Extract an inline node ID literal from a `node(id: "...")` query string.
@@ -188,5 +125,29 @@ impl<A: DatabaseAdapter> Executor<A> {
         let inner = &after_colon[1..];
         let end = inner.find(quote_char)?;
         Some(inner[..end].to_string())
+    }
+}
+
+/// Extract the value of a named string argument from the first (root) field of
+/// a parsed query.
+///
+/// For `{ __type(name: "User") { ... } }`, calling `extract_root_string_arg(parsed, "name")`
+/// returns `Some("User".to_string())`.
+///
+/// Returns `None` if the argument is absent or is not a JSON string literal.
+fn extract_root_string_arg(
+    parsed: &crate::graphql::ParsedQuery,
+    arg_name: &str,
+) -> Option<String> {
+    let root_field = parsed.selections.first()?;
+    let arg = root_field.arguments.iter().find(|a| a.name == arg_name)?;
+
+    // value_json is serialized as `"TypeName"` (with surrounding quotes) for
+    // string values.  Strip the outer quotes to get the raw string.
+    let json = &arg.value_json;
+    if json.starts_with('"') && json.ends_with('"') && json.len() >= 2 {
+        Some(json[1..json.len() - 1].replace("\\\"", "\""))
+    } else {
+        None
     }
 }

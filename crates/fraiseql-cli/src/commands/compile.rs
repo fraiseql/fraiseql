@@ -5,11 +5,11 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
 use tracing::{info, warn};
 
 use crate::{
-    config::FraiseQLConfig,
+    config::TomlProjectConfig,
     schema::{
         IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator,
     },
@@ -166,10 +166,10 @@ pub async fn compile_to_schema(
     // 2a. Load and apply security configuration from fraiseql.toml if it exists.
     // Skip when the input itself is a TomlSchema file: in that case the security
     // settings are embedded in the TomlSchema, and the CWD fraiseql.toml uses a
-    // different TOML format (TomlSchema vs FraiseQLConfig) that is not compatible.
+    // different TOML format (TomlSchema vs TomlProjectConfig) that is not compatible.
     if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
-        match FraiseQLConfig::from_file("fraiseql.toml") {
+        match TomlProjectConfig::from_file("fraiseql.toml") {
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate()?;
@@ -216,11 +216,17 @@ pub async fn compile_to_schema(
     info!("Analyzing schema for optimization opportunities...");
     let report = SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
 
+    // 5a. Stamp schema format version for runtime compatibility checks.
+    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
+
     // 5b. Optional: Validate indexed columns against database
     if let Some(db_url) = opts.database {
         info!("Validating indexed columns against database...");
         validate_indexed_columns(&schema, db_url).await?;
     }
+
+    // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
+    check_sqlite_compatibility_warnings(&schema, opts.input, is_toml, opts.database);
 
     Ok((schema, report))
 }
@@ -304,6 +310,74 @@ pub async fn run(
     optimization_report.print();
 
     Ok(())
+}
+
+/// Emit warnings when schema uses features that SQLite does not support.
+///
+/// SQLite lacks stored procedures (mutations) and relay/subscription support.
+/// A compile-time warning helps catch this before runtime failures.
+fn check_sqlite_compatibility_warnings(
+    schema: &CompiledSchema,
+    input_path: &str,
+    is_toml: bool,
+    database_url: Option<&str>,
+) {
+    let target_is_sqlite = database_url
+        .is_some_and(|url| url.to_ascii_lowercase().starts_with("sqlite://"))
+        || is_toml && detect_sqlite_target_in_toml(input_path);
+
+    if !target_is_sqlite {
+        return;
+    }
+
+    let mutation_count = schema.mutations.len();
+    let relay_count = schema.queries.iter().filter(|q| q.relay).count();
+    let subscription_count = schema.subscriptions.len();
+
+    if mutation_count > 0 {
+        warn!(
+            "Schema contains {} mutation(s) but target database is SQLite. \
+             Mutations are not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            mutation_count,
+        );
+    }
+    if relay_count > 0 {
+        warn!(
+            "Schema contains {} relay query/queries but target database is SQLite. \
+             Relay (keyset pagination) is not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            relay_count,
+        );
+    }
+    if subscription_count > 0 {
+        warn!(
+            "Schema contains {} subscription(s) but target database is SQLite. \
+             Subscriptions are not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            subscription_count,
+        );
+    }
+}
+
+/// Check if the TOML schema file specifies `database_target = "sqlite"`.
+///
+/// Reads and parses the TOML to extract the schema metadata. Returns `false`
+/// on any parse error (non-fatal — warning detection is best-effort).
+fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
+    let Ok(content) = fs::read_to_string(toml_path) else {
+        return false;
+    };
+    let Ok(toml_schema) =
+        toml::from_str::<crate::config::toml_schema::TomlSchema>(&content)
+    else {
+        return false;
+    };
+    toml_schema
+        .schema
+        .database_target
+        .to_ascii_lowercase()
+        .contains("sqlite")
 }
 
 /// Validate indexed columns against database views.
@@ -467,8 +541,13 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:       None,
-            custom_scalars:   CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            // None is intentional here: this struct is used only for in-process
+            // validation assertions and is never serialised to disk. The real
+            // compile path stamps the version at compile_impl() line 220.
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -516,8 +595,13 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:       None,
-            custom_scalars:   CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            // None is intentional here: this struct is used only for in-process
+            // validation assertions and is never serialised to disk. The real
+            // compile path stamps the version at compile_impl() line 220.
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         // Note: Validation is private to SchemaConverter

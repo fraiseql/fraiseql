@@ -3,22 +3,17 @@
 //! Provides public async methods with common logic and abstract hooks
 //! for provider-specific implementations.
 
-use std::{
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::HashMap;
 
-use crate::security::kms::{
-    error::{KmsError, KmsResult},
-    models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy},
-};
+use async_trait::async_trait;
 
-/// Get current Unix timestamp.
-fn current_timestamp() -> i64 {
-    // Safe to unwrap: u64 timestamp won't overflow i64 until year 292,277,026,596
-    i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs())
-        .unwrap_or(0)
-}
+use crate::{
+    security::kms::{
+        error::{KmsError, KmsResult},
+        models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy},
+    },
+    utils::clock::{Clock, SystemClock},
+};
 
 /// Abstract base class for KMS providers.
 ///
@@ -26,10 +21,22 @@ fn current_timestamp() -> i64 {
 /// - Public methods (encrypt, decrypt, etc.) handle common logic
 /// - Protected abstract methods (do_encrypt, do_decrypt, etc.) are implemented by concrete
 ///   providers
-#[async_trait::async_trait]
+// Reason: used as dyn Trait (Arc<dyn BaseKmsProvider>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 pub trait BaseKmsProvider: Send + Sync {
     /// Unique provider identifier (e.g., 'vault', 'aws', 'gcp').
     fn provider_name(&self) -> &str;
+
+    /// Return the current Unix timestamp in seconds as a signed integer.
+    ///
+    /// Override in tests to return a fixed timestamp, enabling deterministic
+    /// testing of key-rotation scheduling without real-time delays.
+    ///
+    /// The default implementation delegates to [`SystemClock`].
+    fn timestamp_secs(&self) -> i64 {
+        SystemClock.now_secs_i64()
+    }
 
     // ─────────────────────────────────────────────────────────────
     // Template Methods (public API)
@@ -68,10 +75,10 @@ pub trait BaseKmsProvider: Send + Sync {
                 self.provider_name().to_string(),
                 key_id.to_string(),
                 KeyPurpose::EncryptDecrypt,
-                current_timestamp(),
+                self.timestamp_secs(),
             ),
             algorithm,
-            current_timestamp(),
+            self.timestamp_secs(),
             ctx,
         ))
     }
@@ -128,7 +135,7 @@ pub trait BaseKmsProvider: Send + Sync {
             self.provider_name().to_string(),
             key_id.to_string(),
             KeyPurpose::EncryptDecrypt,
-            current_timestamp(),
+            self.timestamp_secs(),
         );
 
         Ok(DataKeyPair::new(
@@ -137,7 +144,7 @@ pub trait BaseKmsProvider: Send + Sync {
                 encrypted_key_bytes,
                 key_ref.clone(),
                 "data-key".to_string(),
-                current_timestamp(),
+                self.timestamp_secs(),
                 ctx,
             ),
             key_ref,
@@ -254,29 +261,39 @@ pub trait BaseKmsProvider: Send + Sync {
     async fn do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo>;
 }
 
+/// Type alias for arc-wrapped dynamic KMS provider.
+///
+/// Used for thread-safe, reference-counted storage of KMS providers.
+pub type ArcKmsProvider = std::sync::Arc<dyn BaseKmsProvider>;
+
 /// Key information returned by provider.
 #[derive(Debug, Clone)]
 pub struct KeyInfo {
+    /// Human-readable alias for the key, if one is configured in the provider.
     pub alias:      Option<String>,
+    /// Unix timestamp (seconds) when the key was created.
     pub created_at: i64,
 }
 
 /// Rotation policy info returned by provider.
 #[derive(Debug, Clone)]
 pub struct RotationPolicyInfo {
+    /// Whether automatic rotation is enabled for this key.
     pub enabled:              bool,
+    /// How often the key is rotated, expressed in days.
     pub rotation_period_days: u32,
+    /// Unix timestamp (seconds) of the most recent rotation, if any.
     pub last_rotation:        Option<i64>,
+    /// Unix timestamp (seconds) when the next rotation is scheduled, if known.
     pub next_rotation:        Option<i64>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::utils::clock::{Clock as _, SystemClock};
 
-    #[tokio::test]
-    async fn test_current_timestamp_is_positive() {
-        let ts = current_timestamp();
-        assert!(ts > 0);
+    #[test]
+    fn test_system_clock_timestamp_is_positive() {
+        assert!(SystemClock.now_secs_i64() > 0);
     }
 }

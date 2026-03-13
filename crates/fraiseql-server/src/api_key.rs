@@ -231,7 +231,7 @@ pub fn api_key_authenticator_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Option<Arc<ApiKeyAuthenticator>> {
     let security = schema.security.as_ref()?;
-    let api_keys_val = security.get("api_keys")?;
+    let api_keys_val = security.additional.get("api_keys")?;
     let config: ApiKeyConfig = serde_json::from_value(api_keys_val.clone())
         .map_err(|e| {
             warn!(error = %e, "Failed to parse security.api_keys config");
@@ -246,6 +246,8 @@ pub fn api_key_authenticator_from_schema(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn sha256_hex(input: &str) -> String {

@@ -334,7 +334,7 @@ SELECT * FROM sagas WHERE status = 'FAILED';
 
 ### 5. Production Deployment
 
-For production, see `/docs/FEDERATION_DEPLOYMENT.md` and `/docs/SAGA_PATTERNS.md` for:
+For production, see `/docs/FEDERATION_deployment.md` and `/docs/SAGA_PATTERNS.md` for:
 
 - Kubernetes deployment manifests
 - High-availability saga coordination
@@ -344,7 +344,7 @@ For production, see `/docs/FEDERATION_DEPLOYMENT.md` and `/docs/SAGA_PATTERNS.md
 
 ## Related Documentation
 
-- **[SAGA_GETTING_STARTED.md](../../docs/SAGA_GETTING_STARTED.md)** - Introduction to sagas
+- **[SAGA_getting-started.md](../../docs/SAGA_getting-started.md)** - Introduction to sagas
 - **[SAGA_PATTERNS.md](../../docs/SAGA_PATTERNS.md)** - Common saga patterns
 - **[FEDERATION_SAGAS.md](../../docs/FEDERATION_SAGAS.md)** - Sagas in Apollo Federation
 - **[SAGA_API.md](../../docs/reference/SAGA_API.md)** - Complete API reference

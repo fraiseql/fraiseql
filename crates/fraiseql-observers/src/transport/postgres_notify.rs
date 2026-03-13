@@ -10,7 +10,7 @@
 //! - Maintains existing behavior (zero changes to semantics)
 //! - Enables gradual migration to transport-agnostic code
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::stream;
@@ -69,55 +69,59 @@ impl PostgresNotifyTransport {
     }
 }
 
+// Reason: EventTransport is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl EventTransport for PostgresNotifyTransport {
     async fn subscribe(&self, _filter: EventFilter) -> Result<EventStream> {
         let listener = Arc::clone(&self.listener);
         let poll_interval = self.poll_interval;
 
-        // Create a stream that polls the change log listener
-        let stream =
-            stream::unfold((listener, poll_interval), move |(listener, interval)| async move {
+        // Create a stream that polls the change log listener.
+        // State carries a VecDeque buffer so every entry in a batch is yielded,
+        // not just the first one (which was the previous behaviour).
+        let stream = stream::unfold(
+            (listener, poll_interval, VecDeque::<ChangeLogEntry>::new()),
+            move |(listener, interval, mut buffer)| async move {
                 loop {
-                    // Lock the listener and fetch next batch
+                    // Yield buffered entries before fetching a new batch.
+                    if let Some(entry) = buffer.pop_front() {
+                        match entry.to_entity_event() {
+                            Ok(event) => return Some((Ok(event), (listener, interval, buffer))),
+                            Err(e) => {
+                                error!("Error converting change log entry to event: {}", e);
+                                return Some((Err(e), (listener, interval, buffer)));
+                            },
+                        }
+                    }
+
+                    // Buffer empty — fetch the next batch.
                     let entries: Vec<ChangeLogEntry> = {
                         let mut listener_guard = listener.lock().await;
                         match listener_guard.next_batch().await {
                             Ok(entries) => {
-                                drop(listener_guard); // Release lock
+                                drop(listener_guard);
                                 entries
                             },
                             Err(e) => {
                                 error!("Error fetching batch from change log: {}", e);
-                                drop(listener_guard); // Release lock
-                                // Return error and continue
-                                return Some((Err(e), (listener, interval)));
+                                drop(listener_guard);
+                                return Some((Err(e), (listener, interval, buffer)));
                             },
                         }
                     };
 
-                    // If we got entries, convert them to events
-                    if !entries.is_empty() {
-                        debug!("PostgresNotifyTransport: fetched {} entries", entries.len());
-
-                        // Convert entries to events and yield them one by one
-                        if let Some(entry) = entries.into_iter().next() {
-                            match entry.to_entity_event() {
-                                Ok(event) => {
-                                    return Some((Ok(event), (listener, interval)));
-                                },
-                                Err(e) => {
-                                    error!("Error converting change log entry to event: {}", e);
-                                    return Some((Err(e), (listener, interval)));
-                                },
-                            }
-                        }
+                    if entries.is_empty() {
+                        tokio::time::sleep(interval).await;
+                        continue;
                     }
 
-                    // No entries, sleep and retry
-                    tokio::time::sleep(interval).await;
+                    debug!("PostgresNotifyTransport: fetched {} entries", entries.len());
+                    buffer.extend(entries);
                 }
-            });
+            },
+        );
 
         Ok(Box::pin(stream))
     }

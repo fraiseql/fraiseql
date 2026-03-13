@@ -34,8 +34,13 @@
 //! ```bash
 //! cargo test --test observer_runtime_integration_test --features observers -- --ignored --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 mod observer_test_helpers;
 
@@ -114,7 +119,7 @@ async fn test_runtime_start_stop_lifecycle() {
 
     // Insert initial change log entry with matching entity type
     let order_id = Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         &entity_type,
@@ -209,7 +214,7 @@ async fn test_checkpoint_recovery_after_restart() {
     // Insert first batch of events with matching entity type
     for i in 0..5 {
         let order_id = Uuid::new_v4();
-        let _ = insert_change_log_entry(
+        let _ = insert_change_log_entry(  // intentional
             &pool,
             "INSERT",
             &entity_type,
@@ -235,7 +240,7 @@ async fn test_checkpoint_recovery_after_restart() {
     // Insert second batch of events with matching entity type
     for i in 5..10 {
         let order_id = Uuid::new_v4();
-        let _ = insert_change_log_entry(
+        let _ = insert_change_log_entry(  // intentional
             &pool,
             "INSERT",
             &entity_type,
@@ -335,7 +340,7 @@ async fn test_hot_reload_observers() {
 
     // Insert event that should trigger observer 1
     let order_id_1 = Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         &entity_type,
@@ -367,7 +372,7 @@ async fn test_hot_reload_observers() {
 
     // Insert UPDATE event that should trigger the new observer after reload
     let order_id_2 = Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "UPDATE",
         &entity_type,
@@ -459,7 +464,7 @@ async fn test_graceful_shutdown_mid_processing() {
         .collect();
 
     for (order_id, i) in &order_ids {
-        let _ = insert_change_log_entry(
+        let _ = insert_change_log_entry(  // intentional
             &pool,
             "INSERT",
             &entity_type,
@@ -549,7 +554,7 @@ async fn test_runtime_continues_after_errors() {
 
     // Insert event that will fail initially
     let order_id_1 = Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         &entity_type,
@@ -581,7 +586,7 @@ async fn test_runtime_continues_after_errors() {
 
     // Insert second event - should process normally
     let order_id_2 = Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         &entity_type,
@@ -663,7 +668,7 @@ async fn test_high_throughput_processing() {
     let event_count = 100;
     for i in 0..event_count {
         let order_id = Uuid::new_v4();
-        let _ = insert_change_log_entry(
+        let _ = insert_change_log_entry(  // intentional
             &pool,
             "INSERT",
             &entity_type,
@@ -701,7 +706,7 @@ async fn test_high_throughput_processing() {
         .await
         .expect("Failed to query observer logs");
     assert!(
-        success_count as usize >= event_count * 90 / 100, // Allow 10% margin for retries
+        usize::try_from(success_count).unwrap_or(0) >= event_count * 90 / 100, // Allow 10% margin for retries
         "Expected at least 90% of events logged as success, got {}",
         success_count
     );
@@ -993,7 +998,7 @@ async fn test_debug_debezium_envelope() {
 
     // Insert change log entry directly
     let order_id = uuid::Uuid::new_v4();
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         "Order",
@@ -1125,7 +1130,7 @@ async fn test_with_longer_polling() {
     // Now insert event
     let widget_id = uuid::Uuid::new_v4();
     println!("Inserting change log entry...");
-    let _ = insert_change_log_entry(
+    let _ = insert_change_log_entry(  // intentional
         &pool,
         "INSERT",
         "Widget",
@@ -1189,7 +1194,7 @@ async fn test_with_longer_polling() {
     assert!(!requests.is_empty(), "No webhook calls received after 500ms");
 }
 
-/// Direct listener test - verify listener.next_batch() works
+/// Direct listener test - verify `listener.next_batch()` works
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_listener_direct() {

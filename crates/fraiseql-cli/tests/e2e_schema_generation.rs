@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! End-to-end schema generation tests.
 //!
 //! Tests the complete compilation pipeline:
@@ -160,7 +161,7 @@ fn test_e2e_lookup_data_comprehensive() {
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     let security = compiled.security.as_ref().expect("Security should exist");
-    let lookup = security["lookup_data"].as_object().expect("Lookup data should exist");
+    let lookup = security.additional["lookup_data"].as_object().expect("Lookup data should exist");
 
     // Verify all expected lookup tables
     assert!(lookup.contains_key("countries"), "Should have countries");

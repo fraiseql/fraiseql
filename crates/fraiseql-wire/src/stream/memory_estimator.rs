@@ -44,7 +44,7 @@ pub struct FixedEstimator {
 
 impl FixedEstimator {
     /// Create estimator with custom bytes-per-item
-    pub fn new(bytes_per_item: usize) -> Self {
+    pub const fn new(bytes_per_item: usize) -> Self {
         Self { bytes_per_item }
     }
 }

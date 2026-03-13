@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Multi-subgraph federation integration tests
 //!
 //! Tests for integration scenarios across multiple federated subgraphs:

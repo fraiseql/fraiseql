@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! HTTP mutation transport tests
 //!
 //! Tests for executing extended mutations via HTTP to remote subgraphs.
@@ -17,7 +19,7 @@ use serde_json::json;
 #[test]
 fn test_build_mutation_query_for_update() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let metadata = FederationMetadata {
         enabled: true,
@@ -54,7 +56,7 @@ fn test_build_mutation_query_for_update() {
 #[test]
 fn test_mutation_query_excludes_external_fields() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let metadata = FederationMetadata {
         enabled: true,
@@ -91,7 +93,7 @@ fn test_mutation_query_excludes_external_fields() {
 #[test]
 fn test_graphql_response_parsing_with_mutation_result() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
         data:   Some(json!({
@@ -117,7 +119,7 @@ fn test_graphql_response_parsing_with_mutation_result() {
 #[test]
 fn test_graphql_response_with_mutation_error() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
         data:   None,
@@ -139,7 +141,7 @@ fn test_graphql_response_with_mutation_error() {
 #[test]
 fn test_graphql_response_missing_mutation_field() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
         data:   Some(json!({
@@ -163,7 +165,7 @@ fn test_http_mutation_client_with_custom_config() {
         retry_delay_ms: 200,
     };
 
-    let _client = HttpMutationClient::new(config);
+    let _client = HttpMutationClient::new(config).unwrap();
     // Should create successfully with custom config
 }
 
@@ -346,7 +348,7 @@ fn test_graphql_request_without_variables() {
 #[test]
 fn test_variable_type_inference() {
     let config = HttpMutationConfig::default();
-    let client = HttpMutationClient::new(config);
+    let client = HttpMutationClient::new(config).unwrap();
 
     let variables = json!({
         "string_val": "Alice",

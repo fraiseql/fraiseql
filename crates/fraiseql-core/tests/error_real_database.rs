@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 #![allow(missing_docs)]
 
 //! Integration tests for real database error paths using testcontainers.

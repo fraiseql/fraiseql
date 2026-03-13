@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! CLI federation schema validation tests
 //! Tests the `fraiseql-cli validate schema.json` command
 

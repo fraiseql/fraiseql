@@ -40,7 +40,7 @@ async fn test_three_subgraph_direct_queries() {
 
     println!("\n--- Test: Direct queries to products subgraph ---");
 
-    let query = r#"
+    let query = r"
         query {
             products {
                 id
@@ -48,7 +48,7 @@ async fn test_three_subgraph_direct_queries() {
                 price
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(PRODUCTS_SUBGRAPH_URL, query).await.expect("Query should succeed");
 
@@ -74,7 +74,7 @@ async fn test_three_subgraph_order_with_products() {
 
     println!("\n--- Test: Orders with products field (2-hop) ---");
 
-    let query = r#"
+    let query = r"
         query {
             orders {
                 id
@@ -86,7 +86,7 @@ async fn test_three_subgraph_order_with_products() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -111,7 +111,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
 
     println!("\n--- Test: 3-hop federation query (users -> orders -> products) ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 2) {
                 id
@@ -127,7 +127,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
@@ -157,8 +157,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
             .get("orders")
             .and_then(|o| o.as_array())
             .and_then(|arr| arr.first())
-            .map(|o| o.get("products").is_some())
-            .unwrap_or(false);
+            .is_some_and(|o| o.get("products").is_some());
 
         assert!(has_orders, "User should have orders");
         assert!(has_products, "Order should have products");
@@ -189,7 +188,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 
     if let Some(uid) = user_id {
         // Step 2: Get orders for that user
-        let orders_query = r#"query { users(limit: 1) { orders { id status } } }"#.to_string();
+        let orders_query = r"query { users(limit: 1) { orders { id status } } }".to_string();
 
         let orders_response = graphql_query(APOLLO_GATEWAY_URL, &orders_query)
             .await
@@ -205,7 +204,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
         assert!(has_orders, "User should have orders");
 
         // Step 3: Get products for those orders
-        let full_query = r#"
+        let full_query = r"
             query {
                 users(limit: 1) {
                     id
@@ -218,7 +217,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
                     }
                 }
             }
-        "#;
+        ";
 
         let products_response = graphql_query(APOLLO_GATEWAY_URL, full_query)
             .await
@@ -231,8 +230,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
             .and_then(|u| u.get("orders"))
             .and_then(|o| o.as_array())
             .and_then(|arr| arr.first())
-            .map(|o| o.get("products").is_some())
-            .unwrap_or(false);
+            .is_some_and(|o| o.get("products").is_some());
 
         println!("✓ Entity resolution chain: users -> orders -> products (user_id: {})", uid);
         assert!(has_products, "Should resolve products through the chain");
@@ -246,7 +244,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
 
     println!("\n--- Test: Cross-boundary federation (multi-level extends) ---");
 
-    let query = r#"
+    let query = r"
         query {
             products(limit: 5) {
                 id
@@ -254,7 +252,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
                 price
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -282,14 +280,14 @@ async fn test_three_subgraph_mutation_propagation() {
 
     // Note: Mutation support depends on implementation
     // This test validates the structure can handle mutation requests
-    let query = r#"
+    let query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 

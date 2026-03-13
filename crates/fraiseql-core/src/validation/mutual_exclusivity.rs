@@ -13,9 +13,12 @@ use crate::error::{FraiseQLError, Result};
 /// Validates that exactly one field from the specified set is provided.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// use fraiseql_core::validation::mutual_exclusivity::OneOfValidator;
+/// use serde_json::json;
 /// // Either entityId OR entityPayload, but not both
-/// validator.validate_one_of(input, &["entityId", "entityPayload"])
+/// let input = json!({ "entityId": "123", "entityPayload": null });
+/// assert!(OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None).is_ok());
 /// ```
 pub struct OneOfValidator;
 
@@ -32,7 +35,7 @@ impl OneOfValidator {
             .iter()
             .filter(|name| {
                 if let Value::Object(obj) = input {
-                    obj.get(*name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
+                    obj.get(*name).is_some_and(|v| !matches!(v, Value::Null))
                 } else {
                     false
                 }
@@ -58,9 +61,12 @@ impl OneOfValidator {
 /// Validates that at least one field from the specified set is provided.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// use fraiseql_core::validation::mutual_exclusivity::AnyOfValidator;
+/// use serde_json::json;
 /// // At least one of: email, phone, address must be present
-/// validator.validate_any_of(input, &["email", "phone", "address"])
+/// let input = json!({ "email": "user@example.com", "phone": null, "address": null });
+/// assert!(AnyOfValidator::validate(&input, &["email".to_string(), "phone".to_string(), "address".to_string()], None).is_ok());
 /// ```
 pub struct AnyOfValidator;
 
@@ -75,7 +81,7 @@ impl AnyOfValidator {
 
         let has_any = field_names.iter().any(|name| {
             if let Value::Object(obj) = input {
-                obj.get(name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
+                obj.get(name).is_some_and(|v| !matches!(v, Value::Null))
             } else {
                 false
             }
@@ -95,13 +101,12 @@ impl AnyOfValidator {
 /// Validates conditional requirement: if one field is present, others must be too.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// use fraiseql_core::validation::mutual_exclusivity::ConditionalRequiredValidator;
+/// use serde_json::json;
 /// // If isPremium is true, then paymentMethod is required
-/// validator.validate_conditional_required(
-///     input,
-///     "isPremium",
-///     &["paymentMethod"]
-/// )
+/// let input = json!({ "isPremium": true, "paymentMethod": "credit_card" });
+/// assert!(ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None).is_ok());
 /// ```
 pub struct ConditionalRequiredValidator;
 
@@ -118,13 +123,13 @@ impl ConditionalRequiredValidator {
         if let Value::Object(obj) = input {
             // Check if the condition field is present and non-null
             let condition_met =
-                obj.get(if_field_present).map(|v| !matches!(v, Value::Null)).unwrap_or(false);
+                obj.get(if_field_present).is_some_and(|v| !matches!(v, Value::Null));
 
             if condition_met {
                 // If condition is met, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                    .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                     .collect();
 
                 if !missing_fields.is_empty() {
@@ -152,13 +157,12 @@ impl ConditionalRequiredValidator {
 /// provided.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// use fraiseql_core::validation::mutual_exclusivity::RequiredIfAbsentValidator;
+/// use serde_json::json;
 /// // If addressId is not provided, then street, city, zip must all be provided
-/// validator.validate_required_if_absent(
-///     input,
-///     "addressId",
-///     &["street", "city", "zip"]
-/// )
+/// let input = json!({ "addressId": null, "street": "123 Main St", "city": "Springfield", "zip": "12345" });
+/// assert!(RequiredIfAbsentValidator::validate(&input, "addressId", &["street".to_string(), "city".to_string(), "zip".to_string()], None).is_ok());
 /// ```
 pub struct RequiredIfAbsentValidator;
 
@@ -175,13 +179,13 @@ impl RequiredIfAbsentValidator {
         if let Value::Object(obj) = input {
             // Check if the condition field is absent or null
             let field_absent =
-                obj.get(absent_field).map(|v| matches!(v, Value::Null)).unwrap_or(true);
+                obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
 
             if field_absent {
                 // If field is absent, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                    .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                     .collect();
 
                 if !missing_fields.is_empty() {

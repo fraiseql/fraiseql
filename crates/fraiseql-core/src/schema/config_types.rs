@@ -6,13 +6,20 @@
 use serde::{Deserialize, Serialize};
 
 /// Federation configuration for Apollo Federation v2 support.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FederationConfig {
     /// Enable Apollo federation.
     #[serde(default)]
     pub enabled:         bool,
     /// Federation specification version (e.g., "v2").
+    #[serde(default)]
     pub version:         Option<String>,
+    /// Subgraph service name (used in Apollo Studio).
+    #[serde(default)]
+    pub service_name:    Option<String>,
+    /// Subgraph SDL URL (exposed at `/__subgraph_schema`).
+    #[serde(default)]
+    pub schema_url:      Option<String>,
     /// Federated entities defined in this subgraph.
     #[serde(default)]
     pub entities:        Vec<FederationEntity>,
@@ -31,7 +38,7 @@ pub struct FederationEntity {
 }
 
 /// Circuit breaker configuration for federation entity resolution.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitBreakerConfig {
     /// Enable circuit breaker protection.
     #[serde(default)]
@@ -50,15 +57,15 @@ pub struct CircuitBreakerConfig {
     pub per_entity:            Vec<EntityCircuitBreakerOverride>,
 }
 
-fn default_failure_threshold() -> u32 {
+const fn default_failure_threshold() -> u32 {
     5
 }
 
-fn default_recovery_timeout() -> u64 {
+const fn default_recovery_timeout() -> u64 {
     30
 }
 
-fn default_success_threshold() -> u32 {
+const fn default_success_threshold() -> u32 {
     2
 }
 
@@ -88,7 +95,7 @@ pub struct EntityCircuitBreakerOverride {
 }
 
 /// Security configuration compiled from fraiseql.toml.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompiledSecurityConfig {
     /// Default authorization policy.
     pub default_policy: Option<String>,
@@ -158,7 +165,7 @@ pub struct FieldAuthRule {
 }
 
 /// Enterprise security features.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting.
     #[serde(default = "default_true")]
@@ -192,15 +199,15 @@ pub struct EnterpriseSecurityConfig {
     pub pkce_enabled:                 bool,
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
-fn default_auth_max_requests() -> u32 {
+const fn default_auth_max_requests() -> u32 {
     100
 }
 
-fn default_auth_window() -> u64 {
+const fn default_auth_window() -> u64 {
     60
 }
 
@@ -208,7 +215,7 @@ fn default_audit_backend() -> String {
     "postgresql".to_string()
 }
 
-fn default_audit_retention() -> u32 {
+const fn default_audit_retention() -> u32 {
     365
 }
 
@@ -230,7 +237,7 @@ impl Default for EnterpriseSecurityConfig {
 }
 
 /// Observers/event system configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
@@ -286,8 +293,119 @@ pub struct EventHandler {
     pub rate_limit:       Option<u32>,
 }
 
+/// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DebugConfig {
+    /// Master switch — all debug features require this to be `true`.
+    pub enabled:          bool,
+    /// When `true`, the explain endpoint also runs `EXPLAIN` against the database.
+    pub database_explain: bool,
+    /// When `true`, the explain endpoint includes the generated SQL in the response.
+    pub expose_sql:       bool,
+}
+
+impl Default for DebugConfig {
+    fn default() -> Self {
+        Self {
+            enabled:          false,
+            database_explain: false,
+            expose_sql:       true,
+        }
+    }
+}
+
+/// Query validation limits (compiled from `[validation]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ValidationConfig {
+    /// Maximum allowed query nesting depth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_query_depth:      Option<u32>,
+    /// Maximum allowed query complexity score.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_query_complexity: Option<u32>,
+}
+
+/// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct McpConfig {
+    /// Whether MCP is enabled.
+    pub enabled:      bool,
+    /// Transport mode: "http", "stdio", or "both".
+    pub transport:    String,
+    /// HTTP path for MCP endpoint (e.g., "/mcp").
+    pub path:         String,
+    /// Require authentication for MCP requests.
+    pub require_auth: bool,
+    /// Whitelist of query/mutation names to expose (empty = all).
+    pub include:      Vec<String>,
+    /// Blacklist of query/mutation names to hide.
+    pub exclude:      Vec<String>,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            enabled:      false,
+            transport:    "http".to_string(),
+            path:         "/mcp".to_string(),
+            require_auth: true,
+            include:      Vec::new(),
+            exclude:      Vec::new(),
+        }
+    }
+}
+
+/// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubscriptionsConfig {
+    /// Maximum subscriptions per WebSocket connection (`None` = unlimited).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_subscriptions_per_connection: Option<u32>,
+    /// Webhook lifecycle hooks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hooks:                            Option<SubscriptionHooksConfig>,
+}
+
+/// Webhook URLs invoked during subscription lifecycle events.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubscriptionHooksConfig {
+    /// URL to POST on WebSocket `connection_init` (fail-closed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_connect:    Option<String>,
+    /// URL to POST on WebSocket disconnect (fire-and-forget).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_disconnect: Option<String>,
+    /// URL to POST before a subscription is registered (fail-closed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_subscribe:    Option<String>,
+    /// URL to POST when a subscription is removed (fire-and-forget).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_unsubscribe:  Option<String>,
+    /// Timeout in milliseconds for fail-closed hooks (default: 500).
+    pub timeout_ms:      u64,
+}
+
+impl Default for SubscriptionHooksConfig {
+    fn default() -> Self {
+        Self {
+            on_connect:    None,
+            on_disconnect: None,
+            on_subscribe:  None,
+            on_unsubscribe: None,
+            timeout_ms:    500,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -371,9 +489,11 @@ mod tests {
     #[test]
     fn test_roundtrip_serialization() {
         let config = FederationConfig {
-            enabled:         true,
-            version:         Some("v2".to_string()),
-            entities:        vec![FederationEntity {
+            enabled:      true,
+            version:      Some("v2".to_string()),
+            service_name: Some("my-service".to_string()),
+            schema_url:   None,
+            entities:     vec![FederationEntity {
                 name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],

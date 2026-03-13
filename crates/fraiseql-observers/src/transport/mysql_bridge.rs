@@ -69,6 +69,9 @@ impl MySQLCheckpointStore {
 }
 
 #[cfg(feature = "mysql")]
+// Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl CheckpointStore for MySQLCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {
@@ -342,8 +345,7 @@ impl MySQLNatsBridge {
 
     /// Fetch batch from cursor.
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<MySQLChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]
-        // Reason: batch_size is a small positive config value, well within i64 range
+        #[allow(clippy::cast_possible_wrap)]  // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<MySQLChangeLogEntry> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,
@@ -549,6 +551,7 @@ impl MySQLNatsBridge {
 
 #[cfg(test)]
 #[cfg(feature = "mysql")]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 
@@ -660,5 +663,94 @@ mod tests {
     fn test_mysql_checkpoint_store_clone() {
         fn assert_clone<T: Clone>() {}
         assert_clone::<MySQLCheckpointStore>();
+    }
+
+    #[test]
+    fn test_mysql_change_log_entry_invalid_object_id() {
+        // An object_id that is not a valid UUID must return an error.
+        let entry = MySQLChangeLogEntry {
+            pk_entity_change_log: 10,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            "not-a-uuid".to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
+        };
+        let result = entry.to_entity_event();
+        assert!(result.is_err(), "invalid object_id UUID must return an error");
+    }
+
+    #[test]
+    fn test_mysql_change_log_entry_null_object_data() {
+        // A None object_data must be converted to Value::Null in the event.
+        let entry = MySQLChangeLogEntry {
+            pk_entity_change_log: 11,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
+        };
+        let event = entry.to_entity_event().unwrap();
+        assert_eq!(event.data, serde_json::Value::Null, "null object_data must yield Value::Null");
+    }
+
+    #[test]
+    fn test_mysql_change_log_entry_no_contact_produces_no_user_id() {
+        // fk_contact = None must produce user_id = None on the event.
+        let entry = MySQLChangeLogEntry {
+            pk_entity_change_log: 12,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
+        };
+        let event = entry.to_entity_event().unwrap();
+        assert_eq!(event.user_id, None, "no fk_contact must yield user_id = None");
+    }
+
+    #[test]
+    fn test_mysql_change_log_entry_nats_event_id_preserved() {
+        // When nats_event_id is set to a valid UUID, that UUID is used as the event ID.
+        let fixed_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let entry = MySQLChangeLogEntry {
+            pk_entity_change_log: 13,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        Some(fixed_id.to_string()),
+        };
+        let event = entry.to_entity_event().unwrap();
+        assert_eq!(event.id, fixed_id, "provided nats_event_id must be used as event.id");
     }
 }

@@ -3,14 +3,21 @@
 //! These tests exercise the real `health_handler` and `introspection_handler`
 //! through axum's `tower::ServiceExt::oneshot`, verifying actual HTTP response
 //! codes, JSON structure, and database health-check integration.
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 mod common;
 
 use common::test_app::{get_json, health_router, make_test_state, make_test_state_with};
-use fraiseql_core::schema::{
-    CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
+use fraiseql_core::schema::{CompiledSchema, FieldType};
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{TestSchemaBuilder, TestTypeBuilder},
 };
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::StatusCode;
 
 // ============================================================================
@@ -76,16 +83,18 @@ async fn introspection_with_empty_schema_returns_empty_collections() {
     assert_eq!(json["mutations"].as_array().unwrap().len(), 0);
 }
 
+// Migration 7: introspection_returns_schema_types_and_queries
 #[tokio::test]
 async fn introspection_returns_schema_types_and_queries() {
-    let mut schema = CompiledSchema::new();
-    let mut user_type = TypeDefinition::new("User", "v_user");
-    user_type.fields.push(FieldDefinition::new("id", FieldType::Int));
-    user_type.fields.push(FieldDefinition::new("name", FieldType::String));
-    schema.types.push(user_type);
-
-    let query = QueryDefinition::new("users", "User");
-    schema.queries.push(query);
+    let schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("User", "v_user")
+                .with_simple_field("id", FieldType::Int)
+                .with_simple_field("name", FieldType::String)
+                .build(),
+        )
+        .with_simple_query("users", "User", true)
+        .build();
 
     let state = make_test_state_with(FailingAdapter::new(), schema);
     let router = health_router(state);
@@ -104,12 +113,16 @@ async fn introspection_returns_schema_types_and_queries() {
     assert_eq!(queries[0]["return_type"], "User");
 }
 
+// Migration 8: introspection_includes_type_descriptions
 #[tokio::test]
 async fn introspection_includes_type_descriptions() {
-    let mut schema = CompiledSchema::new();
-    let mut user_type = TypeDefinition::new("User", "v_user");
-    user_type.description = Some("A user in the system".to_string());
-    schema.types.push(user_type);
+    let schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("User", "v_user")
+                .with_description("A user in the system")
+                .build(),
+        )
+        .build();
 
     let state = make_test_state_with(FailingAdapter::new(), schema);
     let router = health_router(state);

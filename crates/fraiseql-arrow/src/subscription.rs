@@ -29,7 +29,7 @@ pub struct EventSubscription {
 /// to matching subscribers. It's designed for in-memory subscriptions and
 /// can be extended to support persistent subscriptions.
 pub struct SubscriptionManager {
-    /// Map of subscription_id -> EventSubscription
+    /// Map of `subscription_id` -> `EventSubscription`
     subscriptions: Arc<DashMap<String, EventSubscription>>,
     /// Reference to event storage for historical queries (optional)
     event_storage: Option<Arc<dyn EventStorage>>,
@@ -101,6 +101,8 @@ impl SubscriptionManager {
             if subscription.entity_type == event.entity_type {
                 // If filter matches, send the event
                 if Self::matches_filter(event, &subscription.filter) {
+                    // Receiver dropped — subscriber disconnected. Skip silently; cleanup
+                    // happens when the SubscriptionManager drops the subscription entry.
                     let _ = subscription.tx.send(event.clone());
                 }
             }
@@ -135,7 +137,11 @@ impl SubscriptionManager {
             return event.data.get(field.trim()).and_then(|v| v.as_str()) == Some(expected);
         }
 
-        // Unparseable filter — reject
+        // Unparseable filter — log a warning and treat as no-match (conservative: reject).
+        tracing::warn!(
+            filter = %filter_str,
+            "Arrow Flight subscription filter could not be parsed — treating as no filter match"
+        );
         false
     }
 

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end window function tests
 //!
 //! These tests exercise the full window function pipeline from planning to SQL generation
@@ -22,7 +24,7 @@ fn plan_and_generate(query: &serde_json::Value, db_type: DatabaseType) -> String
     let plan = WindowFunctionPlanner::plan(query, &metadata).unwrap();
     let sql_result = generator.generate(&plan).unwrap();
 
-    sql_result.complete_sql
+    sql_result.raw_sql
 }
 
 fn plan_and_generate_pg(query: &serde_json::Value) -> String {
@@ -39,7 +41,7 @@ fn test_row_number_simple() {
         "table": "tf_sales",
         "select": ["revenue", "data->>'category' as category"],
         "windows": [{
-            "function": {"row_number": {}},
+            "function": {"type": "row_number"},
             "alias": "rank",
             "partitionBy": ["data->>'category'"],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -69,7 +71,7 @@ fn test_rank_with_gaps() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"rank": {}},
+            "function": {"type": "rank"},
             "alias": "revenue_rank",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -87,7 +89,7 @@ fn test_dense_rank_no_gaps() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"dense_rank": {}},
+            "function": {"type": "dense_rank"},
             "alias": "dense_rank",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -105,7 +107,7 @@ fn test_ntile_quartiles() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"ntile": {"n": 4}},
+            "function": {"type": "ntile", "n": 4},
             "alias": "quartile",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "ASC"}]
@@ -123,7 +125,7 @@ fn test_percent_rank() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"percent_rank": {}},
+            "function": {"type": "percent_rank"},
             "alias": "pct_rank",
             "partitionBy": ["data->>'category'"],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -149,7 +151,7 @@ fn test_cume_dist() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"cume_dist": {}},
+            "function": {"type": "cume_dist"},
             "alias": "cumulative_distribution",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "ASC"}]
@@ -172,11 +174,10 @@ fn test_lag_previous_value() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "lag": {
-                    "field": "revenue",
-                    "offset": 1,
-                    "default": 0
-                }
+                "type": "lag",
+                "field": "revenue",
+                "offset": 1,
+                "default": 0
             },
             "alias": "prev_revenue",
             "partitionBy": [],
@@ -204,11 +205,10 @@ fn test_lead_next_value() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "lead": {
-                    "field": "revenue",
-                    "offset": 1,
-                    "default": 0
-                }
+                "type": "lead",
+                "field": "revenue",
+                "offset": 1,
+                "default": 0
             },
             "alias": "next_revenue",
             "partitionBy": [],
@@ -236,9 +236,8 @@ fn test_first_value() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "first_value": {
-                    "field": "revenue"
-                }
+                "type": "first_value",
+                "field": "revenue"
             },
             "alias": "first_revenue",
             "partitionBy": ["data->>'category'"],
@@ -266,9 +265,8 @@ fn test_last_value() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "last_value": {
-                    "field": "revenue"
-                }
+                "type": "last_value",
+                "field": "revenue"
             },
             "alias": "last_revenue",
             "partitionBy": ["data->>'category'"],
@@ -302,10 +300,9 @@ fn test_nth_value() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "nth_value": {
-                    "field": "revenue",
-                    "n": 3
-                }
+                "type": "nth_value",
+                "field": "revenue",
+                "n": 3
             },
             "alias": "third_revenue",
             "partitionBy": ["data->>'category'"],
@@ -337,9 +334,8 @@ fn test_running_total_sum() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "sum": {
-                    "field": "revenue"
-                }
+                "type": "sum",
+                "field": "revenue"
             },
             "alias": "running_total",
             "partitionBy": [],
@@ -373,9 +369,8 @@ fn test_moving_average() {
         "select": ["occurred_at", "revenue"],
         "windows": [{
             "function": {
-                "avg": {
-                    "field": "revenue"
-                }
+                "type": "avg",
+                "field": "revenue"
             },
             "alias": "moving_avg_3",
             "partitionBy": [],
@@ -409,7 +404,7 @@ fn test_running_count() {
         "select": ["occurred_at"],
         "windows": [{
             "function": {
-                "count": {}
+                "type": "count"
             },
             "alias": "running_count",
             "partitionBy": [],
@@ -442,7 +437,7 @@ fn test_running_min_max() {
         "select": ["occurred_at", "revenue"],
         "windows": [
             {
-                "function": {"min": {"field": "revenue"}},
+                "function": {"type": "min", "field": "revenue"},
                 "alias": "running_min",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -453,7 +448,7 @@ fn test_running_min_max() {
                 }
             },
             {
-                "function": {"max": {"field": "revenue"}},
+                "function": {"type": "max", "field": "revenue"},
                 "alias": "running_max",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -490,7 +485,7 @@ fn test_frame_rows_preceding_following() {
         "table": "tf_sales",
         "select": ["occurred_at", "revenue"],
         "windows": [{
-            "function": {"avg": {"field": "revenue"}},
+            "function": {"type": "avg", "field": "revenue"},
             "alias": "centered_avg",
             "partitionBy": [],
             "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -520,7 +515,7 @@ fn test_frame_range() {
         "table": "tf_sales",
         "select": ["occurred_at", "revenue"],
         "windows": [{
-            "function": {"sum": {"field": "revenue"}},
+            "function": {"type": "sum", "field": "revenue"},
             "alias": "range_sum",
             "partitionBy": [],
             "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -550,7 +545,7 @@ fn test_frame_groups_postgres_only() {
         "table": "tf_sales",
         "select": ["occurred_at", "revenue"],
         "windows": [{
-            "function": {"sum": {"field": "revenue"}},
+            "function": {"type": "sum", "field": "revenue"},
             "alias": "groups_sum",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "ASC"}],
@@ -580,7 +575,7 @@ fn test_frame_exclusion_postgres() {
         "table": "tf_sales",
         "select": ["occurred_at", "revenue"],
         "windows": [{
-            "function": {"avg": {"field": "revenue"}},
+            "function": {"type": "avg", "field": "revenue"},
             "alias": "avg_excluding_current",
             "partitionBy": [],
             "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -616,7 +611,7 @@ fn test_window_function_multi_database() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"row_number": {}},
+            "function": {"type": "row_number"},
             "alias": "rank",
             "partitionBy": ["data->>'category'"],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -650,7 +645,7 @@ fn test_stddev_variance_sqlserver_naming() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"stddev": {"field": "revenue"}},
+            "function": {"type": "stddev", "field": "revenue"},
             "alias": "stddev_revenue",
             "partitionBy": [],
             "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
@@ -661,7 +656,7 @@ fn test_stddev_variance_sqlserver_naming() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"variance": {"field": "revenue"}},
+            "function": {"type": "variance", "field": "revenue"},
             "alias": "var_revenue",
             "partitionBy": [],
             "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
@@ -694,13 +689,13 @@ fn test_multiple_window_functions() {
         "select": ["occurred_at", "revenue", "data->>'category' as category"],
         "windows": [
             {
-                "function": {"row_number": {}},
+                "function": {"type": "row_number"},
                 "alias": "row_num",
                 "partitionBy": ["data->>'category'"],
                 "orderBy": [{"field": "revenue", "direction": "DESC"}]
             },
             {
-                "function": {"sum": {"field": "revenue"}},
+                "function": {"type": "sum", "field": "revenue"},
                 "alias": "running_total",
                 "partitionBy": ["data->>'category'"],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -711,7 +706,7 @@ fn test_multiple_window_functions() {
                 }
             },
             {
-                "function": {"lag": {"field": "revenue", "offset": 1, "default": 0}},
+                "function": {"type": "lag", "field": "revenue", "offset": 1, "default": 0},
                 "alias": "prev_revenue",
                 "partitionBy": ["data->>'category'"],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
@@ -741,7 +736,7 @@ fn test_window_with_limit_offset() {
         "table": "tf_sales",
         "select": ["revenue"],
         "windows": [{
-            "function": {"row_number": {}},
+            "function": {"type": "row_number"},
             "alias": "rank",
             "partitionBy": [],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -770,7 +765,7 @@ fn test_window_with_final_order_by() {
         "table": "tf_sales",
         "select": ["occurred_at", "revenue"],
         "windows": [{
-            "function": {"row_number": {}},
+            "function": {"type": "row_number"},
             "alias": "rank",
             "partitionBy": ["data->>'category'"],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]

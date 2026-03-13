@@ -1,5 +1,6 @@
 //! Mutation type detection and variables.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::{
     mutation_detector::{is_extended_mutation, is_local_mutation, is_mutation},
     mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
@@ -49,17 +50,17 @@ fn test_mutation_with_variables() {
     });
 
     let update_query = build_update_query("User", &variables, &metadata).unwrap();
-    assert!(update_query.contains("UPDATE user"));
+    assert!(update_query.contains("UPDATE \"user\""), "Expected quoted table name in: {update_query}");
     assert!(update_query.contains("SET"));
-    assert!(update_query.contains("WHERE id = 'user123'"));
+    assert!(update_query.contains("WHERE \"id\" = 'user123'"), "Expected quoted column in: {update_query}");
 
     let insert_query = build_insert_query("User", &variables, &metadata).unwrap();
-    assert!(insert_query.contains("INSERT INTO user"));
+    assert!(insert_query.contains("INSERT INTO \"user\""), "Expected quoted table name in: {insert_query}");
     assert!(insert_query.contains("VALUES"));
 
     let delete_query = build_delete_query("User", &variables, &metadata).unwrap();
-    assert!(delete_query.contains("DELETE FROM user"));
-    assert!(delete_query.contains("WHERE id = 'user123'"));
+    assert!(delete_query.contains("DELETE FROM \"user\""), "Expected quoted table name in: {delete_query}");
+    assert!(delete_query.contains("WHERE \"id\" = 'user123'"), "Expected quoted column in: {delete_query}");
 }
 
 #[test]
@@ -86,8 +87,8 @@ fn test_mutation_input_type_coercion() {
     });
 
     let update_query = build_update_query("Order", &variables, &metadata).unwrap();
-    // Numbers are not quoted in SQL (correctly)
-    assert!(update_query.contains("WHERE order_id = 789"));
-    assert!(update_query.contains("total = 99.99"));
-    assert!(update_query.contains("active = true"));
+    // Identifiers are double-quoted, numbers/booleans are not
+    assert!(update_query.contains("WHERE \"order_id\" = 789"), "Expected quoted column in: {update_query}");
+    assert!(update_query.contains("99.99"), "Expected numeric literal in: {update_query}");
+    assert!(update_query.contains("true"), "Expected boolean literal in: {update_query}");
 }

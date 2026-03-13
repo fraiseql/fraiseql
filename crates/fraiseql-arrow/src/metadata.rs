@@ -149,7 +149,7 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     ///
-    /// * `view_name` - View name (e.g., "va_orders")
+    /// * `view_name` - View name (e.g., "`va_orders`")
     /// * `schema` - Pre-compiled Arrow schema
     ///
     /// Version numbers are incremented automatically on each registration.
@@ -208,7 +208,7 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     ///
-    /// * `view_name` - View to reload (e.g., "va_orders")
+    /// * `view_name` - View to reload (e.g., "`va_orders`")
     /// * `db_adapter` - Database adapter to query view schema
     ///
     /// # Returns
@@ -470,6 +470,7 @@ impl Default for SchemaRegistry {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use arrow::datatypes::{DataType, Field};
 
@@ -484,7 +485,7 @@ mod tests {
             Field::new("name", DataType::Utf8, false),
         ]));
 
-        registry.register("va_test", schema.clone());
+        registry.register("va_test", schema);
 
         let retrieved = registry.get("va_test").unwrap();
         assert_eq!(retrieved.fields().len(), 2);
@@ -681,7 +682,7 @@ mod tests {
 
         let schema1 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        registry.register("va_test", schema1.clone());
+        registry.register("va_test", schema1);
         let (version1, _created_at1) = registry.get_version_info("va_test").unwrap();
         assert_eq!(version1, 0);
 
@@ -744,5 +745,96 @@ mod tests {
         // New reference points to new schema
         assert!(Arc::ptr_eq(&retrieved2, &schema2));
         assert_eq!(retrieved2.fields().len(), 2);
+    }
+
+    // --- Additional SchemaRegistry tests ---
+
+    #[test]
+    fn test_registry_new_is_empty() {
+        let registry = SchemaRegistry::new();
+        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 0);
+    }
+
+    #[test]
+    fn test_registry_default_is_equivalent_to_new() {
+        let a = SchemaRegistry::new();
+        let b = SchemaRegistry::default();
+        assert_eq!(a.len(), b.len());
+    }
+
+    #[test]
+    fn test_remove_nonexistent_returns_none() {
+        let registry = SchemaRegistry::new();
+        let removed = registry.remove("va_does_not_exist");
+        assert!(removed.is_none());
+    }
+
+    #[test]
+    fn test_get_version_info_nonexistent_returns_error() {
+        let registry = SchemaRegistry::new();
+        let result = registry.get_version_info("va_does_not_exist");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ArrowFlightError::SchemaNotFound(_)));
+    }
+
+    #[test]
+    fn test_schema_not_found_error_message_contains_view_name() {
+        let registry = SchemaRegistry::new();
+        let err = registry.get("va_my_view").unwrap_err();
+        assert!(err.to_string().contains("va_my_view"));
+    }
+
+    #[test]
+    fn test_version_counter_monotonically_increases_across_views() {
+        let registry = SchemaRegistry::new();
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+
+        registry.register("va_a", schema.clone());
+        let (v_a, _) = registry.get_version_info("va_a").unwrap();
+
+        registry.register("va_b", schema.clone());
+        let (v_b, _) = registry.get_version_info("va_b").unwrap();
+
+        registry.register("va_c", schema);
+        let (v_c, _) = registry.get_version_info("va_c").unwrap();
+
+        assert!(v_b > v_a, "v_b ({v_b}) should be > v_a ({v_a})");
+        assert!(v_c > v_b, "v_c ({v_c}) should be > v_b ({v_b})");
+    }
+
+    #[test]
+    fn test_clear_then_reregister_works() {
+        let registry = SchemaRegistry::new();
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+
+        registry.register("va_test", schema.clone());
+        assert_eq!(registry.len(), 1);
+
+        registry.clear();
+        assert!(registry.is_empty());
+
+        // Re-registering after clear should work
+        registry.register("va_test", schema);
+        assert_eq!(registry.len(), 1);
+        assert!(registry.contains("va_test"));
+    }
+
+    #[test]
+    fn test_get_all_versions_empty_registry() {
+        let registry = SchemaRegistry::new();
+        let versions = registry.get_all_versions();
+        assert!(versions.is_empty());
+    }
+
+    #[test]
+    fn test_schema_registry_contains_after_register_defaults() {
+        let registry = SchemaRegistry::new();
+        registry.register_defaults();
+        // All four default views should be present
+        assert!(registry.contains("va_orders"));
+        assert!(registry.contains("va_users"));
+        assert!(registry.contains("ta_orders"));
+        assert!(registry.contains("ta_users"));
     }
 }

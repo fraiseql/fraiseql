@@ -103,7 +103,7 @@ impl UUIDExtractor {
 
                 // If not found at top level, try nested structure
                 // (e.g., { user: { id: "uuid" } })
-                for (_key, value) in obj.iter() {
+                for (_key, value) in obj {
                     if let Value::Object(nested) = value {
                         if let Some(id_value) = nested.get("id") {
                             return extract_uuid_from_value(id_value);
@@ -214,6 +214,8 @@ fn extract_uuid_from_value(value: &Value) -> Result<Option<String>> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;

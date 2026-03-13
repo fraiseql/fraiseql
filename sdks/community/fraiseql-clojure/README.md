@@ -186,7 +186,7 @@ fraiseql-clojure/
 │       └── security_test.clj     # 44 comprehensive tests
 ├── project.clj                   # Leiningen manifest
 ├── README.md                     # This file
-└── CLOJURE_FEATURE_PARITY.md    # Feature parity status
+└── clojure-feature-parity.md    # Feature parity status
 ```
 
 ## API Documentation
@@ -244,7 +244,7 @@ Create authorization policy:
 
 ## Documentation
 
-- [CLOJURE_FEATURE_PARITY.md](./CLOJURE_FEATURE_PARITY.md) - Feature parity status
+- [clojure-feature-parity.md](./clojure-feature-parity.md) - Feature parity status
 - [Clojure Documentation](https://clojure.org/guides/getting_started)
 - [Leiningen Guide](https://leiningen.org/)
 

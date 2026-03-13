@@ -64,6 +64,8 @@ impl JsonbOptimizationOptions {
             return self.default_strategy;
         }
 
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: field counts are small integers; f64 precision loss on usize is not material here.
         let percent = (requested_fields as f64 / total_fields as f64) * 100.0;
 
         if percent >= f64::from(self.auto_threshold_percent) {
@@ -76,6 +78,8 @@ impl JsonbOptimizationOptions {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     // ========================================================================

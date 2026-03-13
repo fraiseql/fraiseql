@@ -7,8 +7,7 @@ mod tracing_e2e_tests {
     use crate::tracing::{
         init_tracing, TracingConfig, TraceContext, ListenerTracer, ExecutorTracer,
         ConditionTracer, WebhookTracer, EmailTracer, SlackTracer, ActionSpan,
-        ActionBatchExecutor, ActionChain, JaegerConfig, JaegerSpan, record_span,
-        flush_spans, is_initialized,
+        ActionBatchExecutor, ActionChain, JaegerConfig, JaegerSpan,
     };
 
     #[test]
@@ -22,7 +21,7 @@ mod tracing_e2e_tests {
 
         let result = init_tracing(config);
         assert!(result.is_ok());
-        assert!(is_initialized());
+        assert!(result.unwrap().is_some(), "Expected Some(JaegerExporter) when tracing is enabled");
     }
 
     #[test]

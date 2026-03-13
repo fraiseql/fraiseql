@@ -1,5 +1,7 @@
-// Opaque ID generation to prevent ID enumeration attacks
-// Encodes internal database IDs in a way that doesn't expose sequence patterns
+//! Opaque ID encoding to prevent ID enumeration attacks.
+//!
+//! Encodes internal database IDs in a way that does not expose sequential
+//! patterns to external callers, improving security against IDOR attacks.
 
 use std::fmt;
 
@@ -174,7 +176,7 @@ mod tests {
     #[test]
     fn test_opaque_id_prevents_enumeration() {
         let ids: Vec<String> = (1..=5).map(|i| i.to_string()).collect();
-        let opaque_ids: Vec<OpaqueId> = ids.iter().map(|id| OpaqueId::new(id)).collect();
+        let opaque_ids: Vec<OpaqueId> = ids.iter().map(OpaqueId::new).collect();
 
         // Even though original IDs are sequential, opaque IDs should look random
         for i in 1..opaque_ids.len() {

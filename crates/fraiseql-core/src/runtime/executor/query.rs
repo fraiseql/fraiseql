@@ -1,5 +1,7 @@
 //! Regular and relay query execution.
 
+use std::sync::Arc;
+
 use crate::{
     db::{
         CursorValue, WhereClause, WhereOperator,
@@ -7,7 +9,7 @@ use crate::{
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
-    security::SecurityContext,
+    security::{RlsWhereClause, SecurityContext},
 };
 
 use super::{Executor, null_masked_fields, resolve_inject_value};
@@ -62,8 +64,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
-        // 4. Evaluate RLS policy and build WHERE clause filter
-        let rls_where_clause: Option<WhereClause> =
+        // 4. Evaluate RLS policy and build WHERE clause filter.
+        //    The return type is Option<RlsWhereClause> — a compile-time proof
+        //    that the clause passed through RLS evaluation.
+        let rls_where_clause: Option<RlsWhereClause> =
             if let Some(ref rls_policy) = self.config.rls_policy {
                 // Evaluate RLS policy with user's security context
                 rls_policy.evaluate(security_context, &query_match.query_def.name)?
@@ -94,9 +98,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database:                    "postgresql".to_string(),
+                database:                    self.adapter.database_type(),
                 projection_template:         projection_sql,
-                estimated_reduction_percent: 50,
+                estimated_reduction_percent: compute_projection_reduction(
+                    plan.projection_fields.len(),
+                ),
             })
         } else {
             // Stream strategy: return full JSONB, no projection hint
@@ -107,7 +113,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    Inject conditions always come after RLS so they cannot bypass it.
         let combined_where: Option<WhereClause> =
             if query_match.query_def.inject_params.is_empty() {
-                rls_where_clause // common path: no-op
+                // Common path: unwrap RlsWhereClause into WhereClause for the adapter
+                rls_where_clause.map(RlsWhereClause::into_where_clause)
             } else {
                 let mut conditions: Vec<WhereClause> = query_match
                     .query_def
@@ -124,7 +131,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .collect::<Result<Vec<_>>>()?;
 
                 if let Some(rls) = rls_where_clause {
-                    conditions.insert(0, rls);
+                    conditions.insert(0, rls.into_where_clause());
                 }
                 match conditions.len() {
                     0 => None,
@@ -219,7 +226,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3a. Generate SQL projection hint for requested fields (optimization)
         // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        // This reduces payload by 40-55% by projecting only requested fields at the database level
+        // This reduces payload by projecting only requested fields at the database level
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
@@ -229,9 +236,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database:                    "postgresql".to_string(),
+                database:                    self.adapter.database_type(),
                 projection_template:         projection_sql,
-                estimated_reduction_percent: 50,
+                estimated_reduction_percent: compute_projection_reduction(
+                    plan.projection_fields.len(),
+                ),
             })
         } else {
             // Stream strategy: return full JSONB, no projection hint
@@ -323,26 +332,63 @@ impl<A: DatabaseAdapter> Executor<A> {
         let first: Option<u32> = vars
             .and_then(|v| v.get("first"))
             .and_then(|v| v.as_u64())
-            .map(|n| n as u32);
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
         let last: Option<u32> = vars
             .and_then(|v| v.get("last"))
             .and_then(|v| v.as_u64())
-            .map(|n| n as u32);
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
         let after_cursor: Option<&str> =
             vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
         let before_cursor: Option<&str> =
             vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
 
         // Decode base64 cursors — type depends on relay_cursor_type.
+        // If a cursor string is provided but fails to decode, return a validation
+        // error immediately. Silently ignoring an invalid cursor would return a
+        // full result set, violating the client's pagination intent.
         let (after_pk, before_pk) = match query_def.relay_cursor_type {
-            CursorType::Int64 => (
-                after_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
-                before_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
-            ),
-            CursorType::Uuid => (
-                after_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
-                before_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
-            ),
+            CursorType::Int64 => {
+                let after = match after_cursor {
+                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `after`: {s:?}"),
+                            path:    Some("after".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                let before = match before_cursor {
+                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `before`: {s:?}"),
+                            path:    Some("before".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                (after, before)
+            },
+            CursorType::Uuid => {
+                let after = match after_cursor {
+                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `after`: {s:?}"),
+                            path:    Some("after".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                let before = match before_cursor {
+                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `before`: {s:?}"),
+                            path:    Some("before".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                (after, before)
+            },
         };
 
         // Determine direction and limit.
@@ -382,8 +428,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             .selections
             .iter()
             .find(|sel| sel.name == query_def.name)
-            .map(|connection_field| selections_contain_field(&connection_field.nested_fields, "totalCount"))
-            .unwrap_or(false);
+            .is_some_and(|connection_field| selections_contain_field(&connection_field.nested_fields, "totalCount"));
 
         // Capture before the move into execute_relay_page.
         let had_after = after_pk.is_some();
@@ -532,21 +577,17 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // 3. Find the SQL view for this type.
-        //    Convention: look for the first query whose return_type matches.
-        let sql_source = self
-            .schema
-            .queries
-            .iter()
-            .find(|q| q.return_type == type_name && q.sql_source.is_some())
-            .and_then(|q| q.sql_source.as_deref())
+        // 3. Find the SQL view for this type (O(1) index lookup built at startup).
+        let sql_source: Arc<str> = self
+            .node_type_index
+            .get(&type_name)
+            .cloned()
             .ok_or_else(|| FraiseQLError::Validation {
                 message: format!(
                     "node query: no registered SQL view for type '{type_name}'"
                 ),
                 path: Some("node.id".to_string()),
-            })?
-            .to_string();
+            })?;
 
         // 4. Build WHERE clause: data->>'id' = uuid
         let where_clause = WhereClause::Field {
@@ -565,12 +606,27 @@ impl<A: DatabaseAdapter> Executor<A> {
         let node_value = rows
             .into_iter()
             .next()
-            .map(|row| row.data)
-            .unwrap_or(serde_json::Value::Null);
+            .map_or(serde_json::Value::Null, |row| row.data);
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(serde_json::to_string(&response)?)
     }
+}
+
+/// Estimate the payload reduction percentage from projecting N fields.
+///
+/// Uses a simple heuristic: each projected field saves proportional space
+/// relative to a baseline of 20 typical JSONB fields per row. Clamped to
+/// [10, 90] so the hint is never misleadingly extreme.
+fn compute_projection_reduction(projected_field_count: usize) -> u32 {
+    // Baseline: assume a typical type has 20 fields.
+    const BASELINE_FIELD_COUNT: usize = 20;
+    let requested = projected_field_count.min(BASELINE_FIELD_COUNT);
+    let saved = BASELINE_FIELD_COUNT.saturating_sub(requested);
+    // saved / BASELINE * 100, clamped to [10, 90]
+    #[allow(clippy::cast_possible_truncation)] // Reason: result is in 0..=100, fits u32
+    let percent = ((saved * 100) / BASELINE_FIELD_COUNT) as u32;
+    percent.clamp(10, 90)
 }
 
 /// Return `true` if `field_name` appears in `selections`, including inside inline

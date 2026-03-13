@@ -1,0 +1,55 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        { "name": "id",    "type": "ID",     "nullable": false },
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name",  "type": "String", "nullable": true  }
+      ],
+      "description": "A registered user in the system"
+    }
+  ],
+  "queries": [
+    {
+      "name":         "users",
+      "sql_source":   "v_user",
+      "return_type":  "User",
+      "returns_list": true,
+      "nullable":     false,
+      "arguments": [
+        { "name": "email", "type": "String", "nullable": true },
+        { "name": "limit", "type": "Int",    "nullable": false, "default": 10 }
+      ],
+      "jsonb_column": "payload",
+      "description": "List all users with optional filtering"
+    },
+    {
+      "name":         "user",
+      "sql_source":   "v_user",
+      "return_type":  "User",
+      "returns_list": false,
+      "nullable":     true,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false }
+      ],
+      "description": "Fetch a single user by ID"
+    }
+  ],
+  "mutations": [
+    {
+      "name":         "createUser",
+      "sql_source":   "fn_create_user",
+      "return_type":  "User",
+      "returns_list": false,
+      "nullable":     false,
+      "arguments": [
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name",  "type": "String", "nullable": false }
+      ],
+      "operation":    "CREATE",
+      "description":  "Create a new user account"
+    }
+  ]
+}

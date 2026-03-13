@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Concurrent query execution stress tests.
 //!
 //! Verifies that the `FailingAdapter` (and by extension, the `DatabaseAdapter` trait)

@@ -2,6 +2,9 @@
 
 #![allow(dead_code)]
 
+#![allow(clippy::needless_pass_by_value)] // Reason: test harness methods mirror production API signatures
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect needed to spawn all tasks before joining
 use std::{
     collections::HashMap,
     sync::Mutex,
@@ -403,7 +406,7 @@ pub struct MockRecoveryManager<'a> {
 }
 
 impl<'a> MockRecoveryManager<'a> {
-    pub fn new(store: &'a InMemorySagaStore) -> Self {
+    pub const fn new(store: &'a InMemorySagaStore) -> Self {
         Self { store }
     }
 
@@ -443,7 +446,7 @@ pub struct SagaOrchestrator {
 }
 
 impl SagaOrchestrator {
-    pub fn new(
+    pub const fn new(
         store: InMemorySagaStore,
         executor: MockStepExecutor,
         compensator: MockStepCompensator,
@@ -653,7 +656,7 @@ pub struct OrchestratorBuilder {
 }
 
 impl OrchestratorBuilder {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { steps: Vec::new() }
     }
 

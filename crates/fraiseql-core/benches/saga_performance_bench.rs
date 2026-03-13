@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 //! Cycle 13: Saga Performance Benchmarks
 //!
 //! Criterion.rs benchmarks for precise latency and throughput measurement of the
@@ -31,6 +33,10 @@
 //! Results are generated in `target/criterion/` for detailed analysis and
 //! comparison across runs using Criterion's statistical tools.
 
+#![allow(clippy::cast_sign_loss)] // Reason: bench timing uses i64→u64 for non-negative elapsed durations
+#![allow(clippy::needless_pass_by_value)] // Reason: bench helper signatures mirror production API for clarity
+#![allow(clippy::cast_precision_loss)] // Reason: bench throughput computations cast usize→f64 for display
+#![allow(missing_docs)] // Reason: bench helper types do not require documentation
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
 // ============================================================================
@@ -331,7 +337,7 @@ mod harness {
     }
 
     impl SagaOrchestrator {
-        pub fn new(
+        pub const fn new(
             store: InMemorySagaStore,
             executor: MockStepExecutor,
             compensator: MockStepCompensator,
@@ -438,27 +444,24 @@ mod harness {
                 let mut compensation_results = Vec::new();
                 for i in (0..completed_steps).rev() {
                     let original_result = step_results[i].as_ref();
-                    match self.compensator.compensate(i, original_result) {
-                        Ok(_) => {
-                            compensation_results.push(CompensationExecution {
-                                step_order:      i,
-                                original_result: original_result.cloned(),
-                                result:          Ok(json!({})),
-                                timestamp:       Instant::now(),
-                            });
-                        },
-                        Err(_) => {
-                            self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
-                            return Ok(SagaResult {
-                                saga_id,
-                                state: SagaState::CompensationFailed,
-                                completed_steps,
-                                total_steps,
-                                error: Some(error_msg),
-                                step_results,
-                                compensation_results,
-                            });
-                        },
+                    if self.compensator.compensate(i, original_result).is_ok() {
+                        compensation_results.push(CompensationExecution {
+                            step_order:      i,
+                            original_result: original_result.cloned(),
+                            result:          Ok(json!({})),
+                            timestamp:       Instant::now(),
+                        });
+                    } else {
+                        self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
+                        return Ok(SagaResult {
+                            saga_id,
+                            state: SagaState::CompensationFailed,
+                            completed_steps,
+                            total_steps,
+                            error: Some(error_msg),
+                            step_results,
+                            compensation_results,
+                        });
                     }
                 }
 
@@ -492,7 +495,7 @@ mod harness {
     }
 
     impl OrchestratorBuilder {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self { steps: Vec::new() }
         }
 

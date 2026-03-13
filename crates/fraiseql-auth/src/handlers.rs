@@ -1,4 +1,5 @@
-// HTTP handlers for authentication endpoints
+//! HTTP handlers for the built-in authentication endpoints (`/auth/start`,
+//! `/auth/callback`, `/auth/refresh`, `/auth/logout`).
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
@@ -38,7 +39,7 @@ pub struct AuthStartRequest {
     pub provider: Option<String>,
 }
 
-/// Response for auth/start endpoint
+/// Response body for the `POST /auth/start` endpoint.
 #[derive(Debug, Serialize)]
 pub struct AuthStartResponse {
     /// Authorization URL to redirect user to
@@ -58,7 +59,12 @@ pub struct AuthCallbackQuery {
     pub error_description: Option<String>,
 }
 
-/// Response for auth/callback endpoint
+/// Response body for the `GET /auth/callback` endpoint.
+///
+/// Returned after a successful OAuth authorization-code exchange.
+/// In a production browser-facing flow, the server would instead redirect
+/// the user agent to the frontend application with tokens in a URL fragment;
+/// this JSON form is suitable for API clients and testing.
 #[derive(Debug, Serialize)]
 pub struct AuthCallbackResponse {
     /// Access token for API requests
@@ -78,7 +84,7 @@ pub struct AuthRefreshRequest {
     pub refresh_token: String,
 }
 
-/// Response for auth/refresh endpoint
+/// Response body for the `POST /auth/refresh` endpoint.
 #[derive(Debug, Serialize)]
 pub struct AuthRefreshResponse {
     /// New access token
@@ -278,6 +284,21 @@ pub async fn auth_refresh(
     let token_hash = hash_token(&req.refresh_token);
     let session = state.session_store.get_session(&token_hash).await?;
 
+    // SECURITY: Reject expired sessions before any further processing.
+    // Without this check, a stolen refresh token from an expired session
+    // could be used indefinitely to mint new access tokens.
+    if session.is_expired() {
+        let audit_logger = get_audit_logger();
+        audit_logger.log_failure(
+            AuditEventType::JwtRefresh,
+            SecretType::RefreshToken,
+            Some(session.user_id.clone()),
+            "refresh",
+            "Session expired",
+        );
+        return Err(AuthError::TokenExpired);
+    }
+
     // SECURITY: Check rate limiting for auth/refresh endpoint (per user)
     if state.rate_limiters.auth_refresh.check(&session.user_id).is_err() {
         return Err(AuthError::RateLimited {
@@ -294,24 +315,12 @@ pub async fn auth_refresh(
         "validate",
     );
 
-    // In a real implementation, would generate new JWT here
-    // For now, return a simple response
-    let access_token = format!("new_access_token_{}", uuid::Uuid::new_v4());
-
-    // Audit log: JWT refresh success
-    let audit_logger = get_audit_logger();
-    audit_logger.log_success(
-        AuditEventType::JwtRefresh,
-        SecretType::JwtToken,
-        Some(session.user_id),
-        "refresh",
-    );
-
-    Ok(Json(AuthRefreshResponse {
-        access_token,
-        token_type: "Bearer".to_string(),
-        expires_in: 3600,
-    }))
+    // JWT signing requires an RSA/EC private key, which is not yet wired
+    // into the auth state. Return an explicit error rather than a fake token.
+    Err(AuthError::Internal {
+        message: "JWT signing not yet implemented — configure an OIDC provider for token issuance"
+            .to_string(),
+    })
 }
 
 /// POST /auth/logout - Logout and revoke session
@@ -381,6 +390,7 @@ pub fn generate_secure_state() -> String {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

@@ -1,4 +1,4 @@
-// JWT validation and claims parsing
+//! JWT validation, claims parsing, and token generation.
 use std::collections::HashMap;
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
@@ -43,11 +43,10 @@ impl Claims {
             Err(e) => {
                 // CRITICAL: System time failure - treat token as expired (fail-safe)
                 // Log this critical error for operators to investigate
-                eprintln!(
-                    "CRITICAL: System time error in token expiry check: {}. \
-                     This indicates a system clock issue or other critical failure. \
-                     Token will be rejected as a safety measure.",
-                    e
+                tracing::error!(
+                    error = %e,
+                    "CRITICAL: System time error in token expiry check — \
+                     this indicates a system clock issue. Token rejected as safety measure."
                 );
                 // Return current time as far in the future to ensure token is expired
                 u64::MAX
@@ -81,9 +80,13 @@ impl JwtValidator {
 
         let mut validation = Validation::new(algorithm);
         validation.set_issuer(&[issuer]);
-        // Default: require audience validation, but allow any audience initially
-        // Applications should call with_audiences() to restrict to specific audiences
-        validation.validate_aud = false;
+        // Require the `aud` claim to be present in every token.
+        // `validate_aud = true` without a configured expected audience means any non-empty
+        // `aud` value is accepted; callers should further restrict this by calling
+        // `with_audiences()` to pin the validator to specific service audiences.
+        // Setting `validate_aud = false` (the previous default) silently accepts tokens
+        // issued for any service — a cross-service token replay vulnerability.
+        validation.validate_aud = true;
 
         Ok(Self {
             validation,
@@ -257,6 +260,7 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn create_test_claims() -> Claims {
@@ -313,11 +317,18 @@ mod tests {
         assert!(!claims.is_expired());
     }
 
+    /// Helper: create a validator configured for the test audience "api".
+    fn make_test_validator() -> JwtValidator {
+        JwtValidator::new("https://example.com", Algorithm::HS256)
+            .expect("Failed to create validator")
+            .with_audiences(&["api"])
+            .expect("Failed to set audiences")
+    }
+
     #[test]
     fn test_generate_and_validate_token() {
         let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = JwtValidator::new("https://example.com", Algorithm::HS256)
-            .expect("Failed to create validator");
+        let validator = make_test_validator();
 
         let claims = create_test_claims();
         let token = generate_test_token(&claims, secret).expect("Failed to generate token");
@@ -330,10 +341,27 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_expired_token() {
+    fn test_validate_without_audience_rejects_token() {
+        // A validator created without `with_audiences()` must reject tokens
+        // (audience claim required but no expected audience configured).
         let secret = b"test_secret_key_at_least_32_bytes_long";
         let validator = JwtValidator::new("https://example.com", Algorithm::HS256)
             .expect("Failed to create validator");
+
+        let claims = create_test_claims();
+        let token = generate_test_token(&claims, secret).expect("Failed to generate token");
+
+        let result = validator.validate_hmac(&token, secret);
+        assert!(
+            result.is_err(),
+            "validator without configured audience must reject tokens"
+        );
+    }
+
+    #[test]
+    fn test_validate_expired_token() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -352,8 +380,7 @@ mod tests {
     #[test]
     fn test_validate_invalid_signature() {
         let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = JwtValidator::new("https://example.com", Algorithm::HS256)
-            .expect("Failed to create validator");
+        let validator = make_test_validator();
 
         let claims = create_test_claims();
         let token = generate_test_token(&claims, secret).expect("Failed to generate token");

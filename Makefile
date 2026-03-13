@@ -1,13 +1,14 @@
-.PHONY: help build test test-unit test-integration test-federation test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect
 
 # Default target
 help:
 	@echo "FraiseQL v2 Development Commands"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test               - Run all tests"
+	@echo "  make test               - Run unit + integration tests (PostgreSQL)"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
+	@echo "  make test-full          - Run ALL categories: unit + integration + cross-db + federation"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
@@ -73,6 +74,36 @@ build-release:
 
 # Run all tests (unit + integration)
 test: test-unit test-integration
+
+# Run the full test suite: unit + SQL snapshots + integration (all DBs) + cross-database parity + federation
+# Requires full infrastructure: Docker with PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault + Apollo Router
+test-full: db-up federation-up
+	@echo "=== Running full test suite ==="
+	@echo ""
+	@echo "[1/5] Unit tests..."
+	@cargo test --lib --all-features
+	@echo ""
+	@echo "[2/5] SQL snapshot tests..."
+	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
+	@echo ""
+	@echo "[3/5] Behavioral integration tests (all databases)..."
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
+	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
+	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
+		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
+	@echo ""
+	@echo "[4/5] Cross-database parity tests..."
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	MYSQL_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+		cargo test --features test-postgres,test-mysql -p fraiseql-core \
+		    --test cross_database_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "[5/5] Federation integration tests..."
+	@cd docker/federation-ci && pytest -q --tb=short
+	@echo ""
+	@echo "=== Full test suite complete ==="
 
 # Run unit tests only (no database required)
 test-unit:
@@ -156,13 +187,132 @@ test-e2e:
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
-# Format code
+# Secondary gate: count #[allow(clippy::unwrap_used)] annotations in production source files.
+# Primary enforcement: clippy::unwrap_used = "deny" in workspace lints — any new .unwrap() in
+# production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
+# This secondary gate limits annotation proliferation (each annotation is a deliberate exception).
+# Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
+# Baseline: 1 (fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call).
+# Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
+UNWRAP_ALLOW_LIMIT ?= 1
+.PHONY: lint-unwrap
+lint-unwrap:
+	@echo "=== Counting unwrap allows in production code ==="
+	@count=$$(grep -rn 'allow.*unwrap_used' crates/*/src/ --include="*.rs" \
+		| grep -v "test" | wc -l); \
+	echo "Current count: $$count / $(UNWRAP_ALLOW_LIMIT)"; \
+	if [ "$$count" -gt "$(UNWRAP_ALLOW_LIMIT)" ]; then \
+		echo "ERROR: $$count production unwrap allows exceeds limit of $(UNWRAP_ALLOW_LIMIT)"; \
+		echo "Review new additions or raise UNWRAP_ALLOW_LIMIT with justification."; \
+		exit 1; \
+	fi; \
+	echo "OK: $$count <= $(UNWRAP_ALLOW_LIMIT)"
+
+# Check for empty or placeholder .expect() messages in production code.
+# .expect("") or .expect("TODO") is functionally equivalent to .unwrap().
+.PHONY: lint-expect
+lint-expect:
+	@echo "=== Checking for empty/placeholder .expect() calls ==="
+	@count=$$(grep -rn '\.expect("")\|\.expect("TODO")\|\.expect("todo")\|\.expect("FIXME")\|\.expect("fixme")' \
+		crates/*/src/ --include="*.rs" | grep -v test | wc -l); \
+	if [ "$$count" -gt "0" ]; then \
+		echo "ERROR: $$count .expect() calls with empty/placeholder messages in production code:"; \
+		grep -rn '\.expect("")\|\.expect("TODO")\|\.expect("todo")\|\.expect("FIXME")\|\.expect("fixme")' \
+			crates/*/src/ --include="*.rs" | grep -v test; \
+		exit 1; \
+	fi; \
+	echo "OK: no empty .expect() calls"
+
+# Gate: ensure the number of #[async_trait] usages has not grown above the baseline.
+# async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425).
+# Phase 0 baseline: 128 (crates/*/src/ only, matching the convention used by lint-unwrap/lint-expect).
+# Run `make lint-async-trait` to detect regressions (e.g. a new dyn-dispatch trait added without tracking comment).
+ASYNC_TRAIT_LIMIT := 128
+.PHONY: lint-async-trait
+lint-async-trait:
+	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
+	if [ "$$count" -gt "$(ASYNC_TRAIT_LIMIT)" ]; then \
+	  echo "ERROR: async_trait count $$count exceeds baseline $(ASYNC_TRAIT_LIMIT)"; \
+	  echo "New dyn-dispatch traits must add:"; \
+	  echo "  // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)"; \
+	  exit 1; \
+	fi; \
+	echo "async_trait count OK ($$count ≤ $(ASYNC_TRAIT_LIMIT))"
+
+# Gate: ensure the number of crate-level clippy allows in fraiseql-core has not grown.
+# Target: ≤20 allows (currently 16 after B1 remediation).
+# Run `make lint-gate` in CI to detect regressions.
+lint-gate:
+	@ALLOW_COUNT=$$(grep -c '#!\[allow(clippy::' crates/fraiseql-core/src/lib.rs); \
+	echo "fraiseql-core lib.rs crate-level allow count: $$ALLOW_COUNT"; \
+	if [ "$$ALLOW_COUNT" -gt 20 ]; then \
+	  echo "ERROR: too many crate-level clippy allows ($$ALLOW_COUNT > 20)"; \
+	  echo "Fix the underlying code or justify each allow with a Reason: comment."; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$ALLOW_COUNT allows (≤20 threshold)"
+
+# Gate: ensure HIGH-risk cast allows are not re-added to fraiseql-db crate level.
+# cast_possible_truncation, cast_precision_loss, cast_sign_loss must not be global.
+# Current crate-level allows: 37 (target ≤40 after removing the 3 cast allows).
+FRAISEQL_DB_LIB_ALLOWS_MAX ?= 40
+.PHONY: lint-gate-db
+lint-gate-db:
+	@count=$$(grep -c '#!\[allow(clippy' crates/fraiseql-db/src/lib.rs); \
+	echo "fraiseql-db lib.rs crate-level allows: $$count (max: $(FRAISEQL_DB_LIB_ALLOWS_MAX))"; \
+	for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do \
+	  if grep -q "allow.*$$lint" crates/fraiseql-db/src/lib.rs; then \
+	    echo "ERROR: HIGH-risk cast lint $$lint must not be allowed at crate level"; \
+	    exit 1; \
+	  fi; \
+	done; \
+	if [ "$$count" -gt "$(FRAISEQL_DB_LIB_ALLOWS_MAX)" ]; then \
+	  echo "ERROR: too many crate-level clippy allows in fraiseql-db ($$count > $(FRAISEQL_DB_LIB_ALLOWS_MAX))"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count allows (≤$(FRAISEQL_DB_LIB_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
+
+# Gate: ensure narrow cast allows in fraiseql-core do not proliferate beyond threshold.
+# Only narrow per-site #[allow(clippy::cast_*)] annotations are counted (not crate-level //!).
+FRAISEQL_CORE_CAST_ALLOWS_MAX ?= 20
+.PHONY: lint-gate-core
+lint-gate-core:
+	@count=$$(grep -r '#\[allow(clippy::cast' crates/fraiseql-core/src/ | wc -l); \
+	echo "fraiseql-core narrow cast allows: $$count (max: $(FRAISEQL_CORE_CAST_ALLOWS_MAX))"; \
+	for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do \
+	  if grep -r "^#!\[allow.*$$lint" crates/fraiseql-core/src/lib.rs 2>/dev/null | grep -q .; then \
+	    echo "ERROR: HIGH-risk cast lint $$lint must not be allowed at crate level in fraiseql-core"; \
+	    exit 1; \
+	  fi; \
+	done; \
+	if [ "$$count" -gt "$(FRAISEQL_CORE_CAST_ALLOWS_MAX)" ]; then \
+	  echo "ERROR: too many narrow cast allows in fraiseql-core ($$count > $(FRAISEQL_CORE_CAST_ALLOWS_MAX))"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count narrow cast allows (≤$(FRAISEQL_CORE_CAST_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
+
+# Gate: ensure executor error-documentation coverage does not regress.
+# Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
+# v2.2.0 target: ≥60.  Current baseline: 35.
+FRAISEQL_CORE_ERRORS_DOC_MIN ?= 35
+.PHONY: lint-gate-errors-doc
+lint-gate-errors-doc:
+	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \
+	echo "fraiseql-core runtime # Errors doc sections: $$count (min: $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
+	if [ "$$count" -lt "$(FRAISEQL_CORE_ERRORS_DOC_MIN)" ]; then \
+	  echo "ERROR: # Errors doc coverage regressed ($$count < $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
+	  echo "  Add '# Errors' doc sections to public functions in crates/fraiseql-core/src/runtime/"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count sections (≥$(FRAISEQL_CORE_ERRORS_DOC_MIN))"
+
+# Format code (nightly rustfmt for advanced formatting options)
 fmt:
-	cargo fmt --all
+	cargo +nightly fmt --all
 
 # Check formatting
 fmt-check:
-	cargo fmt --all -- --check
+	cargo +nightly fmt --all -- --check
 
 # Run all checks
 check: fmt-check clippy test
@@ -311,9 +461,26 @@ coverage:
 	cargo llvm-cov --all-features --workspace --html
 	@echo "Coverage report generated in target/llvm-cov/html/index.html"
 
-# Security audit
+# Security audit (cargo-audit only)
 audit:
 	cargo audit
+
+# Full security checks: advisory scan + supply-chain policy gate + vendor drift.
+# Run before opening a PR to catch new advisories early.
+.PHONY: security
+security:
+	cargo deny check
+	cargo audit
+	@echo "Checking vendored dependencies for upstream security fixes..."
+	@CI_VENDOR_WARN_ONLY=1 bash tools/check-vendor-security.sh
+	@echo "Security checks passed"
+
+# Report test counts — run this before each release and update overview.md if the order of magnitude changed
+test-count:
+	@echo "=== Test count report ==="
+	@echo "Unit tests (#[test]):         $$(grep -r '#\[test\]' crates/ --include='*.rs' | wc -l)"
+	@echo "Async tests (#[tokio::test]): $$(grep -r '#\[tokio::test\]' crates/ --include='*.rs' | wc -l)"
+	@echo "Property tests (proptest!):   $$(grep -r 'proptest!' crates/ --include='*.rs' | wc -l)"
 
 # Update dependencies
 update:
@@ -338,7 +505,7 @@ e2e-python: e2e-setup
 	@echo ""
 	@echo "========== PYTHON E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		cd fraiseql-python && \
+		cd sdks/official/fraiseql-python && \
 		. .venv/bin/activate && \
 		echo "✅ Python environment ready" && \
 		echo "" && \
@@ -353,7 +520,7 @@ e2e-typescript: e2e-setup
 	@echo "========== TYPESCRIPT E2E TEST =========="
 	@echo "✅ TypeScript environment ready"
 	@echo "Running E2E tests..."
-	@npm test --prefix fraiseql-typescript
+	@npm test --prefix sdks/official/fraiseql-typescript
 	@echo "✅ TypeScript E2E tests passed"
 	@echo ""
 
@@ -370,7 +537,7 @@ e2e-go: e2e-setup
 	@echo "========== GO E2E TEST =========="
 	@echo "✅ Go environment ready"
 	@echo "Running E2E tests..."
-	@cd fraiseql-go && go test ./fraiseql/... -v
+	@cd sdks/official/fraiseql-go && go test ./fraiseql/... -v
 	@echo "✅ Go E2E tests passed"
 	@echo ""
 
@@ -386,7 +553,7 @@ e2e-velocitybench: e2e-setup
 	@echo ""
 	@echo "========== VELOCITYBENCH E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		. fraiseql-python/.venv/bin/activate && \
+		. sdks/official/fraiseql-python/.venv/bin/activate && \
 		echo "✅ Test environment ready" && \
 		echo "" && \
 		echo "Running VelocityBench blogging app E2E test..." && \
@@ -430,17 +597,17 @@ PARITY_GOLDEN := tests/fixtures/golden/parity-schema.json
 ## Generate parity schemas from all 5 authoring SDKs into /tmp/parity-*.json
 parity-generate:
 	@echo "=== Generating parity schemas ==="
-	@cd fraiseql-python && uv run python tests/generate_parity_schema.py \
+	@cd sdks/official/fraiseql-python && uv run python tests/generate_parity_schema.py \
 	    > /tmp/parity-python.json
 	@echo "  [1/5] Python done"
-	@cd fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
+	@cd sdks/official/fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
 	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
 	@echo "  [2/5] TypeScript done"
-	@cd fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
+	@cd sdks/official/fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
 	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
 	    > /tmp/parity-go.json
 	@echo "  [3/5] Go done"
-	@cd fraiseql-java && \
+	@cd sdks/official/fraiseql-java && \
 	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
 	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
 	@echo "  [4/5] Java done"

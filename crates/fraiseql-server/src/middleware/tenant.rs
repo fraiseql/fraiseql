@@ -1,5 +1,8 @@
-// Multi-tenancy middleware for extracting and enforcing org_id
-// Extracts org_id from JWT claims or request headers and adds to request context
+//! Multi-tenancy middleware for extracting and enforcing `org_id`.
+//!
+//! Reads the tenant identifier from JWT claims or request headers and injects
+//! it into the request extensions as [`TenantContext`] so downstream handlers
+//! can scope database queries to the correct organisation.
 
 use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use tracing::debug;
@@ -53,7 +56,7 @@ pub struct TenantContext {
 
 impl TenantContext {
     /// Check if tenant is explicitly set
-    pub fn is_tenant_scoped(&self) -> bool {
+    pub const fn is_tenant_scoped(&self) -> bool {
         self.org_id.is_some()
     }
 
@@ -63,6 +66,10 @@ impl TenantContext {
     }
 
     /// Require tenant ID (for operations that must be tenant-scoped)
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error message if no `org_id` is present on this context.
     pub fn require_org_id(&self) -> Result<&str, String> {
         self.org_id
             .as_deref()
@@ -72,6 +79,16 @@ impl TenantContext {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
@@ -95,7 +112,6 @@ mod tests {
         let ctx = TenantContext {
             org_id: Some("org-123".to_string()),
         };
-        assert!(ctx.require_org_id().is_ok());
         assert_eq!(ctx.require_org_id().unwrap(), "org-123");
     }
 

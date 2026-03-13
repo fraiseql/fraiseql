@@ -6,12 +6,19 @@ use std::sync::{
 use dashmap::DashMap;
 use tokio::sync::broadcast;
 
+#[allow(clippy::wildcard_imports)] // Reason: types::* re-exports the subscription type vocabulary used throughout this module
 use super::{SubscriptionError, types::*};
 use crate::schema::CompiledSchema;
 
 // =============================================================================
 // Subscription Manager
 // =============================================================================
+
+/// Maximum number of active subscriptions a single connection may hold.
+///
+/// Prevents a single authenticated connection from exhausting server memory by
+/// calling `subscribe()` in a loop.
+const MAX_SUBSCRIPTIONS_PER_CONNECTION: usize = 100;
 
 /// Manages active subscriptions and event routing.
 ///
@@ -126,14 +133,23 @@ impl SubscriptionManager {
 
         let id = active.id;
 
+        // Enforce per-connection subscription cap before inserting.
+        {
+            let mut conn_subs = self
+                .subscriptions_by_connection
+                .entry(connection_id.to_string())
+                .or_default();
+            if conn_subs.len() >= MAX_SUBSCRIPTIONS_PER_CONNECTION {
+                return Err(SubscriptionError::Internal(format!(
+                    "Connection '{connection_id}' has reached the maximum of \
+                     {MAX_SUBSCRIPTIONS_PER_CONNECTION} concurrent subscriptions"
+                )));
+            }
+            conn_subs.push(id);
+        }
+
         // Store subscription
         self.subscriptions.insert(id, active);
-
-        // Index by connection
-        self.subscriptions_by_connection
-            .entry(connection_id.to_string())
-            .or_default()
-            .push(id);
 
         tracing::info!(
             subscription_id = %id,
@@ -173,18 +189,56 @@ impl SubscriptionManager {
     /// Unsubscribe all subscriptions for a connection.
     ///
     /// Called when a client disconnects.
+    ///
+    /// # Concurrency note
+    ///
+    /// A concurrent `subscribe` call that runs between the DashMap entry removal and the
+    /// per-subscription cleanup loop would create a new connection entry that is not cleaned
+    /// up by this call. A second-pass removal after the first loop closes this window for
+    /// all but the most extreme concurrent races. Any subscription that slips through is
+    /// benign: it will receive events until the broadcast receiver is dropped (which happens
+    /// on disconnect), and will be removed on the next disconnect or subscription-not-found
+    /// event for that ID.
     pub fn unsubscribe_connection(&self, connection_id: &str) {
-        if let Some((_, subscription_ids)) = self.subscriptions_by_connection.remove(connection_id)
+        // First pass: remove the connection index atomically and clean up known subscriptions.
+        let first_pass_count = if let Some((_, subscription_ids)) =
+            self.subscriptions_by_connection.remove(connection_id)
         {
+            let count = subscription_ids.len();
             for id in subscription_ids {
                 self.subscriptions.remove(&id);
             }
+            count
+        } else {
+            0
+        };
 
-            tracing::info!(
-                connection_id = connection_id,
-                "All subscriptions removed for connection"
-            );
-        }
+        // Second pass: clean up any subscriptions added by a concurrent `subscribe` call that
+        // ran between the `remove()` above and the loop.  A concurrent `subscribe` that saw
+        // the connection entry absent would have inserted a *new* entry; removing it here
+        // closes the TOCTOU window to a negligible two-CAS race.
+        let second_pass_count = if let Some((_, subscription_ids)) =
+            self.subscriptions_by_connection.remove(connection_id)
+        {
+            let count = subscription_ids.len();
+            for id in subscription_ids {
+                self.subscriptions.remove(&id);
+                tracing::warn!(
+                    subscription_id = %id,
+                    connection_id = connection_id,
+                    "Cleaned up subscription added concurrently during disconnect"
+                );
+            }
+            count
+        } else {
+            0
+        };
+
+        tracing::info!(
+            connection_id = connection_id,
+            subscriptions_removed = first_pass_count + second_pass_count,
+            "All subscriptions removed for connection"
+        );
     }
 
     /// Get an active subscription by ID.
@@ -238,7 +292,7 @@ impl SubscriptionManager {
         let mut matched = 0;
 
         // Find matching subscriptions
-        for subscription in self.subscriptions.iter() {
+        for subscription in &self.subscriptions {
             if self.matches_subscription(&event, &subscription) {
                 matched += 1;
 
@@ -400,13 +454,15 @@ impl SubscriptionManager {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// # use serde_json::json;
+/// # use fraiseql_core::runtime::subscription::manager::get_json_pointer_value;
 /// let data = json!({"user": {"id": 123, "name": "Alice"}});
 /// let id = get_json_pointer_value(&data, "user/id");  // Some(&123)
 /// let alt = get_json_pointer_value(&data, "user.id"); // Some(&123)
 /// let missing = get_json_pointer_value(&data, "admin/id"); // None
 /// ```
-pub(crate) fn get_json_pointer_value<'a>(
+pub fn get_json_pointer_value<'a>(
     data: &'a serde_json::Value,
     path: &str,
 ) -> Option<&'a serde_json::Value> {
@@ -421,7 +477,7 @@ pub(crate) fn get_json_pointer_value<'a>(
 }
 
 /// Evaluate a filter condition against an actual value.
-pub(crate) fn evaluate_filter_condition(
+pub fn evaluate_filter_condition(
     actual: Option<&serde_json::Value>,
     operator: crate::schema::FilterOperator,
     expected: &serde_json::Value,

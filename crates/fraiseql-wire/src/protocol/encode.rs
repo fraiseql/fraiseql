@@ -132,6 +132,7 @@ fn encode_sasl_response(buf: &mut BytesMut, data: &[u8]) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

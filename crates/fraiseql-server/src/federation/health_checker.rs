@@ -12,6 +12,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Timeout for subgraph health-check HTTP requests.
+///
+/// Kept short so a slow subgraph doesn't block the health-check loop.
+const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -62,7 +67,7 @@ impl RollingErrorWindow {
 
     /// Record a success.
     pub fn record_success(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
             bucket.total += 1;
         } else {
@@ -76,7 +81,7 @@ impl RollingErrorWindow {
 
     /// Record an error.
     pub fn record_error(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
             bucket.errors += 1;
             bucket.total += 1;
@@ -91,7 +96,7 @@ impl RollingErrorWindow {
 
     /// Get error count in last 60 seconds.
     pub fn error_count(&self) -> u32 {
-        let buckets = self.buckets.lock().unwrap();
+        let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         buckets
             .iter()
@@ -102,7 +107,7 @@ impl RollingErrorWindow {
 
     /// Get error rate percentage over last 300 seconds (5 minutes).
     pub fn error_rate_percent(&self) -> f64 {
-        let buckets = self.buckets.lock().unwrap();
+        let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         let recent: Vec<_> = buckets
             .iter()
@@ -125,7 +130,7 @@ impl RollingErrorWindow {
 
     /// Cleanup old buckets (older than 5 minutes).
     fn cleanup(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         while let Some(front) = buckets.front() {
             if now.duration_since(front.timestamp) > Duration::from_secs(300) {
@@ -171,7 +176,10 @@ impl SubgraphHealthChecker {
 
         Self {
             subgraphs,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(HEALTH_CHECK_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
             error_windows: Arc::new(Mutex::new(error_windows)),
             status_cache: Arc::new(Mutex::new(Vec::new())),
         }
@@ -201,7 +209,7 @@ impl SubgraphHealthChecker {
 
         // Record result and get updated stats
         let (error_count, error_rate) = {
-            let windows = self.error_windows.lock().unwrap();
+            let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
             let window = windows.get(&config.name).expect(
                 "RollingErrorWindow created for each subgraph in constructor; window must exist",
             );
@@ -260,13 +268,13 @@ impl SubgraphHealthChecker {
 
             // Update cache
             {
-                let mut cache = self.status_cache.lock().unwrap();
+                let mut cache = self.status_cache.lock().expect("status_cache mutex poisoned");
                 *cache = statuses;
             }
 
             // Cleanup old error buckets
             {
-                let windows = self.error_windows.lock().unwrap();
+                let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
                 for window in windows.values() {
                     window.cleanup();
                 }
@@ -279,7 +287,7 @@ impl SubgraphHealthChecker {
 
     /// Get cached health statuses.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
-        self.status_cache.lock().unwrap().iter().cloned().collect()
+        self.status_cache.lock().expect("status_cache mutex poisoned").iter().cloned().collect()
     }
 
     /// Get overall federation health status.
@@ -302,6 +310,16 @@ impl SubgraphHealthChecker {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
@@ -346,5 +364,22 @@ mod tests {
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("test-subgraph"));
         assert!(json.contains("true"));
+    }
+
+    // ── S25-H3: SubgraphHealthChecker client timeout ──────────────────────────
+
+    #[test]
+    fn health_check_timeout_is_set() {
+        let secs = HEALTH_CHECK_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 60, "Health-check timeout should be 1–60 s, got {secs}");
+    }
+
+    #[test]
+    fn health_checker_new_creates_instance() {
+        let checker = SubgraphHealthChecker::new(vec![SubgraphConfig {
+            name:     "test".to_string(),
+            endpoint: "https://test.example.com/graphql".to_string(),
+        }]);
+        assert_eq!(checker.subgraphs.len(), 1);
     }
 }

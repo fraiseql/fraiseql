@@ -1,7 +1,9 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test fraiseql-wire directly without adapter layer
 //!
 //! Run with: cargo test -p fraiseql-core --features wire-backend,test-postgres --test
-//! wire_direct_test
+//! `wire_direct_test`
 
 #[cfg(all(feature = "wire-backend", feature = "test-postgres"))]
 mod wire_direct_tests {

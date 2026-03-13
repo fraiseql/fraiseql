@@ -128,8 +128,7 @@ async fn test_typed_query_with_rust_predicate() {
             // Rust predicate works on JSON values
             json["email"]
                 .as_str()
-                .map(|e| e.contains("@"))
-                .unwrap_or(false)
+                .is_some_and(|e| e.contains('@'))
         })
         .chunk_size(128)
         .execute()
@@ -140,7 +139,7 @@ async fn test_typed_query_with_rust_predicate() {
     while let Some(result) = stream.next().await {
         let user: TestUser = result.expect("deserialize");
         // Verify rust predicate was applied
-        assert!(user.email.contains("@"));
+        assert!(user.email.contains('@'));
         count += 1;
         if count > 100 {
             break;
@@ -366,7 +365,7 @@ async fn test_multiple_typed_queries_same_connection() {
 #[tokio::test]
 async fn test_streaming_with_chunk_sizes() {
     // Verify that typed streaming works with different chunk sizes
-    for chunk_size in [1, 32, 256].iter() {
+    for chunk_size in &[1, 32, 256] {
         let client = connect_test_client().await.expect("connect");
 
         let mut stream = client

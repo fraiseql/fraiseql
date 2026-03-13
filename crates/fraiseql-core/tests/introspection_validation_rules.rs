@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for validation rules in introspection schema.
 
 #[cfg(test)]
@@ -126,7 +128,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false));
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"));
 
         assert!(test_input.is_some(), "TestInput should be in introspection");
 
@@ -156,7 +158,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let id_field = test_input
@@ -179,7 +181,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let email_field = test_input
@@ -203,7 +205,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let age_field = test_input
@@ -228,7 +230,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let password_field = test_input
@@ -253,7 +255,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let status_field = test_input
@@ -279,7 +281,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -304,7 +306,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -328,7 +330,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -352,7 +354,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -376,7 +378,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -399,7 +401,7 @@ mod tests {
         let test_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "TestInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "TestInput"))
             .unwrap();
 
         let field = test_input
@@ -437,7 +439,7 @@ mod tests {
         let simple_input = introspection
             .types
             .iter()
-            .find(|t| t.name.as_ref().map(|n| n == "SimpleInput").unwrap_or(false))
+            .find(|t| t.name.as_ref().is_some_and(|n| n == "SimpleInput"))
             .unwrap();
 
         let unvalidated_field = simple_input

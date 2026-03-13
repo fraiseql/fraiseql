@@ -9,3 +9,13 @@ OPEN_SOURCE_STRATEGY.md
 *.draft
 *.wip
 *.tmp
+
+# AI session artifacts
+plans/
+*_PLAN.md
+*_ROADMAP.md
+*_CATALOG.md
+*_ANALYSIS.md
+*_INSIGHTS.md
+fraiseql_documentation_review/
+.session-handoff.md

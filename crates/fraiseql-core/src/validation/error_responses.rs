@@ -52,7 +52,7 @@ pub struct GraphQLValidationResponse {
 
 impl GraphQLValidationResponse {
     /// Create a new empty error response.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
             error_count: 0,
@@ -116,7 +116,7 @@ impl GraphQLValidationResponse {
     }
 
     /// Check if response has any errors.
-    pub fn has_errors(&self) -> bool {
+    pub const fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
@@ -137,6 +137,8 @@ impl Default for GraphQLValidationResponse {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

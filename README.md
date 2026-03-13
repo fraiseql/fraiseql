@@ -3,7 +3,7 @@
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/fraiseql.svg)](https://crates.io/crates/fraiseql)
-[![Test Coverage](https://img.shields.io/badge/tests-5100%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
+[![Test Coverage](https://img.shields.io/badge/tests-10000%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
 ![Build](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml/badge.svg)
 
 **Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile to optimized SQL at build time, execute with predictable sub-10ms latency.
@@ -44,7 +44,7 @@ curl -X POST http://localhost:8080/graphql \
 
 ## Why FraiseQL?
 
-1. **Compile-time SQL generation.** Zero runtime overhead for deterministic queries. Your schema is analyzed once at build; queries execute without interpretation.
+1. **Compile-time SQL generation.** SQL is generated at build time for deterministic queries. Your schema is analyzed once at build; queries execute without interpretation or query-planning overhead.
 
 2. **Schema-as-code authoring.** Define schemas in Python or TypeScript with decorators, compile to optimized JSON. No runtime language bridge, no FFI.
 
@@ -84,9 +84,11 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 **PostgreSQL** is the primary platform with full feature support.
 
-**MySQL and SQL Server** support queries and mutations. Relay pagination falls back to offset-based pagination.
+**MySQL** (v2.1+) and **SQL Server** support queries, mutations, and relay pagination.
 
-**SQLite** is for local development and testing only. Mutations return an explicit error. Not recommended for production.
+**SQLite** is for local development and testing only. Mutations and relay return an explicit error at runtime.
+
+See [docs/database-compatibility.md](docs/database-compatibility.md) for the full feature matrix.
 
 ## Wire Protocol
 
@@ -147,9 +149,9 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 ## Documentation
 
 - [Getting Started](docs/guides/getting-started.md) -- 5-minute quick start
-- [Architecture Principles](ARCHITECTURE_PRINCIPLES.md) -- System design
-- [Value Proposition](docs/VALUE_PROPOSITION.md) -- What FraiseQL does and does not do
-- [Roadmap](ROADMAP.md) -- Prioritized next steps
+- [Architecture Documentation](docs/architecture/README.md) -- System design, compiler internals, security model
+- [Value Proposition](docs/value-proposition.md) -- What FraiseQL does and does not do
+- [Roadmap](roadmap.md) -- Prioritized next steps
 - [Changelog](CHANGELOG.md) -- User-facing changes per version
 - [SLA/SLO Targets](docs/sla.md) -- Availability and latency objectives
 - [Operational Runbooks](docs/runbooks/) -- Incident response procedures
@@ -158,13 +160,29 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 
 ## Quality
 
-- 5,100+ tests (unit, integration, E2E, property-based, fuzz)
-- Cross-SDK parity suite: all 6 authoring SDKs (Python, TypeScript, Go, Java, PHP, Rust) produce identical schema JSON
+- 10,000+ tests (unit, integration, E2E, property-based, fuzz)
+- Cross-SDK parity suite: all 9 authoring SDKs (Python, TypeScript, Go, Java, PHP, C#, F#, Elixir, Rust SDK) produce identical schema JSON
 - Golden fixture regression guards for every field in the compiled schema contract (protects against issue-#53-class bugs)
 - Zero unsafe code (forbidden at compile time)
 - Clippy pedantic as deny with justified suppressions
 - Load testing infrastructure (k6)
 - 12 operational runbooks
+
+## Repository Layout
+
+```
+crates/               # Rust engine crates (fraiseql-core, fraiseql-server, fraiseql-cli, …)
+sdks/official/        # Official authoring SDKs (Python, TypeScript, Java, Go, Rust, PHP, …)
+sdks/community/       # Community-maintained SDKs
+docs/                 # Architecture docs, guides, runbooks
+vendor/               # Vendored Rust patch dependencies ([patch.crates-io])
+tutorial/             # Interactive tutorial platform — separate product, co-located for convenience
+```
+
+**Fraisier** (deployment orchestration tool) has been moved to its own repository at
+[`github.com/fraiseql/fraisier`](https://github.com/fraiseql/fraisier).
+
+See [`sdks/official/README.md`](sdks/official/README.md) for the full SDK inventory.
 
 ## Contributing
 

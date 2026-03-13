@@ -49,12 +49,14 @@ impl FieldMapping {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::FieldMapping;
     /// // For a Post with nested author (User type)
-    /// FieldMapping::nested_object("author", "User", vec![
+    /// let mapping = FieldMapping::nested_object("author", "User", vec![
     ///     FieldMapping::simple("id"),
     ///     FieldMapping::simple("name"),
-    /// ])
+    /// ]);
+    /// assert_eq!(mapping.source, "author");
     /// ```
     #[must_use]
     pub fn nested_object(
@@ -123,7 +125,7 @@ impl ProjectionMapper {
 
     /// Create new projection mapper with field mappings (supports aliases).
     #[must_use]
-    pub fn with_mappings(fields: Vec<FieldMapping>) -> Self {
+    pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             fields,
             typename: None,
@@ -274,7 +276,7 @@ impl ResultProjector {
 
     /// Create new result projector with field mappings (supports aliases).
     #[must_use]
-    pub fn with_mappings(fields: Vec<FieldMapping>) -> Self {
+    pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             mapper: ProjectionMapper::with_mappings(fields),
         }
@@ -359,7 +361,11 @@ impl ResultProjector {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::ResultProjector;
+    /// # use fraiseql_core::db::types::JsonbValue;
+    /// # use serde_json::json;
+    /// let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     /// // Database already returned only: { "id": "123", "name": "Alice" }
     /// let result = projector.add_typename_only(
     ///     &JsonbValue::new(json!({ "id": "123", "name": "Alice" })),
@@ -367,6 +373,7 @@ impl ResultProjector {
     /// ).unwrap();
     ///
     /// // Result: { "id": "123", "name": "Alice", "__typename": "User" }
+    /// assert_eq!(result["__typename"], "User");
     /// ```
     pub fn add_typename_only(
         &self,
@@ -426,6 +433,8 @@ impl ResultProjector {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;

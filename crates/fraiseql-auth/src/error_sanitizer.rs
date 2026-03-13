@@ -1,5 +1,10 @@
-// Error sanitization layer
-// Separates user-facing messages from internal details
+//! Error sanitization layer — separates user-facing messages from internal details.
+//!
+//! Authentication errors often contain internal information that must never reach API
+//! clients (database query details, key material references, stack traces). This module
+//! provides [`SanitizedError`] and [`AuthErrorSanitizer`] to ensure only safe, generic
+//! messages are returned in API responses while full details are retained for server-side
+//! logging.
 
 use std::fmt;
 
@@ -120,6 +125,7 @@ impl AuthErrorSanitizer {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

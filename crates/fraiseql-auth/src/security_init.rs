@@ -45,10 +45,14 @@ const MAX_SECURITY_CONFIG_SIZE: usize = 100 * 1024; // 100 KB
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// let schema = schema_loader.load().await?;
-/// let json_str = schema.to_json()?;
-/// let security_config = init_security_config(&json_str)?;
+/// ```no_run
+/// // Requires: compiled schema JSON string loaded from disk or a schema loader.
+/// # fn example() -> fraiseql_auth::error::Result<()> {
+/// use fraiseql_auth::security_init::init_security_config;
+/// let json_str = r#"{"security":{"auditLogging":{"enabled":true}}}"#;
+/// let security_config = init_security_config(json_str)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromSchema> {
     debug!("Parsing schema JSON for security configuration");
@@ -245,8 +249,10 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
     Ok(())
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

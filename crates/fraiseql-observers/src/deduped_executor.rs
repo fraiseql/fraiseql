@@ -37,7 +37,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```no_run
 //! use fraiseql_observers::executor::ObserverExecutor;
 //! use fraiseql_observers::deduped_executor::{DedupedObserverExecutor, TenantScope};
 //! use fraiseql_observers::dedup::redis::RedisDeduplicationStore;
@@ -351,6 +351,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 }
 
 #[cfg(all(test, feature = "dedup"))]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
     use uuid::Uuid;

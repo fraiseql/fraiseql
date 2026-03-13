@@ -2,6 +2,12 @@
 //!
 //! Tests for the design quality audit endpoints that leverage the FraiseQL-calibrated
 //! design rules from fraiseql-core.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use fraiseql_server::routes::api::design::{
     CategoryAuditResponse, DesignAuditRequest, DesignIssueResponse,

@@ -2,4 +2,4 @@
 source: crates/fraiseql-core/tests/sql_snapshots.rs
 expression: sql
 ---
-(data->>'score')::numeric >= ($1::text)::numeric
+(data->>'score')::numeric >= $1

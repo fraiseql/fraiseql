@@ -8,6 +8,7 @@ use regex::Regex;
 use super::rules::ValidationRule;
 use crate::error::{FraiseQLError, Result, ValidationFieldError};
 
+
 /// Basic validator trait for field validation.
 pub trait Validator {
     /// Validate a value and return an error if validation fails.
@@ -71,12 +72,12 @@ pub struct LengthValidator {
 
 impl LengthValidator {
     /// Create a new length validator.
-    pub fn new(min: Option<usize>, max: Option<usize>) -> Self {
+    pub const fn new(min: Option<usize>, max: Option<usize>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a string is within the specified length bounds.
-    pub fn validate_length(&self, value: &str) -> bool {
+    pub const fn validate_length(&self, value: &str) -> bool {
         let len = value.len();
         if let Some(min) = self.min {
             if len < min {
@@ -126,12 +127,12 @@ pub struct RangeValidator {
 
 impl RangeValidator {
     /// Create a new range validator.
-    pub fn new(min: Option<i64>, max: Option<i64>) -> Self {
+    pub const fn new(min: Option<i64>, max: Option<i64>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a number is within the specified range.
-    pub fn validate_range(&self, value: i64) -> bool {
+    pub const fn validate_range(&self, value: i64) -> bool {
         if let Some(min) = self.min {
             if value < min {
                 return false;
@@ -222,14 +223,33 @@ impl Validator for RequiredValidator {
     }
 }
 
-/// Create a validator from a ValidationRule.
+/// RFC 5321 practical email regex, shared with `async_validators`.
+const EMAIL_PATTERN: &str =
+    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
+
+/// E.164 international phone number regex, shared with `async_validators`.
+const PHONE_E164_PATTERN: &str = r"^\+[1-9]\d{6,14}$";
+
+/// Create a validator from a `ValidationRule`.
+///
+/// Returns `None` for rule types that are handled elsewhere (e.g. cross-field,
+/// composite, or async validators). Logs a warning if a `Pattern` rule
+/// contains an invalid regex instead of silently discarding the validator.
 pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Validator>> {
     match rule {
         ValidationRule::Pattern { pattern, message } => {
             let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
-            PatternValidator::new(pattern.clone(), msg)
-                .ok()
-                .map(|v| Box::new(v) as Box<dyn Validator>)
+            match PatternValidator::new(pattern.clone(), msg) {
+                Ok(v) => Some(Box::new(v) as Box<dyn Validator>),
+                Err(e) => {
+                    tracing::warn!(
+                        pattern = %pattern,
+                        error = %e,
+                        "Invalid regex in ValidationRule::Pattern — validator skipped"
+                    );
+                    None
+                },
+            }
         },
         ValidationRule::Length { min, max } => {
             Some(Box::new(LengthValidator::new(*min, *max)) as Box<dyn Validator>)
@@ -238,12 +258,26 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
             Some(Box::new(EnumValidator::new(values.clone())) as Box<dyn Validator>)
         },
         ValidationRule::Required => Some(Box::new(RequiredValidator) as Box<dyn Validator>),
-        _ => None, // Other validators handled separately
+        ValidationRule::Email => {
+            // Reuse the same regex as EmailFormatValidator in async_validators.
+            PatternValidator::new(EMAIL_PATTERN, "Invalid email address format")
+                .ok()
+                .map(|v| Box::new(v) as Box<dyn Validator>)
+        },
+        ValidationRule::Phone => {
+            // Reuse the same regex as PhoneE164Validator in async_validators.
+            PatternValidator::new(PHONE_E164_PATTERN, "Invalid E.164 phone number (expected +<country><number>)")
+                .ok()
+                .map(|v| Box::new(v) as Box<dyn Validator>)
+        },
+        _ => None, // Other validators handled separately (cross-field, composite, async)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -273,7 +307,7 @@ mod tests {
     fn test_length_validator_error_message() {
         let validator = LengthValidator::new(Some(5), Some(10));
         let msg = validator.error_message();
-        assert!(msg.contains("5"));
+        assert!(msg.contains('5'));
         assert!(msg.contains("10"));
     }
 

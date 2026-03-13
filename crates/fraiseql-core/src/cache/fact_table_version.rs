@@ -87,7 +87,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Different strategies offer different trade-offs between cache hit rate,
 /// data freshness, and operational complexity.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FactTableVersionStrategy {
     /// No caching for aggregations (always query database).
@@ -394,6 +394,8 @@ $$ LANGUAGE plpgsql;
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

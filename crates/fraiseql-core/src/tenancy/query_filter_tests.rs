@@ -79,8 +79,8 @@ fn test_parameterized_query_mysql() {
     let filtered =
         format!("{} WHERE {} AND active = ?", base_query, tenant.where_clause_parameterized());
 
-    assert!(filtered.contains("?"));
-    assert_eq!(filtered.matches("?").count(), 2); // Two parameter placeholders
+    assert!(filtered.contains('?'));
+    assert_eq!(filtered.matches('?').count(), 2); // Two parameter placeholders
 }
 
 // ============================================================================
@@ -202,18 +202,19 @@ fn test_union_query_with_tenant_filters() {
 // Test 7: Error Prevention
 // ============================================================================
 
-/// Test that malicious tenant_id is safely handled
+/// Test that malicious tenant_id is rejected by where_clause() with a panic.
+///
+/// `where_clause()` interpolates the tenant ID directly into SQL, so it
+/// validates the input and panics on unsafe characters. This is a
+/// programming-error guard — production code must use the parameterized
+/// variants (`where_clause_postgresql` / `where_clause_parameterized`).
 #[test]
+#[should_panic(expected = "SECURITY:")]
 fn test_sql_injection_prevention_in_filter() {
     let malicious_tenant = "'; DROP TABLE users; --";
     let tenant = TenantContext::new(malicious_tenant);
-
-    // Note: Real implementation should use parameterized queries
-    // This test verifies the tenant_id is preserved as-is
-    let filter = tenant.where_clause();
-
-    assert!(filter.contains("'; DROP TABLE users; --"));
-    // In production, this would be handled by parameterized queries
+    // Must panic — unsafe characters are never interpolated into SQL.
+    let _ = tenant.where_clause();
 }
 
 /// Test that parameterized queries don't need escaping

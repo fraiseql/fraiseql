@@ -13,9 +13,8 @@
 
 use fraiseql_core::{
     filters::{ParameterType, get_operators_for_type},
-    schema::CompiledSchema,
+    schema::{CompiledSchema, SecurityConfig},
 };
-use serde_json::json;
 
 use super::{lookup_data, sql_templates};
 
@@ -62,15 +61,11 @@ pub fn compile_rich_filters(
     // Store lookup data in the schema for runtime access
     // This enables the server to perform lookups without external dependencies
     if let Some(ref mut security_val) = schema.security {
-        // If security is already present, merge lookup data
-        if let Some(obj) = security_val.as_object_mut() {
-            obj.insert("lookup_data".to_string(), lookup_data_value);
-        }
+        security_val.additional.insert("lookup_data".to_string(), lookup_data_value);
     } else {
-        // Create security section with lookup data
-        schema.security = Some(json!({
-            "lookup_data": lookup_data_value
-        }));
+        let mut sec = SecurityConfig::default();
+        sec.additional.insert("lookup_data".to_string(), lookup_data_value);
+        schema.security = Some(sec);
     }
 
     Ok(())

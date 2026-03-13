@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Integration tests for domain discovery feature
 //!
 //! Tests domain-driven schema organization where schemas are split across

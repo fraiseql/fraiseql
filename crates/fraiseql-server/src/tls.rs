@@ -94,19 +94,19 @@ impl TlsSetup {
 
     /// Get the TLS enforcer.
     #[must_use]
-    pub fn enforcer(&self) -> &TlsEnforcer {
+    pub const fn enforcer(&self) -> &TlsEnforcer {
         &self.enforcer
     }
 
     /// Get the server TLS configuration.
     #[must_use]
-    pub fn config(&self) -> &Option<TlsServerConfig> {
+    pub const fn config(&self) -> &Option<TlsServerConfig> {
         &self.config
     }
 
     /// Get the database TLS configuration.
     #[must_use]
-    pub fn db_config(&self) -> &Option<DatabaseTlsConfig> {
+    pub const fn db_config(&self) -> &Option<DatabaseTlsConfig> {
         &self.db_config
     }
 
@@ -321,6 +321,16 @@ impl TlsSetup {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use std::path::PathBuf;
 
     use super::*;
@@ -447,7 +457,7 @@ mod tests {
         assert!(setup.clickhouse_https_enabled());
         assert!(setup.elasticsearch_https_enabled());
         assert!(setup.verify_certificates());
-        assert!(setup.ca_bundle_path().is_some());
+        assert!(setup.ca_bundle_path().is_some(), "ca_bundle_path should be propagated from DatabaseTlsConfig");
     }
 
     #[test]
@@ -485,7 +495,7 @@ mod tests {
         let setup = TlsSetup::new(None, Some(db_config))
             .expect("TlsSetup::new is infallible when cert and db_config are None");
 
-        assert!(setup.db_config().is_some());
+        assert!(setup.db_config().is_some(), "db_config should be present when constructed with a DatabaseTlsConfig");
         assert_eq!(setup.postgres_ssl_mode(), "verify-full");
         assert!(setup.redis_ssl_enabled());
         assert!(setup.clickhouse_https_enabled());

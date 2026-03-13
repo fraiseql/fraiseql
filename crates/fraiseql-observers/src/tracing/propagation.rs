@@ -86,7 +86,12 @@ impl TraceContext {
     pub fn from_traceparent_header(header: &str) -> Option<Self> {
         let parts: Vec<&str> = header.split('-').collect();
 
-        if parts.len() < 4 {
+        // Version-00 traceparent MUST contain exactly 4 dash-separated fields.
+        // Per W3C Trace Context spec §3.2.1: if version is "00" and the header
+        // has more than 4 components it MUST be considered invalid.
+        // The `tracestate` value is carried by a separate `tracestate` header,
+        // not embedded in `traceparent`.
+        if parts.len() != 4 {
             return None;
         }
 
@@ -100,12 +105,19 @@ impl TraceContext {
 
         let trace_flags = u8::from_str_radix(parts[3], 16).ok()?;
 
-        // Validate trace_id and span_id format (hex, correct length)
-        if trace_id.len() != 32 || !trace_id.chars().all(|c| c.is_ascii_hexdigit()) {
+        // Validate trace_id: 32 lowercase hex chars, all-zeros invalid (W3C §3.3.2)
+        if trace_id.len() != 32
+            || !trace_id.chars().all(|c| c.is_ascii_hexdigit())
+            || trace_id.chars().all(|c| c == '0')
+        {
             return None;
         }
 
-        if span_id.len() != 16 || !span_id.chars().all(|c| c.is_ascii_hexdigit()) {
+        // Validate span_id: 16 lowercase hex chars, all-zeros invalid (W3C §3.3.3)
+        if span_id.len() != 16
+            || !span_id.chars().all(|c| c.is_ascii_hexdigit())
+            || span_id.chars().all(|c| c == '0')
+        {
             return None;
         }
 
@@ -113,7 +125,7 @@ impl TraceContext {
             trace_id,
             span_id,
             trace_flags,
-            trace_state: parts.get(4).map(|s| s.to_string()),
+            trace_state: None, // tracestate is a separate header; see from_headers()
         })
     }
 
@@ -129,21 +141,52 @@ impl TraceContext {
         Some(ctx)
     }
 
-    /// Generate a new child span ID for this context
+    /// Generate a new child span ID for this context.
     ///
-    /// Creates a new span ID while maintaining the same trace ID
+    /// Creates a cryptographically random W3C-compliant span ID (8 bytes, 16 hex chars)
+    /// while maintaining the same trace ID.
+    ///
+    /// XORs the two 64-bit halves of a single UUID v4 so that the 4 fixed version
+    /// bits (byte 6 high nibble) and the 2 fixed variant bits (byte 8 high bits)
+    /// are masked by fully-random bytes from the other half, yielding full 64-bit
+    /// entropy without requiring additional random generation.
+    #[must_use]
     pub fn child_span_id(&self) -> String {
-        // In production, this would generate a proper random span ID
-        // For now, we'll use a simple counter-based approach
-        format!("{:016x}", (u64::from_str_radix(&self.span_id, 16).unwrap_or(0) + 1))
+        let uuid_bytes = *uuid::Uuid::new_v4().as_bytes();
+        let lo = u64::from_be_bytes(uuid_bytes[0..8].try_into().expect("slice is 8 bytes"));
+        let hi = u64::from_be_bytes(uuid_bytes[8..16].try_into().expect("slice is 8 bytes"));
+        format!("{:016x}", lo ^ hi)
     }
 }
 
 impl Default for TraceContext {
+    /// Returns a new root trace context with cryptographically random, W3C-valid IDs.
+    ///
+    /// The W3C Trace Context spec explicitly forbids all-zero `trace-id` and `span-id`
+    /// values, so they are generated using random UUIDs.
     fn default() -> Self {
+        let trace_bytes = *uuid::Uuid::new_v4().as_bytes();
+        let span_bytes = *uuid::Uuid::new_v4().as_bytes();
+
+        let trace_id = trace_bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+            let _ = std::fmt::Write::write_fmt(&mut s, format_args!("{b:02x}"));
+            s
+        });
+
+        let span_id = u64::from_be_bytes([
+            span_bytes[0],
+            span_bytes[1],
+            span_bytes[2],
+            span_bytes[3],
+            span_bytes[4],
+            span_bytes[5],
+            span_bytes[6],
+            span_bytes[7],
+        ]);
+
         Self {
-            trace_id: "0".repeat(32),
-            span_id: "0".repeat(16),
+            trace_id,
+            span_id: format!("{span_id:016x}"),
             trace_flags: 0x00,
             trace_state: None,
         }
@@ -251,13 +294,38 @@ mod tests {
     }
 
     #[test]
-    fn test_from_traceparent_header_with_tracestate() {
+    fn test_from_traceparent_header_extra_fields_rejected_for_version_00() {
+        // W3C spec §3.2.1: version-00 with extra dash-separated components is invalid.
+        // tracestate is carried by a separate header, not embedded in traceparent.
         let header = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-vendor=value";
         let ctx = TraceContext::from_traceparent_header(header);
+        assert!(ctx.is_none(), "version-00 headers with 5+ parts must be rejected");
+    }
 
-        assert!(ctx.is_some());
-        let ctx = ctx.unwrap();
+    #[test]
+    fn test_from_headers_tracestate_from_separate_header() {
+        // tracestate must come from the tracestate header, not from traceparent.
+        let mut headers = std::collections::HashMap::new();
+        headers.insert(
+            "traceparent".to_string(),
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
+        );
+        headers.insert("tracestate".to_string(), "vendor=value".to_string());
+
+        let ctx = TraceContext::from_headers(&headers).unwrap();
         assert_eq!(ctx.trace_state, Some("vendor=value".to_string()));
+    }
+
+    #[test]
+    fn test_from_traceparent_header_rejects_all_zero_trace_id() {
+        let header = format!("00-{}-00f067aa0ba902b7-01", "0".repeat(32));
+        assert!(TraceContext::from_traceparent_header(&header).is_none());
+    }
+
+    #[test]
+    fn test_from_traceparent_header_rejects_all_zero_span_id() {
+        let header = format!("00-4bf92f3577b34da6a3ce929d0e0e4736-{}-01", "0".repeat(16));
+        assert!(TraceContext::from_traceparent_header(&header).is_none());
     }
 
     #[test]
@@ -291,5 +359,20 @@ mod tests {
         let child_id = ctx.child_span_id();
         assert_ne!(child_id, ctx.span_id);
         assert_eq!(child_id.len(), 16);
+    }
+
+    #[test]
+    fn test_default_produces_valid_ids() {
+        let ctx = TraceContext::default();
+        // W3C spec: trace_id must be 32 hex chars, non-zero
+        assert_eq!(ctx.trace_id.len(), 32);
+        assert!(ctx.trace_id.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(!ctx.trace_id.chars().all(|c| c == '0'), "all-zero trace_id is invalid");
+        // span_id must be 16 hex chars, non-zero
+        assert_eq!(ctx.span_id.len(), 16);
+        assert!(ctx.span_id.chars().all(|c| c.is_ascii_hexdigit()));
+        // Two defaults must differ (astronomically unlikely to collide)
+        let ctx2 = TraceContext::default();
+        assert_ne!(ctx.trace_id, ctx2.trace_id);
     }
 }

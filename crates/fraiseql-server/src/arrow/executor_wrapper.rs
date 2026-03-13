@@ -24,11 +24,14 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
     ///
     /// # Arguments
     /// * `executor` - The executor instance to wrap
-    pub fn new(executor: Arc<Executor<A>>) -> Self {
+    pub const fn new(executor: Arc<Executor<A>>) -> Self {
         Self { executor }
     }
 }
 
+// Reason: QueryExecutor is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
     async fn execute_with_security(

@@ -1,0 +1,34 @@
+{
+  "types": [
+    {
+      "name":       "CreateUserSuccess",
+      "sql_source": "v_user",
+      "fields": [
+        { "name": "id",    "type": "ID",     "nullable": false },
+        { "name": "email", "type": "String", "nullable": false }
+      ]
+    },
+    {
+      "name":        "DuplicateEmailError",
+      "sql_source":  "v_user",
+      "is_error":    true,
+      "fields": [
+        { "name": "message",        "type": "String", "nullable": false },
+        { "name": "conflicting_id", "type": "ID",     "nullable": true  },
+        { "name": "code",           "type": "Int",    "nullable": false }
+      ],
+      "description": "Error returned when email already exists"
+    },
+    {
+      "name":        "ValidationError",
+      "sql_source":  "v_user",
+      "is_error":    true,
+      "fields": [
+        { "name": "message", "type": "String", "nullable": false },
+        { "name": "field",   "type": "String", "nullable": false },
+        { "name": "rule",    "type": "String", "nullable": false }
+      ],
+      "description": "Validation failure with field-level details"
+    }
+  ]
+}

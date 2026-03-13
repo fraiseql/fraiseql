@@ -1,0 +1,47 @@
+{
+  "types": [
+    {
+      "name":        "User",
+      "sql_source":  "v_user",
+      "fields": [
+        { "name": "id",    "type": "Int",    "nullable": false },
+        { "name": "email", "type": "String", "nullable": false }
+      ],
+      "description": "A user in the system."
+    }
+  ],
+  "queries": [
+    {
+      "name":         "users",
+      "return_type":  "User",
+      "returns_list": true,
+      "nullable":     false,
+      "arguments": [
+        { "name": "limit", "type": "Int", "nullable": false, "default": 10 }
+      ],
+      "description": "List all users",
+      "sql_source":   "v_user",
+      "auto_params": {
+        "where":    true,
+        "order_by": true,
+        "limit":    true,
+        "offset":   true
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name":         "create_user",
+      "return_type":  "User",
+      "returns_list": false,
+      "nullable":     false,
+      "arguments": [
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name",  "type": "String", "nullable": false }
+      ],
+      "description": "Create a new user",
+      "sql_source":   "fn_create_user",
+      "operation":    "insert"
+    }
+  ]
+}

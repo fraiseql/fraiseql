@@ -41,9 +41,9 @@ use crate::security::AuthenticatedUser;
 /// # Fields
 ///
 /// - `user_id`: Unique identifier for the authenticated user (from JWT 'sub' claim)
-/// - `roles`: User's roles (e.g., ["admin", "moderator"], from JWT 'roles' claim)
+/// - `roles`: User's roles (e.g., `["admin", "moderator"]`, from JWT 'roles' claim)
 /// - `tenant_id`: Organization/tenant identifier for multi-tenant systems
-/// - `scopes`: OAuth/permission scopes (e.g., ["read:user", "write:post"])
+/// - `scopes`: OAuth/permission scopes (e.g., `["read:user", "write:post"]`)
 /// - `attributes`: Custom claims from JWT (e.g., department, region, tier)
 /// - `request_id`: Correlation ID for audit logging and tracing
 /// - `ip_address`: Client IP address for geolocation and fraud detection
@@ -56,7 +56,7 @@ pub struct SecurityContext {
     /// User ID (from JWT 'sub' claim)
     pub user_id: String,
 
-    /// User's roles (e.g., ["admin", "moderator"])
+    /// User's roles (e.g., `["admin", "moderator"]`)
     ///
     /// Extracted from JWT 'roles' claim or derived from other claims.
     /// Used for role-based access control (RBAC) decisions.
@@ -123,8 +123,12 @@ impl SecurityContext {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let context = SecurityContext::from_user(authenticated_user, "req-123")?;
+    /// ```no_run
+    /// // Requires: a live AuthenticatedUser from JWT validation.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::security::SecurityContext;
+    /// # use fraiseql_core::security::AuthenticatedUser;
+    /// let context = SecurityContext::from_user(authenticated_user, "req-123".to_string());
     /// ```
     pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
@@ -176,7 +180,7 @@ impl SecurityContext {
             // Support wildcard matching: "admin:*" matches "admin:read"
             if s.ends_with(':') {
                 scope.starts_with(s)
-            } else if s.ends_with("*") {
+            } else if s.ends_with('*') {
                 let prefix = &s[..s.len() - 1];
                 scope.starts_with(prefix)
             } else {
@@ -235,7 +239,7 @@ impl SecurityContext {
     ///
     /// `true` if tenant_id is present, `false` otherwise.
     #[must_use]
-    pub fn is_multi_tenant(&self) -> bool {
+    pub const fn is_multi_tenant(&self) -> bool {
         self.tenant_id.is_some()
     }
 
@@ -278,9 +282,12 @@ impl SecurityContext {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let config = SecurityConfig::new();
-    /// let can_access = context.can_access_scope(&config, "read:User.email")?;
+    /// ```no_run
+    /// // Requires: a SecurityConfig from a compiled schema.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::security::SecurityContext;
+    /// # use fraiseql_core::schema::SecurityConfig;
+    /// let can_access = context.can_access_scope(&config, "read:User.email");
     /// ```
     #[must_use]
     pub fn can_access_scope(

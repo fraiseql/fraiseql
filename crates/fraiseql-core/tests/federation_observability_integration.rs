@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end integration tests for federation observability.
 //!
 //! Validates complete observability coverage for federation queries:
@@ -7,6 +9,8 @@
 //! - Multi-hop federation queries
 //! - Mutation execution with full observability
 
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: test metric ratio computations cast u64→f64 for display assertions
+#![allow(clippy::format_push_string)] // Reason: test report builders use push_str(&format!()) for readability
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -173,9 +177,9 @@ impl TestFederationExecutor {
         let spans = Arc::new(Mutex::new(Vec::new()));
         Self {
             trace_context: TestTraceContext {
-                trace_id:       trace_id.clone(),
+                trace_id,
                 parent_span_id: format!("{:016x}", 1u64),
-                spans:          spans.clone(),
+                spans,
             },
             metrics:       TestMetricsCollector::new(),
             logs:          TestLogCollector::new(),
@@ -222,7 +226,7 @@ impl TestFederationExecutor {
             &self.trace_context.trace_id[..8]
         ));
 
-        for span in spans.iter() {
+        for span in &spans {
             if span.name != "federation.query.execute" {
                 tree.push_str(&format!(
                     "  └─ {}: {:.1}ms\n",
@@ -401,7 +405,7 @@ fn test_federation_query_complete_observability() {
 
     // Validation: Trace ID Correlation
     println!("\nTrace Correlation:");
-    for log in logs.iter() {
+    for log in &logs {
         assert_eq!(log.trace_id, trace_id, "Log has mismatched trace_id");
     }
     println!("✓ All logs include trace_id for correlation");

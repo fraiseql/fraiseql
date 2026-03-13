@@ -36,6 +36,8 @@
 
 use serde_json::Value;
 
+use crate::schema::GraphQLValue;
+
 use super::{
     enum_validator::EnumValidator,
     ir::{
@@ -55,7 +57,7 @@ pub struct SchemaParser {
 impl SchemaParser {
     /// Create new schema parser.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 
@@ -103,10 +105,27 @@ impl SchemaParser {
         let fact_tables = obj
             .get("fact_tables")
             .and_then(Value::as_object)
-            .map_or_else(std::collections::HashMap::new, |o| {
-                o.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-            });
-        let enums = obj.get("enums").map_or(Ok(vec![]), |v| EnumValidator::parse_enums(v))?;
+            .map_or_else::<Result<_>, _, _>(
+                || Ok(std::collections::HashMap::new()),
+                |o| {
+                    o.iter()
+                        .map(|(k, v)| {
+                            let meta: crate::compiler::fact_table::FactTableMetadata =
+                                serde_json::from_value(v.clone()).map_err(|e| {
+                                    FraiseQLError::Parse {
+                                        message: format!(
+                                            "Invalid fact table metadata for '{}': {e}",
+                                            k
+                                        ),
+                                        location: format!("fact_tables.{}", k),
+                                    }
+                                })?;
+                            Ok((k.clone(), meta))
+                        })
+                        .collect()
+                },
+            )?;
+        let enums = obj.get("enums").map_or(Ok(vec![]), EnumValidator::parse_enums)?;
         let interfaces =
             obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;
         let unions = obj.get("unions").map_or(Ok(vec![]), |v| self.parse_unions(v))?;
@@ -116,8 +135,8 @@ impl SchemaParser {
 
         // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
-            eprintln!(
-                "Warning: 'fragments' feature in schema is not yet supported and will be ignored"
+            tracing::warn!(
+                "'fragments' feature in schema is not yet supported and will be ignored"
             );
         }
 
@@ -459,7 +478,10 @@ impl SchemaParser {
             name,
             arg_type,
             nullable,
-            default_value: obj.get("default_value").cloned(),
+            default_value: obj
+                .get("default_value")
+                .map(GraphQLValue::from_json)
+                .transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -668,7 +690,10 @@ impl SchemaParser {
             name,
             field_type,
             nullable,
-            default_value: obj.get("default_value").cloned(),
+            default_value: obj
+                .get("default_value")
+                .map(GraphQLValue::from_json)
+                .transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -731,6 +756,8 @@ impl Default for SchemaParser {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -1130,8 +1157,8 @@ mod tests {
         }"#;
 
         let ir = parser.parse(json).unwrap();
-        assert_eq!(ir.input_types[0].fields[0].default_value, Some(serde_json::json!(10)));
-        assert_eq!(ir.input_types[0].fields[1].default_value, Some(serde_json::json!(true)));
+        assert_eq!(ir.input_types[0].fields[0].default_value, Some(GraphQLValue::Int(10)));
+        assert_eq!(ir.input_types[0].fields[1].default_value, Some(GraphQLValue::Boolean(true)));
     }
 
     #[test]

@@ -7,12 +7,11 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-// Email regex: Simple but practical pattern
-static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-    ).expect("email regex is valid")
-});
+use crate::validation::patterns;
+
+/// Email format regex — canonical pattern from [`patterns::EMAIL`].
+static EMAIL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email regex is valid"));
 
 // International phone: +1-999-999-9999 or +999999999999, etc.
 static PHONE_REGEX: LazyLock<Regex> =
@@ -38,7 +37,8 @@ impl EmailValidator {
         !value.is_empty() && value.len() <= 254 && EMAIL_REGEX.is_match(value)
     }
 
-    pub fn error_message() -> &'static str {
+    /// Return the standard validation error message for an invalid email.
+    pub const fn error_message() -> &'static str {
         "Invalid email format"
     }
 }
@@ -59,7 +59,8 @@ impl PhoneNumberValidator {
         !value.is_empty() && value.len() <= 20 && PHONE_REGEX.is_match(value)
     }
 
-    pub fn error_message() -> &'static str {
+    /// Return the standard validation error message for an invalid phone number.
+    pub const fn error_message() -> &'static str {
         "Invalid phone number format"
     }
 }
@@ -77,11 +78,17 @@ impl VinValidator {
     ///
     /// Note: This validates format only, not checksum (different per manufacturer).
     pub fn validate(value: &str) -> bool {
+        // VINs are always exactly 17 characters — reject anything else before
+        // allocating the uppercase copy and running the regex.
+        if value.len() != 17 {
+            return false;
+        }
         let value_upper = value.to_uppercase();
         VIN_REGEX.is_match(&value_upper)
     }
 
-    pub fn error_message() -> &'static str {
+    /// Return the standard validation error message for an invalid VIN.
+    pub const fn error_message() -> &'static str {
         "Invalid VIN format (must be 17 alphanumeric characters, excluding I, O, Q)"
     }
 }
@@ -354,7 +361,8 @@ impl CountryCodeValidator {
         COUNTRY_CODE_REGEX.is_match(&value_upper) && self.valid_codes.contains(value_upper.as_str())
     }
 
-    pub fn error_message() -> &'static str {
+    /// Return the standard validation error message for an invalid country code.
+    pub const fn error_message() -> &'static str {
         "Invalid country code (must be ISO 3166-1 alpha-2)"
     }
 }
@@ -381,6 +389,9 @@ mod tests {
         assert!(!EmailValidator::validate("invalid.email"));
         assert!(!EmailValidator::validate("user@"));
         assert!(!EmailValidator::validate("@example.com"));
+        // Single-label domain (no TLD dot) must be rejected — regression for patterns::EMAIL `+` vs `*`
+        assert!(!EmailValidator::validate("user@localhost"));
+        assert!(!EmailValidator::validate("user@example"));
     }
 
     #[test]
@@ -429,6 +440,30 @@ mod tests {
         assert!(!VinValidator::validate("3G1FB1E30D110918I")); // Contains I
         assert!(!VinValidator::validate("3G1FB1E30D110918O")); // Contains O
         assert!(!VinValidator::validate("3G1FB1E30D110918Q")); // Contains Q
+    }
+
+    #[test]
+    fn test_vin_empty_rejected_by_length_guard() {
+        assert!(!VinValidator::validate(""), "empty string rejected before regex");
+    }
+
+    #[test]
+    fn test_vin_16_chars_rejected_by_length_guard() {
+        // One char short — should be rejected by the length guard, not the regex.
+        assert!(!VinValidator::validate("3G1FB1E30D110918"), "16-char VIN rejected");
+    }
+
+    #[test]
+    fn test_vin_18_chars_rejected_by_length_guard() {
+        // One char too long.
+        assert!(!VinValidator::validate("3G1FB1E30D11091862"), "18-char VIN rejected");
+    }
+
+    #[test]
+    fn test_vin_very_long_string_rejected_by_length_guard() {
+        // 100-char input — the guard must reject this before allocating uppercase.
+        let long_input = "A".repeat(100);
+        assert!(!VinValidator::validate(&long_input), "100-char string rejected");
     }
 
     // Country code tests

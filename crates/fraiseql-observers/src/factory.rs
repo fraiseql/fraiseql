@@ -22,11 +22,13 @@
 //!
 //! # Examples
 //!
-//! ```rust,ignore
+//! ```no_run
+//! // Requires: Redis (when dedup/caching enabled) and a config.toml file.
 //! use fraiseql_observers::factory::ExecutorFactory;
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
 //!
 //! // Load configuration
+//! # async fn example() -> fraiseql_observers::Result<()> {
 //! let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
 //!
 //! // Build executor stack (automatically wraps based on config)
@@ -34,6 +36,8 @@
 //!
 //! // Process events
 //! executor_stack.process_event(&event).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::sync::Arc;
@@ -85,12 +89,18 @@ impl ExecutorFactory {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
+    /// # use std::sync::Arc;
+    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
+    /// # async fn example() -> fraiseql_observers::Result<()> {
     /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
     /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
     ///
     /// // Automatically wraps with dedup/cache based on config
     /// let executor = ExecutorFactory::build(&config, dlq).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[cfg(all(feature = "dedup", feature = "caching"))]
     pub async fn build(
@@ -370,6 +380,7 @@ impl ExecutorFactory {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -402,6 +413,7 @@ mod tests {
             overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -426,6 +438,7 @@ mod tests {
             overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -485,6 +498,7 @@ mod tests {
             overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());

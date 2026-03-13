@@ -43,7 +43,7 @@ impl ParsedQuery {
 
     /// Check if query is cacheable (no variables).
     #[must_use]
-    pub fn is_cacheable(&self) -> bool {
+    pub const fn is_cacheable(&self) -> bool {
         self.variables.is_empty()
     }
 }

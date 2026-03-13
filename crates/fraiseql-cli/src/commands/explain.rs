@@ -3,7 +3,7 @@
 //! Usage: fraiseql explain `<query>` --schema `<schema.compiled.json>` `[--json]`
 
 use anyhow::Result;
-use fraiseql_core::graphql::{complexity::ComplexityAnalyzer, parse_query};
+use fraiseql_core::graphql::{DEFAULT_MAX_ALIASES, complexity::RequestValidator, parse_query};
 use serde::Serialize;
 
 use crate::output::CommandResult;
@@ -30,10 +30,10 @@ pub struct ExplainResponse {
 pub struct ComplexityInfo {
     /// Maximum nesting depth of the query
     pub depth:       usize,
-    /// Total number of fields requested
-    pub field_count: usize,
-    /// Overall complexity score
+    /// Overall complexity score (accounts for pagination multipliers)
     pub score:       usize,
+    /// Number of aliased fields
+    pub alias_count: usize,
 }
 
 /// Run explain command
@@ -41,9 +41,13 @@ pub fn run(query: &str) -> Result<CommandResult> {
     // Parse the query to validate syntax
     let parsed = parse_query(query)?;
 
-    // Analyze complexity
-    let analyzer = ComplexityAnalyzer::new();
-    let (depth, field_count, score) = analyzer.analyze_complexity(query);
+    // Analyze complexity using the AST-based validator.
+    let validator = RequestValidator::default();
+    let metrics = validator.analyze(query)?;
+
+    let depth = metrics.depth;
+    let score = metrics.complexity;
+    let alias_count = metrics.alias_count;
 
     // Generate warnings for unusual patterns
     let mut warnings = Vec::new();
@@ -54,23 +58,23 @@ pub fn run(query: &str) -> Result<CommandResult> {
         ));
     }
 
-    if field_count > 50 {
+    if score > 100 {
         warnings.push(format!(
-            "Query requests {field_count} fields - consider using pagination or field selection"
+            "Query complexity score {score} is high - consider optimizing query structure"
         ));
     }
 
-    if score > 500 {
+    if alias_count > DEFAULT_MAX_ALIASES {
         warnings.push(format!(
-            "Query complexity score {score} is high - consider optimizing query structure"
+            "Query has {alias_count} aliases — consider reducing alias count"
         ));
     }
 
     // Generate SQL representation (simplified for now)
     // In a real implementation, this would use the QueryPlanner
     let sql = format!(
-        "-- Query execution plan for: {}\n-- Depth: {}, Fields: {}, Cost: {}\nSELECT data FROM v_table LIMIT 1000;",
-        parsed.root_field, depth, field_count, score
+        "-- Query execution plan for: {}\n-- Depth: {}, Score: {}, Aliases: {}\nSELECT data FROM v_table LIMIT 1000;",
+        parsed.root_field, depth, score, alias_count
     );
 
     let has_warnings = !warnings.is_empty();
@@ -81,8 +85,8 @@ pub fn run(query: &str) -> Result<CommandResult> {
         estimated_cost: score,
         complexity:     ComplexityInfo {
             depth,
-            field_count,
             score,
+            alias_count,
         },
         warnings:       warnings.clone(),
     };
@@ -96,6 +100,7 @@ pub fn run(query: &str) -> Result<CommandResult> {
     Ok(result)
 }
 
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,8 +131,6 @@ mod tests {
         assert!(result.is_ok());
         let cmd_result = result.unwrap();
         if let Some(warnings) = cmd_result.data {
-            // Should have warnings for deep nesting
-            // Response structure: the data field contains ExplainResponse as JSON
             assert!(!warnings.to_string().is_empty());
         }
     }

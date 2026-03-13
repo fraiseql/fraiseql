@@ -249,6 +249,8 @@ impl CompilationCache {
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is acceptable here.
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
     }
 }
@@ -312,7 +314,7 @@ mod tests {
     fn test_hit_rate_no_compilations() {
         let cache = CompilationCache::new(CompilationCacheConfig::default());
         let rate = cache.hit_rate().expect("hit_rate should work");
-        assert_eq!(rate, 0.0);
+        assert!((rate - 0.0_f64).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -356,7 +358,7 @@ mod tests {
             total_compilations: 8,
             size:               2,
         };
-        let cloned = metrics.clone();
+        let cloned = metrics;
         assert_eq!(cloned.hits, 5);
         assert_eq!(cloned.misses, 3);
     }

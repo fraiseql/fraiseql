@@ -48,13 +48,15 @@ pub struct TokenRevocationConfig {
 }
 
 fn default_backend() -> String { "memory".into() }
-fn default_true() -> bool { true }
+const fn default_true() -> bool { true }
 
 // ───────────────────────────────────────────────────────────────
 // Trait
 // ───────────────────────────────────────────────────────────────
 
 /// Revocation store abstraction.
+// Reason: used as dyn Trait (Arc<dyn RevocationStore>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait RevocationStore: Send + Sync {
     /// Check if a JTI has been revoked.
@@ -88,6 +90,7 @@ pub struct InMemoryRevocationStore {
 }
 
 impl InMemoryRevocationStore {
+    /// Create a new, empty in-memory revocation store.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -108,6 +111,9 @@ impl Default for InMemoryRevocationStore {
     }
 }
 
+// Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl RevocationStore for InMemoryRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
@@ -150,6 +156,10 @@ impl RevocationStore for InMemoryRevocationStore {
 // Redis backend (optional)
 // ───────────────────────────────────────────────────────────────
 
+/// Redis-backed JWT revocation store.
+///
+/// Stores revoked JTI claims in Redis with automatic TTL-based expiry.
+/// Requires the `redis-rate-limiting` feature.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRevocationStore {
     client: redis::Client,
@@ -174,6 +184,9 @@ impl RedisRevocationStore {
 }
 
 #[cfg(feature = "redis-rate-limiting")]
+// Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl RevocationStore for RedisRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
@@ -244,6 +257,12 @@ impl TokenRevocationManager {
     /// Check if a token should be rejected.
     ///
     /// Returns `Ok(())` if the token is allowed, or an error reason if rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TokenRejection::MissingJti` if JTI is required but absent.
+    /// Returns `TokenRejection::Revoked` if the token has been revoked.
+    /// Returns `TokenRejection::StoreUnavailable` if the revocation store is unreachable and `fail_open` is false.
     pub async fn check_token(&self, jti: Option<&str>) -> Result<(), TokenRejection> {
         let jti = match jti {
             Some(j) if !j.is_empty() => j,
@@ -272,18 +291,26 @@ impl TokenRevocationManager {
     }
 
     /// Revoke a single token by JTI.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RevocationError` if the underlying revocation store operation fails.
     pub async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
         self.store.revoke(jti, ttl_secs).await
     }
 
     /// Revoke all tokens for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RevocationError` if the underlying revocation store operation fails.
     pub async fn revoke_all_for_user(&self, sub: &str) -> Result<u64, RevocationError> {
         self.store.revoke_all_for_user(sub).await
     }
 
     /// Whether JTI is required.
     #[must_use]
-    pub fn require_jti(&self) -> bool {
+    pub const fn require_jti(&self) -> bool {
         self.require_jti
     }
 }
@@ -317,7 +344,7 @@ pub fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Option<Arc<TokenRevocationManager>> {
     let security = schema.security.as_ref()?;
-    let revocation_val = security.get("token_revocation")?;
+    let revocation_val = security.additional.get("token_revocation")?;
     let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
         .map_err(|e| {
             warn!(error = %e, "Failed to parse security.token_revocation config");
@@ -374,6 +401,8 @@ pub fn revocation_manager_from_schema(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn memory_store() -> Arc<dyn RevocationStore> {
@@ -441,12 +470,12 @@ mod tests {
     #[tokio::test]
     async fn manager_allows_missing_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(None).await.is_ok());
+        assert!(mgr.check_token(None).await.is_ok(), "missing jti should be allowed when jti is not required");
     }
 
     #[tokio::test]
     async fn manager_allows_empty_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(Some("")).await.is_ok());
+        assert!(mgr.check_token(Some("")).await.is_ok(), "empty jti should be allowed when jti is not required");
     }
 }

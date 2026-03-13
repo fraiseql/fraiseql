@@ -1,8 +1,10 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Tests end-to-end SQL projection functionality:
 //! - Schema compilation with projection hints
 //! - Multi-database projection SQL generation
 //! - Projection detection heuristics
-//! - ResultProjector with `__typename` handling
+//! - `ResultProjector` with `__typename` handling
 //! - Complete query execution with projections
 
 use fraiseql_core::{
@@ -10,7 +12,7 @@ use fraiseql_core::{
         projection_generator::{
             MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
         },
-        types::JsonbValue,
+        types::{DatabaseType, JsonbValue},
     },
     runtime::ResultProjector,
     schema::SqlProjectionHint,
@@ -21,13 +23,13 @@ use serde_json::json;
 #[test]
 fn test_sql_projection_hint_creation() {
     let hint = SqlProjectionHint {
-        database:                    "postgresql".to_string(),
+        database:                    DatabaseType::PostgreSQL,
         projection_template:
             "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 65,
     };
 
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
     assert_eq!(hint.estimated_reduction_percent, 65);
     assert!(hint.projection_template.contains("jsonb_build_object"));
 }
@@ -85,7 +87,7 @@ fn test_sqlite_projection_complete_flow() {
     assert!(sql.contains("\"data\""));
 }
 
-/// Test ResultProjector with `__typename` addition
+/// Test `ResultProjector` with `__typename` addition
 #[test]
 fn test_result_projector_add_typename() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
@@ -106,7 +108,7 @@ fn test_result_projector_add_typename() {
     assert_eq!(result.get("name"), Some(&json!("Alice")));
 }
 
-/// Test ResultProjector with array of results
+/// Test `ResultProjector` with array of results
 #[test]
 fn test_result_projector_add_typename_array() {
     let projector = ResultProjector::new(vec![]);
@@ -129,7 +131,7 @@ fn test_result_projector_add_typename_array() {
     assert_eq!(arr[1].get("__typename"), Some(&json!("User")));
 }
 
-/// Test that ResultProjector projects fields correctly (via project_results method)
+/// Test that `ResultProjector` projects fields correctly (via `project_results` method)
 #[test]
 fn test_result_projector_projects_single_field() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
@@ -149,7 +151,7 @@ fn test_result_projector_projects_single_field() {
     assert_eq!(projected.get("email"), None);
 }
 
-/// Test that ResultProjector projects multiple fields correctly
+/// Test that `ResultProjector` projects multiple fields correctly
 #[test]
 fn test_result_projector_projects_multiple_fields() {
     let projector = ResultProjector::new(vec!["id".to_string(), "email".to_string()]);
@@ -245,16 +247,16 @@ fn test_projection_field_escaping() {
 fn test_projection_hint_reduction_calculation() {
     // Create a hint that represents projecting 5 out of 20 fields
     let hint = SqlProjectionHint {
-        database: "postgresql".to_string(),
+        database: DatabaseType::PostgreSQL,
         projection_template: "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email', 'status', data->>'status', 'created_at', data->>'created_at')".to_string(),
         estimated_reduction_percent: 75, // 5/20 = 25% remain, so 75% reduction
     };
 
     assert_eq!(hint.estimated_reduction_percent, 75);
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
 }
 
-/// Test ResultProjector wrapping response in data envelope
+/// Test `ResultProjector` wrapping response in data envelope
 #[test]
 fn test_result_projector_data_envelope() {
     let result = json!([
@@ -273,7 +275,7 @@ fn test_result_projector_data_envelope() {
     assert_eq!(users.as_array().unwrap().len(), 2);
 }
 
-/// Test ResultProjector error wrapping
+/// Test `ResultProjector` error wrapping
 #[test]
 fn test_result_projector_error_envelope() {
     use fraiseql_core::error::FraiseQLError;
@@ -297,7 +299,7 @@ fn test_result_projector_error_envelope() {
     assert!(error_obj.get("message").is_some());
 }
 
-/// Test that projection works correctly with nested objects via ResultProjector
+/// Test that projection works correctly with nested objects via `ResultProjector`
 #[test]
 fn test_projection_with_nested_structure() {
     let projector = ResultProjector::new(vec!["id".to_string(), "profile".to_string()]);
@@ -327,7 +329,7 @@ fn test_projection_with_nested_structure() {
 fn test_complete_projection_pipeline() {
     // Step 1: Create projection hint
     let _hint = SqlProjectionHint {
-        database:                    "postgresql".to_string(),
+        database:                    DatabaseType::PostgreSQL,
         projection_template:
             "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 87,

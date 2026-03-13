@@ -27,6 +27,7 @@
 //!    ```
 
 #![allow(unused_imports)]
+#![allow(clippy::unwrap_used)] // Reason: integration test file
 #![cfg(feature = "nats")]
 
 use std::{sync::Arc, time::Duration};
@@ -42,23 +43,18 @@ mod bridge_tests {
             PostgresCheckpointStore,
         },
     };
+    use fraiseql_test_utils::database_url;
     use futures::StreamExt;
     use serde_json::json;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
     use super::*;
 
-    /// Get database URL from environment
-    fn get_database_url() -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/fraiseql_test".to_string())
-    }
-
     /// Create a test database pool
     async fn create_test_pool() -> PgPool {
         PgPoolOptions::new()
             .max_connections(5)
-            .connect(&get_database_url())
+            .connect(&database_url())
             .await
             .expect("Failed to connect to test database")
     }

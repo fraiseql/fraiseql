@@ -22,7 +22,7 @@
 //! - Authentication middleware (optional)
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)] // Reason: focusing on actionable warnings first; docs are a separate effort
+// missing_docs: all public items must be documented (workspace lint enforces this)
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 // Reason: module-level allows for pedantic lints that are too noisy across this crate.
@@ -33,7 +33,6 @@
 #![allow(clippy::doc_markdown)] // Reason: backtick-wrapping all technical terms would reduce readability
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style (e.g., ServerConfig in server mod)
 #![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain, not inspect
-#![allow(clippy::missing_errors_doc)] // Reason: 69 functions need documentation; deferred to Phase 6 follow-up
 #![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design; remaining are unreachable
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types in handler signatures
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn even for sync operations
@@ -83,7 +82,6 @@ pub mod extractors;
 pub mod federation;
 pub mod logging;
 pub mod middleware;
-pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
@@ -93,24 +91,19 @@ pub mod validation;
 
 // Renamed to avoid conflicts with runtime modules
 pub mod metrics_server;
-pub mod tracing_server;
 
 // fraiseql-runtime modules (merged)
+
+/// Runtime configuration types loaded from `fraiseql.toml` or environment variables.
 pub mod config;
-pub mod lifecycle;
-pub mod observability;
-pub mod operational;
+/// Resilience primitives: backpressure and retry policies.
 pub mod resilience;
-pub mod runtime_state;
+/// Utilities for distributed tracing, span propagation, and trace context formatting.
 pub mod tracing_utils;
 
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
 #[cfg(feature = "webhooks")]
 pub use fraiseql_webhooks as webhooks;
-
-// fraiseql-files modules (merged) — optional, enable with `features = ["files"]`
-#[cfg(feature = "files")]
-pub mod files;
 
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features = ["auth"]`
 #[cfg(feature = "auth")]
@@ -122,7 +115,6 @@ pub use fraiseql_auth as auth;
 /// in no-auth builds without requiring every call-site to be cfg-gated.  All stub methods
 /// are pure stubs that the compiler will dead-code-eliminate.
 #[cfg(not(feature = "auth"))]
-#[allow(missing_docs)]
 pub mod auth {
     use std::sync::Arc;
 
@@ -161,20 +153,12 @@ pub mod auth {
     }
 }
 
-// Secrets management
-pub mod secrets;
-
 // Secrets management and encryption (extracted to fraiseql-secrets crate) — optional, enable with `features = ["secrets"]`
 #[cfg(feature = "secrets")]
 pub use fraiseql_secrets::{encryption, secrets_manager};
 
-// Backup and disaster recovery — optional, enable with `features = ["backup"]`
-#[cfg(feature = "backup")]
-pub mod backup;
-
 // TLS/SSL and encryption
 pub mod tls;
-pub mod tls_listener;
 
 // Observer management - optional
 #[cfg(feature = "observers")]
@@ -188,6 +172,9 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
+// Connection pool management and auto-tuning
+pub mod pool;
+
 // Trusted documents (query allowlist)
 pub mod trusted_documents;
 
@@ -200,15 +187,10 @@ pub use logging::{
     StructuredLogEntry,
 };
 pub use metrics_server::{MetricsCollector, PrometheusMetrics};
-pub use performance::{
-    OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
-};
 pub use schema::CompiledSchemaLoader;
-pub use secrets::SecretManager;
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use tls::TlsSetup;
-pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 
 /// Server error type.

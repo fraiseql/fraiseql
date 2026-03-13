@@ -2,7 +2,7 @@
 aes-gcm = "0.10"
 anyhow = "1.0"
 async-trait = "0.1"
-axum = {version = "0.8", features = ["macros"]}
+axum = {workspace = true, features = ["macros"]}
 base64 = "0.22"
 chacha20poly1305 = "0.10"
 chrono = {version = "0.4", features = ["serde"]}
@@ -41,8 +41,8 @@ redis-rate-limiting = ["redis"]
 workspace = true
 
 [package]
-name = "fraiseql-auth"
 description = "Authentication, authorization, and session management for FraiseQL"
+name = "fraiseql-auth"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

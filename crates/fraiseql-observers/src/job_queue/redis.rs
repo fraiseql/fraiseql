@@ -110,7 +110,7 @@ return 1
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let conn = redis::Client::open("redis://localhost:6379")?.get_async_connection().await?;
 /// let queue = RedisJobQueue::new(conn);
 /// ```

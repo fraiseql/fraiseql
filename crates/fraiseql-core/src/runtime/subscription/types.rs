@@ -20,7 +20,7 @@ impl SubscriptionId {
 
     /// Create from a UUID.
     #[must_use]
-    pub fn from_uuid(uuid: Uuid) -> Self {
+    pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 }
@@ -38,6 +38,10 @@ impl std::fmt::Display for SubscriptionId {
 }
 
 /// Database operation that triggered the event.
+///
+/// Marked `#[non_exhaustive]` to allow future CDC operations (e.g., `Truncate`)
+/// to be added without breaking downstream `match` expressions.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum SubscriptionOperation {
@@ -120,7 +124,7 @@ impl SubscriptionEvent {
 
     /// Set the sequence number.
     #[must_use]
-    pub fn with_sequence(mut self, seq: u64) -> Self {
+    pub const fn with_sequence(mut self, seq: u64) -> Self {
         self.sequence_number = seq;
         self
     }

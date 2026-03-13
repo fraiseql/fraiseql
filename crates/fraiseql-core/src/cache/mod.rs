@@ -73,6 +73,7 @@
 //!     max_entries: 50_000,
 //!     ttl_seconds: 86_400,  // 24 hours
 //!     cache_list_queries: true,
+//!     ..Default::default()
 //! };
 //!
 //! // Development (disable for deterministic tests)
@@ -81,9 +82,9 @@
 //!
 //! # Usage Example
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
-//! use fraiseql_core::db::postgres::PostgresAdapter;
+//! use fraiseql_core::db::{postgres::PostgresAdapter, DatabaseAdapter};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create database adapter
@@ -194,8 +195,11 @@
 mod adapter;
 mod config;
 mod dependency_tracker;
+mod fact_table_cache;
 mod invalidation;
+mod invalidation_api;
 mod key;
+mod relay_cache;
 mod result;
 
 // Cascading invalidation with transitive dependencies
@@ -212,11 +216,11 @@ pub mod uuid_extractor;
 pub mod fact_table_version;
 
 // Public exports
-pub use adapter::CachedDatabaseAdapter;
+pub use adapter::{view_name_to_entity_type, CachedDatabaseAdapter};
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;
-pub use config::CacheConfig;
+pub use config::{CacheConfig, RlsEnforcement};
 // Export dependency tracker (used in doctests and advanced use cases)
 pub use dependency_tracker::DependencyTracker;
 pub use entity_key::EntityKey;

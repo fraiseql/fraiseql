@@ -10,6 +10,7 @@ use std::{collections::HashMap, fs};
 use axum::{Json, extract::State};
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::routes::{
     api::types::{ApiError, ApiResponse},
@@ -72,11 +73,17 @@ pub struct AdminConfigResponse {
 /// Supports validation-only mode via `validate_only` flag.
 /// When applied, the schema is atomically swapped without stopping execution.
 ///
+/// # Errors
+///
+/// Returns `ApiError` with a validation error if `schema_path` is empty.
+/// Returns `ApiError` with a parse error if the schema file cannot be read or parsed.
+///
 /// Requires admin token authentication.
 pub async fn reload_schema_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Json(req): Json<ReloadSchemaRequest>,
 ) -> Result<Json<ApiResponse<ReloadSchemaResponse>>, ApiError> {
+    let _ = &state; // used conditionally by #[cfg(feature = "arrow")]
     if req.schema_path.is_empty() {
         return Err(ApiError::validation_error("schema_path cannot be empty"));
     }
@@ -90,7 +97,13 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         .map_err(|e| ApiError::parse_error(format!("Invalid schema JSON: {}", e)))?;
 
     if req.validate_only {
-        // Return success without applying the schema
+        info!(
+            operation = "admin.reload_schema",
+            schema_path = %req.schema_path,
+            validate_only = true,
+            success = true,
+            "Admin: schema validation requested"
+        );
         let response = ReloadSchemaResponse {
             success: true,
             message: "Schema validated successfully (not applied)".to_string(),
@@ -104,6 +117,14 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         #[cfg(feature = "arrow")]
         if let Some(cache) = state.cache() {
             cache.clear();
+            info!(
+                operation = "admin.reload_schema",
+                schema_path = %req.schema_path,
+                validate_only = false,
+                cache_cleared = true,
+                success = true,
+                "Admin: schema reloaded and cache cleared"
+            );
             let response = ReloadSchemaResponse {
                 success: true,
                 message: format!("Schema reloaded from {} and cache cleared", req.schema_path),
@@ -113,6 +134,13 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
                 data:   response,
             }));
         }
+        info!(
+            operation = "admin.reload_schema",
+            schema_path = %req.schema_path,
+            validate_only = false,
+            success = true,
+            "Admin: schema reloaded"
+        );
         let response = ReloadSchemaResponse {
             success: true,
             message: format!("Schema reloaded from {}", req.schema_path),
@@ -144,6 +172,11 @@ pub struct CacheStatsResponse {
 /// - **entity**: Clear entries for a specific entity type
 /// - **pattern**: Clear entries matching a glob pattern
 ///
+/// # Errors
+///
+/// Returns `ApiError` with an internal error if the cache feature is not enabled.
+/// Returns `ApiError` with a validation error if required parameters are missing or scope is invalid.
+///
 /// Requires admin token authentication.
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
@@ -153,7 +186,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
     #[cfg(not(feature = "arrow"))]
     {
         let _ = (state, req);
-        return Err(ApiError::internal_error("Cache not configured"));
+        Err(ApiError::internal_error("Cache not configured"))
     }
 
     #[cfg(feature = "arrow")]
@@ -163,6 +196,13 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             if let Some(cache) = state.cache() {
                 let entries_before = cache.len();
                 cache.clear();
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "all",
+                    entries_cleared = entries_before,
+                    success = true,
+                    "Admin: cache cleared (all entries)"
+                );
                 let response = CacheClearResponse {
                     success:         true,
                     entries_cleared: entries_before,
@@ -184,10 +224,21 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let entity_type = req.entity_type.as_ref().unwrap();
+                let entity_type = req.entity_type.as_ref()
+                    .ok_or_else(|| ApiError::internal_error(
+                        "entity_type was None after validation — this is a bug",
+                    ))?;
                 // Convert entity type to view name pattern (e.g., User → v_user)
                 let view_name = format!("v_{}", entity_type.to_lowercase());
                 let entries_cleared = cache.invalidate_views(&[&view_name]);
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "entity",
+                    entity_type = %entity_type,
+                    entries_cleared,
+                    success = true,
+                    "Admin: cache cleared for entity"
+                );
                 let response = CacheClearResponse {
                     success: true,
                     entries_cleared,
@@ -212,8 +263,19 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let pattern = req.pattern.as_ref().unwrap();
+                let pattern = req.pattern.as_ref()
+                    .ok_or_else(|| ApiError::internal_error(
+                        "pattern was None after validation — this is a bug",
+                    ))?;
                 let entries_cleared = cache.invalidate_pattern(pattern);
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "pattern",
+                    %pattern,
+                    entries_cleared,
+                    success = true,
+                    "Admin: cache cleared by pattern"
+                );
                 let response = CacheClearResponse {
                     success: true,
                     entries_cleared,
@@ -237,6 +299,10 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 /// Get cache statistics.
 ///
 /// Returns current cache metrics including entry count, enabled status, and TTL.
+///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
 pub async fn cache_stats_handler<A: DatabaseAdapter>(
@@ -276,7 +342,16 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 /// Configuration includes database settings, cache settings, etc.
 /// but excludes API keys, passwords, and other sensitive data.
 ///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
+///
 /// Requires admin token authentication.
+// Reason: `cache_enabled = "false"` appears in both the else-branch and the
+// `#[cfg(not(feature = "arrow"))]` inner path. Clippy sees them as shared code, but
+// extracting it would break the `#[cfg]` conditional logic that sets a different value
+// when `arrow` is enabled.
+#[allow(clippy::branches_sharing_code)]
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<AdminConfigResponse>>, ApiError> {
@@ -327,9 +402,112 @@ pub async fn config_handler<A: DatabaseAdapter>(
     }))
 }
 
+/// Request body for `POST /api/v1/admin/explain`.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ExplainRequest {
+    /// Name of the regular query to explain (e.g., `"users"`).
+    pub query: String,
+
+    /// GraphQL-style variable filters passed as a JSON object.
+    ///
+    /// Each key-value pair becomes an equality condition in the WHERE clause.
+    /// Example: `{"status": "active"}` → `WHERE data->>'status' = 'active'`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<serde_json::Value>,
+
+    /// Optional row limit to pass to the query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+
+    /// Optional row offset to pass to the query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u32>,
+}
+
+/// Return the pre-built Grafana dashboard JSON for FraiseQL metrics.
+///
+/// The dashboard JSON is embedded at compile time from
+/// `deploy/grafana/fraiseql-dashboard.json`.  Operators can import it into
+/// Grafana with a single `curl` command (see `deploy/grafana/README.md`).
+///
+/// # Errors
+///
+/// This handler is infallible — the embedded JSON is validated at compile time
+/// by the `test_grafana_dashboard_is_valid_json` unit test.
+///
+/// Requires admin token authentication.
+pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+) -> impl axum::response::IntoResponse {
+    const DASHBOARD_JSON: &str =
+        include_str!("../../../../../deploy/grafana/fraiseql-dashboard.json");
+
+    (
+        axum::http::StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        DASHBOARD_JSON,
+    )
+}
+
+/// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for a named query.
+///
+/// Accepts a query name and optional variable filters, then executes
+/// `EXPLAIN ANALYZE` against the backing PostgreSQL view using the exact
+/// same parameterized SQL that a live query would use.
+///
+/// # Errors
+///
+/// * `400 Bad Request` — empty query name, unknown query, or mutation given
+/// * `500 Internal Server Error` — database execution failure
+///
+/// Requires admin token authentication.
+pub async fn explain_handler<A: DatabaseAdapter + 'static>(
+    State(state): State<AppState<A>>,
+    Json(req): Json<ExplainRequest>,
+) -> Result<Json<ApiResponse<fraiseql_core::runtime::ExplainResult>>, ApiError> {
+    if req.query.is_empty() {
+        return Err(ApiError::validation_error("query cannot be empty"));
+    }
+
+    state
+        .executor
+        .explain(
+            &req.query,
+            req.variables.as_ref(),
+            req.limit,
+            req.offset,
+        )
+        .await
+        .map(ApiResponse::success)
+        .map_err(|e| match e {
+            fraiseql_core::error::FraiseQLError::Validation { message, .. } => {
+                ApiError::validation_error(message)
+            },
+            fraiseql_core::error::FraiseQLError::Unsupported { message } => {
+                ApiError::validation_error(format!("Unsupported: {message}"))
+            },
+            other => ApiError::internal_error(other.to_string()),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_grafana_dashboard_is_valid_json() {
+        let parsed: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../deploy/grafana/fraiseql-dashboard.json"
+        ))
+        .expect("fraiseql-dashboard.json must be valid JSON");
+
+        assert_eq!(parsed["title"], "FraiseQL Performance");
+        assert_eq!(parsed["uid"], "fraiseql-perf-v1");
+        assert!(
+            parsed["panels"].as_array().map_or(0, |p| p.len()) >= 10,
+            "dashboard should have at least 10 panels"
+        );
+    }
 
     #[test]
     fn test_reload_schema_request_empty_path() {
@@ -415,7 +593,7 @@ mod tests {
         };
 
         assert_eq!(request.scope, "entity");
-        assert!(request.entity_type.is_some());
+        assert_eq!(request.entity_type.as_deref(), Some("User"));
     }
 
     #[test]
@@ -427,7 +605,7 @@ mod tests {
         };
 
         assert_eq!(request.scope, "pattern");
-        assert!(request.pattern.is_some());
+        assert_eq!(request.pattern.as_deref(), Some("*_user"));
     }
 
     #[test]
@@ -513,5 +691,46 @@ mod tests {
 
         assert!(response.success);
         assert!(!response.message.is_empty());
+    }
+
+    // ── Admin audit log tests (15-5) ────────────────────────────────────────
+
+    #[test]
+    fn test_reload_schema_request_carries_audit_fields() {
+        // Verifies that the request type exposes the fields needed to emit a
+        // complete audit log entry (schema_path + validate_only).
+        let req = ReloadSchemaRequest {
+            schema_path:   "/var/run/fraiseql/schema.compiled.json".to_string(),
+            validate_only: false,
+        };
+        assert!(!req.schema_path.is_empty(), "schema_path must be present for audit log");
+        // validate_only is always set (bool field) — no assertion needed.
+        let _ = req.validate_only;
+    }
+
+    #[test]
+    fn test_cache_clear_request_carries_audit_fields() {
+        // Verifies that CacheClearRequest exposes the fields needed for audit logging
+        // (scope, optional entity_type, optional pattern).
+        let all_req = CacheClearRequest {
+            scope:       "all".to_string(),
+            entity_type: None,
+            pattern:     None,
+        };
+        assert_eq!(all_req.scope, "all");
+
+        let entity_req = CacheClearRequest {
+            scope:       "entity".to_string(),
+            entity_type: Some("Order".to_string()),
+            pattern:     None,
+        };
+        assert!(entity_req.entity_type.is_some(), "entity scope must carry entity_type for audit");
+
+        let pattern_req = CacheClearRequest {
+            scope:       "pattern".to_string(),
+            entity_type: None,
+            pattern:     Some("v_order*".to_string()),
+        };
+        assert!(pattern_req.pattern.is_some(), "pattern scope must carry pattern for audit");
     }
 }

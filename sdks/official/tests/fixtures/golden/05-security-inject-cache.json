@@ -1,0 +1,53 @@
+{
+  "types": [
+    {
+      "name":         "Order",
+      "sql_source":   "v_order",
+      "fields": [
+        { "name": "id",        "type": "ID",      "nullable": false },
+        { "name": "tenant_id", "type": "UUID",    "nullable": false },
+        { "name": "amount",    "type": "Decimal", "nullable": false },
+        { "name": "status",    "type": "String",  "nullable": false }
+      ],
+      "requires_role": "admin",
+      "description":   "A tenant-scoped order (admin-only)"
+    }
+  ],
+  "queries": [
+    {
+      "name":         "orders",
+      "sql_source":   "v_order",
+      "return_type":  "Order",
+      "returns_list": true,
+      "nullable":     false,
+      "arguments":    [],
+      "requires_role": "admin",
+      "inject_params": {
+        "tenant_id": { "source": "jwt", "claim": "tenant_id" }
+      },
+      "cache_ttl_seconds": 300,
+      "additional_views": ["v_order_summary", "v_order_items"]
+    }
+  ],
+  "mutations": [
+    {
+      "name":         "createOrder",
+      "sql_source":   "fn_create_order",
+      "return_type":  "Order",
+      "returns_list": false,
+      "nullable":     false,
+      "arguments": [
+        { "name": "amount",      "type": "Decimal", "nullable": false },
+        { "name": "description", "type": "String",  "nullable": true  }
+      ],
+      "operation": "CREATE",
+      "inject_params": {
+        "user_id":   { "source": "jwt", "claim": "sub"    },
+        "tenant_id": { "source": "jwt", "claim": "org_id" }
+      },
+      "invalidates_fact_tables": ["tf_sales", "tf_order_count"],
+      "invalidates_views":       ["v_order_summary", "v_order_items"],
+      "description": "Create an order; auto-stamps tenant and user from JWT"
+    }
+  ]
+}

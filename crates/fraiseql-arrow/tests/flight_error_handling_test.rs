@@ -7,6 +7,7 @@
 //! - IPC encoding failures
 //! - Batched query validation errors
 //! - Partial batch failures
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::sync::Arc;
 
@@ -63,7 +64,7 @@ impl TestDb {
         tracing::info!("Creating test tables");
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -71,18 +72,18 @@ impl TestDb {
                 created_at TIMESTAMPTZ NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_users (id, name, email, created_at)
             VALUES
                 ('user-1', 'Alice Johnson', 'alice@example.com', NOW()),
                 ('user-2', 'Bob Smith', 'bob@example.com', NOW() - INTERVAL '1 day')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
@@ -139,7 +140,7 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
-    /// Test adapter that wraps PostgresAdapter for Arrow Flight integration tests.
+    /// Test adapter that wraps `PostgresAdapter` for Arrow Flight integration tests.
     ///
     /// Arrow Flight operates on raw SQL, so it always uses PostgreSQL directly.
     struct TestFlightAdapter {
@@ -175,7 +176,7 @@ mod tests {
     /// Test invalid view name returns appropriate error
     ///
     /// Verifies:
-    /// 1. Request for non-existent view returns NotFound error
+    /// 1. Request for non-existent view returns `NotFound` error
     /// 2. Error message includes view name
     /// 3. Service remains functional after error
     #[tokio::test]

@@ -12,8 +12,11 @@ use serde::{Deserialize, Serialize};
 /// Standard API error response.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiError {
+    /// Human-readable error message.
     pub error:   String,
+    /// Machine-readable error code (e.g. `"NOT_FOUND"`, `"VALIDATION_ERROR"`).
     pub code:    String,
+    /// Optional additional context about the error.
     pub details: Option<String>,
 }
 
@@ -82,7 +85,9 @@ impl IntoResponse for ApiError {
 /// Standard API success response wrapper.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
+    /// Always `"success"` for successful responses.
     pub status: String,
+    /// The response payload.
     pub data:   T,
 }
 
@@ -125,7 +130,7 @@ impl SanitizedConfig {
     /// - TLS private keys and certificates (replaced with boolean flag)
     /// - Database connection strings (not included)
     /// - API keys and tokens (not included)
-    pub fn from_config(config: &crate::config::ServerConfig) -> Self {
+    pub fn from_config(config: &crate::config::HttpServerConfig) -> Self {
         Self {
             port:        config.port,
             host:        config.host.clone(),
@@ -136,7 +141,7 @@ impl SanitizedConfig {
     }
 
     /// Verify configuration has been properly sanitized.
-    pub fn is_sanitized(&self) -> bool {
+    pub const fn is_sanitized(&self) -> bool {
         self.sanitized
     }
 }

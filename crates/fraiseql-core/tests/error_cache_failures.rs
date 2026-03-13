@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Cache failure and edge case tests.
 //!
 //! Tests cache behavior when the underlying database adapter fails,

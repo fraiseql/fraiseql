@@ -18,31 +18,55 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    /// Create a new registry with all built-in providers
+    /// Create a new registry with all built-in providers and default tolerances.
     #[must_use]
     pub fn new() -> Self {
+        Self::with_tolerance(300)
+    }
+
+    /// Create a registry with a custom timestamp tolerance for replay-protection verifiers.
+    ///
+    /// Verifiers that validate request timestamps (Stripe, Slack, Discord) will use
+    /// `tolerance_secs` as their maximum acceptable timestamp age.
+    #[must_use]
+    pub fn with_tolerance(tolerance_secs: u64) -> Self {
         let mut providers: HashMap<String, Arc<dyn SignatureVerifier>> = HashMap::new();
 
         // Core providers
-        providers.insert("stripe".into(), Arc::new(StripeVerifier::new()));
+        providers.insert(
+            "stripe".into(),
+            Arc::new(StripeVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("github".into(), Arc::new(GitHubVerifier));
         providers.insert("shopify".into(), Arc::new(ShopifyVerifier));
 
         // Popular providers
         providers.insert("gitlab".into(), Arc::new(GitLabVerifier));
-        providers.insert("slack".into(), Arc::new(SlackVerifier));
+        providers.insert(
+            "slack".into(),
+            Arc::new(SlackVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("twilio".into(), Arc::new(TwilioVerifier));
-        providers.insert("sendgrid".into(), Arc::new(SendGridVerifier));
+        providers.insert(
+            "sendgrid".into(),
+            Arc::new(SendGridVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("postmark".into(), Arc::new(PostmarkVerifier));
-        providers.insert("paddle".into(), Arc::new(PaddleVerifier));
+        providers.insert(
+            "paddle".into(),
+            Arc::new(PaddleVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("lemonsqueezy".into(), Arc::new(LemonSqueezyVerifier));
 
         // Extended providers
-        providers.insert("discord".into(), Arc::new(DiscordVerifier));
+        providers.insert(
+            "discord".into(),
+            Arc::new(DiscordVerifier::new().with_tolerance(tolerance_secs)),
+        );
 
         // Generic verifiers
-        providers.insert("hmac-sha256".into(), Arc::new(HmacSha256Verifier::default()));
-        providers.insert("hmac-sha1".into(), Arc::new(HmacSha1Verifier::default()));
+        providers.insert("hmac-sha256".into(), Arc::new(HmacSha256Verifier));
+        providers.insert("hmac-sha1".into(), Arc::new(HmacSha1Verifier));
 
         Self { providers }
     }
@@ -77,6 +101,7 @@ impl Default for ProviderRegistry {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,7 +130,6 @@ mod tests {
         let registry = ProviderRegistry::new();
 
         let stripe = registry.get("stripe");
-        assert!(stripe.is_some());
         assert_eq!(stripe.unwrap().name(), "stripe");
 
         let unknown = registry.get("unknown");
@@ -123,7 +147,7 @@ mod tests {
 
         assert!(registry.has_provider("custom"));
         let verifier = registry.get("custom");
-        assert!(verifier.is_some());
+        assert!(verifier.is_some(), "custom verifier should be retrievable after registration");
     }
 
     #[test]

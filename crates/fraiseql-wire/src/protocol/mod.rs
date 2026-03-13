@@ -5,7 +5,7 @@
 //!
 //! * Startup and authentication
 //! * Simple Query protocol
-//! * Result streaming (RowDescription, DataRow)
+//! * Result streaming (`RowDescription`, `DataRow`)
 //! * Error handling
 //!
 //! Explicitly NOT supported:

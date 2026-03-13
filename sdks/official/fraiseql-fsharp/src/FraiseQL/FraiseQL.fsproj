@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>FraiseQL</RootNamespace>
+    <AssemblyName>FraiseQL</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PackageId>FraiseQL.FSharp</PackageId>
+    <Version>2.0.0</Version>
+    <Authors>FraiseQL Contributors</Authors>
+    <Description>F# schema authoring SDK for FraiseQL — define GraphQL schemas with attributes or the fraiseql { } computation expression DSL.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>graphql;fsharp;schema;fraiseql;codegen</PackageTags>
+    <RepositoryUrl>https://github.com/fraiseql/fraiseql</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="Attributes.fs" />
+    <Compile Include="TypeMapper.fs" />
+    <Compile Include="SchemaRegistry.fs" />
+    <Compile Include="QueryBuilder.fs" />
+    <Compile Include="MutationBuilder.fs" />
+    <Compile Include="SchemaExporter.fs" />
+    <Compile Include="Dsl.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+</Project>

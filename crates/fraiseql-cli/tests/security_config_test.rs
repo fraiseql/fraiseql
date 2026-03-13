@@ -1,5 +1,6 @@
-//! Unit tests for the four [security.*] TOML subsection structs added in Phase 01,
-//! and the `[auth]` `OidcClientConfig` added in Phase 04 (Cycle 0).
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+//! Unit tests for the four [security.*] TOML subsection structs,
+//! and the `[auth]` `OidcClientConfig`.
 
 use fraiseql_cli::config::toml_schema::{
     CodeChallengeMethod, ErrorSanitizationTomlConfig, RateLimitingSecurityConfig, TomlSchema,
@@ -243,7 +244,7 @@ fn test_existing_enterprise_field_not_broken() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 0 (Phase 04): OidcClientConfig / [auth]
+// OidcClientConfig / [auth]
 // ---------------------------------------------------------------------------
 
 #[test]

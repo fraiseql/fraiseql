@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test interface implementation validation.
 //!
 //! This test verifies that:

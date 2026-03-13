@@ -56,7 +56,7 @@ impl StreamStats {
     /// Create zero-valued stats
     ///
     /// Useful for testing and initialization.
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self {
             items_buffered: 0,
             estimated_memory: 0,
@@ -90,7 +90,7 @@ pub struct JsonStream {
 }
 
 /// Pause/resume state (lazily allocated)
-/// Only created when pause() is first called
+/// Only created when `pause()` is first called
 pub struct PauseResumeState {
     state: Arc<Mutex<StreamState>>,     // Current stream state
     pause_signal: Arc<Notify>,          // Signal to pause background task
@@ -129,7 +129,7 @@ impl JsonStream {
         }
     }
 
-    /// Initialize pause/resume state (called on first pause())
+    /// Initialize pause/resume state (called on first `pause()`)
     fn ensure_pause_resume(&mut self) -> &mut PauseResumeState {
         if self.pause_resume.is_none() {
             self.pause_resume = Some(PauseResumeState {
@@ -140,7 +140,7 @@ impl JsonStream {
                 pause_timeout: None,
             });
         }
-        self.pause_resume.as_mut().unwrap()
+        self.pause_resume.as_mut().expect("pause_resume initialized in the block above")
     }
 
     /// Get current stream state
@@ -175,14 +175,13 @@ impl JsonStream {
     pub fn paused_occupancy(&self) -> usize {
         self.pause_resume
             .as_ref()
-            .map(|pr| pr.paused_occupancy.load(Ordering::Relaxed))
-            .unwrap_or(0)
+            .map_or(0, |pr| pr.paused_occupancy.load(Ordering::Relaxed))
     }
 
     /// Set timeout for pause (auto-resume after duration)
     ///
     /// When a stream is paused, the background task will automatically resume
-    /// after the specified duration expires, even if resume() is not called.
+    /// after the specified duration expires, even if `resume()` is not called.
     ///
     /// # Arguments
     ///
@@ -190,10 +189,15 @@ impl JsonStream {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut stream = client.query::<T>("entity").execute().await?;
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// use std::time::Duration;
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.set_pause_timeout(Duration::from_secs(5));
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn set_pause_timeout(&mut self, duration: Duration) {
         self.ensure_pause_resume().pause_timeout = Some(duration);
@@ -219,16 +223,21 @@ impl JsonStream {
     /// The connection remains open and can be resumed later.
     /// Buffered rows are preserved and can be consumed normally.
     ///
-    /// This method is idempotent: calling pause() on an already-paused stream is a no-op.
+    /// This method is idempotent: calling `pause()` on an already-paused stream is a no-op.
     ///
     /// Returns an error if the stream has already completed or failed.
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.pause().await?;
     /// // Background task stops reading
     /// // Consumer can still poll for remaining buffered items
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
@@ -268,17 +277,22 @@ impl JsonStream {
     /// Resumes the background task to continue reading data from Postgres.
     /// Only has an effect if the stream is currently paused.
     ///
-    /// This method is idempotent: calling resume() before pause() or on an
+    /// This method is idempotent: calling `resume()` before `pause()` or on an
     /// already-running stream is a no-op.
     ///
     /// Returns an error if the stream has already completed or failed.
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.resume().await?;
     /// // Background task resumes reading
     /// // Consumer can poll for more items
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
         // Update lightweight atomic state first (fast path)
@@ -327,7 +341,7 @@ impl JsonStream {
 
     /// Pause the stream with a diagnostic reason
     ///
-    /// Like pause(), but logs the provided reason for diagnostic purposes.
+    /// Like `pause()`, but logs the provided reason for diagnostic purposes.
     /// This helps track why streams are being paused (e.g., "backpressure",
     /// "maintenance", "rate limit").
     ///
@@ -337,8 +351,13 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.pause_with_reason("backpressure: consumer busy").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
         tracing::debug!("pausing stream: {}", reason);
@@ -400,9 +419,14 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// let stats = stream.stats();
     /// println!("Buffered: {}, Yielded: {}", stats.items_buffered, stats.total_rows_yielded);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn stats(&self) -> StreamStats {
         let items_buffered = self.receiver.len();
@@ -418,29 +442,6 @@ impl JsonStream {
         }
     }
 
-    /// Increment rows yielded counter (called from FilteredStream)
-    #[allow(unused)]
-    pub(crate) fn increment_rows_yielded(&self, count: u64) {
-        self.rows_yielded.fetch_add(count, Ordering::Relaxed);
-    }
-
-    /// Increment rows filtered counter (called from FilteredStream)
-    #[allow(unused)]
-    pub(crate) fn increment_rows_filtered(&self, count: u64) {
-        self.rows_filtered.fetch_add(count, Ordering::Relaxed);
-    }
-
-    /// Clone the yielded counter for passing to background task
-    #[allow(unused)]
-    pub(crate) fn clone_rows_yielded(&self) -> Arc<AtomicU64> {
-        Arc::clone(&self.rows_yielded)
-    }
-
-    /// Clone the filtered counter for passing to background task
-    #[allow(unused)]
-    pub(crate) fn clone_rows_filtered(&self) -> Arc<AtomicU64> {
-        Arc::clone(&self.rows_filtered)
-    }
 }
 
 impl Stream for JsonStream {
@@ -505,7 +506,7 @@ impl Stream for JsonStream {
     }
 }
 
-/// Extract JSON bytes from DataRow message
+/// Extract JSON bytes from `DataRow` message
 pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
     match msg {
         BackendMessage::DataRow(fields) => {
@@ -533,6 +534,7 @@ pub fn parse_json(data: Bytes) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for validation audit logging.
 //!
 //! Tests validation-specific audit logging with tenant isolation, PII redaction,
@@ -75,7 +77,7 @@ mod tests {
         let logger = ValidationAuditLogger::new(config);
         let entry = create_test_entry("password", false, "length");
 
-        logger.log_entry(entry.clone());
+        logger.log_entry(entry);
 
         // Logger should be initialized without panic
         assert!(logger.is_enabled());

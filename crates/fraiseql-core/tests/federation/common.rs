@@ -1,11 +1,14 @@
 //! Shared fixtures and helpers for federation tests.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
+#![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::{collections::HashMap, sync::Arc, time::Duration};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -39,7 +42,9 @@ impl MockDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -96,6 +101,14 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         Ok(Vec::new())
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -105,6 +118,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for MockDatabaseAdapter {}
 
 /// Mock database adapter for mutation tests (returns empty results).
 pub struct MockMutationDatabaseAdapter {
@@ -120,7 +135,9 @@ impl MockMutationDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for MockMutationDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -163,6 +180,14 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         Ok(Vec::new())
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -172,6 +197,8 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for MockMutationDatabaseAdapter {}
 
 // =============================================================================
 // FederationMetadata Builders
@@ -433,7 +460,7 @@ pub struct TestSagaScenario {
 }
 
 impl TestSagaScenario {
-    pub fn new(step_count: usize) -> Self {
+    pub const fn new(step_count: usize) -> Self {
         Self {
             step_count,
             compensation_strategy: CompensationStrategy::Automatic,
@@ -441,7 +468,7 @@ impl TestSagaScenario {
     }
 
     #[allow(dead_code)]
-    pub fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
+    pub const fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
         self.compensation_strategy = strategy;
         self
     }

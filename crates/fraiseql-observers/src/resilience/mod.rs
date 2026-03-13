@@ -9,13 +9,21 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: tokio async runtime; replace external_service() with a real async call.
+//! use fraiseql_observers::resilience::{CircuitBreaker, CircuitBreakerConfig};
+//!
+//! # async fn example() -> fraiseql_observers::Result<()> {
+//! async fn external_service() -> fraiseql_observers::Result<()> { Ok(()) }
+//!
 //! let config = CircuitBreakerConfig::default();
 //! let breaker = CircuitBreaker::new(config);
 //!
 //! let result = breaker.call(|| {
 //!     Box::pin(async { external_service().await })
 //! }).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod degradation;
@@ -247,6 +255,7 @@ impl CircuitBreaker {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

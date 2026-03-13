@@ -4,7 +4,10 @@
 //! This runs during compilation to precompute optimization strategies.
 
 use anyhow::Result;
-use fraiseql_core::schema::{CompiledSchema, QueryDefinition, SqlProjectionHint, TypeDefinition};
+use fraiseql_core::{
+    db::types::DatabaseType,
+    schema::{CompiledSchema, QueryDefinition, SqlProjectionHint, TypeDefinition},
+};
 use tracing::{debug, info};
 
 /// Schema optimizer that analyzes queries and adds SQL hints
@@ -100,7 +103,8 @@ impl SchemaOptimizer {
     /// Detection heuristics:
     /// - Type must have a JSONB column
     /// - Type should have sufficient fields (>10) or estimated large payload (>1KB)
-    /// - PostgreSQL benefit: 95% payload reduction, 37% latency improvement
+    /// - PostgreSQL benefit: reduced payload and latency (proportional to fields omitted;
+    ///   run `cargo bench --bench sql_projection_benchmark` for hardware-specific numbers)
     fn apply_sql_projection_hints(schema: &mut CompiledSchema, report: &mut OptimizationReport) {
         for type_def in &mut schema.types {
             if Self::should_use_projection(type_def) {
@@ -164,13 +168,12 @@ impl SchemaOptimizer {
     /// - Projection template: `jsonb_build_object('field1', data->>'field1', ...)`
     /// - Estimated reduction: Based on field count and typical JSONB overhead
     fn create_projection_hint(type_def: &TypeDefinition) -> SqlProjectionHint {
-        // Estimate payload reduction based on field count and JSONB overhead
-        // Formula: Each unselected field = ~250 bytes saved (conservative estimate)
-        // Average type: 20 fields, 5 selected = 15 fields × 250B = 3750B saved = 95% reduction
+        // Rough estimate: each unselected field ≈ 250 bytes saved (conservative).
+        // Actual reduction varies by schema and query pattern; not a guaranteed figure.
         let estimated_reduction = Self::estimate_reduction_percent(type_def.fields.len());
 
         SqlProjectionHint {
-            database:                    "postgresql".to_string(),
+            database:                    DatabaseType::PostgreSQL,
             projection_template:         Self::generate_postgresql_projection_template(type_def),
             estimated_reduction_percent: estimated_reduction,
         }
@@ -260,7 +263,7 @@ impl OptimizationReport {
             return;
         }
 
-        println!("\n📊 Optimization Suggestions:");
+        println!("\nOptimization Suggestions:");
 
         if !self.index_hints.is_empty() {
             println!("\n  Indexes:");
@@ -313,6 +316,7 @@ pub struct ProjectionHint {
     pub estimated_reduction_percent: u32,
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -349,8 +353,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -403,8 +409,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -457,8 +465,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -511,8 +521,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -565,8 +577,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -579,7 +593,7 @@ mod tests {
         // Type should have sql_projection_hint set
         assert!(schema.types[0].has_sql_projection());
         let hint = schema.types[0].sql_projection_hint.as_ref().unwrap();
-        assert_eq!(hint.database, "postgresql");
+        assert_eq!(hint.database, DatabaseType::PostgreSQL);
         assert!(hint.estimated_reduction_percent > 0);
     }
 
@@ -629,8 +643,10 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();

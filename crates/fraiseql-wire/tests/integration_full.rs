@@ -1,3 +1,5 @@
+#![allow(clippy::doc_markdown)]             // Reason: test runner instructions
+
 //! Comprehensive integration tests
 //!
 //! Run with: cargo test --test integration_full -- --nocapture

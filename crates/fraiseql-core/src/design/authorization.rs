@@ -48,7 +48,7 @@ fn check_auth_boundary_leaks(schema: &Value, audit: &mut DesignAudit) {
                                     .to_string();
                                 auth_required_fields
                                     .entry(entity_name.clone())
-                                    .or_insert_with(Vec::new)
+                                    .or_default()
                                     .push(field_name);
                             }
                         }

@@ -1,6 +1,8 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 #![allow(missing_docs)]
 
-//! Integration tests for CachedDatabaseAdapter with a real PostgreSQL backend.
+//! Integration tests for `CachedDatabaseAdapter` with a real PostgreSQL backend.
 //!
 //! Validates cache behavior (hit/miss/invalidation) against a real database,
 //! ensuring the cache layer works correctly with real query results.

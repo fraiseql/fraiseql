@@ -1,22 +1,115 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Mock implementations of traits for testing without external dependencies.
 
 #[cfg(any(test, feature = "testing"))]
 pub mod mocks {
     //! Mock implementations of traits for use in tests.
-    use std::{collections::VecDeque, sync::Mutex};
+    use std::{collections::HashMap, collections::VecDeque, sync::Mutex};
 
+    #[cfg(feature = "checkpoint")]
     use async_trait::async_trait;
     use uuid::Uuid;
 
     use crate::{
         config::ActionConfig,
-        error::Result,
+        error::{ObserverError, Result},
         event::EntityEvent,
         traits::{
             ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem,
             EventSource, TemplateRenderer,
         },
     };
+
+    // =========================================================================
+    // MockActionDispatcher
+    // =========================================================================
+
+    /// Mock action dispatcher for testing executor logic without network calls.
+    ///
+    /// Pre-register per-action-type canned responses via [`MockActionDispatcher::expect_ok`]
+    /// and [`MockActionDispatcher::expect_err`], then inject the mock through
+    /// [`ObserverExecutor::with_dispatcher`].
+    pub struct MockActionDispatcher {
+        /// Canned responses keyed by `action_type` string (e.g. `"webhook"`)
+        pub responses: Mutex<HashMap<String, std::result::Result<ActionResult, ObserverError>>>,
+        /// Ordered log of every `action_type` that `dispatch` was called with
+        pub call_log: Mutex<Vec<String>>,
+    }
+
+    impl MockActionDispatcher {
+        /// Create a new mock dispatcher with no pre-registered responses.
+        #[must_use]
+        pub fn new() -> Self {
+            Self {
+                responses: Mutex::new(HashMap::new()),
+                call_log:  Mutex::new(Vec::new()),
+            }
+        }
+
+        /// Register a successful response for the given action type.
+        pub fn expect_ok(&self, action_type: &str, duration_ms: f64) {
+            let result = ActionResult {
+                action_type: action_type.to_string(),
+                success:     true,
+                message:     "mock success".to_string(),
+                duration_ms,
+            };
+            self.responses
+                .lock()
+                .unwrap()
+                .insert(action_type.to_string(), Ok(result));
+        }
+
+        /// Register an error response for the given action type.
+        pub fn expect_err(&self, action_type: &str, err: ObserverError) {
+            self.responses
+                .lock()
+                .unwrap()
+                .insert(action_type.to_string(), Err(err));
+        }
+
+        /// Return the ordered list of action types that were dispatched.
+        pub fn calls(&self) -> Vec<String> {
+            self.call_log.lock().unwrap().clone()
+        }
+
+        /// Return the number of times `dispatch` was called.
+        pub fn call_count(&self) -> usize {
+            self.call_log.lock().unwrap().len()
+        }
+    }
+
+    impl Default for MockActionDispatcher {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl crate::executor::ActionDispatcher for MockActionDispatcher {
+        fn dispatch<'a>(
+            &'a self,
+            action: &'a ActionConfig,
+            _event: &'a EntityEvent,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
+        > {
+            let action_type = action.action_type().to_string();
+            Box::pin(async move {
+                self.call_log.lock().unwrap().push(action_type.clone());
+                let response = self.responses.lock().unwrap().get(&action_type).cloned();
+                match response {
+                    Some(Ok(r)) => Ok(r),
+                    Some(Err(e)) => Err(e),
+                    None => Ok(ActionResult {
+                        action_type: action_type.clone(),
+                        success:     true,
+                        message:     "mock default ok".to_string(),
+                        duration_ms: 1.0,
+                    }),
+                }
+            })
+        }
+    }
 
     /// Mock event source that yields predefined events
     pub struct MockEventSource {
@@ -46,7 +139,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl EventSource for MockEventSource {
         async fn next_event(&mut self) -> Option<EntityEvent> {
             self.events.lock().unwrap().pop_front()
@@ -97,7 +189,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl ActionExecutor for MockActionExecutor {
         async fn execute(
             &self,
@@ -160,7 +251,7 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl DeadLetterQueue for MockDeadLetterQueue {
         async fn push(
             &self,
@@ -291,6 +382,7 @@ pub mod mocks {
     }
 
     /// Mock checkpoint store for testing
+    #[cfg(feature = "checkpoint")]
     #[derive(Clone)]
     pub struct MockCheckpointStore {
         checkpoints: std::sync::Arc<
@@ -298,6 +390,7 @@ pub mod mocks {
         >,
     }
 
+    #[cfg(feature = "checkpoint")]
     impl MockCheckpointStore {
         /// Create a new mock checkpoint store
         #[must_use]
@@ -308,12 +401,17 @@ pub mod mocks {
         }
     }
 
+    #[cfg(feature = "checkpoint")]
     impl Default for MockCheckpointStore {
         fn default() -> Self {
             Self::new()
         }
     }
 
+    // Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[cfg(feature = "checkpoint")]
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl crate::checkpoint::CheckpointStore for MockCheckpointStore {
         async fn load(

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Cross-subgraph consistency validation tests
 //! - @key consistency: Each @key must be unique within its type
 //! - @external field ownership: Exactly one subgraph owns each @external field
@@ -282,7 +283,7 @@ fn create_federated_type_extends(name: &str, is_extends: bool) -> FederatedType 
 /// `Err(String)` with detailed error message if validation fails
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// let users = FederationMetadata { /* User type definition */ };
 /// let orders = FederationMetadata { /* Order with User extension */ };
 /// let result = validate_cross_subgraph_consistency(&[users, orders]);

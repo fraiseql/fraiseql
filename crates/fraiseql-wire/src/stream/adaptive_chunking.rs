@@ -10,10 +10,10 @@
 //!
 //! **Control Signal Interpretation**:
 //! - **High occupancy** (>80%): Producer waiting on channel capacity, consumer slow
-//!   → **Reduce chunk_size**: smaller batches reduce pressure, lower latency per item
+//!   → **Reduce `chunk_size`**: smaller batches reduce pressure, lower latency per item
 //!
 //! - **Low occupancy** (<20%): Consumer faster than producer, frequent context switches
-//!   → **Increase chunk_size**: larger batches amortize parsing cost, less frequent wakeups
+//!   → **Increase `chunk_size`**: larger batches amortize parsing cost, less frequent wakeups
 //!
 //! **Design Principles**:
 //! - Measurement-based adjustment (50-item window) for stability
@@ -36,14 +36,15 @@ struct Occupancy {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::stream::AdaptiveChunking;
 /// let mut adaptive = AdaptiveChunking::new();
+/// let (buffered_items, channel_capacity) = (50usize, 256usize);
 ///
 /// // Periodically observe channel occupancy
-/// for chunk_sent in 0..100 {
-///     let occupancy_pct = (buffered_items * 100) / channel_capacity;
+/// for _chunk_sent in 0..100 {
 ///     if let Some(new_size) = adaptive.observe(buffered_items, channel_capacity) {
-///         println!("Adjusted chunk size: {} -> {}", adaptive.current_size() - new_size, new_size);
+///         println!("Adjusted chunk size to {}", new_size);
 ///     }
 /// }
 /// ```
@@ -82,7 +83,8 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
@@ -106,11 +108,12 @@ impl AdaptiveChunking {
     /// # Arguments
     ///
     /// * `items_buffered` - Number of items currently in the channel
-    /// * `capacity` - Total capacity of the channel (usually equal to chunk_size)
+    /// * `capacity` - Total capacity of the channel (usually equal to `chunk_size`)
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let mut adaptive = AdaptiveChunking::new();
     ///
     /// // Simulate high occupancy (90%)
@@ -157,11 +160,12 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
-    pub fn current_size(&self) -> usize {
+    pub const fn current_size(&self) -> usize {
         self.current_size
     }
 
@@ -173,11 +177,12 @@ impl AdaptiveChunking {
     /// # Arguments
     ///
     /// * `min_size` - Minimum chunk size (must be > 0)
-    /// * `max_size` - Maximum chunk size (must be >= min_size)
+    /// * `max_size` - Maximum chunk size (must be >= `min_size`)
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let mut adaptive = AdaptiveChunking::new();
     /// adaptive = adaptive.with_bounds(32, 512);  // Custom range 32-512
     /// assert!(adaptive.current_size() >= 32);
@@ -247,7 +252,7 @@ impl AdaptiveChunking {
     /// **Logic**:
     /// - If avg > 80%: **DECREASE** by factor of 1.5 (high occupancy = producer backed up)
     /// - If avg < 20%: **INCREASE** by factor of 1.5 (low occupancy = consumer fast)
-    /// - Clamps to [min_size, max_size]
+    /// - Clamps to [`min_size`, `max_size`]
     /// - Clears measurements after adjustment
     ///
     /// Returns `Some(new_size)` if size actually changed, `None` if no change needed.
@@ -287,6 +292,7 @@ impl Default for AdaptiveChunking {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

@@ -56,7 +56,7 @@ pub struct ObserverRuntimeConfig {
 impl ObserverRuntimeConfig {
     /// Create config with defaults
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
@@ -209,9 +209,21 @@ impl ObserverRuntime {
             ))
         })?;
 
-        // Parse retry config
+        // Parse retry config — fall back to default if deserialization fails, but warn so
+        // operators know the stored value is invalid and the observer may behave unexpectedly.
         let retry_config: ObserverRetryConfig =
-            serde_json::from_value(observer.retry_config.clone()).unwrap_or_default();
+            match serde_json::from_value(observer.retry_config.clone()) {
+                Ok(cfg) => cfg,
+                Err(e) => {
+                    warn!(
+                        observer = %observer.name,
+                        error = %e,
+                        "Observer retry_config could not be deserialized; using defaults. \
+                         Check the stored JSON in tb_observer."
+                    );
+                    ObserverRetryConfig::default()
+                },
+            };
 
         Ok(ObserverDefinition {
             event_type: observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string()),
@@ -224,6 +236,10 @@ impl ObserverRuntime {
     }
 
     /// Start the observer runtime
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError` if the runtime is already running or initialization fails.
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
@@ -326,7 +342,7 @@ impl ObserverRuntime {
                                     // Clone matcher from shared reference (cheap - EventMatcher uses Arc internally)
                                     let matcher = {
                                         let m = matcher_ref.read().await;
-                                        m.as_ref().unwrap().clone()
+                                        m.as_ref().expect("matcher initialized before processing loop starts").clone()
                                     };
 
                                     // Find matching observers
@@ -335,7 +351,7 @@ impl ObserverRuntime {
                                     // Process event (read executor from shared reference)
                                     let process_result = {
                                         let ex = executor_ref.read().await;
-                                        ex.as_ref().unwrap().process_event(&event).await
+                                        ex.as_ref().expect("executor initialized before processing loop starts").process_event(&event).await
                                     };
 
                                     match process_result {
@@ -475,6 +491,10 @@ impl ObserverRuntime {
     }
 
     /// Stop the observer runtime gracefully
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError` if the shutdown signal fails to send.
     pub async fn stop(&mut self) -> Result<(), ServerError> {
         if !self.running.load(Ordering::SeqCst) {
             return Ok(());
@@ -516,6 +536,10 @@ impl ObserverRuntime {
     }
 
     /// Reload observers from the database
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` if loading observers fails.
     pub async fn reload_observers(&self) -> Result<usize, ServerError> {
         debug!("Reloading observers from database");
 
@@ -563,7 +587,7 @@ struct InMemoryDlq {
 }
 
 impl InMemoryDlq {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }
@@ -586,7 +610,7 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
             error_message: error,
             attempts: 0,
         };
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.push(item);
         Ok(id)
     }
@@ -595,12 +619,12 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         &self,
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
-        let items = self.items.lock().unwrap();
+        let items = self.items.lock().expect("items mutex poisoned");
         Ok(items.iter().take(limit as usize).cloned().collect())
     }
 
     async fn mark_success(&self, id: uuid::Uuid) -> fraiseql_observers::Result<()> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.retain(|i| i.id != id);
         Ok(())
     }
@@ -610,7 +634,7 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         id: uuid::Uuid,
         _error: &str,
     ) -> fraiseql_observers::Result<()> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.retain(|i| i.id != id);
         Ok(())
     }

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+
 //! Integration tests for connection configuration
 //!
 //! Tests that verify configuration options are properly applied during connection startup.
@@ -8,7 +10,7 @@ mod config_integration {
     use fraiseql_wire::connection::ConnectionConfig;
     use std::time::Duration;
 
-    /// Test that statement_timeout is applied to connection parameters
+    /// Test that `statement_timeout` is applied to connection parameters
     #[tokio::test]
     async fn test_config_statement_timeout_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
@@ -26,7 +28,7 @@ mod config_integration {
         // This is verified in the startup method which converts as_millis()
     }
 
-    /// Test that application_name is applied to connection parameters
+    /// Test that `application_name` is applied to connection parameters
     #[tokio::test]
     async fn test_config_application_name_applied() {
         let app_name = "test_app";
@@ -41,7 +43,7 @@ mod config_integration {
         );
     }
 
-    /// Test that keepalive_idle is stored in config
+    /// Test that `keepalive_idle` is stored in config
     #[tokio::test]
     async fn test_config_keepalive_idle_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
@@ -55,7 +57,7 @@ mod config_integration {
         );
     }
 
-    /// Test that extra_float_digits is applied to connection parameters
+    /// Test that `extra_float_digits` is applied to connection parameters
     #[tokio::test]
     async fn test_config_extra_float_digits_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")

@@ -129,6 +129,7 @@ impl EventToArrowConverter {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
     use uuid::Uuid;

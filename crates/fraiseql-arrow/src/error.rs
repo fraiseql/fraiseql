@@ -29,7 +29,7 @@ pub enum ArrowFlightError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
-    /// Configuration error (ClickHouse)
+    /// Configuration error (`ClickHouse`)
     #[error("Configuration error: {0}")]
     Configuration(String),
 
@@ -37,7 +37,7 @@ pub enum ArrowFlightError {
     #[error("Conversion error: {0}")]
     Conversion(String),
 
-    /// External service error (ClickHouse, network, etc.)
+    /// External service error (`ClickHouse`, network, etc.)
     #[error("External error: {0}")]
     External(String),
 }

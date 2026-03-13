@@ -8,18 +8,20 @@
 //!
 //! # Examples
 //!
-//! ```ignore
-//! // All validators must pass: required AND pattern
-//! ValidationRule::All(vec![
-//!     ValidationRule::Required,
-//!     ValidationRule::Pattern { pattern: "^[a-z]+$".to_string(), message: None }
-//! ])
+//! ```
+//! use fraiseql_core::validation::ValidationRule;
 //!
-//! // At least one must pass: strong password OR long password
-//! ValidationRule::Any(vec![
-//!     ValidationRule::Pattern { pattern: strong_password.to_string(), message: None },
-//!     ValidationRule::Length { min: Some(20), max: None }
-//! ])
+//! // All validators must pass: required AND pattern
+//! let _rule = ValidationRule::All(vec![
+//!     ValidationRule::Required,
+//!     ValidationRule::Pattern { pattern: "^[a-z]+$".to_string(), message: None },
+//! ]);
+//!
+//! // At least one must pass: complex password OR long password
+//! let _rule = ValidationRule::Any(vec![
+//!     ValidationRule::Pattern { pattern: r"^(?=.*[A-Z])(?=.*[0-9]).+$".to_string(), message: None },
+//!     ValidationRule::Length { min: Some(20), max: None },
+//! ]);
 //! ```
 
 use std::fmt;

@@ -1,32 +1,26 @@
-// PKCE state store — RFC 7636 Proof Key for Code Exchange
-//
-// Stores `(code_verifier, redirect_uri)` under a random internal key while
-// the OAuth2 authorization round-trip is in flight.  The token sent to the
-// OIDC provider in the `?state=` query parameter is either:
-//   - the raw internal key (no encryption configured), or
-//   - `encrypt(internal_key)` (when StateEncryptionService is attached).
-//
-// State lifecycle:
-//   create_state(redirect_uri)
-//     → internal_key = random 32 bytes (base64url)
-//     → outbound_token = encrypt(internal_key)  [or internal_key if no encryption]
-//     → store.insert(internal_key, {verifier, redirect_uri, ttl})
-//     → return (outbound_token, verifier)
-//
-//   consume_state(outbound_token)
-//     → internal_key = decrypt(outbound_token)  [or outbound_token if no encryption]
-//     → entry = store.remove(internal_key)?  [StateNotFound if absent]
-//     → if entry.elapsed > entry.ttl → StateExpired
-//     → return {verifier, redirect_uri}
-//
-// Backends:
-//   InMemory — DashMap, single-process, per-replica
-//   Redis    — distributed, multi-replica (requires `redis-pkce` Cargo feature)
+//! PKCE state store — RFC 7636 Proof Key for Code Exchange.
+//!
+//! Stores `(code_verifier, redirect_uri)` under a random internal key while
+//! the OAuth2 authorization round-trip is in flight.  The token sent to the
+//! OIDC provider in the `?state=` query parameter is either:
+//! - the raw internal key (no encryption configured), or
+//! - `encrypt(internal_key)` (when [`crate::state_encryption::StateEncryptionService`] is attached).
+//!
+//! State lifecycle:
+//! - `create_state(redirect_uri)` → `internal_key = random 32 bytes (base64url)` →
+//!   `outbound_token = encrypt(internal_key)` (or `internal_key` if no encryption) →
+//!   `store.insert(internal_key, {verifier, redirect_uri, ttl})` →
+//!   returns `(outbound_token, verifier)`
+//! - `consume_state(outbound_token)` → `internal_key = decrypt(outbound_token)` (or
+//!   `outbound_token` if no encryption) → `entry = store.remove(internal_key)?` (
+//!   [`PkceError::StateNotFound`] if absent) → if `entry.elapsed > entry.ttl` →
+//!   [`PkceError::StateExpired`] → returns `{verifier, redirect_uri}`
+//!
+//! Backends:
+//! - **InMemory** — `DashMap`, single-process, per-replica
+//! - **Redis** — distributed, multi-replica (requires the `redis-pkce` Cargo feature)
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use dashmap::DashMap;
@@ -81,8 +75,10 @@ pub struct ConsumedPkceState {
 struct PkceEntry {
     verifier:     String,
     redirect_uri: String,
-    created_at:   Instant,
-    ttl:          Duration,
+    /// Creation time as a Tokio instant so `tokio::time::pause()` +
+    /// `tokio::time::advance()` can control TTL expiry in tests.
+    created_at: tokio::time::Instant,
+    ttl:        Duration,
 }
 
 /// In-memory PKCE state store backed by a [`DashMap`].
@@ -119,7 +115,7 @@ impl InMemoryPkceStateStore {
         self.entries.insert(internal_key.clone(), PkceEntry {
             verifier:     verifier.clone(),
             redirect_uri: redirect_uri.to_owned(),
-            created_at:   Instant::now(),
+            created_at:   tokio::time::Instant::now(),
             ttl:          Duration::from_secs(self.state_ttl_secs),
         });
 
@@ -436,10 +432,12 @@ impl PkceStateStore {
 // Unit tests
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
     use crate::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
 
@@ -476,11 +474,11 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_expired_state_returns_state_expired_not_not_found() {
         let store = store_no_enc(1);
         let (token, _) = store.create_state("https://example.com").await.unwrap();
-        std::thread::sleep(Duration::from_millis(1100));
+        tokio::time::advance(Duration::from_millis(1100)).await;
         assert!(
             matches!(store.consume_state(&token).await, Err(PkceError::StateExpired)),
             "expired state must be StateExpired, not StateNotFound"
@@ -574,7 +572,7 @@ mod tests {
     async fn test_cleanup_removes_expired_leaves_valid() {
         let store = store_no_enc(1);
         store.create_state("https://a.example.com").await.unwrap();
-        std::thread::sleep(Duration::from_millis(1100));
+        tokio::time::sleep(Duration::from_millis(1100)).await;
         store.cleanup_expired().await;
         assert_eq!(store.len(), 0, "expired entry must be removed by cleanup");
 

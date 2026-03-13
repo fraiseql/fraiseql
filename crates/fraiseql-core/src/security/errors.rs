@@ -172,6 +172,22 @@ pub enum SecurityError {
         /// Description of why introspection is disabled
         detail: String,
     },
+
+    /// Query contains too many aliases (alias amplification attack).
+    ///
+    /// Alias amplification is a DoS technique where many aliases resolve the same
+    /// expensive field, multiplying backend work with a small query string.
+    TooManyAliases {
+        /// Actual number of aliases in the query
+        alias_count: usize,
+        /// Maximum allowed alias count
+        max_aliases: usize,
+    },
+
+    /// Query is not valid GraphQL syntax.
+    ///
+    /// The query string could not be parsed by the GraphQL parser.
+    MalformedQuery(String),
 }
 
 /// Convenience type alias for security operation results.
@@ -255,11 +271,30 @@ impl fmt::Display for SecurityError {
             Self::IntrospectionDisabled { detail } => {
                 write!(f, "Introspection disabled: {detail}")
             },
+            Self::TooManyAliases {
+                alias_count,
+                max_aliases,
+            } => {
+                write!(
+                    f,
+                    "Query contains too many aliases: {alias_count} > {max_aliases}"
+                )
+            },
+            Self::MalformedQuery(msg) => {
+                write!(f, "Malformed GraphQL query: {msg}")
+            },
         }
     }
 }
 
-impl std::error::Error for SecurityError {}
+impl std::error::Error for SecurityError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // All SecurityError variants carry textual descriptions only;
+        // none wrap a boxed source error, so the causal chain terminates here.
+        // If a variant is added that wraps a cause, add a match arm returning it.
+        None
+    }
+}
 
 impl PartialEq for SecurityError {
     fn eq(&self, other: &Self) -> bool {
@@ -344,6 +379,17 @@ impl PartialEq for SecurityError {
                 Self::IntrospectionDisabled { detail: d1 },
                 Self::IntrospectionDisabled { detail: d2 },
             ) => d1 == d2,
+            (
+                Self::TooManyAliases {
+                    alias_count: a1,
+                    max_aliases: m1,
+                },
+                Self::TooManyAliases {
+                    alias_count: a2,
+                    max_aliases: m2,
+                },
+            ) => a1 == a2 && m1 == m2,
+            (Self::MalformedQuery(m1), Self::MalformedQuery(m2)) => m1 == m2,
             _ => false,
         }
     }

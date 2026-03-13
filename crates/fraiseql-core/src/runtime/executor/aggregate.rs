@@ -25,7 +25,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
@@ -39,16 +39,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // Parse metadata into FactTableMetadata
-        let metadata: crate::compiler::fact_table::FactTableMetadata =
-            serde_json::from_value(metadata_json.clone())?;
-
         // Parse query variables into aggregate query JSON
         let empty_json = serde_json::json!({});
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute aggregate query
-        self.execute_aggregate_query(query_json, query_name, &metadata).await
+        self.execute_aggregate_query(query_json, query_name, metadata).await
     }
 
     /// Execute a window query dispatch.
@@ -67,7 +63,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
@@ -81,16 +77,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // Parse metadata into FactTableMetadata
-        let metadata: crate::compiler::fact_table::FactTableMetadata =
-            serde_json::from_value(metadata_json.clone())?;
-
         // Parse query variables into window query JSON
         let empty_json = serde_json::json!({});
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute window query
-        self.execute_window_query(query_json, query_name, &metadata).await
+        self.execute_window_query(query_json, query_name, metadata).await
     }
 
     /// Execute an aggregate query.
@@ -116,15 +108,16 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and compiled fact table metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use serde_json::json;
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "groupBy": { "category": true },
     ///     "aggregates": [{"count": {}}]
     /// });
-    ///
-    /// let metadata = /* fact table metadata */;
-    /// let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
+    /// // let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
     /// ```
     pub async fn execute_aggregate_query(
         &self,
@@ -139,12 +132,15 @@ impl<A: DatabaseAdapter> Executor<A> {
         let plan =
             crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
 
-        // 3. Generate SQL
+        // 3. Generate parameterized SQL
         let sql_generator = super::super::AggregationSqlGenerator::new(self.adapter.database_type());
-        let sql = sql_generator.generate(&plan)?;
+        let parameterized = sql_generator.generate_parameterized(&plan)?;
 
-        // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.complete_sql).await?;
+        // 4. Execute with bind parameters (eliminates escape-based injection risk)
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
+            .await?;
 
         // 5. Project results
         let projected = super::super::AggregationProjector::project(rows, &plan)?;
@@ -179,7 +175,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and compiled fact table metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use serde_json::json;
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
@@ -190,9 +189,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///         "orderBy": [{"field": "revenue", "direction": "DESC"}]
     ///     }]
     /// });
-    ///
-    /// let metadata = /* fact table metadata */;
-    /// let result = executor.execute_window_query(&query_json, "sales_window", &metadata).await?;
+    /// // let result = executor.execute_window_query(&query_json, "sales_window", &metadata).await?;
     /// ```
     pub async fn execute_window_query(
         &self,
@@ -211,8 +208,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
 
-        // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.complete_sql).await?;
+        // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so
+        //    WHERE clause values are passed as prepared-statement parameters, not inlined.
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
+            .await?;
 
         // 5. Project results
         let projected = super::super::WindowProjector::project(rows, &plan)?;

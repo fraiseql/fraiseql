@@ -16,7 +16,7 @@ async fn test_two_subgraph_federation_performance() {
 
     println!("\n--- Test: Federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 10) {
                 id
@@ -27,7 +27,7 @@ async fn test_two_subgraph_federation_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up query
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -70,7 +70,7 @@ async fn test_federation_query_performance() {
 
     let _response = graphql_query(
         APOLLO_GATEWAY_URL,
-        r#"query {
+        r"query {
             users(limit: 5) {
                 id
                 orders {
@@ -80,7 +80,7 @@ async fn test_federation_query_performance() {
                     }
                 }
             }
-        }"#,
+        }",
     )
     .await
     .expect("Query should succeed");
@@ -147,7 +147,7 @@ async fn test_composite_key_performance() {
     // Measure performance of composite key resolution at scale
     let start = std::time::Instant::now();
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 20) {
                 id
@@ -162,7 +162,7 @@ async fn test_composite_key_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -172,8 +172,7 @@ async fn test_composite_key_performance() {
         let users = extract_data(&response)
             .and_then(|d| d.get("users"))
             .and_then(|u| u.as_array())
-            .map(|arr| arr.len())
-            .unwrap_or(0);
+            .map_or(0, |arr| arr.len());
 
         println!("✓ Composite key resolution for {} users: {:.0}ms", users, elapsed.as_millis());
 
@@ -191,7 +190,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
 
     println!("\n--- Test: Batch entity resolution at scale ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 5) {
                 id
@@ -207,7 +206,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
@@ -222,8 +221,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
     let users = extract_data(&response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     println!(
         "✓ Batch entity resolution for {} users with nested orders/products: {:.0}ms",
@@ -240,7 +238,7 @@ async fn test_three_subgraph_gateway_composition() {
     println!("\n--- Test: Apollo Router gateway composition ---");
 
     // Query the introspection to verify schema composition
-    let introspection_query = r#"
+    let introspection_query = r"
         query {
             __schema {
                 types {
@@ -248,7 +246,7 @@ async fn test_three_subgraph_gateway_composition() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, introspection_query)
         .await
@@ -264,8 +262,7 @@ async fn test_three_subgraph_gateway_composition() {
         .and_then(|d| d.get("__schema"))
         .and_then(|s| s.get("types"))
         .and_then(|t| t.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     println!("✓ Apollo Router successfully composed schema with {} types", types);
     assert!(types > 0, "Schema should have types");
@@ -295,7 +292,7 @@ async fn test_three_subgraph_performance() {
 
     println!("\n--- Test: 3-hop federation performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 10) {
                 id
@@ -311,7 +308,7 @@ async fn test_three_subgraph_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -330,8 +327,7 @@ async fn test_three_subgraph_performance() {
     let users = extract_data(&response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     println!(
         "✓ 3-hop federation query ({} users with orders and products): {:.0}ms",

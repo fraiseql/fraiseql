@@ -12,7 +12,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: running server with initialized subscription manager.
 //! use fraiseql_server::routes::subscriptions::{subscription_handler, SubscriptionState};
 //!
 //! let state = SubscriptionState::new(subscription_manager);
@@ -70,6 +71,18 @@ pub fn subscription_metrics() -> SubscriptionMetrics {
     }
 }
 
+/// Reset all subscription counters to zero.
+///
+/// Call this at the start of each test that checks counter values to avoid
+/// cross-test interference from the module-level statics.
+#[cfg(test)]
+pub fn reset_metrics_for_test() {
+    WS_CONNECTIONS_ACCEPTED.store(0, Ordering::SeqCst);
+    WS_CONNECTIONS_REJECTED.store(0, Ordering::SeqCst);
+    WS_SUBSCRIPTIONS_ACCEPTED.store(0, Ordering::SeqCst);
+    WS_SUBSCRIPTIONS_REJECTED.store(0, Ordering::SeqCst);
+}
+
 /// Snapshot of subscription counters.
 pub struct SubscriptionMetrics {
     /// Total WebSocket connections accepted (after on_connect).
@@ -118,7 +131,7 @@ impl SubscriptionState {
 
     /// Set maximum subscriptions per connection.
     #[must_use]
-    pub fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
+    pub const fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
         self.max_subscriptions_per_connection = max;
         self
     }
@@ -206,6 +219,7 @@ async fn handle_subscription_connection(
                     "Lifecycle on_connect rejected connection"
                 );
                 WS_CONNECTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                // Best-effort: connection is already being terminated.
                 let _ = sender
                     .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                         code:   4400,
@@ -231,6 +245,7 @@ async fn handle_subscription_connection(
         },
         Err(_) => {
             warn!(connection_id = %connection_id, "Connection init timeout");
+            // Best-effort: connection is already being terminated.
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                     code:   CloseCode::ConnectionInitTimeout.code(),
@@ -251,6 +266,31 @@ async fn handle_subscription_connection(
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    // A44 — Token expiry re-check on long-lived subscriptions.
+    //
+    // JWTs validated at ConnectionInit may expire while the WebSocket is open.
+    // The check below should be added when the auth layer surfaces expiry data:
+    //
+    //   1. At ConnectionInit, extract the `exp` claim from the JWT and store it:
+    //      `let token_expires_at: Option<std::time::Instant> = extract_exp(&init_payload);`
+    //
+    //   2. In the select! loop (before processing each client message or broadcast event),
+    //      check expiry:
+    //      ```rust,ignore
+    //      if token_expires_at.is_some_and(|exp| std::time::Instant::now() >= exp) {
+    //          warn!(connection_id = %connection_id, "Token expired; closing WebSocket");
+    //          let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+    //              code: CloseCode::Unauthorized.code(),
+    //              reason: "Token expired".into(),
+    //          }))).await;
+    //          break;
+    //      }
+    //      ```
+    //
+    // This requires the lifecycle `on_connect` hook or the JWT middleware to return
+    // the expiry time, which is not yet threaded through `SubscriptionState`.
+    // Tracked as A44 in the remediation plan.
+
     // Main message loop
     loop {
         tokio::select! {
@@ -265,6 +305,7 @@ async fn handle_subscription_connection(
                             &mut active_operations,
                             &mut sender,
                         ).await {
+                            // Best-effort: connection is already being closed.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
                                 code: close_code.code(),
                                 reason: close_code.reason().into(),
@@ -273,6 +314,7 @@ async fn handle_subscription_connection(
                         }
                     }
                     Some(Ok(Message::Ping(data))) => {
+                        // Best-effort: if the connection is already dead the pong will fail.
                         let _ = sender.send(Message::Pong(data)).await;
                     }
                     Some(Ok(Message::Pong(_))) => {}
@@ -351,6 +393,7 @@ async fn handle_client_message(
     match client_msg.parsed_type() {
         Some(ClientMessageType::Ping) => {
             let pong = ServerMessage::pong(client_msg.payload);
+            // Best-effort: if the connection is already dead the pong will fail.
             let _ = send_server_message(codec, sender, pong).await;
         },
 
@@ -392,7 +435,9 @@ async fn handle_client_message(
                             "SUBSCRIPTION_LIMIT_REACHED",
                         )],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send subscription limit error to client");
+                    }
                     return Ok(());
                 }
             }
@@ -408,13 +453,17 @@ async fn handle_client_message(
                             "PARSE_ERROR",
                         )],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
+                    }
                     return Ok(());
                 }
             };
 
             // Call lifecycle on_subscribe hook
-            let variables_value = serde_json::to_value(&payload.variables).unwrap_or_default();
+            // HashMap<String, Value> serialization is infallible; the error path cannot occur.
+            let variables_value = serde_json::to_value(&payload.variables)
+                .expect("HashMap<String, serde_json::Value> serialization is infallible");
             if let Err(reason) = state
                 .lifecycle
                 .on_subscribe(&subscription_name, &variables_value, connection_id)
@@ -431,7 +480,9 @@ async fn handle_client_message(
                     &op_id,
                     vec![GraphQLError::with_code(reason, "SUBSCRIPTION_REJECTED")],
                 );
-                let _ = send_server_message(codec, sender, error).await;
+                if let Err(e) = send_server_message(codec, sender, error).await {
+                    debug!(connection_id = %connection_id, error = %e, "Could not send subscription rejection to client");
+                }
                 return Ok(());
             }
 
@@ -457,7 +508,9 @@ async fn handle_client_message(
                         &op_id,
                         vec![GraphQLError::with_code(e.to_string(), "SUBSCRIPTION_ERROR")],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(send_err) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %send_err, "Could not send subscription error to client");
+                    }
                 },
             }
         },
@@ -469,7 +522,9 @@ async fn handle_client_message(
             })?;
 
             if let Some(sub_id) = active_operations.remove(&op_id) {
-                let _ = state.manager.unsubscribe(sub_id);
+                if let Err(e) = state.manager.unsubscribe(sub_id) {
+                    warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe; subscription may be leaked");
+                }
                 state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
                 info!(
                     connection_id = %connection_id,

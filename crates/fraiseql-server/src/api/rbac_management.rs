@@ -39,6 +39,7 @@ pub struct PermissionDto {
     pub id:          String,
     /// Permission resource and action (e.g., "query:read", "mutation:write")
     pub resource:    String,
+    /// The action part of the permission (e.g., `"read"`, `"write"`, `"delete"`).
     pub action:      String,
     /// Optional permission description
     pub description: Option<String>,
@@ -150,8 +151,7 @@ async fn create_role(
         )
         .await
     {
-        Ok(role) => (StatusCode::CREATED, Json(serde_json::to_value(role).unwrap_or_default()))
-            .into_response(),
+        Ok(role) => (StatusCode::CREATED, Json(role)).into_response(),
         Err(_) => (StatusCode::CONFLICT, Json(serde_json::json!({"error": "role_duplicate"})))
             .into_response(),
     }
@@ -162,8 +162,12 @@ async fn create_role(
 async fn list_roles(State(state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
     // In production: extract tenant from JWT, apply pagination
     match state.db.list_roles(None, 100, 0).await {
-        Ok(roles) => Json(roles),
-        Err(_) => Json(Vec::<RoleDto>::new()),
+        Ok(roles) => (StatusCode::OK, Json(roles)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "database_error"})),
+        )
+            .into_response(),
     }
 }
 
@@ -174,9 +178,7 @@ async fn get_role(
     Path(role_id): Path<String>,
 ) -> impl IntoResponse {
     match state.db.get_role(&role_id).await {
-        Ok(role) => {
-            (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response()
-        },
+        Ok(role) => (StatusCode::OK, Json(role)).into_response(),
         Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "role_not_found"})))
             .into_response(),
     }
@@ -194,9 +196,7 @@ async fn update_role(
         .update_role(&role_id, &payload.name, payload.description.as_deref(), payload.permissions)
         .await
     {
-        Ok(role) => {
-            (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response()
-        },
+        Ok(role) => (StatusCode::OK, Json(role)).into_response(),
         Err(db_backend::RbacDbError::RoleNotFound) => {
             (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "role_not_found"})))
                 .into_response()
@@ -234,8 +234,7 @@ async fn create_permission(
         .create_permission(&payload.resource, &payload.action, payload.description.as_deref())
         .await
     {
-        Ok(perm) => (StatusCode::CREATED, Json(serde_json::to_value(perm).unwrap_or_default()))
-            .into_response(),
+        Ok(perm) => (StatusCode::CREATED, Json(perm)).into_response(),
         Err(_) => {
             (StatusCode::CONFLICT, Json(serde_json::json!({"error": "permission_duplicate"})))
                 .into_response()
@@ -247,8 +246,12 @@ async fn create_permission(
 /// GET /api/permissions
 async fn list_permissions(State(state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
     match state.db.list_permissions().await {
-        Ok(perms) => Json(perms),
-        Err(_) => Json(Vec::<PermissionDto>::new()),
+        Ok(perms) => (StatusCode::OK, Json(perms)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "database_error"})),
+        )
+            .into_response(),
     }
 }
 
@@ -259,9 +262,7 @@ async fn get_permission(
     Path(permission_id): Path<String>,
 ) -> impl IntoResponse {
     match state.db.get_permission(&permission_id).await {
-        Ok(perm) => {
-            (StatusCode::OK, Json(serde_json::to_value(perm).unwrap_or_default())).into_response()
-        },
+        Ok(perm) => (StatusCode::OK, Json(perm)).into_response(),
         Err(_) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error": "permission_not_found"})),
@@ -295,10 +296,7 @@ async fn assign_role(
     Json(payload): Json<AssignRoleRequest>,
 ) -> impl IntoResponse {
     match state.db.assign_role_to_user(&payload.user_id, &payload.role_id, None).await {
-        Ok(assignment) => {
-            (StatusCode::CREATED, Json(serde_json::to_value(assignment).unwrap_or_default()))
-                .into_response()
-        },
+        Ok(assignment) => (StatusCode::CREATED, Json(assignment)).into_response(),
         Err(_) => {
             (StatusCode::CONFLICT, Json(serde_json::json!({"error": "assignment_duplicate"})))
                 .into_response()
@@ -311,14 +309,18 @@ async fn assign_role(
 async fn list_user_roles(
     State(state): State<Arc<RbacManagementState>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
     let user_id = params.get("user_id").map(String::as_str).unwrap_or("");
     if user_id.is_empty() {
-        return Json(Vec::<UserRoleDto>::new());
+        return (StatusCode::OK, Json(serde_json::json!([]))).into_response();
     }
     match state.db.list_user_roles(user_id).await {
-        Ok(assignments) => Json(assignments),
-        Err(_) => Json(Vec::<UserRoleDto>::new()),
+        Ok(assignments) => (StatusCode::OK, Json(assignments)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "database_error"})),
+        )
+            .into_response(),
     }
 }
 

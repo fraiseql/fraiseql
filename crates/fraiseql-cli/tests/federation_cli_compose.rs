@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! CLI composition functionality tests
 //! - Compose multiple subgraph schemas into supergraph
 //! - CLI argument parsing (--subgraph, --output)
@@ -452,7 +453,7 @@ struct SubgraphInput {
 /// - `--config PATH` - Optional, path to fraiseql.yml configuration file
 ///
 /// # Examples
-/// ```ignore
+/// ```no_run
 /// let args = vec!["fraiseql".to_string(), "compose".to_string(),
 ///                  "--subgraph".to_string(), "users:users.json".to_string(),
 ///                  "--output".to_string(), "supergraph.json".to_string()];

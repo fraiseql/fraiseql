@@ -76,19 +76,10 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Parse representations
         let representations =
-            crate::federation::parse_representations(representations_value, &fed_metadata)
-                .map_err(|e| FraiseQLError::Validation {
-                    message: format!("Failed to parse representations: {}", e),
-                    path:    None,
-                })?;
+            crate::federation::parse_representations(representations_value, &fed_metadata)?;
 
         // Validate representations
-        crate::federation::validate_representations(&representations, &fed_metadata).map_err(
-            |errors| FraiseQLError::Validation {
-                message: format!("Invalid representations: {}", errors.join("; ")),
-                path:    None,
-            },
-        )?;
+        crate::federation::validate_representations(&representations, &fed_metadata)?;
 
         // Create federation resolver
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);

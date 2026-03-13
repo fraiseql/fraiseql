@@ -90,9 +90,10 @@ pub enum ValidationRule {
     /// but not both.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::ValidationRule;
     /// // Either provide entityId OR (name + description), but not both
-    /// OneOf { fields: vec!["name".to_string(), "description".to_string()] }
+    /// let _rule = ValidationRule::OneOf { fields: vec!["name".to_string(), "description".to_string()] };
     /// ```
     #[serde(rename = "one_of")]
     OneOf {
@@ -105,9 +106,10 @@ pub enum ValidationRule {
     /// Useful for optional but not-all-empty patterns.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::ValidationRule;
     /// // Provide at least one of: email, phone, address
-    /// AnyOf { fields: vec!["email".to_string(), "phone".to_string(), "address".to_string()] }
+    /// let _rule = ValidationRule::AnyOf { fields: vec!["email".to_string(), "phone".to_string(), "address".to_string()] };
     /// ```
     #[serde(rename = "any_of")]
     AnyOf {
@@ -120,12 +122,13 @@ pub enum ValidationRule {
     /// Used for conditional requirements based on presence of another field.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::ValidationRule;
     /// // If entityId is provided, then createdAt is required
-    /// ConditionalRequired {
+    /// let _rule = ValidationRule::ConditionalRequired {
     ///     if_field_present: "entityId".to_string(),
-    ///     then_required: vec!["createdAt".to_string()]
-    /// }
+    ///     then_required: vec!["createdAt".to_string()],
+    /// };
     /// ```
     #[serde(rename = "conditional_required")]
     ConditionalRequired {
@@ -140,12 +143,13 @@ pub enum ValidationRule {
     /// Used for "provide this OR that" patterns at the object level.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::ValidationRule;
     /// // If addressId is missing, then street+city+zip are required
-    /// RequiredIfAbsent {
+    /// let _rule = ValidationRule::RequiredIfAbsent {
     ///     absent_field: "addressId".to_string(),
-    ///     then_required: vec!["street".to_string(), "city".to_string(), "zip".to_string()]
-    /// }
+    ///     then_required: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+    /// };
     /// ```
     #[serde(rename = "required_if_absent")]
     RequiredIfAbsent {
@@ -154,6 +158,14 @@ pub enum ValidationRule {
         /// Then these fields are required
         then_required: Vec<String>,
     },
+
+    /// Field must be a valid email address (RFC 5321 practical subset).
+    #[serde(rename = "email")]
+    Email,
+
+    /// Field must be a valid E.164 international phone number (e.g. `+14155552671`).
+    #[serde(rename = "phone")]
+    Phone,
 }
 
 impl ValidationRule {
@@ -213,6 +225,8 @@ impl ValidationRule {
                     then_required.join(", ")
                 )
             },
+            Self::Email => "Must be a valid email address".to_string(),
+            Self::Phone => "Must be a valid E.164 phone number (e.g. +14155552671)".to_string(),
         }
     }
 }
@@ -245,7 +259,7 @@ mod tests {
             max: Some(10),
         };
         let desc = rule.description();
-        assert!(desc.contains("5"));
+        assert!(desc.contains('5'));
         assert!(desc.contains("10"));
     }
 

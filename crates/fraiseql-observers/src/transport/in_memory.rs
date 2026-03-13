@@ -15,6 +15,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::stream;
 use tokio::sync::{Mutex, mpsc};
+
+/// Default channel capacity for [`InMemoryTransport::new`].
+const DEFAULT_CAPACITY: usize = 1_024;
 use tracing::debug;
 
 use crate::{
@@ -25,42 +28,40 @@ use crate::{
     },
 };
 
-/// In-memory transport for testing
+/// In-memory transport for testing.
 ///
-/// Events are published to an internal MPSC channel and consumed via subscription.
-/// Multiple subscribers share the same event stream (broadcast).
+/// Events are published to an internal bounded MPSC channel and consumed via
+/// subscription.  The channel capacity limits how many unread events can be
+/// buffered before `publish` applies backpressure, making this transport
+/// suitable for backpressure and slow-consumer tests.
+///
+/// Only one active subscription is supported at a time (single MPSC receiver).
+/// For broadcast semantics, use a real transport backed by NATS or PostgreSQL.
 pub struct InMemoryTransport {
-    /// Sender for publishing events
-    sender:   Arc<Mutex<mpsc::UnboundedSender<EntityEvent>>>,
-    /// Receiver for subscribing to events
-    receiver: Arc<Mutex<mpsc::UnboundedReceiver<EntityEvent>>>,
+    /// Sender for publishing events (bounded; clone-safe)
+    sender:   mpsc::Sender<EntityEvent>,
+    /// Receiver for consuming events
+    receiver: Arc<Mutex<mpsc::Receiver<EntityEvent>>>,
 }
 
 impl InMemoryTransport {
-    /// Create a new in-memory transport
+    /// Create a new in-memory transport with the default capacity (1 024 events).
     #[must_use]
     pub fn new() -> Self {
-        let (sender, receiver) = mpsc::unbounded_channel();
-
-        Self {
-            sender:   Arc::new(Mutex::new(sender)),
-            receiver: Arc::new(Mutex::new(receiver)),
-        }
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
-    /// Create with explicit capacity (for backpressure testing)
+    /// Create a new in-memory transport with an explicit channel capacity.
     ///
-    /// Note: Currently uses unbounded channel for simplicity.
-    /// Bounded capacity support can be added in if needed.
-    #[allow(unused_variables)]
+    /// `publish` will await when `capacity` events are buffered and unread,
+    /// enabling backpressure tests. Use `capacity = 1` to test single-event
+    /// flow control.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        // For now, just use unbounded for simplicity
-        let (sender_unbounded, receiver_unbounded) = mpsc::unbounded_channel();
-
+        let (sender, receiver) = mpsc::channel(capacity.max(1));
         Self {
-            sender:   Arc::new(Mutex::new(sender_unbounded)),
-            receiver: Arc::new(Mutex::new(receiver_unbounded)),
+            sender,
+            receiver: Arc::new(Mutex::new(receiver)),
         }
     }
 }
@@ -71,6 +72,9 @@ impl Default for InMemoryTransport {
     }
 }
 
+// Reason: EventTransport is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl EventTransport for InMemoryTransport {
     async fn subscribe(&self, _filter: EventFilter) -> Result<EventStream> {
@@ -94,9 +98,7 @@ impl EventTransport for InMemoryTransport {
     }
 
     async fn publish(&self, event: EntityEvent) -> Result<()> {
-        let sender = self.sender.lock().await;
-
-        sender.send(event.clone()).map_err(|e| ObserverError::TransportPublishFailed {
+        self.sender.send(event.clone()).await.map_err(|e| ObserverError::TransportPublishFailed {
             reason: format!("Failed to send event to in-memory channel: {e}"),
         })?;
 
@@ -117,6 +119,7 @@ impl EventTransport for InMemoryTransport {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;

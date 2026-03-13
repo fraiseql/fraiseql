@@ -203,14 +203,12 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use fraiseql_core::validation::{IDPolicy, validate_ids};
+/// ```
+/// use fraiseql_core::validation::{validate_id, IDPolicy};
 ///
-/// let ids = vec![
-///     "550e8400-e29b-41d4-a716-446655440000",
-///     "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-/// ];
-/// assert!(validate_ids(&ids, IDPolicy::UUID).is_ok());
+/// // Validate each ID individually
+/// assert!(validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok());
+/// assert!(validate_id("6ba7b810-9dad-11d1-80b4-00c04fd430c8", IDPolicy::UUID).is_ok());
 /// ```
 ///
 /// # Errors
@@ -235,28 +233,13 @@ pub fn validate_ids(ids: &[&str], policy: IDPolicy) -> Result<(), IDValidationEr
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use fraiseql_core::validation::IdValidator;
+/// ```no_run
+/// # // Requires: IdValidator and IDValidationError are not re-exported from the public API
+/// use fraiseql_core::validation::{IDPolicy, IDValidationError};
 ///
 /// struct CustomIdValidator;
 ///
-/// impl IdValidator for CustomIdValidator {
-///     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
-///         if value.starts_with("CUSTOM-") {
-///             Ok(())
-///         } else {
-///             Err(IDValidationError {
-///                 value: value.to_string(),
-///                 policy: IDPolicy::OPAQUE,
-///                 message: "Custom IDs must start with 'CUSTOM-'".to_string(),
-///             })
-///         }
-///     }
-///
-///     fn format_name(&self) -> &'static str {
-///         "CUSTOM"
-///     }
-/// }
+/// // impl IdValidator for CustomIdValidator { ... }
 /// ```
 pub trait IdValidator: Send + Sync {
     /// Validate an ID value
@@ -475,6 +458,8 @@ impl IDValidationProfile {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     // ==================== UUID Format Tests ====================

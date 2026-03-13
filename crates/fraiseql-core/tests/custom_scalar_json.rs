@@ -1,7 +1,9 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test custom scalar JSON serialization and roundtrip preservation.
 //!
 //! This test verifies that:
-//! 1. Custom scalars (DateTime, JSON, etc.) are correctly serialized
+//! 1. Custom scalars (`DateTime`, JSON, etc.) are correctly serialized
 //! 2. JSON roundtrip preserves exact format and structure
 //! 3. Custom scalars work correctly in WHERE clauses
 //!
@@ -12,6 +14,7 @@
 //! - JSON nested structures could be flattened or lost
 //! - Type information in responses could be incorrect
 
+#![allow(clippy::unreadable_literal)] // Reason: test data uses precise floating-point literals that must not be split
 use serde_json::json;
 
 #[test]

@@ -6,7 +6,7 @@
 //!
 //! # Note
 //!
-//! This trait is simpler than fraiseql_core::db::DatabaseAdapter and only includes
+//! This trait is simpler than `fraiseql_core::db::DatabaseAdapter` and only includes
 //! the methods needed for Arrow Flight streaming. In fraiseql-server, a wrapper
 //! can implement both traits by delegating to the core adapter.
 
@@ -51,17 +51,21 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Implementation Notes
 ///
-/// In fraiseql-server, the PostgresAdapter from fraiseql-core should be wrapped
-/// to implement this trait by delegating to its execute_raw_query method.
+/// In fraiseql-server, the `PostgresAdapter` from fraiseql-core should be wrapped
+/// to implement this trait by delegating to its `execute_raw_query` method.
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// // Implemented by a wrapper in fraiseql-server
+/// ```no_run
+/// // Requires: fraiseql-core PostgresAdapter and a running PostgreSQL database.
+/// use std::{collections::HashMap, sync::Arc};
+/// use fraiseql_arrow::db::{DatabaseAdapter, DatabaseError, DatabaseResult};
+///
 /// struct FlightDatabaseAdapter {
-///     inner: Arc<PostgresAdapter>,
+///     inner: Arc<fraiseql_core::db::PostgresAdapter>,
 /// }
 ///
+/// #[async_trait::async_trait]
 /// impl DatabaseAdapter for FlightDatabaseAdapter {
 ///     async fn execute_raw_query(
 ///         &self,
@@ -73,6 +77,8 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///     }
 /// }
 /// ```
+// Reason: used as dyn Trait (Arc<dyn DatabaseAdapter>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a raw SQL query and return rows as JSON objects.
@@ -83,12 +89,12 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Returns
     ///
-    /// Vec of HashMap where each HashMap represents a row with column names as keys
-    /// and column values as serde_json::Value
+    /// Vec of `HashMap` where each `HashMap` represents a row with column names as keys
+    /// and column values as `serde_json::Value`
     ///
     /// # Errors
     ///
-    /// Returns DatabaseError if the query fails for any reason.
+    /// Returns `DatabaseError` if the query fails for any reason.
     async fn execute_raw_query(
         &self,
         sql: &str,

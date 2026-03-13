@@ -43,7 +43,7 @@ impl WsProtocol {
 
     /// The protocol name to echo back in the WebSocket upgrade response.
     #[must_use]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::GraphqlTransportWs => "graphql-transport-ws",
             Self::GraphqlWs => "graphql-ws",
@@ -60,13 +60,13 @@ pub struct ProtocolCodec {
 impl ProtocolCodec {
     /// Create a new codec for the given protocol.
     #[must_use]
-    pub fn new(protocol: WsProtocol) -> Self {
+    pub const fn new(protocol: WsProtocol) -> Self {
         Self { protocol }
     }
 
     /// The negotiated protocol.
     #[must_use]
-    pub fn protocol(&self) -> WsProtocol {
+    pub const fn protocol(&self) -> WsProtocol {
         self.protocol
     }
 
@@ -121,7 +121,7 @@ impl ProtocolCodec {
                 if wire_type.is_none() {
                     return Ok(None);
                 }
-                let wire_type = wire_type.unwrap();
+                let wire_type = wire_type.expect("wire_type is Some; None was returned above");
 
                 // `ka` is a bare keepalive with no payload.
                 if wire_type == "ka" {
@@ -194,6 +194,16 @@ impl std::error::Error for ProtocolError {}
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
     use fraiseql_core::runtime::protocol::ServerMessage;
 

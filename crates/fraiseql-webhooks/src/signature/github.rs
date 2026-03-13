@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies GitHub webhook signatures using HMAC-SHA256.
+///
+/// GitHub computes `HMAC-SHA256(secret, body)` and sends it as `sha256=<hex>`
+/// in the `X-Hub-Signature-256` header.
 pub struct GitHubVerifier;
 
 impl SignatureVerifier for GitHubVerifier {
@@ -28,7 +32,13 @@ impl SignatureVerifier for GitHubVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "GitHub webhook secret must not be empty".to_string(),
+            ));
+        }
         // GitHub format: sha256=<hex>
         let sig_hex = signature.strip_prefix("sha256=").ok_or(SignatureError::InvalidFormat)?;
 
@@ -42,6 +52,7 @@ impl SignatureVerifier for GitHubVerifier {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,7 +70,7 @@ mod tests {
         let secret = "secret";
         let signature = generate_signature(payload, secret);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
@@ -67,13 +78,13 @@ mod tests {
         let verifier = GitHubVerifier;
         let signature = "sha256=invalid";
 
-        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
     }
 
     #[test]
     fn test_missing_prefix() {
         let verifier = GitHubVerifier;
-        let result = verifier.verify(b"test", "abc123", "secret", None);
+        let result = verifier.verify(b"test", "abc123", "secret", None, None);
         assert!(matches!(result, Err(SignatureError::InvalidFormat)));
     }
 }

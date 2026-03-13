@@ -10,9 +10,10 @@ anyhow = "1.0"
 async-trait = "0.1"
 aws-config = {version = "1", optional = true}
 # AWS S3 (optional)
+# V3: rustls 0.21 transitive via aws-smithy-http-client; blocked on AWS upstream
 aws-sdk-s3 = {version = "1", optional = true}
 # HTTP server
-axum = {version = "0.8", features = ["macros", "ws"]}
+axum = {workspace = true, features = ["macros", "ws"]}
 base64 = "0.22"
 # File processing
 bytes = "1"
@@ -27,14 +28,14 @@ fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
 fraiseql-auth = {workspace = true, optional = true}
 # FraiseQL core
-fraiseql-core = {workspace = true, features = ["postgres"]}
+fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
+fraiseql-error = {workspace = true, features = ["axum-compat"]}
+# FraiseQL observers (optional)
+fraiseql-observers = {workspace = true, optional = true}
 # Secrets management and encryption
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
 fraiseql-webhooks = {workspace = true, optional = true}
-fraiseql-error = {workspace = true}
-# FraiseQL observers (optional)
-fraiseql-observers = {workspace = true, optional = true}
 futures = "0.3"
 # GraphQL AST parsing for secure query validation
 graphql-parser = {workspace = true}
@@ -42,29 +43,29 @@ hex = "0.4"
 # Webhook signature verification
 hmac = "0.12"
 http = "1"
-image = {version = "0.25", features = ["jpeg", "png", "webp"], optional = true}
-infer = {version = "0.15", optional = true}
+# CIDR matching for trusted proxy IP validation
+ipnet = {version = "2", features = ["serde"]}
 # Authentication (JWT, OAuth, OIDC)
 jsonwebtoken = "9.2"
 # Metrics (optional)
 metrics = {version = "0.22", optional = true}
 metrics-exporter-prometheus = {version = "0.18", optional = true}
-mime_guess = {version = "2", optional = true}
 # OpenTelemetry (optional)
 opentelemetry = {version = "0.29", optional = true}
 opentelemetry-otlp = {version = "0.29", features = ["http-proto"], optional = true}
 opentelemetry_sdk = {version = "0.29", features = ["rt-tokio"], optional = true}
+parking_lot = {workspace = true}
 pin-project = "1"
 rand = "0.8"
 # Redis for rate limiting (optional)
 redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+reqwest = {workspace = true}
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
-schemars = {version = "1", optional = true}
-reqwest = {workspace = true}
 # TLS/SSL support
 rustls = "0.23"
 rustls-pemfile = "2.2"
+schemars = {version = "1", optional = true}
 # Serialization
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
@@ -96,16 +97,22 @@ zeroize = "1.8"
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
+fraiseql-auth = {workspace = true}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 futures = "0.3"
-temp-env = {workspace = true}
+proptest = {workspace = true}
 # HTTP testing
 reqwest = {workspace = true}
 # YAML parsing for deployment tests
 serde_yaml = "0.9"
 # Database testing
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
+temp-env = {workspace = true}
 tempfile = "3.13"
+# Container-based integration tests
+testcontainers = {version = "0.26", features = ["watchdog"]}
+testcontainers-modules = {version = "0.14", features = ["postgres"]}
+tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"
 # Utilities for E2E tests
@@ -116,41 +123,50 @@ wiremock = "0.6"
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 auth = ["dep:fraiseql-auth"]
-aws-s3 = ["aws-sdk-s3", "aws-config", "files"]
-backup = []
+aws-s3 = ["aws-sdk-s3", "aws-config"]
 cors = []
 database = []
-default = ["auth", "secrets", "webhooks"]
-files = ["dep:image", "dep:infer", "dep:mime_guess"]
+# auth is included by default because auth middleware is wired into the core request pipeline.
+# secrets and webhooks are opt-in: add them to your dependency features when needed.
+# Note: `--no-default-features` currently fails to compile (some code paths are not yet gated).
+# Full `default = []` is a planned improvement (see roadmap.md).
+default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]
-secrets = ["dep:fraiseql-secrets"]
-webhooks = ["dep:fraiseql-webhooks"]
+# observers-enterprise: high-availability features for multi-instance deployments.
+# Not a paid/commercial tier — the name reflects production HA requirements.
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
-# Deprecated alias — use observers-enterprise instead. Will be removed in 2.3.0.
-observers-full = ["observers-enterprise"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
+secrets = ["dep:fraiseql-secrets"]
 testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
+webhooks = ["dep:fraiseql-webhooks"]
 # Wire backend for streaming JSON queries with low memory overhead
 wire-backend = ["fraiseql-core/wire-backend"]
 
+[lints]
+workspace = true
+
 [package]
-name = "fraiseql-server"
-description = "HTTP server for FraiseQL v2 GraphQL engine"
-authors.workspace = true
 categories = ["database", "web-programming::http-server"]
+description = "HTTP server for FraiseQL v2 GraphQL engine"
+keywords = ["graphql", "sql", "database", "server", "api"]
+name = "fraiseql-server"
+authors.workspace = true
 documentation.workspace = true
 edition.workspace = true
 homepage.workspace = true
-keywords = ["graphql", "sql", "database", "server", "api"]
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[[test]]
+name = "secrets_manager_integration_test"
+required-features = ["secrets"]

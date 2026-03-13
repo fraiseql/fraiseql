@@ -7,7 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!-- next release notes go here -->
+
+## [2.1.0] — 2026-03-13
+
+### Changed
+
+- **`ComplexityAnalyzer` replaced by AST-based `RequestValidator`** (BREAKING):
+  `fraiseql_core::graphql::ComplexityAnalyzer` and its `analyze_complexity()` method have been
+  removed. They used a character-scan that miscounted operation names, argument names, and
+  directive names as field selectors, producing incorrect depth and field-count metrics.
+  The replacement `RequestValidator::analyze()` walks the full GraphQL AST via `graphql-parser`
+  and is correct for all query shapes including fragments, inline fragments, and aliases.
+  **Migration**: replace `ComplexityAnalyzer::new().analyze_complexity(q)` with
+  `RequestValidator::default().analyze(q)?`. The returned `QueryMetrics` has fields
+  `depth`, `complexity`, and `alias_count` instead of the old `(depth, field_count, score)`
+  tuple. `fraiseql_server::validation` is now a thin re-export of
+  `fraiseql_core::graphql::complexity` — no server-level duplication.
+- **`fraiseql_server` admin `/explain` and `/validate` endpoints** now use AST-based analysis:
+  the `ComplexityInfo` JSON struct in the `/explain` response replaces `field_count` and `score`
+  with `complexity` (pagination-aware score) and `alias_count`; `/validate` now reports real
+  parser errors instead of brace-matching heuristics.
+
+- **`QueryValidator` wired into `Executor::execute()`**: `RuntimeConfig` now has an optional
+  `query_validation: Option<QueryValidatorConfig>` field. When set, `QueryValidator::validate()`
+  runs at the start of every `Executor::execute()` call — before any parsing or SQL dispatch —
+  enforcing size, depth, complexity, and alias-amplification limits. Direct `fraiseql-core`
+  embedders (without `fraiseql-server`) can now get automatic DoS protection by setting this
+  field. `fraiseql-server` leaves it `None` (default) since it already applies `RequestValidator`
+  at the HTTP handler level. Existing code using struct literal `RuntimeConfig { .. }` must add
+  `query_validation: None` (or use `..Default::default()`).
+
+- **`QueryValidatorConfig` gains `max_aliases: usize` field** (BREAKING struct literal):
+  `QueryValidatorConfig` now has a required `max_aliases` field for alias amplification
+  protection. Struct-literal construction must add `max_aliases: 30` (standard), `max_aliases:
+  100` (permissive), or `max_aliases: 10` (strict); or use `QueryValidatorConfig::standard()` etc.
+  **Presets**: permissive=100, standard=30, strict=10.
+
+- **`security::QueryMetrics` is replaced by `graphql::QueryMetrics`** (BREAKING for any code
+  using `QueryMetrics::field_count` or `QueryMetrics::size_bytes`):
+  The character-scan-based `security::QueryMetrics` struct has been removed. The
+  `fraiseql_core::security::QueryMetrics` path now re-exports `graphql::complexity::QueryMetrics`,
+  which has fields `depth`, `complexity`, and `alias_count`. The removed fields `field_count`
+  (was a character count, not a real field count) and `size_bytes` have no replacement.
+  **Migration**: remove any code referencing `.field_count` or `.size_bytes` on `QueryMetrics`.
+
+- **`QueryValidator` now uses AST-based analysis**: replaced the character-scan heuristic
+  (which counted every letter as a "field") with delegation to `RequestValidator`. Alias
+  amplification is now enforced correctly. `SecurityError::TooManyAliases` and
+  `SecurityError::MalformedQuery` are new variants — exhaustive `match` arms on `SecurityError`
+  must be updated.
+
+- **`FRAISEQL_INTROSPECTION_REQUIRE_AUTH` boolean parsing** (breaking for non-standard values):
+  This environment variable now uses the same consistent boolean parsing as all other
+  `FRAISEQL_*` bool variables: only `true`, `1`, `yes`, `on` (case-insensitive) enable the
+  setting. Previously, any value other than `false` or `0` was treated as `true`, so unusual
+  strings like `enabled` or `active` would silently enable auth enforcement.
+  **Migration**: replace non-standard truthy values with `true`. Deployments using `false`,
+  `0`, `true`, or `1` are unaffected. The server now logs a warning at startup if an
+  unrecognised value is supplied to any boolean env var.
+
 ### Added
+
+- **C# SDK v2.0.0** (`sdks/official/fraiseql-csharp`): complete rewrite replacing the old
+  dictionary-based v1 API with a modern attribute-driven authoring system.
+  `[GraphQLType(Name, SqlSource, IsInput, Relay, IsError)]` and
+  `[GraphQLField(Type, Nullable, Scope, Scopes)]` on C# classes drive reflection-based
+  registration. `QueryBuilder`/`MutationBuilder` provide a fluent API; `SchemaBuilder` is a
+  code-first alternative that bypasses reflection entirely. `SchemaExporter.Export()` emits
+  snake_case JSON (`sql_source`, `return_type`, `returns_list`). A `dotnet tool`
+  (`fraiseql export <assembly.dll>`) loads any assembly and exports `schema.json` without
+  requiring a source checkout. C# type auto-detection covers all primitives including
+  `Guid → ID`, `DateTime → String`, and full `Nullable<T>` / nullable-reference-type
+  resolution via `NullabilityInfoContext`. 103 xUnit tests, zero warnings.
+- **Elixir SDK v2.0.0** (`sdks/official/fraiseql-elixir`): replaces the Agent-based v1 API
+  (moved to `FraiseQL.Schema.Legacy`) with a compile-time macro DSL. `use FraiseQL.Schema`
+  injects `fraiseql_type/2-3`, `fraiseql_query/2-3`, and `fraiseql_mutation/2-3` macros backed
+  by `accumulate: true` module attributes. Field and argument accumulation uses a double-buffer
+  pattern (`@__fraiseql_field_buffer`) so `field/3` and `argument/3` calls inside `do` blocks
+  expand correctly at compile time. `@before_compile` generates `__fraiseql_types__/0`,
+  `__fraiseql_queries__/0`, `__fraiseql_mutations__/0`, `export_to_file!/1-2`, and
+  `to_intermediate_schema/0`. Duplicate type names and missing `sql_source` raise
+  `ArgumentError` at compile time. `mix fraiseql.export --module MyApp.Schema` exports without
+  a custom script. Full Dialyzer and Credo strict CI matrix (Elixir 1.15–1.17 × OTP 26–27).
+  98+ ExUnit tests.
+- **F# SDK v2.0.0** (`sdks/official/fraiseql-fsharp`): new SDK with two authoring styles that
+  produce identical `schema.json`. Attribute-based: `[<GraphQLType("Author", SqlSource =
+  "v_author")>]` on F# types, reflected by `SchemaRegistry`. Computation expression DSL:
+  `fraiseql { yield type' "Author" "v_author" { field "id" "ID" { nullable false } }; yield
+  query "authors" { returnType "Author"; returnsList true; sqlSource "v_author" } }` — five
+  nested CEs (`FraiseQLBuilder`, `TypeCEBuilder`, `QueryCEBuilder`, `MutationCEBuilder`,
+  `FieldBuilder`) produce an `IntermediateSchema` value with no global state. `SchemaExporter`
+  uses a custom `SnakeCaseNamingPolicy` for correct JSON key names. `dotnet tool`
+  (`fraiseql-schema-fsharp export <dll>`) loads an assembly and exports `schema.json`. 133 xUnit
+  tests, zero warnings.
+- **SDK CI workflows**: `.github/workflows/csharp-sdk.yml`, `elixir-sdk.yml`, `fsharp-sdk.yml`
+  trigger on path-filtered pushes and publish to NuGet / Hex.pm on `csharp-sdk/v*`,
+  `elixir-sdk/v*`, `fsharp-sdk/v*` tags respectively.
 
 - **Domain-specific string newtypes** (`schema::domain_types`): `TypeName`, `FieldName`,
   `SqlSource`, `RoleName`, and `Scope` replace bare `String` fields on `TypeDefinition`,
@@ -36,6 +132,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SQL snapshot tests expanded**: 21 new `PostgresWhereGenerator` call-level snapshot tests
   added to `tests/sql_snapshots.rs` covering all WHERE clause operators, plus 10 MySQL relay
   snapshots (92 total snapshots).
+
+### Deprecated
+
+- **`observers-full` feature flag** (`fraiseql-observers`): the `observers-full` Cargo feature
+  is deprecated and will be removed in v2.2. It is now a no-op alias for enabling all observer
+  sub-features individually. Migrate by listing the specific features you need
+  (`nats`, `tracing`, `in-memory`, etc.) in your `Cargo.toml` instead of `observers-full`.
 
 ### Changed
 
@@ -71,9 +174,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Cross-SDK parity test suite** (phases 01–13): 5100+ tests across Rust, Python, TypeScript,
-  Go, Java, and PHP validating that all six SDKs produce identical compiled schema output for
-  types, queries, mutations, and decorators.
+- **Cross-SDK parity test suite** (phases 01–13): 1,595 tests across Python, TypeScript, Go,
+  Java, PHP, C#, F#, Elixir, and Rust SDK validating that all nine SDKs produce identical
+  compiled schema output for types, queries, mutations, and decorators.
 - **Golden fixture regression guards**: `tests/fixtures/golden/` contains 10 reference JSON
   fixtures verified against every SDK's `exportSchema()`. Any SDK divergence in field names,
   types, or structure is caught before merge.
@@ -307,8 +410,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SLA/SLO documentation with availability targets, latency percentiles, and recovery metrics
 - 8 Architecture Decision Records (ADRs) documenting key technical choices
 - Graceful degradation test suite (16 tests)
-- Value proposition document (`docs/VALUE_PROPOSITION.md`)
-- Prioritized roadmap (`ROADMAP.md`)
+- Value proposition document (`docs/value-proposition.md`)
+- Prioritized roadmap (`roadmap.md`)
 
 ### Changed
 
@@ -338,12 +441,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 **Quality Assurance & Production Readiness (Phases 4-6 Complete)**:
+
 - Comprehensive security policy (SECURITY.md with vulnerability documentation)
 - Production quality fixes (rustfmt configuration - eliminates 244KB warnings)
 - Risk assessment for known vulnerabilities (RUSTSEC-2023-0071)
 - Professional documentation and complete audit trail
 
 **Phases 4-6 Deliverables**:
+
 - ✅ Code quality improvements and cleanup
 - ✅ Comprehensive testing infrastructure
   - 12 property-based tests with fuzzing
@@ -360,7 +465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - #[non_exhaustive] annotations on APIs
   - #[must_use] on builders and constructors
 - ✅ Clean development practices
-  - All TODOs versioned with targets (v2.1.0, v2.2.0)
+  - All TODOs versioned with targets (v2.0.1, v2.2.0)
   - Zero untracked development markers
 
 ### Security
@@ -391,6 +496,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Migration
 
 For users coming from alpha.6:
+
 - **No breaking changes**
 - All APIs remain stable
 - Feature set unchanged
@@ -420,6 +526,7 @@ For users coming from alpha.6:
 ### Added
 
 **Release Workflow Enhancements (Phase 2):**
+
 - New `softprops/action-gh-release@v2` for robust binary uploads with automatic checksums
 - New `verify-release` job for post-publish verification of all packages
 - Workflow summaries with clear status indicators for all publishing jobs
@@ -428,6 +535,7 @@ For users coming from alpha.6:
 ### Changed
 
 **Workflow Improvements:**
+
 - Replaced manual `gh release upload` with maintained community action
 - Enhanced observability with GITHUB_STEP_SUMMARY output
 - More reliable and idempotent binary asset uploads

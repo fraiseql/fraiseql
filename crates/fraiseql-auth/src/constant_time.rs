@@ -1,5 +1,9 @@
-// Constant-time comparison utilities
-// Prevents timing attacks on token validation
+//! Constant-time comparison utilities to prevent timing-based side-channel attacks.
+//!
+//! Timing attacks exploit measurable differences in how long comparisons take
+//! depending on where they diverge, allowing an attacker to iteratively discover
+//! secret values (e.g., HMAC tokens, API keys). All comparisons of secret material
+//! must use the functions in this module instead of `==`.
 
 use subtle::ConstantTimeEq;
 
@@ -18,7 +22,8 @@ impl ConstantTimeOps {
     /// * `actual` - The actual (untrusted) value from the user/attacker
     ///
     /// # Examples
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_auth::constant_time::ConstantTimeOps;
     /// let stored_token = b"secret_token_value";
     /// let user_token = b"user_provided_token";
     /// assert!(!ConstantTimeOps::compare(stored_token, user_token));
@@ -72,7 +77,8 @@ impl ConstantTimeOps {
     /// Prevents length-based timing attacks. Time is independent of actual input lengths.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_auth::constant_time::ConstantTimeOps;
     /// let stored_jwt = "eyJhbGc...";
     /// let user_jwt = "eyJhbGc...";
     /// // Always compares at 512 bytes, padding with zeros if needed
@@ -83,33 +89,20 @@ impl ConstantTimeOps {
     /// );
     /// ```
     pub fn compare_padded(expected: &[u8], actual: &[u8], fixed_len: usize) -> bool {
-        // SECURITY: Pad both inputs to fixed length before comparison
-        // This ensures timing is independent of actual token lengths
+        // SECURITY: Pad both inputs to fixed_len before comparison.
+        // Using Vec avoids the previous 1024-byte silent cap that produced incorrect
+        // results for tokens longer than 1024 bytes.
+        let mut expected_padded = vec![0u8; fixed_len];
+        let mut actual_padded = vec![0u8; fixed_len];
 
-        // Use fixed-size buffers to ensure stack allocation (no heap allocs during comparison)
-        let mut expected_padded = [0u8; 1024];
-        let mut actual_padded = [0u8; 1024];
+        let copy_expected = expected.len().min(fixed_len);
+        expected_padded[..copy_expected].copy_from_slice(&expected[..copy_expected]);
 
-        // Ensure we don't overflow the fixed buffers
-        let pad_len = fixed_len.min(1024);
-
-        // Copy and pad to fixed length
-        if expected.len() <= pad_len {
-            expected_padded[..expected.len()].copy_from_slice(expected);
-        } else {
-            // Token is longer than fixed_len - only compare up to fixed_len bytes
-            expected_padded[..pad_len].copy_from_slice(&expected[..pad_len]);
-        }
-
-        if actual.len() <= pad_len {
-            actual_padded[..actual.len()].copy_from_slice(actual);
-        } else {
-            // Token is longer than fixed_len - only compare up to fixed_len bytes
-            actual_padded[..pad_len].copy_from_slice(&actual[..pad_len]);
-        }
+        let copy_actual = actual.len().min(fixed_len);
+        actual_padded[..copy_actual].copy_from_slice(&actual[..copy_actual]);
 
         // Constant-time comparison at fixed length
-        expected_padded[..pad_len].ct_eq(&actual_padded[..pad_len]).into()
+        expected_padded.ct_eq(&actual_padded).into()
     }
 
     /// Compare JWT tokens in constant time with fixed-length padding
@@ -124,6 +117,7 @@ impl ConstantTimeOps {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]
@@ -304,12 +298,19 @@ mod tests {
     }
 
     #[test]
-    fn test_compare_padded_exceeds_max_buffer() {
-        // Edge case: fixed_len exceeds max buffer (1024)
+    fn test_compare_padded_large_fixed_len() {
+        // fixed_len larger than input: both padded with zeros, equal content → equal
         let token1 = b"test";
         let token2 = b"test";
-        // Should still work, capping at 1024
         assert!(ConstantTimeOps::compare_padded(token1, token2, 2048));
+
+        // Tokens that differ only beyond fixed_len are treated as equal (truncated)
+        let long_a: Vec<u8> = b"prefix".iter().chain(b"AAAA".iter()).copied().collect();
+        let long_b: Vec<u8> = b"prefix".iter().chain(b"BBBB".iter()).copied().collect();
+        // fixed_len = 6 → only "prefix" compared → equal
+        assert!(ConstantTimeOps::compare_padded(&long_a, &long_b, 6));
+        // fixed_len = 10 → full content compared → different
+        assert!(!ConstantTimeOps::compare_padded(&long_a, &long_b, 10));
     }
 
     #[test]

@@ -46,478 +46,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{FraiseQLError, Result};
 
-// =============================================================================
-// Server Configuration
-// =============================================================================
+mod auth;
+mod cache;
+mod cors;
+mod database;
+mod rate_limit;
+mod server;
 
-/// Server-specific configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ServerConfig {
-    /// Host to bind to.
-    pub host: String,
-
-    /// Port to bind to.
-    pub port: u16,
-
-    /// Number of worker threads (0 = auto).
-    pub workers: usize,
-
-    /// Request body size limit in bytes.
-    pub max_body_size: usize,
-
-    /// Enable request logging.
-    pub request_logging: bool,
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            host:            "0.0.0.0".to_string(),
-            port:            8000,
-            workers:         0,           // Auto-detect
-            max_body_size:   1024 * 1024, // 1MB
-            request_logging: true,
-        }
-    }
-}
+pub use auth::{AuthConfig, AuthProvider};
+pub use cache::CacheConfig;
+pub use cors::CorsConfig;
+pub use database::{DatabaseConfig, SslMode};
+pub use rate_limit::{PathRateLimit, RateLimitConfig, RateLimitKey};
+pub use server::CoreServerConfig;
 
 // =============================================================================
-// Database Configuration
+// Collation Configuration — re-exported from fraiseql-db
 // =============================================================================
 
-/// Database connection configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DatabaseConfig {
-    /// `PostgreSQL` connection URL.
-    pub url: String,
-
-    /// Maximum connections in pool.
-    pub max_connections: u32,
-
-    /// Minimum connections to maintain.
-    pub min_connections: u32,
-
-    /// Connection timeout in seconds.
-    pub connect_timeout_secs: u64,
-
-    /// Query timeout in seconds.
-    pub query_timeout_secs: u64,
-
-    /// Idle timeout in seconds (0 = no timeout).
-    pub idle_timeout_secs: u64,
-
-    /// Enable SSL for database connections.
-    pub ssl_mode: SslMode,
-}
-
-impl Default for DatabaseConfig {
-    fn default() -> Self {
-        Self {
-            url:                  String::new(),
-            max_connections:      10,
-            min_connections:      1,
-            connect_timeout_secs: 10,
-            query_timeout_secs:   30,
-            idle_timeout_secs:    600,
-            ssl_mode:             SslMode::Prefer,
-        }
-    }
-}
-
-/// SSL mode for database connections.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum SslMode {
-    /// Disable SSL.
-    Disable,
-    /// Prefer SSL but allow non-SSL.
-    #[default]
-    Prefer,
-    /// Require SSL.
-    Require,
-    /// Require SSL and verify CA.
-    VerifyCa,
-    /// Require SSL and verify full certificate.
-    VerifyFull,
-}
-
-// =============================================================================
-// CORS Configuration
-// =============================================================================
-
-/// Cross-Origin Resource Sharing (CORS) configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CorsConfig {
-    /// Enabled CORS.
-    pub enabled: bool,
-
-    /// Allowed origins. Empty = allow all, "*" = allow any.
-    pub allowed_origins: Vec<String>,
-
-    /// Allowed HTTP methods.
-    pub allowed_methods: Vec<String>,
-
-    /// Allowed headers.
-    pub allowed_headers: Vec<String>,
-
-    /// Headers to expose to the client.
-    pub expose_headers: Vec<String>,
-
-    /// Allow credentials (cookies, authorization headers).
-    pub allow_credentials: bool,
-
-    /// Preflight cache duration in seconds.
-    pub max_age_secs: u64,
-}
-
-impl Default for CorsConfig {
-    fn default() -> Self {
-        Self {
-            enabled:           true,
-            allowed_origins:   vec![], // Empty = allow all
-            allowed_methods:   vec!["GET".to_string(), "POST".to_string(), "OPTIONS".to_string()],
-            allowed_headers:   vec![
-                "Content-Type".to_string(),
-                "Authorization".to_string(),
-                "X-Request-ID".to_string(),
-            ],
-            expose_headers:    vec![],
-            allow_credentials: false,
-            max_age_secs:      86400, // 24 hours
-        }
-    }
-}
-
-// =============================================================================
-// Authentication Configuration
-// =============================================================================
-
-/// Authentication configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct AuthConfig {
-    /// Enable authentication.
-    pub enabled: bool,
-
-    /// Authentication provider.
-    pub provider: AuthProvider,
-
-    /// JWT secret (for jwt provider).
-    pub jwt_secret: Option<String>,
-
-    /// JWT algorithm (default: HS256).
-    pub jwt_algorithm: String,
-
-    /// Auth0/Clerk domain.
-    pub domain: Option<String>,
-
-    /// Auth0/Clerk audience.
-    pub audience: Option<String>,
-
-    /// Auth0/Clerk client ID.
-    pub client_id: Option<String>,
-
-    /// Header name for auth token.
-    pub header_name: String,
-
-    /// Token prefix (e.g., "Bearer ").
-    pub token_prefix: String,
-
-    /// Paths to exclude from authentication.
-    pub exclude_paths: Vec<String>,
-}
-
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            enabled:       false,
-            provider:      AuthProvider::None,
-            jwt_secret:    None,
-            jwt_algorithm: "HS256".to_string(),
-            domain:        None,
-            audience:      None,
-            client_id:     None,
-            header_name:   "Authorization".to_string(),
-            token_prefix:  "Bearer ".to_string(),
-            exclude_paths: vec!["/health".to_string()],
-        }
-    }
-}
-
-/// Authentication provider.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum AuthProvider {
-    /// No authentication.
-    #[default]
-    None,
-    /// Simple JWT authentication.
-    Jwt,
-    /// Auth0 authentication.
-    Auth0,
-    /// Clerk authentication.
-    Clerk,
-    /// Custom webhook-based authentication.
-    Webhook,
-}
-
-// =============================================================================
-// Rate Limiting Configuration
-// =============================================================================
-
-/// Rate limiting configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct RateLimitConfig {
-    /// Enable rate limiting.
-    pub enabled: bool,
-
-    /// Maximum requests per window.
-    pub requests_per_window: u32,
-
-    /// Window duration in seconds.
-    pub window_secs: u64,
-
-    /// Key extractor (ip, user, `api_key`).
-    pub key_by: RateLimitKey,
-
-    /// Paths to exclude from rate limiting.
-    pub exclude_paths: Vec<String>,
-
-    /// Custom limits per path pattern.
-    pub path_limits: Vec<PathRateLimit>,
-}
-
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            enabled:             false,
-            requests_per_window: 100,
-            window_secs:         60,
-            key_by:              RateLimitKey::Ip,
-            exclude_paths:       vec!["/health".to_string()],
-            path_limits:         vec![],
-        }
-    }
-}
-
-/// Rate limit key extractor.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum RateLimitKey {
-    /// Rate limit by IP address.
-    #[default]
-    Ip,
-    /// Rate limit by authenticated user.
-    User,
-    /// Rate limit by API key.
-    ApiKey,
-}
-
-/// Per-path rate limit override.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PathRateLimit {
-    /// Path pattern (glob).
-    pub path:                String,
-    /// Maximum requests per window for this path.
-    pub requests_per_window: u32,
-}
-
-// =============================================================================
-// Caching Configuration
-// =============================================================================
-
-/// Caching configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CacheConfig {
-    /// Enable Automatic Persisted Queries (APQ).
-    pub apq_enabled: bool,
-
-    /// APQ cache TTL in seconds.
-    pub apq_ttl_secs: u64,
-
-    /// Maximum APQ cache entries.
-    pub apq_max_entries: usize,
-
-    /// Enable response caching.
-    pub response_cache_enabled: bool,
-
-    /// Response cache TTL in seconds.
-    pub response_cache_ttl_secs: u64,
-
-    /// Maximum response cache entries.
-    pub response_cache_max_entries: usize,
-}
-
-impl Default for CacheConfig {
-    fn default() -> Self {
-        Self {
-            apq_enabled:                true,
-            apq_ttl_secs:               86400, // 24 hours
-            apq_max_entries:            10_000,
-            response_cache_enabled:     false,
-            response_cache_ttl_secs:    60,
-            response_cache_max_entries: 1_000,
-        }
-    }
-}
-
-// =============================================================================
-// Collation Configuration
-// =============================================================================
-
-/// Collation configuration for user-aware sorting.
-///
-/// This configuration enables automatic collation support based on user locale,
-/// adapting to database capabilities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CollationConfig {
-    /// Enable automatic user-aware collation.
-    pub enabled: bool,
-
-    /// Fallback locale for unauthenticated users.
-    pub fallback_locale: String,
-
-    /// Allowed locales (whitelist for security).
-    pub allowed_locales: Vec<String>,
-
-    /// Strategy when user locale is not in allowed list.
-    pub on_invalid_locale: InvalidLocaleStrategy,
-
-    /// Database-specific overrides (optional).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub database_overrides: Option<DatabaseCollationOverrides>,
-}
-
-impl Default for CollationConfig {
-    fn default() -> Self {
-        Self {
-            enabled:            true,
-            fallback_locale:    "en-US".to_string(),
-            allowed_locales:    vec![
-                "en-US".into(),
-                "en-GB".into(),
-                "fr-FR".into(),
-                "de-DE".into(),
-                "es-ES".into(),
-                "ja-JP".into(),
-                "zh-CN".into(),
-                "pt-BR".into(),
-                "it-IT".into(),
-            ],
-            on_invalid_locale:  InvalidLocaleStrategy::Fallback,
-            database_overrides: None,
-        }
-    }
-}
-
-/// Strategy when user locale is not in allowed list.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum InvalidLocaleStrategy {
-    /// Use fallback locale.
-    #[default]
-    Fallback,
-    /// Use database default (no COLLATE clause).
-    DatabaseDefault,
-    /// Return error.
-    Error,
-}
-
-/// Database-specific collation overrides.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseCollationOverrides {
-    /// PostgreSQL-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub postgres: Option<PostgresCollationConfig>,
-
-    /// MySQL-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mysql: Option<MySqlCollationConfig>,
-
-    /// SQLite-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sqlite: Option<SqliteCollationConfig>,
-
-    /// SQL Server-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sqlserver: Option<SqlServerCollationConfig>,
-}
-
-/// PostgreSQL-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostgresCollationConfig {
-    /// Use ICU collations (recommended).
-    pub use_icu: bool,
-
-    /// Provider: "icu" or "libc".
-    pub provider: String,
-}
-
-impl Default for PostgresCollationConfig {
-    fn default() -> Self {
-        Self {
-            use_icu:  true,
-            provider: "icu".to_string(),
-        }
-    }
-}
-
-/// MySQL-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MySqlCollationConfig {
-    /// Charset (e.g., "utf8mb4").
-    pub charset: String,
-
-    /// Collation suffix (e.g., "_unicode_ci" or "_0900_ai_ci").
-    pub suffix: String,
-}
-
-impl Default for MySqlCollationConfig {
-    fn default() -> Self {
-        Self {
-            charset: "utf8mb4".to_string(),
-            suffix:  "_unicode_ci".to_string(),
-        }
-    }
-}
-
-/// SQLite-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SqliteCollationConfig {
-    /// Use COLLATE NOCASE for case-insensitive sorting.
-    pub use_nocase: bool,
-}
-
-impl Default for SqliteCollationConfig {
-    fn default() -> Self {
-        Self { use_nocase: true }
-    }
-}
-
-/// SQL Server-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SqlServerCollationConfig {
-    /// Case-insensitive (CI) collations.
-    pub case_insensitive: bool,
-
-    /// Accent-insensitive (AI) collations.
-    pub accent_insensitive: bool,
-}
-
-impl Default for SqlServerCollationConfig {
-    fn default() -> Self {
-        Self {
-            case_insensitive:   true,
-            accent_insensitive: true,
-        }
-    }
-}
+pub use fraiseql_db::{
+    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
+    PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
+};
 
 // =============================================================================
 // Main Configuration
@@ -531,7 +81,7 @@ impl Default for SqlServerCollationConfig {
 #[serde(default)]
 pub struct FraiseQLConfig {
     /// Server configuration.
-    pub server: ServerConfig,
+    pub server: CoreServerConfig,
 
     /// Database configuration.
     pub database: DatabaseConfig,
@@ -578,7 +128,7 @@ pub struct FraiseQLConfig {
 
 impl Default for FraiseQLConfig {
     fn default() -> Self {
-        let server = ServerConfig::default();
+        let server = CoreServerConfig::default();
         let database = DatabaseConfig::default();
 
         Self {
@@ -669,7 +219,7 @@ impl FraiseQLConfig {
             .unwrap_or(30);
 
         let mut config = Self {
-            server: ServerConfig {
+            server: CoreServerConfig {
                 host: host.clone(),
                 port,
                 ..Default::default()
@@ -737,7 +287,7 @@ impl FraiseQLConfig {
     #[must_use]
     pub fn test() -> Self {
         Self {
-            server: ServerConfig {
+            server: CoreServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 0, // Random port
                 ..Default::default()
@@ -770,6 +320,25 @@ impl FraiseQLConfig {
                 message: "database.url is required".to_string(),
             });
         }
+
+        // Pool invariants
+        if self.database.max_connections == 0 {
+            return Err(FraiseQLError::Configuration {
+                message: "database.max_connections must be at least 1".to_string(),
+            });
+        }
+        if self.database.min_connections > self.database.max_connections {
+            return Err(FraiseQLError::Configuration {
+                message: format!(
+                    "database.min_connections ({}) must not exceed max_connections ({})",
+                    self.database.min_connections, self.database.max_connections
+                ),
+            });
+        }
+
+        // Server port (0 means "pick a random OS port" which is valid in tests
+        // but not in production; we only reject it if a non-zero port is expected)
+        // Note: port = 0 is allowed by design (OS-assigned). No check added here.
 
         // Validate auth config
         if self.auth.enabled {
@@ -808,32 +377,44 @@ impl FraiseQLConfig {
 
 /// Expand environment variables in a string.
 ///
-/// Supports `${VAR}` and `$VAR` syntax.
-#[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
+/// Supports both `${VAR}` and `$VAR` syntax. The `${VAR}` form is matched
+/// first (higher priority) so that `${FOO}BAR` expands the braced form only.
+#[allow(clippy::expect_used)] // Reason: regex patterns are compile-time constants guaranteed to be valid
 fn expand_env_vars(content: &str) -> String {
     use std::sync::LazyLock;
 
-    // The regex pattern is a compile-time constant and is guaranteed to be valid
-    static ENV_VAR_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid")
+    // Matches ${VAR} (braced form)
+    static BRACED_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("braced env var regex is valid")
     });
 
-    let mut result = content.to_string();
+    // Matches $VAR (bare form). Applied after the braced pass so any ${VAR}
+    // patterns have already been resolved and won't be double-matched.
+    static BARE_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("bare env var regex is valid")
+    });
 
-    for cap in ENV_VAR_REGEX.captures_iter(content) {
-        if let Some(full_match) = cap.get(0) {
-            if let Some(var_name_match) = cap.get(1) {
-                let full_match_str = full_match.as_str();
-                let var_name = var_name_match.as_str();
-
-                if let Ok(value) = std::env::var(var_name) {
-                    result = result.replace(full_match_str, &value);
-                }
-            }
+    let expand = |input: &str, re: &regex::Regex| -> String {
+        let mut result = input.to_string();
+        // Collect matches before replacing to avoid offset issues
+        let replacements: Vec<(String, String)> = re
+            .captures_iter(input)
+            .filter_map(|cap| {
+                let full = cap.get(0)?.as_str().to_string();
+                let var_name = cap.get(1)?.as_str();
+                let value = std::env::var(var_name).ok()?;
+                Some((full, value))
+            })
+            .collect();
+        for (pattern, value) in replacements {
+            result = result.replace(&pattern, &value);
         }
-    }
+        result
+    };
 
-    result
+    // Expand braced form first, then bare form on the result
+    let after_braced = expand(content, &BRACED_REGEX);
+    expand(&after_braced, &BARE_REGEX)
 }
 
 /// Configuration builder.
@@ -861,7 +442,7 @@ impl ConfigBuilder {
 
     /// Set the server port.
     #[must_use]
-    pub fn port(mut self, port: u16) -> Self {
+    pub const fn port(mut self, port: u16) -> Self {
         self.config.server.port = port;
         self.config.port = port;
         self
@@ -869,7 +450,7 @@ impl ConfigBuilder {
 
     /// Set maximum database connections.
     #[must_use]
-    pub fn max_connections(mut self, n: u32) -> Self {
+    pub const fn max_connections(mut self, n: u32) -> Self {
         self.config.database.max_connections = n;
         self.config.max_connections = n;
         self
@@ -877,7 +458,7 @@ impl ConfigBuilder {
 
     /// Set query timeout.
     #[must_use]
-    pub fn query_timeout(mut self, secs: u64) -> Self {
+    pub const fn query_timeout(mut self, secs: u64) -> Self {
         self.config.database.query_timeout_secs = secs;
         self.config.query_timeout_secs = secs;
         self
@@ -906,7 +487,7 @@ impl ConfigBuilder {
 
     /// Set cache configuration.
     #[must_use]
-    pub fn cache(mut self, cache: CacheConfig) -> Self {
+    pub const fn cache(mut self, cache: CacheConfig) -> Self {
         self.config.cache = cache;
         self
     }
@@ -932,6 +513,8 @@ impl ConfigBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

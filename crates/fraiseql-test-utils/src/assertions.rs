@@ -2,26 +2,40 @@
 //!
 //! Provides helper macros and functions for asserting common test conditions.
 
-/// Assert that a JSON value has a specific key at the given path
+/// Assert that a JSON value has a specific key at the given path and matches the expected value.
+///
+/// Fails with a descriptive message if any segment of the path is missing
+/// (i.e. returns `null` for the key), rather than silently comparing against `null`.
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_json_key;
+///
 /// let json = json!({"user": {"id": 123}});
 /// assert_json_key!(&json, "user.id", 123);
 /// ```
 #[macro_export]
 macro_rules! assert_json_key {
-    ($value:expr, $key:expr, $expected:expr) => {
+    ($value:expr, $key:expr, $expected:expr) => {{
         let parts: Vec<&str> = $key.split('.').collect();
-        let mut current = $value;
+        let mut current: &serde_json::Value = $value;
 
-        for part in parts {
-            current = &current[part];
+        for part in &parts {
+            match current.get(part) {
+                Some(v) => current = v,
+                None => panic!(
+                    "assert_json_key!: key '{}' not found in path '{}'\nJSON was: {}",
+                    part,
+                    $key,
+                    current
+                ),
+            }
         }
 
-        assert_eq!(current, $expected);
-    };
+        assert_eq!(current, &serde_json::json!($expected), "at path '{}'", $key);
+    }};
 }
 
 /// Assert that a response has no errors
@@ -32,7 +46,11 @@ macro_rules! assert_json_key {
 ///
 /// Panics if the response contains a non-empty `errors` array.
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_no_graphql_errors;
+///
+/// let response = json!({"data": {"user": {"id": 1}}});
 /// assert_no_graphql_errors(&response);
 /// ```
 pub fn assert_no_graphql_errors(response: &serde_json::Value) {
@@ -51,14 +69,166 @@ pub fn assert_no_graphql_errors(response: &serde_json::Value) {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_has_data;
+///
+/// let response = json!({"data": {"user": {"id": 1}}});
 /// let data = assert_has_data(&response);
+/// assert_eq!(data["user"]["id"], 1);
 /// ```
 pub fn assert_has_data(response: &serde_json::Value) -> &serde_json::Value {
     response.get("data").expect("Response should have 'data' field")
 }
 
+/// Assert that a GraphQL response has no errors (alias for `assert_no_graphql_errors`).
+///
+/// # Panics
+///
+/// Panics if the response contains a non-empty `errors` array.
+///
+/// # Example
+///
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_success;
+///
+/// let response = json!({"data": {"users": []}});
+/// assert_graphql_success(&response);
+/// ```
+pub fn assert_graphql_success(response: &serde_json::Value) {
+    assert_no_graphql_errors(response);
+}
+
+/// Assert that a GraphQL response contains an error with the given message substring.
+///
+/// # Panics
+///
+/// Panics if the response has no errors array or none of the error messages
+/// contain the expected substring.
+///
+/// # Example
+///
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_error_contains;
+///
+/// let response = json!({"errors": [{"message": "Field 'id' not found"}]});
+/// assert_graphql_error_contains(&response, "not found");
+/// ```
+pub fn assert_graphql_error_contains(response: &serde_json::Value, expected: &str) {
+    let errors = response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .expect("Response should have an 'errors' array");
+
+    assert!(
+        !errors.is_empty(),
+        "Expected at least one GraphQL error containing '{}', but errors array is empty",
+        expected
+    );
+
+    let found = errors.iter().any(|e| {
+        e.get("message")
+            .and_then(|m| m.as_str())
+            .is_some_and(|m| m.contains(expected))
+    });
+
+    assert!(
+        found,
+        "Expected an error containing '{}', but got: {:?}",
+        expected,
+        errors.iter().map(|e| e.get("message").and_then(|m| m.as_str()).unwrap_or("")).collect::<Vec<_>>()
+    );
+}
+
+/// Assert that a GraphQL response contains an error with the given extension code.
+///
+/// # Panics
+///
+/// Panics if the response has no errors, or none of the errors have an
+/// `extensions.code` field matching `code`.
+///
+/// # Example
+///
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_error_code;
+///
+/// let response = json!({"errors": [{"message": "Forbidden", "extensions": {"code": "FORBIDDEN"}}]});
+/// assert_graphql_error_code(&response, "FORBIDDEN");
+/// ```
+pub fn assert_graphql_error_code(response: &serde_json::Value, code: &str) {
+    let errors = response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .expect("Response should have an 'errors' array");
+
+    assert!(
+        !errors.is_empty(),
+        "Expected at least one GraphQL error with code '{}', but errors array is empty",
+        code
+    );
+
+    let found = errors.iter().any(|e| {
+        e.get("extensions")
+            .and_then(|ext| ext.get("code"))
+            .and_then(|c| c.as_str())
+            .is_some_and(|c| c == code)
+    });
+
+    assert!(
+        found,
+        "Expected an error with extension code '{}', but got: {:?}",
+        code,
+        errors
+            .iter()
+            .map(|e| {
+                e.get("extensions")
+                    .and_then(|ext| ext.get("code"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("<no code>")
+            })
+            .collect::<Vec<_>>()
+    );
+}
+
+/// Assert the value at the given dot-separated field path equals `expected`.
+///
+/// # Panics
+///
+/// Panics if any segment of the path is missing, or if the final value does
+/// not equal `expected`.
+///
+/// # Example
+///
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_field_path;
+///
+/// let response = json!({"data": {"user": {"email": "alice@example.com"}}});
+/// assert_field_path(&response, "data.user.email", &json!("alice@example.com"));
+/// ```
+pub fn assert_field_path(
+    response: &serde_json::Value,
+    path: &str,
+    expected: &serde_json::Value,
+) {
+    let mut current = response;
+    for part in path.split('.') {
+        match current.get(part) {
+            Some(v) => current = v,
+            None => panic!(
+                "assert_field_path: segment '{}' not found in path '{}'\nJSON was: {}",
+                part, path, current
+            ),
+        }
+    }
+    assert_eq!(current, expected, "at path '{path}'");
+}
+
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
 
@@ -67,6 +237,12 @@ mod tests {
     #[test]
     fn test_no_graphql_errors_success() {
         let response = json!({"data": {"user": {"id": 1}}});
+        assert_no_graphql_errors(&response);
+    }
+
+    #[test]
+    fn test_no_graphql_errors_empty_errors_array() {
+        let response = json!({"data": {}, "errors": []});
         assert_no_graphql_errors(&response);
     }
 
@@ -89,5 +265,96 @@ mod tests {
     fn test_has_data_fails() {
         let response = json!({"errors": [{"message": "error"}]});
         assert_has_data(&response);
+    }
+
+    #[test]
+    fn test_graphql_success_passes_on_no_errors() {
+        let response = json!({"data": {"users": [{"id": 1}]}});
+        assert_graphql_success(&response);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected no GraphQL errors")]
+    fn test_graphql_success_fails_on_errors() {
+        let response = json!({"errors": [{"message": "field not found"}]});
+        assert_graphql_success(&response);
+    }
+
+    #[test]
+    fn test_graphql_error_contains_match() {
+        let response = json!({"errors": [{"message": "Field 'id' not found"}]});
+        assert_graphql_error_contains(&response, "not found");
+    }
+
+    #[test]
+    fn test_graphql_error_contains_partial_match() {
+        let response = json!({"errors": [
+            {"message": "Rate limit exceeded"},
+            {"message": "Retry after 60s"}
+        ]});
+        assert_graphql_error_contains(&response, "Rate limit");
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected an error containing")]
+    fn test_graphql_error_contains_no_match() {
+        let response = json!({"errors": [{"message": "Database error"}]});
+        assert_graphql_error_contains(&response, "not found");
+    }
+
+    #[test]
+    #[should_panic(expected = "errors' array")]
+    fn test_graphql_error_contains_no_errors_key() {
+        let response = json!({"data": {}});
+        assert_graphql_error_contains(&response, "error");
+    }
+
+    #[test]
+    #[should_panic(expected = "errors array is empty")]
+    fn test_graphql_error_contains_empty_errors() {
+        let response = json!({"errors": []});
+        assert_graphql_error_contains(&response, "error");
+    }
+
+    #[test]
+    fn test_graphql_error_code_match() {
+        let response =
+            json!({"errors": [{"message": "Not allowed", "extensions": {"code": "FORBIDDEN"}}]});
+        assert_graphql_error_code(&response, "FORBIDDEN");
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected an error with extension code")]
+    fn test_graphql_error_code_no_match() {
+        let response =
+            json!({"errors": [{"message": "Not allowed", "extensions": {"code": "FORBIDDEN"}}]});
+        assert_graphql_error_code(&response, "UNAUTHENTICATED");
+    }
+
+    #[test]
+    #[should_panic(expected = "errors' array")]
+    fn test_graphql_error_code_no_errors() {
+        let response = json!({"data": {}});
+        assert_graphql_error_code(&response, "FORBIDDEN");
+    }
+
+    #[test]
+    fn test_assert_field_path_simple() {
+        let response = json!({"data": {"user": {"id": 42}}});
+        assert_field_path(&response, "data.user.id", &json!(42));
+    }
+
+    #[test]
+    #[should_panic(expected = "segment 'missing' not found in path")]
+    fn test_assert_field_path_missing_segment() {
+        let response = json!({"data": {}});
+        assert_field_path(&response, "data.missing.field", &json!("x"));
+    }
+
+    #[test]
+    #[should_panic(expected = "at path 'data.user.name'")]
+    fn test_assert_field_path_value_mismatch() {
+        let response = json!({"data": {"user": {"name": "alice"}}});
+        assert_field_path(&response, "data.user.name", &json!("bob"));
     }
 }

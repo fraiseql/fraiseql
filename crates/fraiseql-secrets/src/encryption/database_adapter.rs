@@ -23,6 +23,10 @@ use crate::secrets_manager::{SecretsError, SecretsManager};
 ///
 /// Enables automatic encryption/decryption at the query layer without
 /// requiring manual encryption/decryption in application code.
+// Reason: `EncryptedFieldAdapter` is used only as a static bound — there is no `dyn`
+// usage in this codebase. The `async_fn_in_trait` warning about Send-unbounded futures
+// is not applicable here. If `dyn` dispatch is ever needed, switch to explicit
+// `-> impl Future<Output = ...> + Send` return types or add `#[async_trait]`.
 #[allow(async_fn_in_trait)]
 pub trait EncryptedFieldAdapter: Send + Sync {
     /// Get list of encrypted field names
@@ -142,12 +146,19 @@ impl DatabaseFieldAdapter {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: SecretsManager backed by Vault or another live secret store.
+    /// use std::collections::HashMap;
+    /// use std::sync::Arc;
+    /// use fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter;
+    /// use fraiseql_secrets::secrets_manager::SecretsManager;
+    /// # async fn example(secrets_manager: Arc<SecretsManager>) {
     /// let mut field_keys = HashMap::new();
     /// field_keys.insert("email".to_string(), "db/email_key".to_string());
     /// field_keys.insert("phone".to_string(), "db/phone_key".to_string());
     ///
     /// let adapter = DatabaseFieldAdapter::new(secrets_manager, field_keys);
+    /// # }
     /// ```
     pub fn new(secrets_manager: Arc<SecretsManager>, field_keys: HashMap<String, String>) -> Self {
         Self {

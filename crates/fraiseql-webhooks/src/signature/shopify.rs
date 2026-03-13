@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Shopify webhook signatures using HMAC-SHA256 encoded as Base64.
+///
+/// Shopify computes `HMAC-SHA256(secret, body)`, Base64-encodes the result, and
+/// sends it in the `X-Shopify-Hmac-Sha256` header.
 pub struct ShopifyVerifier;
 
 impl SignatureVerifier for ShopifyVerifier {
@@ -28,7 +32,13 @@ impl SignatureVerifier for ShopifyVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Shopify webhook secret must not be empty".to_string(),
+            ));
+        }
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
         mac.update(payload);
@@ -39,6 +49,7 @@ impl SignatureVerifier for ShopifyVerifier {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,12 +67,12 @@ mod tests {
         let secret = "secret";
         let signature = generate_signature(payload, secret);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
     fn test_invalid_signature() {
         let verifier = ShopifyVerifier;
-        assert!(!verifier.verify(b"test", "invalid", "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", "invalid", "secret", None, None).unwrap());
     }
 }

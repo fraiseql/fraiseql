@@ -1,0 +1,355 @@
+//! GraphQL request structure and validation tests.
+//!
+//! Tests that `GraphQLRequest` deserialization and `RequestValidator` work
+//! correctly for well-formed and malformed inputs. These tests do not invoke
+//! an executor or a database — they cover the HTTP input layer only.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+
+use fraiseql_server::{
+    error::GraphQLError, routes::graphql::GraphQLRequest, validation::RequestValidator,
+};
+use serde_json::json;
+
+/// Test simple query without arguments
+#[test]
+fn test_simple_query_structure() {
+    let request = GraphQLRequest {
+        query:          Some("{ user { id } }".to_string()),
+        variables:      None,
+        operation_name: None,
+        extensions:     None,
+        document_id:    None,
+    };
+
+    assert_eq!(request.query.as_deref(), Some("{ user { id } }"));
+    assert_eq!(request.variables, None);
+    assert_eq!(request.operation_name, None);
+}
+
+/// Test query with variables
+#[test]
+fn test_query_with_variables() {
+    let variables = json!({
+        "userId": "123e4567-e89b-12d3-a456-426614174000",
+        "limit": 10
+    });
+
+    let request = GraphQLRequest {
+        query: Some("query($userId: ID!, $limit: Int!) { user(id: $userId) { posts(limit: $limit) { id } } }".to_string()),
+        variables: Some(variables),
+        operation_name: Some("GetUserPosts".to_string()),
+        extensions: None,
+        document_id: None,
+    };
+
+    assert_eq!(request.operation_name, Some("GetUserPosts".to_string()));
+
+    let vars = request.variables.expect("variables should be present");
+    assert_eq!(vars["userId"], "123e4567-e89b-12d3-a456-426614174000");
+    assert_eq!(vars["limit"], 10);
+}
+
+/// Test query validation - simple queries should pass
+#[test]
+fn test_simple_query_validation() {
+    let validator = RequestValidator::new();
+
+    let simple_queries = vec![
+        "{ user { id } }",
+        "{ users { id name } }",
+        "query { post { title } }",
+        "query GetUser { user { id } }",
+    ];
+
+    for query in simple_queries {
+        assert!(validator.validate_query(query).is_ok(), "Failed to validate query: {}", query);
+    }
+}
+
+/// Test query validation with multiple fields
+#[test]
+fn test_multi_field_query_validation() {
+    let validator = RequestValidator::new();
+
+    let multi_field = "{
+        users {
+            id
+            name
+            email
+        }
+    }";
+
+    assert!(validator.validate_query(multi_field).is_ok());
+}
+
+/// Test nested query validation
+#[test]
+fn test_nested_query_validation() {
+    let validator = RequestValidator::new();
+
+    let nested = "{
+        posts {
+            id
+            title
+            author {
+                id
+                name
+                email
+            }
+        }
+    }";
+
+    assert!(validator.validate_query(nested).is_ok());
+}
+
+/// Test query depth validation with max depth setting
+#[test]
+fn test_query_depth_limit() {
+    let validator = RequestValidator::new().with_max_depth(4);
+
+    // Shallow (2 levels) should pass
+    let shallow = "{ user { profile { name } } }";
+    assert!(validator.validate_query(shallow).is_ok());
+
+    // At limit (3 levels) should pass
+    let at_limit = "{ user { profile { settings { theme } } } }";
+    assert!(validator.validate_query(at_limit).is_ok());
+
+    // Over limit (5 levels) should fail
+    let over_limit = "{ user { profile { settings { theme { dark { mode } } } } } }";
+    assert!(validator.validate_query(over_limit).is_err());
+}
+
+/// Test query complexity validation
+#[test]
+fn test_query_complexity_limit() {
+    let validator = RequestValidator::new().with_max_complexity(10);
+
+    // Simple (low complexity) should pass
+    let simple = "{ user { id } }";
+    assert!(validator.validate_query(simple).is_ok());
+
+    // Moderate (within limit) should pass
+    let moderate = "{ users { id name email posts { id title } } }";
+    assert!(validator.validate_query(moderate).is_ok());
+}
+
+/// Test variables validation
+#[test]
+fn test_variables_validation() {
+    let validator = RequestValidator::new();
+
+    // Valid variables object
+    let valid_vars = json!({
+        "id": "123",
+        "name": "John",
+        "limit": 10
+    });
+    assert!(validator.validate_variables(Some(&valid_vars)).is_ok());
+
+    // Empty variables
+    let empty_vars = json!({});
+    assert!(validator.validate_variables(Some(&empty_vars)).is_ok());
+
+    // No variables
+    assert!(validator.validate_variables(None).is_ok());
+
+    // Invalid: variables as array instead of object
+    let invalid_array = json!([1, 2, 3]);
+    assert!(validator.validate_variables(Some(&invalid_array)).is_err());
+
+    // Invalid: variables as string
+    let invalid_string = json!("some string");
+    assert!(validator.validate_variables(Some(&invalid_string)).is_err());
+}
+
+/// Test pagination arguments validation
+#[test]
+fn test_pagination_query_validation() {
+    let validator = RequestValidator::new();
+
+    let with_pagination = "query($limit: Int!, $offset: Int!) {
+        users(limit: $limit, offset: $offset) {
+            id name
+        }
+    }";
+
+    assert!(validator.validate_query(with_pagination).is_ok());
+}
+
+/// Test empty query rejection
+#[test]
+fn test_empty_query_rejection() {
+    let validator = RequestValidator::new();
+
+    let empty_queries = vec!["", "   ", "\n", "\t"];
+
+    for query in empty_queries {
+        assert!(
+            validator.validate_query(query).is_err(),
+            "Should reject empty query: {:?}",
+            query
+        );
+    }
+}
+
+/// Test that the structural validator rejects queries it can detect as invalid.
+///
+/// The `RequestValidator` uses AST-based validation via `graphql-parser`,
+/// which catches both structural issues (malformed syntax) and security
+/// concerns (excessive depth/complexity, fragment bypass).
+#[test]
+fn test_structural_validator_rejects_known_invalid() {
+    let validator = RequestValidator::new().with_max_depth(3);
+
+    // Excessive depth is rejected
+    let too_deep = "{ a { b { c { d { e } } } } }";
+    assert!(
+        validator.validate_query(too_deep).is_err(),
+        "Query exceeding max_depth should be rejected"
+    );
+
+    // Unclosed braces are now properly rejected by the AST parser
+    let unclosed = "{ user { id";
+    assert!(
+        validator.validate_query(unclosed).is_err(),
+        "Malformed queries with unclosed braces must be rejected"
+    );
+}
+
+/// Test `GraphQLError` serializes to spec-compliant JSON format
+#[test]
+fn test_graphql_error_response_format() {
+    let error = GraphQLError::parse("Unexpected token".to_string());
+    let json = serde_json::to_value(&error).unwrap();
+
+    assert_eq!(json["message"], "Unexpected token");
+    assert_eq!(json["code"], "PARSE_ERROR");
+}
+
+/// Test query execution request structure
+#[test]
+fn test_graphql_request_deserialization() {
+    let json_request = r#"{
+        "query": "{ users { id name } }",
+        "variables": {
+            "limit": 10
+        },
+        "operationName": "GetUsers"
+    }"#;
+
+    let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
+
+    assert_eq!(request.query.as_deref(), Some("{ users { id name } }"));
+    let variables = request.variables.expect("variables should be present");
+    assert_eq!(variables["limit"], 10);
+    assert_eq!(request.operation_name, Some("GetUsers".to_string()));
+}
+
+/// Test minimal valid request
+#[test]
+fn test_minimal_graphql_request() {
+    let json_request = r#"{"query": "{ users { id } }"}"#;
+
+    let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
+
+    assert_eq!(request.query.as_deref(), Some("{ users { id } }"));
+    assert_eq!(request.variables, None);
+    assert_eq!(request.operation_name, None);
+}
+
+/// Test request with all optional fields
+#[test]
+fn test_complete_graphql_request() {
+    let json_request = r#"{
+        "query": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
+        "variables": { "id": "123" },
+        "operationName": "GetUser"
+    }"#;
+
+    let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
+
+    assert_eq!(request.operation_name, Some("GetUser".to_string()));
+    assert_eq!(request.variables.unwrap().get("id").and_then(|v| v.as_str()), Some("123"));
+}
+
+/// Test request validation pipeline
+#[test]
+fn test_validation_pipeline() {
+    let validator = RequestValidator::new();
+
+    // Step 1: Parse request
+    let request = GraphQLRequest {
+        query:          Some("{ users { id name } }".to_string()),
+        variables:      Some(json!({"limit": 10})),
+        operation_name: None,
+        extensions:     None,
+        document_id:    None,
+    };
+
+    // Step 2: Validate query structure
+    assert!(validator.validate_query(request.query.as_deref().unwrap()).is_ok());
+
+    // Step 3: Validate variables format
+    assert!(validator.validate_variables(request.variables.as_ref()).is_ok());
+}
+
+/// Test performance: multiple simple queries
+#[test]
+fn test_batch_query_validation() {
+    let validator = RequestValidator::new();
+
+    let queries = vec![
+        "{ user { id } }",
+        "{ users { id name } }",
+        "{ posts { id title author { name } } }",
+        "{ comments { id content } }",
+    ];
+
+    for query in queries {
+        assert!(validator.validate_query(query).is_ok(), "Failed validation for: {}", query);
+    }
+}
+
+/// Test that queries at various depths validate correctly against depth limits
+#[test]
+fn test_query_depth_acceptance_by_level() {
+    // Use a depth limit of 3 to verify correct depth counting
+    let validator = RequestValidator::new().with_max_depth(3);
+
+    // These should pass (depth <= 3)
+    let within_limit = vec![
+        "{ id }",                        // depth 1
+        "{ user { id } }",               // depth 2
+        "{ user { profile { name } } }", // depth 3
+    ];
+
+    for query in within_limit {
+        assert!(
+            validator.validate_query(query).is_ok(),
+            "Query should pass with max_depth=3: {query}"
+        );
+    }
+
+    // This should fail (depth 4 > limit 3)
+    let over_limit = "{ posts { author { posts { title } } } }";
+    assert!(
+        validator.validate_query(over_limit).is_err(),
+        "Query at depth 4 should fail with max_depth=3"
+    );
+}

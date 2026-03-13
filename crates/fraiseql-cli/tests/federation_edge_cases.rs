@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Federation edge case tests
 //! - Directive conflict scenarios (@requires/@provides/@key/@shareable interactions)
 //! - Conflicting @key definitions across subgraphs
@@ -309,7 +310,7 @@ fn test_version_mismatch_v2_v3() {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// // @external and @requires conflict
 /// assert!(validate_directive_conflict("Order", "user_id", vec!["external", "requires"]).is_err());
 ///
@@ -354,7 +355,7 @@ fn validate_directive_conflict(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// let circular_deps = vec![
 ///     ("Order", "total", "Product", "weight"),
 ///     ("Product", "weight", "Order", "total"),
@@ -405,7 +406,7 @@ const fn validate_requires_chain_depth(depth: usize) -> Result<(), String> {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// // Valid: same keys
 /// assert!(validate_key_consistency("User", &["id"], &["id"]).is_ok());
 ///
@@ -516,7 +517,7 @@ const fn validate_self_referencing_type(_typename: &str, _field: &str) -> Result
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// // Valid: proper nesting
 /// let valid = r#"
 /// composition:

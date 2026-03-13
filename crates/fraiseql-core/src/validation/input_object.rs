@@ -5,7 +5,10 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
+//! use fraiseql_core::validation::{InputObjectRule, validate_input_object};
+//! use serde_json::json;
+//!
 //! // Validate entire input object
 //! let input = json!({
 //!     "name": "John",
@@ -14,14 +17,14 @@
 //! });
 //!
 //! let validators = vec![
-//!     InputObjectRule::AnyOf { fields: vec!["email", "phone"] },
+//!     InputObjectRule::AnyOf { fields: vec!["email".to_string(), "phone".to_string()] },
 //!     InputObjectRule::ConditionalRequired {
-//!         if_field: "name",
-//!         then_fields: vec!["email"]
-//!     }
+//!         if_field: "name".to_string(),
+//!         then_fields: vec!["email".to_string()],
+//!     },
 //! ];
 //!
-//! validate_input_object(&input, &validators)?;
+//! validate_input_object(&input, &validators, None).unwrap();
 //! ```
 
 use serde_json::Value;
@@ -32,21 +35,34 @@ use crate::error::{FraiseQLError, Result};
 #[derive(Debug, Clone)]
 pub enum InputObjectRule {
     /// At least one field from the set must be provided
-    AnyOf { fields: Vec<String> },
+    AnyOf {
+        /// Field names of which at least one must be present.
+        fields: Vec<String>,
+    },
     /// Exactly one field from the set must be provided
-    OneOf { fields: Vec<String> },
+    OneOf {
+        /// Field names of which exactly one must be present.
+        fields: Vec<String>,
+    },
     /// If one field is present, others must be present
     ConditionalRequired {
+        /// The trigger field whose presence activates the requirement.
         if_field:    String,
+        /// Fields that must be present when `if_field` is provided.
         then_fields: Vec<String>,
     },
     /// If one field is absent, others must be present
     RequiredIfAbsent {
+        /// The field whose absence activates the requirement.
         absent_field: String,
+        /// Fields that must be present when `absent_field` is missing.
         then_fields:  Vec<String>,
     },
     /// Custom validator function name to invoke
-    Custom { name: String },
+    Custom {
+        /// Name of the registered custom validator function.
+        name: String,
+    },
 }
 
 /// Result of validating an input object, aggregating multiple errors.
@@ -60,7 +76,7 @@ pub struct InputObjectValidationResult {
 
 impl InputObjectValidationResult {
     /// Create a new empty result.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
             error_count: 0,
@@ -80,7 +96,7 @@ impl InputObjectValidationResult {
     }
 
     /// Check if there are any errors.
-    pub fn has_errors(&self) -> bool {
+    pub const fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
@@ -152,7 +168,10 @@ fn validate_rule(input: &Value, rule: &InputObjectRule, path: &str) -> Result<()
             then_fields,
         } => validate_required_if_absent(input, absent_field, then_fields, path),
         InputObjectRule::Custom { name } => Err(FraiseQLError::Validation {
-            message: format!("Custom validator '{}' not implemented", name),
+            message: format!(
+                "Custom validator '{name}' is not registered. \
+                 Register validators via InputValidatorRegistry before executing queries."
+            ),
             path:    Some(path.to_string()),
         }),
     }
@@ -163,7 +182,7 @@ fn validate_any_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
     if let Value::Object(obj) = input {
         let has_any = fields
             .iter()
-            .any(|name| obj.get(name).map(|v| !matches!(v, Value::Null)).unwrap_or(false));
+            .any(|name| obj.get(name).is_some_and(|v| !matches!(v, Value::Null)));
 
         if !has_any {
             return Err(FraiseQLError::Validation {
@@ -181,7 +200,7 @@ fn validate_one_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
     if let Value::Object(obj) = input {
         let present_count = fields
             .iter()
-            .filter(|name| obj.get(*name).map(|v| !matches!(v, Value::Null)).unwrap_or(false))
+            .filter(|name| obj.get(*name).is_some_and(|v| !matches!(v, Value::Null)))
             .count();
 
         if present_count != 1 {
@@ -208,12 +227,12 @@ fn validate_conditional_required(
     path: &str,
 ) -> Result<()> {
     if let Value::Object(obj) = input {
-        let condition_met = obj.get(if_field).map(|v| !matches!(v, Value::Null)).unwrap_or(false);
+        let condition_met = obj.get(if_field).is_some_and(|v| !matches!(v, Value::Null));
 
         if condition_met {
             let missing_fields: Vec<&String> = then_fields
                 .iter()
-                .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                 .collect();
 
             if !missing_fields.is_empty() {
@@ -244,12 +263,12 @@ fn validate_required_if_absent(
     path: &str,
 ) -> Result<()> {
     if let Value::Object(obj) = input {
-        let field_absent = obj.get(absent_field).map(|v| matches!(v, Value::Null)).unwrap_or(true);
+        let field_absent = obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
 
         if field_absent {
             let missing_fields: Vec<&String> = then_fields
                 .iter()
-                .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                 .collect();
 
             if !missing_fields.is_empty() {
@@ -274,6 +293,8 @@ fn validate_required_if_absent(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;
@@ -620,7 +641,8 @@ mod tests {
         let result = validate_input_object(&input, &rules, None);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("not implemented"));
+            assert!(message.contains("myValidator"));
+            assert!(message.contains("InputValidatorRegistry"));
         }
     }
 

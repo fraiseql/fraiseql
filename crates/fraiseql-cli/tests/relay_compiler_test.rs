@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Compiler tests for the Relay specification support.
 //!
 //! Verifies that the CLI SchemaConverter correctly:

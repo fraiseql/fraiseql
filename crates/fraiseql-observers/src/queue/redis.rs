@@ -264,21 +264,42 @@ impl JobQueue for RedisJobQueue {
     async fn get_stats(&self) -> Result<QueueStats> {
         let mut conn = self.conn.clone();
 
-        // Get queue lengths
-        let pending_jobs: u64 = conn.zcard(&self.pending_key).await.unwrap_or(0);
+        // Get queue lengths — log a warning on Redis errors so monitoring systems
+        // can distinguish "empty queue" from "metrics unavailable".
+        let pending_jobs: u64 = conn.zcard(&self.pending_key).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, key = %self.pending_key, "get_stats: zcard failed; pending count may be stale");
+            0
+        });
 
-        let processing_jobs: u64 = conn.hlen(&self.processing_key).await.unwrap_or(0);
+        let processing_jobs: u64 = conn.hlen(&self.processing_key).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, key = %self.processing_key, "get_stats: hlen failed; processing count may be stale");
+            0
+        });
 
-        let retry_jobs: u64 = conn.zcard(&self.retry_key).await.unwrap_or(0);
+        let retry_jobs: u64 = conn.zcard(&self.retry_key).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, key = %self.retry_key, "get_stats: zcard failed; retry count may be stale");
+            0
+        });
 
         // Get counters
-        let successful_jobs: u64 = conn.get("queue:v1:stats:success").await.unwrap_or(0);
+        let successful_jobs: u64 = conn.get("queue:v1:stats:success").await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "get_stats: get failed; successful count may be stale");
+            0
+        });
 
-        let failed_jobs: u64 = conn.zcard(&self.deadletter_key).await.unwrap_or(0);
+        let failed_jobs: u64 = conn.zcard(&self.deadletter_key).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, key = %self.deadletter_key, "get_stats: zcard failed; failed count may be stale");
+            0
+        });
 
         // Get average processing time (stored in Redis as float)
-        let avg_processing_time_ms: f64 =
-            conn.get("queue:v1:stats:avg_processing_ms").await.unwrap_or(0.0);
+        let avg_processing_time_ms: f64 = conn
+            .get("queue:v1:stats:avg_processing_ms")
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "get_stats: get failed; avg_processing_ms may be stale");
+                0.0
+            });
 
         Ok(QueueStats {
             pending_jobs,

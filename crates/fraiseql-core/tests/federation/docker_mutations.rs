@@ -57,7 +57,7 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
     println!("\n--- Test: Update user mutation from extended subgraph (HTTP propagation) ---");
 
     // Get an existing user
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 
@@ -118,7 +118,7 @@ async fn test_extended_mutation_create_order_with_user_reference() {
     println!("\n--- Test: Create order with user reference (entity linking) ---");
 
     // Get a user ID
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 
@@ -227,7 +227,7 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
 
     // Get a user
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id name } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id name } }")
             .await
             .expect("Get users query should succeed");
 
@@ -247,8 +247,7 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
     // Update user
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     let new_name = format!("Updated_{}", timestamp);
     let mutation = format!(
         r#"
@@ -300,7 +299,7 @@ async fn test_extended_mutation_through_gateway() {
     println!("\n--- Test: Mutation through gateway (federated mutation) ---");
 
     // Get a user
-    let users_response = graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(APOLLO_GATEWAY_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 

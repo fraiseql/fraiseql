@@ -195,24 +195,13 @@ pub fn generate_cache_key(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
 /// use fraiseql_core::cache::extract_accessed_views;
-/// use fraiseql_core::schema::{QueryDefinition, AutoParams};
+/// use fraiseql_core::schema::QueryDefinition;
 ///
-/// let query_def = QueryDefinition {
-///     name: "users".to_string(),
-///     return_type: "User".to_string(),
-///     returns_list: true,
-///     nullable: false,
-///     arguments: vec![],
-///     sql_source: Some("v_user".to_string()),
-///     auto_params: AutoParams {
-///         has_where: true,
-///         has_order_by: false,
-///         has_limit: true,
-///         has_offset: false,
-///     },
-/// };
+/// let query_def = QueryDefinition::new("users", "User")
+///     .returning_list()
+///     .with_sql_source("v_user");
 ///
 /// let views = extract_accessed_views(&query_def);
 /// assert_eq!(views, vec!["v_user"]);

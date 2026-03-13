@@ -1,5 +1,7 @@
-// CSRF state store - trait definition and implementations
-// Prevents OAuth state parameter reuse in distributed systems
+//! CSRF state store — trait definition and backends.
+//!
+//! Stores OAuth `state` parameters for the duration of an authorization flow and
+//! removes them on first retrieval, preventing state-replay attacks.
 
 use std::sync::Arc;
 
@@ -16,14 +18,26 @@ use crate::error::Result;
 /// # Examples
 ///
 /// Use in-memory store for single-instance deployments:
-/// ```ignore
+/// ```rust
+/// use std::sync::Arc;
+/// use fraiseql_auth::state_store::InMemoryStateStore;
 /// let state_store = Arc::new(InMemoryStateStore::new());
 /// ```
 ///
 /// Use Redis for distributed deployments:
-/// ```ignore
-/// let state_store = Arc::new(RedisStateStore::new(redis_client).await?);
+/// ```no_run
+/// // Requires: live Redis server.
+/// use std::sync::Arc;
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// # #[cfg(feature = "redis-rate-limiting")] {
+/// use fraiseql_auth::state_store::RedisStateStore;
+/// let state_store = Arc::new(RedisStateStore::new("redis://localhost:6379").await?);
+/// # }
+/// # Ok(())
+/// # }
 /// ```
+// Reason: used as dyn Trait (Arc<dyn StateStore>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait StateStore: Send + Sync {
     /// Store a state value with provider and expiration
@@ -109,6 +123,9 @@ impl Default for InMemoryStateStore {
     }
 }
 
+// Reason: StateStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl StateStore for InMemoryStateStore {
     async fn store(&self, state: String, provider: String, expiry_secs: u64) -> Result<()> {
@@ -149,8 +166,13 @@ impl RedisStateStore {
     /// * `redis_url` - Connection string (e.g., "redis://localhost:6379")
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Redis server.
+    /// # async fn example() -> fraiseql_auth::error::Result<()> {
+    /// use fraiseql_auth::state_store::RedisStateStore;
     /// let store = RedisStateStore::new("redis://localhost:6379").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client =
@@ -176,6 +198,9 @@ impl RedisStateStore {
 }
 
 #[cfg(feature = "redis-rate-limiting")]
+// Reason: StateStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl StateStore for RedisStateStore {
     async fn store(&self, state: String, provider: String, expiry_secs: u64) -> Result<()> {
@@ -230,8 +255,10 @@ impl StateStore for RedisStateStore {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[tokio::test]

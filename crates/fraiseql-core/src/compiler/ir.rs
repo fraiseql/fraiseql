@@ -16,34 +16,32 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::compiler::ir::{AuthoringIR, IRType, IRField};
 //!
-//! let ir = AuthoringIR {
-//!     types: vec![
-//!         IRType {
-//!             name: "User".to_string(),
-//!             fields: vec![
-//!                 IRField {
-//!                     name: "id".to_string(),
-//!                     field_type: "Int!".to_string(),
-//!                     nullable: false,
-//!                 }
-//!             ],
-//!             sql_source: Some("v_user".to_string()),
+//! let mut ir = AuthoringIR::new();
+//! ir.types.push(IRType {
+//!     name: "User".to_string(),
+//!     fields: vec![
+//!         IRField {
+//!             name: "id".to_string(),
+//!             field_type: "Int!".to_string(),
+//!             nullable: false,
+//!             description: None,
+//!             sql_column: None,
 //!         }
 //!     ],
-//!     queries: vec![],
-//!     mutations: vec![],
-//!     subscriptions: vec![],
-//! };
+//!     sql_source: Some("v_user".to_string()),
+//!     description: None,
+//! });
+//! assert_eq!(ir.types.len(), 1);
 //! ```
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::validation::ValidationRule;
+use crate::{compiler::fact_table::FactTableMetadata, schema::GraphQLValue, validation::ValidationRule};
 
 /// Authoring Intermediate Representation.
 ///
@@ -85,9 +83,8 @@ pub struct AuthoringIR {
 
     /// Fact table metadata (from authoring-language decorators).
     /// Key: table name (e.g., "tf_sales")
-    /// Value: FactTableMetadata as JSON
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub fact_tables: HashMap<String, serde_json::Value>,
+    pub fact_tables: HashMap<String, FactTableMetadata>,
 }
 
 impl AuthoringIR {
@@ -116,7 +113,7 @@ impl Default for AuthoringIR {
 }
 
 /// IR Type definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRType {
     /// Type name (e.g., "User").
     pub name: String,
@@ -132,7 +129,7 @@ pub struct IRType {
 }
 
 /// IR Field definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRField {
     /// Field name.
     pub name: String,
@@ -228,15 +225,15 @@ pub struct IRArgument {
     /// Is argument nullable?
     pub nullable: bool,
 
-    /// Default value (as JSON).
-    pub default_value: Option<serde_json::Value>,
+    /// Default value.
+    pub default_value: Option<GraphQLValue>,
 
     /// Argument description.
     pub description: Option<String>,
 }
 
 /// Auto-wired parameters configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AutoParams {
     /// Enable WHERE parameter?
     #[serde(default)]
@@ -272,7 +269,7 @@ pub enum MutationOperation {
 }
 
 /// IR Enum definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IREnum {
     /// Enum name (e.g., "Status").
     pub name: String,
@@ -285,7 +282,7 @@ pub struct IREnum {
 }
 
 /// IR Enum value definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IREnumValue {
     /// Value name (e.g., "ACTIVE").
     pub name: String,
@@ -298,7 +295,7 @@ pub struct IREnumValue {
 }
 
 /// IR Interface definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRInterface {
     /// Interface name (e.g., "Node").
     pub name: String,
@@ -311,7 +308,7 @@ pub struct IRInterface {
 }
 
 /// IR Union definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRUnion {
     /// Union name (e.g., "SearchResult").
     pub name: String,
@@ -348,8 +345,8 @@ pub struct IRInputField {
     /// Is field nullable?
     pub nullable: bool,
 
-    /// Default value (as JSON).
-    pub default_value: Option<serde_json::Value>,
+    /// Default value.
+    pub default_value: Option<GraphQLValue>,
 
     /// Field description.
     pub description: Option<String>,
@@ -383,7 +380,7 @@ pub struct IRScalar {
 impl IRScalar {
     /// Create a new scalar definition with minimal required fields.
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub const fn new(name: String) -> Self {
         Self {
             name,
             description: None,

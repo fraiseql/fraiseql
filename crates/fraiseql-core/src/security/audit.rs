@@ -127,18 +127,14 @@ impl AuditEntry {
     }
 }
 
-/// Constant-time comparison to prevent timing attacks
+/// Constant-time comparison to prevent timing attacks.
+///
+/// Uses [`subtle::ConstantTimeEq`] — the same primitive used elsewhere in this
+/// codebase — instead of a hand-rolled loop, which is brittle under optimiser
+/// changes.
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut result = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result |= x ^ y;
-    }
-
-    result == 0
+    use subtle::ConstantTimeEq;
+    a.ct_eq(b).into()
 }
 
 /// Statistics about audit events
@@ -163,12 +159,32 @@ impl AuditLogger {
         Self { pool }
     }
 
-    /// Log an audit entry
+    /// Maximum byte length for the `query` and `variables` fields in an audit log entry.
+    ///
+    /// Limits audit table bloat and prevents excess allocation during serialization.
+    /// Queries that bypass `QueryValidator` (e.g. on error paths) may be arbitrarily large.
+    const MAX_AUDIT_FIELD_BYTES: usize = 64 * 1024; // 64 KiB
+
+    /// Log an audit entry.
+    ///
+    /// Truncates `query` and `variables` to [`Self::MAX_AUDIT_FIELD_BYTES`] before
+    /// storing to prevent audit table bloat.
     ///
     /// # Errors
     ///
-    /// Returns error if database operation fails
-    pub async fn log(&self, entry: AuditEntry) -> Result<i64, AuditError> {
+    /// Returns error if database operation fails.
+    pub async fn log(&self, mut entry: AuditEntry) -> Result<i64, AuditError> {
+        // Truncate oversized query and variables before storing to prevent
+        // audit-table bloat from queries that bypass QueryValidator.
+        if entry.query.len() > Self::MAX_AUDIT_FIELD_BYTES {
+            entry.query.truncate(Self::MAX_AUDIT_FIELD_BYTES);
+            entry.query.push_str("…[truncated]");
+        }
+        let vars_serialized = serde_json::to_string(&entry.variables).unwrap_or_default();
+        if vars_serialized.len() > Self::MAX_AUDIT_FIELD_BYTES {
+            entry.variables = serde_json::json!({"_truncated": true});
+        }
+
         let sql = r"
             INSERT INTO fraiseql_audit_logs (
                 timestamp,
@@ -190,8 +206,10 @@ impl AuditLogger {
         let variables_json = serde_json::to_value(&entry.variables)?;
 
         // Convert DateTime<Utc> to SystemTime for PostgreSQL
+        // timestamp() returns i64 seconds since epoch; audit events are always post-epoch.
+        let secs = u64::try_from(entry.timestamp.timestamp()).unwrap_or(0);
         let timestamp_system = SystemTime::UNIX_EPOCH
-            + std::time::Duration::from_secs(entry.timestamp.timestamp() as u64)
+            + std::time::Duration::from_secs(secs)
             + std::time::Duration::from_nanos(u64::from(entry.timestamp.timestamp_subsec_nanos()));
 
         let row = client

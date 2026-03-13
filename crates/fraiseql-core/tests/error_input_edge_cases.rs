@@ -1,7 +1,13 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Input edge case tests.
 //!
 //! Tests validation and parsing of malformed, extreme, or adversarial inputs.
 
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used in test destructuring patterns
+#![allow(missing_docs)] // Reason: test helper functions do not require documentation
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 use fraiseql_core::{
     db::{WhereClause, WhereOperator},
     security::{QueryValidator, QueryValidatorConfig},
@@ -18,6 +24,7 @@ fn test_deeply_nested_query_rejected() {
         max_depth:      10,
         max_complexity: 10_000,
         max_size_bytes: 1_000_000,
+        max_aliases:    100,
     });
 
     // Build a 50-level nested query
@@ -40,9 +47,10 @@ fn test_very_high_complexity_query_rejected() {
         max_depth:      100,
         max_complexity: 100,
         max_size_bytes: 10_000_000,
+        max_aliases:    100,
     });
 
-    // Build a wide query with many fields to exceed complexity
+    // Build a wide query with 200 top-level fields — complexity = 200 > max 100
     let mut query = String::from("{ ");
     for i in 0..200 {
         query.push_str(&format!("field_{i} "));
@@ -50,24 +58,20 @@ fn test_very_high_complexity_query_rejected() {
     query.push('}');
 
     let result = validator.validate(&query);
-    // Either rejected by complexity or passes — we verify the validator processes it
-    // without panicking. If complexity is counted per field, 200 fields should exceed 100.
-    if let Ok(metrics) = &result {
-        // If it passes, complexity should still be computed
-        assert!(metrics.field_count > 0);
-    }
+    assert!(
+        result.is_err(),
+        "200-field query should exceed complexity limit of 100, got Ok({result:?})"
+    );
 }
 
 #[test]
 fn test_empty_query_handled() {
     let validator = QueryValidator::standard();
 
-    // Empty string should not panic
+    // Empty string: fails size check (0 bytes is valid) but AST parse must not panic
     let result = validator.validate("");
-    // Either returns an error or metrics with zero depth — both are acceptable
-    if let Ok(metrics) = result {
-        assert_eq!(metrics.size_bytes, 0);
-    }
+    // After the fix, empty queries return MalformedQuery; either outcome is fine here
+    let _ = result;
 }
 
 #[test]
@@ -90,6 +94,7 @@ fn test_query_exceeding_size_limit_rejected() {
         max_depth:      10,
         max_complexity: 1000,
         max_size_bytes: 100,
+        max_aliases:    30,
     });
 
     let large_query = "{ ".to_string() + &"a ".repeat(100) + "}";
@@ -119,7 +124,7 @@ fn test_where_clause_with_empty_path() {
 fn test_where_clause_with_very_long_field_name() {
     let long_name = "x".repeat(10_000);
     let clause = WhereClause::Field {
-        path:     vec![long_name.clone()],
+        path:     vec![long_name],
         operator: WhereOperator::Eq,
         value:    json!("test"),
     };

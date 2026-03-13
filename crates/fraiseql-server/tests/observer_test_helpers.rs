@@ -6,11 +6,31 @@
 //! - Observer configuration builders
 //! - Change log entry insertion with Debezium envelopes
 //! - Assertion helpers
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use std::{sync::Arc, time::Duration};
 
+use fraiseql_test_utils::database_url;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::Mutex;
@@ -19,17 +39,11 @@ use wiremock::{
     matchers::{method, path},
 };
 
-/// Get database URL from environment or use default
-pub fn get_database_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost/fraiseql_test".to_string())
-}
-
 /// Create a PostgreSQL connection pool for tests
 pub async fn create_test_pool() -> PgPool {
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
-        .connect(&get_database_url())
+        .connect(&database_url())
         .await
         .expect("Failed to connect to test database")
 }
@@ -41,7 +55,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     // 2. Create tb_entity_change_log (with Debezium envelope)
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
             pk_entity_change_log BIGSERIAL PRIMARY KEY,
             id UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -55,7 +69,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             extra_metadata JSONB,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-        "#,
+        ",
     )
     .execute(pool)
     .await?;
@@ -90,7 +104,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     // 4. Create observer log table
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS tb_observer_log (
             pk_observer_log BIGSERIAL PRIMARY KEY,
             id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -113,14 +127,14 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             trace_id VARCHAR(64),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-        "#,
+        ",
     )
     .execute(pool)
     .await?;
 
     // 5. Create checkpoint table
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS observer_checkpoints (
             listener_id VARCHAR(255) PRIMARY KEY,
             last_processed_id BIGINT NOT NULL DEFAULT 0,
@@ -131,7 +145,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             last_error TEXT,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-        "#,
+        ",
     )
     .execute(pool)
     .await?;
@@ -197,7 +211,7 @@ impl MockWebhookServer {
 
                 // Use try_lock() instead of blocking_lock() to avoid panic in async context
                 if let Ok(mut reqs) = requests.try_lock() {
-                    reqs.push(body.clone());
+                    reqs.push(body);
                 }
 
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "success"}))
@@ -235,7 +249,7 @@ impl MockWebhookServer {
                         serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
                     if let Ok(mut reqs) = requests.try_lock() {
-                        reqs.push(body.clone());
+                        reqs.push(body);
                     }
 
                     ResponseTemplate::new(200)
@@ -271,7 +285,7 @@ impl MockWebhookServer {
                     serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
                 if let Ok(mut reqs) = requests.try_lock() {
-                    reqs.push(body.clone());
+                    reqs.push(body);
                 }
 
                 ResponseTemplate::new(200)
@@ -317,14 +331,14 @@ pub async fn create_test_observer(
     });
 
     let row: (i64,) = sqlx::query_as(
-        r#"
+        r"
         INSERT INTO tb_observer (
             name, entity_type, event_type, condition_expression,
             actions, retry_config, enabled
         )
         VALUES ($1, $2, $3, $4, $5, $6, true)
         RETURNING pk_observer
-        "#,
+        ",
     )
     .bind(name)
     .bind(entity_type)
@@ -368,13 +382,13 @@ pub async fn insert_change_log_entry(
     });
 
     let row: (i64,) = sqlx::query_as(
-        r#"
+        r"
         INSERT INTO core.tb_entity_change_log (
             object_type, object_id, modification_type, object_data
         )
         VALUES ($1, $2, $3, $4)
         RETURNING pk_entity_change_log
-        "#,
+        ",
     )
     .bind(entity_type)
     .bind(entity_id)
@@ -395,13 +409,11 @@ pub async fn wait_for_webhook(
     let start = tokio::time::Instant::now();
 
     loop {
-        if start.elapsed() > timeout {
-            panic!(
-                "Timeout waiting for {} webhook calls. Got: {}",
-                expected_count,
-                server.request_count().await
-            );
-        }
+        assert!(start.elapsed() <= timeout,
+            "Timeout waiting for {} webhook calls. Got: {}",
+            expected_count,
+            server.request_count().await
+        );
 
         if server.request_count().await >= expected_count {
             break;
@@ -419,13 +431,13 @@ pub async fn assert_observer_log(
     expected_attempts: Option<i32>,
 ) {
     let row: Option<(String, i32, Option<i32>)> = sqlx::query_as(
-        r#"
+        r"
         SELECT status, attempt_number, duration_ms
         FROM tb_observer_log
         WHERE entity_id = $1
         ORDER BY created_at DESC
         LIMIT 1
-        "#,
+        ",
     )
     .bind(entity_id)
     .fetch_optional(pool)
@@ -473,12 +485,12 @@ pub async fn get_observer_logs_for_entity(
     entity_id: &str,
 ) -> Result<Vec<(String, i32, Option<i32>)>, sqlx::Error> {
     sqlx::query_as(
-        r#"
+        r"
         SELECT status, attempt_number, duration_ms
         FROM tb_observer_log
         WHERE entity_id = $1
         ORDER BY attempt_number ASC
-        "#,
+        ",
     )
     .bind(entity_id)
     .fetch_all(pool)
@@ -496,7 +508,7 @@ pub async fn check_checkpoint_exists(
             .fetch_optional(pool)
             .await?;
 
-    Ok(row.map(|(count,)| count > 0).unwrap_or(false))
+    Ok(row.is_some_and(|(count,)| count > 0))
 }
 
 /// Get checkpoint value (last processed ID) for a listener
@@ -507,7 +519,7 @@ pub async fn get_checkpoint_value(pool: &PgPool, listener_id: &str) -> Result<i6
             .fetch_optional(pool)
             .await?;
 
-    Ok(row.map(|(id,)| id).unwrap_or(0))
+    Ok(row.map_or(0, |(id,)| id))
 }
 
 /// Wait for multiple runtime events to be recorded
@@ -520,14 +532,12 @@ pub async fn wait_for_runtime_events(
     let start = tokio::time::Instant::now();
 
     loop {
-        if start.elapsed() > timeout {
-            panic!(
-                "Timeout waiting for {} events with status {}. Got: {:?}",
-                expected_count,
-                expected_status,
-                get_observer_log_count(pool, expected_status).await.unwrap_or(0)
-            );
-        }
+        assert!(start.elapsed() <= timeout,
+            "Timeout waiting for {} events with status {}. Got: {:?}",
+            expected_count,
+            expected_status,
+            get_observer_log_count(pool, expected_status).await.unwrap_or(0)
+        );
 
         if let Ok(count) = get_observer_log_count(pool, expected_status).await {
             if count >= expected_count {
@@ -542,12 +552,6 @@ pub async fn wait_for_runtime_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_database_url() {
-        let url = get_database_url();
-        assert!(!url.is_empty());
-    }
 
     #[tokio::test]
     async fn test_mock_webhook_server_creation() {

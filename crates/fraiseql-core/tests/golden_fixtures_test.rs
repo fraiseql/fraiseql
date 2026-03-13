@@ -1,18 +1,20 @@
-//! Golden fixture tests — verify every field of every struct in CompiledSchema.
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+//! Golden fixture tests — verify every field of every struct in `CompiledSchema`.
 //!
 //! Each fixture is a canonical JSON file that exercises a specific set of features.
 //! These tests assert that:
 //!   1. Every non-default field value parses correctly.
-//!   2. The schema round-trips without data loss (to_json → from_json → equality).
+//!   2. The schema round-trips without data loss (`to_json` → `from_json` → equality).
 //!
 //! If any of these tests fail on a newly added field, it means the field was
 //! silently lost or wrong — exactly the class of bug described in issue #53.
 
 use std::path::{Path, PathBuf};
 
-use fraiseql_core::schema::{
-    CompiledSchema, CursorType, MutationOperation, RetryConfig,
-    SqlProjectionHint,
+use fraiseql_core::{
+    db::types::DatabaseType,
+    schema::{CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig, SqlProjectionHint},
 };
 
 fn fixtures_dir() -> PathBuf {
@@ -58,7 +60,7 @@ fn golden_01_types_all_fields() {
     assert!(user.requires_role.is_none());
 
     let hint = user.sql_projection_hint.as_ref().expect("sql_projection_hint must be present");
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
     assert!(hint.projection_template.contains("jsonb_build_object"));
     assert_eq!(hint.estimated_reduction_percent, 60);
 
@@ -116,7 +118,7 @@ fn golden_01_queries_all_fields() {
     // Argument with default_value
     let limit_arg = users_q.arguments.iter().find(|a| a.name == "limit").unwrap();
     assert!(!limit_arg.nullable);
-    assert_eq!(limit_arg.default_value, Some(serde_json::json!(10)));
+    assert_eq!(limit_arg.default_value, Some(GraphQLValue::Int(10)));
 
     // nullable argument
     let email_arg = users_q.arguments.iter().find(|a| a.name == "email").unwrap();
@@ -396,9 +398,9 @@ fn golden_05_observers_config_and_validation_config() {
     assert!(schema.observers_config.is_some());
     assert!(schema.validation_config.is_some());
 
-    let obs_cfg = schema.observers_config.as_ref().unwrap();
-    assert_eq!(obs_cfg["backend"], "nats");
-    assert!(obs_cfg.get("nats_url").is_some());
+    let obs_cfg = schema.observers_config.as_ref().expect("observers_config present");
+    assert_eq!(obs_cfg.backend, "nats");
+    assert!(obs_cfg.nats_url.is_some());
 }
 
 #[test]
@@ -453,16 +455,18 @@ fn golden_07_federation_debug_mcp_sdl() {
     let schema = load_golden("07-relay-uuid-cursor.json");
 
     let fed = schema.federation.as_ref().expect("federation must be present");
-    assert_eq!(fed["enabled"], true);
-    assert_eq!(fed["service_name"], "items-service");
-    assert!(fed.get("circuit_breaker").is_some());
+    assert!(fed.enabled);
+    assert_eq!(fed.service_name.as_deref(), Some("items-service"));
+    assert!(fed.circuit_breaker.is_some());
 
     let debug = schema.debug_config.as_ref().expect("debug_config must be present");
-    assert_eq!(debug["slow_query_threshold_ms"], 500);
+    assert!(debug.enabled);
+    assert!(debug.database_explain);
 
     let mcp = schema.mcp_config.as_ref().expect("mcp_config must be present");
-    assert_eq!(mcp["enabled"], true);
-    assert_eq!(mcp["server_name"], "fraiseql-items");
+    assert!(mcp.enabled);
+    assert_eq!(mcp.path, "/mcp");
+    assert_eq!(mcp.include, ["items"]);
 
     let sdl = schema.schema_sdl.as_ref().expect("schema_sdl must be present");
     assert!(sdl.contains("type Item"));

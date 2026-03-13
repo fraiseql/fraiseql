@@ -47,7 +47,7 @@ impl QueryPlanner {
 
     /// Create query planner with custom JSONB optimization options.
     #[must_use]
-    pub fn with_jsonb_options(
+    pub const fn with_jsonb_options(
         cache_enabled: bool,
         jsonb_options: JsonbOptimizationOptions,
     ) -> Self {
@@ -73,7 +73,8 @@ impl QueryPlanner {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: a QueryMatch from compiled schema matching.
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());
@@ -134,12 +135,8 @@ impl QueryPlanner {
         let table = query_match.query_def.sql_source.as_ref().map_or("unknown", String::as_str);
 
         // Build basic SELECT query
-        let fields_sql = if query_match.fields.is_empty() {
-            "data".to_string()
-        } else {
-            // For now, select all data (projection happens later)
-            "data".to_string()
-        };
+        // Select all data — projection happens later in the execution pipeline
+        let fields_sql = "data".to_string();
 
         format!("SELECT {fields_sql} FROM {table}")
     }
@@ -168,6 +165,8 @@ impl QueryPlanner {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use std::collections::HashMap;
 
     use super::*;

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Tests for `jsonb_column` field preservation during schema compilation
 //!
 //! Verifies that:

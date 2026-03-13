@@ -21,11 +21,13 @@ Default features: minimal (core only). Users opt in via `Cargo.toml` features.
 ## Consequences
 
 **Positive:**
+
 - Minimal binaries for basic deployments
 - Clear dependency management
 - Compile-time dead code elimination
 
 **Negative:**
+
 - Feature matrix increases test matrix
 - Default-disabled features may bitrot if not tested
 - Users must understand feature enablement

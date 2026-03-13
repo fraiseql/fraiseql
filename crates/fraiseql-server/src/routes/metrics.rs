@@ -22,15 +22,23 @@ use crate::{metrics_server::PrometheusMetrics, routes::graphql::AppState};
 #[derive(Debug, Serialize)]
 pub struct MetricsResponse {
     /// Total GraphQL queries
-    pub queries_total:         u64,
+    pub queries_total:            u64,
     /// Successfully executed queries
-    pub queries_success:       u64,
+    pub queries_success:          u64,
     /// Failed queries
-    pub queries_error:         u64,
+    pub queries_error:            u64,
     /// Average query duration (ms)
-    pub avg_query_duration_ms: f64,
+    pub avg_query_duration_ms:    f64,
     /// Cache hit ratio (0-1)
-    pub cache_hit_ratio:       f64,
+    pub cache_hit_ratio:          f64,
+    /// Total connections in pool
+    pub pool_connections_total:   u32,
+    /// Idle (available) connections in pool
+    pub pool_connections_idle:    u32,
+    /// Active (in-use) connections in pool
+    pub pool_connections_active:  u32,
+    /// Requests waiting for a pool connection
+    pub pool_requests_waiting:    u32,
 }
 
 /// Metrics handler - returns Prometheus format metrics.
@@ -187,8 +195,67 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Pool health metrics (sampled live from adapter on each request)
+    {
+        let pool = state.executor.pool_metrics();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_db_pool_connections_total Total connections in pool\n",
+                "# TYPE fraiseql_db_pool_connections_total gauge\n",
+                "fraiseql_db_pool_connections_total {total}\n",
+                "\n# HELP fraiseql_db_pool_connections_idle Idle (available) connections\n",
+                "# TYPE fraiseql_db_pool_connections_idle gauge\n",
+                "fraiseql_db_pool_connections_idle {idle}\n",
+                "\n# HELP fraiseql_db_pool_connections_active Active (in-use) connections\n",
+                "# TYPE fraiseql_db_pool_connections_active gauge\n",
+                "fraiseql_db_pool_connections_active {active}\n",
+                "\n# HELP fraiseql_db_pool_requests_waiting Requests waiting for a connection\n",
+                "# TYPE fraiseql_db_pool_requests_waiting gauge\n",
+                "fraiseql_db_pool_requests_waiting {waiting}\n",
+            ),
+            total   = pool.total_connections,
+            idle    = pool.idle_connections,
+            active  = pool.active_connections,
+            waiting = pool.waiting_requests,
+        ));
+    }
+
+    // Pool auto-tuner metrics (when enabled)
+    if let Some(ref tuner) = state.pool_tuner {
+        let adjustments = tuner.adjustments_total();
+        let recommended = tuner.recommended_size();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_pool_tuning_adjustments_total ",
+                "Total pool resize operations applied or recommended\n",
+                "# TYPE fraiseql_pool_tuning_adjustments_total counter\n",
+                "fraiseql_pool_tuning_adjustments_total {adjustments}\n",
+                "\n# HELP fraiseql_pool_recommended_size ",
+                "Current recommended connection pool size\n",
+                "# TYPE fraiseql_pool_recommended_size gauge\n",
+                "fraiseql_pool_recommended_size {recommended}\n",
+            ),
+            adjustments = adjustments,
+            recommended = recommended,
+        ));
+    }
+
     // Append per-operation histogram metrics
     output.push_str(&state.metrics.operation_metrics.to_prometheus_format());
+
+    // Multi-root parallel query counter.
+    {
+        let multi_root = fraiseql_core::runtime::multi_root_queries_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_multi_root_queries_total ",
+                "Total multi-root GraphQL queries dispatched via parallel execution\n",
+                "# TYPE fraiseql_multi_root_queries_total counter\n",
+                "fraiseql_multi_root_queries_total {multi_root}\n",
+            ),
+            multi_root = multi_root,
+        ));
+    }
 
     // Append subscription counters.
     let subs = crate::routes::subscription_metrics();
@@ -222,13 +289,18 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 
     // Collect metrics from AppState
     let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
+    let pool = state.executor.pool_metrics();
 
     let response = MetricsResponse {
-        queries_total:         prometheus_metrics.queries_total,
-        queries_success:       prometheus_metrics.queries_success,
-        queries_error:         prometheus_metrics.queries_error,
-        avg_query_duration_ms: prometheus_metrics.queries_avg_duration_ms,
-        cache_hit_ratio:       prometheus_metrics.cache_hit_ratio,
+        queries_total:           prometheus_metrics.queries_total,
+        queries_success:         prometheus_metrics.queries_success,
+        queries_error:           prometheus_metrics.queries_error,
+        avg_query_duration_ms:   prometheus_metrics.queries_avg_duration_ms,
+        cache_hit_ratio:         prometheus_metrics.cache_hit_ratio,
+        pool_connections_total:  pool.total_connections,
+        pool_connections_idle:   pool.idle_connections,
+        pool_connections_active: pool.active_connections,
+        pool_requests_waiting:   pool.waiting_requests,
     };
 
     Json(response)
@@ -236,16 +308,30 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
     fn test_metrics_response_structure() {
         let response = MetricsResponse {
-            queries_total:         1000,
-            queries_success:       950,
-            queries_error:         50,
-            avg_query_duration_ms: 12.5,
-            cache_hit_ratio:       0.75,
+            queries_total:           1000,
+            queries_success:         950,
+            queries_error:           50,
+            avg_query_duration_ms:   12.5,
+            cache_hit_ratio:         0.75,
+            pool_connections_total:  20,
+            pool_connections_idle:   15,
+            pool_connections_active: 5,
+            pool_requests_waiting:   0,
         };
 
         assert_eq!(response.queries_total, 1000);
@@ -253,21 +339,33 @@ mod tests {
         assert_eq!(response.queries_error, 50);
         assert!((response.avg_query_duration_ms - 12.5).abs() < 0.001);
         assert!((response.cache_hit_ratio - 0.75).abs() < 0.001);
+        assert_eq!(response.pool_connections_total, 20);
+        assert_eq!(response.pool_connections_idle, 15);
+        assert_eq!(response.pool_connections_active, 5);
+        assert_eq!(response.pool_requests_waiting, 0);
     }
 
     #[test]
     fn test_metrics_response_serialization() {
         let response = MetricsResponse {
-            queries_total:         100,
-            queries_success:       95,
-            queries_error:         5,
-            avg_query_duration_ms: 5.0,
-            cache_hit_ratio:       0.85,
+            queries_total:           100,
+            queries_success:         95,
+            queries_error:           5,
+            avg_query_duration_ms:   5.0,
+            cache_hit_ratio:         0.85,
+            pool_connections_total:  10,
+            pool_connections_idle:   8,
+            pool_connections_active: 2,
+            pool_requests_waiting:   0,
         };
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("queries_total"));
         assert!(json.contains("100"));
         assert!(json.contains("queries_success"));
+        assert!(json.contains("pool_connections_total"));
+        assert!(json.contains("pool_connections_idle"));
+        assert!(json.contains("pool_connections_active"));
+        assert!(json.contains("pool_requests_waiting"));
     }
 }

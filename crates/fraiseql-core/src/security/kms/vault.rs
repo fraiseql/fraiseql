@@ -1,7 +1,11 @@
 //! HashiCorp Vault Transit secrets engine provider.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
+/// Timeout for all outbound Vault API requests.
+const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+use async_trait::async_trait;
 use serde_json::json;
 
 use crate::security::kms::{
@@ -19,7 +23,7 @@ use crate::security::kms::{
 ///   2. Vault Agent with auto-auth for token management
 ///   3. AppRole authentication with response wrapping
 ///   4. Kubernetes auth method in K8s environments
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VaultConfig {
     /// Vault server address (e.g., `https://vault.example.com`)
     pub vault_addr: String,
@@ -33,6 +37,19 @@ pub struct VaultConfig {
     pub verify_tls: bool,
     /// Request timeout in seconds (default: 30)
     pub timeout:    u64,
+}
+
+impl std::fmt::Debug for VaultConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultConfig")
+            .field("vault_addr", &self.vault_addr)
+            .field("token", &"[REDACTED]")
+            .field("mount_path", &self.mount_path)
+            .field("namespace", &self.namespace)
+            .field("verify_tls", &self.verify_tls)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
 }
 
 impl VaultConfig {
@@ -64,14 +81,14 @@ impl VaultConfig {
 
     /// Set TLS verification.
     #[must_use]
-    pub fn with_verify_tls(mut self, verify_tls: bool) -> Self {
+    pub const fn with_verify_tls(mut self, verify_tls: bool) -> Self {
         self.verify_tls = verify_tls;
         self
     }
 
     /// Set request timeout in seconds.
     #[must_use]
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }
@@ -97,7 +114,12 @@ pub struct VaultKmsProvider {
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(VAULT_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| KmsError::InvalidConfiguration {
+                message: format!("Failed to build HTTP client: {e}"),
+            })?;
         Ok(Self { config, client })
     }
 
@@ -123,7 +145,10 @@ impl VaultKmsProvider {
     }
 }
 
-#[async_trait::async_trait]
+// Reason: BaseKmsProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl BaseKmsProvider for VaultKmsProvider {
     fn provider_name(&self) -> &'static str {
         "vault"
@@ -418,18 +443,22 @@ impl BaseKmsProvider for VaultKmsProvider {
 
 /// Encode bytes as base64.
 fn base64_encode(data: &[u8]) -> String {
+    #[allow(clippy::wildcard_imports)] // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.encode(data)
 }
 
 /// Decode base64 to bytes.
 fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
+    #[allow(clippy::wildcard_imports)] // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.decode(s)
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -460,5 +489,21 @@ mod tests {
         let encoded = base64_encode(data);
         let decoded = base64_decode(&encoded).unwrap();
         assert_eq!(decoded, data);
+    }
+
+    // ── S25-H2: VaultKmsProvider client timeout ───────────────────────────────
+
+    #[test]
+    fn vault_request_timeout_is_set() {
+        let secs = VAULT_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "Vault timeout should be 1–120 s, got {secs}");
+    }
+
+    #[test]
+    fn vault_provider_new_succeeds() {
+        let config =
+            VaultConfig::new("https://vault.example.com".to_string(), "token".to_string());
+        let provider = VaultKmsProvider::new(config);
+        assert!(provider.is_ok(), "VaultKmsProvider::new() must succeed with valid config");
     }
 }

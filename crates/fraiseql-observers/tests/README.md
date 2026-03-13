@@ -174,7 +174,7 @@ Benchmark results:
 
 For manual testing with Docker Compose, see:
 
-- `DEPLOYMENT.md` - Complete deployment guide
+- `deployment.md` - Complete deployment guide
 - `docker-compose.*.yml` - Docker Compose configurations
 - `examples/*.toml` - Configuration examples
 
@@ -221,7 +221,7 @@ jobs:
 After completing integration tests:
 
 1. Review performance benchmarks: `cargo bench`
-2. Deploy to staging using Docker Compose: see `DEPLOYMENT.md`
+2. Deploy to staging using Docker Compose: see `deployment.md`
 3. Run production smoke tests with real workload
 4. Monitor metrics: cache hit rate, dedup hit rate, throughput
 5. Tune configuration based on observed performance
@@ -238,6 +238,6 @@ When adding new integration tests:
 
 ## Support
 
-- **Documentation**: See `DEPLOYMENT.md` and `examples/README.md`
+- **Documentation**: See `deployment.md` and `examples/README.md`
 - **Issues**: https://github.com/your-org/fraiseql/issues
 - **Discussions**: https://github.com/your-org/fraiseql/discussions

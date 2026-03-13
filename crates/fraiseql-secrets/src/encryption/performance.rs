@@ -11,6 +11,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use zeroize::Zeroizing;
 
 /// Operation metrics for performance monitoring
 #[derive(Debug, Clone)]
@@ -104,10 +105,13 @@ impl EncryptionBatch {
     }
 }
 
-/// Key cache with LRU eviction
+/// Key cache with LRU eviction.
+///
+/// Key bytes are stored in [`Zeroizing`] wrappers so that evicted entries are
+/// overwritten in memory rather than lingering until the allocator reuses them.
 pub struct KeyCache {
-    /// Cached keys
-    cache:        HashMap<String, Vec<u8>>,
+    /// Cached keys (zeroed on eviction/drop)
+    cache:        HashMap<String, Zeroizing<Vec<u8>>>,
     /// Maximum cache size
     max_size:     usize,
     /// Access order for LRU
@@ -137,14 +141,17 @@ impl KeyCache {
             self.access_order.retain(|k| k != key_path);
             self.access_order.push(key_path.to_string());
             self.hits.fetch_add(1, Ordering::Relaxed);
-            Some(key.clone())
+            Some((**key).clone())
         } else {
             self.misses.fetch_add(1, Ordering::Relaxed);
             None
         }
     }
 
-    /// Insert key into cache
+    /// Insert key into cache.
+    ///
+    /// The key bytes are stored in a [`Zeroizing`] wrapper so they are
+    /// overwritten in memory when the entry is evicted or the cache is cleared.
     pub fn insert(&mut self, key_path: impl Into<String>, key: Vec<u8>) {
         let key_path = key_path.into();
 
@@ -157,8 +164,8 @@ impl KeyCache {
             }
         }
 
-        // Insert or update
-        self.cache.insert(key_path.clone(), key);
+        // Insert or update (wrapped to zero on eviction)
+        self.cache.insert(key_path.clone(), Zeroizing::new(key));
 
         // Update access order
         self.access_order.retain(|k| k != &key_path);
@@ -397,6 +404,7 @@ impl OperationTimer {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

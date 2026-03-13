@@ -20,7 +20,8 @@ use std::sync::Arc;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: system root certificates or a CA certificate file on disk.
 /// use fraiseql_wire::connection::TlsConfig;
 ///
 /// // With system root certificates (production)
@@ -30,7 +31,7 @@ use std::sync::Arc;
 ///
 /// // With custom CA certificate
 /// let tls = TlsConfig::builder()
-///     .ca_cert_path("/path/to/ca.pem")?
+///     .ca_cert_path("/path/to/ca.pem")
 ///     .verify_hostname(true)
 ///     .build()?;
 ///
@@ -39,6 +40,7 @@ use std::sync::Arc;
 ///     .danger_accept_invalid_certs(true)
 ///     .danger_accept_invalid_hostnames(true)
 ///     .build()?;
+/// # fraiseql_wire::Result::Ok(())
 /// ```
 #[derive(Clone)]
 pub struct TlsConfig {
@@ -50,7 +52,7 @@ pub struct TlsConfig {
     danger_accept_invalid_certs: bool,
     /// Whether to accept invalid hostnames (development only)
     danger_accept_invalid_hostnames: bool,
-    /// Compiled rustls ClientConfig
+    /// Compiled rustls `ClientConfig`
     client_config: Arc<ClientConfig>,
 }
 
@@ -59,32 +61,35 @@ impl TlsConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn builder() -> TlsConfigBuilder {
         TlsConfigBuilder::default()
     }
 
-    /// Get the rustls ClientConfig for this TLS configuration.
+    /// Get the rustls `ClientConfig` for this TLS configuration.
     pub fn client_config(&self) -> Arc<ClientConfig> {
         self.client_config.clone()
     }
 
     /// Check if hostname verification is enabled.
-    pub fn verify_hostname(&self) -> bool {
+    pub const fn verify_hostname(&self) -> bool {
         self.verify_hostname
     }
 
     /// Check if invalid certificates are accepted (development only).
-    pub fn danger_accept_invalid_certs(&self) -> bool {
+    pub const fn danger_accept_invalid_certs(&self) -> bool {
         self.danger_accept_invalid_certs
     }
 
     /// Check if invalid hostnames are accepted (development only).
-    pub fn danger_accept_invalid_hostnames(&self) -> bool {
+    pub const fn danger_accept_invalid_hostnames(&self) -> bool {
         self.danger_accept_invalid_hostnames
     }
 }
@@ -139,10 +144,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: CA certificate file at the specified path.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
-    ///     .ca_cert_path("/etc/ssl/certs/ca.pem")?
+    ///     .ca_cert_path("/etc/ssl/certs/ca.pem")
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn ca_cert_path(mut self, path: impl Into<String>) -> Self {
         self.ca_cert_path = Some(path.into());
@@ -160,12 +168,15 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn verify_hostname(mut self, verify: bool) -> Self {
+    pub const fn verify_hostname(mut self, verify: bool) -> Self {
         self.verify_hostname = verify;
         self
     }
@@ -177,14 +188,22 @@ impl TlsConfigBuilder {
     ///
     /// Only use for testing with self-signed certificates.
     ///
+    /// # Errors
+    ///
+    /// [`TlsConfigBuilder::build`] returns `Error::Config` when this option is `true`
+    /// in a release build (`cfg(not(debug_assertions))`).
+    ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: debug build only (returns Err in release mode).
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_certs(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn danger_accept_invalid_certs(mut self, accept: bool) -> Self {
+    pub const fn danger_accept_invalid_certs(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_certs = accept;
         self
     }
@@ -199,12 +218,15 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: debug build only.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_hostnames(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
+    pub const fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_hostnames = accept;
         self
     }
@@ -220,14 +242,17 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
         // SECURITY: Validate TLS configuration before creating client
-        validate_tls_security(self.danger_accept_invalid_certs);
+        validate_tls_security(self.danger_accept_invalid_certs)?;
 
         let client_config = if self.danger_accept_invalid_certs {
             // Create a client config that accepts any certificate (development only)
@@ -328,9 +353,8 @@ impl TlsConfigBuilder {
 
 /// Validate TLS configuration for security constraints.
 ///
-/// Enforces:
-/// - Release builds cannot use `danger_accept_invalid_certs`
-/// - Production environment rejects danger mode
+/// Enforces that release builds cannot use `danger_accept_invalid_certs`.
+/// Development builds emit a warning but proceed.
 ///
 /// # Arguments
 ///
@@ -338,14 +362,14 @@ impl TlsConfigBuilder {
 ///
 /// # Errors
 ///
-/// Returns an error or panics if validation fails
-fn validate_tls_security(danger_accept_invalid_certs: bool) {
+/// Returns `Error::Config` if `danger_accept_invalid_certs` is set in a release build.
+fn validate_tls_security(danger_accept_invalid_certs: bool) -> Result<()> {
     if danger_accept_invalid_certs {
-        // SECURITY: Panic in release builds to prevent accidental production use
+        // SECURITY: Return an error in release builds to prevent accidental production use
         #[cfg(not(debug_assertions))]
-        {
-            panic!("🚨 CRITICAL: TLS certificate validation bypass not allowed in release builds");
-        }
+        return Err(Error::Config(
+            "TLS certificate validation bypass not permitted in release builds".into(),
+        ));
 
         // Development builds: warn but allow
         #[cfg(debug_assertions)]
@@ -354,6 +378,7 @@ fn validate_tls_security(danger_accept_invalid_certs: bool) {
             tracing::warn!("This mode is only for development with self-signed certificates");
         }
     }
+    Ok(())
 }
 
 /// Parse server name from hostname for TLS SNI (Server Name Indication).
@@ -475,12 +500,17 @@ mod tests {
 
     #[test]
     #[cfg(not(debug_assertions))]
-    #[should_panic(expected = "TLS certificate validation bypass")]
-    fn test_danger_mode_panics_in_release_build() {
-        // This test only runs in release builds and should panic
-        let _ = TlsConfig::builder()
+    fn test_danger_mode_returns_error_in_release_build() {
+        // This test only runs in release builds; danger mode must return an error
+        let result = TlsConfig::builder()
             .danger_accept_invalid_certs(true)
             .build();
+        assert!(result.is_err(), "danger mode must be rejected in release builds");
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("not permitted in release builds"),
+            "error message must explain the restriction",
+        );
     }
 
     #[test]

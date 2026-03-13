@@ -5,6 +5,12 @@
 //! 2. Server loads and parses configuration
 //! 3. Environment variable overrides are applied
 //! 4. Security subsystems are initialized
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 #[cfg(test)]
 mod tests {

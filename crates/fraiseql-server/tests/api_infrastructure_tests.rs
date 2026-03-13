@@ -1,4 +1,8 @@
 //! Tests for API infrastructure - routing, authentication, middleware
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 /// Helper test to verify API infrastructure is properly structured.
 #[test]
@@ -19,8 +23,8 @@ fn test_api_query_response_types_defined() {
         sql:            None,
         complexity:     fraiseql_server::routes::api::query::ComplexityInfo {
             depth:       1,
-            field_count: 1,
-            score:       1,
+            complexity:  1,
+            alias_count: 0,
         },
         warnings:       vec![],
         estimated_cost: 100,

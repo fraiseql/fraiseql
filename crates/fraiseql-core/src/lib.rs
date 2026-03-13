@@ -2,9 +2,6 @@
 //!
 //! Core execution engine for FraiseQL v2 - A compiled GraphQL execution engine.
 
-#![warn(clippy::missing_errors_doc)]
-#![warn(clippy::missing_panics_doc)]
-
 //! ## Architecture
 //!
 //! FraiseQL v2 compiles GraphQL schemas into optimized SQL execution plans at build time,
@@ -12,13 +9,13 @@
 //!
 //! ### Key Components
 //!
-//! - **Schema**: Compiled schema representation (reused from v1)
-//! - **Compiler**: GraphQL schema → SQL template compiler (new for v2)
-//! - **Runtime**: Compiled query executor (new for v2)
-//! - **Database**: Connection pooling and transaction management (from v1)
-//! - **Cache**: Query result caching with coherency (from v1)
-//! - **Security**: Authentication, authorization, and audit (from v1)
-//! - **APQ**: Automatic Persisted Queries (from v1)
+//! - **Schema**: Compiled schema representation (types, fields, SQL mappings)
+//! - **Compiler**: GraphQL schema → SQL template compiler
+//! - **Runtime**: Compiled query executor
+//! - **Database**: Connection pooling and transaction management
+//! - **Cache**: Query result caching with coherency
+//! - **Security**: Authentication, authorization, and audit
+//! - **APQ**: Automatic Persisted Queries
 //!
 //! ## Compilation Flow
 //!
@@ -42,7 +39,9 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema file and a live PostgreSQL database.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_core::runtime::Executor;
 //!
@@ -50,8 +49,8 @@
 //! // Load compiled schema
 //! let schema = CompiledSchema::from_file("schema.compiled.json")?;
 //!
-//! // Create executor
-//! let executor = Executor::new(schema, db_pool).await?;
+//! // Create executor (db_pool is a DatabaseAdapter implementation)
+//! let executor = Executor::new(schema, db_pool);
 //!
 //! // Execute query
 //! let query = r#"query { users { id name } }"#;
@@ -63,56 +62,45 @@
 //! ```
 
 #![forbid(unsafe_code)]
-// Missing docs allowed for internal items - public API is fully documented
-#![allow(missing_docs)]
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-// Allow common pedantic lints that are too noisy for this codebase
-#![allow(clippy::doc_markdown)] // Would require 150+ doc changes for backticks
-#![allow(clippy::return_self_not_must_use)] // Builder pattern doesn't always need #[must_use]
-#![allow(clippy::uninlined_format_args)] // Style preference, not a bug
-#![allow(clippy::unused_self)] // Often needed for trait consistency
-#![allow(clippy::unnecessary_wraps)] // Sometimes needed for API consistency
-#![allow(clippy::must_use_candidate)] // Too noisy for builder methods
-#![allow(clippy::missing_errors_doc)] // Would require extensive doc additions
-#![allow(clippy::module_name_repetitions)] // Common in Rust APIs
-#![allow(clippy::match_same_arms)] // Sometimes clearer to be explicit
-#![allow(clippy::cast_possible_truncation)] // Many intentional u64->u32 casts
-#![allow(clippy::cast_precision_loss)] // Intentional f64 conversions
-#![allow(clippy::cast_sign_loss)] // Intentional signed->unsigned conversions
-#![allow(clippy::too_many_arguments)] // Some complex functions need many args
-#![allow(clippy::format_push_string)] // Sometimes clearer than write!
-#![allow(clippy::redundant_closure_for_method_calls)] // Sometimes clearer
-#![allow(clippy::explicit_iter_loop)] // Explicit .iter() can be clearer
-#![allow(clippy::bool_to_int_with_if)] // Sometimes clearer than conversion
-#![allow(clippy::single_match_else)] // Sometimes clearer than if-else
-#![allow(clippy::wildcard_imports)] // Used intentionally for enum variants
-#![allow(clippy::struct_excessive_bools)] // AutoParams struct uses bools for flags
-#![allow(clippy::missing_panics_doc)] // Would require extensive doc additions
-#![allow(clippy::similar_names)] // Variable naming style
-#![allow(clippy::option_if_let_else)] // Sometimes clearer
-#![allow(clippy::if_not_else)] // Sometimes clearer
-#![allow(clippy::useless_format)] // Sometimes needed for consistency
-#![allow(clippy::or_fun_call)] // Sometimes clearer with function call
-#![allow(clippy::unused_async)] // Placeholder for future async work
-#![allow(clippy::should_implement_trait)] // from_str intentionally different
-#![allow(clippy::needless_pass_by_value)] // Sometimes clearer API
-#![allow(clippy::manual_saturating_arithmetic)] // Explicit can be clearer
-#![allow(clippy::match_wildcard_for_single_variants)] // Sometimes clearer
-#![allow(clippy::single_char_pattern)] // Very minor optimization
-#![allow(clippy::doc_link_with_quotes)] // Documentation style choice
-#![allow(clippy::collapsible_if)] // Sometimes clearer when separate
-#![allow(clippy::map_unwrap_or)] // Sometimes clearer
-#![allow(clippy::manual_map)] // Sometimes clearer
-#![allow(clippy::default_trait_access)] // Map::default() vs Default::default()
-#![allow(clippy::implicit_saturating_sub)] // Explicit subtraction can be clearer
-#![allow(clippy::ptr_arg)] // Sometimes &Vec is clearer than &[T]
-#![allow(clippy::enum_glob_use)] // Wildcard enum imports for readability
-#![allow(clippy::unwrap_or_default)] // or_insert_with(Vec::new) style preference
-#![allow(clippy::redundant_closure)] // Sometimes clearer
-#![allow(clippy::suspicious_doc_comments)] // /// vs //! style is intentional
-#![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
-#![allow(clippy::large_stack_arrays)] // Test fixtures sometimes require larger arrays
+// The workspace Cargo.toml already enforces `deny` for clippy::all and clippy::pedantic
+// via [workspace.lints.clippy]. Repeating `#![warn(...)]` here would downgrade those
+// workspace-level denials for this crate, which is wrong. Suppressions below use
+// `#![allow(...)]` which are still needed for legitimate per-crate overrides.
+//
+// Per-crate overrides for workspace pedantic denials.
+// Each entry documents the trade-off. Crate-level allows are used only where the
+// issue spans 300+ sites and inlining would create more noise than it removes.
+// Targeted single-site suppressions use inline #[allow] — see the noted files.
+//
+// Reason: ~300+ existing doc comments use backticks without code fencing; converting
+//         all of them is a separate cleanup tracked in the v2.2.0 backlog.
+#![allow(clippy::doc_markdown)]
+// Reason: ~300+ public fallible functions lack `# Errors` sections; doc coverage
+//         is a separate effort tracked in the v2.2.0 backlog.
+#![allow(clippy::missing_errors_doc)]
+// Reason: explicit duplicate match arms clarify intent in complex match expressions
+//         throughout the compiler; collapsing them would harm readability.
+#![allow(clippy::match_same_arms)]
+// Reason: schema compilation functions take type, context, config, security, and
+//         modifier arguments; refactoring to builder structs is planned (v2.2.0).
+#![allow(clippy::too_many_arguments)]
+// Reason: `push_str(&format!(...))` is used in ~12 SQL builder sites (window.rs,
+//         aggregation/, explain.rs, schema.rs) where it is clearer than `write!`.
+#![allow(clippy::format_push_string)]
+// Reason: ~300+ public functions lack `# Panics` sections; doc coverage is
+//         tracked in roadmap.md (v2.2.0 cleanup).
+#![allow(clippy::missing_panics_doc)]
+// Reason: `from_str`/`from_value` are schema-specific constructors intentionally
+//         named to avoid confusion with the `FromStr` standard trait.
+#![allow(clippy::should_implement_trait)]
+// Reason: several public API functions take owned values for ergonomics; trait
+//         implementations cannot change their signature to use references.
+#![allow(clippy::needless_pass_by_value)]
+// Reason: struct field initialisation uses `Default::default()` for alignment in
+//         long struct literals (compiler/codegen.rs, validation/custom_type_registry/).
+#![allow(clippy::default_trait_access)]
+// NOTE: clippy::wildcard_imports and clippy::enum_glob_use are suppressed inline
+//       at their specific sites (vault.rs, subscription/manager.rs, aggregation/expressions.rs).
 
 // Core modules
 pub mod config;
@@ -130,22 +118,17 @@ pub mod graphql;
 
 // Infrastructure
 pub mod apq;
-pub mod audit;
 pub mod cache;
-pub mod db;
+pub use fraiseql_db as db;
+#[cfg(feature = "schema-lint")]
 pub mod design;
-pub mod federation;
+pub use fraiseql_federation as federation;
 pub mod filters;
-pub mod observability;
 pub mod security;
 pub mod tenancy;
 pub mod types;
 pub mod utils;
 pub mod validation;
-
-// Arrow Flight integration (optional)
-#[cfg(feature = "arrow")]
-pub mod arrow_executor;
 
 // Re-exports for convenience
 pub use config::FraiseQLConfig;
@@ -157,4 +140,4 @@ pub use tenancy::TenantContext;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Minimum supported Rust version
-pub const MSRV: &str = "1.75";
+pub const MSRV: &str = "1.88";

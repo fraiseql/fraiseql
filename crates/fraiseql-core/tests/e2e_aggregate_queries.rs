@@ -1,13 +1,16 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end aggregate query tests
 //!
 //! These tests exercise the full analytics pipeline from query parsing to SQL generation
 
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
 mod common;
 
 use common::{assert_sql_contains, create_sales_metadata};
 use fraiseql_core::{
     db::types::DatabaseType,
-    runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    runtime::{AggregateQueryParser, AggregationSqlGenerator, ParameterizedAggregationSql},
 };
 use serde_json::json;
 
@@ -15,11 +18,10 @@ use serde_json::json;
 // Helper Functions
 // =============================================================================
 
-fn parse_plan_generate(query: &serde_json::Value) -> String {
+fn parse_plan_generate_full(query: &serde_json::Value) -> ParameterizedAggregationSql {
     let metadata = create_sales_metadata();
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
-    // Add table field if not present
     let mut query_with_table = query.clone();
     if query_with_table.as_object_mut().unwrap().get("table").is_none() {
         query_with_table
@@ -31,40 +33,11 @@ fn parse_plan_generate(query: &serde_json::Value) -> String {
     let parsed = AggregateQueryParser::parse(&query_with_table, &metadata).unwrap();
     let plan =
         fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
-    let sql_parts = generator.generate(&plan).unwrap();
+    generator.generate_parameterized(&plan).unwrap()
+}
 
-    // Build complete SQL from parts
-    let mut sql = format!("{} {}", sql_parts.select, sql_parts.from);
-
-    if let Some(where_clause) = sql_parts.where_clause {
-        sql.push(' ');
-        sql.push_str(&where_clause);
-    }
-
-    if let Some(group_by) = sql_parts.group_by {
-        sql.push(' ');
-        sql.push_str(&group_by);
-    }
-
-    if let Some(having) = sql_parts.having {
-        sql.push(' ');
-        sql.push_str(&having);
-    }
-
-    if let Some(order_by) = sql_parts.order_by {
-        sql.push(' ');
-        sql.push_str(&order_by);
-    }
-
-    if let Some(limit) = sql_parts.limit {
-        sql.push_str(&format!(" LIMIT {}", limit));
-    }
-
-    if let Some(offset) = sql_parts.offset {
-        sql.push_str(&format!(" OFFSET {}", offset));
-    }
-
-    sql
+fn parse_plan_generate(query: &serde_json::Value) -> String {
+    parse_plan_generate_full(query).sql
 }
 
 // =============================================================================
@@ -176,9 +149,10 @@ fn test_where_denormalized_filter() {
         "aggregates": [{"count": {}}]
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&sql, &["WHERE", "customer_id", "cust-001"]);
+    assert_sql_contains(&result.sql, &["WHERE", "customer_id"]);
+    assert!(result.params.contains(&json!("cust-001")), "value must be a bind param");
 }
 
 #[test]
@@ -190,9 +164,10 @@ fn test_where_jsonb_dimension() {
         "aggregates": [{"count": {}}]
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&sql, &["WHERE", "data->>'category'", "Electronics"]);
+    assert_sql_contains(&result.sql, &["WHERE", "data->>'category'"]);
+    assert!(result.params.contains(&json!("Electronics")), "value must be a bind param");
 }
 
 #[test]
@@ -219,9 +194,13 @@ fn test_where_with_like_operator() {
         "aggregates": [{"count": {}}]
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&sql, &["WHERE", "data->>'category'", "LIKE", "%electr%"]);
+    assert_sql_contains(&result.sql, &["WHERE", "data->>'category'", "LIKE"]);
+    assert!(
+        result.params.iter().any(|p| p.as_str() == Some("%electr%")),
+        "LIKE pattern must be a bind param: {:?}", result.params
+    );
 }
 
 // =============================================================================
@@ -448,9 +427,10 @@ fn test_having_simple_count() {
         }
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&sql, &["GROUP BY", "HAVING", "COUNT(*) > 5"]);
+    assert_sql_contains(&result.sql, &["GROUP BY", "HAVING", "COUNT(*) >"]);
+    assert!(result.params.contains(&json!(5)), "HAVING value must be a bind param");
 }
 
 #[test]
@@ -466,9 +446,10 @@ fn test_having_aggregate_sum() {
         }
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&sql, &["GROUP BY", "HAVING", "SUM(revenue) >= 1000"]);
+    assert_sql_contains(&result.sql, &["GROUP BY", "HAVING", "SUM(revenue) >="]);
+    assert!(result.params.contains(&json!(1000.0)), "HAVING value must be a bind param");
 }
 
 #[test]
@@ -486,17 +467,11 @@ fn test_having_multiple_conditions() {
         }
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(
-        &sql,
-        &[
-            "HAVING",
-            "COUNT(*) > 10",
-            "AVG(revenue) >= 50",
-            "AND", // Multiple conditions are AND-ed
-        ],
-    );
+    assert_sql_contains(&result.sql, &["HAVING", "COUNT(*) >", "AVG(revenue) >=", "AND"]);
+    assert!(result.params.contains(&json!(10)), "count threshold must be a bind param");
+    assert!(result.params.contains(&json!(50.0)), "avg threshold must be a bind param");
 }
 
 #[test]
@@ -514,7 +489,8 @@ fn test_having_with_where() {
         }
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
+    let sql = &result.sql;
 
     // Verify SQL clause order: WHERE → GROUP BY → HAVING
     let where_pos = sql.find("WHERE").expect("Missing WHERE");
@@ -524,7 +500,9 @@ fn test_having_with_where() {
     assert!(where_pos < group_pos, "WHERE should come before GROUP BY");
     assert!(group_pos < having_pos, "GROUP BY should come before HAVING");
 
-    assert_sql_contains(&sql, &["data->>'region'", "= 'North'", "SUM(revenue) > 5000"]);
+    assert_sql_contains(sql, &["data->>'region'", "SUM(revenue) >"]);
+    assert!(result.params.contains(&json!("North")), "WHERE value must be a bind param");
+    assert!(result.params.contains(&json!(5000.0)), "HAVING value must be a bind param");
 }
 
 #[test]
@@ -579,19 +557,16 @@ fn test_having_different_operators() {
         }
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(
-        &sql,
-        &[
-            "HAVING",
-            "COUNT(*) > 10",
-            "SUM(revenue) >= 1000",
-            "AVG(revenue) < 200",
-            "MIN(revenue) <= 50",
-            "MAX(revenue) = 500",
-        ],
-    );
+    assert_sql_contains(&result.sql, &[
+        "HAVING", "COUNT(*) >", "SUM(revenue) >=", "AVG(revenue) <", "MIN(revenue) <=", "MAX(revenue) =",
+    ]);
+    assert!(result.params.contains(&json!(10)), "count threshold must be a bind param");
+    assert!(result.params.contains(&json!(1000.0)), "sum threshold must be a bind param");
+    assert!(result.params.contains(&json!(200.0)), "avg threshold must be a bind param");
+    assert!(result.params.contains(&json!(50.0)), "min threshold must be a bind param");
+    assert!(result.params.contains(&json!(500.0)), "max threshold must be a bind param");
 }
 
 // =============================================================================
@@ -698,29 +673,29 @@ fn test_temporal_bucket_multi_database() {
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
+    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
+    assert!(pg_sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("DATE_FORMAT(occurred_at,"));
+    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
+    assert!(mysql_sql.sql.contains("DATE_FORMAT(occurred_at,"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
-    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.complete_sql.contains("strftime("));
+    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
+    assert!(sqlite_sql.sql.contains("strftime("));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
+    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
+    assert!(mssql_sql.sql.contains("CAST(occurred_at AS DATE)"));
 }
 
 #[test]
@@ -740,23 +715,15 @@ fn test_temporal_bucket_with_where_having() {
         "limit": 5
     });
 
-    let sql = parse_plan_generate(&query);
+    let result = parse_plan_generate_full(&query);
 
     // Verify all clauses present with temporal bucketing
-    assert_sql_contains(
-        &sql,
-        &[
-            "WHERE",
-            "customer_id = 'cust-001'",
-            "DATE_TRUNC('month', occurred_at)",
-            "GROUP BY",
-            "HAVING",
-            "SUM(revenue) > 1000",
-            "ORDER BY",
-            "DESC",
-            "LIMIT 5",
-        ],
-    );
+    assert_sql_contains(&result.sql, &[
+        "WHERE", "customer_id", "DATE_TRUNC('month', occurred_at)",
+        "GROUP BY", "HAVING", "SUM(revenue) >", "ORDER BY", "DESC", "LIMIT 5",
+    ]);
+    assert!(result.params.contains(&json!("cust-001")), "WHERE value must be a bind param");
+    assert!(result.params.contains(&json!(1000.0)), "HAVING value must be a bind param");
 }
 
 #[test]
@@ -838,29 +805,29 @@ fn test_advanced_aggregates_multi_database() {
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("STRING_AGG(customer_id"));
+    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
+    assert!(pg_sql.sql.contains("STRING_AGG(customer_id"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
+    assert!(mysql_sql.sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
-    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
+    assert!(sqlite_sql.sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("STRING_AGG"));
+    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
+    assert!(mssql_sql.sql.contains("STRING_AGG"));
 }
 
 // =============================================================================
@@ -890,22 +857,22 @@ fn test_stddev_postgres_mysql() {
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
+    assert!(pg_sql.sql.contains("STDDEV_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
+    assert!(mysql_sql.sql.contains("STDDEV_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("STDEV(revenue)"));
+    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
+    assert!(mssql_sql.sql.contains("STDEV(revenue)"));
 }
 
 #[test]
@@ -931,22 +898,22 @@ fn test_variance_postgres_mysql() {
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
+    assert!(pg_sql.sql.contains("VAR_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
+    assert!(mysql_sql.sql.contains("VAR_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("VAR(revenue)"));
+    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
+    assert!(mssql_sql.sql.contains("VAR(revenue)"));
 }
 
 #[test]
@@ -973,9 +940,9 @@ fn test_statistical_functions_sqlite_unsupported() {
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata).unwrap();
-    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
+    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
 
     // SQLite doesn't support STDDEV/VARIANCE natively
-    assert!(sqlite_sql.complete_sql.contains("NULL /* STDDEV not supported"));
-    assert!(sqlite_sql.complete_sql.contains("NULL /* VARIANCE not supported"));
+    assert!(sqlite_sql.sql.contains("NULL /* STDDEV not supported"));
+    assert!(sqlite_sql.sql.contains("NULL /* VARIANCE not supported"));
 }

@@ -23,7 +23,8 @@ use crate::middleware::AuthUser;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: running Axum server with authentication middleware configured.
 /// async fn graphql_handler(
 ///     State(state): State<AppState>,
 ///     OptionalSecurityContext(context): OptionalSecurityContext,
@@ -87,7 +88,7 @@ fn extract_request_id(headers: &axum::http::HeaderMap) -> String {
 /// are trivially spoofable. IP address should be set from `ConnectInfo<SocketAddr>`
 /// at the handler level, or via `ProxyConfig::extract_client_ip()` which validates
 /// the proxy chain before trusting forwarding headers.
-fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
+const fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
     // SECURITY: IP extraction from headers removed. User-supplied X-Forwarded-For
     // and X-Real-IP headers are trivially spoofable and must not be trusted without
     // proxy chain validation. Use ConnectInfo<SocketAddr> or ProxyConfig instead.
@@ -102,7 +103,7 @@ fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
 /// set an arbitrary tenant ID to access another organization's data. Tenant ID
 /// should be set from `TenantContext` (populated by the secured `tenant_middleware`
 /// which requires authentication) or from JWT claims.
-fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
+const fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
     // SECURITY: Tenant ID extraction from headers removed. The X-Tenant-ID header
     // is user-controlled and could be used for tenant isolation bypass. Tenant context
     // should come from the authenticated tenant_middleware or JWT claims.
@@ -111,6 +112,16 @@ fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
@@ -208,7 +219,6 @@ mod tests {
         });
 
         // Verify context was created correctly
-        assert!(security_context.is_some());
         let sec_ctx = security_context.unwrap();
         assert_eq!(sec_ctx.user_id, "user123");
         assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);

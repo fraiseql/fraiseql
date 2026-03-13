@@ -1,8 +1,8 @@
 //! Typed JSON stream implementation
 //!
-//! TypedJsonStream wraps a raw JSON stream and deserializes each item to a target type T.
+//! `TypedJsonStream` wraps a raw JSON stream and deserializes each item to a target type T.
 //! Type T is **consumer-side only** - it does NOT affect SQL generation, filtering,
-//! ordering, or wire protocol. Deserialization happens lazily at poll_next().
+//! ordering, or wire protocol. Deserialization happens lazily at `poll_next()`.
 
 use crate::{Error, Result};
 use futures::stream::Stream;
@@ -19,14 +19,16 @@ use std::task::{Context, Poll};
 ///
 /// **Important**: Type T is **consumer-side only**.
 /// - T does NOT affect SQL generation (still `SELECT data FROM v_{entity}`)
-/// - T does NOT affect filtering (where_sql, where_rust, order_by)
+/// - T does NOT affect filtering (`where_sql`, `where_rust`, `order_by`)
 /// - T does NOT affect wire protocol (identical for all T)
-/// - T ONLY affects consumer-side deserialization at poll_next()
+/// - T ONLY affects consumer-side deserialization at `poll_next()`
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live Postgres connection via FraiseClient.
 /// use serde::Deserialize;
+/// use futures::stream::StreamExt;
 ///
 /// #[derive(Deserialize)]
 /// struct Project {
@@ -34,6 +36,7 @@ use std::task::{Context, Poll};
 ///     name: String,
 /// }
 ///
+/// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let mut stream = client.query::<Project>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
 ///     let project: Project = result?;
@@ -43,20 +46,26 @@ use std::task::{Context, Poll};
 /// // Escape hatch: Always use Value if needed
 /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
-///     let json: Value = result?;
+///     let json: serde_json::Value = result?;
 ///     println!("Raw JSON: {:?}", json);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub struct TypedJsonStream<T: DeserializeOwned> {
-    /// Inner stream of JSON values
-    inner: Box<dyn Stream<Item = Result<Value>> + Unpin>,
+    /// Inner stream of JSON values.
+    ///
+    /// The `Send` bound ensures that `TypedJsonStream` itself is `Send`,
+    /// allowing it to be held across `.await` points in async tasks and
+    /// transferred between threads (e.g. via `tokio::spawn`).
+    inner: Box<dyn Stream<Item = Result<Value>> + Send + Unpin>,
     /// Phantom data for type T (zero runtime cost)
     _phantom: PhantomData<T>,
 }
 
 impl<T: DeserializeOwned> TypedJsonStream<T> {
     /// Create a new typed stream from a raw JSON stream
-    pub fn new(inner: Box<dyn Stream<Item = Result<Value>> + Unpin>) -> Self {
+    pub fn new(inner: Box<dyn Stream<Item = Result<Value>> + Send + Unpin>) -> Self {
         Self {
             inner,
             _phantom: PhantomData,
@@ -116,6 +125,7 @@ impl<T: DeserializeOwned + Unpin> Stream for TypedJsonStream<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

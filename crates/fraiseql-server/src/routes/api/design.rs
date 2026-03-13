@@ -74,6 +74,10 @@ pub struct DesignAuditResponse {
 }
 
 /// Federation audit endpoint - JSONB batching analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn federation_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -106,6 +110,10 @@ pub async fn federation_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Cost audit endpoint - Compiled query determinism analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn cost_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -138,6 +146,10 @@ pub async fn cost_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Cache audit endpoint - JSONB coherency analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn cache_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -170,6 +182,10 @@ pub async fn cache_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Authorization audit endpoint - Auth boundary analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn auth_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -202,6 +218,10 @@ pub async fn auth_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Compilation audit endpoint - Type suitability analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn compilation_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -234,6 +254,10 @@ pub async fn compilation_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Overall design audit endpoint
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -375,6 +399,16 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]

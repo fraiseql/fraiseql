@@ -14,7 +14,8 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live HashiCorp Vault instance.
 //! use fraiseql_core::security::kms::{VaultConfig, VaultKmsProvider, BaseKmsProvider};
 //!
 //! let config = VaultConfig::new("https://vault.local".to_string(), "token".to_string());
@@ -32,7 +33,7 @@ pub mod error;
 pub mod models;
 pub mod vault;
 
-pub use base::BaseKmsProvider;
+pub use base::{ArcKmsProvider, BaseKmsProvider};
 pub use error::{KmsError, KmsResult};
 pub use models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, RotationPolicy};
 pub use vault::{VaultConfig, VaultKmsProvider};

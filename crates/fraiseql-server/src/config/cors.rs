@@ -2,8 +2,10 @@
 
 use serde::Deserialize;
 
+/// Cross-Origin Resource Sharing (CORS) policy configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
+    /// Whether CORS headers are added to responses.  Default: `true`.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 
@@ -51,7 +53,7 @@ impl Default for CorsConfig {
     }
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 fn default_origins() -> Vec<String> {
@@ -67,6 +69,6 @@ fn default_headers() -> Vec<String> {
         "X-Request-ID".to_string(),
     ]
 }
-fn default_max_age() -> u64 {
+const fn default_max_age() -> u64 {
     86400
 }

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Test saga orchestration harness
 //!
 //! This module provides a test implementation of saga execution that validates
@@ -5,7 +6,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_test_utils::saga::{TestSagaExecutor, SagaStepDef};
 //! use serde_json::json;
 //!

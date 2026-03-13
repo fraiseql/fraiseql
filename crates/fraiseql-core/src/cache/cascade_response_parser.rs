@@ -38,9 +38,11 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::cache::CascadeResponseParser;
 //! use serde_json::json;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
 //!
 //! let parser = CascadeResponseParser::new();
 //!
@@ -57,6 +59,8 @@
 //! let entities = parser.parse_cascade_response(&response)?;
 //! assert_eq!(entities.updated.len(), 1);
 //! assert_eq!(entities.updated[0].entity_type, "User");
+//! # Ok(())
+//! # }
 //! ```
 
 use serde_json::Value;
@@ -79,7 +83,7 @@ pub struct CascadeEntities {
 
 impl CascadeEntities {
     /// Create new cascade entities with separate updated and deleted lists.
-    pub fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
+    pub const fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
         Self { updated, deleted }
     }
 
@@ -93,7 +97,7 @@ impl CascadeEntities {
 
     /// Check if cascade has any affected entities.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         !self.updated.is_empty() || !self.deleted.is_empty()
     }
 }
@@ -108,7 +112,7 @@ pub struct CascadeResponseParser;
 impl CascadeResponseParser {
     /// Create new cascade response parser.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 
@@ -124,7 +128,12 @@ impl CascadeResponseParser {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_core::cache::CascadeResponseParser;
+    /// use serde_json::json;
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
+    /// let parser = CascadeResponseParser::new();
     /// let response = json!({
     ///   "createPost": {
     ///     "cascade": {
@@ -136,6 +145,9 @@ impl CascadeResponseParser {
     /// });
     ///
     /// let entities = parser.parse_cascade_response(&response)?;
+    /// assert_eq!(entities.updated.len(), 1);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn parse_cascade_response(&self, response: &Value) -> Result<CascadeEntities> {
         // Find cascade field in response
@@ -177,7 +189,7 @@ impl CascadeResponseParser {
             }
 
             // Try deeper nesting (mutation result contains cascade)
-            for (_key, value) in data.as_object().unwrap_or(&Default::default()).iter() {
+            for (_key, value) in data.as_object().unwrap_or(&Default::default()) {
                 if let Some(cascade) = value.get("cascade") {
                     return Ok(cascade.clone());
                 }
@@ -185,7 +197,7 @@ impl CascadeResponseParser {
         }
 
         // Try top-level mutation response
-        for (_key, value) in response.as_object().unwrap_or(&Default::default()).iter() {
+        for (_key, value) in response.as_object().unwrap_or(&Default::default()) {
             if let Some(cascade) = value.get("cascade") {
                 return Ok(cascade.clone());
             }
@@ -211,7 +223,7 @@ impl CascadeResponseParser {
                             Value::Number(_) => "number",
                             Value::Bool(_) => "boolean",
                             Value::Null => "null",
-                            _ => "unknown",
+                            Value::Array(_) => "unknown",
                         }
                     ),
                     path:    Some(format!("cascade.{}", field_name)),
@@ -221,7 +233,7 @@ impl CascadeResponseParser {
 
         let mut entities = Vec::new();
 
-        for entity_obj in entities_array.iter() {
+        for entity_obj in entities_array {
             let entity = self.parse_cascade_entity(entity_obj)?;
             entities.push(entity);
         }
@@ -265,6 +277,8 @@ impl Default for CascadeResponseParser {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;

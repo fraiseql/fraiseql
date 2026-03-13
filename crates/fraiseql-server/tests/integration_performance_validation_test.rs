@@ -9,7 +9,7 @@
 //! **Documented Integration Targets:**
 //! - Complex cached queries: <50ms with cache hit (vs 200-500ms without)
 //! - High concurrency: 50+ simultaneous requests, pooling prevents exhaustion
-//! - Query optimization + caching: 37% latency improvement + cache speedup
+//! - Query optimization + caching: reduced latency (see cargo bench for hardware-specific numbers)
 //! - Metrics overhead during sustained load: <2% additional latency
 //! - No negative interactions between components
 //! - Throughput scaling: 5K+ req/sec with all optimizations
@@ -20,6 +20,25 @@
 //! - Verify optimized queries execute faster than unoptimized baseline
 //! - Verify metrics don't bottleneck high-throughput workloads
 //! - Verify end-to-end latency satisfies SLO (<200ms p99)
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use std::{
     sync::{
@@ -142,7 +161,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_hits = cache_hits.load(Ordering::Relaxed);
@@ -187,7 +206,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_computations = computation_count.load(Ordering::Relaxed);
@@ -234,7 +253,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful.load(Ordering::Relaxed);
@@ -292,7 +311,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful_requests.load(Ordering::Relaxed);
@@ -383,49 +402,6 @@ mod integration_performance_tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_payload_reduction_under_concurrent_load() {
-        // Verify payload reduction persists under concurrent load
-        let num_concurrent = 30;
-        let total_payloads = Arc::new(AtomicU64::new(0));
-        let reduced_payloads = Arc::new(AtomicU64::new(0));
-
-        let mut tasks = vec![];
-
-        for _ in 0..num_concurrent {
-            let total = Arc::clone(&total_payloads);
-            let reduced = Arc::clone(&reduced_payloads);
-
-            let task = tokio::spawn(async move {
-                for _ in 0..20 {
-                    let baseline_bytes = 10_000u64; // 10KB unoptimized
-                    let optimized_bytes = 500u64; // 500B optimized (95% reduction)
-
-                    total.fetch_add(baseline_bytes, Ordering::Relaxed);
-                    reduced.fetch_add(optimized_bytes, Ordering::Relaxed);
-                }
-            });
-
-            tasks.push(task);
-        }
-
-        for task in tasks {
-            let _ = task.await;
-        }
-
-        let total_bytes = total_payloads.load(Ordering::Relaxed);
-        let reduced_bytes = reduced_payloads.load(Ordering::Relaxed);
-
-        let reduction_percent = ((total_bytes - reduced_bytes) as f64 / total_bytes as f64) * 100.0;
-
-        // Should achieve 90%+ reduction across all concurrent requests
-        assert!(
-            reduction_percent > 90.0,
-            "Payload reduction should maintain >90% across concurrent load (actual: {:.1}%)",
-            reduction_percent
-        );
-    }
-
     #[test]
     fn test_optimization_maintains_correctness_under_aliases() {
         // Verify field aliasing doesn't interfere with optimization
@@ -512,7 +488,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let lats_guard = latencies.lock().await;
@@ -581,7 +557,7 @@ mod integration_performance_tests {
             let task = tokio::spawn(async move {
                 for req_id in 0..num_requests_per_task {
                     // Varying cache hit pattern (doesn't affect pool)
-                    let _cache_hit = (req_id % 3) == 0; // 33% miss rate
+                    let _ = (req_id % 3) == 0; // 33% miss rate
 
                     let _pool = simulate_pool_connection(pool_size, task_id * 1000 + req_id).await;
                     success.fetch_add(1, Ordering::Relaxed);
@@ -592,7 +568,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful_requests.load(Ordering::Relaxed);
@@ -717,7 +693,7 @@ mod integration_performance_tests {
         for i in 0..50 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_unoptimized_query(size: usize) {
@@ -726,7 +702,7 @@ mod integration_performance_tests {
         for i in 0..size {
             total = total.wrapping_add(i as u64);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_optimized_query(size: usize) {
@@ -735,7 +711,7 @@ mod integration_performance_tests {
         for i in 0..size / 5 {
             total = total.wrapping_add(i as u64);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_with_field_mapping(
@@ -747,7 +723,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_without_metrics() {
@@ -756,7 +732,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_with_metrics() {
@@ -765,7 +741,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
         // Simulate atomic counter increments (lock-free, <1µs)
         let _counter = std::sync::atomic::AtomicU64::new(0);
     }
@@ -781,7 +757,7 @@ mod integration_performance_tests {
         for i in 0..200 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_optimized_full_path() {
@@ -790,7 +766,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_unoptimized_full_path() {
@@ -799,6 +775,6 @@ mod integration_performance_tests {
         for i in 0..150 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 }

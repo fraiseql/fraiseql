@@ -13,6 +13,8 @@ use std::{
 
 use tokio::time::timeout;
 
+use tracing::{error, warn};
+
 use super::{Job, JobQueue, JobResult, JobStatus, RetryPolicy};
 use crate::{
     error::{ObserverError, Result},
@@ -78,7 +80,7 @@ where
             match self.queue.dequeue(&self.worker_id).await {
                 Ok(Some(job)) => {
                     if let Err(e) = self.process_job(job).await {
-                        eprintln!("Error processing job: {e}");
+                        warn!(error = %e, "Error processing job");
                     }
                 },
                 Ok(None) => {
@@ -87,7 +89,7 @@ where
                 },
                 Err(e) => {
                     // Dequeue error - log and wait before retrying
-                    eprintln!("Dequeue error: {e}");
+                    warn!(error = %e, "Dequeue error");
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 },
             }
@@ -254,7 +256,7 @@ where
 
                     // Try to process jobs
                     if let Err(e) = worker.run().await {
-                        eprintln!("Worker error: {e}");
+                        error!(error = %e, "Worker error");
                         // Continue running despite errors
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
@@ -284,10 +286,10 @@ where
             match handle.await {
                 Ok(Ok(())) => {},
                 Ok(Err(e)) => {
-                    eprintln!("Worker finished with error: {e}");
+                    error!(error = %e, "Worker finished with error");
                 },
                 Err(e) => {
-                    eprintln!("Worker task error: {e}");
+                    error!(error = %e, "Worker task join error");
                 },
             }
         }

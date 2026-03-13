@@ -1,0 +1,53 @@
+name: C# SDK
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'sdks/official/fraiseql-csharp/**'
+      - '.github/workflows/csharp-sdk.yml'
+  pull_request:
+    paths:
+      - 'sdks/official/fraiseql-csharp/**'
+      - '.github/workflows/csharp-sdk.yml'
+  release:
+    types: [published]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-csharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore
+        run: dotnet restore
+      - name: Build (Release)
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-build --configuration Release --logger trx
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/csharp-sdk/v')
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-csharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore
+        run: dotnet restore
+      - name: Pack library
+        run: dotnet pack src/FraiseQL/FraiseQL.csproj --configuration Release --output nupkg
+      - name: Pack tool
+        run: dotnet pack src/FraiseQL.Tool/FraiseQL.Tool.csproj --configuration Release --output nupkg
+      - name: Push to NuGet
+        run: dotnet nuget push nupkg/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}

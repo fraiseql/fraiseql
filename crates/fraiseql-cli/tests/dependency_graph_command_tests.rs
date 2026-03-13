@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Integration tests for the dependency-graph command
 
 use std::io::Write;

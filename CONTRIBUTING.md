@@ -39,6 +39,62 @@ Be respectful, professional, and collaborative. We're building something great t
 
 ---
 
+## Where to Contribute
+
+This repository is a monorepo. Jump to the section that matches your area of interest:
+
+### Rust Engine (most contributors)
+
+Work in: `crates/`
+
+CI commands: `cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run`
+
+| Crate | Purpose |
+|-------|---------|
+| `fraiseql-core` | Core compilation and execution engine |
+| `fraiseql-server` | HTTP/GraphQL server |
+| `fraiseql-cli` | Compiler CLI (`fraiseql compile`, `fraiseql serve`) |
+| `fraiseql-db` | Database adapters (PostgreSQL, MySQL, SQLite, SQL Server) |
+| `fraiseql-auth` | Authentication and authorization |
+| `fraiseql-secrets` | Secrets management and field-level encryption |
+| `fraiseql-observers` | Event-driven observer system |
+| `fraiseql-arrow` | Apache Arrow Flight integration |
+| `fraiseql-wire` | Streaming JSON query engine |
+
+Ignore: `sdks/`, `fraisier/`, `examples/`, `k6/`
+
+### Python SDK
+
+Work in: `sdks/official/fraiseql-python/`
+
+CI commands: `uv run pytest`
+
+Ignore: `crates/`, other `sdks/`
+
+### TypeScript SDK
+
+Work in: `sdks/official/fraiseql-typescript/`
+
+CI commands: `npm test`
+
+Ignore: `crates/`, other `sdks/`
+
+### Fraisier (reference implementation)
+
+Work in: `fraisier/`
+
+This is a standalone Python application. See `fraisier/CONTRIBUTING.md` for its own workflow.
+
+CI is independent of the Rust engine — fraisier tests only run on `fraisier/**` changes.
+
+Ignore: `crates/`, `sdks/`
+
+### Documentation
+
+Work in: `docs/`
+
+---
+
 ## Development Setup
 
 ### Prerequisites
@@ -207,79 +263,102 @@ All code must pass Clippy with no warnings:
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
+### New async traits
+
+New traits used as `dyn Trait` (object-safe, heap-allocated dispatch) **must** use
+`#[async_trait]` with the RFC 3425 tracking comment:
+
+```rust
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+pub trait MyTrait: Send + Sync {
+    async fn my_method(&self) -> Result<()>;
+}
+```
+
+New traits used only as `impl Trait` or `T: MyTrait` bounds **must not** use
+`#[async_trait]` — use RPITIT (return-position `impl Trait` in trait) instead:
+
+```rust
+pub trait MyStaticTrait {
+    async fn my_method(&self) -> Result<()>;  // RPITIT, no #[async_trait]
+}
+```
+
+The `make lint-async-trait` CI gate counts `#[async_trait]` usages and fails if the
+count grows above the Phase 0 baseline. When RTN + Send stabilises in Rust, all
+`#[async_trait]` usages will be migrated and the gate removed.
+
 ---
 
 ## Testing
 
-### Test Levels
+See **[`docs/testing.md`](docs/testing.md)** for the full test taxonomy (7 categories,
+infrastructure requirements, CI coverage, and decision guide).
 
-1. **Unit Tests**: Test individual functions/modules
-
-   ```rust
-   #[cfg(test)]
-   mod tests {
-       use super::*;
-
-       #[test]
-       fn test_addition() {
-           assert_eq!(add(2, 2), 4);
-       }
-   }
-   ```
-
-2. **Integration Tests**: Test module interactions
-
-   ```rust
-   // tests/integration/test_schema.rs
-   #[test]
-   fn test_schema_loading() {
-       let schema = CompiledSchema::load("test.json").unwrap();
-       assert!(schema.is_valid());
-   }
-   ```
-
-3. **End-to-End Tests**: Test complete flows
-
-   ```rust
-   // tests/e2e/test_query_execution.rs
-   #[tokio::test]
-   async fn test_query_execution() {
-       let executor = setup_executor().await;
-       let result = executor.execute("query { users { id } }").await.unwrap();
-       assert!(!result.has_errors());
-   }
-   ```
-
-### Test Database
-
-Integration tests require PostgreSQL:
+### Quick Commands
 
 ```bash
-# Create test database (local setup)
-make db-setup-local
-
-# Or use Docker containers
-make db-up
-
-# Run integration tests
-make test-integration
-
-# Clean up (local)
-make db-teardown-local
-
-# Or stop Docker containers
-make db-down
+make test           # Unit + SQL snapshots + behavioral integration (PostgreSQL)
+make test-full      # All categories: unit + snapshots + integration + cross-db + federation
+make test-load      # Load testing (requires running server + k6)
+make coverage       # Generate test coverage report (target/llvm-cov/html/index.html)
 ```
 
-### Coverage
-
-We aim for **85%+ test coverage**:
+### Infrastructure
 
 ```bash
-# Generate coverage report
-make coverage
+make db-up          # Start test databases (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+make db-down        # Stop test databases
+make db-reset       # Reset volumes (after schema changes)
+```
 
-# View report at target/llvm-cov/html/index.html
+### Updating SQL Snapshots
+
+If you change the SQL compiler, snapshot tests will fail. To update them:
+
+```bash
+# Accept all snapshot changes
+INSTA_UPDATE=accept cargo nextest run --test sql_snapshots
+
+# Review each change interactively
+cargo insta review
+
+# Commit the updated .snap files
+git add crates/fraiseql-core/tests/snapshots/
+git commit -m "test(sql): update SQL snapshots after compiler change"
+```
+
+**Important**: Review every changed snapshot to verify the new SQL is correct,
+not just different.
+
+### Code Coverage
+
+Per-crate coverage floors are enforced in CI:
+
+| Crate | Floor | Rationale |
+|-------|-------|-----------|
+| `fraiseql-core` | 65% | SQL generation, RLS enforcement, field masking |
+| `fraiseql-db` | 65% | Dialect SQL output, injection escaping |
+| `fraiseql-auth` | 80% | Authentication paths |
+| `fraiseql-secrets` | 80% | Encryption, key management |
+| Workspace | 70% | Baseline floor |
+
+Floors are regression guards, not targets — aim for the highest coverage the code naturally
+supports, not just the minimum. When adding new code:
+
+- New public functions should have at least one test covering the success path.
+- Error branches should be tested where the error is actionable by a caller.
+
+To check coverage locally:
+
+```bash
+# Per-crate HTML report
+cargo llvm-cov -p fraiseql-core --html
+open target/llvm-cov/html/index.html
+
+# Workspace summary
+cargo llvm-cov --workspace --summary-only
 ```
 
 ---
@@ -333,7 +412,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine**. Key principles:
 - **Runtime Layer**: Query execution → Result streaming (runtime via fraiseql-server)
 - **Database Layer**: Data storage and retrieval (multi-database support)
 
-See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation.
+See [`docs/architecture/overview.md`](docs/architecture/overview.md) for detailed architecture documentation.
 
 ### 2. Layered Optionality
 
@@ -358,11 +437,13 @@ See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation
 To dramatically speed up compilation, install the `mold` linker for 3-5x faster builds:
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S mold
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get install mold
 ```
@@ -371,8 +452,40 @@ sudo apt-get install mold
 See [mold releases](https://github.com/rui314/mold/releases)
 
 The mold linker is configured in `.cargo/config.toml` and used automatically.
+
 - Full rebuild: ~60s → ~15s
 - Incremental linking: 2-5s → 0.5s
+
+---
+
+## Unwrap Policy
+
+Production code (`src/` files outside test modules) must not use `.unwrap()` directly.
+
+Instead:
+
+- Use `.expect("reason why this cannot fail")` — panics with context on failure
+- Use `#[allow(clippy::unwrap_used)] // Reason: <justification>` only when the
+  unwrap is in an infallible code path that clippy cannot statically prove safe
+
+All new `#[allow(clippy::unwrap_used)]` annotations **must** include a `// Reason:` comment.
+
+**Enforcement**: `clippy::unwrap_used = "deny"` is set at the workspace level
+(`Cargo.toml [workspace.lints.clippy]`). Any new `.unwrap()` in production code —
+i.e. outside a `#[cfg(test)]` block or a test file — will **fail the build**.
+The `cargo clippy --workspace -- -D warnings` CI check catches this automatically.
+
+The secondary gate (`make lint-unwrap`) counts `#[allow(clippy::unwrap_used)]` annotations
+in production code and enforces a maximum (currently 1). This prevents annotation
+proliferation: each annotation represents a deliberate exception rather than a
+suppressed violation. To raise the baseline, update `UNWRAP_ALLOW_LIMIT` in the
+`Makefile` and include a PR comment explaining why each new allow is necessary.
+
+Test code (`#[cfg(test)]` modules and `tests/` files) may use `.unwrap()` freely
+and must declare `#[allow(clippy::unwrap_used)] // Reason: test code` at the module level.
+
+Empty or placeholder `.expect()` calls (`.expect("")`, `.expect("TODO")`) are also
+rejected by `make lint-expect` — they are functionally equivalent to `.unwrap()`.
 
 ---
 

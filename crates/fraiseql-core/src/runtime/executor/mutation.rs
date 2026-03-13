@@ -11,7 +11,54 @@ use crate::{
 };
 
 use super::{Executor, resolve_inject_value};
-use crate::db::traits::DatabaseAdapter;
+use crate::db::traits::{DatabaseAdapter, MutationCapable};
+
+/// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
+///
+/// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
+/// because `SqliteAdapter` does not implement the `MutationCapable` marker trait.
+///
+/// ```compile_fail
+/// use fraiseql_core::runtime::Executor;
+/// use fraiseql_core::db::sqlite::SqliteAdapter;
+/// use fraiseql_core::schema::CompiledSchema;
+/// use std::sync::Arc;
+/// async fn _wont_compile() {
+///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
+///     let executor = Executor::new(CompiledSchema::new(), adapter);
+///     executor.execute_mutation("createUser", None).await.unwrap();
+/// }
+/// ```
+impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
+    /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
+    ///
+    /// Unlike `execute()` (which accepts raw GraphQL strings and performs a runtime
+    /// `supports_mutations()` check), this method is only available on adapters that
+    /// implement [`MutationCapable`].  The capability is enforced at **compile time**:
+    /// attempting to call this method with `SqliteAdapter` results in a compiler error.
+    ///
+    /// # Arguments
+    ///
+    /// * `mutation_name` - The GraphQL mutation field name (e.g. `"createUser"`)
+    /// * `variables` - Optional JSON object of GraphQL variable values
+    ///
+    /// # Returns
+    ///
+    /// A JSON-encoded GraphQL response string on success.
+    ///
+    /// # Errors
+    ///
+    /// Same as `execute_mutation_query`, minus the adapter capability check.
+    pub async fn execute_mutation(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // No runtime supports_mutations() check: the MutationCapable bound
+        // guarantees at compile time that this adapter supports mutations.
+        self.execute_mutation_query_with_security(mutation_name, variables, None).await
+    }
+}
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a GraphQL mutation by calling the configured database function.
@@ -47,7 +94,9 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// // Requires: live database adapter.
+    /// // See: tests/integration/ for runnable examples.
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
@@ -58,6 +107,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // Runtime guard: verify this adapter supports mutations.
+        // Note: this is a runtime check, not compile-time enforcement.
+        // The common execute() entry point accepts raw GraphQL strings and
+        // determines the operation type at runtime, which precludes compile-time
+        // mutation gating. A future API revision (separate execute_mutation() method)
+        // would move this to a compile-time bound (see roadmap.md).
+        if !self.adapter.supports_mutations() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{mutation_name}' cannot be executed: the configured database \
+                     adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
+                     or SqlServerAdapter for mutation operations."
+                ),
+                path: None,
+            });
+        }
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
     }
 
@@ -147,14 +212,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .iter()
             .map(|arg| {
                 let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-                match value {
-                    Some(v) => v,
-                    None => {
-                        if !arg.nullable && arg.default_value.is_none() {
-                            missing_required.push(&arg.name);
-                        }
-                        arg.default_value.clone().unwrap_or(serde_json::Value::Null)
-                    },
+                if let Some(v) = value { v } else {
+                    if !arg.nullable && arg.default_value.is_none() {
+                        missing_required.push(&arg.name);
+                    }
+                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
                 }
             })
             .collect();
@@ -273,8 +335,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                                 u.member_types.iter().find(|t| {
                                     self.schema
                                         .find_type(t)
-                                        .map(|td| !td.is_error)
-                                        .unwrap_or(true)
+                                        .is_none_or(|td| !td.is_error)
                                 })
                             })
                             .cloned()

@@ -10,6 +10,11 @@ required-features = ["postgres"]
 
 [[bench]]
 harness = false
+name = "design_analysis"
+required-features = ["schema-lint"]
+
+[[bench]]
+harness = false
 name = "sql_projection_benchmark"
 
 [[bench]]
@@ -24,21 +29,22 @@ name = "federation_bench"
 arrow = {version = "57", optional = true}
 arrow-array = {version = "57", optional = true}
 base64 = {workspace = true}
-bb8 = {version = "0.8", optional = true}
-bb8-tiberius = {version = "0.15", optional = true}
 # Utilities
 bytes = {workspace = true}
 chrono = {workspace = true}
 dashmap = {workspace = true}
 deadpool = {workspace = true}
-# fraiseql-wire backend (optional)
-fraiseql-wire = {workspace = true, optional = true}
+# Database abstraction layer (adapters, collation, introspector, filters)
+fraiseql-db = {workspace = true, default-features = false}
+fraiseql-error = {workspace = true}
+# Federation support (Apollo Federation v2)
+fraiseql-federation = {workspace = true}
 futures = {workspace = true}
-indexmap = {workspace = true}
 # GraphQL
 graphql-parser = {workspace = true}
 hex = {workspace = true}
 hmac = {workspace = true}
+indexmap = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
 linked-hash-map = {workspace = true}
@@ -55,13 +61,10 @@ reqwest = {workspace = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
 sha2 = {workspace = true}
-# Database - MySQL/SQLite (via sqlx)
-sqlx = {version = "0.8", features = ["runtime-tokio", "json"], optional = true}
+subtle = "2.5"  # Constant-time comparison for hash verification (APQ)
 thiserror = {workspace = true}
-# Database - SQL Server
-tiberius = {version = "0.12", default-features = false, features = ["tds73", "rustls"], optional = true}
 tokio = {workspace = true}
-# Database - PostgreSQL
+# Database - PostgreSQL (kept for non-db modules: audit, federation, security)
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
 tokio-util = "0.7"
 toml = {workspace = true}
@@ -75,14 +78,17 @@ deadpool-postgres.workspace = true
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+fraiseql-wire = {workspace = true}
 insta = {version = "1.38", features = ["yaml"]}
 proptest = {workspace = true}
 serial_test = "3"
+sqlx = {workspace = true, features = ["mysql"]}
 temp-env = {workspace = true}
 tempfile = {workspace = true}
 testcontainers = {version = "0.26", features = ["watchdog"]}
-testcontainers-modules = {version = "0.14", features = ["postgres"]}
+testcontainers-modules = {version = "0.14", features = ["postgres", "mysql"]}
 tokio-test = "0.4"
+wiremock = "0.6"
 
 [features]
 # Arrow Flight integration for high-performance analytics
@@ -91,22 +97,30 @@ tokio-test = "0.4"
 arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres", "rich-filters"]
 kafka = ["rdkafka"]
-mysql = ["sqlx/mysql"]
-postgres = []
+mysql = ["fraiseql-db/mysql"]
+postgres = ["fraiseql-db/postgres"]
 redis-apq = ["redis"]
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
 # Includes specialized filter operators for 44 rich scalar types
-rich-filters = []
-sqlite = ["sqlx/sqlite"]
-sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
+rich-filters = ["fraiseql-db/rich-filters"]
+# Schema linting: anti-pattern detection, cost analysis, quality scoring.
+# Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
+schema-lint = []
+sqlite = ["fraiseql-db/sqlite"]
+sqlserver = ["fraiseql-db/sqlserver"]
 # Run with: cargo test --features test-mysql -- --test-threads=1
-test-mysql = ["mysql"]
+test-mysql = ["mysql", "fraiseql-db/test-mysql"]
 # Test features - enable database integration tests
 # Run with: cargo test --features test-postgres -- --test-threads=1
-test-postgres = []
+test-postgres = ["fraiseql-db/test-postgres"]
 # Run with: cargo test --features test-sqlserver -- --test-threads=1
-test-sqlserver = ["sqlserver"]
-wire-backend = ["fraiseql-wire"]
+test-sqlserver = ["sqlserver", "fraiseql-db/test-sqlserver"]
+# Expose ManualClock and other test helpers for dependent crates
+test-utils = []
+wire-backend = ["fraiseql-db/wire-backend"]
+
+[lints]
+workspace = true
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"

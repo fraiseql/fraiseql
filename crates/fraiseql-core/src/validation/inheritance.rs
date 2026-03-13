@@ -5,21 +5,24 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
+//! use fraiseql_core::validation::{ValidationRule, InheritanceMode, inherit_validation_rules};
+//!
 //! // Parent: UserInput with required email and minLength 5
 //! // Child: AdminUserInput extends UserInput with additional admin-only rules
 //!
 //! let parent_rules = vec![
 //!     ValidationRule::Pattern { pattern: "^.+@.+$".to_string(), message: None },
-//!     ValidationRule::Length { min: Some(5), max: None }
+//!     ValidationRule::Length { min: Some(5), max: None },
 //! ];
 //!
 //! let child_rules = vec![
 //!     ValidationRule::Required,
-//!     ValidationRule::Pattern { pattern: "^admin_.+$".to_string(), message: None }
+//!     ValidationRule::Pattern { pattern: "^admin_.+$".to_string(), message: None },
 //! ];
 //!
 //! let inherited = inherit_validation_rules(&parent_rules, &child_rules, InheritanceMode::Merge);
+//! assert_eq!(inherited.len(), 4);
 //! ```
 
 use std::collections::HashMap;
@@ -41,7 +44,7 @@ pub enum InheritanceMode {
 
 impl InheritanceMode {
     /// Get a human-readable description.
-    pub fn description(&self) -> &'static str {
+    pub const fn description(&self) -> &'static str {
         match self {
             Self::Override => "Child rules override parent rules completely",
             Self::Merge => "All parent and child rules apply (union)",
@@ -76,13 +79,13 @@ impl RuleMetadata {
     }
 
     /// Mark this rule as non-overrideable.
-    pub fn non_overrideable(mut self) -> Self {
+    pub const fn non_overrideable(mut self) -> Self {
         self.overrideable = false;
         self
     }
 
     /// Mark this rule as inherited.
-    pub fn as_inherited(mut self) -> Self {
+    pub const fn as_inherited(mut self) -> Self {
         self.inherited = true;
         self
     }
@@ -246,6 +249,8 @@ pub fn validate_inheritance(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

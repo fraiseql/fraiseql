@@ -2,15 +2,33 @@
 //!
 //! Tests real production types:
 //! - `MetricsCollector` atomic counters
-//! - `TraceContext` W3C traceparent generation and child spans
 //! - `tracing_utils::extract_trace_context` header parsing
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code
+#![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables use _ prefix
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 mod common;
 
 use std::sync::atomic::Ordering;
 
 use common::test_app::{health_router, make_test_state};
-use fraiseql_server::{MetricsCollector, TraceContext};
+use fraiseql_server::MetricsCollector;
 use tower::ServiceExt;
 
 // ============================================================================
@@ -54,54 +72,6 @@ fn metrics_collector_records_entity_resolution() {
     assert_eq!(metrics.federation_entity_resolutions_total.load(Ordering::Relaxed), 2);
     assert_eq!(metrics.federation_entity_resolutions_errors.load(Ordering::Relaxed), 1);
     assert_eq!(metrics.federation_entity_resolution_duration_us.load(Ordering::Relaxed), 3000);
-}
-
-// ============================================================================
-// TRACE CONTEXT
-// ============================================================================
-
-#[test]
-fn trace_context_generates_valid_ids() {
-    let ctx = TraceContext::new();
-    assert!(!ctx.trace_id.is_empty());
-    assert!(!ctx.span_id.is_empty());
-    assert!(ctx.parent_span_id.is_none());
-}
-
-#[test]
-fn trace_context_child_span_inherits_trace_id() {
-    let parent = TraceContext::new();
-    let child = parent.child_span();
-
-    assert_eq!(child.trace_id, parent.trace_id);
-    assert_ne!(child.span_id, parent.span_id);
-    assert_eq!(child.parent_span_id, Some(parent.span_id.clone()));
-}
-
-#[test]
-fn trace_context_w3c_traceparent_format() {
-    let ctx = TraceContext::new();
-    let traceparent = ctx.to_w3c_traceparent();
-
-    // Format: 00-{trace_id}-{span_id}-{flags}
-    let parts: Vec<&str> = traceparent.split('-').collect();
-    assert_eq!(parts[0], "00", "version should be 00");
-    assert_eq!(parts.len(), 4, "traceparent should have 4 parts");
-}
-
-#[test]
-fn trace_context_baggage_propagation() {
-    let ctx = TraceContext::new()
-        .with_baggage("user_id".into(), "user-123".into())
-        .with_baggage("env".into(), "test".into());
-
-    assert_eq!(ctx.baggage_item("user_id"), Some("user-123"));
-    assert_eq!(ctx.baggage_item("env"), Some("test"));
-    assert_eq!(ctx.baggage_item("missing"), None);
-
-    // Child inherits baggage
-    let child = ctx.child_span();
-    assert_eq!(child.baggage_item("user_id"), Some("user-123"));
 }
 
 // ============================================================================

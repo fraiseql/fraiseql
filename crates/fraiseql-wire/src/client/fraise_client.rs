@@ -1,4 +1,4 @@
-//! FraiseClient implementation
+//! `FraiseClient` implementation
 
 use super::connection_string::{ConnectionInfo, TransportType};
 use super::query_builder::QueryBuilder;
@@ -18,6 +18,7 @@ impl FraiseClient {
     /// # Examples
     ///
     /// ```no_run
+    /// // Requires: live Postgres server.
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::FraiseClient;
     ///
@@ -34,12 +35,20 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info.unix_socket.as_ref().expect("Unix requires path");
+                let path = info
+                    .unix_socket
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
                 Transport::connect_unix(path).await?
             }
         };
@@ -60,6 +69,7 @@ impl FraiseClient {
     /// # Examples
     ///
     /// ```no_run
+    /// // Requires: live Postgres server with TLS.
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::TlsConfig};
     ///
@@ -81,8 +91,13 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
@@ -108,6 +123,7 @@ impl FraiseClient {
     /// # Examples
     ///
     /// ```no_run
+    /// // Requires: live Postgres server.
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::ConnectionConfig};
     /// use std::time::Duration;
@@ -133,15 +149,30 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info.unix_socket.as_ref().expect("Unix requires path");
+                let path = info
+                    .unix_socket
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
                 Transport::connect_unix(path).await?
             }
         };
+
+        // Apply TCP keepalive when configured.
+        if let Some(idle) = config.keepalive_idle {
+            if let Err(e) = transport.apply_keepalive(idle) {
+                tracing::warn!("Failed to apply TCP keepalive (idle={idle:?}): {e}");
+            }
+        }
 
         let mut conn = Connection::new(transport);
         conn.startup(&config).await?;
@@ -157,6 +188,7 @@ impl FraiseClient {
     /// # Examples
     ///
     /// ```no_run
+    /// // Requires: live Postgres server with TLS.
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::{ConnectionConfig, TlsConfig}};
     /// use std::time::Duration;
@@ -190,8 +222,13 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
@@ -200,6 +237,13 @@ impl FraiseClient {
                 ));
             }
         };
+
+        // Apply TCP keepalive when configured.
+        if let Some(idle) = config.keepalive_idle {
+            if let Err(e) = transport.apply_keepalive(idle) {
+                tracing::warn!("Failed to apply TCP keepalive (idle={idle:?}): {e}");
+            }
+        }
 
         let mut conn = Connection::new(transport);
         conn.startup(&config).await?;
@@ -216,6 +260,7 @@ impl FraiseClient {
     ///
     /// Type-safe query (recommended):
     /// ```no_run
+    /// // Requires: live Postgres server.
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use serde::Deserialize;
     /// use futures::stream::StreamExt;
@@ -247,6 +292,7 @@ impl FraiseClient {
     ///
     /// Raw JSON query (debugging, forward compatibility):
     /// ```no_run
+    /// // Requires: live Postgres server.
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use futures::stream::StreamExt;
     ///

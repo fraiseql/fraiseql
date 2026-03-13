@@ -37,8 +37,12 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! // Enqueue a job
+//! ```no_run
+//! // Requires: a JobQueue implementation (e.g., RedisJobQueue) and Redis.
+//! use fraiseql_observers::queue::{Job, JobWorker};
+//!
+//! # async fn example(queue: std::sync::Arc<dyn fraiseql_observers::queue::JobQueue>, executor: std::sync::Arc<dyn fraiseql_observers::traits::ActionExecutor>, entity_event: fraiseql_observers::event::EntityEvent, action: fraiseql_observers::config::ActionConfig) -> fraiseql_observers::Result<()> {
+//! let now = chrono::Utc::now();
 //! let job = Job {
 //!     id: "job-123".to_string(),
 //!     action_id: "send_batch_email".to_string(),
@@ -52,8 +56,10 @@
 //! queue.enqueue(&job).await?;
 //!
 //! // Process with worker
-//! let worker = JobWorker::new(queue, executor, concurrency);
+//! let worker = JobWorker::new(queue, executor, 4);
 //! worker.run().await?;
+//! # Ok(())
+//! # }
 //! ```
 
 #[cfg(feature = "queue")]
@@ -150,6 +156,8 @@ pub struct QueueStats {
 ///
 /// Implementations handle durable storage and retrieval of jobs.
 /// This trait is object-safe and can be used as `Arc<dyn JobQueue>`.
+// Reason: used as dyn Trait (Arc<dyn JobQueue>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait JobQueue: Send + Sync + Clone {
     /// Enqueue a new job for processing.

@@ -18,12 +18,14 @@
 //! 4. Measure with observability (100 iterations)
 //! 5. Calculate overhead and validate against budget
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: perf test metric computations cast u64/u128→f64 for display assertions
 use std::{collections::HashMap, sync::Arc, time::Instant};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -73,7 +75,9 @@ impl PerfTestDatabaseAdapter {
     // Note: with_test_orders() can be added for future tests with order entities
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for PerfTestDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -128,6 +132,14 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         }
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -137,6 +149,8 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for PerfTestDatabaseAdapter {}
 
 /// Create federation metadata for test entities
 fn create_test_metadata() -> FederationMetadata {

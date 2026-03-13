@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Lemon Squeezy webhook signatures using HMAC-SHA256 encoded as Base64.
+///
+/// Lemon Squeezy computes `HMAC-SHA256(secret, body)`, Base64-encodes the result, and
+/// sends it in the `X-Signature` header.
 pub struct LemonSqueezyVerifier;
 
 impl SignatureVerifier for LemonSqueezyVerifier {
@@ -28,7 +32,13 @@ impl SignatureVerifier for LemonSqueezyVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Lemon Squeezy signing secret must not be empty".to_string(),
+            ));
+        }
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
         mac.update(payload);

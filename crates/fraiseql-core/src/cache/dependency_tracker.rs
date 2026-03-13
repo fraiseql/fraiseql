@@ -113,7 +113,7 @@ impl DependencyTracker {
         for view in views {
             self.view_to_caches
                 .entry(view)
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(cache_key.clone());
         }
     }

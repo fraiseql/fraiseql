@@ -1,10 +1,11 @@
+use async_trait::async_trait;
 use serde::Serialize;
 
 use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
 
 /// Webhook transport adapter configuration.
 #[derive(Debug, Clone)]
-pub struct WebhookConfig {
+pub struct WebhookTransportConfig {
     /// Target URL for webhook delivery.
     pub url: String,
 
@@ -24,7 +25,7 @@ pub struct WebhookConfig {
     pub headers: std::collections::HashMap<String, String>,
 }
 
-impl WebhookConfig {
+impl WebhookTransportConfig {
     /// Create a new webhook configuration.
     #[must_use]
     pub fn new(url: impl Into<String>) -> Self {
@@ -47,21 +48,21 @@ impl WebhookConfig {
 
     /// Set the request timeout.
     #[must_use]
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
     }
 
     /// Set maximum retry attempts.
     #[must_use]
-    pub fn with_max_retries(mut self, max_retries: u32) -> Self {
+    pub const fn with_max_retries(mut self, max_retries: u32) -> Self {
         self.max_retries = max_retries;
         self
     }
 
     /// Set initial retry delay.
     #[must_use]
-    pub fn with_retry_delay(mut self, delay_ms: u64) -> Self {
+    pub const fn with_retry_delay(mut self, delay_ms: u64) -> Self {
         self.retry_delay_ms = delay_ms;
         self
     }
@@ -133,35 +134,38 @@ impl WebhookPayload {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookConfig};
+/// ```no_run
+/// // Requires: live HTTP endpoint for webhook delivery.
+/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookTransportConfig};
 ///
-/// let config = WebhookConfig::new("https://api.example.com/webhooks")
+/// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);
 ///
-/// let adapter = WebhookAdapter::new(config);
+/// let adapter = WebhookAdapter::new(config)?;
 /// adapter.deliver(&event, "orderCreated").await?;
 /// ```
 pub struct WebhookAdapter {
-    config: WebhookConfig,
+    config: WebhookTransportConfig,
     client: reqwest::Client,
 }
 
 impl WebhookAdapter {
     /// Create a new webhook adapter.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the HTTP client cannot be built (should not happen in practice).
-    #[must_use]
-    pub fn new(config: WebhookConfig) -> Self {
+    /// Returns an error if the URL targets a private/reserved IP (SSRF protection),
+    /// or if the underlying HTTP client cannot be initialized.
+    pub fn new(config: WebhookTransportConfig) -> Result<Self, SubscriptionError> {
+        validate_webhook_url(&config.url)?;
+
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(config.timeout_ms))
             .build()
-            .expect("Failed to build HTTP client");
+            .map_err(|e| SubscriptionError::Internal(format!("HTTP client init failed: {e}")))?;
 
-        Self { config, client }
+        Ok(Self { config, client })
     }
 
     /// Compute HMAC-SHA256 signature for payload.
@@ -171,8 +175,11 @@ impl WebhookAdapter {
 
         let secret = self.config.secret.as_ref()?;
 
+        #[allow(clippy::expect_used)]
+        // Reason: SHA-256 HMAC (FIPS 198-1) accepts keys of any size;
+        //         new_from_slice only fails for fixed-block-size ciphers (e.g., AES-CMAC).
         let mut mac =
-            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take any size key");
+            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("SHA-256 HMAC accepts any key size");
         mac.update(payload.as_bytes());
 
         let result = mac.finalize();
@@ -180,7 +187,10 @@ impl WebhookAdapter {
     }
 }
 
-#[async_trait::async_trait]
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl TransportAdapter for WebhookAdapter {
     async fn deliver(
         &self,
@@ -289,5 +299,74 @@ impl std::fmt::Debug for WebhookAdapter {
             .field("url", &self.config.url)
             .field("has_secret", &self.config.secret.is_some())
             .finish_non_exhaustive()
+    }
+}
+
+/// Validate a webhook target URL for SSRF risks.
+///
+/// Rejects URLs targeting private/loopback/link-local addresses to prevent
+/// server-side request forgery via attacker-controlled webhook configurations.
+///
+/// # Errors
+///
+/// Returns `SubscriptionError::Internal` if the URL is invalid or targets a
+/// forbidden host (private IP, loopback, link-local).
+pub fn validate_webhook_url(url: &str) -> Result<(), SubscriptionError> {
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|e| SubscriptionError::Internal(format!("Invalid webhook URL '{url}': {e}")))?;
+
+    let host_raw = parsed
+        .host_str()
+        .ok_or_else(|| SubscriptionError::Internal(format!("Webhook URL has no host: {url}")))?;
+
+    // Strip IPv6 brackets added by the url crate (e.g. "[::1]" → "::1").
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    };
+
+    let lower_host = host.to_ascii_lowercase();
+    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+        return Err(SubscriptionError::Internal(format!(
+            "Webhook URL targets a loopback host ({host}) — SSRF protection blocked"
+        )));
+    }
+
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        if is_webhook_ssrf_blocked_ip(&ip) {
+            return Err(SubscriptionError::Internal(format!(
+                "Webhook URL targets a private/reserved IP ({ip}) — SSRF protection blocked"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Returns `true` for IP ranges that webhook delivery must never contact.
+fn is_webhook_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            o[0] == 127                                          // loopback 127/8
+            || o[0] == 10                                        // RFC 1918 10/8
+            || (o[0] == 172 && (16..=31).contains(&o[1]))       // RFC 1918 172.16/12
+            || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
+            || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
+            || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
+            || o == [0, 0, 0, 0]                                 // unspecified
+        },
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()                                     // ::1
+            || v6.is_unspecified()                               // ::
+            || {
+                let s = v6.segments();
+                (s[0] & 0xfe00) == 0xfc00                        // ULA fc00::/7
+                || (s[0] & 0xffc0) == 0xfe80                    // link-local fe80::/10
+                || (s[0] == 0 && s[1] == 0 && s[2] == 0        // ::ffff:0:0/96
+                    && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
+            }
+        },
     }
 }

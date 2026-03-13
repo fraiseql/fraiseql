@@ -27,7 +27,9 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 ) -> Router {
     Router::new()
         // Query intelligence endpoints
-        .route("/query/explain", post(query::explain_handler::<A>))
+        // NOTE: /query/explain is intentionally omitted here — it is mounted
+        // in server/routing.rs under the admin bearer-auth router to prevent
+        // unauthenticated access to query plan details (H13).
         .route("/query/validate", post(query::validate_handler::<A>))
         .route("/query/stats", get(query::stats_handler::<A>))
         // Federation endpoints

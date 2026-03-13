@@ -47,6 +47,21 @@ impl OutputFormatter {
         }
     }
 
+    /// Print a progress message to stderr.
+    ///
+    /// Goes to stderr (not stdout) so it does not pollute data pipelines.
+    /// Suppressed in quiet mode and JSON mode.
+    pub fn progress(&self, msg: &str) {
+        if !self.quiet_mode && !self.json_mode {
+            eprintln!("{msg}");
+        }
+    }
+
+    /// Print a section header to stderr.
+    pub fn section(&self, title: &str) {
+        self.progress(&format!("==> {title}"));
+    }
+
     fn format_text(result: &CommandResult) -> String {
         match result.status.as_str() {
             "success" => {

@@ -14,7 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -27,12 +26,16 @@ MANIFEST
 
 # Rust
 target/
-Cargo.lock
+# Cargo.lock intentionally excluded: this is primarily a library workspace.
+# Downstream applications pin their own lockfiles.
+# Re-add if fraiseql-cli is published as a standalone install.
+# Cargo.lock
 **/*.rs.bk
 *.pdb
 rustc-ice-*.txt
 **/fuzz/corpus/
 **/fuzz/artifacts/
+**/fuzz/target/
 
 # PyO3 / Rust-Python FFI
 # .cargo/ - We DO commit .cargo/config.toml for team tooling
@@ -91,6 +94,16 @@ site/
 # Development phase documentation (not shipped in releases)
 .phases/
 
+# AI session work artifacts (kept locally for context, not committed)
+.claude/plans/
+.claude/worktrees/
+.claude/*_PLAN.md
+.claude/*_ROADMAP.md
+.claude/*_CATALOG.md
+.claude/*_ANALYSIS.md
+.claude/*_INSIGHTS.md
+.claude/fraiseql_documentation_review/
+
 # Database
 *.db
 *.sqlite
@@ -116,9 +129,15 @@ temp/
 TODO_*/
 mutants.out/
 
-# PHP
-vendor/
+# PHP (composer vendor directories, not the Rust vendor/ at repo root)
+sdks/**/vendor/
 composer.phar
+
+# SDK build artifacts
+sdks/**/target/
+sdks/**/node_modules/
+sdks/**/.venv/
+sdks/**/dist/
 composer-setup.php
 .phpunit.cache/
 .phpunit.result.cache

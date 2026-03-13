@@ -36,7 +36,7 @@ impl Default for MetricsHttpConfig {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let formatted = format_metrics(&metrics)?;
 /// println!("{}", formatted);
 /// ```
@@ -55,7 +55,7 @@ pub fn format_metrics(metrics: &ObserverMetrics) -> Result<String, prometheus::E
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use std::sync::Arc;
 /// let metrics = Arc::new(ObserverMetrics::new(&registry)?);
 /// let formatted = format_metrics(&metrics)?;

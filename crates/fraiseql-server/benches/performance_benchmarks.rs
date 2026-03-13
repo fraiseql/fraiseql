@@ -7,12 +7,17 @@
 //! 4. Query parsing performance
 //! 5. Performance under concurrent load
 
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses integer→f64 for human-readable output
+#![allow(clippy::cast_sign_loss)] // Reason: bench data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: bench data values are small and bounded
+
 use std::sync::{Arc, atomic::Ordering};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_server::{
-    LogLevel, LogMetrics, MetricsCollector, PerformanceMonitor, QueryPerformance, RequestContext,
-    RequestValidator, StructuredLogEntry, TraceContext,
+    LogLevel, LogMetrics, MetricsCollector, RequestContext, RequestValidator, StructuredLogEntry,
 };
 
 /// Benchmark query validation performance
@@ -27,11 +32,11 @@ fn bench_query_validation(c: &mut Criterion) {
     ];
 
     c.bench_function("query_validation_simple", |b| {
-        b.iter(|| validator.validate_query(black_box(queries[0])))
+        b.iter(|| validator.validate_query(black_box(queries[0])));
     });
 
     c.bench_function("query_validation_complex", |b| {
-        b.iter(|| validator.validate_query(black_box(queries[3])))
+        b.iter(|| validator.validate_query(black_box(queries[3])));
     });
 }
 
@@ -42,7 +47,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
     c.bench_function("metrics_increment_total", |b| {
         b.iter(|| {
             collector.queries_total.fetch_add(black_box(1), Ordering::Relaxed);
-        })
+        });
     });
 
     c.bench_function("metrics_increment_multiple", |b| {
@@ -51,7 +56,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
             collector.queries_success.fetch_add(1, Ordering::Relaxed);
             collector.queries_duration_us.fetch_add(black_box(5000), Ordering::Relaxed);
             collector.cache_hits.fetch_add(1, Ordering::Relaxed);
-        })
+        });
     });
 
     c.bench_function("metrics_load_stats", |b| {
@@ -60,7 +65,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
             collector.queries_success.load(Ordering::Relaxed);
             collector.queries_error.load(Ordering::Relaxed);
             collector.queries_duration_us.load(Ordering::Relaxed);
-        })
+        });
     });
 }
 
@@ -78,21 +83,21 @@ fn bench_structured_logging(c: &mut Criterion) {
                 LogLevel::Info,
                 black_box("Query executed successfully".to_string()),
             )
-        })
+        });
     });
 
     c.bench_function("log_entry_with_context", |b| {
         b.iter(|| {
             StructuredLogEntry::new(LogLevel::Info, "Query executed".to_string())
                 .with_request_context(black_box(context.clone()))
-        })
+        });
     });
 
     c.bench_function("log_entry_with_metrics", |b| {
         b.iter(|| {
             StructuredLogEntry::new(LogLevel::Info, "Query executed".to_string())
                 .with_metrics(black_box(metrics.clone()))
-        })
+        });
     });
 
     c.bench_function("log_entry_json_serialization", |b| {
@@ -100,69 +105,7 @@ fn bench_structured_logging(c: &mut Criterion) {
             .with_request_context(context.clone())
             .with_metrics(metrics.clone());
 
-        b.iter(|| entry.to_json_string())
-    });
-}
-
-/// Benchmark performance monitoring
-fn bench_performance_monitoring(c: &mut Criterion) {
-    let monitor = PerformanceMonitor::new(100.0);
-
-    c.bench_function("performance_monitor_record", |b| {
-        b.iter(|| {
-            let perf = QueryPerformance::new(
-                black_box(25000),
-                black_box(2),
-                black_box(5),
-                black_box(false),
-                black_box(15000),
-            );
-            monitor.record_query(black_box(perf));
-        })
-    });
-
-    c.bench_function("performance_monitor_stats", |b| {
-        // Pre-populate some data
-        for i in 0..100 {
-            let perf = QueryPerformance::new(
-                (25000 + i * 100) as u64,
-                2,
-                5,
-                i % 3 == 0,
-                (15000 + i * 50) as u64,
-            );
-            monitor.record_query(perf);
-        }
-
-        b.iter(|| {
-            let _ = monitor.stats();
-            let _ = monitor.avg_duration_ms();
-            let _ = monitor.slow_query_percentage();
-            let _ = monitor.cache_hit_rate();
-        })
-    });
-}
-
-/// Benchmark distributed tracing
-fn bench_distributed_tracing(c: &mut Criterion) {
-    c.bench_function("trace_context_creation", |b| b.iter(TraceContext::new));
-
-    c.bench_function("trace_context_child_span", |b| {
-        let ctx = TraceContext::new();
-        b.iter(|| ctx.child_span())
-    });
-
-    c.bench_function("trace_context_w3c_header", |b| {
-        let ctx = TraceContext::new();
-        b.iter(|| ctx.to_w3c_traceparent())
-    });
-
-    c.bench_function("trace_context_baggage", |b| {
-        b.iter(|| {
-            TraceContext::new()
-                .with_baggage("user_id".to_string(), black_box("user123".to_string()))
-                .with_baggage("tenant".to_string(), black_box("acme".to_string()))
-        })
+        b.iter(|| entry.to_json_string());
     });
 }
 
@@ -176,7 +119,7 @@ fn bench_request_context(c: &mut Criterion) {
                 .with_operation(black_box("GetUser".to_string()))
                 .with_user_id(black_box("user123".to_string()))
                 .with_client_ip(black_box("192.168.1.1".to_string()))
-        })
+        });
     });
 }
 
@@ -184,7 +127,7 @@ fn bench_request_context(c: &mut Criterion) {
 fn bench_concurrent_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_metrics");
 
-    for num_threads in [2, 4, 8, 16].iter() {
+    for num_threads in &[2, 4, 8, 16] {
         group.bench_with_input(
             BenchmarkId::from_parameter(num_threads),
             num_threads,
@@ -207,7 +150,7 @@ fn bench_concurrent_metrics(c: &mut Criterion) {
                     for handle in handles {
                         let _ = handle.await;
                     }
-                })
+                });
             },
         );
     }
@@ -236,7 +179,7 @@ fn bench_complex_log_entry(c: &mut Criterion) {
                 .with_request_context(black_box(context.clone()))
                 .with_metrics(black_box(metrics.clone()))
                 .to_json_string()
-        })
+        });
     });
 }
 
@@ -245,8 +188,6 @@ criterion_group!(
     bench_query_validation,
     bench_metrics_collection,
     bench_structured_logging,
-    bench_performance_monitoring,
-    bench_distributed_tracing,
     bench_request_context,
     bench_concurrent_metrics,
     bench_complex_log_entry

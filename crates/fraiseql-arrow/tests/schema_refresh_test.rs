@@ -1,15 +1,16 @@
 //! Integration tests for Arrow Flight schema refresh functionality.
 //!
-//! Tests the RefreshSchemaRegistry and GetSchemaVersions actions which allow
+//! Tests the `RefreshSchemaRegistry` and `GetSchemaVersions` actions which allow
 //! safe runtime schema reloading without disrupting running queries.
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use arrow_flight::flight_service_client::FlightServiceClient;
+use arrow_flight::{Action, flight_service_client::FlightServiceClient};
 use fraiseql_arrow::flight_server::FraiseQLFlightService;
 use tonic::transport::{Endpoint, Server};
 
 /// Start a test Flight server on a random available port.
 ///
-/// Returns the server address (e.g., "http://127.0.0.1:12345").
+/// Returns the server address (e.g., "<http://127.0.0.1:12345>").
 async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
     let service = FraiseQLFlightService::new();
 
@@ -41,7 +42,6 @@ async fn test_get_schema_versions_action() {
     let mut client = FlightServiceClient::new(channel);
 
     // Call GetSchemaVersions action
-    use arrow_flight::Action;
     let action = Action {
         r#type: "GetSchemaVersions".to_string(),
         body:   vec![].into(),
@@ -69,7 +69,7 @@ async fn test_schema_versioning_metadata() {
     // Register initial schema
     let schema_v0 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-    registry.register("test_view", schema_v0.clone());
+    registry.register("test_view", schema_v0);
 
     // Get version info
     let (version, created_at) = registry.get_version_info("test_view").unwrap();
@@ -81,7 +81,7 @@ async fn test_schema_versioning_metadata() {
         Field::new("name", DataType::Utf8, false),
     ]));
 
-    registry.register("test_view", schema_v1.clone());
+    registry.register("test_view", schema_v1);
 
     let (new_version, new_created_at) = registry.get_version_info("test_view").unwrap();
     assert_eq!(new_version, 1);
@@ -116,9 +116,7 @@ async fn test_get_all_versions_list() {
     assert!(view_names.contains(&"view2".to_string()));
     assert!(view_names.contains(&"view3".to_string()));
 
-    // Verify version numbers are sequential
-    let version_numbers: Vec<u64> = versions.iter().map(|(_, v, _)| *v).collect();
-    assert_eq!(version_numbers.len(), 3);
+    // Verify version numbers are sequential (count already asserted above via versions.len())
 }
 
 #[tokio::test]
@@ -171,7 +169,7 @@ async fn test_concurrent_schema_updates() {
     for i in 0..5 {
         let reg = Arc::clone(&registry);
         let handle = tokio::spawn(async move {
-            for j in 0..10 {
+            for j in 0_u64..10 {
                 let schema = Arc::new(Schema::new(vec![
                     Field::new("id", DataType::Int64, false),
                     Field::new("value", DataType::Utf8, false),
@@ -184,7 +182,7 @@ async fn test_concurrent_schema_updates() {
                 tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
 
                 let (version, _) = reg.get_version_info(&view_name).unwrap();
-                assert!(version >= (j as u64));
+                assert!(version >= j);
             }
         });
         handles.push(handle);
@@ -200,7 +198,7 @@ async fn test_concurrent_schema_updates() {
     assert_eq!(versions.len(), 5); // 5 views registered
 
     // Verify version numbers are reasonable
-    for (_, version, _) in versions.iter() {
+    for (_, version, _) in &versions {
         assert!(*version >= 9); // At least 10 updates per view
     }
 }

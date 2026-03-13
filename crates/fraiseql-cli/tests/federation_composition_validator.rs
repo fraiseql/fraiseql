@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Composition validation tests
 //! - Merge types from multiple subgraphs
 //! - Detect field type conflicts
@@ -416,7 +417,7 @@ struct ComposedSchema {
 /// - **External Fields**: @external fields must reference fields owned by other subgraphs
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// let users_subgraph = FederationMetadata { /* User type */ };
 /// let orders_subgraph = FederationMetadata { /* Order + User extension */ };
 /// let composed = compose_federation_schemas(&[users_subgraph, orders_subgraph])?;

@@ -23,7 +23,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live subscription infrastructure (schema + transport).
 //! use fraiseql_core::runtime::subscription::{
 //!     SubscriptionManager, SubscriptionEvent, SubscriptionId,
 //! };
@@ -64,12 +65,14 @@ mod webhook;
 
 pub use kafka::{KafkaAdapter, KafkaConfig, KafkaMessage};
 pub use manager::SubscriptionManager;
-pub use transport::{DeliveryResult, TransportAdapter, TransportManager};
+pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};
 pub use types::{
     ActiveSubscription, SubscriptionEvent, SubscriptionId, SubscriptionOperation,
     SubscriptionPayload,
 };
-pub use webhook::{WebhookAdapter, WebhookConfig, WebhookPayload};
+pub use webhook::{WebhookAdapter, WebhookTransportConfig, WebhookPayload};
+/// Backward-compatible type alias — use [`WebhookTransportConfig`] in new code.
+pub type WebhookConfig = WebhookTransportConfig;
 
 // =============================================================================
 // Error Types

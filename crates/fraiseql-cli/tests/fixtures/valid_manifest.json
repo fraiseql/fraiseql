@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "documents": {
+    "sha256:5598500c6bf66be8f5a9de414e374aab14c6a8bbb9b727e74ef9b440ee591ddb": "query GetUsers { users { id } }"
+  }
+}

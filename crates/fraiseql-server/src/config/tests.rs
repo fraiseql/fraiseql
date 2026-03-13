@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
 use std::time::Duration;
 
 use fraiseql_error::ConfigError;
@@ -87,7 +89,7 @@ fn test_validation_missing_env_var() {
         let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let result = ConfigValidator::new(&config).validate();
 
-        assert!(!result.is_ok());
+        assert!(result.is_err());
         assert!(result.errors.iter().any(|e| matches!(e, ConfigError::MissingEnvVar { .. })));
     });
 }
@@ -115,6 +117,6 @@ fn test_validation_cross_field() {
         let result = ConfigValidator::new(&config).validate();
 
         // Should fail because email action requires notifications config
-        assert!(!result.is_ok());
+        assert!(result.is_err());
     });
 }

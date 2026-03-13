@@ -23,7 +23,7 @@ pub struct TenantEnforcer {
 
 impl TenantEnforcer {
     /// Create a new tenant enforcer
-    pub fn new(org_id: Option<String>) -> Self {
+    pub const fn new(org_id: Option<String>) -> Self {
         Self {
             org_id,
             require_tenant: false,
@@ -31,7 +31,7 @@ impl TenantEnforcer {
     }
 
     /// Create with tenant requirement
-    pub fn with_requirement(org_id: Option<String>, require_tenant: bool) -> Self {
+    pub const fn with_requirement(org_id: Option<String>, require_tenant: bool) -> Self {
         Self {
             org_id,
             require_tenant,
@@ -39,7 +39,7 @@ impl TenantEnforcer {
     }
 
     /// Check if request is tenant-scoped
-    pub fn is_tenant_scoped(&self) -> bool {
+    pub const fn is_tenant_scoped(&self) -> bool {
         self.org_id.is_some()
     }
 
@@ -152,6 +152,8 @@ impl TenantEnforcer {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

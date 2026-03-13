@@ -1,348 +1,151 @@
-//! Lint Command Tests
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+//! Integration tests for `fraiseql lint`.
 //!
-//! Tests for the `fraiseql lint` CLI command that analyzes schemas using
-//! FraiseQL-calibrated design rules.
+//! Invokes the real CLI binary via `std::process::Command` and inspects exit
+//! codes and stdout/stderr. No database required.
+//!
+//! **Execution engine:** none (CLI binary only)
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
-// ============================================================================
-// Basic Command Tests
-// ============================================================================
+use std::process::Command;
 
-#[test]
-fn test_lint_command_basic() {
-    // fraiseql lint schema.compiled.json
-    // Should load schema and run all design audits
+/// Path to the compiled CLI binary set by Cargo for integration tests.
+fn cli() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
 }
 
-#[test]
-fn test_lint_command_with_valid_schema() {
-    // fraiseql lint good_schema.json
-    // Should return exit code 0, show score and summary
+/// Absolute path to a fixture file relative to this crate's tests/ directory.
+fn fixture(name: &str) -> String {
+    format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
+// ── Cycle 3.1: Basic invocation ──────────────────────────────────────────────
+
+/// `fraiseql lint <schema>` on an empty schema exits 0 and prints a summary.
 #[test]
-fn test_lint_command_with_problematic_schema() {
-    // fraiseql lint bad_schema.json
-    // Should return exit code 0 (not error, just report issues)
-    // Detailed output showing all issues
+fn lint_on_empty_schema_exits_zero() {
+    let out = cli().args(["lint", &fixture("empty_schema.json")]).output().unwrap();
+    assert!(out.status.success(), "lint on empty schema must exit 0, got: {:?}", out.status);
 }
 
+/// `fraiseql lint <schema>` on a minimal valid schema exits 0.
 #[test]
-fn test_lint_command_missing_schema_file() {
-    // fraiseql lint nonexistent.json
-    // Should return exit code 1 with error message
+fn lint_on_minimal_schema_exits_zero() {
+    let out = cli().args(["lint", &fixture("minimal_schema.json")]).output().unwrap();
+    assert!(out.status.success(), "lint on minimal valid schema must exit 0");
 }
 
-// ============================================================================
-// Filter Options Tests
-// ============================================================================
-
+/// Missing schema file prints an error and exits non-zero.
 #[test]
-fn test_lint_federation_only() {
-    // fraiseql lint schema.json --federation
-    // Should only show federation audit results
+fn lint_on_missing_file_exits_nonzero() {
+    let out = cli().args(["lint", "does_not_exist.json"]).output().unwrap();
+    assert!(!out.status.success(), "lint on missing file must exit non-zero");
 }
 
+// ── Cycle 3.2: JSON output ────────────────────────────────────────────────────
+
+/// `--json` flag produces valid JSON with expected keys.
 #[test]
-fn test_lint_cost_only() {
-    // fraiseql lint schema.json --cost
-    // Should only show cost audit results
+fn lint_json_output_is_valid_json() {
+    let out = cli().args(["lint", &fixture("empty_schema.json"), "--json"]).output().unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("lint --json output must be valid JSON: {e}\ngot: {stdout}"));
+    assert!(parsed.is_object(), "JSON output must be an object");
 }
 
+/// JSON output contains `overall_score` and `severity_counts` fields.
 #[test]
-fn test_lint_cache_only() {
-    // fraiseql lint schema.json --cache
-    // Should only show cache audit results
+fn lint_json_output_contains_expected_fields() {
+    let out = cli().args(["lint", &fixture("empty_schema.json"), "--json"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    // data or top-level must contain overall_score
+    let data = parsed.get("data").unwrap_or(&parsed);
+    assert!(
+        data.get("overall_score").is_some(),
+        "JSON output must contain `overall_score`, got: {parsed}"
+    );
+    assert!(
+        data.get("severity_counts").is_some(),
+        "JSON output must contain `severity_counts`, got: {parsed}"
+    );
 }
 
+/// An empty schema receives a perfect score (100) when no types are defined.
 #[test]
-fn test_lint_auth_only() {
-    // fraiseql lint schema.json --auth
-    // Should only show auth audit results
+fn lint_empty_schema_scores_100() {
+    let out = cli().args(["lint", &fixture("empty_schema.json"), "--json"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let data = parsed.get("data").unwrap_or(&parsed);
+    let score = data["overall_score"].as_u64().unwrap_or(0);
+    assert_eq!(score, 100, "empty schema must score 100; got: {parsed}");
 }
 
+// ── Cycle 3.3: --fail-on-critical flag ───────────────────────────────────────
+
+/// `--fail-on-critical` on a clean schema exits 0 (no critical issues).
 #[test]
-fn test_lint_compilation_only() {
-    // fraiseql lint schema.json --compilation
-    // Should only show compilation audit results
+fn lint_fail_on_critical_clean_schema_exits_zero() {
+    let out = cli()
+        .args(["lint", &fixture("empty_schema.json"), "--fail-on-critical"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "lint --fail-on-critical on clean schema must exit 0"
+    );
 }
 
+// ── Cycle 3.4: Category filters ───────────────────────────────────────────────
+
+/// `--federation` filter limits output to federation category only.
 #[test]
-fn test_lint_multiple_filters() {
-    // fraiseql lint schema.json --federation --cost
-    // Should show only federation and cost audits
+fn lint_federation_filter_exits_zero() {
+    let out = cli()
+        .args(["lint", &fixture("minimal_schema.json"), "--federation"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "`lint --federation` must exit 0 on valid schema");
 }
 
-// ============================================================================
-// Format Options Tests
-// ============================================================================
-
+/// `--cost` filter limits output to cost category only.
 #[test]
-fn test_lint_format_json() {
-    // fraiseql lint schema.json --format=json
-    // Should output machine-readable JSON with all issues
+fn lint_cost_filter_exits_zero() {
+    let out = cli()
+        .args(["lint", &fixture("minimal_schema.json"), "--cost"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "`lint --cost` must exit 0 on valid schema");
 }
 
+/// `--cache` filter limits output to cache category only.
 #[test]
-fn test_lint_format_text() {
-    // fraiseql lint schema.json --format=text (default)
-    // Should output human-readable table format
+fn lint_cache_filter_exits_zero() {
+    let out = cli()
+        .args(["lint", &fixture("minimal_schema.json"), "--cache"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "`lint --cache` must exit 0 on valid schema");
 }
 
+// ── Cycle 3.5: Exit code contract ────────────────────────────────────────────
+
+/// `lint` exits with code 0 (not 1 or 2) on a valid schema with no flags.
 #[test]
-fn test_lint_format_csv() {
-    // fraiseql lint schema.json --format=csv
-    // Should output CSV with issues as rows
+fn lint_exit_code_zero_on_success() {
+    let out = cli().args(["lint", &fixture("minimal_schema.json")]).output().unwrap();
+    let code = out.status.code().unwrap_or(-1);
+    assert_eq!(code, 0, "lint on valid schema must exit with code 0, got {code}");
 }
 
+/// `lint` on missing file exits with code 1 (error), not 2 (validation failure).
 #[test]
-fn test_lint_json_output_structure() {
-    // fraiseql lint --format=json should output:
-    // {
-    //   "overall_score": 72,
-    //   "severity_counts": { "critical": 1, "warning": 3, "info": 5 },
-    //   "federation": { "score": 65, "issues": [...] },
-    //   ...
-    // }
-}
-
-// ============================================================================
-// Severity Filter Tests
-// ============================================================================
-
-#[test]
-fn test_lint_critical_only() {
-    // fraiseql lint schema.json --severity=critical
-    // Should only show critical issues
-}
-
-#[test]
-fn test_lint_severity_warning_and_above() {
-    // fraiseql lint schema.json --severity=warning
-    // Should show warning and critical (not info)
-}
-
-#[test]
-fn test_lint_all_severities() {
-    // fraiseql lint schema.json --severity=all (default)
-    // Should show all issues
-}
-
-// ============================================================================
-// Output Options Tests
-// ============================================================================
-
-#[test]
-fn test_lint_quiet_mode() {
-    // fraiseql lint schema.json --quiet
-    // Should only print overall score and exit code
-}
-
-#[test]
-fn test_lint_verbose_mode() {
-    // fraiseql lint schema.json --verbose
-    // Should print detailed analysis with suggestions
-}
-
-#[test]
-fn test_lint_no_suggestions() {
-    // fraiseql lint schema.json --no-suggestions
-    // Should show issues but not suggestions
-}
-
-// ============================================================================
-// Score Threshold Tests
-// ============================================================================
-
-#[test]
-fn test_lint_fail_on_low_score() {
-    // fraiseql lint schema.json --fail-on-score=70
-    // If score < 70, exit code 2 (validation failure)
-    // If score >= 70, exit code 0 (success)
-}
-
-#[test]
-fn test_lint_fail_on_critical() {
-    // fraiseql lint schema.json --fail-on-critical
-    // If any critical issues, exit code 2
-    // Otherwise exit code 0
-}
-
-// ============================================================================
-// Exit Code Tests
-// ============================================================================
-
-#[test]
-fn test_lint_exit_code_success() {
-    // Good schema: exit code 0
-}
-
-#[test]
-fn test_lint_exit_code_validation_failed() {
-    // Threshold not met: exit code 2
-    // Distinguishable from general error (code 1)
-}
-
-#[test]
-fn test_lint_exit_code_error() {
-    // File not found or parse error: exit code 1
-}
-
-// ============================================================================
-// Output Format Tests
-// ============================================================================
-
-#[test]
-fn test_lint_text_output_contains_score() {
-    // Text output should show: "Design Score: 72/100"
-}
-
-#[test]
-fn test_lint_text_output_summary() {
-    // Text output should show:
-    // Critical: 1 issue
-    // Warning: 3 issues
-    // Info: 5 issues
-}
-
-#[test]
-fn test_lint_text_output_categories() {
-    // Text output should group issues by category:
-    // Federation (1 warning)
-    // Cost (2 critical)
-    // etc.
-}
-
-#[test]
-fn test_lint_text_output_suggestions() {
-    // Each issue should show:
-    // [WARNING] JSONB fragmentation: User in 3 subgraphs
-    //   → Move User to primary subgraph only
-}
-
-#[test]
-fn test_lint_json_output_valid() {
-    // JSON output should be valid JSON
-    // Can be parsed and contains all expected fields
-}
-
-#[test]
-fn test_lint_csv_output_valid() {
-    // CSV output should be valid CSV
-    // Headers: severity, category, message, suggestion
-}
-
-// ============================================================================
-// Global Flags Tests
-// ============================================================================
-
-#[test]
-fn test_lint_with_global_json_flag() {
-    // fraiseql --json lint schema.json
-    // Global flag should also apply to lint output
-}
-
-#[test]
-fn test_lint_with_global_quiet_flag() {
-    // fraiseql --quiet lint schema.json
-    // Global flag should suppress verbose output
-}
-
-// ============================================================================
-// Special Scenarios Tests
-// ============================================================================
-
-#[test]
-fn test_lint_empty_schema() {
-    // fraiseql lint empty.json
-    // Should handle gracefully, show 100 score
-}
-
-#[test]
-fn test_lint_minimal_valid_schema() {
-    // fraiseql lint minimal.json (Query type only)
-    // Should run all audits, show high score
-}
-
-#[test]
-fn test_lint_large_complex_schema() {
-    // fraiseql lint enterprise_schema.json (1000+ types)
-    // Should complete in reasonable time (<500ms)
-}
-
-#[test]
-fn test_lint_schema_with_all_issues() {
-    // fraiseql lint problematic.json
-    // Schema with federation, cost, cache, auth, compilation issues
-    // Should detect all categories
-}
-
-// ============================================================================
-// Integration Tests
-// ============================================================================
-
-#[test]
-fn test_lint_integration_with_fraiseql_compile() {
-    // Generate schema.json, compile to schema.compiled.json
-    // Run fraiseql lint on compiled schema
-    // Should work end-to-end
-}
-
-#[test]
-fn test_lint_ci_integration() {
-    // fraiseql lint schema.json --format=json --fail-on-critical
-    // Output format suitable for GitHub Actions/GitLab CI parsing
-}
-
-#[test]
-fn test_lint_pre_commit_hook() {
-    // fraiseql lint schema.json --fail-on-score=75
-    // Exit code allows using in pre-commit hooks
-}
-
-// ============================================================================
-// Performance Tests
-// ============================================================================
-
-#[test]
-fn test_lint_typical_schema_under_100ms() {
-    // fraiseql lint typical_schema.json (100-200 types)
-    // Should complete in <100ms
-}
-
-#[test]
-fn test_lint_large_schema_under_500ms() {
-    // fraiseql lint large_schema.json (1000+ types)
-    // Should complete in <500ms
-}
-
-// ============================================================================
-// Error Messages Tests
-// ============================================================================
-
-#[test]
-fn test_lint_helpful_error_for_json_parse_error() {
-    // fraiseql lint invalid.json
-    // Error should point to line/column of JSON error
-}
-
-#[test]
-fn test_lint_helpful_error_for_schema_validation() {
-    // fraiseql lint schema_missing_types.json
-    // Error should explain what's missing
-}
-
-// ============================================================================
-// Backward Compatibility Tests
-// ============================================================================
-
-#[test]
-fn test_lint_works_with_uncompiled_schema() {
-    // fraiseql lint schema.json (not compiled)
-    // Should still work, analyze as-is
-}
-
-#[test]
-fn test_lint_works_with_old_schema_format() {
-    // fraiseql lint v1_schema.json
-    // Should handle gracefully
+fn lint_exit_code_one_on_file_not_found() {
+    let out = cli().args(["lint", "missing_file.json"]).output().unwrap();
+    let code = out.status.code().unwrap_or(-1);
+    assert_eq!(code, 1, "file-not-found must exit with code 1, got {code}");
 }

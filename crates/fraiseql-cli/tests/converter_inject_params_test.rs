@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Pipeline 5 — Stage B integration tests: CLI converter inject params.
 //!
 //! Verifies that `SchemaConverter::convert()` correctly parses every documented

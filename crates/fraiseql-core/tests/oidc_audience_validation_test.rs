@@ -5,6 +5,8 @@
 //! - Prevents token confusion attacks
 //! - Configuration validation enforces audience requirement
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used to satisfy destructuring patterns in test assertions
 use fraiseql_core::security::oidc::OidcConfig;
 
 #[test]
@@ -128,7 +130,7 @@ fn test_oidc_config_multiple_audiences() {
 fn test_oidc_config_issuer_validation_still_required() {
     // Audience being required doesn't override issuer requirement
     let config = OidcConfig {
-        issuer: "".to_string(), // Missing issuer
+        issuer: String::new(), // Missing issuer
         audience: Some("https://api.example.com".to_string()),
         ..Default::default()
     };

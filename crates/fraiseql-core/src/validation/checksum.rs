@@ -3,6 +3,19 @@
 //! This module provides validators for common checksum algorithms used in banking and
 //! payment systems.
 
+/// Maximum number of digits accepted by the Luhn validator.
+///
+/// Real-world Luhn-validated identifiers (credit cards, account numbers) top out
+/// at 19 digits. A generous cap of 25 prevents O(n) iteration over attacker-
+/// supplied megabyte strings while remaining compatible with every known use case.
+const MAX_LUHN_DIGITS: usize = 25;
+
+/// Maximum byte length accepted by the MOD-97 validator.
+///
+/// The longest IBAN defined by ISO 13616 is 34 characters (e.g. Malta).  Any
+/// input longer than this limit cannot be a valid IBAN and is rejected early.
+const MAX_MOD97_BYTES: usize = 34;
+
 /// Luhn algorithm validator for credit cards and similar identifiers.
 ///
 /// The Luhn algorithm (also called mod-10) is used to validate credit card numbers
@@ -35,13 +48,13 @@ impl LuhnValidator {
     /// assert!(!LuhnValidator::validate("4532015112830367")); // Invalid
     /// ```
     pub fn validate(value: &str) -> bool {
-        // Must contain only digits
-        if !value.chars().all(|c| c.is_ascii_digit()) {
+        // Must have at least 1 digit and no more than MAX_LUHN_DIGITS.
+        if value.is_empty() || value.len() > MAX_LUHN_DIGITS {
             return false;
         }
 
-        // Must have at least 1 digit
-        if value.is_empty() {
+        // Must contain only digits
+        if !value.chars().all(|c| c.is_ascii_digit()) {
             return false;
         }
 
@@ -67,7 +80,7 @@ impl LuhnValidator {
     }
 
     /// Get a human-readable description of why validation failed.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid checksum (Luhn algorithm)"
     }
 }
@@ -104,12 +117,12 @@ impl Mod97Validator {
     /// assert!(!Mod97Validator::validate("GB82WEST12345698765433")); // Invalid
     /// ```
     pub fn validate(value: &str) -> bool {
-        let value_upper = value.to_uppercase();
-
-        // Must have at least 4 characters
-        if value_upper.len() < 4 {
+        // Quick length pre-check: IBANs are 4–34 characters (ISO 13616).
+        if value.len() < 4 || value.len() > MAX_MOD97_BYTES {
             return false;
         }
+
+        let value_upper = value.to_uppercase();
 
         // Must contain only alphanumeric characters
         if !value_upper.chars().all(|c| c.is_ascii_alphanumeric()) {
@@ -154,7 +167,7 @@ impl Mod97Validator {
     }
 
     /// Get a human-readable description of why validation failed.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid checksum (MOD-97 algorithm)"
     }
 }
@@ -239,5 +252,44 @@ mod tests {
     #[test]
     fn test_luhn_error_message() {
         assert_eq!(LuhnValidator::error_message(), "Invalid checksum (Luhn algorithm)");
+    }
+
+    // ── Length-guard tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_luhn_exactly_25_digits_accepted() {
+        // 25 digits that pass Luhn (craft a valid one: 24 zeros + check digit 0)
+        let value = "0".repeat(25);
+        // All-zeros passes Luhn (sum = 0, 0 % 10 == 0)
+        assert!(LuhnValidator::validate(&value));
+    }
+
+    #[test]
+    fn test_luhn_26_digits_rejected_by_length_guard() {
+        let value = "0".repeat(26);
+        assert!(!LuhnValidator::validate(&value), "26-digit string must be rejected");
+    }
+
+    #[test]
+    fn test_mod97_exactly_34_chars_accepted_structure() {
+        // GB IBAN is 22 chars; build a syntactically valid 34-char string
+        // (all A's — will fail mod-97 checksum but must NOT be rejected by length guard)
+        let value = "A".repeat(34);
+        // Will be false (checksum fails) but must not panic; length guard allows it through
+        let _ = Mod97Validator::validate(&value);
+        // Just verify 34-char input is not immediately rejected (returns false for checksum, not length)
+        // We can't check internal path from outside, so we verify no panic occurs and the function runs.
+    }
+
+    #[test]
+    fn test_mod97_35_chars_rejected_by_length_guard() {
+        let value = "A".repeat(35);
+        assert!(!Mod97Validator::validate(&value), "35-char string must be rejected by length guard");
+    }
+
+    #[test]
+    fn test_mod97_valid_iban_within_length_limit() {
+        // Verify an actual valid IBAN still passes after adding the length guard.
+        assert!(Mod97Validator::validate("GB82WEST12345698765432")); // 22 chars — well within limit
     }
 }

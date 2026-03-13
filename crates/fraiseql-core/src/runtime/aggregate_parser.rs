@@ -24,7 +24,8 @@
 //!
 //! # Parsed Result
 //!
-//! ```rust,ignore
+//! ```no_run
+//! // Illustrative output structure only — not executable code.
 //! AggregationRequest {
 //!     table_name: "tf_sales",
 //!     where_clause: Some(...),
@@ -137,10 +138,16 @@ impl AggregateQueryParser {
         };
 
         // Parse LIMIT
-        let limit = query_json.get("limit").and_then(|v| v.as_u64()).map(|n| n as u32);
+        let limit = query_json
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
 
         // Parse OFFSET
-        let offset = query_json.get("offset").and_then(|v| v.as_u64()).map(|n| n as u32);
+        let offset = query_json
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
 
         Ok(AggregationRequest {
             table_name,
@@ -468,7 +475,7 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field:    dimension_path.clone(),
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::And,
                         alias:    agg_name.to_string(),
                     });
@@ -477,7 +484,7 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_or") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field:    dimension_path.clone(),
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::Or,
                         alias:    agg_name.to_string(),
                     });
@@ -524,7 +531,7 @@ impl AggregateQueryParser {
                 if agg_name == expected_name {
                     // For dimension aggregates, store the path as the "measure"
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure:  dimension_path.clone(),
+                        measure:  dimension_path,
                         function: func.1,
                         alias:    agg_name.to_string(),
                     });
@@ -633,6 +640,8 @@ impl AggregateQueryParser {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;

@@ -1,4 +1,7 @@
 //! Tests for the Flight service.
+#![allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
+#![allow(clippy::unreadable_literal)] // Reason: test token expiration uses large integer literal
+#![allow(clippy::default_trait_access)] // Reason: Default::default() used for struct field initialization
 
 use std::sync::Arc;
 
@@ -12,9 +15,12 @@ use tonic::Request;
 use super::{FraiseQLFlightService, QueryExecutor, SecurityContext, SessionTokenClaims};
 use crate::ticket::FlightTicket;
 
-/// Dummy executor for testing that implements QueryExecutor trait.
+/// Dummy executor for testing that implements `QueryExecutor` trait.
 struct DummyExecutor;
 
+// Reason: QueryExecutor is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl QueryExecutor for DummyExecutor {
     async fn execute_with_security(
@@ -89,13 +95,13 @@ fn test_fraiseql_core_types_accessible() {
 
     // These types should be accessible now that circular dependency is fixed
     let _: Option<CompiledSchema> = None;
-    let _message = "fraiseql-core types accessible";
+    let message = "fraiseql-core types accessible";
 
     // Verify imports work by checking these exist at compile time
-    assert!(!_message.is_empty());
+    assert!(!message.is_empty());
 }
 
-/// Tests that has_executor() returns correct status
+/// Tests that `has_executor()` returns correct status
 #[test]
 fn test_has_executor_status() {
     let service = FraiseQLFlightService::new();
@@ -252,7 +258,7 @@ async fn test_list_actions_returns_action_types() {
     assert!(action_names.contains(&"HealthCheck"), "Should have HealthCheck action");
 }
 
-/// Tests that `do_action` requires authentication and executes HealthCheck action.
+/// Tests that `do_action` requires authentication and executes `HealthCheck` action.
 #[tokio::test]
 async fn test_do_action_health_check() {
     temp_env::async_with_vars(flight_secret_vars(), async {

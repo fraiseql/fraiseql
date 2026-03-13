@@ -1,0 +1,78 @@
+name: Elixir SDK
+
+on:
+  push:
+    paths:
+      - 'sdks/official/fraiseql-elixir/**'
+    tags:
+      - 'elixir-sdk/v*'
+  pull_request:
+    paths:
+      - 'sdks/official/fraiseql-elixir/**'
+
+jobs:
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-elixir
+    strategy:
+      matrix:
+        elixir: ['1.15', '1.16', '1.17']
+        otp: ['26', '27']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      - name: Restore deps cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            sdks/official/fraiseql-elixir/deps
+            sdks/official/fraiseql-elixir/_build
+          key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
+      - run: mix deps.get
+      - run: mix credo --strict
+      - run: mix test
+
+  dialyzer:
+    name: Dialyzer
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-elixir
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27'
+      - name: Restore PLT cache
+        uses: actions/cache@v4
+        with:
+          path: sdks/official/fraiseql-elixir/priv/plts
+          key: ${{ runner.os }}-dialyzer-1.17-27-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
+      - run: mix deps.get
+      - run: mix dialyzer --format github
+
+  publish:
+    name: Publish to Hex.pm
+    runs-on: ubuntu-22.04
+    needs: [test, dialyzer]
+    if: startsWith(github.ref, 'refs/tags/elixir-sdk/v')
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-elixir
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27'
+      - run: mix deps.get
+      - run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline 4 integration tests — cache invalidation.
 //!
 //! Drives the **cache invalidation pipeline** after a successful mutation:
@@ -14,8 +16,8 @@
 //! the production executor uses.
 
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use chrono::Utc;
 use fraiseql_core::{
     cache::{
@@ -23,7 +25,7 @@ use fraiseql_core::{
         QueryResultCache,
     },
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -43,12 +45,14 @@ struct InnerMockAdapter {
 }
 
 impl InnerMockAdapter {
-    fn with_row(mutation_row: HashMap<String, serde_json::Value>) -> Self {
+    const fn with_row(mutation_row: HashMap<String, serde_json::Value>) -> Self {
         Self { mutation_row }
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for InnerMockAdapter {
     async fn execute_with_projection(
         &self,
@@ -94,6 +98,14 @@ impl DatabaseAdapter for InnerMockAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -109,6 +121,8 @@ impl DatabaseAdapter for InnerMockAdapter {
         Ok(vec![self.mutation_row.clone()])
     }
 }
+
+impl MutationCapable for InnerMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -204,7 +218,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
     let vars = serde_json::json!({"amount": "99.99"});
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -273,7 +287,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
     let vars = serde_json::json!({"amount": "99.99"});
     let _ = executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -346,7 +360,7 @@ async fn mutation_bumps_fact_table_version_counter() {
 
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -365,7 +379,7 @@ async fn mutation_bumps_fact_table_version_counter() {
     }
 }
 
-/// Pipeline 4: fact table version bump is skipped for TimeBased strategy.
+/// Pipeline 4: fact table version bump is skipped for `TimeBased` strategy.
 ///
 /// When the strategy for a table is `TimeBased`, `bump_fact_table_versions` is a
 /// no-op — no database call is made and the version cache stays empty.
@@ -402,7 +416,7 @@ async fn mutation_skips_bump_for_time_based_strategy() {
     let vars = serde_json::json!({"amount": "99.99"});
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )

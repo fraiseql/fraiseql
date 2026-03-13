@@ -1,4 +1,4 @@
-// Ory (Hydra/Kratos) OAuth provider implementation
+//! Ory (Hydra / Kratos) OAuth / OIDC provider implementation for Cloud and self-hosted deployments.
 use async_trait::async_trait;
 use serde_json::json;
 
@@ -15,13 +15,18 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live Ory OIDC endpoint.
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// use fraiseql_auth::providers::ory::OryOAuth;
 /// let provider = OryOAuth::new(
 ///     "client_id".to_string(),
 ///     "client_secret".to_string(),
 ///     "https://your-project.projects.oryapis.com".to_string(),
 ///     "http://localhost:8000/auth/callback".to_string(),
 /// ).await?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct OryOAuth {
@@ -146,6 +151,9 @@ impl OryOAuth {
     }
 }
 
+// Reason: OAuthProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl OAuthProvider for OryOAuth {
     fn name(&self) -> &'static str {
@@ -190,6 +198,7 @@ impl OAuthProvider for OryOAuth {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

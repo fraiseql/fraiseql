@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Recovery scenario tests.
 //!
 //! Tests that the system can recover after transient failures.

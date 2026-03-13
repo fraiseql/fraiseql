@@ -13,7 +13,7 @@ pub const JSONB_OID: OID = 3802;
 
 /// Check if an OID represents a JSON type
 #[inline]
-pub fn is_json_oid(oid: OID) -> bool {
+pub const fn is_json_oid(oid: OID) -> bool {
     oid == JSON_OID || oid == JSONB_OID
 }
 

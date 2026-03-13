@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Tests for SQL identifier validation at compile time.
 //!
 //! Ensures `sql_source`, `view_name`, and `function_name` values are safe SQL

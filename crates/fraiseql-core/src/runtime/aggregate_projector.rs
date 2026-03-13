@@ -59,16 +59,19 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let rows = vec![
-    ///     hashmap!{
-    ///         "category" => json!("Electronics"),
-    ///         "count" => json!(42),
-    ///         "revenue_sum" => json!(5280.50)
-    ///     }
-    /// ];
+    /// ```no_run
+    /// // Requires: an AggregationPlan built from compiled schema metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// use std::collections::HashMap;
+    /// use serde_json::{json, Value};
+    /// # use fraiseql_core::runtime::AggregationProjector;
     ///
-    /// let result = AggregationProjector::project(rows, &plan)?;
+    /// let mut row = HashMap::new();
+    /// row.insert("category".to_string(), json!("Electronics"));
+    /// row.insert("count".to_string(), json!(42));
+    /// row.insert("revenue_sum".to_string(), json!(5280.50));
+    /// let rows = vec![row];
+    /// // let result = AggregationProjector::project(rows, &plan)?;
     /// // result: [{"category": "Electronics", "count": 42, "revenue_sum": 5280.50}]
     /// ```
     pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
@@ -107,10 +110,13 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::AggregationProjector;
+    /// # use serde_json::json;
     /// let projected = json!([{"count": 42}]);
     /// let response = AggregationProjector::wrap_in_data_envelope(projected, "sales_aggregate");
     /// // response: {"data": {"sales_aggregate": [{"count": 42}]}}
+    /// assert!(response.get("data").is_some());
     /// ```
     pub fn wrap_in_data_envelope(projected: Value, query_name: &str) -> Value {
         json!({
@@ -126,9 +132,17 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let row = hashmap!{"count" => json!(100), "revenue_sum" => json!(5000.0)};
-    /// let result = AggregationProjector::project_single(row, &plan)?;
+    /// ```no_run
+    /// // Requires: an AggregationPlan built from compiled schema metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// use std::collections::HashMap;
+    /// use serde_json::json;
+    /// # use fraiseql_core::runtime::AggregationProjector;
+    ///
+    /// let mut row = HashMap::new();
+    /// row.insert("count".to_string(), json!(100));
+    /// row.insert("revenue_sum".to_string(), json!(5000.0));
+    /// // let result = AggregationProjector::project_single(row, &plan)?;
     /// // result: {"count": 100, "revenue_sum": 5000.0}
     /// ```
     pub fn project_single(row: HashMap<String, Value>, _plan: &AggregationPlan) -> Result<Value> {
@@ -143,6 +157,8 @@ impl AggregationProjector {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::compiler::{
         aggregate_types::AggregateFunction,

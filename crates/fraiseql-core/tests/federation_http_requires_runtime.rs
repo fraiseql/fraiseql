@@ -4,6 +4,9 @@
 //! - Query augmentation to include required fields in _entities query
 //! - Both single and batch entity resolution
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
+#![allow(clippy::iter_on_single_items)] // Reason: test uses single-element iter for pattern uniformity
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,
     FieldPathSelection, KeyDirective,
@@ -353,7 +356,7 @@ fn test_http_query_deduplicates_fields() {
 /// `Ok(())` if all required fields are present, `Err` with details if not
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // User.orders requires "email", but representation only has id
 /// let result = validate_http_requires(&metadata, "User", &["orders"], &repr);
 /// // Returns Err: "HTTP Validation Error: Required field missing..."
@@ -410,7 +413,7 @@ fn validate_http_requires(
 /// Vector of all field names needed (requested + required), deduplicated
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // Requesting Order.shippingEstimate which requires Order.weight
 /// let fields = vec!["shippingEstimate".to_string()];
 /// let augmented = compute_augmented_fields(&metadata, "Order", &fields);

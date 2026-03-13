@@ -65,13 +65,18 @@
   ],
   "fact_tables": {
     "tf_sales": {
-      "version_strategy": "version_table",
-      "version_fn": "get_tf_sales_version",
-      "bump_fn": "bump_tf_sales_version"
+      "table_name": "tf_sales",
+      "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+      "dimensions": {"name": "data", "paths": []},
+      "denormalized_filters": [],
+      "calendar_dimensions": []
     },
     "tf_order_count": {
-      "version_strategy": "timestamp",
-      "updated_at_column": "updated_at"
+      "table_name": "tf_order_count",
+      "measures": [{"name": "order_count", "sql_type": "BigInt", "nullable": false}],
+      "dimensions": {"name": "data", "paths": []},
+      "denormalized_filters": [],
+      "calendar_dimensions": []
     }
   },
   "observers": [

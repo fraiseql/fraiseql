@@ -10,7 +10,6 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicU64, AtomicUsize, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use lru::LruCache;
@@ -20,6 +19,7 @@ use super::config::CacheConfig;
 use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
+    utils::clock::{Clock, SystemClock},
 };
 
 /// Cached query result with metadata.
@@ -118,6 +118,9 @@ pub struct QueryResultCache {
     /// Configuration (immutable after creation).
     config: CacheConfig,
 
+    /// Clock for TTL expiry checks. Injectable for deterministic testing.
+    clock: Arc<dyn Clock>,
+
     // Metrics counters — atomic so the hot `get()` path acquires only ONE lock
     // (the LRU), not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
@@ -172,11 +175,22 @@ impl QueryResultCache {
     /// ```
     #[must_use]
     pub fn new(config: CacheConfig) -> Self {
+        Self::new_with_clock(config, Arc::new(SystemClock))
+    }
+
+    /// Create a cache with a custom clock for deterministic time-based testing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `config.max_entries` is 0.
+    #[must_use]
+    pub fn new_with_clock(config: CacheConfig, clock: Arc<dyn Clock>) -> Self {
         let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
 
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(max))),
             config,
+            clock,
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             total_cached: AtomicU64::new(0),
@@ -218,10 +232,13 @@ impl QueryResultCache {
     /// Used by `CachedDatabaseAdapter` to short-circuit the SHA-256 key generation
     /// and result clone overhead when caching is disabled.
     #[must_use]
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 
+    /// Look up a cached result by its cache key.
+    ///
+    /// Returns `None` when caching is disabled or the key is not present or expired.
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);
@@ -234,7 +251,7 @@ impl QueryResultCache {
 
         if let Some(cached) = cache.get_mut(cache_key) {
             // Check TTL: use per-entry override, fall back to global config.
-            let now = current_timestamp();
+            let now = self.clock.now_secs();
             if now - cached.cached_at > cached.ttl_seconds {
                 // Expired: remove and count as miss
                 cache.pop(cache_key);
@@ -301,7 +318,28 @@ impl QueryResultCache {
             return Ok(());
         }
 
-        let now = current_timestamp();
+        // Respect cache_list_queries: a result with more than one row is considered a list.
+        if !self.config.cache_list_queries && result.len() > 1 {
+            return Ok(());
+        }
+
+        // Enforce per-entry size limit: estimate entry size from serialized JSON.
+        if let Some(max_entry) = self.config.max_entry_bytes {
+            let estimated = serde_json::to_vec(&result).map_or(0, |v| v.len());
+            if estimated > max_entry {
+                return Ok(()); // silently skip oversized entries
+            }
+        }
+
+        // Enforce total cache size limit.
+        if let Some(max_total) = self.config.max_total_bytes {
+            let current = self.memory_bytes.load(Ordering::Relaxed);
+            if current >= max_total {
+                return Ok(()); // silently skip when budget is exhausted
+            }
+        }
+
+        let now = self.clock.now_secs();
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
 
@@ -392,6 +430,13 @@ impl QueryResultCache {
             .map(|(k, _)| k.clone())
             .collect();
 
+        // Estimate freed bytes using the same formula as put(): size_of::<CachedResult>()
+        // + key.len() * 2 (key stored twice in the LRU map).
+        let freed_bytes: usize = keys_to_remove
+            .iter()
+            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
+            .sum();
+
         for key in &keys_to_remove {
             cache.pop(key);
         }
@@ -402,6 +447,9 @@ impl QueryResultCache {
 
         self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
         self.size.store(new_size, Ordering::Relaxed);
+        // Decrement memory counter; saturating to guard against any accounting skew.
+        let prev = self.memory_bytes.load(Ordering::Relaxed);
+        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
 
         Ok(invalidated_count)
     }
@@ -441,6 +489,11 @@ impl QueryResultCache {
             .map(|(k, _)| k.clone())
             .collect();
 
+        let freed_bytes: usize = keys_to_remove
+            .iter()
+            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
+            .sum();
+
         for key in &keys_to_remove {
             cache.pop(key);
         }
@@ -451,6 +504,8 @@ impl QueryResultCache {
 
         self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
         self.size.store(new_size, Ordering::Relaxed);
+        let prev = self.memory_bytes.load(Ordering::Relaxed);
+        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
 
         Ok(invalidated_count)
     }
@@ -554,7 +609,9 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        self.hits as f64 / total as f64
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable here.
+        { self.hits as f64 / total as f64 }
     }
 
     /// Check if cache is performing well.
@@ -583,13 +640,10 @@ impl CacheMetrics {
     }
 }
 
-/// Get current Unix timestamp in seconds.
-fn current_timestamp() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
-}
-
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use super::*;
@@ -622,7 +676,7 @@ mod tests {
 
         // Put
         cache
-            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()], None, None)
+            .put("key1".to_string(), result, vec!["v_user".to_string()], None, None)
             .unwrap();
 
         // Get

@@ -18,7 +18,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema file and a live PostgreSQL database.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;
 //! use fraiseql_core::schema::CompiledSchema;
 //!
@@ -26,8 +28,8 @@
 //! // Load compiled schema
 //! let schema = CompiledSchema::from_json(include_str!("schema.compiled.json"))?;
 //!
-//! // Create executor (connects to database)
-//! let executor = Executor::new(schema, db_pool).await?;
+//! // Create executor (db_pool is a DatabaseAdapter implementation)
+//! let executor = Executor::new(schema, db_pool);
 //!
 //! // Execute GraphQL query
 //! let query = r#"query { users { id name } }"#;
@@ -41,6 +43,7 @@
 mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
+pub mod executor_adapter;
 mod executor;
 mod explain;
 pub mod field_filter;
@@ -63,12 +66,14 @@ use std::sync::Arc;
 
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
-pub use aggregation::{AggregationSql, AggregationSqlGenerator};
+pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use executor::Executor;
+pub use executor_adapter::ExecutorAdapter;
+pub use executor::pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total};
 pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher};
-pub(crate) use matcher::suggest_similar;
+pub use matcher::suggest_similar;
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use query_tracing::{
@@ -81,13 +86,13 @@ pub use subscription::{
     SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
     WebhookPayload, protocol,
 };
-pub use explain::ExplainPlan;
+pub use explain::{ExplainPlan, ExplainResult};
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
-use crate::security::{FieldFilter, FieldFilterConfig, RLSPolicy};
+use crate::security::{FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy};
 
 /// Runtime configuration for the FraiseQL query executor.
 ///
@@ -152,6 +157,19 @@ pub struct RuntimeConfig {
 
     /// JSONB field optimization strategy options
     pub jsonb_optimization: JsonbOptimizationOptions,
+
+    /// Optional query validation config.
+    ///
+    /// When `Some`, `QueryValidator::validate()` runs at the start of every
+    /// `Executor::execute()` call, before any parsing or SQL dispatch.
+    /// This provides DoS protection for direct `fraiseql-core` embedders that
+    /// do not route through `fraiseql-server` (which already runs `RequestValidator`
+    /// at the HTTP layer). Enforces: query size, depth, complexity, and alias count
+    /// (alias amplification protection).
+    ///
+    /// Set `None` to disable (default) — useful when the caller applies
+    /// validation at a higher layer, or when `fraiseql-server` is in use.
+    pub query_validation: Option<QueryValidatorConfig>,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -165,6 +183,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("rls_policy", &self.rls_policy.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
+            .field("query_validation", &self.query_validation)
             .finish()
     }
 }
@@ -180,6 +199,7 @@ impl Default for RuntimeConfig {
             rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            query_validation:     None,
         }
     }
 }
@@ -213,7 +233,7 @@ impl RuntimeConfig {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
     /// use fraiseql_core::runtime::RuntimeConfig;
     /// use fraiseql_core::security::DefaultRLSPolicy;
     /// use std::sync::Arc;
@@ -238,12 +258,13 @@ impl RuntimeConfig {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: a running tokio runtime and an Executor with a live database adapter.
+/// // See: tests/integration/ for runnable examples.
 /// use fraiseql_core::runtime::ExecutionContext;
-/// use tokio_util::sync::CancellationToken;
+/// use std::time::Duration;
 ///
-/// let token = CancellationToken::new();
-/// let ctx = ExecutionContext::new("query-123".to_string(), token);
+/// let ctx = ExecutionContext::new("query-123".to_string());
 ///
 /// // Spawn a task that cancels after 5 seconds
 /// let cancel_token = ctx.cancellation_token().clone();
@@ -253,7 +274,7 @@ impl RuntimeConfig {
 /// });
 ///
 /// // Execute query with cancellation support
-/// let result = executor.execute_with_context(query, Some(&ctx)).await;
+/// // let result = executor.execute_with_context(query, None, &ctx).await;
 /// ```
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
@@ -274,8 +295,10 @@ impl ExecutionContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::ExecutionContext;
     /// let ctx = ExecutionContext::new("user-query-001".to_string());
+    /// assert_eq!(ctx.query_id(), "user-query-001");
     /// ```
     #[must_use]
     pub fn new(query_id: String) -> Self {
@@ -298,7 +321,7 @@ impl ExecutionContext {
     /// - Check if cancellation was requested
     /// - Propagate cancellation through the call stack
     #[must_use]
-    pub fn cancellation_token(&self) -> &tokio_util::sync::CancellationToken {
+    pub const fn cancellation_token(&self) -> &tokio_util::sync::CancellationToken {
         &self.token
     }
 

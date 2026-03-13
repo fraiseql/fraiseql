@@ -1,10 +1,14 @@
+#![allow(clippy::unwrap_used)] // Reason: example code, panics acceptable
+#![allow(clippy::cast_sign_loss)] // Reason: example uses small positive integer casts
+#![allow(clippy::literal_string_with_formatting_args)] // Reason: example documentation strings contain format-like syntax
+
 //! Example: Stream pause/resume
 //!
-//! This example demonstrates how to use pause() and resume() on a JsonStream
+//! This example demonstrates how to use `pause()` and `resume()` on a `JsonStream`
 //! for explicit manual control over query execution.
 //!
 //! Note: This example requires a Postgres database with the fraiseql schema.
-//! To use, set the DATABASE_URL environment variable and run:
+//! To use, set the `DATABASE_URL` environment variable and run:
 //!
 //! ```sh
 //! export DATABASE_URL="postgres://user:password@localhost/database"

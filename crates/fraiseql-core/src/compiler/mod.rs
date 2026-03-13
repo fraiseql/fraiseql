@@ -117,6 +117,7 @@ pub mod ir;
 mod lowering;
 pub mod parser;
 pub mod validator;
+pub mod window_allowlist;
 pub mod window_functions;
 
 pub use aggregate_types::{AggregateType, AggregateTypeGenerator, GroupByInput, HavingInput};
@@ -206,7 +207,7 @@ impl Compiler {
 
     /// Create new compiler with custom configuration.
     #[must_use]
-    pub fn with_config(config: CompilerConfig) -> Self {
+    pub const fn with_config(config: CompilerConfig) -> Self {
         Self {
             parser: SchemaParser::new(),
             validator: SchemaValidator::new(),
@@ -254,13 +255,13 @@ impl Compiler {
         tracing::debug!("Validating schema...");
         let validated_ir = self.validator.validate(ir)?;
 
-        // Lower IR → SQL templates
+        // Lower IR → SQL templates (validates SQL generation; templates currently unused by codegen)
         tracing::debug!("Generating SQL templates...");
-        let sql_templates = self.lowering.generate(&validated_ir)?;
+        let _sql_templates = self.lowering.generate(&validated_ir)?;
 
-        // Codegen SQL templates → CompiledSchema
+        // Codegen: IR → CompiledSchema
         tracing::debug!("Generating CompiledSchema...");
-        let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
+        let compiled = self.codegen.generate(&validated_ir)?;
 
         // Note: Fact table metadata will be added by external tools or
         // through explicit API calls (e.g., from authoring-language decorators)
@@ -285,7 +286,62 @@ impl Default for Compiler {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
+    use crate::error::FraiseQLError;
+
+    // ── EP-1: Parse error paths ───────────────────────────────────────────────
+
+    #[test]
+    fn test_compile_rejects_invalid_json() {
+        let err = Compiler::new().compile("not json").unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_non_object_schema() {
+        let err = Compiler::new().compile(r#"["not", "an", "object"]"#).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_types_not_array() {
+        let err = Compiler::new().compile(r#"{"types": "wrong"}"#).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_type_without_name() {
+        // A type object that is missing the required "name" field.
+        let schema = r#"{"types": [{"fields": []}]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    // ── EP-2: Validation error paths ─────────────────────────────────────────
+
+    #[test]
+    fn test_compile_rejects_unknown_field_type() {
+        let schema = r#"{"types": [{"name": "User", "fields": [
+            {"name": "id", "type": "NonExistentType"}
+        ]}]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_query_with_unknown_return_type() {
+        // "User" is not defined in types, so the query return type is unknown.
+        let schema = r#"{"types": [], "queries": [
+            {"name": "getUser", "return_type": "User", "returns_list": false}
+        ]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "got: {err:?}");
+        if let FraiseQLError::Validation { message, .. } = err {
+            assert!(message.contains("User"), "error message should name the unknown type: {message}");
+        }
+    }
 
     #[test]
     fn test_compiler_new() {
@@ -339,32 +395,30 @@ mod tests {
 
     #[test]
     fn test_compiled_schema_fact_table_operations() {
+        use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
+
         let mut schema = CompiledSchema::new();
 
-        // Test adding fact table
-        let metadata = serde_json::json!({
-            "table_name": "tf_sales",
-            "measures": [],
-            "dimensions": {"name": "data"},
-            "denormalized_filters": []
-        });
+        let metadata = FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        };
 
         schema.add_fact_table("tf_sales".to_string(), metadata.clone());
 
-        // Test has_fact_tables
         assert!(schema.has_fact_tables());
 
-        // Test list_fact_tables
         let tables = schema.list_fact_tables();
         assert_eq!(tables.len(), 1);
         assert!(tables.contains(&"tf_sales"));
 
-        // Test get_fact_table
         let retrieved = schema.get_fact_table("tf_sales");
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap(), &metadata);
 
-        // Test get non-existent table
         assert!(schema.get_fact_table("tf_nonexistent").is_none());
     }
 }

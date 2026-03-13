@@ -8,7 +8,7 @@ use tracing::warn;
 use super::SessionTokenClaims;
 
 /// Map security error to gRPC status.
-pub(crate) fn map_security_error_to_status(
+pub fn map_security_error_to_status(
     error: fraiseql_core::security::SecurityError,
 ) -> Status {
     use fraiseql_core::security::SecurityError;
@@ -30,9 +30,13 @@ pub(crate) fn map_security_error_to_status(
 }
 
 /// Create a short-lived session token (5 minutes).
+///
+/// `secret` is the HMAC-SHA256 key, read once at service startup from
+/// `FLIGHT_SESSION_SECRET` and cached in [`FraiseQLFlightService::session_secret`].
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn create_session_token(
+pub fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
+    secret: &str,
 ) -> std::result::Result<String, Status> {
     let now = Utc::now();
     let exp = now + chrono::Duration::minutes(5);
@@ -44,14 +48,6 @@ pub(crate) fn create_session_token(
         scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
     };
-
-    // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication (use 'openssl rand -hex 32' to generate)");
-
-    if secret.is_empty() {
-        return Err(Status::internal("FLIGHT_SESSION_SECRET must not be empty"));
-    }
 
     let key = EncodingKey::from_secret(secret.as_bytes());
     let header = Header::new(Algorithm::HS256);
@@ -69,22 +65,16 @@ pub(crate) fn create_session_token(
 ///
 /// # Arguments
 /// * `token` - Session token string from Authorization header
+/// * `secret` - HMAC-SHA256 key, cached at service startup in `FraiseQLFlightService`
 ///
 /// # Returns
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
 /// * `Err(Status)` - Invalid token, expired, or malformed
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn validate_session_token(
+pub fn validate_session_token(
     token: &str,
+    secret: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
-    // Get secret (same as create_session_token)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication");
-
-    if secret.is_empty() {
-        return Err(Status::unauthenticated("FLIGHT_SESSION_SECRET is empty"));
-    }
-
     let key = DecodingKey::from_secret(secret.as_bytes());
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true; // Check expiration
@@ -123,7 +113,7 @@ pub(crate) fn validate_session_token(
 
 /// Extract session token from gRPC request metadata.
 ///
-/// Looks for "authorization" header in format: "Bearer <session_token>"
+/// Looks for "authorization" header in format: "Bearer <`session_token`>"
 ///
 /// # Arguments
 /// * `request` - Tonic gRPC request with metadata
@@ -132,7 +122,7 @@ pub(crate) fn validate_session_token(
 /// * `Ok(String)` - Session token extracted from header
 /// * `Err(Status)` - Missing or malformed authorization header
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn extract_session_token<T>(
+pub fn extract_session_token<T>(
     request: &Request<T>,
 ) -> std::result::Result<String, Status> {
     let metadata = request.metadata();

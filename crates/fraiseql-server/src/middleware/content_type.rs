@@ -16,6 +16,10 @@ use axum::{
 /// Non-POST methods pass through unconditionally.
 /// POST requests must have `Content-Type` starting with `application/json`
 /// (e.g. `application/json` or `application/json; charset=utf-8`).
+///
+/// # Errors
+///
+/// Returns a `415 Unsupported Media Type` response if the POST request does not carry a JSON `Content-Type`.
 pub async fn require_json_content_type(
     req: Request<Body>,
     next: Next,
@@ -40,7 +44,9 @@ pub async fn require_json_content_type(
         return Err((
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             [(CONTENT_TYPE, "application/json")],
-            serde_json::to_string(&body).unwrap_or_default(),
+            serde_json::to_string(&body).unwrap_or_else(|_| {
+                r#"{"errors":[{"message":"Unsupported Media Type"}]}"#.to_owned()
+            }),
         )
             .into_response());
     }
@@ -50,6 +56,16 @@ pub async fn require_json_content_type(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use axum::{Router, routing::post};
     use axum::body::Body;
     use axum::http::{Request, StatusCode, header::CONTENT_TYPE};

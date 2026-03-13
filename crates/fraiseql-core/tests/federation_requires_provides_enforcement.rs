@@ -1,8 +1,11 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Federation @requires/@provides Directive Enforcement
 //!
 //! Comprehensive tests for compile-time and runtime enforcement of @requires and @provides
 //! directives. Tests cover validation, error handling, and integration with entity resolution.
 
+#![allow(clippy::needless_collect)] // Reason: intermediate collect needed for later contains() check on owned values
 use std::collections::HashMap;
 
 use fraiseql_core::federation::types::{

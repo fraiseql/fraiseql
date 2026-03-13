@@ -94,6 +94,7 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
         shutdown_timeout:        "30s".to_string(),
         backlog_alert_threshold: 1000,
         overflow_policy:         OverflowPolicy::Drop,
+        max_dlq_size:            None,
     }
 }
 

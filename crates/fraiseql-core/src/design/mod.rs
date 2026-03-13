@@ -30,7 +30,7 @@ pub enum IssueSeverity {
 
 impl IssueSeverity {
     /// Get numeric weight for scoring (critical=3, warning=2, info=1)
-    pub fn weight(&self) -> u32 {
+    pub const fn weight(&self) -> u32 {
         match self {
             IssueSeverity::Critical => 3,
             IssueSeverity::Warning => 2,
@@ -121,7 +121,7 @@ pub struct DesignAudit {
 
 impl DesignAudit {
     /// Create a new empty audit
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             federation_issues: Vec::new(),
             cost_warnings:     Vec::new(),
@@ -199,7 +199,9 @@ impl DesignAudit {
 
         // Clamp to 0-100
         let score = score.clamp(0.0, 100.0);
-        score as u8
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe.
+        { score as u8 }
     }
 
     /// Count issues by severity level

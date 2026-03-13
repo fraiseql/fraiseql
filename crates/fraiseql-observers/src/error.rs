@@ -104,6 +104,7 @@ pub enum ObserverError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
+    /// Database query error from the underlying SQLx driver.
     #[error("Database query error: {0}")]
     SqlxError(String),
 

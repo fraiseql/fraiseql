@@ -51,6 +51,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use crate::types::{OrderByClause, OrderDirection};
+
 use crate::{
     compiler::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
@@ -82,7 +84,7 @@ pub struct AggregationRequest {
 }
 
 /// GROUP BY selection
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupBySelection {
     /// Group by JSONB dimension
     Dimension {
@@ -128,7 +130,7 @@ impl GroupBySelection {
 }
 
 /// Aggregate selection (what to compute)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateSelection {
     /// COUNT(*)
     Count {
@@ -176,7 +178,7 @@ impl AggregateSelection {
 }
 
 /// HAVING condition (post-aggregation filter)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingCondition {
     /// Aggregate to filter on
     pub aggregate: AggregateSelection,
@@ -184,152 +186,6 @@ pub struct HavingCondition {
     pub operator:  HavingOperator,
     /// Value to compare against
     pub value:     serde_json::Value,
-}
-
-/// ORDER BY clause
-///
-/// # Numeric field sorting
-///
-/// When sorting on a JSONB field via relay pagination, the value is
-/// extracted as `text` using `data->>'field'`. This means **numeric
-/// JSON fields sort lexicographically** (`"9" > "10"`), which is
-/// incorrect for integer and float data.
-///
-/// Workaround: expose integer sort keys as a dedicated typed column
-/// in the database view. String and ISO-8601 date/time fields sort
-/// correctly without this workaround.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OrderByClause {
-    /// Field to order by (can be dimension, aggregate, or temporal bucket)
-    pub field:     String,
-    /// Sort direction
-    pub direction: OrderDirection,
-}
-
-/// Sort direction
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OrderDirection {
-    /// Ascending (A-Z, 0-9)
-    Asc,
-    /// Descending (Z-A, 9-0)
-    Desc,
-}
-
-impl OrderByClause {
-    /// Validate that a field name matches the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*`.
-    ///
-    /// This is a security boundary: field names are interpolated into SQL `data->>'field'`
-    /// expressions. Any character outside the GraphQL identifier set must be rejected before
-    /// the `OrderByClause` is constructed.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Validation` if the field contains invalid characters.
-    fn validate_field_name(field: &str) -> crate::error::Result<()> {
-        use crate::error::FraiseQLError;
-        let mut chars = field.chars();
-        let first_ok = chars
-            .next()
-            .map(|c| c.is_ascii_alphabetic() || c == '_')
-            .unwrap_or(false);
-        let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
-        if first_ok && rest_ok {
-            Ok(())
-        } else {
-            Err(FraiseQLError::Validation {
-                message: format!(
-                    "orderBy field name '{field}' contains invalid characters; \
-                     only [_A-Za-z][_0-9A-Za-z]* is allowed"
-                ),
-                path:    None,
-            })
-        }
-    }
-
-    /// Parse `orderBy` from a GraphQL variables JSON value.
-    ///
-    /// Accepts two formats:
-    /// - Object: `{ "name": "DESC", "created_at": "ASC" }`
-    /// - Array:  `[{ "field": "name", "direction": "DESC" }]`
-    ///
-    /// Direction strings are case-insensitive.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Validation` for invalid structure or direction values.
-    pub fn from_graphql_json(value: &serde_json::Value) -> crate::error::Result<Vec<Self>> {
-        use crate::error::FraiseQLError;
-
-        if let Some(obj) = value.as_object() {
-            // Object format: { "name": "DESC", "created_at": "ASC" }
-            obj.iter()
-                .map(|(field, dir_val)| {
-                    let dir_str = dir_val.as_str().ok_or_else(|| FraiseQLError::Validation {
-                        message: format!("orderBy direction for '{field}' must be a string"),
-                        path:    None,
-                    })?;
-                    let direction = match dir_str.to_ascii_uppercase().as_str() {
-                        "ASC" => OrderDirection::Asc,
-                        "DESC" => OrderDirection::Desc,
-                        _ => {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "orderBy direction '{dir_str}' must be ASC or DESC"
-                                ),
-                                path: None,
-                            })
-                        },
-                    };
-                    Self::validate_field_name(field)?;
-                    Ok(Self {
-                        field: field.clone(),
-                        direction,
-                    })
-                })
-                .collect()
-        } else if let Some(arr) = value.as_array() {
-            // Array format: [{ "field": "name", "direction": "DESC" }]
-            arr.iter()
-                .map(|item| {
-                    let obj = item.as_object().ok_or_else(|| FraiseQLError::Validation {
-                        message: "orderBy array items must be objects".to_string(),
-                        path:    None,
-                    })?;
-                    let field = obj
-                        .get("field")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| FraiseQLError::Validation {
-                            message: "orderBy item missing 'field' string".to_string(),
-                            path:    None,
-                        })?
-                        .to_string();
-                    let dir_str = obj
-                        .get("direction")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("ASC");
-                    let direction = match dir_str.to_ascii_uppercase().as_str() {
-                        "ASC" => OrderDirection::Asc,
-                        "DESC" => OrderDirection::Desc,
-                        _ => {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "orderBy direction '{dir_str}' must be ASC or DESC"
-                                ),
-                                path: None,
-                            })
-                        },
-                    };
-                    Self::validate_field_name(&field)?;
-                    Ok(Self { field, direction })
-                })
-                .collect()
-        } else {
-            Err(FraiseQLError::Validation {
-                message: "orderBy must be an object or array".to_string(),
-                path:    None,
-            })
-        }
-    }
 }
 
 /// Validated and optimized aggregation execution plan
@@ -348,7 +204,7 @@ pub struct AggregationPlan {
 }
 
 /// Validated GROUP BY expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupByExpression {
     /// JSONB dimension extraction
     JsonbPath {
@@ -380,7 +236,7 @@ pub enum GroupByExpression {
 }
 
 /// Validated aggregate expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateExpression {
     /// COUNT(*)
     Count {
@@ -428,7 +284,7 @@ pub enum AggregateExpression {
 }
 
 /// Validated HAVING condition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidatedHavingCondition {
     /// Aggregate expression to filter on
     pub aggregate: AggregateExpression,
@@ -487,7 +343,22 @@ impl AggregationPlanner {
         for selection in selections {
             match selection {
                 GroupBySelection::Dimension { path, alias } => {
-                    // Validate dimension exists in metadata (for now, just accept any path)
+                    // When the schema declares dimension paths, validate against the allowlist.
+                    // This prevents unrecognised paths from reaching `jsonb_extract_sql` even
+                    // after SQL-level escaping (defence in depth). If no paths are declared,
+                    // all paths are accepted — escaping in the runtime layer still applies.
+                    let known_paths = &metadata.dimensions.paths;
+                    if !known_paths.is_empty()
+                        && !known_paths.iter().any(|p| p.name == *path)
+                    {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "Dimension '{}' not found in fact table '{}'",
+                                path, metadata.table_name
+                            ),
+                            path:    None,
+                        });
+                    }
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
                         path:         path.clone(),
@@ -728,6 +599,8 @@ impl AggregationPlanner {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
 
@@ -977,5 +850,89 @@ mod tests {
     fn test_order_by_array_rejects_injection_field() {
         let json = serde_json::json!([{ "field": "x' OR '1'='1", "direction": "ASC" }]);
         assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    /// Helper: metadata with declared dimension paths (for allowlist tests).
+    fn create_metadata_with_paths() -> FactTableMetadata {
+        use crate::compiler::fact_table::DimensionPath;
+        let mut meta = create_test_metadata();
+        meta.dimensions.paths = vec![
+            DimensionPath {
+                name:      "category".to_string(),
+                json_path: "dimensions->>'category'".to_string(),
+                data_type: "text".to_string(),
+            },
+        ];
+        meta
+    }
+
+    #[test]
+    fn test_dimension_allowlist_accepts_declared_path() {
+        let metadata = create_metadata_with_paths();
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
+                alias: "category".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        assert!(AggregationPlanner::plan(request, metadata).is_ok());
+    }
+
+    #[test]
+    fn test_dimension_allowlist_rejects_unknown_path() {
+        let metadata = create_metadata_with_paths();
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "undeclared_path".to_string(),
+                alias: "x".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        let result = AggregationPlanner::plan(request, metadata);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("not found"),
+            "Error message should mention 'not found'"
+        );
+    }
+
+    #[test]
+    fn test_dimension_allowlist_accepts_any_path_when_paths_empty() {
+        // When metadata.dimensions.paths is empty, any path is allowed
+        // (schema did not declare a dimension allowlist).
+        let metadata = create_test_metadata(); // paths: vec![]
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "any_undeclared_path".to_string(),
+                alias: "x".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        assert!(AggregationPlanner::plan(request, metadata).is_ok());
     }
 }

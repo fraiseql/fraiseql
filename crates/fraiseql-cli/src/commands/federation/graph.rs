@@ -173,6 +173,7 @@ fn to_mermaid(graph: &FederationGraph) -> String {
     mermaid
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

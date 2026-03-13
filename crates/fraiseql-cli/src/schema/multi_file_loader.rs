@@ -16,6 +16,12 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use walkdir::WalkDir;
 
+/// Maximum number of JSON schema files accepted from a single directory tree.
+///
+/// Prevents runaway resource use when pointed at an unexpectedly large directory
+/// (e.g. a mounted filesystem root or a node_modules tree).
+const MAX_SCHEMA_FILES: usize = 1_000;
+
 /// Loads and merges JSON schema files from directories
 pub struct MultiFileLoader;
 
@@ -40,8 +46,14 @@ impl MultiFileLoader {
     /// - If duplicate names are found (with file paths)
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a "schema/" directory containing JSON schema files on disk.
+    /// use fraiseql_cli::schema::multi_file_loader::MultiFileLoader;
+    ///
+    /// # fn example() -> anyhow::Result<()> {
     /// let merged = MultiFileLoader::load_from_directory("schema/")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn load_from_directory(dir_path: &str) -> Result<Value> {
         let result = Self::load_from_directory_with_tracking(dir_path)?;
@@ -68,6 +80,12 @@ impl MultiFileLoader {
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         {
             json_files.push(entry.path().to_path_buf());
+            if json_files.len() > MAX_SCHEMA_FILES {
+                bail!(
+                    "Schema directory {dir_path:?} contains more than {MAX_SCHEMA_FILES} JSON \
+                     files. Point --schema-dir at a directory containing only schema files."
+                );
+            }
         }
 
         json_files.sort();
@@ -186,6 +204,7 @@ impl MultiFileLoader {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -480,6 +499,28 @@ mod tests {
 
         assert_eq!(result["types"].as_array().unwrap().len(), 2);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_directory_file_count_limit_exceeded() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+
+        // Create MAX_SCHEMA_FILES + 1 JSON files — should trip the limit.
+        let schema = json!({"types": [], "queries": [], "mutations": []});
+        let content = schema.to_string();
+        for i in 0..=MAX_SCHEMA_FILES {
+            create_test_file(temp_dir.path(), &format!("schema_{i:04}.json"), &content)?;
+        }
+
+        let result =
+            MultiFileLoader::load_from_directory_with_tracking(temp_dir.path().to_str().unwrap());
+        assert!(result.is_err(), "expected error when file count exceeds limit");
+        let msg = result.err().unwrap().to_string();
+        assert!(
+            msg.contains("more than"),
+            "error should mention the limit: {msg}"
+        );
         Ok(())
     }
 }

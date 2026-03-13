@@ -14,12 +14,18 @@ use crate::{
     traits::{Clock, SignatureVerifier, SystemClock},
 };
 
+/// Verifies Stripe webhook signatures using HMAC-SHA256.
+///
+/// Stripe signs `<timestamp>.<body>` and sends the result in the `Stripe-Signature` header
+/// as `t=<timestamp>,v1=<hex>`. Timestamps outside the tolerance window are rejected
+/// to prevent replay attacks.
 pub struct StripeVerifier {
     clock:     Arc<dyn Clock>,
     tolerance: u64,
 }
 
 impl StripeVerifier {
+    /// Create a new verifier using the system clock and a 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -28,6 +34,7 @@ impl StripeVerifier {
         }
     }
 
+    /// Create a new verifier with a custom `Clock` implementation, useful for testing.
     #[must_use]
     pub fn with_clock(clock: Arc<dyn Clock>) -> Self {
         Self {
@@ -36,6 +43,7 @@ impl StripeVerifier {
         }
     }
 
+    /// Set the maximum acceptable age of a webhook timestamp in seconds.
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
         self.tolerance = seconds;
@@ -64,7 +72,13 @@ impl SignatureVerifier for StripeVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Stripe webhook secret must not be empty".to_string(),
+            ));
+        }
         // Parse Stripe signature format: t=timestamp,v1=signature
         let parts: HashMap<&str, &str> = signature
             .split(',')
@@ -110,6 +124,7 @@ impl SignatureVerifier for StripeVerifier {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,7 +147,7 @@ mod tests {
         let signature =
             generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
@@ -141,7 +156,7 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let signature = "t=1679076299,v1=invalid";
 
-        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
     }
 
     #[test]
@@ -150,7 +165,7 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let signature = generate_signature("test", "secret", 1_679_076_299);
 
-        let result = verifier.verify(b"test", &signature, "secret", None);
+        let result = verifier.verify(b"test", &signature, "secret", None, None);
         assert!(matches!(result, Err(SignatureError::TimestampExpired)));
     }
 

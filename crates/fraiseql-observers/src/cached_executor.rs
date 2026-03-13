@@ -53,7 +53,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```no_run
 //! use fraiseql_observers::cached_executor::CachedActionExecutor;
 //! use fraiseql_observers::actions::WebhookAction;
 //! use fraiseql_observers::cache::redis::RedisCacheBackend;
@@ -98,7 +98,7 @@ use crate::{
 ///
 /// Can be composed with other wrappers:
 ///
-/// ```rust,ignore
+/// ```no_run
 /// // Concurrent + Cached composition
 /// let webhook = WebhookAction::new();
 /// let cached = CachedActionExecutor::new(webhook, cache);
@@ -128,7 +128,7 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
     /// let webhook = WebhookAction::new();
     /// let cache = RedisCacheBackend::new("redis://localhost:6379");
     /// let cached = CachedActionExecutor::new(webhook, cache);
@@ -156,7 +156,6 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
 }
 
 #[cfg(feature = "caching")]
-#[async_trait::async_trait]
 impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecutor
     for CachedActionExecutor<E, C>
 {
@@ -229,6 +228,7 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
 }
 
 #[cfg(all(test, feature = "caching"))]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
     use uuid::Uuid;
@@ -254,7 +254,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl ActionExecutor for TestExecutor {
         async fn execute(
             &self,

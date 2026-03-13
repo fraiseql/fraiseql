@@ -1,6 +1,10 @@
-// OAuth provider implementations
-// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and
-// Logto
+//! Provider-specific OAuth / OIDC implementations.
+//!
+//! Each sub-module wraps [`crate::oidc_provider::OidcProvider`] for a particular identity
+//! provider and translates that provider's user-info format and role/group claims into
+//! FraiseQL's generic [`crate::provider::UserInfo`] and role strings.
+//!
+//! Supported providers: Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and Logto.
 
 pub mod auth0;
 pub mod azure_ad;
@@ -169,6 +173,7 @@ pub async fn create_provider(
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

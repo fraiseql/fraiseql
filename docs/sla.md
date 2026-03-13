@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-FraiseQL is a compiled GraphQL execution engine built on Rust with zero-runtime overhead for deterministic query execution. This document defines our service level commitments, performance targets, and operational guardrails for production deployments.
+FraiseQL is a compiled GraphQL execution engine built on Rust that eliminates query-planning overhead at runtime by generating SQL at build time. This document defines our service level commitments, performance targets, and operational guardrails for production deployments.
 
 **Key Philosophy**: FraiseQL's deterministic SQL generation at compile-time enables predictable, measurable performance characteristics that form the foundation of these SLOs.
 
@@ -37,6 +37,7 @@ Availability % = (Total Monitoring Seconds - Downtime Seconds) / Total Monitorin
 ```
 
 **Monitoring Points**:
+
 - HTTP endpoint health check (`GET /health`)
 - Sample GraphQL query execution against production schema (synthetic transaction)
 - Database connectivity heartbeat
@@ -44,6 +45,7 @@ Availability % = (Total Monitoring Seconds - Downtime Seconds) / Total Monitorin
 **Measurement Frequency**: Every 10 seconds from at least 3 independent regions
 
 **Grace Periods**:
+
 - 0-60 seconds: Not counted as incident (transient failures)
 - 60+ seconds: Counted toward SLO calculation
 
@@ -93,6 +95,7 @@ FraiseQL queries complete deterministically based on compiled SQL, not runtime g
 ### Measurement Conditions
 
 **Load Profile**:
+
 - 1,000 requests/second sustained (simple queries)
 - 500 requests/second sustained (moderate queries)
 - 100 requests/second sustained (complex queries)
@@ -100,6 +103,7 @@ FraiseQL queries complete deterministically based on compiled SQL, not runtime g
 - Database with < 10ms network latency
 
 **Not Included in Latency SLO**:
+
 - Network latency beyond FraiseQL's datacenter boundary
 - Client-side request serialization time
 - Time spent in database query execution beyond compiled SQL template
@@ -108,16 +112,19 @@ FraiseQL queries complete deterministically based on compiled SQL, not runtime g
 ### Performance Tiers
 
 **Tier 1 (Standard Hosting)**
+
 - Dedicated: Quad-core CPU, 16GB RAM, local SSD cache
 - Expected: P99 < 200ms for moderate queries
 - Throughput: > 2,000 rps (simple)
 
 **Tier 2 (Performance Hosting)**
+
 - Dedicated: 8+ core CPU, 32GB RAM, high-speed cache backend (Redis)
 - Expected: P99 < 100ms for moderate queries
 - Throughput: > 5,000 rps (simple)
 
 **Tier 3 (Enterprise Hosting)**
+
 - Dedicated: 16+ core CPU, 64GB RAM, distributed cache, Vault integration
 - Expected: P99 < 50ms for moderate queries
 - Throughput: > 10,000 rps (simple)
@@ -165,6 +172,7 @@ When throughput limits are exceeded:
 4. **120%+ Capacity**: Return 503 Service Unavailable with `Retry-After: 5` header
 
 **Recommended Scaling**:
+
 - Monitor P99 latency continuously
 - Scale horizontally when P99 > SLO + 50%
 - Use load balancer with connection draining
@@ -427,6 +435,7 @@ Success criteria: All synthetic tests pass within SLO latency bounds.
 ### Logging
 
 **Log Levels**:
+
 - `ERROR`: User-facing errors (5xx, 4xx), exceptions
 - `WARN`: Degraded performance, dependency timeouts, rate limiting
 - `INFO`: Request/response logging (sample 1%), metric milestones
@@ -435,6 +444,7 @@ Success criteria: All synthetic tests pass within SLO latency bounds.
 **Log Retention**: 30 days (hot), 1 year (archive)
 
 **Audit Logging**: Enabled by default for:
+
 - All authentication events
 - Authorization denials
 - Data access patterns (if enabled in schema config)
@@ -453,18 +463,21 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 **Detection**: < 30 seconds (connection pool timeout)
 
 **Mitigation**:
+
 1. Fail-over to read replica (if configured)
 2. If write query: Return `TEMPORARY_FAILURE` (503)
 3. If read query: Serve from cache (if available)
 4. Stop accepting new connections; drain existing
 
 **Impact**:
+
 - **Writes**: All mutations fail with 503 (unavoidable)
 - **Reads**: Served from cache (LRU or Redis) if hit; otherwise 503
 - **Latency**: Reads from cache: < 5ms; no cache: immediate 503
 - **Availability**: Can maintain 95%+ availability for read-heavy workloads
 
 **Recovery**:
+
 - Attempts to reconnect every 5 seconds
 - Exponential backoff up to 30 seconds
 - Resumes normal operation once primary responds
@@ -476,16 +489,19 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 **Detection**: < 10 seconds (Redis TCP timeout)
 
 **Mitigation**:
+
 1. Fall through to database for all queries
 2. Disable write-through cache updates
 3. Continue normal query execution (no caching benefit)
 
 **Impact**:
+
 - **Latency**: +50-100ms (database queries instead of cache)
 - **Throughput**: -20-30% (cache misses become DB hits)
 - **Availability**: No impact (database is authoritative)
 
 **Recovery**:
+
 - Attempts to reconnect every 30 seconds
 - Resumes cache operations once Redis is healthy
 - Warm cache on recovery (scan recent queries)
@@ -497,17 +513,20 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 **Detection**: < 60 seconds (Vault TCP timeout)
 
 **Mitigation**:
+
 1. Use cached secrets from startup
 2. If secret is expired: Return 401 (require re-authentication)
 3. If secret is valid: Continue using cached version
 
 **Impact**:
+
 - **Authentication**: Works for secrets valid < 1 hour
 - **Authorization**: Revocation checks may be stale (max 1 hour)
 - **Rate Limiting**: Uses cached limits
 - **Availability**: Minimal impact for typical usage
 
 **Recovery**:
+
 - Attempts to reconnect every 60 seconds
 - Re-syncs secrets once Vault is healthy
 - Enforces re-authentication for expired credentials
@@ -517,12 +536,14 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 **Scenario**: Database + Redis + Vault all unavailable
 
 **Behavior**:
+
 1. Database down → Can't write, reads from cache only
 2. Redis down → Can't cache, reads from database only
 3. Database + Redis down → Return 503 for all requests (fallback to circuit breaker)
 4. Add Vault down → Can't verify auth, return 401
 
 **Failsafe Mode**: Circuit breaker automatically engages after:
+
 - 5 consecutive connection failures in 10 seconds
 - Pauses traffic for 30 seconds, then tries again
 - Prevents cascading resource exhaustion
@@ -534,6 +555,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 ### Resource Requirements
 
 **Minimum Production Setup** (Tier 1):
+
 - **CPU**: 4 cores (2.5+ GHz modern CPU)
 - **Memory**: 16 GB RAM
 - **Storage**: 20 GB SSD (for logs, compiled schema, caching)
@@ -541,6 +563,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 - **Network**: 1 Gbps connectivity to database
 
 **Recommended Production Setup** (Tier 2):
+
 - **CPU**: 8 cores (3+ GHz, multi-socket for large deployments)
 - **Memory**: 32 GB RAM
 - **Storage**: 100 GB SSD (NVMe recommended)
@@ -549,6 +572,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 - **Network**: 10 Gbps for high-throughput scenarios
 
 **Enterprise Setup** (Tier 3):
+
 - **CPU**: 16+ cores across multiple instances
 - **Memory**: 64+ GB per instance
 - **Storage**: 500+ GB distributed cache
@@ -562,6 +586,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 #### Vertical Scaling (Single Machine)
 
 **Throughput Increase by CPU**:
+
 ```
 2 cores:     ~500 rps (simple queries)
 4 cores:   ~1,500 rps (simple queries)
@@ -576,16 +601,19 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 #### Horizontal Scaling (Multiple Machines)
 
 **Database Connection Pool Concerns**:
+
 - Each FraiseQL instance: 30-50 database connections
 - 10 instances × 50 connections = 500 total connections
 - Most databases support 1,000+ connections; verify your database limits
 
 **Load Balancer Configuration**:
+
 - Use sticky sessions (connection pooling is per-client)
 - Implement connection draining on shutdown (drain 30 seconds)
 - Health check every 10 seconds
 
 **Example Setup**:
+
 ```
 1 load balancer (Layer 4 or 7)
   ├─ FraiseQL instance 1 (8 cores, 32GB) → 4,000 rps
@@ -598,12 +626,14 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 ### Monitoring for Scaling Triggers
 
 **Scale Up When**:
+
 - P99 latency > SLO + 50% for > 10 minutes
 - Database connection pool > 80% utilization
 - CPU utilization > 75% for > 5 minutes
 - Memory usage > 85% of allocation
 
 **Scale Down When** (after load reduction):
+
 - P99 latency < SLO - 50% for > 30 minutes
 - CPU utilization < 25% for > 30 minutes
 - Database connection pool < 20% utilization
@@ -619,6 +649,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 | Large (16c/64GB) | $200 | $120 | $20 | $20 | ~$360 |
 
 **Managed Services** (RDS, ElastiCache, Vault-as-a-service):
+
 - PostgreSQL HA: +$200-500/month
 - Redis Cache: +$50-200/month
 - Vault Cloud: +$50-100/month
@@ -713,6 +744,7 @@ Incidents: 1 (Database failover, automatically recovered)
 - **Impact**: Full read/write downtime acceptable during window
 
 **Common Maintenance Tasks**:
+
 - FraiseQL version upgrade
 - Database schema migration
 - Redis cache rebuild
@@ -722,11 +754,13 @@ Incidents: 1 (Database failover, automatically recovered)
 ### Emergency Escalation
 
 **When to Escalate**:
+
 1. **If incident not resolved in 15 minutes**: Escalate to tier 2 (senior engineer)
 2. **If incident not resolved in 1 hour**: Escalate to tier 3 (engineering manager)
 3. **If incident not resolved in 4 hours**: Escalate to CTO + customer success
 
 **Escalation Path**:
+
 ```
 On-Call Engineer (Tier 1)
   ↓ (unresolved after 15 min)
@@ -789,6 +823,7 @@ fraiseql-bench --query complex --concurrency 20 --duration 60s
 ### Load Test Scenarios
 
 **Production Scenario 1: Normal Day**
+
 ```
 3,000 simple queries/sec
 500 moderate queries/sec
@@ -797,6 +832,7 @@ Expected: All P99 < SLO
 ```
 
 **Production Scenario 2: Traffic Spike**
+
 ```
 5,000 simple queries/sec (70% increase)
 800 moderate queries/sec (60% increase)
@@ -805,6 +841,7 @@ Expected: P99 < SLO × 1.2, no 5xx errors
 ```
 
 **Production Scenario 3: Database Slow**
+
 ```
 Database latency degraded from 5ms to 50ms
 Expected: P99 < SLO × 1.5, circuit breaker engages
@@ -821,11 +858,13 @@ Expected: P99 < SLO × 1.5, circuit breaker engages
 ### Q: What counts toward the 99.9% availability SLO?
 
 **A**: Only successful GraphQL query responses count. This includes:
+
 - 200 OK with valid GraphQL response
 - Properly formatted 4xx errors (auth failures, validation)
 - Properly formatted 5xx errors with retryable flag
 
 NOT included:
+
 - Network timeouts (client-side issue)
 - TLS handshake failures (certificate issue)
 - DDoS attacks (infrastructure issue)
@@ -834,11 +873,13 @@ NOT included:
 ### Q: Can I get SLO credits if an incident was caused by my database being slow?
 
 **A**: No. FraiseQL's SLO commits to responding correctly to requests. If your database is slow, FraiseQL will:
+
 1. Return query results correctly (just slowly)
 2. Serve from cache if available
 3. Return 503 if database is completely unavailable (and cache miss)
 
 Database performance is YOUR responsibility (RDS, managed PostgreSQL, etc.). We recommend:
+
 - Use managed database services with their own SLA
 - Monitor database metrics separately
 - Configure query timeouts appropriate to your database performance
@@ -846,10 +887,12 @@ Database performance is YOUR responsibility (RDS, managed PostgreSQL, etc.). We 
 ### Q: What's the difference between P99 and P99.9 latency?
 
 **A**:
+
 - **P99**: 99 out of 100 requests complete faster than this time
 - **P99.9**: 999 out of 1000 requests complete faster than this time
 
 For example, if P99 = 200ms and P99.9 = 1000ms:
+
 - 1 in 100 requests takes > 200ms (normal outliers)
 - 1 in 1000 requests takes > 1000ms (rare slowdowns)
 
@@ -993,11 +1036,13 @@ curl http://localhost:8000/metrics | grep fraiseql_slow_queries
 ## Contact and Support
 
 For questions about SLA/SLO:
+
 - **Email**: sla@fraiseql.dev
 - **Slack**: #sla-questions (internal) or support@fraiseql.dev (external)
 - **Issues**: https://github.com/fraiseql/fraiseql/issues/label/sla
 
 For on-call incident response:
+
 - **PagerDuty**: fraiseql-incidents (prod) / fraiseql-staging (staging)
 - **War Room**: https://zoom.fraiseql.dev/war-room
 

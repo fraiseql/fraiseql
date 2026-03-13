@@ -6,7 +6,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
-use rand::Rng;
+use rand::{Rng, rngs::OsRng};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
@@ -57,8 +57,8 @@ pub struct ScramClient {
 impl ScramClient {
     /// Create a new SCRAM client
     pub fn new(username: String, password: String) -> Self {
-        // Generate random client nonce (24 bytes, base64 encoded = 32 chars)
-        let mut rng = rand::thread_rng();
+        // SECURITY: OsRng guarantees OS-level entropy for SCRAM nonces.
+        let mut rng = OsRng;
         let nonce_bytes: Vec<u8> = (0..24).map(|_| rng.gen()).collect();
         let nonce = BASE64.encode(&nonce_bytes);
 
@@ -74,13 +74,15 @@ impl ScramClient {
         // RFC 5802 format: gs2-header client-first-message-bare
         // gs2-header = "n,," (n = no channel binding, empty authorization identity)
         // client-first-message-bare = "n=<username>,r=<nonce>"
-        // Note: "n=" is the username, "a=" would be authorization identity (not supported by PostgreSQL)
-        format!("n,,n={},r={}", self.username, self.nonce)
+        // RFC 5802 §5.1: username must have ',' escaped as '=2C' and '=' escaped as '=3D'.
+        let escaped_username =
+            self.username.replace('=', "=3D").replace(',', "=2C");
+        format!("n,,n={},r={}", escaped_username, self.nonce)
     }
 
     /// Process server first message and generate client final message
     ///
-    /// Returns (client_final_message, internal_state)
+    /// Returns (`client_final_message`, `internal_state`)
     pub fn client_final(&mut self, server_first: &str) -> Result<(String, ScramState), ScramError> {
         // Parse server first message: r=<client_nonce><server_nonce>,s=<salt>,i=<iterations>
         let (server_nonce, salt, iterations) = parse_server_first(server_first)?;
@@ -152,7 +154,8 @@ impl ScramClient {
         })?;
 
         // Calculate expected server signature
-        let expected_signature = calculate_server_signature(&state.server_key, &state.auth_message);
+        let expected_signature =
+            calculate_server_signature(&state.server_key, &state.auth_message)?;
 
         // Constant-time comparison
         if constant_time_compare(&server_signature, &expected_signature) {
@@ -223,7 +226,7 @@ fn calculate_client_proof(
         *proof_byte ^= sig_byte;
     }
 
-    Ok(proof.to_vec())
+    Ok(proof.clone())
 }
 
 /// Calculate server key for server signature verification
@@ -246,10 +249,14 @@ fn calculate_server_key(
 }
 
 /// Calculate server signature for verification
-fn calculate_server_signature(server_key: &[u8], auth_message: &[u8]) -> Vec<u8> {
-    let mut hmac = HmacSha256::new_from_slice(server_key).expect("HMAC key should be valid");
+fn calculate_server_signature(
+    server_key: &[u8],
+    auth_message: &[u8],
+) -> Result<Vec<u8>, ScramError> {
+    let mut hmac = HmacSha256::new_from_slice(server_key)
+        .map_err(|_| ScramError::Utf8Error("invalid HMAC key for server signature".to_string()))?;
     hmac.update(auth_message);
-    hmac.finalize().into_bytes().to_vec()
+    Ok(hmac.finalize().into_bytes().to_vec())
 }
 
 /// Constant-time comparison to prevent timing attacks.
@@ -262,6 +269,7 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

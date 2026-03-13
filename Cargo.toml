@@ -1,6 +1,11 @@
 # FraiseQL v2 - Compiled GraphQL Execution Engine
 # Workspace root configuration
 
+[patch.crates-io]
+# Local patch: upgrade thiserror dependency from 1.x to 2.x to eliminate
+# duplicate thiserror versions in the build. Pending upstream PR to graphql-rust/graphql-parser.
+graphql-parser = {path = "vendor/graphql-parser"}
+
 [profile.bench]
 lto = "thin"
 opt-level = 3
@@ -25,12 +30,14 @@ members = [
   "crates/fraiseql-auth",
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
+  "crates/fraiseql-db",
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
-  "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
-  "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
+  "crates/fraiseql-server",
+  "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
+  "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 ]
 resolver = "2"
@@ -41,7 +48,7 @@ aes-gcm = "0.10"
 anyhow = "1.0"
 async-trait = "0.1"
 # HTTP server (Axum)
-axum = {version = "0.7"}
+axum = {version = "0.8"}
 # Encoding
 base64 = "0.22"
 # Utilities
@@ -53,24 +60,26 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.1.0-dev"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.1.0-dev"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0-dev"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0-dev"}
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0-dev"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0-dev", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0-dev"}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0-dev"}
-fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.1.0-dev"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0-dev"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0-dev"}
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.1.0"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.1.0"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0", default-features = false}
+fraiseql-db = {path = "crates/fraiseql-db", version = "2.1.0", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0", default-features = false}
+fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.1.0"}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0"}
 futures = "0.3"
-indexmap = {version = "2", features = ["serde"]}
-# GraphQL parsing
+# GraphQL parsing — patched via vendor/graphql-parser to use thiserror 2.x.
+# See [patch.crates-io] at the bottom of this file.
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
 hyper = {version = "1.0"}
+indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
 jsonwebtoken = "9.2"
 linked-hash-map = "0.5"
@@ -100,6 +109,8 @@ sqlx = {version = "0.8", features = ["runtime-tokio", "json"]}
 temp-env = {version = "0.3", features = ["async_closure"]}
 tempfile = "3.25"
 # Error handling
+# NOTE: rustls 0.22 is pulled by tokio-rustls 0.25 via sqlx 0.8; rustls 0.23 by reqwest/tonic.
+# Unification blocked on sqlx 0.9 (which will upgrade to tokio-rustls 0.26 / rustls 0.23).
 thiserror = "2.0"
 # Async runtime
 tokio = {version = "1.0", features = ["full"]}
@@ -118,40 +129,94 @@ tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 uuid = {version = "1.21", features = ["v4", "serde"]}
 
 [workspace.lints.clippy]
-# Deny all warnings in CI (priority -1 lets individual lints override)
+# ── Global levels ────────────────────────────────────────────────────────────
+# priority = -1 lets individual lint entries below override the group level.
 all = {level = "deny", priority = -1}
-cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
-cargo_common_metadata = "allow"  # Internal crates don't need all metadata
-if_not_else = "allow"  # Style preference
-multiple_crate_versions = "allow"  # Transitive dependencies cause this
-missing_errors_doc = "warn"   # Public fallible fns should document error variants
-missing_panics_doc = "warn"  # Public fns that can panic should document when
-must_use_candidate = "allow"  # We'll use this selectively
-nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
-option_if_let_else = "allow"  # Style preference
-or_fun_call = "allow"  # Often clearer to keep explicit
-pedantic = {level = "warn", priority = -1}  # Changed to warn - too many false positives
-redundant_closure_for_method_calls = "allow"  # Style preference
-return_self_not_must_use = "allow"  # Builder pattern compatibility
-significant_drop_tightening = "allow"  # Too aggressive, false positives
+# Reason: crates.io metadata (description, keywords, categories) is missing on
+# some internal crates; this is non-blocking for a private workspace.
+cargo = {level = "warn", priority = -1}
+# Reason: internal crates don't need all crates.io metadata fields.
+cargo_common_metadata = "allow"
+# Reason: negative-first guard clauses are sometimes more readable than positive-first.
+if_not_else = "allow"
+# Reason: public fallible functions should document errors — warn, not deny, because
+# coverage is an ongoing effort rather than a gating requirement.
+missing_errors_doc = "warn"
+# Reason: public functions that can panic should document when — same rationale as above.
+missing_panics_doc = "warn"
+# Reason: the `fraiseql-*` naming convention triggers this for every type in every crate
+# (e.g., `fraiseql_core::FraiseQLError`, `fraiseql_server::ServerConfig`).
+# Applying the rule project-wide would require renaming stable public API.
+module_name_repetitions = "allow"
+# Reason: transitive dependencies routinely pull in multiple versions; not actionable.
+multiple_crate_versions = "allow"
+# Reason: builder methods and fluent APIs generate noise; applied selectively per crate.
+must_use_candidate = "allow"
+# Reason: nursery lints are experimental and may have false positives; keep as warn
+# so they surface in CI without blocking builds.
+nursery = {level = "warn", priority = -1}
+# Reason: explicit match is sometimes clearer than map_or_else for multi-line branches.
+option_if_let_else = "allow"
+# Reason: `.unwrap_or(default_fn())` is sometimes clearer than `.unwrap_or_else(|| ...)`.
+or_fun_call = "allow"
+pedantic = {level = "deny", priority = -1}
+# Reason: style preference — closure is sometimes clearer than a method reference.
+redundant_closure_for_method_calls = "allow"
+# Reason: builder pattern — chained methods don't always return a value callers must check.
+return_self_not_must_use = "allow"
+# Reason: false positives in async code with MutexGuard held across await points.
+significant_drop_tightening = "allow"
+# Reason: short variable names are idiomatic in SQL generation (lhs, rhs, sq, op).
 similar_names = "allow"
-struct_excessive_bools = "allow"  # Schema structs often have many bool flags
-# Allow some pedantic lints that are too strict for practical use
+# Reason: config structs have many independent boolean flags that map directly to TOML;
+# converting to bitflags would break serde deserialization.
+struct_excessive_bools = "allow"
+# Reason: clippy's too_many_lines threshold is hardcoded at 100 lines with no config option;
+# large match arms and SQL generation tables legitimately exceed this limit.
 too_many_lines = "allow"
-# Additional allows for common pedantic/nursery lints that don't add value
-uninlined_format_args = "allow"  # Style preference, too noisy
-unnecessary_wraps = "allow"  # API consistency over strictness
-unused_async = "allow"  # Sometimes needed for trait conformance
-unused_enumerate_index = "allow"  # Sometimes index needed later
-unused_self = "allow"  # Sometimes needed for API compatibility
-use_self = "allow"  # Style preference
+# Reason: style preference; `format!("{}", x)` and `format!("{x}")` are both clear.
+uninlined_format_args = "allow"
+# Reason: some functions return Option/Result to match a trait signature even when
+# they always succeed; API consistency takes priority here.
+unnecessary_wraps = "allow"
+# Reason: some trait adapter methods are async for future extensibility or trait conformance.
+unused_async = "allow"
+# Reason: enumerate index is sometimes added preemptively for debugging or future use.
+unused_enumerate_index = "allow"
+# Reason: some trait implementations accept self for API uniformity even when unused.
+unused_self = "allow"
+# ── Security ─────────────────────────────────────────────────────────────────
+# Reason: production code must use .expect("reason") to document assumptions;
+# .unwrap() is only permitted in tests/examples with an explicit allow + Reason.
+unwrap_used = "deny"
+# Reason: using the concrete type name is sometimes clearer than Self in impl blocks.
+use_self = "allow"
 
 [workspace.lints.rust]
-dead_code = "warn"
-missing_docs = "warn"
+dead_code = "deny"
+missing_docs = "deny"
 unsafe_code = "forbid"
 unused_imports = "warn"
 unused_variables = "warn"
+
+# ---------------------------------------------------------------------------
+# Crate size budgets — enforced by tools/check-crate-sizes.sh in CI.
+# Limits are set at ~50% above current size for small crates. Crates that
+# exceed their budget must be split before merging.
+# ---------------------------------------------------------------------------
+[workspace.metadata.crate-size-budget]
+fraiseql-arrow = 15_000
+fraiseql-auth = 25_000
+fraiseql-cli = 40_000
+fraiseql-core = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
+fraiseql-db = 25_000
+fraiseql-error = 5_000
+fraiseql-observers = 45_000
+fraiseql-secrets = 20_000
+fraiseql-server = 55_000
+fraiseql-test-utils = 5_000
+fraiseql-webhooks = 10_000
+fraiseql-wire = 20_000
 
 [workspace.package]
 authors = ["FraiseQL Team <team@fraiseql.dev>"]
@@ -163,4 +228,4 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
-version = "2.1.0-dev"
+version = "2.1.0"

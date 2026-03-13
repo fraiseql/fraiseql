@@ -69,9 +69,11 @@ impl TraceIdExtractor {
 /// Set the current trace ID in thread-local context
 ///
 /// # Example
-/// ```ignore
+/// ```rust
+/// use fraiseql_observers::logging::correlation::set_trace_id_context;
+///
 /// set_trace_id_context("abc123def456");
-/// // All subsequent logs will include trace_id=abc123def456
+/// // All subsequent logs in this thread will include trace_id=abc123def456
 /// ```
 pub fn set_trace_id_context(trace_id: &str) {
     TRACE_ID_CONTEXT.with(|ctx| {
@@ -163,6 +165,7 @@ impl TraceContext {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

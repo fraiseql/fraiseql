@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Postmark webhook signatures using HMAC-SHA256 encoded as Base64.
+///
+/// Postmark computes `HMAC-SHA256(secret, body)`, Base64-encodes the result, and
+/// sends it in the `X-Postmark-Signature` header.
 pub struct PostmarkVerifier;
 
 impl SignatureVerifier for PostmarkVerifier {
@@ -28,7 +32,13 @@ impl SignatureVerifier for PostmarkVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Postmark webhook secret must not be empty".to_string(),
+            ));
+        }
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
         mac.update(payload);

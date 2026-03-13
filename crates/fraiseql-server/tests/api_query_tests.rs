@@ -2,12 +2,33 @@
 //!
 //! Exercises the real `explain_handler`, `validate_handler`, and `stats_handler`
 //! through axum's `tower::ServiceExt::oneshot`.
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** none
+//! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code
+#![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables use _ prefix
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 mod common;
 
 use common::test_app::{api_router, get_json, make_test_state, make_test_state_with, post_json};
-use fraiseql_core::schema::CompiledSchema;
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{TestQueryBuilder, TestSchemaBuilder},
+};
 use http::StatusCode;
 
 // ============================================================================
@@ -32,20 +53,18 @@ async fn explain_returns_complexity_for_valid_query() {
     assert!(json["data"]["estimated_cost"].as_u64().unwrap() > 0);
 }
 
+// Migration 9: explain_returns_sql_when_query_matches_schema
 #[tokio::test]
 async fn explain_returns_sql_when_query_matches_schema() {
     // Build a schema with a "users" query backed by "v_user" view
-    let mut schema = CompiledSchema::new();
-    let query_def: fraiseql_core::schema::QueryDefinition = serde_json::from_value(
-        serde_json::json!({
-            "name": "users",
-            "return_type": "User",
-            "returns_list": true,
-            "sql_source": "v_user"
-        }),
-    )
-    .unwrap();
-    schema.queries.push(query_def);
+    let schema = TestSchemaBuilder::new()
+        .with_query(
+            TestQueryBuilder::new("users", "User")
+                .returns_list(true)
+                .with_sql_source("v_user")
+                .build(),
+        )
+        .build();
     let state = make_test_state_with(FailingAdapter::new(), schema);
     let router = api_router(state);
     let (_, json) = post_json(

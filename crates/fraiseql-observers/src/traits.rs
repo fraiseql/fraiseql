@@ -3,7 +3,8 @@
 //! These traits define the boundaries between components, enabling
 //! mock implementations for testing without external dependencies.
 
-use async_trait::async_trait;
+use std::future::Future;
+
 use uuid::Uuid;
 
 use crate::{config::ActionConfig, error::Result, event::EntityEvent};
@@ -11,7 +12,7 @@ use crate::{config::ActionConfig, error::Result, event::EntityEvent};
 /// Event source abstraction for testing
 ///
 /// Allows tests to provide pre-defined events without database connectivity.
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait EventSource: Send + Sync {
     /// Get the next event from the source
     ///
@@ -22,7 +23,6 @@ pub trait EventSource: Send + Sync {
 /// Action execution abstraction for testing
 ///
 /// Enables testing action execution without real external services.
-#[async_trait]
 pub trait ActionExecutor: Send + Sync {
     /// Execute an action on an event
     ///
@@ -32,7 +32,11 @@ pub trait ActionExecutor: Send + Sync {
     ///
     /// # Returns
     /// Result with action result on success or error
-    async fn execute(&self, event: &EntityEvent, action: &ActionConfig) -> Result<ActionResult>;
+    fn execute<'a>(
+        &'a self,
+        event: &'a EntityEvent,
+        action: &'a ActionConfig,
+    ) -> impl Future<Output = Result<ActionResult>> + Send + 'a;
 }
 
 /// Result of executing an action
@@ -51,7 +55,7 @@ pub struct ActionResult {
 /// Dead letter queue abstraction for testing
 ///
 /// Allows testing failed action storage without database.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait DeadLetterQueue: Send + Sync {
     /// Add a failed action to the DLQ
     ///
@@ -94,6 +98,7 @@ pub trait DeadLetterQueue: Send + Sync {
         Ok(())
     }
 }
+
 
 /// Item in the dead letter queue
 #[derive(Debug, Clone)]

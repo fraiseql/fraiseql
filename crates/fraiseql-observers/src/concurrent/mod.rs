@@ -163,7 +163,6 @@ mod tests {
     #[derive(Clone)]
     struct TestExecutor;
 
-    #[async_trait::async_trait]
     impl ActionExecutor for TestExecutor {
         async fn execute(
             &self,
@@ -233,5 +232,114 @@ mod tests {
         // Ensure ConcurrentActionExecutor is Clone
         fn assert_clone<T: Clone>() {}
         assert_clone::<ConcurrentActionExecutor<TestExecutor>>();
+    }
+
+    // --- S11-2: failure and timeout tests ---
+
+    #[derive(Clone)]
+    struct FailingExecutor;
+
+    impl ActionExecutor for FailingExecutor {
+        async fn execute(
+            &self,
+            _event: &EntityEvent,
+            _action: &ActionConfig,
+        ) -> Result<ActionResult> {
+            Err(crate::error::ObserverError::ActionExecutionFailed {
+                reason: "injected failure".to_string(),
+            })
+        }
+    }
+
+    #[derive(Clone)]
+    struct SlowExecutor {
+        delay_ms: u64,
+    }
+
+    impl ActionExecutor for SlowExecutor {
+        async fn execute(
+            &self,
+            _event: &EntityEvent,
+            _action: &ActionConfig,
+        ) -> Result<ActionResult> {
+            tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
+            Ok(ActionResult {
+                action_type: "slow".to_string(),
+                success:     true,
+                message:     "Completed after delay".to_string(),
+                duration_ms: self.delay_ms as f64,
+            })
+        }
+    }
+
+    fn make_event() -> EntityEvent {
+        EntityEvent::new(
+            crate::event::EventKind::Created,
+            "Test".to_string(),
+            Uuid::new_v4(),
+            json!({}),
+        )
+    }
+
+    fn email_action() -> ActionConfig {
+        ActionConfig::Email {
+            to:               Some("test@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Subject".to_string()),
+            subject_template: None,
+            body_template:    Some("Body".to_string()),
+            reply_to:         None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_failing_executor_returns_failure_result() {
+        let executor = FailingExecutor;
+        let concurrent = ConcurrentActionExecutor::new(executor, 5000);
+        let results = concurrent.execute_all(&make_event(), &[email_action()]).await;
+
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].success, "failing executor should produce success=false");
+        assert!(
+            results[0].message.contains("injected failure"),
+            "error message should propagate; got: {}",
+            results[0].message
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_timeout_produces_timeout_result() {
+        // 1 ms timeout, 500 ms delay — always times out.
+        let executor = SlowExecutor { delay_ms: 500 };
+        let concurrent = ConcurrentActionExecutor::new(executor, 1);
+        let results = concurrent.execute_all(&make_event(), &[email_action()]).await;
+
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].success, "timed-out action should produce success=false");
+        assert!(
+            results[0].message.contains("timeout"),
+            "message should mention timeout; got: {}",
+            results[0].message
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_multiple_actions_returns_all_results() {
+        // 3 actions — one email succeeds (TestExecutor always Ok), two more too.
+        let executor = TestExecutor;
+        let concurrent = ConcurrentActionExecutor::new(executor, 5000);
+        let actions = vec![email_action(), email_action(), email_action()];
+        let results = concurrent.execute_all(&make_event(), &actions).await;
+
+        assert_eq!(results.len(), 3, "all 3 actions should produce a result");
+        assert!(results.iter().all(|r| r.success), "all should succeed with TestExecutor");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_set_timeout() {
+        let executor = TestExecutor;
+        let mut concurrent = ConcurrentActionExecutor::new(executor, 1000);
+        concurrent.set_action_timeout_ms(2500);
+        assert_eq!(concurrent.action_timeout_ms(), 2500);
     }
 }

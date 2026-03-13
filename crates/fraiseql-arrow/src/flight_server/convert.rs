@@ -8,23 +8,24 @@ use arrow::{
 };
 use arrow_flight::FlightData;
 use tonic::Status;
+#[cfg(any(test, feature = "testing"))]
 use tracing::warn;
 
-/// Convert RecordBatch to FlightData using Arrow IPC encoding.
+/// Convert `RecordBatch` to `FlightData` using Arrow IPC encoding.
 ///
 /// # Arguments
 ///
-/// * `batch` - Arrow RecordBatch to encode
+/// * `batch` - Arrow `RecordBatch` to encode
 ///
 /// # Returns
 ///
-/// FlightData message with IPC-encoded batch
+/// `FlightData` message with IPC-encoded batch
 ///
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn record_batch_to_flight_data(
+pub fn record_batch_to_flight_data(
     batch: &RecordBatch,
 ) -> std::result::Result<FlightData, Status> {
     use arrow::ipc::writer::CompressionContext;
@@ -46,7 +47,7 @@ pub(crate) fn record_batch_to_flight_data(
     })
 }
 
-/// Convert schema to FlightData for initial message.
+/// Convert schema to `FlightData` for initial message.
 ///
 /// # Arguments
 ///
@@ -54,13 +55,13 @@ pub(crate) fn record_batch_to_flight_data(
 ///
 /// # Returns
 ///
-/// FlightData message with IPC-encoded schema
+/// `FlightData` message with IPC-encoded schema
 ///
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn schema_to_flight_data(
+pub fn schema_to_flight_data(
     schema: &Arc<arrow::datatypes::Schema>,
 ) -> std::result::Result<FlightData, Status> {
     let options = IpcWriteOptions::default();
@@ -81,43 +82,51 @@ pub(crate) fn schema_to_flight_data(
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "va_orders")
-/// * `filter` - Optional WHERE clause
-/// * `order_by` - Optional ORDER BY clause
+/// * `view` - View name (e.g., "`va_orders`"); quoted as a SQL identifier
+/// * `filter` - Must be `None`; raw WHERE clauses are rejected to prevent SQL injection
+/// * `order_by` - Optional ORDER BY as `"col [ASC|DESC], ..."` (validated, identifiers quoted)
 /// * `limit` - Optional LIMIT
 /// * `offset` - Optional OFFSET
 ///
-/// # Returns
+/// # Errors
 ///
-/// SQL query string
+/// Returns `Status::invalid_argument` if `filter` is `Some` or `order_by` contains
+/// characters outside the safe set `[A-Za-z0-9_]` or directions other than ASC/DESC.
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```text
 /// let sql = build_optimized_sql(
 ///     "va_orders",
-///     Some("created_at > '2026-01-01'"),
-///     Some("created_at DESC"),
+///     None,
+///     Some("created_at DESC".to_string()),
 ///     Some(100),
 ///     Some(0)
-/// );
-/// // Returns: "SELECT * FROM va_orders WHERE created_at > '2026-01-01' ORDER BY created_at DESC LIMIT 100 OFFSET 0"
+/// )?;
+/// // Returns: SELECT * FROM "va_orders" ORDER BY "created_at" DESC LIMIT 100 OFFSET 0
 /// ```
-pub(crate) fn build_optimized_sql(
+pub fn build_optimized_sql(
     view: &str,
     filter: Option<String>,
     order_by: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
-) -> String {
-    let mut sql = format!("SELECT * FROM {view}");
-
-    if let Some(where_clause) = filter {
-        sql.push_str(&format!(" WHERE {where_clause}"));
+) -> Result<String, Status> {
+    // SECURITY: Reject raw WHERE clause filters — they allow SQL injection.
+    // RLS filtering is applied server-side via SecurityContext.
+    if filter.is_some() {
+        return Err(Status::invalid_argument(
+            "OptimizedView filter parameter is not supported. Use server-side RLS for row filtering.",
+        ));
     }
 
+    // Quote view name as a SQL identifier to prevent identifier injection.
+    let quoted_view = format!("\"{}\"", view.replace('"', "\"\""));
+    let mut sql = format!("SELECT * FROM {quoted_view}");
+
     if let Some(order_clause) = order_by {
-        sql.push_str(&format!(" ORDER BY {order_clause}"));
+        let safe_order = build_safe_order_by(&order_clause)?;
+        sql.push_str(&format!(" ORDER BY {safe_order}"));
     }
 
     if let Some(limit_value) = limit {
@@ -128,7 +137,66 @@ pub(crate) fn build_optimized_sql(
         sql.push_str(&format!(" OFFSET {offset_value}"));
     }
 
-    sql
+    Ok(sql)
+}
+
+/// Parse and validate an ORDER BY clause, quoting each column identifier.
+///
+/// Only allows `[A-Za-z_][A-Za-z0-9_]*` column names with optional `ASC` or `DESC`
+/// direction, comma-separated.  Returns `Status::invalid_argument` on any violation.
+fn build_safe_order_by(order_by: &str) -> Result<String, Status> {
+    let mut parts = Vec::new();
+
+    for term in order_by.split(',') {
+        let tokens: Vec<&str> = term.split_whitespace().collect();
+
+        let (col, dir) = match tokens.as_slice() {
+            [col] => (*col, ""),
+            [col, dir] => (*col, *dir),
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "Invalid ORDER BY term: '{term}'. Expected 'column [ASC|DESC]'."
+                )));
+            },
+        };
+
+        // Validate column name: must be a simple SQL identifier.
+        if col.is_empty()
+            || !col
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            || !col.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(Status::invalid_argument(format!(
+                "Invalid column name in ORDER BY: '{col}'. Only [A-Za-z_][A-Za-z0-9_]* is allowed."
+            )));
+        }
+
+        // Validate direction.
+        let dir_upper = dir.to_uppercase();
+        match dir_upper.as_str() {
+            "" | "ASC" | "DESC" => {},
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "Invalid ORDER BY direction: '{dir}'. Only ASC or DESC is allowed."
+                )));
+            },
+        }
+
+        let quoted_col = format!("\"{}\"", col);
+        if dir_upper.is_empty() {
+            parts.push(quoted_col);
+        } else {
+            parts.push(format!("{quoted_col} {dir_upper}"));
+        }
+    }
+
+    if parts.is_empty() {
+        return Err(Status::invalid_argument("ORDER BY clause must not be empty."));
+    }
+
+    Ok(parts.join(", "))
 }
 
 /// Generate placeholder database rows for development/testing.
@@ -137,18 +205,21 @@ pub(crate) fn build_optimized_sql(
 /// In production, `execute_optimized_view()` uses the real database adapter.
 ///
 /// This fallback provides consistent test data matching the expected schema:
-/// - va_orders, va_users: Real timestamp and numeric types
-/// - ta_orders, ta_users: String-based data (ISO 8601 timestamps)
+/// - `va_orders`, `va_users`: Real timestamp and numeric types
+/// - `ta_orders`, `ta_users`: String-based data (ISO 8601 timestamps)
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "va_orders", "va_users")
+/// * `view` - View name (e.g., "`va_orders`", "`va_users`")
 /// * `limit` - Optional limit on number of rows
 ///
 /// # Returns
 ///
-/// Vec of rows as HashMap<column_name, json_value>
-pub(crate) fn execute_placeholder_query(
+/// Vec of rows as `HashMap`<`column_name`, `json_value`>
+#[cfg(any(test, feature = "testing"))]
+#[allow(clippy::cast_possible_wrap)] // Reason: test row indices are small, cannot wrap
+#[allow(clippy::cast_precision_loss)] // Reason: test data uses small floats, precision loss acceptable
+pub fn execute_placeholder_query(
     view: &str,
     limit: Option<usize>,
 ) -> Vec<std::collections::HashMap<String, serde_json::Value>> {
@@ -227,19 +298,19 @@ pub(crate) fn execute_placeholder_query(
     rows
 }
 
-/// Decode FlightData message into an Arrow RecordBatch.
+/// Decode `FlightData` message into an Arrow `RecordBatch`.
 ///
-/// Parses the IPC format data contained in FlightData.data_body.
+/// Parses the IPC format data contained in `FlightData.data_body`.
 ///
 /// # Arguments
-/// * `flight_data` - FlightData message containing serialized RecordBatch
+/// * `flight_data` - `FlightData` message containing serialized `RecordBatch`
 ///
 /// # Returns
-/// Decoded RecordBatch
+/// Decoded `RecordBatch`
 ///
 /// # Errors
 /// Returns error if decoding fails
-pub(crate) fn decode_flight_data_to_batch(
+pub fn decode_flight_data_to_batch(
     flight_data: &FlightData,
 ) -> std::result::Result<RecordBatch, String> {
     use std::io::Cursor;
@@ -273,7 +344,7 @@ pub(crate) fn decode_flight_data_to_batch(
 /// Quoted identifier safe for SQL
 ///
 /// # Example
-/// ```ignore
+/// ```text
 /// assert_eq!(quote_identifier("order"), "\"order\"");
 /// assert_eq!(quote_identifier("my\"table"), "\"my\"\"table\"");
 /// ```
@@ -281,7 +352,7 @@ fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
-/// Convert an Arrow RecordBatch column value to SQL literal.
+/// Convert an Arrow `RecordBatch` column value to SQL literal.
 ///
 /// Handles type conversion and escaping for SQL INSERT statements.
 ///
@@ -298,7 +369,7 @@ fn arrow_value_to_sql(
     array: &std::sync::Arc<dyn arrow::array::Array>,
     row: usize,
 ) -> std::result::Result<String, String> {
-    use arrow::{array::*, datatypes::DataType};
+    use arrow::{array::{Array, Int8Array, Int16Array, Int32Array, Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array, Float32Array, Float64Array, StringArray, LargeStringArray, BooleanArray, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray, TimestampSecondArray, Date32Array}, datatypes::DataType};
 
     if array.is_null(row) {
         return Ok("NULL".to_string());
@@ -444,20 +515,20 @@ fn arrow_value_to_sql(
     }
 }
 
-/// Build a SQL INSERT statement from a RecordBatch.
+/// Build a SQL INSERT statement from a `RecordBatch`.
 ///
 /// Generates parameterized INSERT query with proper escaping.
 ///
 /// # Arguments
 /// * `table_name` - Target table name
-/// * `batch` - Arrow RecordBatch containing rows to insert
+/// * `batch` - Arrow `RecordBatch` containing rows to insert
 ///
 /// # Returns
 /// SQL INSERT statement
 ///
 /// # Errors
 /// Returns error if column types are unsupported
-pub(crate) fn build_insert_query(
+pub fn build_insert_query(
     table_name: &str,
     batch: &RecordBatch,
 ) -> std::result::Result<String, String> {
@@ -492,7 +563,7 @@ pub(crate) fn build_insert_query(
     ))
 }
 
-/// Encode JSON result from GraphQL query into Arrow RecordBatch.
+/// Encode JSON result from GraphQL query into Arrow `RecordBatch`.
 ///
 /// Converts JSON query result into columnar Arrow format for efficient streaming.
 /// As a simple implementation, wraps JSON in a single string column.
@@ -501,11 +572,11 @@ pub(crate) fn build_insert_query(
 /// * `json_str` - JSON string from GraphQL query result
 ///
 /// # Returns
-/// Arrow RecordBatch with single "result" column
+/// Arrow `RecordBatch` with single "result" column
 ///
 /// # Errors
-/// Returns error if RecordBatch creation fails
-pub(crate) fn encode_json_to_arrow_batch(
+/// Returns error if `RecordBatch` creation fails
+pub fn encode_json_to_arrow_batch(
     json_str: &str,
 ) -> std::result::Result<RecordBatch, String> {
     use arrow::{
@@ -522,19 +593,19 @@ pub(crate) fn encode_json_to_arrow_batch(
     Ok(batch)
 }
 
-/// Decode serialized Arrow RecordBatch from upload request.
+/// Decode serialized Arrow `RecordBatch` from upload request.
 ///
 /// Deserializes Arrow IPC format batch data.
 ///
 /// # Arguments
-/// * `batch_bytes` - Serialized RecordBatch in Arrow IPC format
+/// * `batch_bytes` - Serialized `RecordBatch` in Arrow IPC format
 ///
 /// # Returns
-/// Decoded RecordBatch
+/// Decoded `RecordBatch`
 ///
 /// # Errors
 /// Returns error if deserialization fails
-pub(crate) fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
+pub fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
     use std::io::Cursor;
 
     use arrow::ipc::reader::StreamReader;

@@ -1,6 +1,17 @@
+//! Helpers for resolving configuration values from environment variables.
+//!
+//! Provides [`resolve_env_value`] which transparently dereferences values
+//! that start with `$` as environment variable names, and parse utilities
+//! for human-friendly size strings (`"10MB"`) and duration strings (`"30s"`).
+
 use std::{env, time::Duration};
 
 /// Resolve a value that may be an environment variable reference
+///
+/// # Errors
+///
+/// Returns `EnvError::MissingVar` if the referenced environment variable is not set.
+/// Returns `EnvError::MissingVarWithMessage` if the variable uses the `:?` syntax and is not set.
 pub fn resolve_env_value(value: &str) -> Result<String, EnvError> {
     if value.starts_with("${") && value.ends_with("}") {
         let var_name = &value[2..value.len() - 1];
@@ -27,6 +38,10 @@ pub fn resolve_env_value(value: &str) -> Result<String, EnvError> {
 }
 
 /// Get value from environment variable name stored in config
+///
+/// # Errors
+///
+/// Returns `EnvError::MissingVar` if the named environment variable is not set.
 pub fn get_env_value(env_var_name: &str) -> Result<String, EnvError> {
     env::var(env_var_name).map_err(|_| EnvError::MissingVar {
         name: env_var_name.to_string(),
@@ -34,6 +49,10 @@ pub fn get_env_value(env_var_name: &str) -> Result<String, EnvError> {
 }
 
 /// Parse size strings like "10MB", "1GB"
+///
+/// # Errors
+///
+/// Returns `ParseError::InvalidSize` if the string is not a valid size or the number overflows.
 pub fn parse_size(s: &str) -> Result<usize, ParseError> {
     let s = s.trim();
     let s_upper = s.to_uppercase();
@@ -63,6 +82,10 @@ pub fn parse_size(s: &str) -> Result<usize, ParseError> {
 }
 
 /// Parse duration strings like "30s", "5m", "1h"
+///
+/// # Errors
+///
+/// Returns `ParseError::InvalidDuration` if the string is missing a unit suffix or the number is invalid.
 pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
     let s = s.trim().to_lowercase();
 
@@ -91,20 +114,44 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
     Ok(Duration::from_millis(num * multiplier_ms))
 }
 
+/// Errors produced when a required environment variable is absent.
 #[derive(Debug, thiserror::Error)]
 pub enum EnvError {
+    /// A required environment variable was not set.
     #[error("Missing environment variable: {name}")]
-    MissingVar { name: String },
+    MissingVar {
+        /// Name of the missing variable.
+        name: String,
+    },
 
+    /// A required environment variable was not set; carries an extra explanation.
     #[error("Missing environment variable {name}: {message}")]
-    MissingVarWithMessage { name: String, message: String },
+    MissingVarWithMessage {
+        /// Name of the missing variable.
+        name: String,
+        /// Human-readable explanation of why the variable is required.
+        message: String,
+    },
 }
 
+/// Errors produced when a configuration string cannot be parsed.
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
+    /// A size string (e.g. `"10MB"`) could not be interpreted.
     #[error("Invalid size value '{value}': {reason}")]
-    InvalidSize { value: String, reason: String },
+    InvalidSize {
+        /// The raw string that failed parsing.
+        value: String,
+        /// Explanation of why parsing failed.
+        reason: String,
+    },
 
+    /// A duration string (e.g. `"30s"`) could not be interpreted.
     #[error("Invalid duration value '{value}': {reason}")]
-    InvalidDuration { value: String, reason: String },
+    InvalidDuration {
+        /// The raw string that failed parsing.
+        value: String,
+        /// Explanation of why parsing failed.
+        reason: String,
+    },
 }

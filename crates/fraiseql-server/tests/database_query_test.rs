@@ -8,22 +8,33 @@
 //!
 //! These tests require a running PostgreSQL instance.
 //! Run with: `cargo test -p fraiseql-server --test database_query_test -- --ignored`
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
 
 use std::time::{Duration, Instant};
 
+use fraiseql_test_utils::database_url;
 use sqlx::postgres::PgPool;
-
-/// Helper to get database URL from environment.
-/// Panics if DATABASE_URL is not set (tests using this are `#[ignore]`).
-fn require_database_url() -> String {
-    std::env::var("DATABASE_URL").expect("DATABASE_URL must be set to run this test")
-}
 
 /// Test database connection
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_database_connection() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect to database");
 
@@ -41,7 +52,7 @@ async fn test_database_connection() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_connection_pool_config() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to create pool");
 
@@ -57,7 +68,7 @@ async fn test_connection_pool_config() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_concurrent_database_queries() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -83,7 +94,7 @@ async fn test_concurrent_database_queries() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_query_performance() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -114,7 +125,7 @@ async fn test_query_performance() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_connection_pool_stress() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -150,7 +161,7 @@ async fn test_connection_pool_stress() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_transaction_handling() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -172,7 +183,7 @@ async fn test_transaction_handling() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_database_error_handling() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -215,7 +226,7 @@ async fn test_connection_timeout() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_prepared_statement_caching() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -246,7 +257,7 @@ async fn test_prepared_statement_caching() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_concurrent_transactions() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
@@ -277,7 +288,7 @@ async fn test_concurrent_transactions() {
 #[tokio::test]
 #[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_pool_size_limits() {
-    let database_url = require_database_url();
+    let database_url = database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 

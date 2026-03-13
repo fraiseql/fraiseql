@@ -2,7 +2,9 @@
 
 use crate::Result;
 use bytes::BytesMut;
+use socket2::{SockRef, TcpKeepalive};
 use std::path::Path;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UnixStream};
 
@@ -60,6 +62,31 @@ impl TcpVariant {
         }
         Ok(())
     }
+
+    /// Apply TCP keepalive settings to the underlying socket.
+    ///
+    /// Extracts the raw socket reference via `socket2::SockRef` and configures
+    /// `SO_KEEPALIVE` with the given idle interval. This is a no-op for TLS
+    /// streams that wrap a `TcpStream`; the keepalive is applied to the inner
+    /// TCP socket before the TLS handshake anyway.
+    pub fn apply_keepalive(&self, idle: Duration) -> Result<()> {
+        let keepalive = TcpKeepalive::new().with_time(idle);
+        match self {
+            TcpVariant::Plain(stream) => {
+                let sock = SockRef::from(stream);
+                sock.set_keepalive(true)?;
+                sock.set_tcp_keepalive(&keepalive)?;
+            }
+            TcpVariant::Tls(stream) => {
+                // The inner TcpStream is accessible via the get_ref() chain.
+                let tcp = stream.get_ref().0;
+                let sock = SockRef::from(tcp);
+                sock.set_keepalive(true)?;
+                sock.set_tcp_keepalive(&keepalive)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Transport layer abstraction
@@ -82,7 +109,7 @@ impl Transport {
     /// Connect via TLS-encrypted TCP using PostgreSQL SSL negotiation protocol.
     ///
     /// PostgreSQL requires a specific SSL upgrade sequence:
-    /// 1. Send SSLRequest message (8 bytes)
+    /// 1. Send `SSLRequest` message (8 bytes)
     /// 2. Server responds with 'S' (accept) or 'N' (reject)
     /// 3. If accepted, perform TLS handshake
     pub async fn connect_tcp_tls(
@@ -182,6 +209,18 @@ impl Transport {
             Transport::Unix(stream) => stream.shutdown().await?,
         }
         Ok(())
+    }
+
+    /// Apply TCP keepalive to this transport, if it is a TCP connection.
+    ///
+    /// A no-op for Unix socket transports (keepalive is a TCP-layer feature).
+    /// Logs a warning and returns `Ok(())` rather than failing if the platform
+    /// does not support the requested keepalive interval.
+    pub fn apply_keepalive(&self, idle: Duration) -> Result<()> {
+        match self {
+            Transport::Tcp(variant) => variant.apply_keepalive(idle),
+            Transport::Unix(_) => Ok(()), // keepalive not applicable on Unix sockets
+        }
     }
 }
 

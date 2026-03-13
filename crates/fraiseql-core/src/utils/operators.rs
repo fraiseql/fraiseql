@@ -942,6 +942,8 @@ pub fn get_operators_by_category(category: OperatorCategory) -> Vec<&'static Ope
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

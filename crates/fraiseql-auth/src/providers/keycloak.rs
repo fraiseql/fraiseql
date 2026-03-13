@@ -1,4 +1,4 @@
-// Keycloak OAuth provider implementation
+//! Keycloak OAuth / OIDC provider implementation with realm and client role mapping.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -23,25 +23,35 @@ pub struct KeycloakOAuth {
 /// Keycloak token claims structure (partial)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeycloakTokenClaims {
+    /// Subject — Keycloak's stable user UUID
     pub sub:                String,
+    /// Username in Keycloak (login handle)
     pub preferred_username: Option<String>,
+    /// User's email address
     pub email:              Option<String>,
+    /// User's full display name
     pub name:               Option<String>,
+    /// Given (first) name
     pub given_name:         Option<String>,
+    /// Family (last) name
     pub family_name:        Option<String>,
+    /// Realm-level role assignments (`realm_access.roles`)
     pub realm_access:       Option<RealmAccess>,
+    /// Client-level role assignments keyed by client ID (`resource_access`)
     pub resource_access:    Option<serde_json::Value>,
 }
 
 /// Keycloak realm access structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RealmAccess {
+    /// List of realm-level role names assigned to the user
     pub roles: Vec<String>,
 }
 
 /// Keycloak client role structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientRoles {
+    /// List of client-scoped role names assigned to the user
     pub roles: Vec<String>,
 }
 
@@ -151,6 +161,9 @@ impl KeycloakOAuth {
     }
 }
 
+// Reason: OAuthProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl OAuthProvider for KeycloakOAuth {
     fn name(&self) -> &'static str {
@@ -202,6 +215,7 @@ impl OAuthProvider for KeycloakOAuth {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

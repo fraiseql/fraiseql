@@ -325,9 +325,11 @@ pub struct ComplianceReport {
     pub overall_status:      ComplianceStatus,
     /// Check results
     pub results:             Vec<ComplianceCheckResult>,
-    /// Summary statistics
+    /// Number of requirements that passed this report period.
     pub compliant_count:     usize,
+    /// Number of requirements that failed this report period.
     pub non_compliant_count: usize,
+    /// Number of requirements that only partially passed this report period.
     pub partial_count:       usize,
 }
 
@@ -404,6 +406,7 @@ impl ComplianceReport {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

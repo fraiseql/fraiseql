@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Failure-injecting database adapter for error path testing.
 //!
 //! Provides a configurable `DatabaseAdapter` implementation that can simulate
@@ -14,7 +15,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        DatabaseAdapter, DatabaseType, WhereClause,
+        DatabaseAdapter, DatabaseType, MutationCapable, WhereClause,
         types::{JsonbValue, PoolMetrics},
     },
     error::{FraiseQLError, Result},
@@ -281,6 +282,9 @@ impl Default for FailingAdapter {
     }
 }
 
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for FailingAdapter {
     async fn execute_where_query(
@@ -336,6 +340,15 @@ impl DatabaseAdapter for FailingAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        self.check_failure(sql)?;
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -346,6 +359,8 @@ impl DatabaseAdapter for FailingAdapter {
     }
 
 }
+
+impl MutationCapable for FailingAdapter {}
 
 #[cfg(test)]
 mod tests {

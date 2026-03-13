@@ -1,0 +1,34 @@
+name: Feature Flag Matrix
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  feature-matrix:
+    name: "check (${{ matrix.features || 'no-default-features' }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""                                                                        # no features (--no-default-features)
+          - "auth,secrets"
+          - "observers,redis-rate-limiting"
+          - "observers-enterprise,redis-rate-limiting,tracing-opentelemetry"
+          - "arrow,wire-backend"
+          - "mcp,auth,cors"
+          - "observers-enterprise,redis-apq,redis-pkce"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo check -p fraiseql-server --no-default-features
+          else
+            cargo check -p fraiseql-server --features "${{ matrix.features }}"
+          fi

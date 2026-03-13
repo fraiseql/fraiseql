@@ -1,9 +1,8 @@
-// Session management - trait definition and implementations
+//! Session management — trait definition and helper functions.
 #[cfg(test)]
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -51,30 +50,62 @@ pub struct TokenPair {
 /// # Examples
 ///
 /// Implement for PostgreSQL:
-/// ```ignore
+/// ```no_run
+/// // Requires: sqlx PgPool and live PostgreSQL connection.
+/// use async_trait::async_trait;
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::error::Result;
+///
 /// pub struct PostgresSessionStore {
-///     pool: PgPool,
+///     // pool: sqlx::PgPool,
 /// }
 ///
 /// #[async_trait]
 /// impl SessionStore for PostgresSessionStore {
-///     async fn create_session(...) -> Result<TokenPair> { ... }
-///     // ... other methods
+///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
+///         unimplemented!()
+///     }
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///         unimplemented!()
+///     }
+///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
+///         unimplemented!()
+///     }
+///     async fn cleanup_expired(&self) -> Result<()> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 ///
 /// Implement for Redis:
-/// ```ignore
+/// ```no_run
+/// // Requires: redis crate and live Redis connection.
+/// use async_trait::async_trait;
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::error::Result;
+///
 /// pub struct RedisSessionStore {
-///     client: redis::Client,
+///     // client: redis::Client,
 /// }
 ///
 /// #[async_trait]
 /// impl SessionStore for RedisSessionStore {
-///     async fn create_session(...) -> Result<TokenPair> { ... }
-///     // ... other methods
+///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
+///         unimplemented!()
+///     }
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///         unimplemented!()
+///     }
+///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
+///         unimplemented!()
+///     }
+///     async fn cleanup_expired(&self) -> Result<()> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
+// Reason: used as dyn Trait (Arc<dyn SessionStore>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait SessionStore: Send + Sync {
     /// Create a new session and return token pair
@@ -121,18 +152,26 @@ pub trait SessionStore: Send + Sync {
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()>;
 }
 
-/// Hash a refresh token for secure storage
+/// Compute a SHA-256 hex digest of a refresh token for secure storage.
+///
+/// Refresh tokens are stored only as their SHA-256 hash so that a database
+/// breach cannot be used to replay sessions.  The original token is returned
+/// to the client and never persisted.
 pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 
-/// Generate a cryptographically secure refresh token
+/// Generate a cryptographically secure refresh token.
+///
+/// Returns 32 random bytes from [`rand::rngs::OsRng`] encoded as standard Base64.
+/// The resulting token is 44 characters long and has approximately 256 bits of entropy.
 pub fn generate_refresh_token() -> String {
     use base64::Engine;
-    let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    use rand::{Rng, rngs::OsRng};
+    // SECURITY: OsRng ensures OS-level entropy for refresh tokens.
+    let random_bytes: Vec<u8> = (0..32).map(|_| OsRng.gen()).collect();
     base64::engine::general_purpose::STANDARD.encode(&random_bytes)
 }
 
@@ -175,6 +214,9 @@ impl Default for InMemorySessionStore {
 }
 
 #[cfg(test)]
+// Reason: SessionStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl SessionStore for InMemorySessionStore {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {
@@ -237,8 +279,10 @@ impl SessionStore for InMemorySessionStore {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+
 //! Performance benchmarks for federation operations
 //!
 //! Measures latency and throughput for:
@@ -6,6 +9,8 @@
 //! - Batching and deduplication
 //! - GraphQL query building
 
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses u64→f64 for human-readable output; precision loss is irrelevant
+#![allow(clippy::missing_errors_doc)] // Reason: criterion_group! macro generates undocumented items
 use fraiseql_core::federation::{
     mutation_http_client::{HttpMutationClient, HttpMutationConfig},
     types::{FederatedType, FederationMetadata, KeyDirective},
@@ -89,7 +94,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("build_variable_definitions", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let variables = json!({
             "id": "user123",
@@ -105,7 +110,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("parse_graphql_response", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let response = fraiseql_core::federation::mutation_http_client::GraphQLResponse {
             data:   Some(json!({
@@ -126,7 +131,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("build_mutation_query", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let metadata = create_test_metadata();
         let fed_type = &metadata.types[1]; // Order (extended)

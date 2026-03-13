@@ -261,7 +261,7 @@ fraiseql-kotlin/
 ├── build.gradle.kts
 ├── settings.gradle.kts
 ├── README.md
-└── KOTLIN_FEATURE_PARITY.md
+└── kotlin-feature-parity.md
 ```
 
 ## API Documentation
@@ -339,7 +339,7 @@ AuthzPolicyBuilder(name: String)
 
 ## Documentation
 
-- [KOTLIN_FEATURE_PARITY.md](./KOTLIN_FEATURE_PARITY.md) - Complete feature parity status
+- [kotlin-feature-parity.md](./kotlin-feature-parity.md) - Complete feature parity status
 - [Kotlin Documentation](https://kotlinlang.org/) - Language documentation
 - [JUnit5 Documentation](https://junit.org/junit5/) - Testing framework
 

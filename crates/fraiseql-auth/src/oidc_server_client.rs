@@ -1,13 +1,13 @@
-// Server-side OIDC client for PKCE authorization code flows.
-//
-// This is a minimal, runtime-facing client that:
-//   1. Builds the OIDC `/authorize` redirect URL with PKCE parameters.
-//   2. Exchanges the authorization code + `code_verifier` for tokens.
-//
-// It is intentionally separate from the more general `OAuth2Client` and
-// `OIDCClient` types in `oauth.rs`: those carry JWKS caches and session
-// management state that the PKCE route handlers do not need.
-//
+//! Server-side OIDC client for PKCE authorization code flows.
+//!
+//! This is a minimal, runtime-facing client that:
+//! 1. Builds the OIDC `/authorize` redirect URL with PKCE parameters.
+//! 2. Exchanges the authorization code + `code_verifier` for tokens.
+//!
+//! It is intentionally separate from the more general [`crate::oauth::OAuth2Client`] and
+//! [`crate::oauth::OIDCClient`] types in `oauth`: those carry JWKS caches and session
+//! management state that the PKCE route handlers do not need.
+//!
 // The client secret is loaded from the environment at runtime and is NEVER
 // stored in the compiled schema or TOML config.
 
@@ -183,6 +183,12 @@ impl OidcServerClient {
         )
     }
 
+    /// Maximum byte size accepted from the OIDC token endpoint response.
+    ///
+    /// A well-formed token response is a few KiB at most.  1 MiB prevents a
+    /// malicious or compromised OIDC provider from exhausting server memory.
+    const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
     /// Exchange an authorization code for tokens.
     ///
     /// Sends a `POST` to the provider's `/token` endpoint with the PKCE
@@ -191,7 +197,8 @@ impl OidcServerClient {
     /// # Errors
     ///
     /// Returns an error if the HTTP request fails, the provider returns a
-    /// non-success status, or the response body cannot be parsed as JSON.
+    /// non-success status, the response exceeds `MAX_OIDC_RESPONSE_BYTES`, or
+    /// the response body cannot be parsed as JSON.
     pub async fn exchange_code(
         &self,
         code:          &str,
@@ -211,13 +218,31 @@ impl OidcServerClient {
             .send()
             .await?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body   = resp.text().await.unwrap_or_default();
+        let status = resp.status();
+
+        // Read body with error propagation — unwrap_or_default() would silently
+        // discard network errors and return an empty body, masking failures.
+        let body_bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to read token response: {e}"))?;
+
+        // Size guard BEFORE the status check: a compromised provider could exhaust
+        // memory by sending an oversized non-2xx response that bypassed a later cap.
+        anyhow::ensure!(
+            body_bytes.len() <= Self::MAX_OIDC_RESPONSE_BYTES,
+            "OIDC token response too large ({} bytes, max {})",
+            body_bytes.len(),
+            Self::MAX_OIDC_RESPONSE_BYTES
+        );
+
+        if !status.is_success() {
+            // Body is already bounded by the size check above — no need for .min().
+            let body = String::from_utf8_lossy(&body_bytes);
             anyhow::bail!("token endpoint returned {status}: {body}");
         }
 
-        Ok(resp.json::<OidcTokenResponse>().await?)
+        Ok(serde_json::from_slice::<OidcTokenResponse>(&body_bytes)?)
     }
 }
 
@@ -225,8 +250,10 @@ impl OidcServerClient {
 // Unit tests
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn test_client() -> OidcServerClient {
@@ -249,6 +276,83 @@ mod tests {
         assert!(url.contains("code_challenge_method=S256"),  "missing method");
         assert!(url.contains("state="),                      "missing state");
         assert!(url.contains("redirect_uri="),               "missing redirect_uri");
+    }
+
+    #[test]
+    fn oidc_response_cap_constant_is_reasonable() {
+        assert_eq!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES, 1024 * 1024);
+    }
+
+    #[test]
+    fn oidc_response_cap_covers_error_path() {
+        // The size guard now fires BEFORE the status check, so both 2xx and
+        // non-2xx responses are bounded. Verify the constant is sane.
+        const { assert!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES >= 64 * 1024) }
+        const { assert!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES <= 100 * 1024 * 1024) }
+    }
+
+    #[tokio::test]
+    async fn oidc_oversized_error_response_is_rejected() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        // Non-2xx response with oversized body — must be rejected before status check.
+        let oversized = vec![b'e'; OidcServerClient::MAX_OIDC_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_bytes(oversized))
+            .mount(&mock_server)
+            .await;
+
+        let client = OidcServerClient::new(
+            "client_id",
+            "client_secret",
+            "https://example.com/callback",
+            "https://example.com/auth",
+            format!("{}/token", mock_server.uri()),
+        );
+        let http = reqwest::Client::new();
+        let result = client.exchange_code("code", "verifier", &http).await;
+
+        assert!(result.is_err(), "oversized error response must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("too large"),
+            "error must mention size limit, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn oidc_oversized_success_response_is_rejected() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        let oversized = vec![b'x'; OidcServerClient::MAX_OIDC_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock_server)
+            .await;
+
+        let client = OidcServerClient::new(
+            "client_id",
+            "client_secret",
+            "https://example.com/callback",
+            "https://example.com/auth",
+            format!("{}/token", mock_server.uri()),
+        );
+        let http = reqwest::Client::new();
+        let result = client.exchange_code("code", "verifier", &http).await;
+
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("too large"), "error must mention size limit, got: {msg}");
     }
 
     #[test]

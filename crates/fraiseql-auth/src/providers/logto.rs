@@ -1,4 +1,4 @@
-// Logto OAuth provider implementation
+//! Logto OAuth / OIDC provider implementation for Cloud and self-hosted deployments.
 use async_trait::async_trait;
 use serde_json::json;
 
@@ -15,13 +15,18 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live Logto OIDC endpoint.
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// use fraiseql_auth::providers::logto::LogtoOAuth;
 /// let provider = LogtoOAuth::new(
 ///     "client_id".to_string(),
 ///     "client_secret".to_string(),
 ///     "https://your-tenant.logto.app".to_string(),
 ///     "http://localhost:8000/auth/callback".to_string(),
 /// ).await?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct LogtoOAuth {
@@ -175,6 +180,9 @@ impl LogtoOAuth {
     }
 }
 
+// Reason: OAuthProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl OAuthProvider for LogtoOAuth {
     fn name(&self) -> &'static str {
@@ -225,6 +233,7 @@ impl OAuthProvider for LogtoOAuth {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

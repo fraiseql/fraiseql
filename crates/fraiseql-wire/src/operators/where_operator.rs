@@ -13,17 +13,18 @@ use super::field::{Field, Value};
 /// # Categories
 ///
 /// - **Comparison**: Eq, Neq, Gt, Gte, Lt, Lte
-/// - **Array**: In, Nin, Contains, ArrayContains, ArrayContainedBy, ArrayOverlaps
-/// - **Array Length**: LenEq, LenGt, LenGte, LenLt, LenLte
+/// - **Array**: In, Nin, Contains, `ArrayContains`, `ArrayContainedBy`, `ArrayOverlaps`
+/// - **Array Length**: `LenEq`, `LenGt`, `LenGte`, `LenLt`, `LenLte`
 /// - **String**: Icontains, Startswith, Istartswith, Endswith, Iendswith, Like, Ilike
-/// - **Null**: IsNull
-/// - **Vector Distance**: L2Distance, CosineDistance, InnerProduct, L1Distance, HammingDistance, JaccardDistance
-/// - **Full-Text Search**: Matches, PlainQuery, PhraseQuery, WebsearchQuery
-/// - **Network**: IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
-/// - **JSONB**: StrictlyContains
-/// - **LTree**: AncestorOf, DescendantOf, MatchesLquery, MatchesLtxtquery, MatchesAnyLquery,
-///   DepthEq, DepthNeq, DepthGt, DepthGte, DepthLt, DepthLte, Lca
+/// - **Null**: `IsNull`
+/// - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `L1Distance`, `HammingDistance`, `JaccardDistance`
+/// - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
+/// - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsPublic`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
+/// - **JSONB**: `StrictlyContains`
+/// - **`LTree`**: `AncestorOf`, `DescendantOf`, `MatchesLquery`, `MatchesLtxtquery`, `MatchesAnyLquery`,
+///   `DepthEq`, `DepthNeq`, `DepthGt`, `DepthGte`, `DepthLt`, `DepthLte`, Lca
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum WhereOperator {
     // ============ Comparison Operators ============
     /// Equal: `field = value`
@@ -52,6 +53,13 @@ pub enum WhereOperator {
     Nin(Field, Vec<Value>),
 
     /// String contains substring: `field LIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The substring is embedded between `%` anchors. Characters `%` (any sequence) and
+    /// `_` (any single character) in the substring itself are **also** treated as LIKE
+    /// wildcards, causing broader matches than intended. Escape user-supplied values
+    /// (replace `%` → `\%` and `_` → `\_`) before constructing this variant.
     Contains(Field, String),
 
     /// Array contains element: PostgreSQL array operator `@>`
@@ -84,24 +92,60 @@ pub enum WhereOperator {
 
     // ============ String Operators ============
     /// Case-insensitive contains: `field ILIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Contains`]. ILIKE applies the same
+    /// wildcard semantics, so `%` and `_` in the substring expand unexpectedly.
     Icontains(Field, String),
 
     /// Starts with: `field LIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The prefix string is passed verbatim before the trailing `%`. Characters `%` and `_`
+    /// in the prefix are treated as wildcards; escape user-supplied values before use.
     Startswith(Field, String),
 
     /// Starts with (case-insensitive): `field ILIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Startswith`].
     Istartswith(Field, String),
 
     /// Ends with: `field LIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The suffix string is passed verbatim after the leading `%`. Characters `%` and `_`
+    /// in the suffix are treated as wildcards; escape user-supplied values before use.
     Endswith(Field, String),
 
     /// Ends with (case-insensitive): `field ILIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Endswith`].
     Iendswith(Field, String),
 
     /// LIKE pattern matching: `field LIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The pattern string is passed to the database as-is. Characters `%` (any
+    /// sequence) and `_` (any single character) are SQL LIKE wildcards. If the
+    /// pattern originates from user input, callers **must** escape these
+    /// characters (e.g. replace `%` → `\%` and `_` → `\_`) before constructing
+    /// this variant, and append the appropriate `ESCAPE '\'` clause.
     Like(Field, String),
 
     /// Case-insensitive LIKE: `field ILIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Like`]. The `%` and `_`
+    /// wildcards apply to ILIKE patterns as well.
     Ilike(Field, String),
 
     // ============ Null Operator ============
@@ -232,19 +276,19 @@ pub enum WhereOperator {
     },
 
     // ============ Network/INET Operators ============
-    /// Check if IP is IPv4: `family(field) = 4`
+    /// Check if IP is `IPv4`: `family(field) = 4`
     IsIPv4(Field),
 
-    /// Check if IP is IPv6: `family(field) = 6`
+    /// Check if IP is `IPv6`: `family(field) = 6`
     IsIPv6(Field),
 
     /// Check if IP is private (RFC1918): matches private ranges
     IsPrivate(Field),
 
-    /// Check if IP is public (not private): opposite of IsPrivate
+    /// Check if IP is public (not private): opposite of `IsPrivate`
     IsPublic(Field),
 
-    /// Check if IP is loopback: IPv4 127.0.0.0/8 or IPv6 ::1/128
+    /// Check if IP is loopback: `IPv4` 127.0.0.0/8 or `IPv6` `::1/128`
     IsLoopback(Field),
 
     /// IP is in subnet: `field << subnet`
@@ -344,7 +388,7 @@ pub enum WhereOperator {
         patterns: Vec<String>,
     },
 
-    /// LTree depth equals: `nlevel(field) = depth`
+    /// `LTree` depth equals: `nlevel(field) = depth`
     DepthEq {
         /// The ltree field to check
         field: Field,
@@ -352,7 +396,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth not equals: `nlevel(field) != depth`
+    /// `LTree` depth not equals: `nlevel(field) != depth`
     DepthNeq {
         /// The ltree field to check
         field: Field,
@@ -360,7 +404,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth greater than: `nlevel(field) > depth`
+    /// `LTree` depth greater than: `nlevel(field) > depth`
     DepthGt {
         /// The ltree field to check
         field: Field,
@@ -368,7 +412,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth greater than or equal: `nlevel(field) >= depth`
+    /// `LTree` depth greater than or equal: `nlevel(field) >= depth`
     DepthGte {
         /// The ltree field to check
         field: Field,
@@ -376,7 +420,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth less than: `nlevel(field) < depth`
+    /// `LTree` depth less than: `nlevel(field) < depth`
     DepthLt {
         /// The ltree field to check
         field: Field,
@@ -384,7 +428,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth less than or equal: `nlevel(field) <= depth`
+    /// `LTree` depth less than or equal: `nlevel(field) <= depth`
     DepthLte {
         /// The ltree field to check
         field: Field,
@@ -405,7 +449,7 @@ pub enum WhereOperator {
 
 impl WhereOperator {
     /// Get a human-readable name for this operator
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             WhereOperator::Eq(_, _) => "Eq",
             WhereOperator::Neq(_, _) => "Neq",
@@ -497,13 +541,22 @@ impl WhereOperator {
             | WhereOperator::IsNull(f, _)
             | WhereOperator::StrictlyContains(f, _) => f.validate(),
 
-            WhereOperator::L2Distance { field, .. }
-            | WhereOperator::CosineDistance { field, .. }
-            | WhereOperator::InnerProduct { field, .. }
-            | WhereOperator::L1Distance { field, .. }
-            | WhereOperator::HammingDistance { field, .. }
-            | WhereOperator::JaccardDistance { field, .. }
-            | WhereOperator::Matches { field, .. }
+            WhereOperator::L2Distance { field, threshold, .. }
+            | WhereOperator::CosineDistance { field, threshold, .. }
+            | WhereOperator::InnerProduct { field, threshold, .. }
+            | WhereOperator::L1Distance { field, threshold, .. }
+            | WhereOperator::HammingDistance { field, threshold, .. }
+            | WhereOperator::JaccardDistance { field, threshold, .. } => {
+                if !threshold.is_finite() {
+                    return Err(format!(
+                        "Vector distance threshold must be a finite number, got {}",
+                        threshold
+                    ));
+                }
+                field.validate()
+            }
+
+            WhereOperator::Matches { field, .. }
             | WhereOperator::PlainQuery { field, .. }
             | WhereOperator::PhraseQuery { field, .. }
             | WhereOperator::WebsearchQuery { field, .. }

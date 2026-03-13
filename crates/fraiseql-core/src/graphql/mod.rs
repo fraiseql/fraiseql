@@ -40,7 +40,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: fraiseql_core graphql module (internal types).
 //! use fraiseql_core::graphql::{parse_query, FragmentResolver, DirectiveEvaluator};
 //!
 //! let query = r#"
@@ -82,7 +83,7 @@ pub mod require_permission_directive;
 // Re-exports for convenient access
 // ============================================================================
 
-pub use complexity::{ComplexityAnalyzer, ComplexityConfig};
+pub use complexity::{ComplexityConfig, DEFAULT_MAX_ALIASES, QueryMetrics, RequestValidator, ValidationError};
 pub use directive_evaluator::{
     CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,
     DirectiveResult, EvaluationContext, OperationType,

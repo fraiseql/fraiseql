@@ -75,6 +75,19 @@ impl EntityKey {
             });
         }
 
+        // A colon in entity_type would corrupt the "Type:id" cache key format.
+        // `from_cache_key` uses splitn(2, ':'), so "Foo:Bar:id" would be parsed
+        // as type="Foo", id="Bar:id" — silently wrong.
+        if entity_type.contains(':') {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "entity_type {entity_type:?} must not contain a colon character; \
+                     colons are used as the cache-key separator"
+                ),
+                path: None,
+            });
+        }
+
         if entity_id.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: "entity_id cannot be empty".to_string(),
@@ -151,6 +164,8 @@ impl Hash for EntityKey {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -188,6 +203,36 @@ mod tests {
     }
 
     #[test]
+    fn test_reject_colon_in_entity_type() {
+        let result = EntityKey::new("User:Admin", "550e8400-e29b-41d4-a716-446655440000");
+        assert!(result.is_err(), "colon in entity_type must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("colon") || msg.contains("separator"),
+            "error should mention the separator: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_reject_colon_only_in_entity_type() {
+        let result = EntityKey::new(":", "some-id");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_entity_id_may_contain_colon() {
+        // Entity IDs can contain colons (e.g. URNs) — only entity_type is restricted.
+        let result = EntityKey::new("User", "urn:uuid:550e8400-e29b-41d4-a716-446655440000");
+        assert!(result.is_ok(), "colon in entity_id must be accepted");
+        // from_cache_key uses splitn(2, ':'), so it should reconstruct correctly.
+        let key = result.unwrap();
+        let cache_key = key.to_cache_key();
+        let parsed = EntityKey::from_cache_key(&cache_key).unwrap();
+        assert_eq!(parsed.entity_type, "User");
+        assert_eq!(parsed.entity_id, "urn:uuid:550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    #[test]
     fn test_hash_consistency_for_hashmap() {
         use std::collections::HashMap;
 
@@ -195,7 +240,7 @@ mod tests {
         let key2 = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000").unwrap();
 
         let mut map = HashMap::new();
-        map.insert(key1.clone(), "value1");
+        map.insert(key1, "value1");
 
         // Same key should retrieve same value
         assert_eq!(map.get(&key2), Some(&"value1"));

@@ -258,7 +258,7 @@ Possible error sources include:
 
 Fatal errors terminate the stream.
 
-For detailed error diagnosis, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+For detailed error diagnosis, see [troubleshooting.md](troubleshooting.md).
 
 ---
 
@@ -290,7 +290,7 @@ fraiseql-wire uses **O(chunk_size)** memory while traditional drivers use **O(re
 | Throughput | 100K-500K rows/sec | 100K-500K rows/sec |
 | Time-to-first-row | 2-5 ms | 2-5 ms |
 
-**For detailed performance analysis**, see [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) and [benches/COMPARISON_GUIDE.md](benches/COMPARISON_GUIDE.md).
+**For detailed performance analysis**, see [performance-tuning.md](performance-tuning.md) and [benches/comparison-guide.md](benches/comparison-guide.md).
 
 ---
 
@@ -433,31 +433,41 @@ All core features implemented with comprehensive CI validation:
 
 ## Roadmap
 
-* [x] Connection pooling integration guide (CONNECTION_POOLING.md)
-* [x] Advanced filtering patterns (ADVANCED_FILTERING.md)
-* [x] PostgreSQL 15-18 compatibility (POSTGRES_COMPATIBILITY.md)
+* [x] Connection pooling integration guide
+* [x] Advanced filtering patterns
+* [x] PostgreSQL 15-18 compatibility
 * [x] SCRAM/TLS end-to-end integration tests in CI
 * [x] Comprehensive metrics and tracing
 * [x] Server-side ordering (ORDER BY with COLLATE)
 * [x] Pagination support (LIMIT/OFFSET)
 * [x] SQL field projection for payload optimization
 * [ ] Extended metric examples and dashboards
-* [ ] Performance tuning guide for large datasets
 * [ ] PostgreSQL 19+ compatibility tracking
 * [ ] Binary protocol optimization (extended query protocol)
 
 ---
 
-## Documentation & Guides
+## Documentation
 
-* **[QUICK_START.md](QUICK_START.md)** – Installation and first steps
-* **[TESTING_GUIDE.md](TESTING_GUIDE.md)** – How to run unit, integration, and load tests
-* **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** – Error diagnosis and common issues
-* **[CI_CD_GUIDE.md](CI_CD_GUIDE.md)** – GitHub Actions, local development, releases
-* **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** – Benchmarking and optimization
-* **[CONTRIBUTING.md](CONTRIBUTING.md)** – Development workflows and architecture
-* **[PRD.md](PRD.md)** – Product requirements and design
-* **[.github/PUBLISHING.md](.github/PUBLISHING.md)** – Automatic crates.io publishing setup and workflow
+| Document | Purpose |
+|----------|---------|
+| [testing-guide.md](testing-guide.md) | Running tests locally and in CI; release process |
+| [troubleshooting.md](troubleshooting.md) | Error diagnosis and common issues |
+| [performance-tuning.md](performance-tuning.md) | Tuning for production workloads |
+| [benchmarking.md](benchmarking.md) | How to run and interpret benchmarks |
+| [advanced-filtering.md](advanced-filtering.md) | Complex WHERE clause patterns |
+| [typed-streaming-guide.md](typed-streaming-guide.md) | Type-safe streaming setup |
+| [connection-pooling.md](connection-pooling.md) | Pool configuration and tuning |
+| [metrics.md](metrics.md) | All exposed Prometheus metrics |
+| [security-audit.md](security-audit.md) | Security assessment and findings |
+| [postgres-compatibility.md](postgres-compatibility.md) | PostgreSQL version compatibility |
+| [SECURITY.md](SECURITY.md) | Security best practices and deployment hardening |
+| [docker-setup.md](docker-setup.md) | Docker development environment setup |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflows and contribution guidelines |
+| [docs/operators.md](docs/operators.md) | WHERE clause operator reference |
+| [docs/collation.md](docs/collation.md) | Sorting and collation reference |
+| [benches/comparison-guide.md](benches/comparison-guide.md) | Benchmark comparison guide |
+| [.github/publishing.md](.github/publishing.md) | crates.io publishing workflow |
 
 ### Examples
 

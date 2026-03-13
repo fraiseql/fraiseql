@@ -172,7 +172,7 @@ pub async fn auth_callback(
 ) -> Response {
     // ── Surface OIDC provider errors immediately ──────────────────────────
     if let Some(err) = q.error {
-        let desc = q.error_description.unwrap_or_default();
+        let desc = q.error_description.as_deref().unwrap_or("(no description provided)");
         // Log the full provider response for debugging, but return only a
         // fixed allowlisted message to the client to avoid leaking internal
         // provider details (tenant info, stack traces) or enabling injection.
@@ -277,13 +277,16 @@ pub struct RevokeTokenRequest {
 /// Response body for token revocation.
 #[derive(Serialize)]
 pub struct RevokeTokenResponse {
+    /// Whether the token was successfully revoked.
     pub revoked: bool,
+    /// ISO-8601 timestamp at which the revocation record will expire, if known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
 }
 
 /// Shared state for revocation routes.
 pub struct RevocationRouteState {
+    /// Token revocation manager used to record and check revoked JTIs.
     pub revocation_manager: std::sync::Arc<crate::token_revocation::TokenRevocationManager>,
 }
 
@@ -377,6 +380,7 @@ pub struct RevokeAllRequest {
 /// Response body for bulk revocation.
 #[derive(Serialize)]
 pub struct RevokeAllResponse {
+    /// Number of token revocation records that were created.
     pub revoked_count: u64,
 }
 
@@ -412,6 +416,8 @@ pub async fn revoke_all_tokens(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use axum::{Router, body::Body, http::Request, routing::get};
     use tower::ServiceExt as _;
@@ -568,6 +574,23 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"].as_str().unwrap_or(""), "Authorization failed");
+    }
+
+    #[tokio::test]
+    async fn test_auth_callback_oidc_error_no_description_uses_fallback() {
+        let app = auth_router();
+        let req = Request::builder()
+            .uri("/auth/callback?error=access_denied")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        // The tracing log (not the HTTP response) includes the desc; the HTTP
+        // response is the sanitised allowlist message. We verify the handler does
+        // not panic and returns the mapped client message.
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"].as_str().unwrap_or(""), "Access was denied");
     }
 
     /// Full HTTP-level PKCE round-trip: `/auth/start` → extract state → `/auth/callback`.

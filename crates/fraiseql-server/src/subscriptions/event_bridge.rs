@@ -37,7 +37,7 @@ pub struct EventBridgeConfig {
 impl EventBridgeConfig {
     /// Create config with defaults
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             channel_capacity: 100,
         }
@@ -45,7 +45,7 @@ impl EventBridgeConfig {
 
     /// Set channel capacity
     #[must_use]
-    pub fn with_channel_capacity(mut self, capacity: usize) -> Self {
+    pub const fn with_channel_capacity(mut self, capacity: usize) -> Self {
         self.channel_capacity = capacity;
         self
     }
@@ -214,7 +214,7 @@ mod tests {
         let bridge = EventBridge::new(manager, config);
 
         // Verify bridge is created
-        assert!(bridge.sender().try_reserve().is_ok());
+        assert!(bridge.sender().try_reserve().is_ok(), "event bridge channel should have capacity for at least one message");
     }
 
     #[test]
@@ -287,7 +287,7 @@ mod tests {
 
         let subscription_event = EventBridge::convert_event(entity_event);
 
-        assert!(subscription_event.old_data.is_some());
+        assert!(subscription_event.old_data.is_some(), "update events should carry old_data for delta computation");
     }
 
     #[tokio::test]

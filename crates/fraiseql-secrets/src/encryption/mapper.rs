@@ -18,7 +18,10 @@
 //!
 //! # Usage Pattern
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: DatabaseFieldAdapter backed by a live SecretsManager.
+//! # async fn example(adapter: fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+//! use fraiseql_secrets::encryption::mapper::FieldMapper;
 //! // Create mapper with encrypted field configuration
 //! let mapper = FieldMapper::new(
 //!     adapter,
@@ -29,13 +32,9 @@
 //! let encrypted = mapper.encrypt_field("email", "user@example.com").await?;
 //!
 //! // On SELECT: decrypt ciphertext
-//! let plaintext = mapper.decrypt_field("email", &ciphertext).await?;
-//!
-//! // Batch operations
-//! let mappings = mapper.encrypt_fields(&[
-//!     ("email".to_string(), "user@example.com".to_string()),
-//!     ("name".to_string(), "John Doe".to_string()),
-//! ]).await?;
+//! let plaintext = mapper.decrypt_field("email", &encrypted).await?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Type Support
@@ -282,6 +281,7 @@ impl FieldMapper {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

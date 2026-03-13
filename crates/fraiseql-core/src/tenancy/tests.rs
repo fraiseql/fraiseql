@@ -2,6 +2,7 @@
 //!
 //! Tests for tenant isolation, filtering, and JWT extraction
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use serde_json::json;
 
 use crate::tenancy::TenantContext;
@@ -43,7 +44,7 @@ fn test_tenant_has_creation_timestamp() {
 
     // Timestamp should be ISO 8601 format
     assert!(!timestamp.is_empty());
-    assert!(timestamp.contains("T")); // ISO 8601 includes T separator
+    assert!(timestamp.contains('T')); // ISO 8601 includes T separator
 }
 
 /// Test that different tenants have similar creation times

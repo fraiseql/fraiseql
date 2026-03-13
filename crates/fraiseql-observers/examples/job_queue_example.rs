@@ -134,6 +134,7 @@ async fn main() -> fraiseql_observers::Result<()> {
             overflow_policy:         fraiseql_observers::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         },
         Arc::new(MockDeadLetterQueue::new()),
     )

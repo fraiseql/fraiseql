@@ -1,15 +1,18 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+
 //! Full Pipeline Performance Comparison: tokio-postgres vs fraiseql-wire
 //!
 //! This benchmark suite compares the **complete FraiseQL execution pipeline**:
 //! 1. Database query execution
 //! 2. Field projection (selecting only requested fields)
-//! 3. Field name transformation (snake_case → camelCase)
+//! 3. Field name transformation (`snake_case` → camelCase)
 //! 4. __typename addition
 //! 5. GraphQL data envelope wrapping
 //!
 //! This simulates real-world GraphQL query execution to measure the actual
-//! performance difference between PostgresAdapter (tokio-postgres) and
-//! FraiseWireAdapter (fraiseql-wire) in production scenarios.
+//! performance difference between `PostgresAdapter` (tokio-postgres) and
+//! `FraiseWireAdapter` (fraiseql-wire) in production scenarios.
 
 use std::time::Instant;
 
@@ -53,7 +56,7 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
 ///
 /// This simulates real GraphQL execution per-row:
 /// 1. Project fields (select only requested fields)
-/// 2. Transform snake_case keys to camelCase
+/// 2. Transform `snake_case` keys to camelCase
 /// 3. Add __typename field
 fn transform_single_row(result_value: Value, requested_fields: &[&str], type_name: &str) -> Value {
     let mut projected = Map::new();
@@ -159,7 +162,7 @@ fn bench_wire_full_pipeline_10k(c: &mut Criterion) {
     if !rt.block_on(verify_benchmark_data(&conn_str)) {
         eprintln!("Skipping benchmarks: Test data not found in v_benchmark_data");
         return;
-    };
+    }
 
     let mut group = c.benchmark_group("full_pipeline_10k");
     group.throughput(Throughput::Elements(10_000));

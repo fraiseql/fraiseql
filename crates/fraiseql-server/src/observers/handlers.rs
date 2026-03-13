@@ -6,7 +6,10 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use fraiseql_core::security::SecurityContext;
 use uuid::Uuid;
+
+use crate::extractors::OptionalSecurityContext;
 
 use super::{
     CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
@@ -16,6 +19,7 @@ use super::{
 /// Application state for observer handlers.
 #[derive(Clone)]
 pub struct ObserverState {
+    /// Repository used by all observer HTTP handlers.
     pub repository: ObserverRepository,
 }
 
@@ -24,11 +28,10 @@ pub struct ObserverState {
 /// GET /api/observers
 pub async fn list_observers(
     State(state): State<ObserverState>,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Query(query): Query<ListObserversQuery>,
 ) -> impl IntoResponse {
-    // Extract tenant/customer organization from request headers
-    // Falls back to None if not present in headers
-    let customer_org: Option<i64> = extract_customer_org_from_headers();
+    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
 
     match state.repository.list(&query, customer_org).await {
         Ok((observers, total_count)) => {
@@ -81,6 +84,7 @@ pub async fn get_observer(
 /// POST /api/observers
 pub async fn create_observer(
     State(state): State<ObserverState>,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Json(request): Json<CreateObserverRequest>,
 ) -> impl IntoResponse {
     // Validate request
@@ -114,9 +118,8 @@ pub async fn create_observer(
         }
     }
 
-    let customer_org: Option<i64> = extract_customer_org_from_headers();
-    // Extract user ID from auth context (auth header or session)
-    let created_by: Option<&str> = extract_user_id_from_headers();
+    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
+    let created_by: Option<&str> = extract_user_id(security_context.as_ref());
 
     match state.repository.create(&request, customer_org, created_by).await {
         Ok(observer) => (StatusCode::CREATED, Json(observer)).into_response(),
@@ -138,6 +141,7 @@ pub async fn create_observer(
 /// PATCH /api/observers/:id
 pub async fn update_observer(
     State(state): State<ObserverState>,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateObserverRequest>,
 ) -> impl IntoResponse {
@@ -155,9 +159,8 @@ pub async fn update_observer(
         }
     }
 
-    let customer_org: Option<i64> = extract_customer_org_from_headers();
-    // Extract user ID from auth context (auth header or session)
-    let updated_by: Option<&str> = extract_user_id_from_headers();
+    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
+    let updated_by: Option<&str> = extract_user_id(security_context.as_ref());
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
@@ -414,65 +417,19 @@ pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl I
 ///
 /// # Returns
 ///
-/// `Some(customer_org_id)` if tenant context exists, `None` otherwise.
+/// Extract tenant/customer-org identifier from the authenticated security context.
+///
+/// Parses `SecurityContext::tenant_id` (a string) as `i64`.
+/// Returns `None` if unauthenticated or if the tenant ID is absent or non-numeric.
 #[must_use]
-fn extract_customer_org_from_headers() -> Option<i64> {
-    // In a full implementation, this would extract from:
-    // 1. X-Tenant-Id header (if available)
-    // 2. JWT claims in auth context
-    // 3. Session store
-    //
-    // Example Axum extractor pattern:
-    // ```ignore
-    // use axum::extract::FromRequestParts;
-    // use axum::http::request::Parts;
-    // impl<S> FromRequestParts<S> for TenantId {
-    //     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
-    //         parts.headers.get("X-Tenant-Id")
-    //             .and_then(|h| h.to_str().ok())
-    //             .and_then(|s| s.parse::<i64>().ok())
-    //     }
-    // }
-    // ```
-    //
-    // For now, return None (safe default - no tenant filtering)
-    None
+fn extract_customer_org(ctx: Option<&SecurityContext>) -> Option<i64> {
+    ctx?.tenant_id.as_deref()?.parse::<i64>().ok()
 }
 
-/// Extract authenticated user ID from request context.
+/// Extract the authenticated user ID from the security context.
 ///
-/// In a full implementation, this would use Axum extractors to pull from
-/// the SecurityContext middleware. For now, returns None as a safe default.
-/// In production, integrate with your auth middleware to extract from:
-/// - JWT claims (sub field)
-/// - Session cookie
-/// - Authorization header
-///
-/// # Returns
-///
-/// `Some(user_id_str)` if user is authenticated, `None` otherwise.
+/// Returns `None` when the request is unauthenticated.
 #[must_use]
-fn extract_user_id_from_headers() -> Option<&'static str> {
-    // In a full implementation, this would extract from:
-    // 1. JWT claims (sub field - user_id)
-    // 2. Session context
-    // 3. Authorization header processing
-    //
-    // Example Axum extractor pattern:
-    // ```ignore
-    // use axum::extract::FromRequestParts;
-    // use axum::http::request::Parts;
-    // impl<S> FromRequestParts<S> for UserId {
-    //     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
-    //         // Extract from auth middleware that was run earlier
-    //         let extensions = parts.extensions();
-    //         extensions.get::<SecurityContext>()
-    //             .map(|ctx| ctx.user_id.clone())
-    //             .ok_or(rejection)
-    //     }
-    // }
-    // ```
-    //
-    // For now, return None (safe default - no user attribution)
-    None
+fn extract_user_id(ctx: Option<&SecurityContext>) -> Option<&str> {
+    Some(ctx?.user_id.as_str())
 }

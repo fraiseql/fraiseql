@@ -1,7 +1,7 @@
 //! Query stream with pause/resume/stats capabilities
 //!
-//! This stream combines JsonStream (with control methods) with optional filtering
-//! and type-safe deserialization. It exposes pause(), resume(), and stats() methods
+//! This stream combines `JsonStream` (with control methods) with optional filtering
+//! and type-safe deserialization. It exposes `pause()`, `resume()`, and `stats()` methods
 //! while implementing `Stream<Item = Result<T>>`.
 
 use crate::stream::JsonStream;
@@ -18,8 +18,8 @@ type Predicate = Box<dyn Fn(&Value) -> bool + Send>;
 
 /// Query stream with pause/resume/stats capabilities
 ///
-/// This stream combines JsonStream (with control methods) with optional filtering
-/// and type-safe deserialization. It exposes pause(), resume(), and stats() methods
+/// This stream combines `JsonStream` (with control methods) with optional filtering
+/// and type-safe deserialization. It exposes `pause()`, `resume()`, and `stats()` methods
 /// while implementing `Stream<Item = Result<T>>`.
 pub struct QueryStream<T: DeserializeOwned + Unpin> {
     /// Inner JSON stream (provides pause/resume/stats)

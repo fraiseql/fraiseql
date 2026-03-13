@@ -264,7 +264,7 @@ impl BoolAggregateFunction {
 }
 
 /// GraphQL type for aggregate results
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateType {
     /// Type name (e.g., "SalesAggregate")
     pub name:   String,
@@ -273,7 +273,7 @@ pub struct AggregateType {
 }
 
 /// Field in an aggregate result type
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateField {
     /// Field name
     pub name:       String,
@@ -286,7 +286,7 @@ pub struct AggregateField {
 }
 
 /// Kind of aggregate field
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateFieldKind {
     /// count field (always Int!)
     Count,
@@ -312,7 +312,7 @@ pub enum AggregateFieldKind {
 }
 
 /// GraphQL input type for GROUP BY
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupByInput {
     /// Input type name (e.g., "SalesGroupBy")
     pub name:   String,
@@ -321,7 +321,7 @@ pub struct GroupByInput {
 }
 
 /// Field in a GROUP BY input
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupByField {
     /// Field name
     pub name: String,
@@ -330,7 +330,7 @@ pub struct GroupByField {
 }
 
 /// Kind of GROUP BY field
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupByFieldKind {
     /// JSONB dimension
     Dimension {
@@ -347,7 +347,7 @@ pub enum GroupByFieldKind {
 }
 
 /// GraphQL input type for HAVING
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingInput {
     /// Input type name (e.g., "SalesHaving")
     pub name:   String,
@@ -356,7 +356,7 @@ pub struct HavingInput {
 }
 
 /// Field in a HAVING input
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingField {
     /// Field name (e.g., "revenue_sum_gt")
     pub name:       String,
@@ -810,6 +810,8 @@ impl AggregateTypeGenerator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::compiler::fact_table::{DimensionColumn, MeasureColumn};
 

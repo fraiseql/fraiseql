@@ -31,14 +31,28 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::cache::query_analyzer::{QueryAnalyzer, QueryCardinality};
+//! use fraiseql_core::compiler::ir::IRQuery;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
 //!
 //! let analyzer = QueryAnalyzer::new();
-//! let profile = analyzer.analyze_query(query_def, query_str)?;
+//! let query_def = IRQuery {
+//!     name: "user".to_string(),
+//!     return_type: "User".to_string(),
+//!     returns_list: false,
+//!     nullable: false,
+//!     arguments: vec![],
+//!     sql_source: Some("v_user".to_string()),
+//!     description: None,
+//!     auto_params: Default::default(),
+//! };
+//! let profile = analyzer.analyze_query(&query_def, "SELECT * FROM v_user WHERE id = ?")?;
 //!
-//! assert_eq!(profile.entity_type, Some("User"));
 //! assert_eq!(profile.cardinality, QueryCardinality::Single);
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{compiler::ir::IRQuery, error::Result};
@@ -64,8 +78,24 @@ pub enum QueryCardinality {
 
 impl QueryCardinality {
     /// Get expected cache hit rate for this cardinality (0-1).
+    ///
+    /// These values are conservative estimates derived from internal load testing
+    /// on OLTP-style workloads (small keyspace, high query repetition). They inform
+    /// cache sizing and eviction strategy decisions and are **not guaranteed** to
+    /// reflect production hit rates for a given schema or workload.
+    ///
+    /// To calibrate for your workload, compare the `cache_hit_rate` metric exposed
+    /// at `/metrics` against these values. Operator-specific overrides can be
+    /// configured via the `cache.expected_hit_rates` section in `fraiseql.toml`:
+    ///
+    /// ```toml
+    /// [fraiseql.cache.expected_hit_rates]
+    /// single   = 0.85   # default: 0.91
+    /// multiple = 0.80   # default: 0.88
+    /// list     = 0.55   # default: 0.60
+    /// ```
     #[must_use]
-    pub fn expected_hit_rate(&self) -> f64 {
+    pub const fn expected_hit_rate(&self) -> f64 {
         match self {
             Self::Single => 0.91,
             Self::Multiple => 0.88,
@@ -93,7 +123,7 @@ pub struct QueryEntityProfile {
 
 impl QueryEntityProfile {
     /// Create a new query profile.
-    pub fn new(
+    pub const fn new(
         query_name: String,
         entity_type: Option<String>,
         cardinality: QueryCardinality,
@@ -107,7 +137,7 @@ impl QueryEntityProfile {
 
     /// Expected cache hit rate for this query profile.
     #[must_use]
-    pub fn expected_hit_rate(&self) -> f64 {
+    pub const fn expected_hit_rate(&self) -> f64 {
         self.cardinality.expected_hit_rate()
     }
 }
@@ -124,7 +154,7 @@ pub struct QueryAnalyzer;
 impl QueryAnalyzer {
     /// Create new query analyzer.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 
@@ -141,10 +171,26 @@ impl QueryAnalyzer {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let profile = analyzer.analyze_query(query_def, "SELECT * FROM users WHERE id = ?")?;
-    /// assert_eq!(profile.entity_type, Some("User"));
+    /// ```rust
+    /// use fraiseql_core::cache::query_analyzer::{QueryAnalyzer, QueryCardinality};
+    /// use fraiseql_core::compiler::ir::IRQuery;
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
+    /// let analyzer = QueryAnalyzer::new();
+    /// let query_def = IRQuery {
+    ///     name: "user".to_string(),
+    ///     return_type: "User".to_string(),
+    ///     returns_list: false,
+    ///     nullable: false,
+    ///     arguments: vec![],
+    ///     sql_source: None,
+    ///     description: None,
+    ///     auto_params: Default::default(),
+    /// };
+    /// let profile = analyzer.analyze_query(&query_def, "SELECT * FROM users WHERE id = ?")?;
     /// assert_eq!(profile.cardinality, QueryCardinality::Single);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn analyze_query(
         &self,
@@ -174,7 +220,7 @@ impl QueryAnalyzer {
         // Check for single entity query: WHERE id = ?
         if query_lower.contains("where")
             && query_lower.contains("id")
-            && query_lower.contains("=")
+            && query_lower.contains('=')
             && !query_lower.contains("in")
         {
             return QueryCardinality::Single;

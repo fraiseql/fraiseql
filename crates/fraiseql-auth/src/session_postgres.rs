@@ -1,4 +1,4 @@
-// PostgreSQL SessionStore implementation
+//! PostgreSQL-backed [`SessionStore`] implementation.
 use async_trait::async_trait;
 use sqlx::{Row, postgres::PgPool};
 
@@ -108,6 +108,9 @@ impl PostgresSessionStore {
     }
 }
 
+// Reason: SessionStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl SessionStore for PostgresSessionStore {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {

@@ -28,7 +28,7 @@
 //! cargo test --test tls_integration -- --ignored --nocapture
 //! ```
 //!
-//! 2. In CI (with GitHub Actions setup - see ci.yml)
+//! 2. In CI (with `GitHub` Actions setup - see ci.yml)
 
 use fraiseql_wire::connection::TlsConfig;
 
@@ -101,7 +101,7 @@ mod tls_integration {
     use serde_json::Value;
     use std::env;
 
-    /// Panics if TLS_TEST_DB_URL is not set (tests using this are `#[ignore]`).
+    /// Panics if `TLS_TEST_DB_URL` is not set (tests using this are `#[ignore]`).
     fn require_tls_test_config() -> (String, Option<String>) {
         let db_url =
             env::var("TLS_TEST_DB_URL").expect("TLS_TEST_DB_URL must be set to run this test");

@@ -168,6 +168,7 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
 ### Immediate (0-5 minutes)
 
 1. **Identify the slowest queries being run**
+
    ```bash
    # Log all queries with timing for next few minutes
    export RUST_LOG=fraiseql=debug
@@ -177,6 +178,7 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    ```
 
 2. **Kill any long-running transactions**
+
    ```bash
    # Find transactions older than 5 minutes
    psql $DATABASE_URL << 'EOF'
@@ -196,6 +198,7 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    ```
 
 3. **Enable query result caching** (if available)
+
    ```bash
    # Set environment variable for cache duration
    export FRAISEQL_QUERY_CACHE_TTL=300  # 5 minute cache
@@ -203,6 +206,7 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    ```
 
 4. **Reduce database connection pool timeout**
+
    ```bash
    # Fail fast instead of waiting for pool exhaustion
    export FRAISEQL_DB_POOL_TIMEOUT=5  # seconds
@@ -211,7 +215,8 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
 
 ### Short-term (5-30 minutes)
 
-5. **Run VACUUM and ANALYZE**
+1. **Run VACUUM and ANALYZE**
+
    ```bash
    # Full maintenance (may take time on large databases)
    psql $DATABASE_URL << 'EOF'
@@ -224,7 +229,8 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    EOF
    ```
 
-6. **Reindex bloated tables**
+2. **Reindex bloated tables**
+
    ```bash
    # Find and reindex high-bloat indexes
    psql $DATABASE_URL << 'EOF'
@@ -232,7 +238,8 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    EOF
    ```
 
-7. **Increase work_mem for complex queries** (if self-hosted PostgreSQL)
+3. **Increase work_mem for complex queries** (if self-hosted PostgreSQL)
+
    ```bash
    # Temporary: Increase memory for sorting/hash joins
    psql $DATABASE_URL << 'EOF'

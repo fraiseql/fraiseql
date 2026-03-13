@@ -12,7 +12,7 @@ use uuid::Uuid;
 /// An observer event record for Arrow Flight querying.
 ///
 /// This is a simplified representation suitable for analytics queries.
-/// The full EntityEvent structure is in fraiseql-observers.
+/// The full `EntityEvent` structure is in fraiseql-observers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoricalEvent {
     /// Unique event ID
@@ -41,8 +41,10 @@ pub struct HistoricalEvent {
 /// # Example Implementations
 ///
 /// - PostgreSQL: Query from a `fraiseql_events` table
-/// - DuckDB: Query from Parquet files in cloud storage
-/// - ClickHouse: Query from a distributed events table
+/// - `DuckDB`: Query from Parquet files in cloud storage
+/// - `ClickHouse`: Query from a distributed events table
+// Reason: used as dyn Trait (Arc<dyn EventStorage>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait EventStorage: Send + Sync {
     /// Query historical events by entity type and optional date range.

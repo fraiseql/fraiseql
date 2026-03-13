@@ -1,0 +1,21 @@
+coverage:
+  precision: 2
+  round: down
+  range: "60...100"
+
+  status:
+    project:
+      default:
+        target: auto        # compare to base commit; fail if coverage drops
+        threshold: 1%       # allow up to 1% drop before failing
+    patch:
+      default:
+        target: 60%         # every PR must cover 60% of its own new lines
+        threshold: 5%
+
+ignore:
+  # Adapter implementations require a live database and cannot be unit-tested
+  - "crates/fraiseql-core/src/db/postgres/adapter.rs"
+  - "crates/fraiseql-core/src/db/mysql/adapter.rs"
+  - "crates/fraiseql-core/src/db/sqlserver/adapter.rs"
+  - "crates/fraiseql-core/src/db/sqlite/adapter.rs"

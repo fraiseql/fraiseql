@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline 3 integration tests — mutation error-type field population.
 //!
 //! Tests that when a mutation returns a failure status, the executor populates
@@ -5,14 +7,15 @@
 //! guard).
 //!
 //! Golden fixture 04 has `DuplicateEmailError` and `ValidationError` types with
-//! `is_error: true` and scalar fields (String, Int, DateTime, UUID).
+//! `is_error: true` and scalar fields (String, Int, `DateTime`, UUID).
 
+#![allow(clippy::literal_string_with_formatting_args)] // Reason: test expected strings contain format-like patterns that are literal data, not format args
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -31,12 +34,14 @@ struct ErrorMockAdapter {
 }
 
 impl ErrorMockAdapter {
-    fn with_row(response_row: HashMap<String, serde_json::Value>) -> Self {
+    const fn with_row(response_row: HashMap<String, serde_json::Value>) -> Self {
         Self { response_row }
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for ErrorMockAdapter {
     async fn execute_with_projection(
         &self,
@@ -82,6 +87,14 @@ impl DatabaseAdapter for ErrorMockAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -90,6 +103,8 @@ impl DatabaseAdapter for ErrorMockAdapter {
         Ok(vec![self.response_row.clone()])
     }
 }
+
+impl MutationCapable for ErrorMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Error type mutation result population
@@ -128,7 +143,7 @@ async fn mutation_error_status_produces_graphql_level_response() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await;
@@ -175,7 +190,7 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await;
@@ -218,7 +233,7 @@ async fn mutation_generic_error_status_produces_valid_response() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await;
@@ -263,7 +278,7 @@ async fn mutation_success_status_includes_entity_in_data() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await

@@ -55,7 +55,7 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") && field_type.contains("]") {
+                        if field_type.contains('[') && field_type.contains(']') {
                             // Extract inner type
                             let inner_type = field_type
                                 .trim_start_matches('[')
@@ -64,11 +64,13 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                                 .to_string();
 
                             // Calculate compound complexity
-                            let base_multiplier = field
-                                .get("complexity_multiplier")
-                                .and_then(|v| v.as_u64())
-                                .unwrap_or(0)
-                                as u32;
+                            let base_multiplier = u32::try_from(
+                                field
+                                    .get("complexity_multiplier")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(0),
+                            )
+                            .unwrap_or(u32::MAX);
                             let inner_multiplier =
                                 type_multipliers.get(&inner_type).copied().unwrap_or(0);
                             let compound = u32::try_from(
@@ -113,11 +115,11 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
                 for field in fields {
                     // Check if field is a list type
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") && field_type.contains("]") {
+                        if field_type.contains('[') && field_type.contains(']') {
                             // Check if it has a non-null default limit
                             // The key is that we must have an explicit, non-null default_limit
                             let has_default_limit =
-                                field.get("default_limit").map(|v| !v.is_null()).unwrap_or(false);
+                                field.get("default_limit").is_some_and(|v| !v.is_null());
 
                             if !has_default_limit {
                                 let field_name =
@@ -155,10 +157,10 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") {
+                        if field_type.contains('[') {
                             type_map
                                 .entry(type_name.clone())
-                                .or_insert_with(Vec::new)
+                                .or_default()
                                 .push(field_type.to_string());
                         }
                     }
@@ -173,7 +175,7 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") {
+                        if field_type.contains('[') {
                             // Extract the inner type name
                             let inner_type = field_type
                                 .trim_matches('[')

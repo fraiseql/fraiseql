@@ -1,5 +1,6 @@
 //! Tests for compiled schema types.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use field_type::{DistanceMetric, VectorConfig, VectorIndexType};
 
 use super::*;
@@ -207,8 +208,10 @@ fn test_schema_to_json_roundtrip() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
+        ..CompiledSchema::default()
     };
 
     let json = schema.to_json().unwrap();
@@ -402,8 +405,10 @@ fn test_operation_count() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
+        ..CompiledSchema::default()
     };
 
     assert_eq!(schema.operation_count(), 4); // 2 queries + 1 mutation + 1 subscription
@@ -778,8 +783,10 @@ fn test_vector_field_roundtrip() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
+        ..CompiledSchema::default()
     };
 
     let json = schema.to_json().unwrap();
@@ -852,4 +859,31 @@ fn test_python_generated_vector_schema_compat() {
 
     // Verify validation passes
     assert!(schema.validate().is_ok());
+}
+
+
+#[test]
+fn test_compiled_schema_has_version_after_stamp() {
+    let schema = CompiledSchema {
+        schema_format_version: Some(CURRENT_SCHEMA_FORMAT_VERSION),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&schema).unwrap();
+    let reloaded: CompiledSchema = serde_json::from_str(&json).unwrap();
+    assert_eq!(reloaded.schema_format_version, Some(CURRENT_SCHEMA_FORMAT_VERSION));
+    assert!(reloaded.validate_format_version().is_ok());
+}
+
+#[test]
+fn test_future_schema_version_is_rejected() {
+    let schema = CompiledSchema { schema_format_version: Some(999), ..Default::default() };
+    assert!(schema.validate_format_version().is_err());
+}
+
+#[test]
+fn test_legacy_schema_without_version_warns_but_loads() {
+    // schema_format_version = None simulates a pre-v2.1 compiled schema
+    let schema = CompiledSchema::default();
+    // Should return Ok (callers log a warning, but do not reject)
+    assert!(schema.validate_format_version().is_ok());
 }

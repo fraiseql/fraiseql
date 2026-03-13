@@ -1,12 +1,16 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Tests end-to-end analytics functionality:
 //! - Fact table metadata in schema
 //! - Validator rejects invalid schemas
 //! - Query routing dispatcher works correctly
 //! - Aggregate query execution
 
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for readability
+#![allow(clippy::items_after_statements)] // Reason: test-local use statements after variable declarations
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     compiler::{
         fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
@@ -15,7 +19,7 @@ use fraiseql_core::{
         validator::SchemaValidator,
     },
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::{WhereClause, WhereOperator},
     },
@@ -23,6 +27,7 @@ use fraiseql_core::{
     runtime::{Executor, aggregation::AggregationSqlGenerator},
     schema::{CompiledSchema, SqlProjectionHint},
 };
+use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder};
 use serde_json::json;
 
 /// Mock database adapter for testing
@@ -31,12 +36,14 @@ struct MockAdapter {
 }
 
 impl MockAdapter {
-    fn new(mock_results: Vec<JsonbValue>) -> Self {
+    const fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self { mock_results }
     }
 }
 
-#[async_trait]
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
 impl DatabaseAdapter for MockAdapter {
     async fn execute_with_projection(
         &self,
@@ -87,6 +94,17 @@ impl DatabaseAdapter for MockAdapter {
         Ok(vec![result])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let mut result = HashMap::new();
+        result.insert("count".to_string(), json!(10));
+        result.insert("revenue_sum".to_string(), json!(1500.50));
+        Ok(vec![result])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -97,26 +115,24 @@ impl DatabaseAdapter for MockAdapter {
 
 }
 
+impl MutationCapable for MockAdapter {}
+
 /// Test that schema with fact tables can be parsed and validated
 #[test]
 fn test_schema_with_fact_tables_validation() {
     let mut ir = AuthoringIR::new();
 
     // Add fact table metadata
-    let metadata = json!({
-        "table_name": "tf_sales",
-        "measures": [
-            {"name": "revenue", "sql_type": "Decimal", "nullable": false},
-            {"name": "quantity", "sql_type": "Int", "nullable": false}
+    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
+            MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
+            MeasureColumn { name: "quantity".to_string(), sql_type: SqlType::Int, nullable: false },
         ],
-        "dimensions": {
-            "name": "data",
-            "paths": []
-        },
-        "denormalized_filters": []
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    ir.fact_tables.insert("tf_sales".to_string(), metadata);
 
     // Validate
     let validator = SchemaValidator::new();
@@ -130,12 +146,13 @@ fn test_schema_with_fact_tables_validation() {
 fn test_validator_rejects_invalid_fact_table_prefix() {
     let mut ir = AuthoringIR::new();
 
-    let metadata = json!({
-        "measures": [{"name": "revenue", "sql_type": "Decimal"}],
-        "dimensions": {"name": "data"}
-    });
-
-    ir.fact_tables.insert("sales".to_string(), metadata); // Missing tf_ prefix
+    ir.fact_tables.insert("sales".to_string(), FactTableMetadata {
+        table_name:           "sales".to_string(),
+        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+    }); // Missing tf_ prefix
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -152,11 +169,13 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
 fn test_validator_rejects_fact_table_without_measures() {
     let mut ir = AuthoringIR::new();
 
-    let metadata = json!({
-        "dimensions": {"name": "data"}
+    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    ir.fact_tables.insert("tf_sales".to_string(), metadata);
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -164,7 +183,7 @@ fn test_validator_rejects_fact_table_without_measures() {
     assert!(result.is_err());
     if let Err(e) = result {
         let error_msg = format!("{}", e);
-        assert!(error_msg.contains("missing 'measures' field"));
+        assert!(error_msg.contains("must have at least one measure"));
     }
 }
 
@@ -288,19 +307,13 @@ async fn test_executor_classifies_aggregate_query() {
     let mut schema = CompiledSchema::new();
 
     // Add fact table metadata
-    let metadata = json!({
-        "table_name": "tf_sales",
-        "measures": [
-            {"name": "revenue", "sql_type": "Decimal", "nullable": false}
-        ],
-        "dimensions": {
-            "name": "data",
-            "paths": []
-        },
-        "denormalized_filters": []
+    schema.add_fact_table("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    schema.add_fact_table("tf_sales".to_string(), metadata);
 
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
@@ -371,8 +384,7 @@ fn test_end_to_end_fact_table_flow() {
     assert_eq!(validated_ir.types.len(), 1);
 
     let fact_table = validated_ir.fact_tables.get("tf_sales").unwrap();
-    let measures = fact_table["measures"].as_array().unwrap();
-    assert_eq!(measures.len(), 2);
+    assert_eq!(fact_table.measures.len(), 2);
 
     let aggregate_type = &validated_ir.types[0];
     assert_eq!(aggregate_type.name, "SalesAggregate");
@@ -381,32 +393,16 @@ fn test_end_to_end_fact_table_flow() {
 
 // Helper functions
 
+// Migration 1: create_test_schema
 fn create_test_schema() -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
-
-    use fraiseql_core::schema::{AutoParams, QueryDefinition};
-
-    schema.queries.push(QueryDefinition {
-        name:         "users".to_string(),
-        return_type:  "User".to_string(),
-        returns_list: true,
-        nullable:     false,
-        arguments:    Vec::new(),
-        sql_source:   Some("v_user".to_string()),
-        description:  None,
-        auto_params:  AutoParams::default(),
-        deprecation:  None,
-        jsonb_column: "data".to_string(),
-        relay: false,
-        relay_cursor_column: None,
-        relay_cursor_type: Default::default(),
-        inject_params: Default::default(),
-        cache_ttl_seconds:   None,
-        additional_views: vec![],
-        requires_role:       None,
-    });
-
-    schema
+    TestSchemaBuilder::new()
+        .with_query(
+            TestQueryBuilder::new("users", "User")
+                .returns_list(true)
+                .with_sql_source("v_user")
+                .build(),
+        )
+        .build()
 }
 
 fn mock_user_results() -> Vec<JsonbValue> {
@@ -460,12 +456,13 @@ fn test_where_denormalized_filter() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("customer_id"));
-    assert!(sql.contains("="));
-    assert!(sql.contains("550e8400-e29b-41d4-a716-446655440000"));
+    assert!(sql.contains('='));
+    assert!(params.contains(&json!("550e8400-e29b-41d4-a716-446655440000")));
     // Should be direct column, not JSONB
     assert!(!sql.contains("->"));
 }
@@ -481,12 +478,13 @@ fn test_where_jsonb_dimension() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("data->>'category'"));
-    assert!(sql.contains("="));
-    assert!(sql.contains("electronics"));
+    assert!(sql.contains('='));
+    assert!(params.contains(&json!("electronics")));
 }
 
 /// Test WHERE clause with AND operator (denormalized + JSONB)
@@ -507,7 +505,8 @@ fn test_where_and_operator() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("customer_id"));
     assert!(sql.contains("data->>'category'"));
@@ -532,12 +531,13 @@ fn test_where_or_operator() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("data->>'category'"));
     assert!(sql.contains(" OR "));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
 }
 
 /// Test WHERE clause with NOT operator
@@ -551,7 +551,8 @@ fn test_where_not_operator() {
     }));
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("NOT"));
     assert!(sql.contains("data->>'category'"));
@@ -569,8 +570,9 @@ fn test_where_comparison_operators() {
         value:    json!("2024-01-01"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains(">"));
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
+    assert!(sql.contains('>'));
 
     // Test Lte
     let where_clause = WhereClause::Field {
@@ -578,7 +580,8 @@ fn test_where_comparison_operators() {
         operator: WhereOperator::Lte,
         value:    json!("2024-12-31"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("<="));
 }
 
@@ -593,12 +596,13 @@ fn test_where_in_operator() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("IN"));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
-    assert!(sql.contains("clothing"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
+    assert!(params.contains(&json!("clothing")));
 }
 
 /// Test WHERE clause with LIKE operator
@@ -613,9 +617,10 @@ fn test_where_like_operators() {
         value:    json!("electr"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("LIKE"));
-    assert!(sql.contains("%electr%"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%electr%")));
 
     // Test Startswith (LIKE 'value%')
     let where_clause = WhereClause::Field {
@@ -623,8 +628,10 @@ fn test_where_like_operators() {
         operator: WhereOperator::Startswith,
         value:    json!("electr"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains("'electr%'"));
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
+    assert!(sql.contains("LIKE"));
+    assert!(params.iter().any(|p| p.as_str() == Some("electr%")));
 
     // Test Endswith (LIKE '%value')
     let where_clause = WhereClause::Field {
@@ -632,8 +639,10 @@ fn test_where_like_operators() {
         operator: WhereOperator::Endswith,
         value:    json!("onics"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains("'%onics'"));
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
+    assert!(sql.contains("LIKE"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%onics")));
 }
 
 /// Test WHERE clause with case-insensitive operators (PostgreSQL)
@@ -647,11 +656,12 @@ fn test_where_case_insensitive_postgresql() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // PostgreSQL should use ILIKE
     assert!(sql.contains("ILIKE"));
-    assert!(sql.contains("%ELECTR%"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%ELECTR%")));
 }
 
 /// Test WHERE clause with case-insensitive operators (MySQL - uses UPPER)
@@ -665,7 +675,8 @@ fn test_where_case_insensitive_mysql() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // MySQL should use UPPER() for case-insensitive
     assert!(sql.contains("UPPER"));
@@ -683,7 +694,8 @@ fn test_where_is_null_operator() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("IS NULL"));
     assert!(sql.contains("data->>'category'"));
@@ -701,22 +713,26 @@ fn test_where_multi_database_compatibility() {
 
     // PostgreSQL: data->>'category'
     let pg = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = pg.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = pg.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("data->>'category'"));
 
     // MySQL: JSON_UNQUOTE(JSON_EXTRACT(...))
     let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = mysql.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = mysql.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("JSON_EXTRACT") || sql.contains("JSON_UNQUOTE"));
 
     // SQLite: json_extract(...)
     let sqlite = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = sqlite.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = sqlite.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("json_extract"));
 
     // SQL Server: JSON_VALUE(...)
     let mssql = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = mssql.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = mssql.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("JSON_VALUE"));
 }
 
@@ -727,7 +743,8 @@ fn test_where_empty_clause() {
     let where_clause = WhereClause::And(vec![]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // Empty WHERE should return empty string (no WHERE keyword)
     assert_eq!(sql, "");
@@ -760,12 +777,13 @@ fn test_where_complex_nested() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("customer_id"));
     assert!(sql.contains("data->>'category'"));
     assert!(sql.contains(" AND "));
     assert!(sql.contains(" OR "));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
 }
