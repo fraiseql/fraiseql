@@ -2,6 +2,13 @@
 //!
 //! JWKS fetching, caching, and key-selection logic lives in [`super::jwks`].
 
+/// Maximum byte size for an OIDC discovery document.
+///
+/// A well-formed `.well-known/openid-configuration` response is a few `KiB`.
+/// 64 `KiB` is generous while blocking allocation-bomb responses from
+/// a malicious or misconfigured OIDC provider.
+pub(super) const MAX_DISCOVERY_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
+
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -83,11 +90,23 @@ impl OidcValidator {
                 )));
             }
 
-            let discovery: OidcDiscoveryDocument = response.json().await.map_err(|e| {
+            let body_bytes = response.bytes().await.map_err(|e| {
                 SecurityError::SecurityConfigError(format!(
-                    "Invalid OIDC discovery response: {e}"
+                    "Failed to read OIDC discovery response: {e}"
                 ))
             })?;
+            if body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {
+                return Err(SecurityError::SecurityConfigError(format!(
+                    "OIDC discovery response too large ({} bytes, max {MAX_DISCOVERY_RESPONSE_BYTES})",
+                    body_bytes.len()
+                )));
+            }
+            let discovery: OidcDiscoveryDocument =
+                serde_json::from_slice(&body_bytes).map_err(|e| {
+                    SecurityError::SecurityConfigError(format!(
+                        "Invalid OIDC discovery response: {e}"
+                    ))
+                })?;
 
             tracing::info!(
                 issuer = %discovery.issuer,
@@ -111,9 +130,15 @@ impl OidcValidator {
     /// Use this for testing or when you have the JWKS URI directly.
     #[must_use]
     pub fn with_jwks_uri(config: OidcConfig, jwks_uri: String) -> Self {
+        // Use the same 30-second timeout as `new()` to prevent indefinitely
+        // blocked JWKS fetches when the endpoint is slow or hung.
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_default();
         Self {
             config,
-            http_client: reqwest::Client::new(),
+            http_client,
             jwks_cache: Arc::new(RwLock::new(None)),
             jwks_uri,
         }

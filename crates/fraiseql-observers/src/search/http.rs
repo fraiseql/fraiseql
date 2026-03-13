@@ -3,11 +3,24 @@
 //! Uses the `http` and `reqwest` crates to communicate with Elasticsearch,
 //! avoiding a tight dependency on the elasticsearch crate.
 
+use std::time::Duration;
+
 use reqwest::Client;
 use serde_json::{Value, json};
 
 use super::{IndexedEvent, SearchBackend};
 use crate::error::{ObserverError, Result};
+
+/// Default timeout for all Elasticsearch HTTP requests.
+const ES_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum byte size for an Elasticsearch search response.
+///
+/// Elasticsearch search results are bounded by the `size` parameter in the
+/// query, but the HTTP layer has no built-in cap. 50 `MiB` is a generous
+/// ceiling that still prevents runaway allocations from a misconfigured or
+/// compromised Elasticsearch node.
+const MAX_ES_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
 
 /// HTTP-based Elasticsearch search backend.
 ///
@@ -27,10 +40,11 @@ impl HttpSearchBackend {
     /// * `es_url` - Elasticsearch base URL (e.g., "<http://localhost:9200>")
     #[must_use]
     pub fn new(es_url: String) -> Self {
-        Self {
-            client: Client::new(),
-            es_url,
-        }
+        let client = Client::builder()
+            .timeout(ES_REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default();
+        Self { client, es_url }
     }
 
     /// Check if Elasticsearch is reachable.
@@ -183,9 +197,21 @@ impl SearchBackend for HttpSearchBackend {
             }
         })?;
 
-        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to parse search response: {e}"),
+        let body_bytes = response.bytes().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to read search response: {e}"),
         })?;
+        if body_bytes.len() > MAX_ES_RESPONSE_BYTES {
+            return Err(ObserverError::DatabaseError {
+                reason: format!(
+                    "Elasticsearch response too large ({} bytes, max {MAX_ES_RESPONSE_BYTES})",
+                    body_bytes.len()
+                ),
+            });
+        }
+        let body: Value =
+            serde_json::from_slice(&body_bytes).map_err(|e| ObserverError::DatabaseError {
+                reason: format!("Failed to parse search response: {e}"),
+            })?;
 
         let mut results = Vec::new();
         if let Some(hits) = body["hits"]["hits"].as_array() {
@@ -226,9 +252,21 @@ impl SearchBackend for HttpSearchBackend {
             }
         })?;
 
-        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to parse search response: {e}"),
+        let body_bytes = response.bytes().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to read entity search response: {e}"),
         })?;
+        if body_bytes.len() > MAX_ES_RESPONSE_BYTES {
+            return Err(ObserverError::DatabaseError {
+                reason: format!(
+                    "Elasticsearch response too large ({} bytes, max {MAX_ES_RESPONSE_BYTES})",
+                    body_bytes.len()
+                ),
+            });
+        }
+        let body: Value =
+            serde_json::from_slice(&body_bytes).map_err(|e| ObserverError::DatabaseError {
+                reason: format!("Failed to parse entity search response: {e}"),
+            })?;
 
         let mut results = Vec::new();
         if let Some(hits) = body["hits"]["hits"].as_array() {
@@ -276,9 +314,21 @@ impl SearchBackend for HttpSearchBackend {
             }
         })?;
 
-        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to parse search response: {e}"),
+        let body_bytes = response.bytes().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to read time range search response: {e}"),
         })?;
+        if body_bytes.len() > MAX_ES_RESPONSE_BYTES {
+            return Err(ObserverError::DatabaseError {
+                reason: format!(
+                    "Elasticsearch response too large ({} bytes, max {MAX_ES_RESPONSE_BYTES})",
+                    body_bytes.len()
+                ),
+            });
+        }
+        let body: Value =
+            serde_json::from_slice(&body_bytes).map_err(|e| ObserverError::DatabaseError {
+                reason: format!("Failed to parse time range search response: {e}"),
+            })?;
 
         let mut results = Vec::new();
         if let Some(hits) = body["hits"]["hits"].as_array() {
@@ -415,5 +465,79 @@ mod tests {
         assert_eq!(results.len(), 1, "one hit should be returned");
         assert_eq!(results[0].entity_type, "Order");
         assert_eq!(results[0].tenant_id, "tenant-1");
+    }
+
+    // ── S22-H3: Elasticsearch response size caps ───────────────────────────────
+
+    #[test]
+    fn es_client_timeout_constant_is_reasonable() {
+        // 30 seconds — long enough for slow clusters, short enough to avoid hangs.
+        assert!(
+            ES_REQUEST_TIMEOUT.as_secs() > 0 && ES_REQUEST_TIMEOUT.as_secs() <= 120,
+            "ES timeout should be between 1 and 120 seconds"
+        );
+    }
+
+    #[test]
+    fn es_response_cap_constant_is_reasonable() {
+        // 50 MiB — generous for large result sets, bounded for safety.
+        assert!(MAX_ES_RESPONSE_BYTES >= 1024 * 1024, "cap must be at least 1 MiB");
+        assert!(MAX_ES_RESPONSE_BYTES <= 200 * 1024 * 1024, "cap must not exceed 200 MiB");
+    }
+
+    #[tokio::test]
+    async fn search_oversized_response_is_rejected() {
+        let mock = MockServer::start().await;
+
+        let oversized = vec![b'x'; MAX_ES_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/_search"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let result = backend.search("query", "tenant", 10).await;
+        assert!(result.is_err(), "oversized search response must be rejected");
+        let reason = match result.unwrap_err() {
+            ObserverError::DatabaseError { reason } => reason,
+            e => panic!("expected DatabaseError, got {e:?}"),
+        };
+        assert!(
+            reason.contains("too large"),
+            "error must mention size limit: {reason}"
+        );
+    }
+
+    #[tokio::test]
+    async fn search_entity_oversized_response_is_rejected() {
+        let mock = MockServer::start().await;
+
+        let oversized = vec![b'x'; MAX_ES_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/_search"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let result = backend.search_entity("Order", "entity-1", "tenant").await;
+        assert!(result.is_err(), "oversized entity search response must be rejected");
+    }
+
+    #[tokio::test]
+    async fn search_time_range_oversized_response_is_rejected() {
+        let mock = MockServer::start().await;
+
+        let oversized = vec![b'x'; MAX_ES_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/_search"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let result = backend.search_time_range(0, 1_000_000, "tenant", 10).await;
+        assert!(result.is_err(), "oversized time-range response must be rejected");
     }
 }

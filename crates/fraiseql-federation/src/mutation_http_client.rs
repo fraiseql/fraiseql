@@ -10,6 +10,13 @@ use serde_json::Value;
 use fraiseql_error::{FraiseQLError, Result};
 use crate::{metadata_helpers::find_federation_type, types::FederationMetadata};
 
+/// Maximum byte size for a federated mutation response.
+///
+/// GraphQL responses for mutations are typically small (a few `KiB`).
+/// 10 `MiB` is generous for responses carrying bulk data while blocking
+/// allocation-bomb payloads from a compromised or misconfigured subgraph.
+const MAX_MUTATION_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+
 /// Configuration for HTTP mutation client
 #[derive(Debug, Clone)]
 pub struct HttpMutationConfig {
@@ -194,9 +201,25 @@ impl HttpMutationClient {
 
             match client.post(url).json(request).send().await {
                 Ok(response) if response.status().is_success() => {
-                    return response.json().await.map_err(|e| FraiseQLError::Internal {
-                        message: format!("Failed to parse GraphQL response: {}", e),
-                        source:  None,
+                    let body_bytes =
+                        response.bytes().await.map_err(|e| FraiseQLError::Internal {
+                            message: format!("Failed to read GraphQL response: {}", e),
+                            source:  None,
+                        })?;
+                    if body_bytes.len() > MAX_MUTATION_RESPONSE_BYTES {
+                        return Err(FraiseQLError::Internal {
+                            message: format!(
+                                "Federation mutation response too large ({} bytes, max {MAX_MUTATION_RESPONSE_BYTES})",
+                                body_bytes.len()
+                            ),
+                            source: None,
+                        });
+                    }
+                    return serde_json::from_slice(&body_bytes).map_err(|e| {
+                        FraiseQLError::Internal {
+                            message: format!("Failed to parse GraphQL response: {}", e),
+                            source:  None,
+                        }
                     });
                 },
                 Ok(response) => {
@@ -367,5 +390,68 @@ mod tests {
         let var_defs = client.build_variable_definitions(&variables).unwrap();
         assert!(var_defs.contains("$count: Int!"));
         assert!(var_defs.contains("$price: Int!"));
+    }
+
+    // ── S22-H2: Federation mutation response size cap ─────────────────────────
+
+    #[tokio::test]
+    async fn mutation_response_oversized_is_rejected() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+
+        // Return a body exceeding MAX_MUTATION_RESPONSE_BYTES
+        let oversized = vec![b'x'; MAX_MUTATION_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let config = HttpMutationConfig::default();
+        let client = HttpMutationClient::new(config).unwrap();
+        let url = format!("{}/graphql", mock.uri());
+        let request = GraphQLRequest {
+            query:     "mutation { dummy }".to_string(),
+            variables: json!({}),
+        };
+        let reqwest_client = reqwest::Client::new();
+        let result = client.execute_with_retry(&reqwest_client, &url, &request).await;
+
+        assert!(result.is_err(), "oversized mutation response must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("too large"),
+            "error must mention size limit: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mutation_response_within_limit_is_parsed() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"ok": true}, "errors": null})),
+            )
+            .mount(&mock)
+            .await;
+
+        let config = HttpMutationConfig::default();
+        let client = HttpMutationClient::new(config).unwrap();
+        let url = format!("{}/graphql", mock.uri());
+        let request = GraphQLRequest {
+            query:     "mutation { dummy }".to_string(),
+            variables: json!({}),
+        };
+        let reqwest_client = reqwest::Client::new();
+        let result = client.execute_with_retry(&reqwest_client, &url, &request).await;
+
+        assert!(result.is_ok(), "valid mutation response must be accepted: {result:?}");
+        assert!(result.unwrap().data.is_some());
     }
 }

@@ -245,3 +245,79 @@ fn test_find_key_without_kid() {
     // Should not find key without kid even if requested
     assert!(validator.find_key(&jwks, "any_kid").is_none());
 }
+
+// ============================================================================
+// S22-H1: OIDC discovery response size cap
+// ============================================================================
+
+#[tokio::test]
+async fn oidc_discovery_oversized_response_is_rejected() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use crate::security::oidc::token::MAX_DISCOVERY_RESPONSE_BYTES;
+
+    let mock = MockServer::start().await;
+
+    // Serve a body that exceeds the cap
+    let oversized_body = vec![b'x'; MAX_DISCOVERY_RESPONSE_BYTES + 1];
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized_body))
+        .mount(&mock)
+        .await;
+
+    let config = OidcConfig {
+        issuer: mock.uri(),
+        ..Default::default()
+    };
+    let result = OidcValidator::new(config).await;
+    assert!(result.is_err(), "oversized discovery response must be rejected");
+    let msg = result.err().unwrap().to_string();
+    assert!(
+        msg.contains("too large"),
+        "error must mention size limit: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+    let mock = MockServer::start().await;
+
+    // A small (invalid JSON) body — size check passes, JSON parse fails gracefully
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+        .mount(&mock)
+        .await;
+
+    let config = OidcConfig {
+        issuer: mock.uri(),
+        ..Default::default()
+    };
+    let result = OidcValidator::new(config).await;
+    // Must fail with a JSON parse error, NOT a size error
+    assert!(result.is_err());
+    let msg = result.err().unwrap().to_string();
+    assert!(
+        !msg.contains("too large"),
+        "small body must not trigger size limit error: {msg}"
+    );
+}
+
+// ============================================================================
+// S22-H4: with_jwks_uri timeout
+// ============================================================================
+
+#[test]
+fn with_jwks_uri_creates_validator_without_panicking() {
+    // with_jwks_uri must not panic even when the client builder is invoked;
+    // verifies the fallback unwrap_or_default() path compiles and runs.
+    let config = OidcConfig {
+        issuer:   "https://example.com".to_string(),
+        jwks_uri: Some("https://example.com/.well-known/jwks.json".to_string()),
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks".to_string());
+    assert_eq!(validator.issuer(), "https://example.com");
+}

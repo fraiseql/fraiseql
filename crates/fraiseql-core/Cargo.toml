@@ -91,6 +91,7 @@ tempfile = {workspace = true}
 testcontainers = {version = "0.26", features = ["watchdog"]}
 testcontainers-modules = {version = "0.14", features = ["postgres", "mysql"]}
 tokio-test = "0.4"
+wiremock = "0.6"
 
 [features]
 # Arrow Flight integration for high-performance analytics

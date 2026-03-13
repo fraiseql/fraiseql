@@ -2654,6 +2654,7 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
+ "wiremock",
  "zeroize",
 ]
 
