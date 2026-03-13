@@ -1,4 +1,6 @@
-require "fraiseql"
+# frozen_string_literal: true
+
+require 'fraiseql'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |c|

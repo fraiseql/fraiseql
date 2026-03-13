@@ -50,10 +50,7 @@ impl AuthorizeConfig {
         map.insert("recursive".to_string(), self.recursive.to_string());
         map.insert("operations".to_string(), self.operations.clone());
         map.insert("cacheable".to_string(), self.cacheable.to_string());
-        map.insert(
-            "cacheDurationSeconds".to_string(),
-            self.cache_duration_seconds.to_string(),
-        );
+        map.insert("cacheDurationSeconds".to_string(), self.cache_duration_seconds.to_string());
         map
     }
 }
