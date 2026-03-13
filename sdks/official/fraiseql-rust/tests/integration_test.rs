@@ -1,7 +1,7 @@
 //! Integration tests for FraiseQL Rust security module
 
 use fraiseql_rust::field::Field;
-use fraiseql_rust::schema::{SchemaRegistry, ScopeValidationError, validate_scope};
+use fraiseql_rust::schema::{validate_scope, SchemaRegistry, ScopeValidationError};
 use fraiseql_rust::{
     AuthorizeBuilder, AuthzPolicyBuilder, AuthzPolicyType, RoleMatchStrategy, RoleRequiredBuilder,
 };
@@ -1020,7 +1020,7 @@ fn schema_registry_extract_scoped_fields_includes_requires_scopes() {
     let fields = vec![Field::new("email", "String").with_requires_scopes(Some(scopes))];
     registry.register_type("User", fields);
 
-    let scoped = registry.extract_scoped_fields();
-    assert!(scoped.contains_key("User"));
-    assert!(scoped["User"].contains(&"email".to_string()));
+    let scoped_map = registry.extract_scoped_fields();
+    assert!(scoped_map.contains_key("User"));
+    assert!(scoped_map["User"].contains(&"email".to_string()));
 }

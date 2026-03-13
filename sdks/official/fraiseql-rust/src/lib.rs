@@ -16,7 +16,7 @@ pub use authorization::{AuthorizeBuilder, AuthorizeConfig};
 pub use field::Field;
 pub use policies::{AuthzPolicyBuilder, AuthzPolicyConfig, AuthzPolicyType};
 pub use roles::{RoleMatchStrategy, RoleRequiredBuilder, RoleRequiredConfig};
-pub use schema::{SchemaRegistry, ScopeValidationError, validate_scope};
+pub use schema::{validate_scope, SchemaRegistry, ScopeValidationError};
 
 #[cfg(test)]
 mod tests {

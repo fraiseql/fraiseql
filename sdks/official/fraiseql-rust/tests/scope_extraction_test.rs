@@ -3,13 +3,13 @@
 /// Tests for field-level RBAC scope extraction.
 /// Tests cover:
 /// - Field struct creation and properties
-/// - Single scope requirements (requires_scope)
-/// - Multiple scopes array (requires_scopes)
+/// - Single scope requirements (`requires_scope`)
+/// - Multiple scopes array (`requires_scopes`)
 /// - Scope pattern validation (action:resource format)
-/// - SchemaRegistry for type tracking
+/// - `SchemaRegistry` for type tracking
 /// - JSON export with scope metadata
 use fraiseql_rust::field::Field;
-use fraiseql_rust::schema::{SchemaRegistry, validate_scope};
+use fraiseql_rust::schema::{validate_scope, SchemaRegistry};
 
 // ============================================================================
 // FIELD STRUCT TESTS (3 tests)
