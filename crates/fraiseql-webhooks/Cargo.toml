@@ -1,10 +1,10 @@
 [dependencies]
 base64 = "0.22"
 ed25519-dalek = {version = "2", features = ["std"]}
-p256 = {version = "0.13", features = ["ecdsa", "pem"]}
 futures = "0.3"
 hex = "0.4"
 hmac = "0.12"
+p256 = {version = "0.13", features = ["ecdsa", "pem"]}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha1 = "0.10"
@@ -12,24 +12,24 @@ sha2 = "0.10"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio"]}
 subtle = "2.5"
 thiserror = "2.0"
-tracing = {workspace = true}
 tokio = {version = "1.45", features = ["full"]}
+tracing = {workspace = true}
 uuid = {version = "1.0", features = ["v4", "serde"]}
-
-[features]
-testing = []
 
 [dev-dependencies]
 rand = "0.8"
 rand_core = {version = "0.6", features = ["getrandom"]}
 tokio-test = "0.4"
 
+[features]
+testing = []
+
 [lints]
 workspace = true
 
 [package]
-name = "fraiseql-webhooks"
 description = "Webhook signature verification and event processing for FraiseQL"
+name = "fraiseql-webhooks"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

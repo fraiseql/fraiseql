@@ -3,6 +3,7 @@
 **Source file**: `crates/fraiseql-core/src/compiler/fact_table/` (split into `mod.rs`, `detector.rs`, `tests.rs`)
 
 **Tests**: 30+ unit tests in `#[cfg(test)] mod tests` at the bottom of the file. Run with:
+
 ```bash
 cargo nextest run -p fraiseql-core --lib compiler::fact_table
 ```
@@ -15,6 +16,7 @@ The fact table pattern is FraiseQL's approach to analytics workloads. It is insp
 dimensional modeling (Kimball-style data warehousing) but adapted for PostgreSQL JSONB.
 
 The module provides:
+
 1. **Auto-detection** — discovers `tf_*` tables by name convention and introspects their structure
 2. **JSONB dimension extraction** — samples actual data to infer dimension key paths
 3. **Query validation** — validates window function requests against discovered table metadata

@@ -15,6 +15,7 @@ explains both and how to choose between them.
 ### When to use `fraiseql-webhooks`
 
 Use it when a **third-party service** needs to push events to you:
+
 - Stripe sends `payment.succeeded` after a charge succeeds
 - GitHub sends `push` after a commit is made to a repository
 - Shopify sends `order.created` after a customer checks out
@@ -22,6 +23,7 @@ Use it when a **third-party service** needs to push events to you:
 ### When to use `fraiseql-observers`
 
 Use it when **your own data changes** and you want downstream consumers to know:
+
 - A row is inserted into `orders` → notify fulfilment service
 - A `status` column changes to `"shipped"` → send email to customer
 - An aggregate crosses a threshold → trigger an alert

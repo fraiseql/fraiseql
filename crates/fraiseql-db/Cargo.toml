@@ -1,21 +1,26 @@
 [dependencies]
-# Error types
-fraiseql-error = {workspace = true}
-# Wire protocol (optional)
-fraiseql-wire = {workspace = true, optional = true}
-
 # Async runtime
 async-trait = {workspace = true}
+# Database — SQL Server (optional)
+bb8 = {version = "0.8", optional = true}
+bb8-tiberius = {version = "0.15", optional = true}
 bytes = {workspace = true}
 chrono = {workspace = true}
 dashmap = {workspace = true}
 deadpool = {workspace = true}
 deadpool-postgres = {workspace = true}
+# Error types
+fraiseql-error = {workspace = true}
+# Wire protocol (optional)
+fraiseql-wire = {workspace = true, optional = true}
 futures = {workspace = true}
 regex = {workspace = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
+# Database — MySQL/SQLite (via sqlx, optional)
+sqlx = {version = "0.8", features = ["runtime-tokio", "json"], optional = true}
 thiserror = {workspace = true}
+tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 tokio = {workspace = true}
 # Database — PostgreSQL
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
@@ -23,30 +28,22 @@ tokio-util = "0.7"
 tracing = {workspace = true}
 uuid = {workspace = true}
 
-# Database — MySQL/SQLite (via sqlx, optional)
-sqlx = {version = "0.8", features = ["runtime-tokio", "json"], optional = true}
-
-# Database — SQL Server (optional)
-bb8 = {version = "0.8", optional = true}
-bb8-tiberius = {version = "0.15", optional = true}
-tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
+[dev-dependencies]
+proptest = {workspace = true}
 
 [features]
 default = ["postgres"]
 mysql = ["sqlx/mysql"]
 postgres = []
-sqlite = ["sqlx/sqlite"]
-sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
-wire-backend = ["fraiseql-wire"]
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
 rich-filters = []
+sqlite = ["sqlx/sqlite"]
+sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
+test-mysql = ["mysql"]
 # Integration test features
 test-postgres = []
-test-mysql = ["mysql"]
 test-sqlserver = ["sqlserver"]
-
-[dev-dependencies]
-proptest = {workspace = true}
+wire-backend = ["fraiseql-wire"]
 
 [lints]
 workspace = true

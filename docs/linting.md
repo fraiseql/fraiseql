@@ -9,6 +9,7 @@ FraiseQL enforces `clippy::pedantic` at `deny` level. All warnings are treated a
 3. **Never** add workspace-level allows without a PR discussion
 
 Every `#[allow]` MUST follow this format:
+
 ```rust
 #[allow(clippy::module_name_repetitions)]
 // Reason: `FraiseQLError` is the exported canonical name and must match the crate name.

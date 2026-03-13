@@ -176,7 +176,7 @@ impl<'a> Formatter<'a> {
     }
 }
 
-pub(crate) fn format_directives<'a, T>(dirs: &[Directive<'a, T>], f: &mut Formatter) 
+pub(crate) fn format_directives<'a, T>(dirs: &[Directive<'a, T>], f: &mut Formatter)
     where T: crate::common::Text<'a>,
 {
     for dir in dirs {
@@ -198,7 +198,7 @@ macro_rules! impl_display {
 
     ('a $($typ: ident, )+) => {
         $(
-            impl<'a, T> fmt::Display for $typ<'a, T> 
+            impl<'a, T> fmt::Display for $typ<'a, T>
                 where T: Text<'a>,
             {
                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -1,6 +1,7 @@
 # Cache Module
 
 **Source files**:
+
 - `crates/fraiseql-core/src/cache/adapter/` — `CachedDatabaseAdapter`, the main entry point (split into `mod.rs`, `query.rs`, `mutation.rs`, `tests.rs`)
 - `crates/fraiseql-core/src/cache/result.rs` (~1,177 lines) — `QueryResultCache` (single-Mutex LRU) and `CachedResult`
 - `crates/fraiseql-core/src/cache/key.rs` (~632 lines) — cache key construction and security model
@@ -8,6 +9,7 @@
 - Supporting: `invalidation_api.rs`, `fact_table_cache.rs`, `relay_cache.rs`, `config.rs`
 
 **Tests**: Unit tests in `#[cfg(test)] mod tests` inside each source file. Run with:
+
 ```bash
 cargo nextest run -p fraiseql-core --lib cache
 ```
@@ -48,6 +50,7 @@ Without the RLS WHERE clause in the key, user A's cached result could be served 
 This would be a data breach. The cache key is the security boundary.
 
 The APQ module normalizes variables before hashing, so:
+
 - `{a: 1, b: 2}` and `{b: 2, a: 1}` produce the **same** key ✅
 - `{a: 1}` and `{a: 2}` produce **different** keys ✅
 - User A with `WHERE tenant_id = 1` and User B with `WHERE tenant_id = 2` produce **different** keys ✅
@@ -72,6 +75,7 @@ This is how live-data queries (prices, stock levels) opt out of caching entirely
 
 **TTL expiry is checked on read** (`get()`), not lazily. Expired entries are evicted
 immediately rather than accumulating:
+
 ```rust
 if now - cached.cached_at > cached.ttl_seconds {
     cache.pop(key);  // evict
@@ -97,6 +101,7 @@ cache.invalidate_views(["v_user", "v_user_stats", "v_dashboard"])
 ```
 
 **Dependency graph declaration:**
+
 ```rust
 let mut cascade = CascadeInvalidator::new();
 cascade.add_dependency("v_user_stats", "v_user")?;   // v_user_stats reads v_user
@@ -116,12 +121,14 @@ your view dependency graph conservatively.
 ## Operational Notes
 
 **Memory estimation**:
+
 ```
 LRU capacity × average entry size
 Example: 10,000 × 10KB = ~100MB
 ```
 
 **Metrics** exposed on `/metrics`:
+
 ```
 cache_hits_total
 cache_misses_total
@@ -131,11 +138,13 @@ cache_memory_bytes_estimated
 ```
 
 **Manual invalidation** via HTTP:
+
 ```http
 POST /cache/invalidate?view=v_user
 ```
 
 **Disabling caching** for a specific query — set `cache_ttl_seconds = 0` in the schema:
+
 ```python
 @fraiseql.query(sql_source="v_live_prices", cache_ttl_seconds=0)
 def live_prices() -> list[Price]:

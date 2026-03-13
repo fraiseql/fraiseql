@@ -87,6 +87,7 @@ script (run as a pre-commit hook) enforces this. When you add a new snapshot, re
 (not just SQL shape).
 **Where**: `crates/*/tests/*_test.rs`
 **Run**:
+
 ```bash
 # PostgreSQL
 DATABASE_URL="postgresql://..." cargo nextest run --features test-postgres -p fraiseql-core -- --ignored
@@ -97,6 +98,7 @@ DATABASE_URL="mysql://..." cargo nextest run --features test-mysql -p fraiseql-c
 # SQL Server
 DATABASE_URL="server=...;..." cargo nextest run --features test-sqlserver -p fraiseql-core -- --ignored
 ```
+
 **Infrastructure**: Docker (`make db-up` starts PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault).
 **Blocks CI**: Yes (dedicated CI job per database).
 
@@ -108,6 +110,7 @@ DATABASE_URL="server=...;..." cargo nextest run --features test-sqlserver -p fra
 Verify that both databases return identical results for the same query.
 **Where**: `crates/fraiseql-core/tests/cross_database_test.rs`
 **Run**:
+
 ```bash
 DATABASE_URL="postgresql://..." \
 MYSQL_URL="mysql://..." \
@@ -116,6 +119,7 @@ MYSQL_URL="mysql://..." \
     -p fraiseql-core \
     --test cross_database_test -- --ignored --test-threads=1
 ```
+
 **Infrastructure**: Both PostgreSQL AND MySQL running simultaneously.
 **Blocks CI**: Currently advisory (see [Issue #09](../plans/issue-09-ci-gate.md)).
 **Why `#[ignore]`**: Requires two databases in parallel — too heavy for the standard CI slot.
@@ -131,11 +135,13 @@ introduced silent behavioral divergence. Run them whenever touching SQL generati
 Tests `@key` directives, entity resolution, and the federation gateway.
 **Where**: `docker/federation-ci/`
 **Run**:
+
 ```bash
 make test-federation
 # or manually:
 cd docker/federation-ci && pytest -q --tb=short
 ```
+
 **Infrastructure**: Docker Compose — Apollo Router + 3 Flask subgraphs + PostgreSQL.
 **Blocks CI**: Yes (dedicated `federation-tests` job).
 
@@ -146,12 +152,14 @@ cd docker/federation-ci && pytest -q --tb=short
 **What**: Performance and throughput validation — P99 latency, error rate, request volume.
 **Where**: `benchmarks/load/` (k6 scripts)
 **Run**:
+
 ```bash
 make test-load
 # or manually:
 k6 run benchmarks/load/basic.js
 k6 run benchmarks/load/mutations.js
 ```
+
 **Infrastructure**: Running `fraiseql-server` with a connected database.
 **Blocks CI**: Advisory — CI records results but does not fail on threshold breaches.
 Thresholds: P99 < 500ms, error rate < 1%.
@@ -163,11 +171,13 @@ Thresholds: P99 < 500ms, error rate < 1%.
 **What**: Algorithm-level benchmarks for hot paths (SQL generation, cache lookups, etc.).
 **Where**: `crates/*/benches/`
 **Run**:
+
 ```bash
 cargo bench
 # Run a specific benchmark:
 cargo bench --bench sql_generation
 ```
+
 **Infrastructure**: Optional database for some benchmarks.
 **Blocks CI**: No — manual only.
 

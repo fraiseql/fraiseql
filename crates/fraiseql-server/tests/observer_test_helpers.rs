@@ -409,7 +409,7 @@ pub async fn wait_for_webhook(
     let start = tokio::time::Instant::now();
 
     loop {
-        assert!(start.elapsed() <= timeout, 
+        assert!(start.elapsed() <= timeout,
             "Timeout waiting for {} webhook calls. Got: {}",
             expected_count,
             server.request_count().await
@@ -532,7 +532,7 @@ pub async fn wait_for_runtime_events(
     let start = tokio::time::Instant::now();
 
     loop {
-        assert!(start.elapsed() <= timeout, 
+        assert!(start.elapsed() <= timeout,
             "Timeout waiting for {} events with status {}. Got: {:?}",
             expected_count,
             expected_status,

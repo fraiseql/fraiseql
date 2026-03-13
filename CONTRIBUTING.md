@@ -437,11 +437,13 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md) for detaile
 To dramatically speed up compilation, install the `mold` linker for 3-5x faster builds:
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S mold
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get install mold
 ```
@@ -450,6 +452,7 @@ sudo apt-get install mold
 See [mold releases](https://github.com/rui314/mold/releases)
 
 The mold linker is configured in `.cargo/config.toml` and used automatically.
+
 - Full rebuild: ~60s → ~15s
 - Incremental linking: 2-5s → 0.5s
 
@@ -460,6 +463,7 @@ The mold linker is configured in `.cargo/config.toml` and used automatically.
 Production code (`src/` files outside test modules) must not use `.unwrap()` directly.
 
 Instead:
+
 - Use `.expect("reason why this cannot fail")` — panics with context on failure
 - Use `#[allow(clippy::unwrap_used)] // Reason: <justification>` only when the
   unwrap is in an infallible code path that clippy cannot statically prove safe

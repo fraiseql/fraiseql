@@ -753,4 +753,3 @@ fn is_builtin_type(name: &str) -> bool {
             | "Decimal"
     )
 }
-

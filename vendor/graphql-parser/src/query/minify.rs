@@ -41,13 +41,13 @@ mod tests {
         query SomeQuery($foo: String!, $bar: String) {
             someField(foo: $foo, bar: $bar) {
                 a
-                b { 
+                b {
                     ... on B {
-                        c 
-                        d 
-                    } 
-                } 
-            } 
+                        c
+                        d
+                    }
+                }
+            }
         }
         ";
 

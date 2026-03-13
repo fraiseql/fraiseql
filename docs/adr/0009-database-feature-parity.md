@@ -9,6 +9,7 @@ Not all GraphQL features can be implemented uniformly across all backends becaus
 features depend on database-specific constructs that have no direct equivalents.
 
 Specific constraints:
+
 - **Stored procedures / functions**: SQLite has no equivalent to PostgreSQL `fn_*` functions
 - **JSONB columns**: PostgreSQL-only; MySQL has JSON but no binary storage type with operator support
 - **LISTEN/NOTIFY**: PostgreSQL pub/sub mechanism; no equivalent in MySQL/SQL Server/SQLite
@@ -39,16 +40,19 @@ This is an explicit tradeoff, publicly documented in `docs/database-compatibilit
 ## Consequences
 
 **Positive**:
+
 - PostgreSQL users get the full FraiseQL feature set immediately
 - MySQL and SQL Server users get the subset of features their database supports
 - New database features do not require simultaneous multi-database implementation
 - SQLite can be used for local development without blocking production features
 
 **Negative**:
+
 - A schema authored in Python/TS may fail at runtime on a non-PostgreSQL database
 - Developers must consult the compatibility matrix before targeting a specific database
 
 **Mitigations**:
+
 - `fraiseql compile` emits warnings when mutations/relay/subscriptions are combined with SQLite
 - `docs/database-compatibility.md` is maintained as the authoritative feature matrix
 - `FraiseQLError::Unsupported` is returned with a descriptive message (not a panic)

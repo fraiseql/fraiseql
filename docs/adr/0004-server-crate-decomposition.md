@@ -19,12 +19,14 @@ Extract three specialized crates from fraiseql-server:
 ## Consequences
 
 **Positive:**
+
 - Independent compilation (faster iteration)
 - Clear ownership boundaries
 - Smaller crates reduce dependency bloat
 - Reusable in other projects
 
 **Negative:**
+
 - Re-export layer adds one level of indirection
 - Cross-crate testing more complex
 - More crates to version and release

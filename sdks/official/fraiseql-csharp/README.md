@@ -240,6 +240,7 @@ fraiseql export bin/Debug/net8.0/MyProject.dll --output schema.json --compact
 ```
 
 Key invariants:
+
 - All keys are snake_case (`sql_source`, `return_type`, `returns_list`)
 - `description` and `cache_ttl_seconds` are omitted when not set
 - `arguments` is always an array (empty `[]` when no arguments)

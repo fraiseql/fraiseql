@@ -233,4 +233,3 @@ pub(super) fn build_union_type(union_def: &UnionDefinition) -> IntrospectionType
         specified_by_u_r_l: None,
     }
 }
-

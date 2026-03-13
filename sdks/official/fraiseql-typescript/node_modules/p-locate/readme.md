@@ -7,7 +7,7 @@ Think of it like an async version of [`Array#find`](https://developer.mozilla.or
 ## Install
 
 ```
-$ npm install p-locate
+npm install p-locate
 ```
 
 ## Usage
@@ -19,16 +19,16 @@ const pathExists = require('path-exists');
 const pLocate = require('p-locate');
 
 const files = [
-	'unicorn.png',
-	'rainbow.png', // Only this one actually exists on disk
-	'pony.png'
+ 'unicorn.png',
+ 'rainbow.png', // Only this one actually exists on disk
+ 'pony.png'
 ];
 
 (async () => {
-	const foundPath = await pLocate(files, file => pathExists(file));
+ const foundPath = await pLocate(files, file => pathExists(file));
 
-	console.log(foundPath);
-	//=> 'rainbow'
+ console.log(foundPath);
+ //=> 'rainbow'
 })();
 ```
 
@@ -83,11 +83,11 @@ Disable this to improve performance if you don't care about the order.
 ---
 
 <div align="center">
-	<b>
-		<a href="https://tidelift.com/subscription/pkg/npm-p-locate?utm_source=npm-p-locate&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
-	</b>
-	<br>
-	<sub>
-		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
-	</sub>
+ <b>
+  <a href="https://tidelift.com/subscription/pkg/npm-p-locate?utm_source=npm-p-locate&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
+ </b>
+ <br>
+ <sub>
+  Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
+ </sub>
 </div>

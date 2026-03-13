@@ -373,4 +373,3 @@ impl WindowPlanner {
         Ok(())
     }
 }
-

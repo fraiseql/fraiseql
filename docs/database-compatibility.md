@@ -26,6 +26,7 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 | **Cross-database parity tests** | ✅ | ✅ | ✅ | — |
 
 **Legend**:
+
 - ✅ Fully supported
 - ✅ v2.1 — Added in v2.1
 - ⚠️ Partial/limited support (see notes below)
@@ -36,10 +37,12 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 ## Notes Per Feature
 
 ### Mutations
+
 SQLite has no stored procedure support. Calling a mutation on SQLite returns
 `FraiseQLError::Unsupported` at runtime. **Use PostgreSQL for any schema containing mutations.**
 
 The `fraiseql compile` CLI warns when a schema containing mutations targets SQLite:
+
 ```
 Warning: Schema contains N mutation(s) but target database is SQLite.
          Mutations are not supported on SQLite.
@@ -47,12 +50,14 @@ Warning: Schema contains N mutation(s) but target database is SQLite.
 ```
 
 ### Relay Pagination
+
 - **MySQL**: Added in v2.1. Uses `CHAR(36)` for UUID cursors and `JSON_UNQUOTE(JSON_EXTRACT)` for sort columns.
 - **SQL Server**: Forward pagination uses `OFFSET/FETCH NEXT`. Backward pagination uses an
   inner DESC subquery with outer re-sort (fixed in v2.1).
 - **SQLite**: No implementation. Relay queries return `FraiseQLError::Unsupported`.
 
 ### Window Functions
+
 PostgreSQL supports the full WINDOW clause including `FILTER (WHERE ...)` on aggregates
 and all frame specifications.
 
@@ -66,6 +71,7 @@ See [`docs/modules/window-functions.md`](modules/window-functions.md) for the pe
 dialect support table.
 
 ### Fact Table Queries
+
 Fact tables (`tf_*`) use JSONB columns for flexible dimension storage. This is a
 PostgreSQL-only data type. MySQL and SQL Server do not support fact table queries.
 
@@ -74,14 +80,17 @@ A MySQL-compatible approach using `JSON_EXTRACT` paths is planned for a future r
 See [`docs/modules/fact-table.md`](modules/fact-table.md) for the design rationale.
 
 ### Subscriptions
+
 GraphQL subscriptions use PostgreSQL's `LISTEN/NOTIFY` mechanism. This is
 PostgreSQL-specific. No equivalent is implemented for MySQL, SQL Server, or SQLite.
 
 ### Wire Protocol Streaming
+
 `fraiseql-wire` is a custom streaming protocol built on top of PostgreSQL's wire protocol.
 It is not portable to other databases by design.
 
 ### SQLite Scope
+
 SQLite is supported for **local development and testing** only. It implements full SELECT
 queries but lacks stored procedures (mutations), JSONB (fact tables), and LISTEN/NOTIFY
 (subscriptions). Do not deploy SQLite in production for any schema using these features.

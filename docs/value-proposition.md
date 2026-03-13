@@ -22,6 +22,7 @@ As a result, applications built with FraiseQL achieve significantly faster query
 **Hasura/PostGraphile**: Runtime interpretation of GraphQL queries into SQL. Resolvers execute sequentially; N+1 prevention requires careful schema design.
 
 **Advantage**: FraiseQL achieves:
+
 - Faster query execution (SQL pre-compiled at build time; measured speedup varies by workload)
 - Automatic elimination of N+1 queries (determined at compile time)
 - Bounded memory usage with streaming support for large result sets
@@ -38,6 +39,7 @@ As a result, applications built with FraiseQL achieve significantly faster query
 **PostGraphile**: PostgreSQL only by design.
 
 **Advantage**: FraiseQL enables:
+
 - Write once, deploy anywhere (same schema compiles for all 4 databases)
 - Test locally with SQLite, deploy to PostgreSQL without modification
 - No vendor lock-in; migration is configuration-only
@@ -51,6 +53,7 @@ As a result, applications built with FraiseQL achieve significantly faster query
 **Hasura/PostGraphile**: Runtime authentication/authorization checks. Schema introspection creates constant attack surface.
 
 **Advantage**: FraiseQL provides:
+
 - SQL injection is mathematically impossible (parameterized queries generated at compile time)
 - Field-level authorization pre-computed; no runtime decision overhead
 - Audit logging embedded in compiled schema
@@ -63,27 +66,35 @@ As a result, applications built with FraiseQL achieve significantly faster query
 FraiseQL is deliberately specialized. These anti-patterns are out of scope:
 
 ### Not a REST API Builder
+
 FraiseQL generates GraphQL servers only. If you need REST endpoints, use a separate REST framework. We do not generate OpenAPI specs or RESTful operations.
 
 ### Not a Code Generator
+
 FraiseQL does not generate Rust code. Schema authoring generates JSON; the compiler processes JSON. No Rust procedural macros, no code generation. The compiled artifact is data only.
 
 ### Not an ORM
+
 FraiseQL is not an object-relational mapper. It handles schema-to-SQL mapping deterministically at compile time. It does not provide runtime query builders, migrations, or model object tracking.
 
 ### Not a Database Abstraction Layer
+
 FraiseQL is a query execution engine, not a database abstraction layer. It assumes SQL databases only. Document databases (MongoDB, DynamoDB) are unsupported.
 
 ### Not a Query Language Learning Tool
+
 FraiseQL assumes GraphQL knowledge. We do not provide GraphQL tutorials or teach GraphQL fundamentals. Documentation assumes readers understand GraphQL semantics.
 
 ### Not Fully Schema-Driven Database Design
+
 FraiseQL maps pre-existing database schemas to GraphQL. It does not derive optimal database schemas from GraphQL definitions. Developers must design their database schema first; FraiseQL generates GraphQL on top.
 
 ### Not a Managed Service
+
 FraiseQL is a self-hosted, on-premise execution engine. No managed cloud offering, no vendor-hosted backend. Users operate their own infrastructure.
 
 ### Not Backward Compatible Across Major Versions
+
 FraiseQL v2 is not compatible with v1 schemas or SDKs. The v1→v2 migration is non-trivial. This is intentional: v2 simplifies the architecture significantly, and compatibility would prevent those improvements.
 
 ---
@@ -228,16 +239,19 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 ### Not Supported: Language SDKs
 
 **Tier 1 (Officially Supported)**:
+
 - Python
 - TypeScript
 - Java
 - Go
 
 **Tier 2 (Maintained)**:
+
 - PHP
 - Rust
 
 **Community (Deprecated)**:
+
 - .NET, Kotlin, Ruby, Elixir, Swift, Dart, C++, R, Julia, Haskell
 
 JVM language users should use the Java SDK with interop libraries (Kotlin, Clojure, etc.).
@@ -353,6 +367,7 @@ Runtime:      Server<DatabaseAdapter> loads compiled schema, executes queries
 ```
 
 This boundary enables:
+
 - Type safety at compile time
 - Security rules embedded in artifact
 - Performance optimization once (not per-query)
@@ -375,6 +390,7 @@ impl DatabaseAdapter for MssqlAdapter { ... }
 ```
 
 Benefits:
+
 - Easy mocking for testing
 - Runtime swapping of implementations
 - Type-safe integration of new features
@@ -390,6 +406,7 @@ fraiseql = { version = "2.0", features = ["auth", "observers", "arrow"] }
 ```
 
 This enables:
+
 - Minimal binary for basic deployments (~15MB)
 - Full-featured deployments for enterprise (add 20-50MB per extension)
 - No hidden dependencies; users know exactly what they're including

@@ -3,6 +3,7 @@
 **Source file**: `crates/fraiseql-core/src/compiler/window_functions/` (split into `mod.rs`, `planner.rs`, `codegen.rs`, `tests.rs`)
 
 **Tests**: 50+ unit tests in `#[cfg(test)] mod tests` at the bottom of the file. Run with:
+
 ```bash
 cargo nextest run -p fraiseql-core --lib compiler::window_functions
 ```
@@ -74,6 +75,7 @@ pub struct SelectColumn {
 ```
 
 `WindowPlanner::plan()` is where validation errors surface. Common errors:
+
 - Measure name not found on table
 - Dimension path not found in JSONB schema
 - Window function not supported on target database dialect
@@ -145,6 +147,7 @@ FROM tf_sales;
 ### MySQL 8+ (partial)
 
 Supports ranking and value functions, and basic aggregate-as-window. **Missing**:
+
 - `PERCENT_RANK()`, `CUME_DIST()`
 - `STDDEV()`, `VARIANCE()` OVER
 - `GROUPS` frame type (only `ROWS` and `RANGE`)
@@ -161,6 +164,7 @@ Some versions lack `PERCENT_RANK`.
 ### SQLite (very limited)
 
 Supports ranking and value functions, and basic `SUM`/`COUNT` OVER. Missing:
+
 - `PERCENT_RANK()`, `CUME_DIST()`
 - `STDDEV()`, `VARIANCE()`
 - Frame exclusion
@@ -183,11 +187,13 @@ Validated at plan time; unsupported functions produce a `FraiseQLError::Unsuppor
 ## Testing
 
 SQL snapshots for window function SQL generation live in:
+
 ```
 crates/fraiseql-core/tests/sql_snapshots.rs  — section: window_functions
 ```
 
 To update snapshots after changing SQL generation:
+
 ```bash
 INSTA_UPDATE=accept cargo nextest run --test sql_snapshots
 cargo insta review

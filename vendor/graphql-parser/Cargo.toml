@@ -9,50 +9,6 @@
 # will likely look very different (and much more reasonable).
 # See Cargo.toml.orig for the original contents.
 
-[package]
-edition = "2018"
-name = "graphql-parser"
-version = "0.4.1"
-authors = ["Paul Colomiets <paul@colomiets.name>"]
-build = false
-autolib = false
-autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
-description = """
-    A parser, AST and serializer for graphql query language and scheme
-    definition language (sometimes called IDL).
-"""
-homepage = "https://github.com/graphql-rust/graphql-parser"
-documentation = "https://docs.rs/graphql-parser"
-readme = "README.md"
-keywords = [
-    "graphql",
-    "parser",
-]
-categories = [
-    "parser-implementations",
-    "command-line-interface",
-]
-license = "MIT/Apache-2.0"
-
-[lib]
-name = "graphql_parser"
-path = "src/lib.rs"
-
-[[test]]
-name = "query_errors"
-path = "tests/query_errors.rs"
-
-[[test]]
-name = "query_roundtrips"
-path = "tests/query_roundtrips.rs"
-
-[[test]]
-name = "schema_roundtrips"
-path = "tests/schema_roundtrips.rs"
-
 [[bench]]
 name = "graphql"
 path = "benches/graphql.rs"
@@ -65,3 +21,47 @@ version = "2"
 
 [dev-dependencies.pretty_assertions]
 version = "0.5.0"
+
+[lib]
+name = "graphql_parser"
+path = "src/lib.rs"
+
+[package]
+authors = ["Paul Colomiets <paul@colomiets.name>"]
+autobenches = false
+autobins = false
+autoexamples = false
+autolib = false
+autotests = false
+build = false
+categories = [
+  "parser-implementations",
+  "command-line-interface"
+]
+description = """
+    A parser, AST and serializer for graphql query language and scheme
+    definition language (sometimes called IDL).
+"""
+documentation = "https://docs.rs/graphql-parser"
+edition = "2018"
+homepage = "https://github.com/graphql-rust/graphql-parser"
+keywords = [
+  "graphql",
+  "parser"
+]
+license = "MIT/Apache-2.0"
+name = "graphql-parser"
+readme = "README.md"
+version = "0.4.1"
+
+[[test]]
+name = "query_errors"
+path = "tests/query_errors.rs"
+
+[[test]]
+name = "query_roundtrips"
+path = "tests/query_roundtrips.rs"
+
+[[test]]
+name = "schema_roundtrips"
+path = "tests/schema_roundtrips.rs"

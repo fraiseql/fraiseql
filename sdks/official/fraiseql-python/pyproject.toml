@@ -2,6 +2,14 @@
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
+[dependency-groups]
+dev = [
+  "pytest>=9.0.2",
+  "anyio[trio]>=4.0",
+  "pytest-anyio>=0.0.0",
+  "httpx>=0.27"
+]
+
 [project]
 authors = [
   {name = "FraiseQL Team"}
@@ -18,6 +26,9 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Database :: Front-Ends"
 ]
+dependencies = [
+  "httpx>=0.27"
+]
 description = "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)"
 keywords = ["graphql", "database", "sql", "compiler", "schema"]
 license = {text = "MIT"}
@@ -25,9 +36,6 @@ name = "fraiseql"
 readme = "README.md"
 requires-python = ">=3.10"
 version = "2.0.1.dev0"
-dependencies = [
-  "httpx>=0.27",
-]
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.2"]
@@ -65,20 +73,12 @@ ignore = [
 select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "C4", "SIM", "TCH"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = [
-  "ANN"  # Don't require type annotations in tests
-]
 "src/fraiseql/integrations/langchain.py" = [
   "TC002"  # Runtime try/except imports cannot be moved to TYPE_CHECKING
 ]
 "src/fraiseql/integrations/llamaindex.py" = [
   "TC001"  # Runtime import used in __init__ constructor
 ]
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-    "anyio[trio]>=4.0",
-    "pytest-anyio>=0.0.0",
-    "httpx>=0.27",
+"tests/**/*.py" = [
+  "ANN"  # Don't require type annotations in tests
 ]

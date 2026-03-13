@@ -314,4 +314,3 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::from_str(&result_str)?)
     }
 }
-

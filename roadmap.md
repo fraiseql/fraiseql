@@ -14,6 +14,7 @@
 Beta.2 established a solid foundation across infrastructure, protocol safety, and dependency hygiene. v2.0.0 focuses on removing known limitations and hardening the server for production workloads.
 
 ### Completed (Beta.2)
+
 - Docker Compose integration test infrastructure
 - Wire protocol decoder hardened against malformed messages
 - Environment isolation in tests (temp_env migration)
@@ -26,6 +27,7 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 - Operational runbooks and SLA documentation
 
 ### Completed (v2.0.0)
+
 - SQL Server and MySQL backends at feature parity for production workloads
 - Relay cursor pagination on SQL Server with UUID support and backward pagination
 - SQLSTATE error code mapping on SQL Server and MySQL
@@ -43,6 +45,7 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 - Full CI integration test infrastructure (Redis, NATS, TLS, Vault, PostgreSQL)
 
 ### Exit Criteria
+
 - ✅ Zero known critical bugs in integration test suite
 - ✅ All public items documented (`cargo doc --no-deps` zero warnings)
 - ✅ MySQL and SQL Server backends pass full test suite
@@ -63,6 +66,7 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query optimization, and performance guarantees.
 
 ### Completed (in active development on `dev`)
+
 - **Automatic persisted queries (APQ)** - Redis-backed query caching with smart invalidation (`fraiseql-core/src/apq/`)
 - **Prometheus metrics** - Query latency percentiles, connection pool health, error rates (`fraiseql-server/src/observability/metrics.rs`)
 - **Structured logging** - Request/response logging with correlation IDs (`fraiseql-server/src/observability/logging.rs`)
@@ -117,17 +121,20 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes FraiseQL a production-grade federation participant.
 
 ### Federation Gateway
+
 - **Apollo Federation 2 compatibility** - Full support for subgraph specs, entity resolution, cross-service queries
 - **Federated query planning** - Optimize query plans across multiple subgraph databases
 - **Entity type resolution** - Correct reference resolution for types owned by different services
 - **Field-level authorization** - Enforce ownership and permissions at federation boundaries
 
 ### Federation Observability
+
 - **Multi-service tracing** - Trace execution across subgraph boundaries with correct context propagation
 - **Federated query analytics** - Show which subgraphs contributed to query results
 - **Service health checks** - Automated monitoring of subgraph availability and response times
 
 ### Subgraph Developer Experience
+
 - **Federation schema generation** - Python/TypeScript decorators auto-generate @external, @requires
 - **Reference entity support** - Simplified patterns for entities referenced across services
 - **Easy deployment** - Unified deployment model with gateway as optional configuration
@@ -139,29 +146,34 @@ Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes Fraise
 Items considered valuable but not scheduled. Prioritized based on customer demand and bandwidth.
 
 ### Language SDKs and Bindings
+
 - **JavaScript/Node.js native binding** - Electron/server-side Node performance without runtime FFI
 - **Ruby, Go client library** improvements - Expand officially maintained SDK breadth
 - **GraphQL schema federation tools** - Schema composition and conflict detection utilities
 
 ### Advanced Query Features
+
 - **Live queries** - WebSocket subscriptions with efficient change tracking
 - **Query fragments** - Client-side composition for query reusability
 - **Directive support** - Custom directives for schema extensions and client-side hints
 - **Conditional schema exports** - Feature-flag dependent schema fragments for A/B testing
 
 ### Data Pipeline Integration
+
 - **Change Data Capture (CDC)** - Automatic observer triggers on database mutations
 - **Event sourcing patterns** - Immutable event log for audit and replay capability
 - **Time-travel queries** - Query historical state at specific timestamps
 - **Data lineage tracking** - Show provenance of data through transformations and joins
 
 ### Advanced Security
+
 - **Row-level security (RLS)** - Database-native RLS with GraphQL-level enforcement
 - **Field masking** - Automatic sensitive field redaction by role
 - **IP allowlisting and geofencing** - Network-based access controls
 - **Secrets rotation automation** - Zero-downtime credential rotation for database connections
 
 ### Developer Experience
+
 - **Schema diffing tools** - Show breaking and non-breaking changes in schema versions
 - **Migration guides** - Automated documentation for schema evolution
 - **Plugin system** - User-defined resolvers and middleware (likely post-v2 major version)
@@ -172,6 +184,7 @@ Items considered valuable but not scheduled. Prioritized based on customer deman
 ## Known Limitations
 
 ### Pool Pressure Monitor (recommendation mode only)
+
 `PoolPressureMonitorConfig` (formerly `PoolTuningConfig`, deprecated alias retained)
 evaluates connection pool pressure and emits scaling recommendations via Prometheus
 metrics and log lines, but **cannot resize the pool at runtime** — `deadpool-postgres`
@@ -183,6 +196,7 @@ pool resizing. Tracked as a v2.2.0 or v2.3.0 milestone.
 
 
 ### `async_trait` migration to native async-fn-in-trait
+
 68 files use `#[async_trait]`, which desugars `async fn` into
 `fn(...) -> Pin<Box<dyn Future + Send>>` — a heap allocation per call. This conflicts
 with the zero-overhead positioning of FraiseQL on the static-dispatch hot path.
@@ -196,6 +210,7 @@ requires `Future: Send` when spawned via `tokio::spawn`. Until Return Type Notat
              Rust issue — https://github.com/rust-lang/rust/issues/109417
 
 **Migration criteria** (all must be true):
+
 1. RTN with `+ Send` bounds is stable on rustc
 2. FraiseQL MSRV is updated to that stabilising version
 3. Tokio is compatible with native dyn async traits
@@ -229,21 +244,27 @@ coverage reaches 100%.
 Explicitly excluded from roadmap. These require architectural changes or lack strong demand signals.
 
 ### Runtime Language Bindings
+
 Language bindings that require runtime FFI (Python native bindings, Ruby native extensions). FraiseQL is compile-time only; Python/TypeScript are authoring languages, not runtime. SDKs provide client-side access.
 
 ### Traditional ORM Support
+
 Hibernate, Sequelize, or similar ORMs are fundamentally incompatible with compiled-at-build-time SQL. FraiseQL generates SQL, not bindings.
 
 ### NoSQL Databases
+
 MongoDB, Cassandra support requires fundamentally different SQL generation strategies and would dilute database abstraction design. PostgreSQL-first strategy remains.
 
 ### GraphQL Streaming / Defer / Stream
+
 Streaming responses and deferred fragment execution add significant complexity for marginal adoption. Focus remains on RPC-style queries.
 
 ### Built-in Business Logic Layer
+
 Workflows, state machines, rules engines. FraiseQL executes GraphQL to SQL only. Business logic belongs in application services.
 
 ### Automatic API Versioning
+
 Maintaining multiple API versions is an organizational problem, not a technical one. Schema evolution and deprecation directives serve versioning needs better than separate endpoints.
 
 ---
@@ -251,6 +272,7 @@ Maintaining multiple API versions is an organizational problem, not a technical 
 ## Release Schedule and Process
 
 ### Release Cadence
+
 - **Major versions** (v3.0.0, v4.0.0): ~18 months, breaking changes allowed
 - **Minor versions** (v2.1.0, v2.2.0): minimum 6 weeks between releases, new features, backward compatible
 - **Patch versions** (v2.0.1, v2.0.2): As needed, bug fixes and improvements, backported to N-1 minor
@@ -258,11 +280,13 @@ Maintaining multiple API versions is an organizational problem, not a technical 
 See `releasing.md` for the full cadence policy.
 
 ### Version Support
+
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
 - **Current stable**: v2.1.0 (released March 2026)
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes
+
 Breaking changes only in major versions. All minor and patch releases maintain backward compatibility with clear deprecation warnings.
 
 ---
@@ -270,16 +294,19 @@ Breaking changes only in major versions. All minor and patch releases maintain b
 ## Performance Targets
 
 ### Query Execution
+
 - **P50 latency**: < 10ms for simple queries (10-field resolution)
 - **P99 latency**: < 100ms for complex queries (50+ fields, joins)
 - **Throughput**: > 10,000 requests/sec per instance on 4-core hardware
 - **Connection pool**: < 50ms wait time in steady-state under load
 
 ### Compilation
+
 - **Schema compilation**: < 5s for 100-type schemas
 - **Incremental validation**: < 1s for schema changes
 
 ### Memory
+
 - **Baseline server**: < 50MB resident memory (empty schema)
 - **Per-schema overhead**: < 1MB per 10 types
 - **Connection pool**: < 10MB per 10 connections
@@ -289,18 +316,21 @@ Breaking changes only in major versions. All minor and patch releases maintain b
 ## Infrastructure and DevOps
 
 ### Deployment Models
+
 - **Docker images** - Multi-stage builds, Alpine base, ~15MB compressed size
 - **Kubernetes manifests** - Helm charts with sensible defaults for scaling
 - **Lambda/Serverless** - Event handler for request-based deployments (via fraiseql-server)
 - **Standalone binary** - Static binary with embedded schema, zero external dependencies
 
 ### Observability
+
 - **Prometheus metrics** - Standard in v2.1.0 and beyond
 - **Structured logging** - JSON output compatible with ELK, Datadog, CloudWatch
 - **Health checks** - `/health` endpoint for load balancers and orchestrators
 - **SLA dashboards** - Pre-built Grafana dashboards for operations teams
 
 ### Support and SLAs
+
 - **Enterprise SLA** - Available for v2.0.0 and later (pending commercial offering)
 - **Community support** - GitHub issues, Discord, email (best-effort)
 - **Security updates** - Released within 7 days of disclosure to maintainers

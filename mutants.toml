@@ -6,7 +6,7 @@
 # behavior in production.
 #
 # Run locally (requires cargo install cargo-mutants):
-#   cargo mutants --package fraiseql-core --file src/cache/key.rs --timeout 60
+# cargo mutants --package fraiseql-core --file src/cache/key.rs --timeout 60
 #
 # See .github/workflows/mutation.yml for the CI configuration.
 
@@ -19,8 +19,6 @@ timeout_multiplier = 3.0
 [profile.default]
 timeout_seconds = 60
 
-# ── Equivalent mutants (observable behaviour is identical regardless of mutation) ──
-
 # Debug::fmt impls: only formatting output, no correctness impact.
 [[skip]]
 name = "fmt.*std::fmt::Result.*Default::default"
@@ -28,6 +26,13 @@ name = "fmt.*std::fmt::Result.*Default::default"
 # `user.roles includes 'role'` expression: the bypass path (Ok(None)) and the
 # fallthrough path also return Ok(None), so mutations to the trim_matches closure
 # (||→&&, ==→!=) and the condition (&&→||, ==→!=) are all equivalent.
+
+# `expr.contains("tenant_id") && expr.contains("==")` (line 501): the &&→||
+# mutation causes near-infinite matching on most test expressions, producing a
+# test timeout rather than a clean failure. Covered by tenant isolation tests.
+
+# `0 => return Ok(None)` in DefaultRLSPolicy::evaluate: this arm is dead code
+# because the owner filter is unconditionally pushed (filters.len() is never 0).
 [[skip]]
 name = "replace \\|\\| with && in evaluate_rls_expression"
 
@@ -36,14 +41,7 @@ name = "replace == with != in evaluate_rls_expression"
 
 [[skip]]
 name = "replace && with \\|\\| in evaluate_rls_expression"
-
-# `expr.contains("tenant_id") && expr.contains("==")` (line 501): the &&→||
-# mutation causes near-infinite matching on most test expressions, producing a
-# test timeout rather than a clean failure. Covered by tenant isolation tests.
 [[skip]]
 name = "replace && with \\|\\| in evaluate_rls_expression"
-
-# `0 => return Ok(None)` in DefaultRLSPolicy::evaluate: this arm is dead code
-# because the owner filter is unconditionally pushed (filters.len() is never 0).
 [[skip]]
 name = "delete match arm 0 in.*DefaultRLSPolicy.*evaluate"

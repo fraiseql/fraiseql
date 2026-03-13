@@ -21,15 +21,7 @@ name = "sql_projection_benchmark"
 harness = false
 name = "federation_bench"
 
-[lints]
-workspace = true
-
 [dependencies]
-fraiseql-error = {workspace = true}
-# Database abstraction layer (adapters, collation, introspector, filters)
-fraiseql-db = {workspace = true, default-features = false}
-# Federation support (Apollo Federation v2)
-fraiseql-federation = {workspace = true}
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server
@@ -42,12 +34,17 @@ bytes = {workspace = true}
 chrono = {workspace = true}
 dashmap = {workspace = true}
 deadpool = {workspace = true}
+# Database abstraction layer (adapters, collation, introspector, filters)
+fraiseql-db = {workspace = true, default-features = false}
+fraiseql-error = {workspace = true}
+# Federation support (Apollo Federation v2)
+fraiseql-federation = {workspace = true}
 futures = {workspace = true}
-indexmap = {workspace = true}
 # GraphQL
 graphql-parser = {workspace = true}
 hex = {workspace = true}
 hmac = {workspace = true}
+indexmap = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
 linked-hash-map = {workspace = true}
@@ -99,9 +96,6 @@ wiremock = "0.6"
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres", "rich-filters"]
-# Schema linting: anti-pattern detection, cost analysis, quality scoring.
-# Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
-schema-lint = []
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]
@@ -109,6 +103,9 @@ redis-apq = ["redis"]
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
 # Includes specialized filter operators for 44 rich scalar types
 rich-filters = ["fraiseql-db/rich-filters"]
+# Schema linting: anti-pattern detection, cost analysis, quality scoring.
+# Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
+schema-lint = []
 sqlite = ["fraiseql-db/sqlite"]
 sqlserver = ["fraiseql-db/sqlserver"]
 # Run with: cargo test --features test-mysql -- --test-threads=1
@@ -118,9 +115,12 @@ test-mysql = ["mysql", "fraiseql-db/test-mysql"]
 test-postgres = ["fraiseql-db/test-postgres"]
 # Run with: cargo test --features test-sqlserver -- --test-threads=1
 test-sqlserver = ["sqlserver", "fraiseql-db/test-sqlserver"]
-wire-backend = ["fraiseql-db/wire-backend"]
 # Expose ManualClock and other test helpers for dependent crates
 test-utils = []
+wire-backend = ["fraiseql-db/wire-backend"]
+
+[lints]
+workspace = true
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"

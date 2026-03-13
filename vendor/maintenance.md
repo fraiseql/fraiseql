@@ -38,6 +38,7 @@ git diff FETCH_HEAD -- src/
 **Target:** Migrate to a published fork on crates.io before end of 2026.
 
 The exit plan is to:
+
 1. Fork `graphql-parser` to `github.com/fraiseql/graphql-parser`
 2. Apply the `thiserror 2.x` patch (already done here)
 3. Publish as `graphql-parser-fraiseql = "0.4.2"` on crates.io

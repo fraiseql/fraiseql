@@ -42,6 +42,7 @@ FROM v_{entity} | tv_{entity}
 ```
 
 Constraints:
+
 - Exactly one column named `data` (type `json` or `jsonb`)
 - No joins, no subqueries, no mutations
 - One active query per connection

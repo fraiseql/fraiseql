@@ -41,8 +41,8 @@ redis-rate-limiting = ["redis"]
 workspace = true
 
 [package]
-name = "fraiseql-auth"
 description = "Authentication, authorization, and session management for FraiseQL"
+name = "fraiseql-auth"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

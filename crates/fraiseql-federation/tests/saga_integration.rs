@@ -101,4 +101,3 @@ async fn test_saga_compensation_status_query_no_store() {
     // No store → unknown status without a backing saga.
     assert!(status.is_none(), "no-store compensation status must return None");
 }
-

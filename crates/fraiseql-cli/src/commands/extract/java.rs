@@ -118,4 +118,3 @@ pub(super) fn extract_java_query_args(annotation_body: &str) -> Vec<Intermediate
     }
     args
 }
-

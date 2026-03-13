@@ -126,4 +126,3 @@ fn build_custom_directive(directive: &DirectiveDefinition) -> IntrospectionDirec
         is_repeatable: directive.is_repeatable,
     }
 }
-

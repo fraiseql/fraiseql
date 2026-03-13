@@ -241,6 +241,7 @@ max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
 > (`pool_max_size`) and container memory accordingly.
 >
 > Minimum additional resources per instance:
+>
 > - 1 PostgreSQL connection
 > - `max_concurrency` × (average action memory) of working memory
 > - `channel_capacity` × (average event size) of channel buffer

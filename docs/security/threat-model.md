@@ -89,6 +89,7 @@ fraiseql-server (Axum 0.8)
 ## 5. Known Gaps
 
 See `docs/security/graphql-complexity-limits.md` for incomplete complexity protections:
+
 - Fragment cycle detection: needs verification
 - Introspection disable: needs verification
 - Cost/complexity budget: not implemented (planned for v2.2.0)
