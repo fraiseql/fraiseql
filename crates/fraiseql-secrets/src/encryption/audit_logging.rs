@@ -9,6 +9,22 @@ use chrono::{DateTime, Utc};
 
 use crate::secrets_manager::SecretsError;
 
+/// RFC 4180 CSV quoting: wrap the field in double-quotes and escape internal
+/// double-quotes by doubling them. This prevents injection via fields that
+/// contain commas, newlines, or quote characters.
+fn csv_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        if ch == '"' {
+            out.push('"'); // double the quote
+        }
+        out.push(ch);
+    }
+    out.push('"');
+    out
+}
+
 /// Encryption operation type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationType {
@@ -166,37 +182,40 @@ impl AuditLogEntry {
         &self.context
     }
 
-    /// Convert to CSV for logging
+    /// Convert to CSV for logging.
+    ///
+    /// All user-controlled fields are RFC 4180 quoted to prevent CSV injection.
     pub fn to_csv(&self) -> String {
         let error = self.error_message.as_deref().unwrap_or("");
         format!(
             "{},{},{},{},{},{},{},{}",
-            self.timestamp.to_rfc3339(),
-            self.user_id,
-            self.field_name,
-            self.operation,
-            self.status,
-            error,
-            self.request_id,
-            self.session_id
+            csv_quote(&self.timestamp.to_rfc3339()),
+            csv_quote(&self.user_id),
+            csv_quote(&self.field_name),
+            csv_quote(&self.operation.to_string()),
+            csv_quote(&self.status.to_string()),
+            csv_quote(error),
+            csv_quote(&self.request_id),
+            csv_quote(&self.session_id),
         )
     }
 
-    /// Convert to JSON-like string for logging
+    /// Convert to JSON for logging.
+    ///
+    /// Uses `serde_json` to produce well-formed JSON with correct escaping,
+    /// preventing injection via user-controlled `user_id` or `field_name` values.
     pub fn to_json_like(&self) -> String {
-        format!(
-            "{{ \"timestamp\": \"{}\", \"user_id\": \"{}\", \"field_name\": \"{}\", \
-             \"operation\": \"{}\", \"status\": \"{}\", \"error\": \"{}\", \
-             \"request_id\": \"{}\", \"session_id\": \"{}\" }}",
-            self.timestamp.to_rfc3339(),
-            self.user_id,
-            self.field_name,
-            self.operation,
-            self.status,
-            self.error_message.as_deref().unwrap_or(""),
-            self.request_id,
-            self.session_id
-        )
+        serde_json::json!({
+            "timestamp":  self.timestamp.to_rfc3339(),
+            "user_id":    self.user_id,
+            "field_name": self.field_name,
+            "operation":  self.operation.to_string(),
+            "status":     self.status.to_string(),
+            "error":      self.error_message.as_deref().unwrap_or(""),
+            "request_id": self.request_id,
+            "session_id": self.session_id,
+        })
+        .to_string()
     }
 }
 

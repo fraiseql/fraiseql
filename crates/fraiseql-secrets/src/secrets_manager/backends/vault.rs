@@ -33,9 +33,12 @@ struct VaultResponse {
 }
 
 /// Cached secret with expiry metadata and LRU tracking.
+///
+/// `value` is wrapped in [`Zeroizing`] so that the secret bytes are overwritten
+/// on drop rather than lingering in heap until the allocator reuses the memory.
 #[derive(Debug, Clone)]
 struct CachedSecret {
-    value:         String,
+    value:         Zeroizing<String>,
     expires_at:    chrono::DateTime<Utc>,
     /// Last access time, used for LRU eviction ordering.
     last_accessed: chrono::DateTime<Utc>,
@@ -68,7 +71,7 @@ impl SecretCache {
         if let Some(cached) = entries.get_mut(key) {
             if cached.expires_at > Utc::now() {
                 cached.last_accessed = Utc::now();
-                return Some((cached.value.clone(), cached.expires_at));
+                return Some(((*cached.value).clone(), cached.expires_at));
             }
         }
         None
@@ -79,7 +82,10 @@ impl SecretCache {
         self.entries.write().await.remove(key);
     }
 
-    /// Store secret in cache with expiry
+    /// Store secret in cache with expiry.
+    ///
+    /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
+    /// overwritten when the entry is evicted or the cache is dropped.
     async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
@@ -97,7 +103,7 @@ impl SecretCache {
         entries.insert(
             key,
             CachedSecret {
-                value:         secret,
+                value:         Zeroizing::new(secret),
                 expires_at,
                 last_accessed: now,
             },

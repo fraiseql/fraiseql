@@ -9,6 +9,7 @@ use std::{fmt, path::PathBuf, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use tracing::{info, warn};
+use zeroize::Zeroizing;
 
 pub mod backends;
 pub mod types;
@@ -40,17 +41,34 @@ pub enum SecretsBackendConfig {
 }
 
 /// Vault authentication methods.
-#[derive(Debug, Clone)]
+///
+/// Sensitive fields (`Token` payload and `secret_id`) are wrapped in
+/// [`Zeroizing`] so that the credential bytes are overwritten on drop rather
+/// than remaining in heap until the allocator reuses the memory.
+#[derive(Clone)]
 pub enum VaultAuth {
     /// Authenticate with a static token.
-    Token(String),
+    Token(Zeroizing<String>),
     /// Authenticate via AppRole (recommended for production).
     AppRole {
         /// The role ID for AppRole login.
         role_id:   String,
-        /// The secret ID for AppRole login.
-        secret_id: String,
+        /// The secret ID for AppRole login (high-value credential).
+        secret_id: Zeroizing<String>,
     },
+}
+
+impl fmt::Debug for VaultAuth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Token(_) => f.debug_tuple("Token").field(&"[REDACTED]").finish(),
+            Self::AppRole { role_id, .. } => f
+                .debug_struct("AppRole")
+                .field("role_id", role_id)
+                .field("secret_id", &"[REDACTED]")
+                .finish(),
+        }
+    }
 }
 
 /// Create a `SecretsManager` from configuration.
@@ -79,9 +97,9 @@ pub async fn create_secrets_manager(
         } => {
             info!(addr = %addr, "Initializing Vault secrets backend");
             let mut vault = match auth {
-                VaultAuth::Token(token) => VaultBackend::new(&addr, &token),
+                VaultAuth::Token(token) => VaultBackend::new(addr.as_str(), token.as_str()),
                 VaultAuth::AppRole { role_id, secret_id } => {
-                    VaultBackend::with_approle(&addr, &role_id, &secret_id).await?
+                    VaultBackend::with_approle(&addr, &role_id, secret_id.as_str()).await?
                 },
             };
             if let Some(ns) = namespace {
