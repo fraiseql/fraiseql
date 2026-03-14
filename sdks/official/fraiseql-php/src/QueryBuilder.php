@@ -39,6 +39,10 @@ final class QueryBuilder
     private ?string $requiresRoleValue = null;
     private ?string $deprecationReason = null;
     private ?string $relayCursorTypeValue = null;
+    private ?string $restPathValue = null;
+    private ?string $restMethodValue = null;
+
+    private const array VALID_REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
     private function __construct(private readonly string $name)
     {
@@ -129,6 +133,24 @@ final class QueryBuilder
         return $this;
     }
 
+    public function restPath(string $path): self
+    {
+        $this->restPathValue = $path;
+        return $this;
+    }
+
+    public function restMethod(string $method): self
+    {
+        $upper = strtoupper($method);
+        if (!in_array($upper, self::VALID_REST_METHODS, true)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid REST method "%s". Allowed: %s', $method, implode(', ', self::VALID_REST_METHODS))
+            );
+        }
+        $this->restMethodValue = $upper;
+        return $this;
+    }
+
     public function register(): void
     {
         SchemaRegistry::getInstance()->registerQuery($this);
@@ -178,6 +200,11 @@ final class QueryBuilder
 
         if ($this->requiresRoleValue !== null) {
             $result['requires_role'] = $this->requiresRoleValue;
+        }
+
+        if ($this->restPathValue !== null) {
+            $rest = ['path' => $this->restPathValue, 'method' => $this->restMethodValue ?? 'GET'];
+            $result['rest'] = $rest;
         }
 
         return $result;
@@ -235,6 +262,11 @@ final class QueryBuilder
 
         if ($this->autoParamsValue) {
             $result['auto_params'] = true;
+        }
+
+        if ($this->restPathValue !== null) {
+            $rest = ['path' => $this->restPathValue, 'method' => $this->restMethodValue ?? 'GET'];
+            $result['rest'] = $rest;
         }
 
         return $result;

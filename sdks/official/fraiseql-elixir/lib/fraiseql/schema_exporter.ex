@@ -147,6 +147,7 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
+    |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
   defp mutation_to_map(%FraiseQL.MutationDefinition{} = m) do
@@ -158,7 +159,9 @@ defmodule FraiseQL.SchemaExporter do
       "arguments" => Enum.map(m.arguments, &argument_to_map/1)
     }
 
-    maybe_put(base, "description", m.description)
+    base
+    |> maybe_put("description", m.description)
+    |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 
   defp argument_to_map(%FraiseQL.ArgumentDefinition{} = a) do
@@ -173,6 +176,10 @@ defmodule FraiseQL.SchemaExporter do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_put_rest(map, nil, _method, _default_method), do: map
+  defp maybe_put_rest(map, path, nil, default_method), do: Map.put(map, "rest", %{"path" => path, "method" => default_method})
+  defp maybe_put_rest(map, path, method, _default_method), do: Map.put(map, "rest", %{"path" => path, "method" => method})
 
   # Only include boolean flags in output when they are true (avoid cluttering schema.json)
   defp maybe_put_bool(map, _key, false), do: map

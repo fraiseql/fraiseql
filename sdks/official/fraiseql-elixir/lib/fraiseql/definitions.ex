@@ -117,7 +117,9 @@ defmodule FraiseQL.QueryDefinition do
     nullable: false,
     arguments: [],
     cache_ttl_seconds: nil,
-    description: nil
+    description: nil,
+    rest_path: nil,
+    rest_method: nil
   ]
 
   @type t :: %__MODULE__{
@@ -128,7 +130,9 @@ defmodule FraiseQL.QueryDefinition do
           nullable: boolean(),
           arguments: [FraiseQL.ArgumentDefinition.t()],
           cache_ttl_seconds: non_neg_integer() | nil,
-          description: String.t() | nil
+          description: String.t() | nil,
+          rest_path: String.t() | nil,
+          rest_method: String.t() | nil
         }
 end
 
@@ -147,7 +151,7 @@ defmodule FraiseQL.MutationDefinition do
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
-  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil]
+  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -155,7 +159,9 @@ defmodule FraiseQL.MutationDefinition do
           sql_source: String.t(),
           operation: String.t(),
           arguments: [FraiseQL.ArgumentDefinition.t()],
-          description: String.t() | nil
+          description: String.t() | nil,
+          rest_path: String.t() | nil,
+          rest_method: String.t() | nil
         }
 end
 
