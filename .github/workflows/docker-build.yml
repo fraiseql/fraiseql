@@ -35,6 +35,13 @@ jobs:
             image-suffix: "server"
             optional: false
 
+          - name: fraiseql-server-full
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server-full"
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            optional: true
+
           - name: tutorial
             dockerfile: tutorial/Dockerfile
             build-context: .
@@ -78,6 +85,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.service.build-args || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -89,8 +97,17 @@ jobs:
     strategy:
       matrix:
         service:
-          - fraiseql-server
-          - tutorial
+          - name: fraiseql-server
+            dockerfile: Dockerfile
+            build-args: ""
+
+          - name: fraiseql-server-full
+            dockerfile: Dockerfile
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
+
+          - name: tutorial
+            dockerfile: tutorial/Dockerfile
+            build-args: ""
 
     steps:
       - name: Checkout repository
@@ -99,19 +116,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build ${{ matrix.service }} image
+      - name: Build ${{ matrix.service.name }} image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.service == 'fraiseql-server' && 'Dockerfile' || format('{0}/Dockerfile', matrix.service) }}
+          file: ${{ matrix.service.dockerfile }}
           push: false
           load: true
-          tags: test-${{ matrix.service }}:latest
+          tags: test-${{ matrix.service.name }}:latest
+          build-args: ${{ matrix.service.build-args }}
 
       - name: Test image exists
         run: |
-          docker image inspect test-${{ matrix.service }}:latest
-          echo "✅ Image built successfully: test-${{ matrix.service }}:latest"
+          docker image inspect test-${{ matrix.service.name }}:latest
+          echo "✅ Image built successfully: test-${{ matrix.service.name }}:latest"
 
   publish-to-docker-hub:
     needs: build-and-push
@@ -134,6 +152,13 @@ jobs:
             build-context: .
             image-suffix: "server"
             docker-hub-image: fraiseql/server
+
+          - name: fraiseql-server-full
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server-full"
+            docker-hub-image: fraiseql/server-full
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -174,6 +199,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.service.build-args || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -234,6 +260,7 @@ jobs:
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/server\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
