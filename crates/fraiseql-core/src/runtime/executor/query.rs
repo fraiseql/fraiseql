@@ -601,7 +601,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 ///
 /// Named fragment spreads are already flattened by [`FragmentResolver`] before this
 /// is called, so we only need to recurse one level into inline fragments.
-fn selections_contain_field(
+pub(super) fn selections_contain_field(
     selections: &[crate::graphql::FieldSelection],
     field_name: &str,
 ) -> bool {

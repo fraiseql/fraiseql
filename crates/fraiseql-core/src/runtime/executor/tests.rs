@@ -4,9 +4,120 @@ use async_trait::async_trait;
 use super::*;
 use crate::{
     db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
+    graphql::FieldSelection,
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
     schema::{AutoParams, CompiledSchema, QueryDefinition},
 };
+
+// ── selections_contain_field — mutation-targeted tests (C1–C6) ───────────────
+//
+// These tests target the private `selections_contain_field` function in `query.rs`.
+// They are placed inline (not in an external test file) because the function is private.
+//
+// | Mutant | What cargo-mutants changes | Killed by |
+// |--------|---------------------------|-----------|
+// | C1 | Replace body with `true` | `absent_field_not_found_in_non_empty_list` |
+// | C2 | Replace body with `false` | `present_field_found_in_single_element_list` |
+// | C3 | `==` → `!=` in name check | `present_field_found_in_single_element_list` |
+// | C4 | Delete inline-fragment branch | `field_found_inside_inline_fragment` |
+// | C5 | `starts_with("...")` → `true` | `absent_field_not_found_in_non_empty_list` |
+// | C6 | Final `false` → `true` | `absent_field_not_found_in_non_empty_list` |
+
+fn make_field(name: &str) -> FieldSelection {
+    FieldSelection {
+        name:         name.to_string(),
+        alias:        None,
+        arguments:    vec![],
+        nested_fields: vec![],
+        directives:   vec![],
+    }
+}
+
+fn make_inline_fragment(inner_fields: Vec<FieldSelection>) -> FieldSelection {
+    // Inline fragments are represented as FieldSelection with name starting with "..."
+    FieldSelection {
+        name:         "...on UserConnection".to_string(),
+        alias:        None,
+        arguments:    vec![],
+        nested_fields: inner_fields,
+        directives:   vec![],
+    }
+}
+
+/// C1/C3: Field is found when it's the only element in the list.
+#[test]
+fn present_field_found_in_single_element_list() {
+    let selections = vec![make_field("totalCount")];
+    assert!(
+        super::query::selections_contain_field(&selections, "totalCount"),
+        "C1/C3: 'totalCount' must be found in single-element list"
+    );
+}
+
+/// C2: Field is not found in a non-empty list that doesn't contain it.
+#[test]
+fn absent_field_not_found_in_non_empty_list() {
+    let selections = vec![make_field("edges"), make_field("pageInfo")];
+    assert!(
+        !super::query::selections_contain_field(&selections, "totalCount"),
+        "C2/C5/C6: 'totalCount' must not be found when absent"
+    );
+}
+
+/// C3b: Different field name must not match.
+#[test]
+fn field_name_must_match_exactly() {
+    let selections = vec![make_field("totalCountXYZ"), make_field("total")];
+    assert!(
+        !super::query::selections_contain_field(&selections, "totalCount"),
+        "C3: partial name match must not count as a match"
+    );
+}
+
+/// C4: Field is found inside an inline fragment (name starts with "...").
+#[test]
+fn field_found_inside_inline_fragment() {
+    let inner = vec![make_field("totalCount"), make_field("edges")];
+    let selections = vec![make_field("pageInfo"), make_inline_fragment(inner)];
+    assert!(
+        super::query::selections_contain_field(&selections, "totalCount"),
+        "C4: 'totalCount' must be found inside an inline fragment"
+    );
+}
+
+/// C4b: Field not in the inline fragment is not returned as found.
+#[test]
+fn absent_field_not_found_inside_inline_fragment() {
+    let inner = vec![make_field("edges"), make_field("pageInfo")];
+    let selections = vec![make_inline_fragment(inner)];
+    assert!(
+        !super::query::selections_contain_field(&selections, "totalCount"),
+        "C4b: 'totalCount' must not be found if absent from inline fragment"
+    );
+}
+
+/// Empty selection list always returns false.
+#[test]
+fn empty_selections_returns_false() {
+    assert!(
+        !super::query::selections_contain_field(&[], "totalCount"),
+        "C6: empty selections must return false"
+    );
+}
+
+/// Multiple candidates: returns true when any matches.
+#[test]
+fn field_found_among_multiple_selections() {
+    let selections = vec![
+        make_field("edges"),
+        make_field("pageInfo"),
+        make_field("totalCount"),
+    ];
+    assert!(
+        super::query::selections_contain_field(&selections, "totalCount"),
+        "must find totalCount in multi-element list"
+    );
+}
 
 /// Mock database adapter for testing.
 struct MockAdapter {
