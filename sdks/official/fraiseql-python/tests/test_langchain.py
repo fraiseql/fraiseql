@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+pytest.importorskip("langchain_core", reason="langchain-core not installed; skip langchain tests")
+
 
 @pytest.fixture
 def mock_client():

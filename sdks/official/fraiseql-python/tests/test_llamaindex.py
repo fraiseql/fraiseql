@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+pytest.importorskip("llama_index", reason="llama-index not installed; skip llamaindex tests")
+
 
 @pytest.fixture
 def mock_client():
