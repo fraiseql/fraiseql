@@ -22,10 +22,7 @@ use fraiseql_core::{
         Executor,
         relay::{decode_uuid_cursor, encode_node_id, encode_uuid_cursor},
     },
-    schema::{
-        CompiledSchema, CursorType, FieldDefinition, FieldType,
-        InterfaceDefinition,
-    },
+    schema::{CompiledSchema, CursorType, FieldDefinition, FieldType, InterfaceDefinition},
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::json;

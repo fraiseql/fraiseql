@@ -95,5 +95,8 @@ cargo nextest run -p fraiseql-server --features postgres,auth
 - [ ] Integration test CI jobs green on `dev` (verify in CI, not just locally)
 - [ ] Quality score ≥ 4.5 / 5.0 (run quality evaluation script if exists)
 
+## Branch Strategy
+Work on a feature branch (e.g. `fix/quality-docs`), merge to `dev` via PR.
+
 ## Closes
 - Issue #82 (Arrow Flight docs contradiction)

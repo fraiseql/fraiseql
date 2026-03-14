@@ -62,11 +62,21 @@ pub fn build_rest_router<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         let method = rest.method.to_ascii_uppercase();
 
         router = match method.as_str() {
-            "GET" => router.route(&axum_path, axum::routing::get(rest_handler::<A>).with_state(state)),
-            "POST" => router.route(&axum_path, axum::routing::post(rest_handler::<A>).with_state(state)),
-            "PUT" => router.route(&axum_path, axum::routing::put(rest_handler::<A>).with_state(state)),
-            "PATCH" => router.route(&axum_path, axum::routing::patch(rest_handler::<A>).with_state(state)),
-            "DELETE" => router.route(&axum_path, axum::routing::delete(rest_handler::<A>).with_state(state)),
+            "GET" => {
+                router.route(&axum_path, axum::routing::get(rest_handler::<A>).with_state(state))
+            },
+            "POST" => {
+                router.route(&axum_path, axum::routing::post(rest_handler::<A>).with_state(state))
+            },
+            "PUT" => {
+                router.route(&axum_path, axum::routing::put(rest_handler::<A>).with_state(state))
+            },
+            "PATCH" => {
+                router.route(&axum_path, axum::routing::patch(rest_handler::<A>).with_state(state))
+            },
+            "DELETE" => {
+                router.route(&axum_path, axum::routing::delete(rest_handler::<A>).with_state(state))
+            },
             other => {
                 error!(method = %other, path = %rest.path, "Unsupported REST method in schema — skipping route");
                 continue;
@@ -98,11 +108,21 @@ pub fn build_rest_router<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         let method = rest.method.to_ascii_uppercase();
 
         router = match method.as_str() {
-            "GET" => router.route(&axum_path, axum::routing::get(rest_handler::<A>).with_state(state)),
-            "POST" => router.route(&axum_path, axum::routing::post(rest_handler::<A>).with_state(state)),
-            "PUT" => router.route(&axum_path, axum::routing::put(rest_handler::<A>).with_state(state)),
-            "PATCH" => router.route(&axum_path, axum::routing::patch(rest_handler::<A>).with_state(state)),
-            "DELETE" => router.route(&axum_path, axum::routing::delete(rest_handler::<A>).with_state(state)),
+            "GET" => {
+                router.route(&axum_path, axum::routing::get(rest_handler::<A>).with_state(state))
+            },
+            "POST" => {
+                router.route(&axum_path, axum::routing::post(rest_handler::<A>).with_state(state))
+            },
+            "PUT" => {
+                router.route(&axum_path, axum::routing::put(rest_handler::<A>).with_state(state))
+            },
+            "PATCH" => {
+                router.route(&axum_path, axum::routing::patch(rest_handler::<A>).with_state(state))
+            },
+            "DELETE" => {
+                router.route(&axum_path, axum::routing::delete(rest_handler::<A>).with_state(state))
+            },
             other => {
                 error!(method = %other, path = %rest.path, "Unsupported REST method in schema — skipping route");
                 continue;
@@ -122,26 +142,20 @@ pub fn build_rest_router<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         if rest_config.openapi_enabled {
             // Use pre-generated spec if available, otherwise generate dynamically
             let spec = schema.rest_openapi_spec.clone().unwrap_or_else(|| {
-                fraiseql_core::schema::openapi_gen::generate_openapi_spec(
-                    schema,
-                    rest_config,
-                )
+                fraiseql_core::schema::openapi_gen::generate_openapi_spec(schema, rest_config)
             });
 
             let openapi_path = rest_config.openapi_path.clone();
-            router = router.route(
-                &openapi_path,
-                axum::routing::get(move || {
-                    let spec = spec.clone();
-                    async move {
-                        (
-                            StatusCode::OK,
-                            [(header::CONTENT_TYPE, "application/json")],
-                            spec,
-                        )
-                    }
-                }),
-            );
+            router =
+                router.route(
+                    &openapi_path,
+                    axum::routing::get(move || {
+                        let spec = spec.clone();
+                        async move {
+                            (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], spec)
+                        }
+                    }),
+                );
 
             info!(path = %rest_config.openapi_path, "OpenAPI spec endpoint mounted");
         }
@@ -163,11 +177,7 @@ pub(crate) fn to_axum_path(schema_path: &str) -> String {
 /// Falls back to `["__typename"]` if the type is not found in the schema.
 fn derive_return_fields(schema: &CompiledSchema, type_name: &str) -> Vec<String> {
     if let Some(type_def) = schema.types.iter().find(|t| t.name == type_name) {
-        type_def
-            .fields
-            .iter()
-            .map(|f| f.name.to_string())
-            .collect()
+        type_def.fields.iter().map(|f| f.name.to_string()).collect()
     } else {
         vec!["__typename".to_string()]
     }
@@ -200,17 +210,9 @@ async fn rest_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     );
 
     let exec_result = if let Some(vars) = &translated.variables {
-        state
-            .app_state
-            .executor
-            .execute(&translated.query, Some(vars))
-            .await
+        state.app_state.executor.execute(&translated.query, Some(vars)).await
     } else {
-        state
-            .app_state
-            .executor
-            .execute(&translated.query, None)
-            .await
+        state.app_state.executor.execute(&translated.query, None).await
     };
 
     match exec_result {
@@ -224,7 +226,8 @@ async fn rest_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                     .into_response(),
 
                 RestOutcome::Partial { data, errors } => {
-                    let body = serde_json::json!({"data": data, "errors": errors, "_partial": true});
+                    let body =
+                        serde_json::json!({"data": data, "errors": errors, "_partial": true});
                     (
                         StatusCode::OK,
                         [(header::CONTENT_TYPE, "application/json")],
@@ -235,8 +238,8 @@ async fn rest_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                 },
 
                 RestOutcome::Failure { status, body } => {
-                    let sc = StatusCode::from_u16(status)
-                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                    let sc =
+                        StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
                     error!(
                         status = %status,
                         operation = %state.operation_name,
@@ -270,7 +273,8 @@ async fn rest_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [(header::CONTENT_TYPE, "application/json")],
-                serde_json::to_string(&body).unwrap_or_else(|_| r#"{"error":"internal"}"#.to_string()),
+                serde_json::to_string(&body)
+                    .unwrap_or_else(|_| r#"{"error":"internal"}"#.to_string()),
             )
                 .into_response()
         },

@@ -17,17 +17,18 @@
 //! **Do not merge tests** — each test targets exactly one mutation.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::doc_markdown)] // Reason: test code, doc tables reference code identifiers
 #![allow(missing_docs)] // Reason: test code
 
-use fraiseql_core::compiler::aggregation::{
-    AggregateExpression, AggregateSelection, AggregationPlanner, AggregationRequest,
-    GroupByExpression, GroupBySelection, HavingCondition,
-};
-use fraiseql_core::compiler::aggregate_types::{
-    AggregateFunction, BoolAggregateFunction, HavingOperator, TemporalBucket,
-};
-use fraiseql_core::compiler::fact_table::{
-    DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+use fraiseql_core::compiler::{
+    aggregate_types::{AggregateFunction, BoolAggregateFunction, HavingOperator, TemporalBucket},
+    aggregation::{
+        AggregateExpression, AggregateSelection, AggregationPlanner, AggregationRequest,
+        GroupByExpression, GroupBySelection, HavingCondition,
+    },
+    fact_table::{
+        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    },
 };
 
 // ── Shared fixtures ───────────────────────────────────────────────────────────
@@ -66,29 +67,29 @@ fn base_metadata() -> FactTableMetadata {
 
 fn simple_request_with_group_by(group_by: Vec<GroupBySelection>) -> AggregationRequest {
     AggregationRequest {
-        table_name:   "tf_orders".to_string(),
+        table_name: "tf_orders".to_string(),
         where_clause: None,
         group_by,
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     }
 }
 
 fn simple_request_with_aggregates(aggregates: Vec<AggregateSelection>) -> AggregationRequest {
     AggregationRequest {
-        table_name:   "tf_orders".to_string(),
+        table_name: "tf_orders".to_string(),
         where_clause: None,
-        group_by:     vec![],
+        group_by: vec![],
         aggregates,
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     }
 }
 
@@ -239,7 +240,10 @@ fn measure_aggregate_accepts_dimension_path_as_measure() {
         alias:    "region_count".to_string(),
     }]);
     let result = AggregationPlanner::plan(request, metadata);
-    assert!(result.is_ok(), "B4a: declared dimension path must be accepted as measure aggregate");
+    assert!(
+        result.is_ok(),
+        "B4a: declared dimension path must be accepted as measure aggregate"
+    );
 }
 
 /// B4b: MeasureAggregate should accept a denormalized filter column as measure.
@@ -288,15 +292,8 @@ fn string_agg_produces_advanced_aggregate_with_delimiter() {
     let expr = &plan.aggregate_expressions[0];
     match expr {
         AggregateExpression::AdvancedAggregate { delimiter, .. } => {
-            assert!(
-                delimiter.is_some(),
-                "B5: StringAgg must have a delimiter, got None"
-            );
-            assert_eq!(
-                delimiter.as_deref(),
-                Some(", "),
-                "B5: StringAgg delimiter must be \", \""
-            );
+            assert!(delimiter.is_some(), "B5: StringAgg must have a delimiter, got None");
+            assert_eq!(delimiter.as_deref(), Some(", "), "B5: StringAgg delimiter must be \", \"");
         },
         other => panic!("B5: StringAgg must produce AdvancedAggregate, got: {other:?}"),
     }
@@ -318,10 +315,7 @@ fn array_agg_produces_advanced_aggregate_without_delimiter() {
     let expr = &plan.aggregate_expressions[0];
     match expr {
         AggregateExpression::AdvancedAggregate { delimiter, .. } => {
-            assert!(
-                delimiter.is_none(),
-                "B6: ArrayAgg must have no delimiter, got: {delimiter:?}"
-            );
+            assert!(delimiter.is_none(), "B6: ArrayAgg must have no delimiter, got: {delimiter:?}");
         },
         other => panic!("B6: ArrayAgg must produce AdvancedAggregate, got: {other:?}"),
     }
@@ -421,7 +415,9 @@ fn having_string_agg_produces_delimiter() {
         table_name:   "tf_orders".to_string(),
         where_clause: None,
         group_by:     vec![],
-        aggregates:   vec![AggregateSelection::Count { alias: "n".to_string() }],
+        aggregates:   vec![AggregateSelection::Count {
+            alias: "n".to_string(),
+        }],
         having:       vec![HavingCondition {
             aggregate: AggregateSelection::MeasureAggregate {
                 measure:  "amount".to_string(),
@@ -460,7 +456,9 @@ fn having_array_agg_produces_no_delimiter() {
         table_name:   "tf_orders".to_string(),
         where_clause: None,
         group_by:     vec![],
-        aggregates:   vec![AggregateSelection::Count { alias: "n".to_string() }],
+        aggregates:   vec![AggregateSelection::Count {
+            alias: "n".to_string(),
+        }],
         having:       vec![HavingCondition {
             aggregate: AggregateSelection::MeasureAggregate {
                 measure:  "amount".to_string(),
@@ -478,10 +476,7 @@ fn having_array_agg_produces_no_delimiter() {
     assert_eq!(plan.having_conditions.len(), 1);
     match &plan.having_conditions[0].aggregate {
         AggregateExpression::AdvancedAggregate { delimiter, .. } => {
-            assert!(
-                delimiter.is_none(),
-                "ArrayAgg HAVING condition must not carry a delimiter",
-            );
+            assert!(delimiter.is_none(), "ArrayAgg HAVING condition must not carry a delimiter",);
         },
         other => panic!("expected AdvancedAggregate, got: {other:?}"),
     }

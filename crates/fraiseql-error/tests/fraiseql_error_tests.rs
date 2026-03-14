@@ -429,7 +429,12 @@ fn from_env_var_error_produces_configuration_variant() {
 
 #[test]
 fn client_errors_are_classified_correctly() {
-    assert!(FraiseQLError::Authentication { message: "x".into() }.is_client_error());
+    assert!(
+        FraiseQLError::Authentication {
+            message: "x".into(),
+        }
+        .is_client_error()
+    );
     assert!(
         FraiseQLError::Authorization {
             message:  "x".into(),
@@ -459,7 +464,12 @@ fn client_errors_are_classified_correctly() {
         }
         .is_client_error()
     );
-    assert!(FraiseQLError::Conflict { message: "x".into() }.is_client_error());
+    assert!(
+        FraiseQLError::Conflict {
+            message: "x".into(),
+        }
+        .is_client_error()
+    );
     assert!(
         FraiseQLError::RateLimited {
             message:          "x".into(),
@@ -485,8 +495,18 @@ fn server_errors_are_classified_correctly() {
         }
         .is_server_error()
     );
-    assert!(FraiseQLError::Configuration { message: "x".into() }.is_server_error());
-    assert!(FraiseQLError::ConnectionPool { message: "x".into() }.is_server_error());
+    assert!(
+        FraiseQLError::Configuration {
+            message: "x".into(),
+        }
+        .is_server_error()
+    );
+    assert!(
+        FraiseQLError::ConnectionPool {
+            message: "x".into(),
+        }
+        .is_server_error()
+    );
     assert!(
         FraiseQLError::Timeout {
             timeout_ms: 1,
@@ -494,16 +514,31 @@ fn server_errors_are_classified_correctly() {
         }
         .is_server_error()
     );
-    assert!(FraiseQLError::Unsupported { message: "x".into() }.is_server_error());
+    assert!(
+        FraiseQLError::Unsupported {
+            message: "x".into(),
+        }
+        .is_server_error()
+    );
 }
 
 #[test]
 fn client_and_server_are_mutually_exclusive() {
     let errors: &[FraiseQLError] = &[
-        FraiseQLError::Authentication { message: "x".into() },
-        FraiseQLError::Database { message: "x".into(), sql_state: None },
-        FraiseQLError::Configuration { message: "x".into() },
-        FraiseQLError::NotFound { resource_type: "T".into(), identifier: "1".into() },
+        FraiseQLError::Authentication {
+            message: "x".into(),
+        },
+        FraiseQLError::Database {
+            message:   "x".into(),
+            sql_state: None,
+        },
+        FraiseQLError::Configuration {
+            message: "x".into(),
+        },
+        FraiseQLError::NotFound {
+            resource_type: "T".into(),
+            identifier:    "1".into(),
+        },
     ];
     for e in errors {
         assert!(
@@ -515,7 +550,12 @@ fn client_and_server_are_mutually_exclusive() {
 
 #[test]
 fn retryable_errors_are_identified() {
-    assert!(FraiseQLError::ConnectionPool { message: "x".into() }.is_retryable());
+    assert!(
+        FraiseQLError::ConnectionPool {
+            message: "x".into(),
+        }
+        .is_retryable()
+    );
     assert!(
         FraiseQLError::Timeout {
             timeout_ms: 5000,
@@ -534,10 +574,30 @@ fn retryable_errors_are_identified() {
 
 #[test]
 fn non_retryable_errors_are_not_retryable() {
-    assert!(!FraiseQLError::Authentication { message: "x".into() }.is_retryable());
-    assert!(!FraiseQLError::Configuration { message: "x".into() }.is_retryable());
-    assert!(!FraiseQLError::Conflict { message: "x".into() }.is_retryable());
-    assert!(!FraiseQLError::Unsupported { message: "x".into() }.is_retryable());
+    assert!(
+        !FraiseQLError::Authentication {
+            message: "x".into(),
+        }
+        .is_retryable()
+    );
+    assert!(
+        !FraiseQLError::Configuration {
+            message: "x".into(),
+        }
+        .is_retryable()
+    );
+    assert!(
+        !FraiseQLError::Conflict {
+            message: "x".into(),
+        }
+        .is_retryable()
+    );
+    assert!(
+        !FraiseQLError::Unsupported {
+            message: "x".into(),
+        }
+        .is_retryable()
+    );
 }
 
 // ── Group G: error_code() method ─────────────────────────────────────────────
@@ -545,7 +605,10 @@ fn non_retryable_errors_are_not_retryable() {
 #[test]
 fn error_code_values_are_stable() {
     assert_eq!(
-        FraiseQLError::Authentication { message: "x".into() }.error_code(),
+        FraiseQLError::Authentication {
+            message: "x".into(),
+        }
+        .error_code(),
         "UNAUTHENTICATED"
     );
     assert_eq!(
@@ -574,7 +637,10 @@ fn error_code_values_are_stable() {
         "RATE_LIMITED"
     );
     assert_eq!(
-        FraiseQLError::Unsupported { message: "x".into() }.error_code(),
+        FraiseQLError::Unsupported {
+            message: "x".into(),
+        }
+        .error_code(),
         "UNSUPPORTED_OPERATION"
     );
     assert_eq!(
@@ -610,11 +676,17 @@ fn error_code_values_are_stable() {
         "INTERNAL_SERVER_ERROR"
     );
     assert_eq!(
-        FraiseQLError::Conflict { message: "x".into() }.error_code(),
+        FraiseQLError::Conflict {
+            message: "x".into(),
+        }
+        .error_code(),
         "CONFLICT"
     );
     assert_eq!(
-        FraiseQLError::ConnectionPool { message: "x".into() }.error_code(),
+        FraiseQLError::ConnectionPool {
+            message: "x".into(),
+        }
+        .error_code(),
         "CONNECTION_POOL_ERROR"
     );
     assert_eq!(
@@ -634,7 +706,10 @@ fn error_code_values_are_stable() {
         "CANCELLED"
     );
     assert_eq!(
-        FraiseQLError::Configuration { message: "x".into() }.error_code(),
+        FraiseQLError::Configuration {
+            message: "x".into(),
+        }
+        .error_code(),
         "CONFIGURATION_ERROR"
     );
     assert_eq!(
@@ -686,7 +761,13 @@ fn validation_at_constructor_sets_path() {
 #[test]
 fn database_constructor_has_no_sql_state() {
     let e = FraiseQLError::database("conn failed");
-    assert!(matches!(e, FraiseQLError::Database { sql_state: None, .. }));
+    assert!(matches!(
+        e,
+        FraiseQLError::Database {
+            sql_state: None,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -721,11 +802,7 @@ fn not_found_constructor_sets_resource_and_identifier() {
 
 #[test]
 fn unknown_field_with_suggestion_includes_typo_hint() {
-    let e = FraiseQLError::unknown_field_with_suggestion(
-        "emal",
-        "User",
-        &["email", "name", "id"],
-    );
+    let e = FraiseQLError::unknown_field_with_suggestion("emal", "User", &["email", "name", "id"]);
     let s = e.to_string();
     // "emal" is 1 edit away from "email" — should include suggestion
     assert!(s.contains("email") || s.contains("emal"), "got: {s}");

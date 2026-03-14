@@ -17,6 +17,7 @@
 //! **Do not merge tests** — each test targets exactly one mutation.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::doc_markdown)] // Reason: test code, doc tables reference code identifiers
 #![allow(missing_docs)] // Reason: test code
 
 use std::{
@@ -27,7 +28,9 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
-    db::{DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause, WhereOperator, types::JsonbValue},
+    db::{
+        DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause, WhereOperator, types::JsonbValue,
+    },
     error::Result,
     schema::SqlProjectionHint,
 };
@@ -42,7 +45,7 @@ struct CountingMock {
 }
 
 impl CountingMock {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             projection_calls: AtomicU32::new(0),
             where_calls:      AtomicU32::new(0),
@@ -136,8 +139,14 @@ async fn projection_bypass_does_not_cache_when_disabled() {
     let proj = sample_projection();
 
     // Both calls must go to the adapter (disabled cache never short-circuits into cache path)
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(
         adapter.inner().projection_calls(),
@@ -159,11 +168,17 @@ async fn projection_enabled_cache_hits_on_second_call() {
     let proj = sample_projection();
 
     // First call — cache miss, adapter executes
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().projection_calls(), 1, "A2: first call must reach adapter");
 
     // Second identical call — must hit cache, adapter NOT called again
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
     assert_eq!(
         adapter.inner().projection_calls(),
         1,
@@ -222,8 +237,14 @@ async fn projection_info_contributes_to_cache_key() {
     };
 
     // Two calls with different projections — both must reach the adapter (different keys)
-    adapter.execute_with_projection("v_user", Some(&proj_a), None, None).await.unwrap();
-    adapter.execute_with_projection("v_user", Some(&proj_b), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj_a), None, None)
+        .await
+        .unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj_b), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(
         adapter.inner().projection_calls(),
@@ -240,14 +261,20 @@ async fn same_projection_template_produces_cache_hit() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "v1".to_string());
     let proj = sample_projection();
 
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
     // Clone with identical template
     let proj2 = SqlProjectionHint {
         database:                    "postgresql".to_string(),
         projection_template:         "jsonb_build_object('id', data->>'id')".to_string(),
         estimated_reduction_percent: 50,
     };
-    adapter.execute_with_projection("v_user", Some(&proj2), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj2), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(
         adapter.inner().projection_calls(),
@@ -271,7 +298,10 @@ async fn result_is_stored_in_cache_after_first_projection_call() {
 
     // Three calls — only first should hit adapter
     for _ in 0..3 {
-        adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+        adapter
+            .execute_with_projection("v_user", Some(&proj), None, None)
+            .await
+            .unwrap();
     }
 
     assert_eq!(
@@ -313,7 +343,10 @@ async fn projection_and_where_query_use_independent_cache_entries() {
     let w = sample_where();
 
     // Prime both caches
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
     adapter.execute_where_query("v_user", Some(&w), None, None).await.unwrap();
 
     // Both methods must have been called exactly once each
@@ -321,7 +354,10 @@ async fn projection_and_where_query_use_independent_cache_entries() {
     assert_eq!(adapter.inner().where_calls(), 1);
 
     // Second round — both should hit cache
-    adapter.execute_with_projection("v_user", Some(&proj), None, None).await.unwrap();
+    adapter
+        .execute_with_projection("v_user", Some(&proj), None, None)
+        .await
+        .unwrap();
     adapter.execute_where_query("v_user", Some(&w), None, None).await.unwrap();
 
     assert_eq!(adapter.inner().projection_calls(), 1, "projection should still be cached");

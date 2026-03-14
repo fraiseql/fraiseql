@@ -18,9 +18,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    directive::DirectiveDefinition,
-    mutation::MutationDefinition,
-    query::QueryDefinition,
+    directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition,
     rest::RestConfig,
 };
 use crate::{

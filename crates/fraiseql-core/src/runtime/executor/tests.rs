@@ -7,10 +7,8 @@ use super::*;
 use crate::{
     compiler::aggregation::OrderByClause,
     db::{
-        CursorValue, MutationCapable, RelayDatabaseAdapter,
-        traits::{RelayPageResult},
-        types::JsonbValue,
-        where_clause::WhereClause,
+        CursorValue, MutationCapable, RelayDatabaseAdapter, traits::RelayPageResult,
+        types::JsonbValue, where_clause::WhereClause,
     },
     graphql::FieldSelection,
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
@@ -33,22 +31,22 @@ use crate::{
 
 fn make_field(name: &str) -> FieldSelection {
     FieldSelection {
-        name:         name.to_string(),
-        alias:        None,
-        arguments:    vec![],
+        name:          name.to_string(),
+        alias:         None,
+        arguments:     vec![],
         nested_fields: vec![],
-        directives:   vec![],
+        directives:    vec![],
     }
 }
 
 fn make_inline_fragment(inner_fields: Vec<FieldSelection>) -> FieldSelection {
     // Inline fragments are represented as FieldSelection with name starting with "..."
     FieldSelection {
-        name:         "...on UserConnection".to_string(),
-        alias:        None,
-        arguments:    vec![],
+        name:          "...on UserConnection".to_string(),
+        alias:         None,
+        arguments:     vec![],
         nested_fields: inner_fields,
-        directives:   vec![],
+        directives:    vec![],
     }
 }
 
@@ -921,17 +919,17 @@ fn make_security_ctx_with_roles(user_id: &str, roles: Vec<String>) -> SecurityCo
     use chrono::Utc;
     let now = Utc::now();
     SecurityContext {
-        user_id:          user_id.to_string(),
+        user_id: user_id.to_string(),
         roles,
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       std::collections::HashMap::new(),
-        request_id:       "test-req".to_string(),
-        ip_address:       None,
+        tenant_id: None,
+        scopes: vec![],
+        attributes: std::collections::HashMap::new(),
+        request_id: "test-req".to_string(),
+        ip_address: None,
         authenticated_at: now,
-        expires_at:       now + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: now + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     }
 }
 
@@ -961,9 +959,9 @@ fn make_expired_security_ctx() -> SecurityContext {
 #[tokio::test]
 async fn user_with_role_can_access_role_gated_query() {
     let schema = make_role_gated_schema("admin");
-    let adapter = Arc::new(MockAdapter::new(vec![
-        JsonbValue::new(serde_json::json!({"id": "1", "title": "Report"})),
-    ]));
+    let adapter = Arc::new(MockAdapter::new(vec![JsonbValue::new(
+        serde_json::json!({"id": "1", "title": "Report"}),
+    )]));
     let executor = Executor::new(schema, adapter);
     let ctx = make_security_ctx_with_roles("user-1", vec!["admin".to_string()]);
 
@@ -1008,8 +1006,9 @@ async fn user_with_no_roles_is_rejected_for_role_gated_query() {
     let executor = Executor::new(schema, adapter);
     let ctx = make_security_ctx_with_roles("user-1", vec![]);
 
-    let result =
-        executor.execute_with_security("query { adminReport { id title } }", None, &ctx).await;
+    let result = executor
+        .execute_with_security("query { adminReport { id title } }", None, &ctx)
+        .await;
     assert!(result.is_err(), "D2b: user with no roles must be rejected");
 }
 
@@ -1041,9 +1040,9 @@ async fn expired_token_is_rejected() {
 #[tokio::test]
 async fn non_role_gated_query_is_accessible_without_any_role() {
     let schema = test_schema(); // "users" query has requires_role: None
-    let adapter = Arc::new(MockAdapter::new(vec![
-        JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"})),
-    ]));
+    let adapter = Arc::new(MockAdapter::new(vec![JsonbValue::new(
+        serde_json::json!({"id": "1", "name": "Alice"}),
+    )]));
     let executor = Executor::new(schema, adapter);
     let ctx = make_security_ctx_with_roles("user-1", vec![]);
 
@@ -1073,8 +1072,8 @@ async fn non_role_gated_query_is_accessible_without_any_role() {
 
 /// Adapter that records whether a projection hint was passed.
 struct RecordingAdapter {
-    results:              Vec<JsonbValue>,
-    got_projection_hint:  Arc<AtomicBool>,
+    results:             Vec<JsonbValue>,
+    got_projection_hint: Arc<AtomicBool>,
 }
 
 #[async_trait]
@@ -1176,7 +1175,9 @@ async fn execute_regular_query_project_strategy_sends_projection_hint() {
     let schema = test_schema();
     let hint_flag = Arc::new(AtomicBool::new(false));
     let adapter = Arc::new(RecordingAdapter {
-        results:             vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"}))],
+        results:             vec![JsonbValue::new(
+            serde_json::json!({"id": "1", "name": "Alice"}),
+        )],
         got_projection_hint: hint_flag.clone(),
     });
     // 2 fields → 2/max(2,10) = 20% < 80% threshold → Project strategy → hint must be sent.
@@ -1226,7 +1227,9 @@ async fn execute_with_security_project_strategy_sends_projection_hint() {
     let schema = test_schema();
     let hint_flag = Arc::new(AtomicBool::new(false));
     let adapter = Arc::new(RecordingAdapter {
-        results:             vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"}))],
+        results:             vec![JsonbValue::new(
+            serde_json::json!({"id": "1", "name": "Alice"}),
+        )],
         got_projection_hint: hint_flag.clone(),
     });
     let executor = Executor::new(schema, adapter);
@@ -1273,8 +1276,8 @@ impl RecordingRelayAdapter {
         let total_flag = Arc::new(AtomicBool::new(false));
         let adapter = Arc::new(Self {
             rows,
-            last_forward:             forward_flag.clone(),
-            last_limit:               limit_val.clone(),
+            last_forward: forward_flag.clone(),
+            last_limit: limit_val.clone(),
             last_include_total_count: total_flag.clone(),
         });
         (adapter, forward_flag, limit_val, total_flag)
@@ -1410,10 +1413,7 @@ async fn relay_forward_direction_when_first_given() {
         .execute("{ users { edges { node { id } } pageInfo { hasNextPage } } }", None)
         .await
         .unwrap();
-    assert!(
-        forward_flag.load(Ordering::SeqCst),
-        "G1: no 'last' arg → forward must be true"
-    );
+    assert!(forward_flag.load(Ordering::SeqCst), "G1: no 'last' arg → forward must be true");
 }
 
 /// G1b: `last` given and no `first` → backward direction.
@@ -1482,11 +1482,7 @@ async fn relay_has_next_page_when_adapter_returns_extra_row() {
         .unwrap();
 
     // Verify the executor requested page_size + 1 = 3 rows from the adapter.
-    assert_eq!(
-        limit_val.load(Ordering::SeqCst),
-        3,
-        "G2: fetch_limit must be page_size + 1 = 3"
-    );
+    assert_eq!(limit_val.load(Ordering::SeqCst), 3, "G2: fetch_limit must be page_size + 1 = 3");
 
     // Verify hasNextPage reflects the extra row.
     let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(false);
@@ -1504,10 +1500,7 @@ async fn relay_total_count_included_when_selected() {
     let executor = Executor::new_with_relay(relay_query_schema(), adapter);
 
     let json = executor
-        .execute_json(
-            "{ users { edges { node { id } } totalCount } }",
-            None,
-        )
+        .execute_json("{ users { edges { node { id } } totalCount } }", None)
         .await
         .unwrap();
 
@@ -1519,10 +1512,7 @@ async fn relay_total_count_included_when_selected() {
 
     // totalCount must appear in the response.
     let tc = &json["data"]["users"]["totalCount"];
-    assert!(
-        !tc.is_null(),
-        "G3: totalCount must be present in response, got: {json}"
-    );
+    assert!(!tc.is_null(), "G3: totalCount must be present in response, got: {json}");
     assert_eq!(tc.as_u64().unwrap(), 3, "G3: totalCount must equal number of available rows");
 }
 
@@ -1550,7 +1540,10 @@ async fn relay_no_next_page_when_adapter_returns_exactly_page_size_rows() {
         .unwrap();
 
     let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(true);
-    assert!(!has_next, "G4: hasNextPage must be false when result has exactly page_size rows");
+    assert!(
+        !has_next,
+        "G4: hasNextPage must be false when result has exactly page_size rows"
+    );
 }
 
 /// G4b: hasNextPage is false when fewer than page_size rows are returned.
@@ -1560,7 +1553,9 @@ async fn relay_no_next_page_when_adapter_returns_exactly_page_size_rows() {
 #[tokio::test]
 async fn relay_no_next_page_when_adapter_returns_fewer_than_page_size_rows() {
     // 1 row; request first=2 → fetch_limit=3 → adapter returns 1.
-    let rows = vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice", "pk_user": 1}))];
+    let rows = vec![JsonbValue::new(
+        serde_json::json!({"id": "1", "name": "Alice", "pk_user": 1}),
+    )];
     let (adapter, _, _, _) = RecordingRelayAdapter::new(rows);
     let executor = Executor::new_with_relay(relay_query_schema(), adapter);
 
@@ -1574,7 +1569,10 @@ async fn relay_no_next_page_when_adapter_returns_fewer_than_page_size_rows() {
         .unwrap();
 
     let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(true);
-    assert!(!has_next, "G4b: hasNextPage must be false when result has fewer than page_size rows");
+    assert!(
+        !has_next,
+        "G4b: hasNextPage must be false when result has fewer than page_size rows"
+    );
 }
 
 /// G5: pageInfo.startCursor must correspond to the FIRST edge's cursor.

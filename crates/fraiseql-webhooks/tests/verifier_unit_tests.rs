@@ -28,8 +28,19 @@ use sha2::Sha256;
 fn registry_has_all_built_in_providers() {
     let r = ProviderRegistry::new();
     for name in [
-        "stripe", "github", "shopify", "gitlab", "slack", "twilio", "sendgrid", "postmark",
-        "paddle", "lemonsqueezy", "discord", "hmac-sha256", "hmac-sha1",
+        "stripe",
+        "github",
+        "shopify",
+        "gitlab",
+        "slack",
+        "twilio",
+        "sendgrid",
+        "postmark",
+        "paddle",
+        "lemonsqueezy",
+        "discord",
+        "hmac-sha256",
+        "hmac-sha1",
     ] {
         assert!(r.has_provider(name), "missing provider: {name}");
     }

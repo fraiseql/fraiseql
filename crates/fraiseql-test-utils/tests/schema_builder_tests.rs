@@ -12,7 +12,9 @@ use fraiseql_test_utils::{
     assert_field_path, assert_graphql_error_code, assert_graphql_error_contains,
     assert_graphql_success, assert_has_data, assert_no_graphql_errors, create_temp_dir,
     fixtures::{sample_error_response, sample_query_response, sample_user},
-    get_test_id, mock_db::{MockDb, MockDbError}, setup_test_env,
+    get_test_id,
+    mock_db::{MockDb, MockDbError},
+    setup_test_env,
 };
 use serde_json::json;
 
@@ -75,7 +77,9 @@ fn query_builder_relay_cursor_type_int64_default() {
 #[test]
 fn query_builder_with_additional_views() {
     let views = vec!["v_user_stats".to_string(), "v_user_roles".to_string()];
-    let q = TestQueryBuilder::new("users", "User").with_additional_views(views.clone()).build();
+    let q = TestQueryBuilder::new("users", "User")
+        .with_additional_views(views.clone())
+        .build();
     assert_eq!(q.additional_views, views);
 }
 
@@ -138,7 +142,9 @@ fn type_builder_relay_false_by_default() {
 
 #[test]
 fn type_builder_with_implements() {
-    let t = TestTypeBuilder::new("User", "v_user").with_implements(&["Node", "Auditable"]).build();
+    let t = TestTypeBuilder::new("User", "v_user")
+        .with_implements(&["Node", "Auditable"])
+        .build();
     assert_eq!(t.implements, vec!["Node".to_string(), "Auditable".to_string()]);
 }
 

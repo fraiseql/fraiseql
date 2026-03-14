@@ -97,5 +97,8 @@ and `rest_method="GET"` serialises to JSON containing `"rest":{"path":"/users/{i
 - [ ] Each SDK has ≥1 test covering REST annotation serialisation
 - [ ] CI workflows for Go, PHP, Elixir, F# pass
 
+## Branch Strategy
+Work on a feature branch (e.g. `fix/sdk-ci-rest-annotations`), merge to `dev` via PR.
+
 ## Closes
 - Issue #85 (REST annotation parity — PHP, Elixir, F# remaining)

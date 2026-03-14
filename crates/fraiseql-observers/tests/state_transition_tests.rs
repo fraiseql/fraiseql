@@ -21,7 +21,9 @@ use uuid::Uuid;
 
 #[test]
 fn observer_error_invalid_config_display() {
-    let e = ObserverError::InvalidConfig { message: "bad config".into() };
+    let e = ObserverError::InvalidConfig {
+        message: "bad config".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB001"), "got: {s}");
     assert!(s.contains("bad config"), "got: {s}");
@@ -29,7 +31,9 @@ fn observer_error_invalid_config_display() {
 
 #[test]
 fn observer_error_no_matching_observers_display() {
-    let e = ObserverError::NoMatchingObservers { event_type: "ORDER_SHIPPED".into() };
+    let e = ObserverError::NoMatchingObservers {
+        event_type: "ORDER_SHIPPED".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB002"), "got: {s}");
     assert!(s.contains("ORDER_SHIPPED"), "got: {s}");
@@ -37,7 +41,9 @@ fn observer_error_no_matching_observers_display() {
 
 #[test]
 fn observer_error_invalid_condition_display() {
-    let e = ObserverError::InvalidCondition { reason: "unexpected token".into() };
+    let e = ObserverError::InvalidCondition {
+        reason: "unexpected token".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB003"), "got: {s}");
     assert!(s.contains("unexpected token"), "got: {s}");
@@ -45,7 +51,9 @@ fn observer_error_invalid_condition_display() {
 
 #[test]
 fn observer_error_condition_evaluation_failed_display() {
-    let e = ObserverError::ConditionEvaluationFailed { reason: "null pointer".into() };
+    let e = ObserverError::ConditionEvaluationFailed {
+        reason: "null pointer".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB004"), "got: {s}");
     assert!(s.contains("null pointer"), "got: {s}");
@@ -53,7 +61,9 @@ fn observer_error_condition_evaluation_failed_display() {
 
 #[test]
 fn observer_error_invalid_action_config_display() {
-    let e = ObserverError::InvalidActionConfig { reason: "missing url".into() };
+    let e = ObserverError::InvalidActionConfig {
+        reason: "missing url".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB005"), "got: {s}");
     assert!(s.contains("missing url"), "got: {s}");
@@ -61,7 +71,9 @@ fn observer_error_invalid_action_config_display() {
 
 #[test]
 fn observer_error_action_execution_failed_display() {
-    let e = ObserverError::ActionExecutionFailed { reason: "timeout".into() };
+    let e = ObserverError::ActionExecutionFailed {
+        reason: "timeout".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB006"), "got: {s}");
     assert!(s.contains("timeout"), "got: {s}");
@@ -69,7 +81,9 @@ fn observer_error_action_execution_failed_display() {
 
 #[test]
 fn observer_error_action_permanently_failed_display() {
-    let e = ObserverError::ActionPermanentlyFailed { reason: "endpoint gone".into() };
+    let e = ObserverError::ActionPermanentlyFailed {
+        reason: "endpoint gone".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB007"), "got: {s}");
     assert!(s.contains("endpoint gone"), "got: {s}");
@@ -77,7 +91,9 @@ fn observer_error_action_permanently_failed_display() {
 
 #[test]
 fn observer_error_template_rendering_failed_display() {
-    let e = ObserverError::TemplateRenderingFailed { reason: "undefined variable".into() };
+    let e = ObserverError::TemplateRenderingFailed {
+        reason: "undefined variable".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB008"), "got: {s}");
     assert!(s.contains("undefined variable"), "got: {s}");
@@ -85,7 +101,9 @@ fn observer_error_template_rendering_failed_display() {
 
 #[test]
 fn observer_error_database_error_display() {
-    let e = ObserverError::DatabaseError { reason: "connection refused".into() };
+    let e = ObserverError::DatabaseError {
+        reason: "connection refused".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB009"), "got: {s}");
     assert!(s.contains("connection refused"), "got: {s}");
@@ -93,7 +111,9 @@ fn observer_error_database_error_display() {
 
 #[test]
 fn observer_error_listener_connection_failed_display() {
-    let e = ObserverError::ListenerConnectionFailed { reason: "host unreachable".into() };
+    let e = ObserverError::ListenerConnectionFailed {
+        reason: "host unreachable".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB010"), "got: {s}");
     assert!(s.contains("host unreachable"), "got: {s}");
@@ -109,7 +129,9 @@ fn observer_error_channel_full_display() {
 
 #[test]
 fn observer_error_dlq_error_display() {
-    let e = ObserverError::DlqError { reason: "write failed".into() };
+    let e = ObserverError::DlqError {
+        reason: "write failed".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB012"), "got: {s}");
     assert!(s.contains("write failed"), "got: {s}");
@@ -117,7 +139,9 @@ fn observer_error_dlq_error_display() {
 
 #[test]
 fn observer_error_retries_exhausted_display() {
-    let e = ObserverError::RetriesExhausted { reason: "all 3 attempts failed".into() };
+    let e = ObserverError::RetriesExhausted {
+        reason: "all 3 attempts failed".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB013"), "got: {s}");
     assert!(s.contains("all 3 attempts failed"), "got: {s}");
@@ -125,7 +149,9 @@ fn observer_error_retries_exhausted_display() {
 
 #[test]
 fn observer_error_unsupported_action_type_display() {
-    let e = ObserverError::UnsupportedActionType { action_type: "kafka".into() };
+    let e = ObserverError::UnsupportedActionType {
+        action_type: "kafka".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB014"), "got: {s}");
     assert!(s.contains("kafka"), "got: {s}");
@@ -147,7 +173,9 @@ fn observer_error_sqlx_error_display() {
 
 #[test]
 fn observer_error_circuit_breaker_open_display() {
-    let e = ObserverError::CircuitBreakerOpen { message: "too many failures".into() };
+    let e = ObserverError::CircuitBreakerOpen {
+        message: "too many failures".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB015"), "got: {s}");
     assert!(s.contains("too many failures"), "got: {s}");
@@ -155,7 +183,9 @@ fn observer_error_circuit_breaker_open_display() {
 
 #[test]
 fn observer_error_transport_connection_failed_display() {
-    let e = ObserverError::TransportConnectionFailed { reason: "NATS unreachable".into() };
+    let e = ObserverError::TransportConnectionFailed {
+        reason: "NATS unreachable".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB016"), "got: {s}");
     assert!(s.contains("NATS unreachable"), "got: {s}");
@@ -163,7 +193,9 @@ fn observer_error_transport_connection_failed_display() {
 
 #[test]
 fn observer_error_transport_publish_failed_display() {
-    let e = ObserverError::TransportPublishFailed { reason: "subject invalid".into() };
+    let e = ObserverError::TransportPublishFailed {
+        reason: "subject invalid".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB017"), "got: {s}");
     assert!(s.contains("subject invalid"), "got: {s}");
@@ -171,7 +203,9 @@ fn observer_error_transport_publish_failed_display() {
 
 #[test]
 fn observer_error_transport_subscribe_failed_display() {
-    let e = ObserverError::TransportSubscribeFailed { reason: "permission denied".into() };
+    let e = ObserverError::TransportSubscribeFailed {
+        reason: "permission denied".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB018"), "got: {s}");
     assert!(s.contains("permission denied"), "got: {s}");
@@ -179,7 +213,9 @@ fn observer_error_transport_subscribe_failed_display() {
 
 #[test]
 fn observer_error_storage_error_display() {
-    let e = ObserverError::StorageError { reason: "disk full".into() };
+    let e = ObserverError::StorageError {
+        reason: "disk full".into(),
+    };
     let s = e.to_string();
     assert!(s.contains("OB019"), "got: {s}");
     assert!(s.contains("disk full"), "got: {s}");
@@ -223,43 +259,57 @@ fn observer_error_tenant_violation_display_without_tenant() {
 
 #[test]
 fn observer_error_code_no_matching_observers() {
-    let e = ObserverError::NoMatchingObservers { event_type: "X".into() };
+    let e = ObserverError::NoMatchingObservers {
+        event_type: "X".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::NoMatchingObservers);
 }
 
 #[test]
 fn observer_error_code_invalid_condition() {
-    let e = ObserverError::InvalidCondition { reason: "bad".into() };
+    let e = ObserverError::InvalidCondition {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::InvalidCondition);
 }
 
 #[test]
 fn observer_error_code_condition_evaluation_failed() {
-    let e = ObserverError::ConditionEvaluationFailed { reason: "bad".into() };
+    let e = ObserverError::ConditionEvaluationFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::ConditionEvaluationFailed);
 }
 
 #[test]
 fn observer_error_code_invalid_action_config() {
-    let e = ObserverError::InvalidActionConfig { reason: "bad".into() };
+    let e = ObserverError::InvalidActionConfig {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::InvalidActionConfig);
 }
 
 #[test]
 fn observer_error_code_template_rendering_failed() {
-    let e = ObserverError::TemplateRenderingFailed { reason: "bad".into() };
+    let e = ObserverError::TemplateRenderingFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::TemplateRenderingFailed);
 }
 
 #[test]
 fn observer_error_code_database_error() {
-    let e = ObserverError::DatabaseError { reason: "bad".into() };
+    let e = ObserverError::DatabaseError {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::DatabaseError);
 }
 
 #[test]
 fn observer_error_code_listener_connection_failed() {
-    let e = ObserverError::ListenerConnectionFailed { reason: "bad".into() };
+    let e = ObserverError::ListenerConnectionFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::ListenerConnectionFailed);
 }
 
@@ -270,19 +320,25 @@ fn observer_error_code_channel_full() {
 
 #[test]
 fn observer_error_code_dlq_error() {
-    let e = ObserverError::DlqError { reason: "bad".into() };
+    let e = ObserverError::DlqError {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::DlqError);
 }
 
 #[test]
 fn observer_error_code_retries_exhausted() {
-    let e = ObserverError::RetriesExhausted { reason: "bad".into() };
+    let e = ObserverError::RetriesExhausted {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::RetriesExhausted);
 }
 
 #[test]
 fn observer_error_code_unsupported_action_type() {
-    let e = ObserverError::UnsupportedActionType { action_type: "kafka".into() };
+    let e = ObserverError::UnsupportedActionType {
+        action_type: "kafka".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::UnsupportedActionType);
 }
 
@@ -300,31 +356,41 @@ fn observer_error_code_sqlx_error_maps_to_database_error() {
 
 #[test]
 fn observer_error_code_circuit_breaker_open() {
-    let e = ObserverError::CircuitBreakerOpen { message: "open".into() };
+    let e = ObserverError::CircuitBreakerOpen {
+        message: "open".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::CircuitBreakerOpen);
 }
 
 #[test]
 fn observer_error_code_transport_connection_failed() {
-    let e = ObserverError::TransportConnectionFailed { reason: "bad".into() };
+    let e = ObserverError::TransportConnectionFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::TransportConnectionFailed);
 }
 
 #[test]
 fn observer_error_code_transport_publish_failed() {
-    let e = ObserverError::TransportPublishFailed { reason: "bad".into() };
+    let e = ObserverError::TransportPublishFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::TransportPublishFailed);
 }
 
 #[test]
 fn observer_error_code_transport_subscribe_failed() {
-    let e = ObserverError::TransportSubscribeFailed { reason: "bad".into() };
+    let e = ObserverError::TransportSubscribeFailed {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::TransportSubscribeFailed);
 }
 
 #[test]
 fn observer_error_code_storage_error() {
-    let e = ObserverError::StorageError { reason: "bad".into() };
+    let e = ObserverError::StorageError {
+        reason: "bad".into(),
+    };
     assert_eq!(e.code(), ObserverErrorCode::StorageError);
 }
 
@@ -332,21 +398,27 @@ fn observer_error_code_storage_error() {
 
 #[test]
 fn transport_connection_failed_is_transient() {
-    let e = ObserverError::TransportConnectionFailed { reason: "retry me".into() };
+    let e = ObserverError::TransportConnectionFailed {
+        reason: "retry me".into(),
+    };
     assert!(e.is_transient());
     assert!(!e.should_dlq());
 }
 
 #[test]
 fn transport_publish_failed_is_transient() {
-    let e = ObserverError::TransportPublishFailed { reason: "retry me".into() };
+    let e = ObserverError::TransportPublishFailed {
+        reason: "retry me".into(),
+    };
     assert!(e.is_transient());
     assert!(!e.should_dlq());
 }
 
 #[test]
 fn transport_subscribe_failed_is_transient() {
-    let e = ObserverError::TransportSubscribeFailed { reason: "retry me".into() };
+    let e = ObserverError::TransportSubscribeFailed {
+        reason: "retry me".into(),
+    };
     assert!(e.is_transient());
     assert!(!e.should_dlq());
 }
@@ -355,14 +427,18 @@ fn transport_subscribe_failed_is_transient() {
 
 #[test]
 fn invalid_action_config_should_dlq() {
-    let e = ObserverError::InvalidActionConfig { reason: "bad url".into() };
+    let e = ObserverError::InvalidActionConfig {
+        reason: "bad url".into(),
+    };
     assert!(e.should_dlq());
     assert!(!e.is_transient());
 }
 
 #[test]
 fn template_rendering_failed_should_dlq() {
-    let e = ObserverError::TemplateRenderingFailed { reason: "missing field".into() };
+    let e = ObserverError::TemplateRenderingFailed {
+        reason: "missing field".into(),
+    };
     assert!(e.should_dlq());
     assert!(!e.is_transient());
 }
@@ -405,7 +481,12 @@ fn event_kind_custom_serializes_to_custom() {
 
 #[test]
 fn event_kind_round_trips_via_serde() {
-    for kind in [EventKind::Created, EventKind::Updated, EventKind::Deleted, EventKind::Custom] {
+    for kind in [
+        EventKind::Created,
+        EventKind::Updated,
+        EventKind::Deleted,
+        EventKind::Custom,
+    ] {
         let json = serde_json::to_string(&kind).unwrap();
         let decoded: EventKind = serde_json::from_str(&json).unwrap();
         assert_eq!(kind, decoded);
@@ -424,7 +505,10 @@ fn event_kind_as_str_matches_serde_value() {
 
 #[test]
 fn field_changes_serde_round_trip() {
-    let fc = FieldChanges { old: json!("pending"), new: json!("shipped") };
+    let fc = FieldChanges {
+        old: json!("pending"),
+        new: json!("shipped"),
+    };
     let json = serde_json::to_string(&fc).unwrap();
     let decoded: FieldChanges = serde_json::from_str(&json).unwrap();
     assert_eq!(decoded.old, json!("pending"));
@@ -485,7 +569,13 @@ fn entity_event_field_changed_from_returns_false_without_changes() {
 #[test]
 fn entity_event_field_changed_detects_present_field() {
     let mut changes = HashMap::new();
-    changes.insert("role".into(), FieldChanges { old: json!("user"), new: json!("admin") });
+    changes.insert(
+        "role".into(),
+        FieldChanges {
+            old: json!("user"),
+            new: json!("admin"),
+        },
+    );
     let e = EntityEvent::new(EventKind::Updated, "User".into(), Uuid::new_v4(), json!({}))
         .with_changes(changes);
     assert!(e.field_changed("role"));
@@ -495,7 +585,13 @@ fn entity_event_field_changed_detects_present_field() {
 #[test]
 fn entity_event_field_changed_to_checks_new_value() {
     let mut changes = HashMap::new();
-    changes.insert("status".into(), FieldChanges { old: json!("draft"), new: json!("published") });
+    changes.insert(
+        "status".into(),
+        FieldChanges {
+            old: json!("draft"),
+            new: json!("published"),
+        },
+    );
     let e = EntityEvent::new(EventKind::Updated, "Post".into(), Uuid::new_v4(), json!({}))
         .with_changes(changes);
     assert!(e.field_changed_to("status", &json!("published")));
@@ -505,7 +601,13 @@ fn entity_event_field_changed_to_checks_new_value() {
 #[test]
 fn entity_event_field_changed_from_checks_old_value() {
     let mut changes = HashMap::new();
-    changes.insert("price".into(), FieldChanges { old: json!(9.99), new: json!(14.99) });
+    changes.insert(
+        "price".into(),
+        FieldChanges {
+            old: json!(9.99),
+            new: json!(14.99),
+        },
+    );
     let e = EntityEvent::new(EventKind::Updated, "Product".into(), Uuid::new_v4(), json!({}))
         .with_changes(changes);
     assert!(e.field_changed_from("price", &json!(9.99)));

@@ -459,7 +459,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .as_ref()
                 .map(|c| c.prefix.clone())
                 .unwrap_or_else(|| "/rest".to_string());
-            if let Some(rest_router) = crate::routes::rest::router::build_rest_router(compiled, &state) {
+            if let Some(rest_router) =
+                crate::routes::rest::router::build_rest_router(compiled, &state)
+            {
                 app = app.nest(&prefix, rest_router);
                 info!(prefix = %prefix, "REST transport layer mounted");
             }

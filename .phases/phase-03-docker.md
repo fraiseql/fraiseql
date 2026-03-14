@@ -48,7 +48,7 @@ compiles with all stable optional features:
   build-context: .
   image-suffix: "server-full"
   build-args: |
-    CARGO_FEATURES=grpc-transport,rest-transport
+    CARGO_FEATURES=grpc-transport,rest-transport,arrow
   optional: true
 ```
 
@@ -72,16 +72,19 @@ includes `grpc-transport` + `rest-transport` and is documented in the README.
 | Tag | Features | Use case |
 |-----|----------|----------|
 | `latest` / `2.1.x` | default (postgres, rich-filters) | standard deployment |
-| `full` / `2.1.x-full` | + grpc-transport, rest-transport | advanced transport |
+| `full` / `2.1.x-full` | + grpc-transport, rest-transport, arrow | advanced transport + Arrow Flight |
 
 ---
 
 ## Success Criteria
 - [ ] `docker build -f Dockerfile . --target runtime` succeeds locally
-- [ ] `docker build -f Dockerfile . --target runtime --build-arg CARGO_FEATURES=grpc-transport,rest-transport` succeeds
+- [ ] `docker build -f Dockerfile . --target runtime --build-arg CARGO_FEATURES=grpc-transport,rest-transport,arrow` succeeds
 - [ ] `docker-build.yml` matrix includes a `server-full` entry
 - [ ] `Dockerfile` accepts `CARGO_FEATURES` ARG and forwards to cargo
 - [ ] Container Security Scan passes (no unaddressed CRITICAL CVEs)
+
+## Branch Strategy
+Work on a feature branch (e.g. `feat/docker-full-image`), merge to `dev` via PR.
 
 ## Closes
 - Issue #80 (grpc-transport missing from official Docker image)

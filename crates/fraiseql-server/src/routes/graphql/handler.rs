@@ -492,7 +492,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    #[allow(unused_mut)] // Reason: `mut` is needed when the `auth` feature injects claims into the response
+    #[allow(unused_mut)]
+    // Reason: `mut` is needed when the `auth` feature injects claims into the response
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,

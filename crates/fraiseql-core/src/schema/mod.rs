@@ -56,9 +56,8 @@ mod subscription_types;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
-    QueryDefinition, RestConfig, RestRoute, is_safe_sql_identifier,
+    QueryDefinition, RestConfig, RestRoute, is_safe_sql_identifier, openapi_gen,
 };
-pub use compiled::openapi_gen;
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
     DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,

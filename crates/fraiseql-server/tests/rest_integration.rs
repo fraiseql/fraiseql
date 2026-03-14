@@ -40,10 +40,7 @@ use fraiseql_core::{
         QueryDefinition, RestConfig, RestRoute, TypeDefinition,
     },
 };
-use fraiseql_server::routes::{
-    graphql::AppState,
-    rest::router::build_rest_router,
-};
+use fraiseql_server::routes::{graphql::AppState, rest::router::build_rest_router};
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
@@ -91,11 +88,11 @@ fn schema_rest_routes_no_openapi() -> CompiledSchema {
     });
 
     let mut schema = CompiledSchema {
-        queries:     vec![get_user],
-        mutations:   vec![create_user],
-        types:       vec![user_type()],
+        queries: vec![get_user],
+        mutations: vec![create_user],
+        types: vec![user_type()],
         rest_config: Some(RestConfig {
-            prefix:          "/rest".to_string(),
+            prefix: "/rest".to_string(),
             openapi_enabled: false,
             ..RestConfig::default()
         }),
@@ -117,13 +114,13 @@ fn schema_rest_routes_with_openapi() -> CompiledSchema {
     });
 
     let mut schema = CompiledSchema {
-        queries:    vec![get_user],
-        types:      vec![user_type()],
+        queries: vec![get_user],
+        types: vec![user_type()],
         rest_config: Some(RestConfig {
-            prefix:          "/rest".to_string(),
+            prefix: "/rest".to_string(),
             openapi_enabled: true,
             // The router mounts this path directly; we call it on the nested router.
-            openapi_path:    "/openapi.json".to_string(),
+            openapi_path: "/openapi.json".to_string(),
             ..RestConfig::default()
         }),
         ..Default::default()
@@ -165,8 +162,7 @@ async fn get_json(router: &Router, uri: &str) -> (StatusCode, serde_json::Value)
         .unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -200,8 +196,7 @@ async fn post_json(
         .unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -213,17 +208,17 @@ async fn post_json(
 #[tokio::test]
 async fn get_user_by_id_returns_200_with_user_data() {
     let schema = schema_rest_routes_no_openapi();
-    let adapter = FailingAdapter::new()
-        .with_response("v_user", vec![JsonbValue::new(serde_json::json!({"id": "user-1", "name": "Alice"}))]);
+    let adapter = FailingAdapter::new().with_response(
+        "v_user",
+        vec![JsonbValue::new(
+            serde_json::json!({"id": "user-1", "name": "Alice"}),
+        )],
+    );
 
     let router = nested_rest_router(&schema, adapter);
     let (status, json) = get_json(&router, "/rest/users/user-1").await;
 
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "expected 200 for existing user, got {status}: {json}"
-    );
+    assert_eq!(status, StatusCode::OK, "expected 200 for existing user, got {status}: {json}");
     // The response body is the `data.get_user` slice — an object with id and name.
     assert!(
         json.is_object(),
@@ -268,21 +263,17 @@ async fn get_user_by_id_returns_404_when_not_found() {
 #[tokio::test]
 async fn post_create_user_returns_200_with_created_resource() {
     let schema = schema_rest_routes_no_openapi();
-    let adapter = FailingAdapter::new()
-        .with_function_response(
-            "fn_create_user",
-            vec![{
-                let mut row = std::collections::HashMap::new();
-                row.insert("status".to_string(), serde_json::json!("new"));
-                row.insert("message".to_string(), serde_json::json!("created"));
-                row.insert(
-                    "entity".to_string(),
-                    serde_json::json!({"id": "user-new", "name": "Bob"}),
-                );
-                row.insert("entity_type".to_string(), serde_json::json!("User"));
-                row
-            }],
-        );
+    let adapter = FailingAdapter::new().with_function_response(
+        "fn_create_user",
+        vec![{
+            let mut row = std::collections::HashMap::new();
+            row.insert("status".to_string(), serde_json::json!("new"));
+            row.insert("message".to_string(), serde_json::json!("created"));
+            row.insert("entity".to_string(), serde_json::json!({"id": "user-new", "name": "Bob"}));
+            row.insert("entity_type".to_string(), serde_json::json!("User"));
+            row
+        }],
+    );
 
     let router = nested_rest_router(&schema, adapter);
     let (status, json) =
@@ -294,10 +285,7 @@ async fn post_create_user_returns_200_with_created_resource() {
         "expected 200 for successful mutation, got {status}: {json}"
     );
     // Body is the operation data — at minimum a JSON value (object or null).
-    assert!(
-        json.is_object() || json.is_null(),
-        "response body should be JSON, got: {json}"
-    );
+    assert!(json.is_object() || json.is_null(), "response body should be JSON, got: {json}");
 }
 
 // ── Test 4: GET /rest/openapi.json — enabled ────────────────────────────────────

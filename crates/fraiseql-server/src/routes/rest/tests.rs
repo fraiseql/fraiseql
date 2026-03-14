@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use fraiseql_core::schema::{ArgumentDefinition, FieldType};
 
-use super::translator::{RestOutcome, build_graphql_request, classify_response, extract_data_field};
+use super::translator::{
+    RestOutcome, build_graphql_request, classify_response, extract_data_field,
+};
 
 // ── translator tests ──────────────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@ use serde_json::Value;
 /// Result of translating an HTTP request into a GraphQL invocation.
 pub struct TranslatedRequest {
     /// GraphQL document, e.g. `query($id: ID!) { get_user(id: $id) { ... } }`.
-    pub query: String,
+    pub query:     String,
     /// Variables object passed alongside the document.
     pub variables: Option<Value>,
 }
@@ -73,7 +73,8 @@ pub fn build_graphql_request(
             continue;
         };
 
-        let graphql_type = graphql_type_string(&arg_def.arg_type.to_graphql_string(), arg_def.nullable);
+        let graphql_type =
+            graphql_type_string(&arg_def.arg_type.to_graphql_string(), arg_def.nullable);
         var_decls.push(format!("${}: {}", arg_def.name, graphql_type));
         arg_refs.push(format!("{}: ${}", arg_def.name, arg_def.name));
         variables.insert(arg_def.name.clone(), val.clone());
@@ -99,9 +100,8 @@ pub fn build_graphql_request(
         format!("({})", arg_refs.join(", "))
     };
 
-    let document = format!(
-        "{operation}{vars_clause} {{\n  {name}{args_clause} {{\n    {selection}\n  }}\n}}"
-    );
+    let document =
+        format!("{operation}{vars_clause} {{\n  {name}{args_clause} {{\n    {selection}\n  }}\n}}");
 
     let variables_value = if variables.is_empty() {
         None
@@ -196,11 +196,7 @@ pub enum RestOutcome {
 /// | data null, errors present | `Failure` → HTTP 401/403/404/400/429/500 |
 /// | data present, no errors | `Ok` → HTTP 200 |
 /// | single-item, data null, no errors | `NotFound` → HTTP 404 |
-pub fn classify_response(
-    response_json: &str,
-    operation_name: &str,
-    is_list: bool,
-) -> RestOutcome {
+pub fn classify_response(response_json: &str, operation_name: &str, is_list: bool) -> RestOutcome {
     let Ok(root) = serde_json::from_str::<Value>(response_json) else {
         return RestOutcome::Failure {
             status: 500,
@@ -215,7 +211,10 @@ pub fn classify_response(
         // Partial success: data non-null + errors both present
         (Some(data_obj), Some(errors_val)) if !data_obj.is_null() => {
             let op_data = data_obj.get(operation_name).cloned().unwrap_or(Value::Null);
-            RestOutcome::Partial { data: op_data, errors: errors_val.clone() }
+            RestOutcome::Partial {
+                data:   op_data,
+                errors: errors_val.clone(),
+            }
         },
 
         // Query-level failure: data null, errors present
@@ -257,10 +256,8 @@ fn classify_error_status(errors: &Value) -> u16 {
     };
 
     for error in arr {
-        if let Some(code) = error
-            .get("extensions")
-            .and_then(|e| e.get("code"))
-            .and_then(Value::as_str)
+        if let Some(code) =
+            error.get("extensions").and_then(|e| e.get("code")).and_then(Value::as_str)
         {
             return match code {
                 "UNAUTHENTICATED" => 401,

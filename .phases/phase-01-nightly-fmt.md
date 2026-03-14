@@ -73,6 +73,9 @@ cargo check --workspace                             # must compile
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` still exits 0
 - [ ] All `// Reason:` comments on `#[allow]` attributes preserved (spot-check 10)
 
+## Branch Strategy
+Work on a feature branch (e.g. `chore/nightly-fmt`), merge to `dev` via PR.
+
 ## Blocks
 Phase 03, Phase 04 (CI jobs cascade from Format Check failure)
 

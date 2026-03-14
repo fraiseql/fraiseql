@@ -1,7 +1,6 @@
 //! `ClickHouse` sink example demonstrating end-to-end event ingestion
 #![allow(clippy::unwrap_used)] // Reason: example code — panics are acceptable failures
 #![allow(clippy::items_after_statements)] // Reason: example code — item ordering is for readability
-//!
 //! This example shows how to:
 //! 1. Create test event data
 //! 2. Convert events to Arrow `RecordBatches`
@@ -60,7 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_events = 100;
     let mut rows = Vec::with_capacity(num_events);
 
-    #[allow(clippy::cast_possible_truncation)] // Reason: timestamps since epoch fit in i64 until year 292277
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: timestamps since epoch fit in i64 until year 292277
     let now_micros = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() as i64;
 
     for i in 0..num_events {

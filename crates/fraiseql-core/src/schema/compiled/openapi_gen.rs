@@ -14,10 +14,7 @@ use std::collections::HashSet;
 use serde_json::{Value, json};
 
 use super::{rest::RestConfig, schema::CompiledSchema};
-use crate::schema::{
-    field_type::FieldType,
-    graphql_type_defs::TypeDefinition,
-};
+use crate::schema::{field_type::FieldType, graphql_type_defs::TypeDefinition};
 
 /// Generate an OpenAPI 3.1.0 specification from compiled REST routes.
 ///
@@ -139,7 +136,11 @@ pub fn generate_openapi_spec(schema: &CompiledSchema, config: &RestConfig) -> St
 /// e.g. `prefix="/rest/v1"`, `path="/users/{id}"` → `"/rest/v1/users/{id}"`
 fn openapi_path(prefix: &str, path: &str) -> String {
     let prefix = prefix.trim_end_matches('/');
-    let path = if path.starts_with('/') { path } else { &format!("/{path}") };
+    let path = if path.starts_with('/') {
+        path
+    } else {
+        &format!("/{path}")
+    };
     format!("{prefix}{path}")
 }
 
@@ -221,22 +222,24 @@ fn build_operation(
 
     // Request body for methods that carry a body
     if matches!(method_upper.as_str(), "POST" | "PUT" | "PATCH") {
-        let body_args: Vec<_> =
-            arguments.iter().filter(|a| !path_param_names.contains(a.name.as_str())).collect();
+        let body_args: Vec<_> = arguments
+            .iter()
+            .filter(|a| !path_param_names.contains(a.name.as_str()))
+            .collect();
 
         if !body_args.is_empty() {
             let mut properties = serde_json::Map::new();
             let mut required: Vec<Value> = Vec::new();
 
             for arg in &body_args {
-                properties
-                    .insert(arg.name.clone(), field_type_to_json_schema(&arg.arg_type));
+                properties.insert(arg.name.clone(), field_type_to_json_schema(&arg.arg_type));
                 if !arg.nullable {
                     required.push(json!(arg.name.clone()));
                 }
             }
 
-            let mut body_schema = json!({"type": "object", "properties": Value::Object(properties)});
+            let mut body_schema =
+                json!({"type": "object", "properties": Value::Object(properties)});
             if !required.is_empty() {
                 body_schema["required"] = Value::Array(required);
             }
@@ -280,8 +283,7 @@ fn collect_referenced_types(schema: &CompiledSchema) -> HashSet<String> {
         visited.insert(type_name.clone());
 
         // Find nested object types referenced by this type's fields
-        if let Some(type_def) =
-            schema.types.iter().find(|t| t.name.as_str() == type_name.as_str())
+        if let Some(type_def) = schema.types.iter().find(|t| t.name.as_str() == type_name.as_str())
         {
             for field in &type_def.fields {
                 let nested = nested_object_type(&field.field_type);
@@ -357,8 +359,12 @@ fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Uuid => json!({"type": "string", "format": "uuid"}),
         FieldType::Decimal => json!({"type": "string", "format": "decimal"}),
         FieldType::Vector => json!({"type": "array", "items": {"type": "number"}}),
-        FieldType::Scalar(name) => json!({"type": "string", "description": format!("Custom scalar: {name}")}),
-        FieldType::List(inner) => json!({"type": "array", "items": field_type_to_json_schema(inner)}),
+        FieldType::Scalar(name) => {
+            json!({"type": "string", "description": format!("Custom scalar: {name}")})
+        },
+        FieldType::List(inner) => {
+            json!({"type": "array", "items": field_type_to_json_schema(inner)})
+        },
         FieldType::Object(name) | FieldType::Interface(name) | FieldType::Union(name) => {
             json!({"$ref": format!("#/components/schemas/{name}")})
         },
@@ -455,22 +461,44 @@ mod tests {
     fn schema_with_get_user() -> CompiledSchema {
         let mut q = QueryDefinition::new("get_user", "User");
         q.arguments.push(crate::schema::ArgumentDefinition::new("id", FieldType::Id));
-        q.rest = Some(RestRoute { path: "/users/{id}".to_string(), method: "GET".to_string() });
-        CompiledSchema { queries: vec![q], types: vec![user_type()], ..Default::default() }
+        q.rest = Some(RestRoute {
+            path:   "/users/{id}".to_string(),
+            method: "GET".to_string(),
+        });
+        CompiledSchema {
+            queries: vec![q],
+            types: vec![user_type()],
+            ..Default::default()
+        }
     }
 
     fn schema_with_create_user() -> CompiledSchema {
         let mut m = MutationDefinition::new("create_user", "User");
-        m.arguments.push(crate::schema::ArgumentDefinition::new("name", FieldType::String));
-        m.rest = Some(RestRoute { path: "/users".to_string(), method: "POST".to_string() });
-        CompiledSchema { mutations: vec![m], types: vec![user_type()], ..Default::default() }
+        m.arguments
+            .push(crate::schema::ArgumentDefinition::new("name", FieldType::String));
+        m.rest = Some(RestRoute {
+            path:   "/users".to_string(),
+            method: "POST".to_string(),
+        });
+        CompiledSchema {
+            mutations: vec![m],
+            types: vec![user_type()],
+            ..Default::default()
+        }
     }
 
     fn schema_with_list_users() -> CompiledSchema {
         let mut q = QueryDefinition::new("list_users", "User");
         q.returns_list = true;
-        q.rest = Some(RestRoute { path: "/users".to_string(), method: "GET".to_string() });
-        CompiledSchema { queries: vec![q], types: vec![user_type()], ..Default::default() }
+        q.rest = Some(RestRoute {
+            path:   "/users".to_string(),
+            method: "GET".to_string(),
+        });
+        CompiledSchema {
+            queries: vec![q],
+            types: vec![user_type()],
+            ..Default::default()
+        }
     }
 
     fn schema_with_nested_type() -> CompiledSchema {
@@ -493,12 +521,14 @@ mod tests {
 
         let mut q = QueryDefinition::new("get_user_with_address", "UserWithAddress");
         q.arguments.push(crate::schema::ArgumentDefinition::new("id", FieldType::Id));
-        q.rest =
-            Some(RestRoute { path: "/users/{id}".to_string(), method: "GET".to_string() });
+        q.rest = Some(RestRoute {
+            path:   "/users/{id}".to_string(),
+            method: "GET".to_string(),
+        });
 
         CompiledSchema {
             queries: vec![q],
-            types:   vec![user_with_address, address_type()],
+            types: vec![user_with_address, address_type()],
             ..Default::default()
         }
     }
@@ -568,8 +598,8 @@ mod tests {
         let spec_json = generate_openapi_spec(&schema, &config);
         let spec: Value = serde_json::from_str(&spec_json).unwrap();
 
-        let response_schema =
-            &spec["paths"]["/rest/users"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+        let response_schema = &spec["paths"]["/rest/users"]["get"]["responses"]["200"]["content"]["application/json"]
+            ["schema"];
         assert_eq!(response_schema["type"], "array");
         assert!(response_schema["items"]["$ref"].as_str().unwrap().contains("User"));
     }
@@ -615,7 +645,7 @@ mod tests {
     fn test_custom_title_and_version() {
         let schema = schema_with_get_user();
         let config = RestConfig {
-            title:       Some("My API".to_string()),
+            title: Some("My API".to_string()),
             api_version: Some("2.0.0".to_string()),
             ..Default::default()
         };

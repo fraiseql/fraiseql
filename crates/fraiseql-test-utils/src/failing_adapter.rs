@@ -136,7 +136,8 @@ impl FailingAdapter {
         self
     }
 
-    /// Set a canned function-call response for a specific function (used by `execute_function_call`).
+    /// Set a canned function-call response for a specific function (used by
+    /// `execute_function_call`).
     ///
     /// Each row must be shaped as an `app.mutation_response` row, e.g.:
     /// ```json
@@ -213,7 +214,12 @@ impl FailingAdapter {
 
     /// Get canned function-call response for a function, or empty vec.
     fn get_function_response(&self, function: &str) -> Vec<HashMap<String, serde_json::Value>> {
-        self.function_responses.lock().unwrap().get(function).cloned().unwrap_or_default()
+        self.function_responses
+            .lock()
+            .unwrap()
+            .get(function)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Get all recorded query view names.

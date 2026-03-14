@@ -11,6 +11,10 @@ Remove all development scaffolding; leave the repository in "Eternal Sunshine" s
 - Phases 01–04 all complete
 - All CI jobs green on `dev`
 
+## Branch Strategy
+Work on a feature branch (e.g. `chore/finalize-v2.1`), merge to `dev` via PR.
+SDK publishing is user-initiated only — do not publish without explicit confirmation.
+
 ---
 
 ## Cycle 1 — Repository archaeology
@@ -41,18 +45,38 @@ C#, Elixir, and F# SDKs are implemented but not published to package registries
 (NuGet, Hex). Users cannot install them via standard package managers.
 
 ### Fix
-For each SDK, cut a `v0.1.0` (or `v2.1.0`) release tag and publish:
+
+#### Step 1 — Dry-run (mandatory before real publish)
 
 **C# and F# → NuGet**
 ```bash
 cd sdks/official/fraiseql-csharp
 dotnet pack --configuration Release
-dotnet nuget push **/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+# Dry-run: push to local feed or use --dry-run flag
+dotnet nuget push **/*.nupkg --source /tmp/nuget-local-feed
+
+cd sdks/official/fraiseql-fsharp
+dotnet pack --configuration Release
+dotnet nuget push **/*.nupkg --source /tmp/nuget-local-feed
 ```
 
 **Elixir → Hex**
 ```bash
 cd sdks/official/fraiseql-elixir
+mix hex.publish --dry-run
+```
+
+Confirm all metadata (name, version, description, license) is correct before proceeding.
+
+#### Step 2 — Real publish (user-initiated only)
+
+Only proceed after user explicitly confirms dry-run output looks good.
+
+```bash
+# C# / F#
+dotnet nuget push **/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+
+# Elixir
 mix hex.publish
 ```
 
@@ -60,6 +84,7 @@ The `release.yml` CI workflow should automate this on `v*` tags. Verify the
 workflow covers all three SDKs, not just Python/TypeScript/Go/Java.
 
 ### Verification
+- Dry-run output reviewed and approved by user
 - `dotnet add package FraiseQL.CSharp` works from a fresh project
 - `mix deps.get` with `{:fraiseql, "~> 0.1"}` resolves from Hex
 
