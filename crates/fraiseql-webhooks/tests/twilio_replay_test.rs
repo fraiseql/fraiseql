@@ -9,12 +9,11 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: doc comments use type names without backticks for readability
 
 use base64::{Engine as _, engine::general_purpose};
-use fraiseql_webhooks::signature::twilio::TwilioVerifier;
-use fraiseql_webhooks::traits::SignatureVerifier as _;
+use fraiseql_webhooks::{signature::twilio::TwilioVerifier, traits::SignatureVerifier as _};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 

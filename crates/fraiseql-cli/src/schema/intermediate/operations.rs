@@ -200,6 +200,11 @@ pub struct IntermediateQueryDefaults {
 
 impl Default for IntermediateQueryDefaults {
     fn default() -> Self {
-        Self { where_clause: true, order_by: true, limit: true, offset: true }
+        Self {
+            where_clause: true,
+            order_by:     true,
+            limit:        true,
+            offset:       true,
+        }
     }
 }

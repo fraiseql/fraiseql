@@ -17,5 +17,5 @@ pub use argument::{ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{MutationDefinition, MutationOperation};
 pub use query::{CursorType, QueryDefinition};
-pub use schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
+pub use schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
 pub use validation::is_safe_sql_identifier;

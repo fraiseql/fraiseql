@@ -1,6 +1,9 @@
 //! GraphQL request and response types.
 
-use axum::{Json, response::{IntoResponse, Response}};
+use axum::{
+    Json,
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
 
 /// GraphQL request payload (for POST requests).

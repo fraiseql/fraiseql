@@ -1,12 +1,11 @@
 //! Aggregate and window query execution.
 
+use super::Executor;
 use crate::{
+    db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
 };
-
-use super::Executor;
-use crate::db::traits::DatabaseAdapter;
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute an aggregate query dispatch.
@@ -133,7 +132,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
 
         // 3. Generate parameterized SQL
-        let sql_generator = super::super::AggregationSqlGenerator::new(self.adapter.database_type());
+        let sql_generator =
+            super::super::AggregationSqlGenerator::new(self.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
         // 4. Execute with bind parameters (eliminates escape-based injection risk)
@@ -146,7 +146,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let projected = super::super::AggregationProjector::project(rows, &plan)?;
 
         // 6. Wrap in GraphQL data envelope
-        let response = super::super::AggregationProjector::wrap_in_data_envelope(projected, query_name);
+        let response =
+            super::super::AggregationProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
@@ -208,8 +209,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
 
-        // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so
-        //    WHERE clause values are passed as prepared-statement parameters, not inlined.
+        // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
+        //    values are passed as prepared-statement parameters, not inlined.
         let rows = self
             .adapter
             .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)

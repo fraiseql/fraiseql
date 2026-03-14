@@ -47,16 +47,20 @@ pub struct TokenRevocationConfig {
     pub redis_url: Option<String>,
 }
 
-fn default_backend() -> String { "memory".into() }
-const fn default_true() -> bool { true }
+fn default_backend() -> String {
+    "memory".into()
+}
+const fn default_true() -> bool {
+    true
+}
 
 // ───────────────────────────────────────────────────────────────
 // Trait
 // ───────────────────────────────────────────────────────────────
 
 /// Revocation store abstraction.
-// Reason: used as dyn Trait (Arc<dyn RevocationStore>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn RevocationStore>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait RevocationStore: Send + Sync {
     /// Check if a JTI has been revoked.
@@ -162,7 +166,7 @@ impl RevocationStore for InMemoryRevocationStore {
 /// Requires the `redis-rate-limiting` feature.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRevocationStore {
-    client: redis::Client,
+    client:     redis::Client,
     key_prefix: String,
 }
 
@@ -191,26 +195,39 @@ impl RedisRevocationStore {
 impl RevocationStore for RedisRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
         let key = format!("{}{jti}", self.key_prefix);
-        let exists: bool = conn.exists(&key).await
+        let exists: bool = conn
+            .exists(&key)
+            .await
             .map_err(|e| RevocationError::Backend(format!("Redis EXISTS: {e}")))?;
         Ok(exists)
     }
 
     async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
         let key = format!("{}{jti}", self.key_prefix);
-        let _: () = conn.set_ex(&key, "1", ttl_secs).await
+        let _: () = conn
+            .set_ex(&key, "1", ttl_secs)
+            .await
             .map_err(|e| RevocationError::Backend(format!("Redis SET EX: {e}")))?;
         Ok(())
     }
 
     async fn revoke_all_for_user(&self, sub: &str) -> Result<u64, RevocationError> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
         // Scan for keys matching the user pattern.
         // User-keyed entries use prefix: fraiseql:revoked:user:{sub}:*
@@ -238,9 +255,9 @@ impl RevocationStore for RedisRevocationStore {
 
 /// High-level token revocation manager wrapping a backend store.
 pub struct TokenRevocationManager {
-    store: Arc<dyn RevocationStore>,
+    store:       Arc<dyn RevocationStore>,
     require_jti: bool,
-    fail_open: bool,
+    fail_open:   bool,
 }
 
 impl TokenRevocationManager {
@@ -262,7 +279,8 @@ impl TokenRevocationManager {
     ///
     /// Returns `TokenRejection::MissingJti` if JTI is required but absent.
     /// Returns `TokenRejection::Revoked` if the token has been revoked.
-    /// Returns `TokenRejection::StoreUnavailable` if the revocation store is unreachable and `fail_open` is false.
+    /// Returns `TokenRejection::StoreUnavailable` if the revocation store is unreachable and
+    /// `fail_open` is false.
     pub async fn check_token(&self, jti: Option<&str>) -> Result<(), TokenRejection> {
         let jti = match jti {
             Some(j) if !j.is_empty() => j,
@@ -272,7 +290,7 @@ impl TokenRevocationManager {
                 }
                 // No JTI and not required — allow through.
                 return Ok(());
-            }
+            },
         };
 
         match self.store.is_revoked(jti).await {
@@ -286,7 +304,7 @@ impl TokenRevocationManager {
                 } else {
                     Err(TokenRejection::StoreUnavailable)
                 }
-            }
+            },
         }
     }
 
@@ -363,13 +381,13 @@ pub fn revocation_manager_from_schema(
                 Ok(s) => {
                     info!(backend = "redis", "Token revocation store initialized");
                     Arc::new(s)
-                }
+                },
                 Err(e) => {
                     warn!(error = %e, "Failed to init Redis revocation store — falling back to in-memory");
                     Arc::new(InMemoryRevocationStore::new())
-                }
+                },
             }
-        }
+        },
         #[cfg(not(feature = "redis-rate-limiting"))]
         "redis" => {
             warn!(
@@ -377,15 +395,15 @@ pub fn revocation_manager_from_schema(
                  not compiled in. Falling back to in-memory."
             );
             Arc::new(InMemoryRevocationStore::new())
-        }
+        },
         "memory" | "env" => {
             info!(backend = "memory", "Token revocation store initialized (in-memory)");
             Arc::new(InMemoryRevocationStore::new())
-        }
+        },
         other => {
             warn!(backend = %other, "Unknown revocation backend — falling back to in-memory");
             Arc::new(InMemoryRevocationStore::new())
-        }
+        },
     };
 
     Some(Arc::new(TokenRevocationManager::new(
@@ -446,10 +464,7 @@ mod tests {
         let store = memory_store();
         store.revoke("jti-x", 3600).await.unwrap();
         let mgr = TokenRevocationManager::new(store, true, false);
-        assert_eq!(
-            mgr.check_token(Some("jti-x")).await,
-            Err(TokenRejection::Revoked)
-        );
+        assert_eq!(mgr.check_token(Some("jti-x")).await, Err(TokenRejection::Revoked));
     }
 
     #[tokio::test]
@@ -461,21 +476,24 @@ mod tests {
     #[tokio::test]
     async fn manager_rejects_missing_jti_when_required() {
         let mgr = TokenRevocationManager::new(memory_store(), true, false);
-        assert_eq!(
-            mgr.check_token(None).await,
-            Err(TokenRejection::MissingJti)
-        );
+        assert_eq!(mgr.check_token(None).await, Err(TokenRejection::MissingJti));
     }
 
     #[tokio::test]
     async fn manager_allows_missing_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(None).await.is_ok(), "missing jti should be allowed when jti is not required");
+        assert!(
+            mgr.check_token(None).await.is_ok(),
+            "missing jti should be allowed when jti is not required"
+        );
     }
 
     #[tokio::test]
     async fn manager_allows_empty_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(Some("")).await.is_ok(), "empty jti should be allowed when jti is not required");
+        assert!(
+            mgr.check_token(Some("")).await.is_ok(),
+            "empty jti should be allowed when jti is not required"
+        );
     }
 }

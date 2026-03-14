@@ -645,7 +645,10 @@ mod tests {
         let fields = vec!["updatedAt".to_string()];
         let sql = generator.generate_projection_sql(&fields).unwrap();
         // The JSONB extraction key should be snake_case
-        assert!(sql.contains("'updated_at'"), "updatedAt must be mapped to updated_at for JSONB key");
+        assert!(
+            sql.contains("'updated_at'"),
+            "updatedAt must be mapped to updated_at for JSONB key"
+        );
         // The response key in jsonb_build_object should be the original camelCase
         assert!(sql.contains("'updatedAt'"), "Response key must remain camelCase");
     }
@@ -655,7 +658,10 @@ mod tests {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec!["id".to_string()];
         let sql = generator.generate_select_clause("orders", &fields).unwrap();
-        assert!(sql.contains("FROM \"orders\""), "SELECT clause must include FROM clause with table name");
+        assert!(
+            sql.contains("FROM \"orders\""),
+            "SELECT clause must include FROM clause with table name"
+        );
         assert!(sql.contains("SELECT"), "SELECT clause must start with SELECT");
     }
 }

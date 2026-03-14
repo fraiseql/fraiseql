@@ -11,7 +11,10 @@
 
 use std::collections::HashSet;
 
-use crate::{compiler::fact_table::FactTableMetadata, error::{FraiseQLError, Result}};
+use crate::{
+    compiler::fact_table::FactTableMetadata,
+    error::{FraiseQLError, Result},
+};
 
 /// Validated allowlist of identifiers permitted in window queries for a given type.
 ///
@@ -75,7 +78,7 @@ impl WindowAllowlist {
                     "Field '{identifier}' is not a known {context} field for this window query. \
                      Only fields declared in the compiled schema are permitted."
                 ),
-                path: None,
+                path:    None,
             })
         }
     }
@@ -87,16 +90,23 @@ mod tests {
 
     use super::*;
     use crate::compiler::fact_table::{
-        DimensionColumn, DimensionPath, FilterColumn, FactTableMetadata, MeasureColumn,
-        SqlType,
+        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     };
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:           "tf_sales".to_string(),
             measures:             vec![
-                MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
-                MeasureColumn { name: "units".to_string(), sql_type: SqlType::Int, nullable: false },
+                MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                },
+                MeasureColumn {
+                    name:     "units".to_string(),
+                    sql_type: SqlType::Int,
+                    nullable: false,
+                },
             ],
             dimensions:           DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -106,9 +116,11 @@ mod tests {
                     data_type: "text".to_string(),
                 }],
             },
-            denormalized_filters: vec![
-                FilterColumn { name: "occurred_at".to_string(), sql_type: SqlType::Timestamp, indexed: true },
-            ],
+            denormalized_filters: vec![FilterColumn {
+                name:     "occurred_at".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed:  true,
+            }],
             calendar_dimensions:  vec![],
         }
     }

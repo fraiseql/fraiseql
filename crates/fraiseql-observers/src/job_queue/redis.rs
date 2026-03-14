@@ -11,14 +11,14 @@
 //! All multi-step state transitions use Lua scripts executed via `redis::Script`,
 //! which provides EVALSHA + NOSCRIPT fallback automatically:
 //!
-//! - **`enqueue`**: `SET` + `LPUSH` + `HSET "pending"` — job is either fully visible
-//!   or not visible at all; the status hash stays in sync.
-//! - **`acknowledge`**: `ZREM` + `DEL` + `HDEL` — processing entry, job data, and
-//!   status hash entry are cleaned up in one atomic step.
-//! - **`fail` (retry)**: `ZREM` + `SET` + `LPUSH` + `HSET "pending"` — job is moved
-//!   from processing back to pending atomically.
-//! - **`fail` (DLQ)**: `ZREM` + `SET` + `LPUSH dlq` + `HSET "dead_lettered"` — job
-//!   is moved from processing to DLQ atomically.
+//! - **`enqueue`**: `SET` + `LPUSH` + `HSET "pending"` — job is either fully visible or not visible
+//!   at all; the status hash stays in sync.
+//! - **`acknowledge`**: `ZREM` + `DEL` + `HDEL` — processing entry, job data, and status hash entry
+//!   are cleaned up in one atomic step.
+//! - **`fail` (retry)**: `ZREM` + `SET` + `LPUSH` + `HSET "pending"` — job is moved from processing
+//!   back to pending atomically.
+//! - **`fail` (DLQ)**: `ZREM` + `SET` + `LPUSH dlq` + `HSET "dead_lettered"` — job is moved from
+//!   processing to DLQ atomically.
 //!
 //! # Status hash
 //!
@@ -177,11 +177,11 @@ impl JobQueue for RedisJobQueue {
         // "pending". A crash between separate commands would leave partial state;
         // the Lua script eliminates that window.
         redis::Script::new(JOB_ENQUEUE_SCRIPT)
-            .key(Self::job_key(job_id))  // KEYS[1]
-            .key(Self::pending_key())    // KEYS[2]
-            .key(Self::status_key())     // KEYS[3]
-            .arg(&json)                  // ARGV[1]
-            .arg(job_id.to_string())     // ARGV[2]
+            .key(Self::job_key(job_id)) // KEYS[1]
+            .key(Self::pending_key()) // KEYS[2]
+            .key(Self::status_key()) // KEYS[3]
+            .arg(&json) // ARGV[1]
+            .arg(job_id.to_string()) // ARGV[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
 
@@ -250,11 +250,11 @@ impl JobQueue for RedisJobQueue {
     async fn acknowledge(&self, job_id: Uuid) -> Result<()> {
         // Atomically remove from processing set, delete job data, and clear status entry.
         redis::Script::new(JOB_ACKNOWLEDGE_SCRIPT)
-            .key(Self::processing_key())         // KEYS[1]
-            .key(Self::job_key(job_id))          // KEYS[2]
-            .key(Self::status_key())             // KEYS[3]
+            .key(Self::processing_key()) // KEYS[1]
+            .key(Self::job_key(job_id)) // KEYS[2]
+            .key(Self::status_key()) // KEYS[3]
             .arg(Self::processing_member(job_id)) // ARGV[1]
-            .arg(job_id.to_string())             // ARGV[2]
+            .arg(job_id.to_string()) // ARGV[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
 
@@ -273,26 +273,26 @@ impl JobQueue for RedisJobQueue {
         if job.can_retry() {
             // Atomically: leave processing, update job data, re-enqueue as pending, set status.
             redis::Script::new(JOB_FAIL_RETRY_SCRIPT)
-                .key(Self::processing_key())         // KEYS[1]
-                .key(Self::job_key(job_id))          // KEYS[2]
-                .key(Self::pending_key())            // KEYS[3]
-                .key(Self::status_key())             // KEYS[4]
+                .key(Self::processing_key()) // KEYS[1]
+                .key(Self::job_key(job_id)) // KEYS[2]
+                .key(Self::pending_key()) // KEYS[3]
+                .key(Self::status_key()) // KEYS[4]
                 .arg(Self::processing_member(job_id)) // ARGV[1]
-                .arg(&json)                          // ARGV[2]
-                .arg(job_id.to_string())             // ARGV[3]
+                .arg(&json) // ARGV[2]
+                .arg(job_id.to_string()) // ARGV[3]
                 .invoke_async::<i64>(&mut self.conn.clone())
                 .await?;
         } else {
             // Atomically: leave processing, update job data, move to DLQ, set status.
             redis::Script::new(JOB_FAIL_DLQ_SCRIPT)
-                .key(Self::processing_key())         // KEYS[1]
-                .key(Self::job_key(job_id))          // KEYS[2]
-                .key(Self::dlq_key())                // KEYS[3]
-                .key(Self::status_key())             // KEYS[4]
+                .key(Self::processing_key()) // KEYS[1]
+                .key(Self::job_key(job_id)) // KEYS[2]
+                .key(Self::dlq_key()) // KEYS[3]
+                .key(Self::status_key()) // KEYS[4]
                 .arg(Self::processing_member(job_id)) // ARGV[1]
-                .arg(&json)                          // ARGV[2]
-                .arg(Self::dlq_member(job_id))       // ARGV[3]
-                .arg(job_id.to_string())             // ARGV[4]
+                .arg(&json) // ARGV[2]
+                .arg(Self::dlq_member(job_id)) // ARGV[3]
+                .arg(job_id.to_string()) // ARGV[4]
                 .invoke_async::<i64>(&mut self.conn.clone())
                 .await?;
         }

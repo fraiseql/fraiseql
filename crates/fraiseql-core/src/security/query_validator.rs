@@ -48,9 +48,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::graphql::complexity::{ComplexityConfig, RequestValidator};
-use crate::graphql::complexity::QueryMetrics;
-use crate::security::errors::{Result, SecurityError};
+use crate::{
+    graphql::complexity::{ComplexityConfig, QueryMetrics, RequestValidator},
+    security::errors::{Result, SecurityError},
+};
 
 /// Query validation configuration
 ///
@@ -186,9 +187,8 @@ impl QueryValidator {
             max_aliases:    self.config.max_aliases,
         });
 
-        let metrics = rv.analyze(query).map_err(|e| {
-            SecurityError::MalformedQuery(e.to_string())
-        })?;
+        let metrics =
+            rv.analyze(query).map_err(|e| SecurityError::MalformedQuery(e.to_string()))?;
 
         // Check 3: Query depth
         if metrics.depth > self.config.max_depth {
@@ -331,7 +331,8 @@ mod tests {
     #[test]
     fn test_alias_amplification_rejected() {
         let validator = QueryValidator::standard(); // max_aliases = 30
-        let aliases: String = (0..31).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
+        let aliases: String =
+            (0..31).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
         let query = format!("{{ {aliases} }}");
         let result = validator.validate(&query);
         assert!(
@@ -339,7 +340,7 @@ mod tests {
                 result,
                 Err(SecurityError::TooManyAliases {
                     alias_count: 31,
-                    max_aliases: 30
+                    max_aliases: 30,
                 })
             ),
             "31-alias query must be rejected with TooManyAliases, got {result:?}"
@@ -349,7 +350,8 @@ mod tests {
     #[test]
     fn test_alias_within_limit_allowed() {
         let validator = QueryValidator::standard(); // max_aliases = 30
-        let aliases: String = (0..5).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
+        let aliases: String =
+            (0..5).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
         let query = format!("{{ {aliases} }}");
         let result = validator.validate(&query);
         assert!(result.is_ok(), "5 aliases should be allowed, got {result:?}");

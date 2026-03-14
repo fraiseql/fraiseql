@@ -75,17 +75,9 @@ fn build_graphql_query(
 
     // Find the return type and build field selection
     let return_type = if is_mutation {
-        schema
-            .mutations
-            .iter()
-            .find(|m| m.name == name)
-            .map(|m| m.return_type.as_str())
+        schema.mutations.iter().find(|m| m.name == name).map(|m| m.return_type.as_str())
     } else {
-        schema
-            .queries
-            .iter()
-            .find(|q| q.name == name)
-            .map(|q| q.return_type.as_str())
+        schema.queries.iter().find(|q| q.name == name).map(|q| q.return_type.as_str())
     };
 
     let fields_str = match return_type {
@@ -97,7 +89,7 @@ fn build_graphql_query(
             } else {
                 format!(" {{ {} }}", fields.join(" "))
             }
-        }
+        },
         None => return Err(format!("Unknown operation: {name}")),
     };
 
@@ -145,14 +137,12 @@ fn graphql_value(value: &serde_json::Value) -> String {
         serde_json::Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(graphql_value).collect();
             format!("[{}]", items.join(", "))
-        }
+        },
         serde_json::Value::Object(obj) => {
-            let pairs: Vec<String> = obj
-                .iter()
-                .map(|(k, v)| format!("{k}: {}", graphql_value(v)))
-                .collect();
+            let pairs: Vec<String> =
+                obj.iter().map(|(k, v)| format!("{k}: {}", graphql_value(v))).collect();
             format!("{{{}}}", pairs.join(", "))
-        }
+        },
     }
 }
 
@@ -200,10 +190,10 @@ fn is_scalar_field_type(field_type: &FieldType) -> bool {
 
 fn error_result(message: &str) -> CallToolResult {
     CallToolResult {
-        content: vec![Content::text(message.to_string())],
+        content:            vec![Content::text(message.to_string())],
         structured_content: None,
-        is_error: Some(true),
-        meta: None,
+        is_error:           Some(true),
+        meta:               None,
     }
 }
 

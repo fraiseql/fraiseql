@@ -114,11 +114,11 @@ pub struct VaultKmsProvider {
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(VAULT_REQUEST_TIMEOUT)
-            .build()
-            .map_err(|e| KmsError::InvalidConfiguration {
-                message: format!("Failed to build HTTP client: {e}"),
+        let client =
+            reqwest::Client::builder().timeout(VAULT_REQUEST_TIMEOUT).build().map_err(|e| {
+                KmsError::InvalidConfiguration {
+                    message: format!("Failed to build HTTP client: {e}"),
+                }
             })?;
         Ok(Self { config, client })
     }
@@ -443,14 +443,16 @@ impl BaseKmsProvider for VaultKmsProvider {
 
 /// Encode bytes as base64.
 fn base64_encode(data: &[u8]) -> String {
-    #[allow(clippy::wildcard_imports)] // Reason: base64::prelude::* is the canonical usage pattern
+    #[allow(clippy::wildcard_imports)]
+    // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.encode(data)
 }
 
 /// Decode base64 to bytes.
 fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    #[allow(clippy::wildcard_imports)] // Reason: base64::prelude::* is the canonical usage pattern
+    #[allow(clippy::wildcard_imports)]
+    // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.decode(s)
 }
@@ -501,8 +503,7 @@ mod tests {
 
     #[test]
     fn vault_provider_new_succeeds() {
-        let config =
-            VaultConfig::new("https://vault.example.com".to_string(), "token".to_string());
+        let config = VaultConfig::new("https://vault.example.com".to_string(), "token".to_string());
         let provider = VaultKmsProvider::new(config);
         assert!(provider.is_ok(), "VaultKmsProvider::new() must succeed with valid config");
     }

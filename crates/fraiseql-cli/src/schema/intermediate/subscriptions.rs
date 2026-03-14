@@ -4,8 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::operations::IntermediateArgument;
-use super::types::IntermediateDeprecation;
+use super::{operations::IntermediateArgument, types::IntermediateDeprecation};
 
 // =============================================================================
 // Subscription Definitions

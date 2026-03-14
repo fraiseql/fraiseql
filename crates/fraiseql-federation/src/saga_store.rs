@@ -54,7 +54,7 @@ pub enum SagaStoreError {
         /// Current state of the saga.
         from: String,
         /// Attempted target state.
-        to: String,
+        to:   String,
     },
     /// Saga not found
     SagaNotFound(Uuid),
@@ -704,7 +704,8 @@ impl PostgresSagaStore {
 
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
-        #[allow(clippy::cast_possible_wrap)]  // Reason: saga count is bounded by configuration and won't exceed i64::MAX
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: saga count is bounded by configuration and won't exceed i64::MAX
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
@@ -984,9 +985,7 @@ mod tests {
             "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
                 .to_string()
         });
-        let store = PostgresSagaStore::new(&url)
-            .await
-            .expect("Failed to create store");
+        let store = PostgresSagaStore::new(&url).await.expect("Failed to create store");
         store.health_check().await.expect("Health check failed");
     }
 }

@@ -9,10 +9,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    dialect::PostgresDialect,
-    where_generator::GenericWhereGenerator,
-};
+use crate::{dialect::PostgresDialect, where_generator::GenericWhereGenerator};
 
 /// Cache of indexed columns for views.
 ///
@@ -109,11 +106,8 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::{
-        where_clause::{WhereClause, WhereOperator},
-    };
-
     use super::*;
+    use crate::where_clause::{WhereClause, WhereOperator};
 
     #[test]
     fn test_simple_equality() {
@@ -168,17 +162,24 @@ mod tests {
     fn test_indexed_columns() {
         let mut cols = HashSet::new();
         cols.insert("items__product__category__code".to_string());
-        let gen = PostgresWhereGenerator::new(PostgresDialect)
-            .with_indexed_columns(Arc::new(cols));
+        let gen = PostgresWhereGenerator::new(PostgresDialect).with_indexed_columns(Arc::new(cols));
 
         let clause = WhereClause::Field {
-            path:     vec!["items".to_string(), "product".to_string(), "category".to_string(), "code".to_string()],
+            path:     vec![
+                "items".to_string(),
+                "product".to_string(),
+                "category".to_string(),
+                "code".to_string(),
+            ],
             operator: WhereOperator::Eq,
             value:    json!("BOOK"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert!(sql.contains("\"items__product__category__code\""), "Expected indexed col, got: {sql}");
+        assert!(
+            sql.contains("\"items__product__category__code\""),
+            "Expected indexed col, got: {sql}"
+        );
         assert_eq!(params, vec![json!("BOOK")]);
     }
 

@@ -545,7 +545,10 @@ mod tests {
         buf.extend_from_slice(&[0u8; 4]);
 
         let result = decode_message(&mut buf);
-        assert!(result.is_err(), "RowDescription with 2049 fields must be rejected");
+        assert!(
+            result.is_err(),
+            "RowDescription with 2049 fields must be rejected"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         let msg = err.to_string();
@@ -556,7 +559,10 @@ mod tests {
     fn test_row_description_small_field_count_accepted() {
         let mut buf = make_row_description_with_count(3);
         let result = decode_message(&mut buf);
-        assert!(result.is_ok(), "3-field RowDescription must be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "3-field RowDescription must be accepted: {result:?}"
+        );
         let (msg, _) = result.unwrap();
         assert!(matches!(msg, BackendMessage::RowDescription(fields) if fields.len() == 3));
     }
@@ -582,7 +588,10 @@ mod tests {
         let value = vec![b'x'; 1024]; // 1 KiB — well within 64 KiB limit
         let mut buf = make_error_response(b'M', &value);
         let result = decode_message(&mut buf);
-        assert!(result.is_ok(), "small error field must be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "small error field must be accepted: {result:?}"
+        );
     }
 
     #[test]
@@ -624,18 +633,30 @@ mod tests {
         let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS).map(|_| "SCRAM-SHA-256").collect();
         let mut buf = make_sasl_auth(&mechanisms);
         let result = decode_message(&mut buf);
-        assert!(result.is_ok(), "SASL with {MAX_SASL_MECHANISMS} mechanisms must be accepted");
+        assert!(
+            result.is_ok(),
+            "SASL with {MAX_SASL_MECHANISMS} mechanisms must be accepted"
+        );
     }
 
     #[test]
     fn sasl_mechanisms_exceeding_limit_are_truncated_not_rejected() {
         // The guard breaks out of the loop rather than erroring; verify it still succeeds
         // with at most MAX_SASL_MECHANISMS entries.
-        let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS + 5).map(|_| "SCRAM-SHA-256").collect();
+        let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS + 5)
+            .map(|_| "SCRAM-SHA-256")
+            .collect();
         let mut buf = make_sasl_auth(&mechanisms);
         let result = decode_message(&mut buf);
-        assert!(result.is_ok(), "SASL with excess mechanisms must still parse successfully");
-        if let Ok((BackendMessage::Authentication(AuthenticationMessage::Sasl { mechanisms: parsed }), _)) = result {
+        assert!(
+            result.is_ok(),
+            "SASL with excess mechanisms must still parse successfully"
+        );
+        if let Ok((
+            BackendMessage::Authentication(AuthenticationMessage::Sasl { mechanisms: parsed }),
+            _,
+        )) = result
+        {
             assert!(
                 parsed.len() <= MAX_SASL_MECHANISMS,
                 "parsed mechanisms must not exceed cap: {} > {MAX_SASL_MECHANISMS}",
@@ -662,7 +683,10 @@ mod tests {
     fn parameter_status_normal_is_accepted() {
         let mut buf = make_parameter_status(b"server_version", b"16.0");
         let result = decode_message(&mut buf);
-        assert!(result.is_ok(), "normal ParameterStatus must be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "normal ParameterStatus must be accepted: {result:?}"
+        );
     }
 
     #[test]
@@ -683,7 +707,10 @@ mod tests {
         let long_value = vec![b'v'; MAX_PARAMETER_VALUE_BYTES + 1];
         let mut buf = make_parameter_status(b"timezone", &long_value);
         let result = decode_message(&mut buf);
-        assert!(result.is_err(), "oversized parameter value must be rejected");
+        assert!(
+            result.is_err(),
+            "oversized parameter value must be rejected"
+        );
         let msg = result.unwrap_err().to_string();
         assert!(
             msg.contains("too long") || msg.contains("65536"),

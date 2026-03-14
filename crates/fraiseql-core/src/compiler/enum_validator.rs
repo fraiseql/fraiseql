@@ -199,7 +199,12 @@ impl EnumValidator {
             });
         }
 
-        if !name.chars().next().expect("name is non-empty; empty was rejected above").is_alphabetic() {
+        if !name
+            .chars()
+            .next()
+            .expect("name is non-empty; empty was rejected above")
+            .is_alphabetic()
+        {
             return Err(FraiseQLError::Validation {
                 message: format!("enum name '{}' must start with a letter", name),
                 path:    Some("schema.enums.name".to_string()),

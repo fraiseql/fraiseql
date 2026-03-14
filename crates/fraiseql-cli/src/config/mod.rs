@@ -278,13 +278,9 @@ url = "${TEST_DB_URL}"
     #[test]
     fn test_env_var_expansion_multiple_occurrences() {
         temp_env::with_var("FRAISEQL_TEST_HOST", Some("db.example.com"), || {
-            let toml_str =
-                r#"primary = "${FRAISEQL_TEST_HOST}" replica = "${FRAISEQL_TEST_HOST}""#;
+            let toml_str = r#"primary = "${FRAISEQL_TEST_HOST}" replica = "${FRAISEQL_TEST_HOST}""#;
             let expanded = expand_env_vars(toml_str);
-            assert_eq!(
-                expanded,
-                r#"primary = "db.example.com" replica = "db.example.com""#
-            );
+            assert_eq!(expanded, r#"primary = "db.example.com" replica = "db.example.com""#);
         });
     }
 }

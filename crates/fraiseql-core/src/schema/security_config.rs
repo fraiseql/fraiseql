@@ -60,9 +60,9 @@ impl RoleDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, scopes: Vec<String>) -> Self {
         Self {
-            name: RoleName::new(name),
+            name:        RoleName::new(name),
             description: None,
-            scopes: scopes.into_iter().map(Scope::new).collect(),
+            scopes:      scopes.into_iter().map(Scope::new).collect(),
         }
     }
 

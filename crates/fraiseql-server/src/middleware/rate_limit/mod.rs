@@ -20,7 +20,6 @@ pub use config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
 pub use dispatch::RateLimiter;
 pub use key::build_rate_limit_key;
 pub use middleware_fn::{RateLimitExceeded, rate_limit_middleware};
-
 // Re-export redis metrics for use by the metrics endpoint
 #[cfg(feature = "redis-rate-limiting")]
 pub use redis::{REDIS_RATE_LIMIT_ERRORS, redis_error_count_total};
@@ -37,8 +36,10 @@ mod tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use super::*;
-    use super::middleware_fn::{extract_jwt_subject, extract_real_ip};
+    use super::{
+        middleware_fn::{extract_jwt_subject, extract_real_ip},
+        *,
+    };
 
     #[test]
     fn test_token_bucket_creation() {
@@ -65,8 +66,7 @@ mod tests {
             tokens:      0.0,
             capacity:    10.0,
             refill_rate: 5.0,
-            last_refill: std::time::Instant::now()
-                - std::time::Duration::from_millis(200),
+            last_refill: std::time::Instant::now() - std::time::Duration::from_millis(200),
         };
         // After 0.2 s at 5 tokens/s → 1 token refilled; should allow one consume.
         assert!(bucket.try_consume(1.0));
@@ -183,9 +183,9 @@ mod tests {
     #[test]
     fn test_from_security_config_maps_fields() {
         let sec = RateLimitingSecurityConfig {
-            enabled:             true,
+            enabled: true,
             requests_per_second: 50,
-            burst_size:          150,
+            burst_size: 150,
             ..Default::default()
         };
         let cfg = RateLimitConfig::from_security_config(&sec);
@@ -196,7 +196,10 @@ mod tests {
 
     #[test]
     fn test_from_security_config_disabled() {
-        let sec = RateLimitingSecurityConfig { enabled: false, ..Default::default() };
+        let sec = RateLimitingSecurityConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let cfg = RateLimitConfig::from_security_config(&sec);
         assert!(!cfg.enabled);
     }
@@ -204,7 +207,7 @@ mod tests {
     #[test]
     fn test_from_security_config_user_limit_is_higher() {
         let sec = RateLimitingSecurityConfig {
-            enabled:             true,
+            enabled: true,
             requests_per_second: 100,
             ..Default::default()
         };
@@ -215,7 +218,7 @@ mod tests {
     #[test]
     fn test_from_security_config_defaults_per_user_to_10x() {
         let sec = RateLimitingSecurityConfig {
-            enabled:             true,
+            enabled: true,
             requests_per_second: 50,
             ..Default::default()
         };
@@ -226,24 +229,24 @@ mod tests {
     #[test]
     fn test_from_security_config_custom_per_user_rps_overrides_default() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                       true,
-            requests_per_second:           100,
-            requests_per_second_per_user:  Some(250),
+            enabled: true,
+            requests_per_second: 100,
+            requests_per_second_per_user: Some(250),
             ..Default::default()
         };
         let cfg = RateLimitConfig::from_security_config(&sec);
         assert_eq!(cfg.rps_per_user, 250); // explicit value used
-        assert_eq!(cfg.rps_per_ip, 100);   // global unchanged
+        assert_eq!(cfg.rps_per_ip, 100); // global unchanged
     }
 
     #[test]
     fn test_with_path_rules_generates_auth_start_rule() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     100,
-            burst_size:              200,
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 200,
             auth_start_max_requests: 5,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -255,11 +258,11 @@ mod tests {
     #[tokio::test]
     async fn test_check_path_limit_allows_unknown_path() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     10,
-            burst_size:              10,
+            enabled: true,
+            requests_per_second: 10,
+            burst_size: 10,
             auth_start_max_requests: 1,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -273,11 +276,11 @@ mod tests {
     #[tokio::test]
     async fn test_check_path_limit_enforces_auth_start() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     1000,
-            burst_size:              1000,
+            enabled: true,
+            requests_per_second: 1000,
+            burst_size: 1000,
             auth_start_max_requests: 1,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -291,11 +294,11 @@ mod tests {
     #[tokio::test]
     async fn test_check_path_limit_different_ips_independent() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     1000,
-            burst_size:              1000,
+            enabled: true,
+            requests_per_second: 1000,
+            burst_size: 1000,
             auth_start_max_requests: 1,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -311,11 +314,11 @@ mod tests {
     async fn test_path_prefix_does_not_match_superset_paths() {
         // Regression: /auth/startover must NOT consume the /auth/start bucket (DoS vector).
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     1000,
-            burst_size:              1000,
+            enabled: true,
+            requests_per_second: 1000,
+            burst_size: 1000,
             auth_start_max_requests: 1,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -336,8 +339,10 @@ mod tests {
             "/auth/start-session must not share the /auth/start bucket"
         );
         // /auth/start/extra (sub-path) should be governed by the rule.
-        assert!(!limiter.check_path_limit("/auth/start/extra", "1.2.3.4").await.allowed,
-            "/auth/start/extra SHOULD share the /auth/start bucket (sub-path)");
+        assert!(
+            !limiter.check_path_limit("/auth/start/extra", "1.2.3.4").await.allowed,
+            "/auth/start/extra SHOULD share the /auth/start bucket (sub-path)"
+        );
     }
 
     // ─── retry_after_secs ────────────────────────────────────────────────────
@@ -345,7 +350,10 @@ mod tests {
     #[test]
     fn test_retry_after_secs_high_rps() {
         // 100 rps → 1 token per 0.01s → ceil = 1s
-        let config = RateLimitConfig { rps_per_ip: 100, ..RateLimitConfig::default() };
+        let config = RateLimitConfig {
+            rps_per_ip: 100,
+            ..RateLimitConfig::default()
+        };
         let limiter = RateLimiter::new(config);
         assert_eq!(limiter.retry_after_secs(), 1);
     }
@@ -353,7 +361,10 @@ mod tests {
     #[test]
     fn test_retry_after_secs_one_rps() {
         // 1 rps → 1 token per 1s → ceil = 1s
-        let config = RateLimitConfig { rps_per_ip: 1, ..RateLimitConfig::default() };
+        let config = RateLimitConfig {
+            rps_per_ip: 1,
+            ..RateLimitConfig::default()
+        };
         let limiter = RateLimiter::new(config);
         assert_eq!(limiter.retry_after_secs(), 1);
     }
@@ -361,7 +372,10 @@ mod tests {
     #[test]
     fn test_retry_after_secs_zero_rps_fallback() {
         // 0 rps (disabled / misconfigured) → safe fallback of 1s
-        let config = RateLimitConfig { rps_per_ip: 0, ..RateLimitConfig::default() };
+        let config = RateLimitConfig {
+            rps_per_ip: 0,
+            ..RateLimitConfig::default()
+        };
         let limiter = RateLimiter::new(config);
         assert_eq!(limiter.retry_after_secs(), 1);
     }
@@ -369,12 +383,11 @@ mod tests {
     #[test]
     fn test_rate_limit_exceeded_response_uses_config_retry_after() {
         use axum::response::IntoResponse;
-        let resp = RateLimitExceeded { retry_after_secs: 5 }.into_response();
-        let header = resp
-            .headers()
-            .get("Retry-After")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
+        let resp = RateLimitExceeded {
+            retry_after_secs: 5,
+        }
+        .into_response();
+        let header = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).unwrap_or("");
         assert_eq!(header, "5");
     }
 
@@ -384,11 +397,11 @@ mod tests {
     fn test_retry_after_for_path_uses_path_window() {
         // 5 req per 60s → tokens_per_sec = 5/60 ≈ 0.083 → ceil(1/0.083) = 12s
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     100,
-            burst_size:              200,
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 200,
             auth_start_max_requests: 5,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -400,11 +413,11 @@ mod tests {
     #[test]
     fn test_retry_after_for_path_unknown_path_returns_one() {
         let sec = RateLimitingSecurityConfig {
-            enabled:                 true,
-            requests_per_second:     100,
-            burst_size:              200,
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 200,
             auth_start_max_requests: 5,
-            auth_start_window_secs:  60,
+            auth_start_window_secs: 60,
             ..Default::default()
         };
         let config = RateLimitConfig::from_security_config(&sec);
@@ -419,8 +432,8 @@ mod tests {
         use base64::Engine as _;
         // Build a minimal JWT payload with a sub claim
         let payload = serde_json::json!({"sub": "user-42", "exp": 9_999_999_999_u64});
-        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .encode(payload.to_string().as_bytes());
+        let b64 =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string().as_bytes());
         let token = format!("Bearer header.{b64}.sig");
         assert_eq!(extract_jwt_subject(&token), Some("user-42".to_string()));
     }
@@ -439,8 +452,8 @@ mod tests {
     fn test_extract_jwt_subject_missing_sub_returns_none() {
         use base64::Engine as _;
         let payload = serde_json::json!({"iss": "provider", "exp": 9_999_999_999_u64});
-        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .encode(payload.to_string().as_bytes());
+        let b64 =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string().as_bytes());
         let token = format!("Bearer header.{b64}.sig");
         assert_eq!(extract_jwt_subject(&token), None);
     }
@@ -449,9 +462,9 @@ mod tests {
 
     #[test]
     fn test_extract_real_ip_without_proxy_returns_peer() {
-        use axum::body::Body;
-        use axum::http::Request;
         use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        use axum::{body::Body, http::Request};
         let req = Request::builder().body(Body::empty()).unwrap();
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1234);
         assert_eq!(extract_real_ip(&req, false, &[], &addr), "1.2.3.4");
@@ -459,9 +472,9 @@ mod tests {
 
     #[test]
     fn test_extract_real_ip_with_proxy_prefers_x_real_ip() {
-        use axum::body::Body;
-        use axum::http::Request;
         use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        use axum::{body::Body, http::Request};
         let req = Request::builder()
             .header("x-real-ip", "10.20.30.40")
             .header("x-forwarded-for", "5.5.5.5")
@@ -474,9 +487,9 @@ mod tests {
 
     #[test]
     fn test_extract_real_ip_with_proxy_falls_back_to_xff() {
-        use axum::body::Body;
-        use axum::http::Request;
         use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        use axum::{body::Body, http::Request};
         let req = Request::builder()
             .header("x-forwarded-for", "203.0.113.7, 10.0.0.1")
             .body(Body::empty())
@@ -488,9 +501,9 @@ mod tests {
 
     #[test]
     fn test_extract_real_ip_trust_disabled_ignores_headers() {
-        use axum::body::Body;
-        use axum::http::Request;
         use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        use axum::{body::Body, http::Request};
         let req = Request::builder()
             .header("x-real-ip", "evil.attacker.ip")
             .header("x-forwarded-for", "6.6.6.6")
@@ -509,8 +522,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_rate_limiter_allows_up_to_capacity() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let config = RateLimitConfig {
             enabled:               true,
             rps_per_ip:            5,
@@ -524,10 +537,7 @@ mod tests {
         // Use a unique key to avoid interference between test runs
         let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
         for _ in 0..5 {
-            assert!(
-                rl.check_ip_limit(&ip).await.allowed,
-                "should be allowed within capacity"
-            );
+            assert!(rl.check_ip_limit(&ip).await.allowed, "should be allowed within capacity");
         }
         assert!(!rl.check_ip_limit(&ip).await.allowed, "6th request should be rejected");
     }
@@ -536,8 +546,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_two_instances_share_bucket() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let config = RateLimitConfig {
             enabled:               true,
             rps_per_ip:            3,
@@ -551,9 +561,7 @@ mod tests {
         let a = RateLimiter::new_redis(&url, config.clone())
             .await
             .expect("Redis connection failed");
-        let b = RateLimiter::new_redis(&url, config)
-            .await
-            .expect("Redis connection failed");
+        let b = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
         let ip = format!("test_shared:{suffix}");
 
         // Instance A consumes 2 tokens

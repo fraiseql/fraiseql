@@ -1,8 +1,7 @@
 //! Pratt parser for the condition DSL — turns a token stream into a `ConditionAst`.
 
-use crate::error::{ObserverError, Result};
-
 use super::{ConditionAst, ConditionParser, Token};
+use crate::error::{ObserverError, Result};
 
 /// Maximum nesting depth for condition expressions.
 ///
@@ -24,12 +23,7 @@ impl ConditionParser {
         Ok(ast)
     }
 
-    fn parse_or(
-        &self,
-        tokens: &[Token],
-        pos: &mut usize,
-        depth: usize,
-    ) -> Result<ConditionAst> {
+    fn parse_or(&self, tokens: &[Token], pos: &mut usize, depth: usize) -> Result<ConditionAst> {
         let mut left = self.parse_and(tokens, pos, depth)?;
 
         while *pos < tokens.len() {
@@ -48,12 +42,7 @@ impl ConditionParser {
         Ok(left)
     }
 
-    fn parse_and(
-        &self,
-        tokens: &[Token],
-        pos: &mut usize,
-        depth: usize,
-    ) -> Result<ConditionAst> {
+    fn parse_and(&self, tokens: &[Token], pos: &mut usize, depth: usize) -> Result<ConditionAst> {
         let mut left = self.parse_not(tokens, pos, depth)?;
 
         while *pos < tokens.len() {
@@ -72,12 +61,7 @@ impl ConditionParser {
         Ok(left)
     }
 
-    fn parse_not(
-        &self,
-        tokens: &[Token],
-        pos: &mut usize,
-        depth: usize,
-    ) -> Result<ConditionAst> {
+    fn parse_not(&self, tokens: &[Token], pos: &mut usize, depth: usize) -> Result<ConditionAst> {
         if depth > MAX_CONDITION_DEPTH {
             return Err(ObserverError::InvalidCondition {
                 reason: format!(

@@ -116,8 +116,7 @@ fn test_jwt_audience_validation_support() {
         .expect("Valid issuer config");
 
     // Configure with audiences
-    let _validator_with_aud =
-        validator.with_audiences(&["api", "web"]).expect("Valid audiences");
+    let _validator_with_aud = validator.with_audiences(&["api", "web"]).expect("Valid audiences");
 
     // This test validates that the API supports audience configuration
     // The actual enforcement happens in production when tokens are validated

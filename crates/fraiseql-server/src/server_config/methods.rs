@@ -79,9 +79,7 @@ impl ServerConfig {
                     );
                 }
                 if Some(ro_token) == self.admin_token.as_ref() {
-                    return Err(
-                        "admin_readonly_token must differ from admin_token.".to_string()
-                    );
+                    return Err("admin_readonly_token must differ from admin_token.".to_string());
                 }
             }
         }

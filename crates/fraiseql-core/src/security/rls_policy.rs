@@ -405,8 +405,7 @@ impl RLSPolicy for CompiledRLSPolicy {
             }
 
             // Evaluate the RLS expression and generate WHERE clause
-            let result: Option<WhereClause> =
-                evaluate_rls_expression(&rule.expression, context)?;
+            let result: Option<WhereClause> = evaluate_rls_expression(&rule.expression, context)?;
 
             // Cache the raw WhereClause for reuse
             if let Some(key) = cache_key {
@@ -604,7 +603,10 @@ mod tests {
         let context = make_context("user1", vec!["viewer"], None);
         let result = policy.evaluate(&context, "Post").unwrap().unwrap();
         let sql = format!("{:?}", result.into_where_clause());
-        assert!(sql.contains("creator_id"), "custom owner field must appear in WHERE clause: {sql}");
+        assert!(
+            sql.contains("creator_id"),
+            "custom owner field must appear in WHERE clause: {sql}"
+        );
         assert!(!sql.contains("author_id"), "default field name must not appear: {sql}");
     }
 
@@ -649,7 +651,8 @@ mod tests {
         policy.evaluate(&context, "Post").unwrap();
 
         let cache = policy.cache.read();
-        let entry = cache.get("user1:Post").expect("cache should be populated after first evaluate");
+        let entry =
+            cache.get("user1:Post").expect("cache should be populated after first evaluate");
         assert_eq!(entry.expires_at, t0 + 300, "expires_at must be now_secs + ttl_secs (300)");
     }
 
@@ -748,11 +751,8 @@ mod tests {
         let clock = std::sync::Arc::new(ManualClock::new());
         let t0 = clock.now_secs();
 
-        let policy = CompiledRLSPolicy::new_with_clock(
-            std::collections::HashMap::new(),
-            None,
-            clock,
-        );
+        let policy =
+            CompiledRLSPolicy::new_with_clock(std::collections::HashMap::new(), None, clock);
 
         let result = Some(WhereClause::Field {
             path:     vec!["author_id".to_string()],
@@ -888,9 +888,7 @@ mod tests {
         let context = make_context("specific_user_42", vec!["viewer"], None);
         let result = policy.evaluate(&context, "Post").unwrap();
 
-        let clause = result
-            .expect("non-admin user must receive an RLS filter")
-            .into_where_clause();
+        let clause = result.expect("non-admin user must receive an RLS filter").into_where_clause();
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(
@@ -898,7 +896,7 @@ mod tests {
                     serde_json::json!("specific_user_42"),
                     "RLS WhereClause must embed the actual user_id, not null"
                 );
-            }
+            },
             other => panic!("Expected Field clause, got {other:?}"),
         }
     }

@@ -4,10 +4,7 @@
 //! `GenericWhereGenerator<SqlServerDialect>`.  All logic lives in
 //! [`crate::where_generator::GenericWhereGenerator`].
 
-use crate::{
-    dialect::SqlServerDialect,
-    where_generator::GenericWhereGenerator,
-};
+use crate::{dialect::SqlServerDialect, where_generator::GenericWhereGenerator};
 
 /// SQL Server WHERE clause generator.
 ///
@@ -48,12 +45,11 @@ impl SqlServerWhereGenerator {
 mod tests {
     use serde_json::json;
 
+    use super::*;
     use crate::{
         dialect::SqlServerDialect,
         where_clause::{WhereClause, WhereOperator},
     };
-
-    use super::*;
 
     #[test]
     fn test_simple_equality() {

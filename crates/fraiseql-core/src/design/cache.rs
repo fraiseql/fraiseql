@@ -40,10 +40,7 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
                     )
                     .unwrap_or(u32::MAX);
 
-                    entity_ttls
-                        .entry(entity_name)
-                        .or_default()
-                        .push((subgraph_name.clone(), ttl));
+                    entity_ttls.entry(entity_name).or_default().push((subgraph_name.clone(), ttl));
                 }
             }
         }

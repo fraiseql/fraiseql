@@ -189,10 +189,7 @@ fn matcher_routes_insert_to_correct_observer() {
 #[test]
 fn matcher_does_not_route_wrong_event_type() {
     let mut observers = HashMap::new();
-    observers.insert(
-        "on_order_updated".to_string(),
-        make_observer("UPDATE", "Order", None),
-    );
+    observers.insert("on_order_updated".to_string(), make_observer("UPDATE", "Order", None));
 
     let matcher = EventMatcher::build(observers).unwrap();
     let event = order_created(50); // INSERT, not UPDATE
@@ -214,12 +211,8 @@ fn matcher_routes_multiple_entities_independently() {
     assert_eq!(order_matches.len(), 1);
     assert_eq!(order_matches[0].entity, "Order");
 
-    let user_event = EntityEvent::new(
-        EventKind::Created,
-        "User".to_string(),
-        Uuid::new_v4(),
-        json!({}),
-    );
+    let user_event =
+        EntityEvent::new(EventKind::Created, "User".to_string(), Uuid::new_v4(), json!({}));
     let user_matches = matcher.find_matches(&user_event);
     assert_eq!(user_matches.len(), 1);
     assert_eq!(user_matches[0].entity, "User");
@@ -262,9 +255,7 @@ fn condition_greater_than_fails() {
 fn condition_logical_and_passes() {
     let parser = ConditionParser {};
     let event = order_created(200);
-    let result = parser
-        .parse_and_evaluate("total > 10 && total < 1000", &event)
-        .unwrap();
+    let result = parser.parse_and_evaluate("total > 10 && total < 1000", &event).unwrap();
     assert!(result, "total=200 satisfies both total > 10 and total < 1000");
 }
 
@@ -273,9 +264,7 @@ fn condition_logical_and_passes() {
 fn condition_logical_or_fails_when_neither_branch_matches() {
     let parser = ConditionParser {};
     let event = order_created(50);
-    let result = parser
-        .parse_and_evaluate("total < 10 || total > 100", &event)
-        .unwrap();
+    let result = parser.parse_and_evaluate("total < 10 || total > 100", &event).unwrap();
     assert!(!result, "total=50 satisfies neither total < 10 nor total > 100");
 }
 

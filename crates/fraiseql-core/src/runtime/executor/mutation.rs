@@ -1,6 +1,8 @@
 //! Mutation execution.
 
+use super::{Executor, resolve_inject_value};
 use crate::{
+    db::traits::{DatabaseAdapter, MutationCapable},
     error::{FraiseQLError, Result},
     runtime::{
         ResultProjector,
@@ -9,9 +11,6 @@ use crate::{
     },
     security::SecurityContext,
 };
-
-use super::{Executor, resolve_inject_value};
-use crate::db::traits::{DatabaseAdapter, MutationCapable};
 
 /// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
 ///
@@ -120,7 +119,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                      adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
                      or SqlServerAdapter for mutation operations."
                 ),
-                path: None,
+                path:    None,
             });
         }
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
@@ -131,16 +130,15 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Callers provide an optional [`SecurityContext`]:
     /// - `None` — unauthenticated path; mutations with `inject` params will fail.
-    /// - `Some(ctx)` — authenticated path; `inject` param values are resolved from
-    ///   `ctx`'s JWT claims and appended to the positional argument list after the
-    ///   client-supplied variables.
+    /// - `Some(ctx)` — authenticated path; `inject` param values are resolved from `ctx`'s JWT
+    ///   claims and appended to the positional argument list after the client-supplied variables.
     ///
     /// # Arguments
     ///
     /// * `mutation_name` - The GraphQL mutation field name (e.g. `"deletePost"`)
     /// * `variables` - Optional JSON object of client-supplied variable values
-    /// * `security_ctx` - Optional authenticated user context; required when the
-    ///   mutation definition has one or more `inject` params
+    /// * `security_ctx` - Optional authenticated user context; required when the mutation
+    ///   definition has one or more `inject` params
     pub(super) async fn execute_mutation_query_with_security(
         &self,
         mutation_name: &str,
@@ -148,27 +146,29 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_ctx: Option<&SecurityContext>,
     ) -> Result<String> {
         // 1. Locate the mutation definition
-        let mutation_def =
-            self.schema.find_mutation(mutation_name).ok_or_else(|| {
-                let candidates: Vec<&str> =
-                    self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
-                let suggestion = suggest_similar(mutation_name, &candidates);
-                let message = match suggestion.as_slice() {
-                    [s] => format!(
-                        "Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?"
-                    ),
-                    [a, b] => format!(
-                        "Mutation '{mutation_name}' not found in schema. Did you mean '{a}' or \
+        let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
+            let candidates: Vec<&str> =
+                self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
+            let suggestion = suggest_similar(mutation_name, &candidates);
+            let message = match suggestion.as_slice() {
+                [s] => {
+                    format!("Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?")
+                },
+                [a, b] => format!(
+                    "Mutation '{mutation_name}' not found in schema. Did you mean '{a}' or \
                          '{b}'?"
-                    ),
-                    [a, b, c, ..] => format!(
-                        "Mutation '{mutation_name}' not found in schema. Did you mean '{a}', \
+                ),
+                [a, b, c, ..] => format!(
+                    "Mutation '{mutation_name}' not found in schema. Did you mean '{a}', \
                          '{b}', or '{c}'?"
-                    ),
-                    _ => format!("Mutation '{mutation_name}' not found in schema"),
-                };
-                FraiseQLError::Validation { message, path: None }
-            })?;
+                ),
+                _ => format!("Mutation '{mutation_name}' not found in schema"),
+            };
+            FraiseQLError::Validation {
+                message,
+                path: None,
+            }
+        })?;
 
         // 2. Require a sql_source (PostgreSQL function name).
         //
@@ -193,17 +193,15 @@ impl<A: DatabaseAdapter> Executor<A> {
                 },
                 _ => {
                     return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Mutation '{mutation_name}' has no sql_source configured"
-                        ),
-                        path: None,
+                        message: format!("Mutation '{mutation_name}' has no sql_source configured"),
+                        path:    None,
                     });
                 },
             }
         };
 
-        // 3. Build positional args Vec from variables in ArgumentDefinition order.
-        //    Validate that every required (non-nullable, no default) argument is present.
+        // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that
+        //    every required (non-nullable, no default) argument is present.
         let vars_obj = variables.and_then(|v| v.as_object());
 
         let mut missing_required: Vec<&str> = Vec::new();
@@ -212,7 +210,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             .iter()
             .map(|arg| {
                 let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-                if let Some(v) = value { v } else {
+                if let Some(v) = value {
+                    v
+                } else {
                     if !arg.nullable && arg.default_value.is_none() {
                         missing_required.push(&arg.name);
                     }
@@ -227,7 +227,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Mutation '{mutation_name}' is missing required argument(s): {}",
                     missing_required.join(", ")
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -247,7 +247,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                      (unauthenticated request)",
                     mutation_name
                 ),
-                path: None,
+                path:    None,
             })?;
             for (param_name, source) in &mutation_def.inject_params {
                 args.push(resolve_inject_value(param_name, source, ctx)?);
@@ -259,10 +259,8 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
-            message: format!(
-                "Mutation '{mutation_name}': function returned no rows"
-            ),
-            path: None,
+            message: format!("Mutation '{mutation_name}': function returned no rows"),
+            path:    None,
         })?;
 
         // 6. Parse the mutation_response row
@@ -288,11 +286,16 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Strategy:
         // - UPDATE/DELETE with entity_id: entity-aware eviction only (precise, no false positives).
         //   Evicts only the cache entries that actually contain the mutated entity UUID.
-        // - CREATE or explicit invalidates_views: view-level flush.
-        //   For CREATE the new entity isn't in any existing cache entry, so entity-aware is a
-        //   no-op. View-level ensures list queries return the new row.
+        // - CREATE or explicit invalidates_views: view-level flush. For CREATE the new entity isn't
+        //   in any existing cache entry, so entity-aware is a no-op. View-level ensures list
+        //   queries return the new row.
         // - No entity_id and no views declared: infer view from return type (backward-compat).
-        if let MutationOutcome::Success { entity_type, entity_id, .. } = &outcome {
+        if let MutationOutcome::Success {
+            entity_type,
+            entity_id,
+            ..
+        } = &outcome
+        {
             // Entity-aware path: precise eviction for UPDATE/DELETE.
             if let (Some(etype), Some(eid)) = (entity_type.as_deref(), entity_id.as_deref()) {
                 self.adapter.invalidate_by_entity(etype, eid).await?;
@@ -324,7 +327,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         let mutation_name_owned = mutation_name.to_string();
 
         let result_json = match outcome {
-            MutationOutcome::Success { entity, entity_type, .. } => {
+            MutationOutcome::Success {
+                entity,
+                entity_type,
+                ..
+            } => {
                 // Determine the GraphQL __typename
                 let typename = entity_type
                     .or_else(|| {
@@ -333,50 +340,37 @@ impl<A: DatabaseAdapter> Executor<A> {
                             .find_union(&mutation_return_type)
                             .and_then(|u| {
                                 u.member_types.iter().find(|t| {
-                                    self.schema
-                                        .find_type(t)
-                                        .is_none_or(|td| !td.is_error)
+                                    self.schema.find_type(t).is_none_or(|td| !td.is_error)
                                 })
                             })
                             .cloned()
                     })
                     .unwrap_or_else(|| mutation_return_type.clone());
 
-                let mut obj = entity
-                    .as_object()
-                    .cloned()
-                    .unwrap_or_default();
-                obj.insert(
-                    "__typename".to_string(),
-                    serde_json::Value::String(typename),
-                );
+                let mut obj = entity.as_object().cloned().unwrap_or_default();
+                obj.insert("__typename".to_string(), serde_json::Value::String(typename));
                 serde_json::Value::Object(obj)
             },
-            MutationOutcome::Error { status, metadata, .. } => {
+            MutationOutcome::Error {
+                status, metadata, ..
+            } => {
                 // Find the matching error type from the return union
-                let error_type = self
-                    .schema
-                    .find_union(&mutation_return_type)
-                    .and_then(|u| {
-                        u.member_types.iter().find_map(|t| {
-                            let td = self.schema.find_type(t)?;
-                            if td.is_error { Some(td) } else { None }
-                        })
-                    });
+                let error_type = self.schema.find_union(&mutation_return_type).and_then(|u| {
+                    u.member_types.iter().find_map(|t| {
+                        let td = self.schema.find_type(t)?;
+                        if td.is_error { Some(td) } else { None }
+                    })
+                });
 
                 match error_type {
                     Some(td) => {
-                        let mut fields =
-                            populate_error_fields(&td.fields, &metadata);
+                        let mut fields = populate_error_fields(&td.fields, &metadata);
                         fields.insert(
                             "__typename".to_string(),
                             serde_json::Value::String(td.name.to_string()),
                         );
                         // Include status so the client can act on it
-                        fields.insert(
-                            "status".to_string(),
-                            serde_json::Value::String(status),
-                        );
+                        fields.insert("status".to_string(), serde_json::Value::String(status));
                         serde_json::Value::Object(fields)
                     },
                     None => {

@@ -10,17 +10,15 @@ mod tests;
 mod integration_tests;
 
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
+use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::{NoTls, Row};
 
 use super::where_generator::PostgresWhereGenerator;
-use crate::dialect::PostgresDialect;
-use fraiseql_error::{FraiseQLError, Result};
-
 use crate::{
+    dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     traits::DatabaseAdapter,
-    types::{JsonbValue, QueryParam},
-    types::sql_hints::SqlProjectionHint,
+    types::{JsonbValue, QueryParam, sql_hints::SqlProjectionHint},
     where_clause::WhereClause,
 };
 
@@ -44,7 +42,6 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 pub(super) fn escape_jsonb_key(key: &str) -> String {
     key.replace('\'', "''")
 }
-
 
 /// PostgreSQL database adapter with connection pooling.
 ///

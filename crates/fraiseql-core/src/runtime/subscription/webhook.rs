@@ -178,8 +178,8 @@ impl WebhookAdapter {
         #[allow(clippy::expect_used)]
         // Reason: SHA-256 HMAC (FIPS 198-1) accepts keys of any size;
         //         new_from_slice only fails for fixed-block-size ciphers (e.g., AES-CMAC).
-        let mut mac =
-            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("SHA-256 HMAC accepts any key size");
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+            .expect("SHA-256 HMAC accepts any key size");
         mac.update(payload.as_bytes());
 
         let result = mac.finalize();
@@ -355,7 +355,7 @@ fn is_webhook_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
             || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
             || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
-            || o == [0, 0, 0, 0]                                 // unspecified
+            || o == [0, 0, 0, 0] // unspecified
         },
         std::net::IpAddr::V6(v6) => {
             v6.is_loopback()                                     // ::1

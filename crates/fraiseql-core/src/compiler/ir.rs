@@ -41,7 +41,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{compiler::fact_table::FactTableMetadata, schema::GraphQLValue, validation::ValidationRule};
+use crate::{
+    compiler::fact_table::FactTableMetadata, schema::GraphQLValue, validation::ValidationRule,
+};
 
 /// Authoring Intermediate Representation.
 ///

@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 #![allow(missing_docs)]
 
 //! Integration tests for OIDC provider error paths using wiremock.

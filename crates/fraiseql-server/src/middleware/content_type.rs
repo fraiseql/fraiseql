@@ -19,7 +19,8 @@ use axum::{
 ///
 /// # Errors
 ///
-/// Returns a `415 Unsupported Media Type` response if the POST request does not carry a JSON `Content-Type`.
+/// Returns a `415 Unsupported Media Type` response if the POST request does not carry a JSON
+/// `Content-Type`.
 pub async fn require_json_content_type(
     req: Request<Body>,
     next: Next,
@@ -28,11 +29,7 @@ pub async fn require_json_content_type(
         return Ok(next.run(req).await);
     }
 
-    let content_type = req
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    let content_type = req.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("");
 
     if !content_type.starts_with("application/json") {
         let body = serde_json::json!({
@@ -66,10 +63,13 @@ mod tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use axum::{Router, routing::post};
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode, header::CONTENT_TYPE};
-    use axum::middleware;
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode, header::CONTENT_TYPE},
+        middleware,
+        routing::post,
+    };
     use tower::ServiceExt;
 
     use super::require_json_content_type;
@@ -147,11 +147,7 @@ mod tests {
             .layer(middleware::from_fn(require_json_content_type));
 
         let res = app
-            .oneshot(
-                Request::get("/graphql")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::get("/graphql").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);

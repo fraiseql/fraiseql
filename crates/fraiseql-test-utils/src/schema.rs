@@ -1,6 +1,6 @@
 //! Schema compilation helpers for tests.
 
-use fraiseql_core::{compiler::Compiler, CompiledSchema};
+use fraiseql_core::{CompiledSchema, compiler::Compiler};
 
 /// Compile a raw schema JSON string into a [`CompiledSchema`] for use in tests.
 ///

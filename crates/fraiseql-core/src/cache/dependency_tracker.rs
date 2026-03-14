@@ -111,10 +111,7 @@ impl DependencyTracker {
 
         // Update view → caches reverse mapping
         for view in views {
-            self.view_to_caches
-                .entry(view)
-                .or_default()
-                .insert(cache_key.clone());
+            self.view_to_caches.entry(view).or_default().insert(cache_key.clone());
         }
     }
 

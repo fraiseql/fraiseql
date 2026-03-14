@@ -151,10 +151,8 @@ fn normalize_json_value(value: JsonValue) -> JsonValue {
     match value {
         JsonValue::Object(map) => {
             // Collect into a Vec, sort by key, re-insert in order.
-            let mut pairs: Vec<(String, JsonValue)> = map
-                .into_iter()
-                .map(|(k, v)| (k, normalize_json_value(v)))
-                .collect();
+            let mut pairs: Vec<(String, JsonValue)> =
+                map.into_iter().map(|(k, v)| (k, normalize_json_value(v))).collect();
             pairs.sort_by(|(a, _), (b, _)| a.cmp(b));
             JsonValue::Object(pairs.into_iter().collect())
         },

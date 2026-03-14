@@ -57,17 +57,15 @@ pub use auth::{AuthConfig, AuthProvider};
 pub use cache::CacheConfig;
 pub use cors::CorsConfig;
 pub use database::{DatabaseConfig, SslMode};
-pub use rate_limit::{PathRateLimit, RateLimitConfig, RateLimitKey};
-pub use server::CoreServerConfig;
-
 // =============================================================================
 // Collation Configuration — re-exported from fraiseql-db
 // =============================================================================
-
 pub use fraiseql_db::{
     CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
     PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
 };
+pub use rate_limit::{PathRateLimit, RateLimitConfig, RateLimitKey};
+pub use server::CoreServerConfig;
 
 // =============================================================================
 // Main Configuration

@@ -58,7 +58,7 @@ mod tests {
             implements:          vec![],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
         }
     }
 
@@ -466,7 +466,7 @@ mod tests {
                 implements:          vec!["Node".to_string()],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
             interfaces: vec![InterfaceDefinition {
                 name:        "Node".to_string(),

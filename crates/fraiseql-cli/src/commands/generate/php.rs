@@ -1,9 +1,13 @@
 //! PHP code generator.
 
-use super::super::init::Language;
-use super::utils::{infer_sql_source, map_graphql_to_lang, to_camel_case};
-use super::SchemaGenerator;
-use crate::schema::intermediate::{IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType};
+use super::{
+    super::init::Language,
+    SchemaGenerator,
+    utils::{infer_sql_source, map_graphql_to_lang, to_camel_case},
+};
+use crate::schema::intermediate::{
+    IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType,
+};
 
 // =============================================================================
 // PHP generator
@@ -13,7 +17,9 @@ pub(super) struct PhpGenerator;
 
 impl SchemaGenerator for PhpGenerator {
     fn generate(&self, schema: &IntermediateSchema) -> String {
-        let mut out = String::from("<?php\n\ndeclare(strict_types=1);\n\nuse FraiseQL\\Attributes\\GraphQLType;\nuse FraiseQL\\Attributes\\GraphQLField;\n\n");
+        let mut out = String::from(
+            "<?php\n\ndeclare(strict_types=1);\n\nuse FraiseQL\\Attributes\\GraphQLType;\nuse FraiseQL\\Attributes\\GraphQLField;\n\n",
+        );
 
         for enum_def in &schema.enums {
             generate_php_enum(&mut out, enum_def);
@@ -53,7 +59,11 @@ fn generate_php_type(out: &mut String, ty: &IntermediateType) {
     for field in &ty.fields {
         let lang_type = map_graphql_to_lang(Language::Php, &field.field_type);
         let field_name = to_camel_case(&field.name);
-        let nullable_attr = if field.nullable { ", nullable: true" } else { "" };
+        let nullable_attr = if field.nullable {
+            ", nullable: true"
+        } else {
+            ""
+        };
         let type_hint = if field.nullable {
             format!("?{lang_type}")
         } else {

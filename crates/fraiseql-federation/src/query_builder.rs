@@ -4,6 +4,7 @@
 //! through proper escaping and parameterization.
 
 use fraiseql_error::{FraiseQLError, Result};
+
 use crate::{
     metadata_helpers::{find_federation_type, get_key_directive},
     sql_utils::{escape_sql_string, value_to_string},

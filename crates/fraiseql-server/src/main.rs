@@ -7,9 +7,7 @@ use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_core::schema::CompiledSchema;
-use fraiseql_server::{
-    CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig,
-};
+use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // ── Helper functions ──────────────────────────────────────────────────────
@@ -38,7 +36,11 @@ fn apply_rate_limit_overrides(config: &mut ServerConfig) {
     let rps_user_raw = std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER").ok();
     let burst_raw = std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE").ok();
 
-    if enabled_raw.is_none() && rps_ip_raw.is_none() && rps_user_raw.is_none() && burst_raw.is_none() {
+    if enabled_raw.is_none()
+        && rps_ip_raw.is_none()
+        && rps_user_raw.is_none()
+        && burst_raw.is_none()
+    {
         return;
     }
 
@@ -169,7 +171,10 @@ fn load_and_validate_config() -> anyhow::Result<ServerConfig> {
         config.introspection_enabled = parse_bool_env(&introspection_enabled);
     }
     if let Ok(introspection_require_auth) = env::var("FRAISEQL_INTROSPECTION_REQUIRE_AUTH") {
-        warn_if_unrecognised_bool("FRAISEQL_INTROSPECTION_REQUIRE_AUTH", &introspection_require_auth);
+        warn_if_unrecognised_bool(
+            "FRAISEQL_INTROSPECTION_REQUIRE_AUTH",
+            &introspection_require_auth,
+        );
         config.introspection_require_auth = parse_bool_env(&introspection_require_auth);
     }
 
@@ -277,8 +282,8 @@ async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sq
 
 /// Initialize the secrets manager backend if `FRAISEQL_SECRETS_BACKEND` is set.
 #[cfg(feature = "secrets")]
-async fn build_secrets_manager(
-) -> anyhow::Result<Option<Arc<fraiseql_server::secrets_manager::SecretsManager>>> {
+async fn build_secrets_manager()
+-> anyhow::Result<Option<Arc<fraiseql_server::secrets_manager::SecretsManager>>> {
     if env::var("FRAISEQL_SECRETS_BACKEND").is_err() {
         tracing::debug!("Secrets manager disabled (set FRAISEQL_SECRETS_BACKEND to enable)");
         return Ok(None);
@@ -305,16 +310,16 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
 ///
 /// Initialization sequence:
 /// 1. **Tracing** — set up `tracing_subscriber` with `RUST_LOG` env filter.
-/// 2. **Config** — load `ServerConfig` from file (via `FRAISEQL_CONFIG`) or defaults,
-///    then apply env var overrides for database URL, bind address, schema path,
-///    metrics, admin API, introspection, and rate limiting.
+/// 2. **Config** — load `ServerConfig` from file (via `FRAISEQL_CONFIG`) or defaults, then apply
+///    env var overrides for database URL, bind address, schema path, metrics, admin API,
+///    introspection, and rate limiting.
 /// 3. **Schema** — validate the compiled schema file exists and load it.
 /// 4. **Security** — (auth feature) initialize and validate security config from schema.
 /// 5. **Database** — create the PostgreSQL or Wire database adapter.
-/// 6. **Observers / Secrets** — optionally create sqlx pool for observers and
-///    initialize the secrets manager backend.
-/// 7. **Server** — construct `Server` (with optional Arrow Flight service),
-///    optionally attach secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
+/// 6. **Observers / Secrets** — optionally create sqlx pool for observers and initialize the
+///    secrets manager backend.
+/// 7. **Server** — construct `Server` (with optional Arrow Flight service), optionally attach
+///    secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
@@ -367,10 +372,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(feature = "arrow")]
-    tracing::info!(
-        "FraiseQL Server {} starting (HTTP + Arrow Flight)",
-        env!("CARGO_PKG_VERSION")
-    );
+    tracing::info!("FraiseQL Server {} starting (HTTP + Arrow Flight)", env!("CARGO_PKG_VERSION"));
     #[cfg(not(feature = "arrow"))]
     tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
 
@@ -409,8 +411,10 @@ mod tests {
     #[test]
     fn warn_if_unrecognised_bool_does_not_panic_for_any_input() {
         // All recognised values — function must be a no-op (no panic).
-        for val in &["true", "TRUE", "1", "yes", "YES", "on", "ON",
-                     "false", "FALSE", "0", "no", "NO", "off", "OFF"] {
+        for val in &[
+            "true", "TRUE", "1", "yes", "YES", "on", "ON", "false", "FALSE", "0", "no", "NO",
+            "off", "OFF",
+        ] {
             warn_if_unrecognised_bool("TEST_VAR", val);
         }
         // Unrecognised values — function emits a warning but must not panic.

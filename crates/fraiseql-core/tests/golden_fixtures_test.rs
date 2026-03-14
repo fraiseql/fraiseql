@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 
 use fraiseql_core::{
     db::types::DatabaseType,
-    schema::{CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig, SqlProjectionHint},
+    schema::{
+        CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig, SqlProjectionHint,
+    },
 };
 
 fn fixtures_dir() -> PathBuf {
@@ -30,14 +32,12 @@ fn load_golden(name: &str) -> CompiledSchema {
     let path = fixtures_dir().join(name);
     let json = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Cannot read fixture {name}: {e}"));
-    CompiledSchema::from_json(&json)
-        .unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
+    CompiledSchema::from_json(&json).unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
 }
 
 fn load_golden_json(name: &str) -> String {
     let path = fixtures_dir().join(name);
-    std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Cannot read fixture {name}: {e}"))
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Cannot read fixture {name}: {e}"))
 }
 
 // =============================================================================
@@ -271,7 +271,10 @@ fn golden_03_directives() {
     assert_eq!(schema.directives.len(), 2);
 
     let rate_limit = schema.directives.iter().find(|d| d.name == "rateLimit").unwrap();
-    assert_eq!(rate_limit.description.as_deref(), Some("Apply rate limiting to a field or operation"));
+    assert_eq!(
+        rate_limit.description.as_deref(),
+        Some("Apply rate limiting to a field or operation")
+    );
     assert_eq!(rate_limit.locations.len(), 2);
     assert_eq!(rate_limit.arguments.len(), 2);
     assert!(!rate_limit.is_repeatable);
@@ -447,7 +450,10 @@ fn golden_07_relay_uuid_cursor() {
     assert!(items_q.relay);
     assert_eq!(items_q.relay_cursor_column.as_deref(), Some("id"));
     assert_eq!(items_q.relay_cursor_type, CursorType::Uuid);
-    assert_eq!(items_q.description.as_deref(), Some("Relay-paginated item list using UUID cursor"));
+    assert_eq!(
+        items_q.description.as_deref(),
+        Some("Relay-paginated item list using UUID cursor")
+    );
 }
 
 #[test]
@@ -555,9 +561,8 @@ fn roundtrip_all_fixtures() {
         let schema1 = CompiledSchema::from_json(&original_json)
             .unwrap_or_else(|e| panic!("Parse failed for {name}: {e}"));
 
-        let reserialised = schema1
-            .to_json()
-            .unwrap_or_else(|e| panic!("Serialise failed for {name}: {e}"));
+        let reserialised =
+            schema1.to_json().unwrap_or_else(|e| panic!("Serialise failed for {name}: {e}"));
 
         let schema2 = CompiledSchema::from_json(&reserialised)
             .unwrap_or_else(|e| panic!("Re-parse failed for {name}: {e}"));
@@ -587,8 +592,7 @@ fn roundtrip_all_fixtures() {
 #[test]
 fn sql_projection_hint_roundtrip() {
     let schema = load_golden("01-basic-query-mutation.json");
-    let hint: &SqlProjectionHint =
-        schema.types[0].sql_projection_hint.as_ref().unwrap();
+    let hint: &SqlProjectionHint = schema.types[0].sql_projection_hint.as_ref().unwrap();
 
     let json = serde_json::to_string(hint).unwrap();
     let hint2: SqlProjectionHint = serde_json::from_str(&json).unwrap();

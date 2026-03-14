@@ -6,8 +6,10 @@ use std::{
     time::Instant,
 };
 
-use serde_json::Value;
 use ::tracing::info;
+use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::{
@@ -18,8 +20,6 @@ use super::{
     tracing::{FederationSpan, FederationTraceContext},
     types::{EntityRepresentation, FederationResolver},
 };
-use fraiseql_db::traits::DatabaseAdapter;
-use fraiseql_error::{FraiseQLError, Result};
 
 /// Maximum number of entity representations allowed in a single `_entities` query.
 ///
@@ -214,7 +214,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
                 representations.len(),
                 MAX_ENTITIES_BATCH_SIZE
             ),
-            path: Some("_entities".into()),
+            path:    Some("_entities".into()),
         });
     }
 

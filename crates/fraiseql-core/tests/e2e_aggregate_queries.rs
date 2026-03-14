@@ -199,7 +199,8 @@ fn test_where_with_like_operator() {
     assert_sql_contains(&result.sql, &["WHERE", "data->>'category'", "LIKE"]);
     assert!(
         result.params.iter().any(|p| p.as_str() == Some("%electr%")),
-        "LIKE pattern must be a bind param: {:?}", result.params
+        "LIKE pattern must be a bind param: {:?}",
+        result.params
     );
 }
 
@@ -559,9 +560,17 @@ fn test_having_different_operators() {
 
     let result = parse_plan_generate_full(&query);
 
-    assert_sql_contains(&result.sql, &[
-        "HAVING", "COUNT(*) >", "SUM(revenue) >=", "AVG(revenue) <", "MIN(revenue) <=", "MAX(revenue) =",
-    ]);
+    assert_sql_contains(
+        &result.sql,
+        &[
+            "HAVING",
+            "COUNT(*) >",
+            "SUM(revenue) >=",
+            "AVG(revenue) <",
+            "MIN(revenue) <=",
+            "MAX(revenue) =",
+        ],
+    );
     assert!(result.params.contains(&json!(10)), "count threshold must be a bind param");
     assert!(result.params.contains(&json!(1000.0)), "sum threshold must be a bind param");
     assert!(result.params.contains(&json!(200.0)), "avg threshold must be a bind param");
@@ -718,10 +727,20 @@ fn test_temporal_bucket_with_where_having() {
     let result = parse_plan_generate_full(&query);
 
     // Verify all clauses present with temporal bucketing
-    assert_sql_contains(&result.sql, &[
-        "WHERE", "customer_id", "DATE_TRUNC('month', occurred_at)",
-        "GROUP BY", "HAVING", "SUM(revenue) >", "ORDER BY", "DESC", "LIMIT 5",
-    ]);
+    assert_sql_contains(
+        &result.sql,
+        &[
+            "WHERE",
+            "customer_id",
+            "DATE_TRUNC('month', occurred_at)",
+            "GROUP BY",
+            "HAVING",
+            "SUM(revenue) >",
+            "ORDER BY",
+            "DESC",
+            "LIMIT 5",
+        ],
+    );
     assert!(result.params.contains(&json!("cust-001")), "WHERE value must be a bind param");
     assert!(result.params.contains(&json!(1000.0)), "HAVING value must be a bind param");
 }

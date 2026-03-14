@@ -33,12 +33,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // GATE 1: Query structure validation (DoS protection for direct embedders).
         if let Some(ref cfg) = self.config.query_validation {
-            QueryValidator::from_config(cfg.clone())
-                .validate(query)
-                .map_err(|e| FraiseQLError::Validation {
+            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
+                FraiseQLError::Validation {
                     message: e.to_string(),
                     path:    Some("query".to_string()),
-                })?;
+                }
+            })?;
         }
 
         // Apply query timeout if configured
@@ -85,7 +85,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         match query_type {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
-                // `maybe_parsed` is always Some for Regular queries (see classify_query_with_parse).
+                // `maybe_parsed` is always Some for Regular queries (see
+                // classify_query_with_parse).
                 let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
                     message: "classifier returned Regular without a parsed query — this is a bug"
                         .to_string(),
@@ -94,11 +95,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                 if pipeline::is_multi_root(&parsed) {
                     let pr = self.execute_parallel(&parsed, variables).await?;
                     let data = pr.merge_into_data_map();
-                    return serde_json::to_string(&serde_json::json!({ "data": data }))
-                        .map_err(|e| FraiseQLError::Internal {
+                    return serde_json::to_string(&serde_json::json!({ "data": data })).map_err(
+                        |e| FraiseQLError::Internal {
                             message: e.to_string(),
                             source:  None,
-                        });
+                        },
+                    );
                 }
                 self.execute_regular_query(query, variables).await
             },
@@ -161,12 +163,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // GATE 1: Query structure validation (mirrors execute() — DoS protection).
         if let Some(ref cfg) = self.config.query_validation {
-            QueryValidator::from_config(cfg.clone())
-                .validate(query)
-                .map_err(|e| FraiseQLError::Validation {
+            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
+                FraiseQLError::Validation {
                     message: e.to_string(),
                     path:    Some("query".to_string()),
-                })?;
+                }
+            })?;
         }
 
         // 2. Classify query type
@@ -180,10 +182,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 4. Delegate to execute_internal — single source of routing truth.
-        //    Field-access validation (step 3) has already run for Regular queries;
-        //    all other query types (introspection, aggregate, federation, …) are
-        //    routed correctly via execute_internal without duplication.
+        // 4. Delegate to execute_internal — single source of routing truth. Field-access validation
+        //    (step 3) has already run for Regular queries; all other query types (introspection,
+        //    aggregate, federation, …) are routed correctly via execute_internal without
+        //    duplication.
         self.execute_internal(query, variables).await
     }
 }

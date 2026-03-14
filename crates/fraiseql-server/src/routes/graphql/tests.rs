@@ -2,11 +2,14 @@
 
 //! Tests for GraphQL route handlers and helpers.
 
-use super::handler::{extract_apq_hash, extract_ip_from_headers, resolve_apq};
-use super::request::{GraphQLGetParams, GraphQLRequest};
+use fraiseql_core::apq::ApqMetrics;
+
+use super::{
+    handler::{extract_apq_hash, extract_ip_from_headers, resolve_apq},
+    request::{GraphQLGetParams, GraphQLRequest},
+};
 #[cfg(feature = "auth")]
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
-use fraiseql_core::apq::ApqMetrics;
 
 #[test]
 fn test_graphql_request_deserialize() {
@@ -22,17 +25,18 @@ fn test_graphql_request_without_query() {
     let json = r#"{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc123"}}}"#;
     let request: GraphQLRequest = serde_json::from_str(json).unwrap();
     assert!(request.query.is_none());
-    assert!(request.extensions.is_some(), "APQ hash-only request must carry extensions with persistedQuery");
+    assert!(
+        request.extensions.is_some(),
+        "APQ hash-only request must carry extensions with persistedQuery"
+    );
 }
 
 #[test]
 fn test_graphql_request_with_variables() {
-    let json = r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
+    let json =
+        r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
     let request: GraphQLRequest = serde_json::from_str(json).unwrap();
-    assert_eq!(
-        request.variables,
-        Some(serde_json::json!({"id": "123"})),
-    );
+    assert_eq!(request.variables, Some(serde_json::json!({"id": "123"})),);
 }
 
 #[test]
@@ -263,14 +267,32 @@ fn test_graphql_rate_limiter_is_per_ip() {
     let limiter = KeyedRateLimiter::new(config);
 
     // IP 1 should be allowed 3 times
-    assert!(limiter.check("192.0.2.1").is_ok(), "request 1 for 192.0.2.1 should be within limit");
-    assert!(limiter.check("192.0.2.1").is_ok(), "request 2 for 192.0.2.1 should be within limit");
-    assert!(limiter.check("192.0.2.1").is_ok(), "request 3 for 192.0.2.1 should be within limit");
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request 1 for 192.0.2.1 should be within limit"
+    );
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request 2 for 192.0.2.1 should be within limit"
+    );
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request 3 for 192.0.2.1 should be within limit"
+    );
 
     // IP 2 should have independent limit
-    assert!(limiter.check("10.0.0.1").is_ok(), "request 1 for 10.0.0.1 should be within independent limit");
-    assert!(limiter.check("10.0.0.1").is_ok(), "request 2 for 10.0.0.1 should be within independent limit");
-    assert!(limiter.check("10.0.0.1").is_ok(), "request 3 for 10.0.0.1 should be within independent limit");
+    assert!(
+        limiter.check("10.0.0.1").is_ok(),
+        "request 1 for 10.0.0.1 should be within independent limit"
+    );
+    assert!(
+        limiter.check("10.0.0.1").is_ok(),
+        "request 2 for 10.0.0.1 should be within independent limit"
+    );
+    assert!(
+        limiter.check("10.0.0.1").is_ok(),
+        "request 3 for 10.0.0.1 should be within independent limit"
+    );
 }
 
 #[cfg(feature = "auth")]
@@ -283,8 +305,14 @@ fn test_graphql_rate_limiter_enforces_limit() {
     };
     let limiter = KeyedRateLimiter::new(config);
 
-    assert!(limiter.check("192.0.2.1").is_ok(), "request 1 within 2-request limit should be allowed");
-    assert!(limiter.check("192.0.2.1").is_ok(), "request 2 within 2-request limit should be allowed");
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request 1 within 2-request limit should be allowed"
+    );
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request 2 within 2-request limit should be allowed"
+    );
     assert!(limiter.check("192.0.2.1").is_err());
 }
 
@@ -299,9 +327,18 @@ fn test_graphql_rate_limiter_disabled() {
     let limiter = KeyedRateLimiter::new(config);
 
     // When disabled, should allow unlimited requests
-    assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 1");
-    assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 2");
-    assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 3");
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "disabled rate limiter should allow request 1"
+    );
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "disabled rate limiter should allow request 2"
+    );
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "disabled rate limiter should allow request 3"
+    );
 }
 
 #[cfg(feature = "auth")]
@@ -314,10 +351,16 @@ fn test_graphql_rate_limiter_window_reset() {
     };
     let limiter = KeyedRateLimiter::new(config);
 
-    assert!(limiter.check("192.0.2.1").is_ok(), "first request within 1-request window should be allowed");
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "first request within 1-request window should be allowed"
+    );
     // With 0 second window, the window should reset immediately
     // In practice, the window immediately expires and resets
-    assert!(limiter.check("192.0.2.1").is_ok(), "request after window reset should be allowed");
+    assert!(
+        limiter.check("192.0.2.1").is_ok(),
+        "request after window reset should be allowed"
+    );
 }
 
 // APQ helper unit tests
@@ -375,8 +418,7 @@ async fn test_apq_hash_mismatch() {
     let store = fraiseql_core::apq::InMemoryApqStorage::default();
     let metrics = ApqMetrics::default();
 
-    let result =
-        resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }")).await;
+    let result = resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }")).await;
     assert!(result.is_err());
     assert_eq!(metrics.get_errors(), 1);
 }

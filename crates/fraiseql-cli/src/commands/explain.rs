@@ -65,9 +65,7 @@ pub fn run(query: &str) -> Result<CommandResult> {
     }
 
     if alias_count > DEFAULT_MAX_ALIASES {
-        warnings.push(format!(
-            "Query has {alias_count} aliases — consider reducing alias count"
-        ));
+        warnings.push(format!("Query has {alias_count} aliases — consider reducing alias count"));
     }
 
     // Generate SQL representation (simplified for now)

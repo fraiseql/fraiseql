@@ -247,13 +247,13 @@ impl CacheConfig {
     #[must_use]
     pub const fn with_max_entries(max_entries: usize) -> Self {
         Self {
-            enabled:         false, // Consistent with new default
+            enabled: false, // Consistent with new default
             max_entries,
-            ttl_seconds:        86_400,
+            ttl_seconds: 86_400,
             cache_list_queries: true,
-            rls_enforcement:    RlsEnforcement::Error,
-            max_entry_bytes:    None,
-            max_total_bytes:    None,
+            rls_enforcement: RlsEnforcement::Error,
+            max_entry_bytes: None,
+            max_total_bytes: None,
         }
     }
 
@@ -277,13 +277,13 @@ impl CacheConfig {
     #[must_use]
     pub const fn with_ttl(ttl_seconds: u64) -> Self {
         Self {
-            enabled:            false, // Consistent with new default
-            max_entries:        10_000,
+            enabled: false, // Consistent with new default
+            max_entries: 10_000,
             ttl_seconds,
             cache_list_queries: true,
-            rls_enforcement:    RlsEnforcement::Error,
-            max_entry_bytes:    None,
-            max_total_bytes:    None,
+            rls_enforcement: RlsEnforcement::Error,
+            max_entry_bytes: None,
+            max_total_bytes: None,
         }
     }
 

@@ -178,8 +178,7 @@ impl RequiredIfAbsentValidator {
 
         if let Value::Object(obj) = input {
             // Check if the condition field is absent or null
-            let field_absent =
-                obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
+            let field_absent = obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
 
             if field_absent {
                 // If field is absent, check that all required fields are present

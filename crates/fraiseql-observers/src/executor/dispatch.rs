@@ -86,8 +86,8 @@ pub(super) fn resolve_url(
 /// - URLs exceeding [`MAX_WEBHOOK_URL_LEN`] bytes
 /// - URLs with no host
 /// - `localhost` / `*.localhost` hostnames
-/// - Literal IP addresses that fall inside private, loopback, link-local,
-///   shared-address-space, or IPv4-mapped IPv6 ranges
+/// - Literal IP addresses that fall inside private, loopback, link-local, shared-address-space, or
+///   IPv4-mapped IPv6 ranges
 ///
 /// # Note
 ///
@@ -119,11 +119,7 @@ fn validate_url_ssrf(url: &str) -> Result<()> {
     let authority = rest.split('/').next().unwrap_or("");
     let host = if authority.starts_with('[') {
         // IPv6 literal: strip surrounding brackets and any trailing :port.
-        authority
-            .split(']')
-            .next()
-            .unwrap_or("")
-            .trim_start_matches('[')
+        authority.split(']').next().unwrap_or("").trim_start_matches('[')
     } else {
         // IPv4 or hostname: strip optional :port.
         authority.split(':').next().unwrap_or("")
@@ -175,7 +171,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             || (o[0] == 192 && o[1] == 168)                           // 192.168.0.0/16 RFC 1918
             || (o[0] == 169 && o[1] == 254)                           // 169.254.0.0/16 link-local
             || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000)  // 100.64.0.0/10 RFC 6598
-            || o[0] == 0                                               // 0.0.0.0/8 this-network
+            || o[0] == 0 // 0.0.0.0/8 this-network
         },
         std::net::IpAddr::V6(v6) => {
             let s = v6.segments();
@@ -183,7 +179,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
                 && s[4] == 0 && s[5] == 0xffff)                      // ::ffff:0:0/96 IPv4-mapped
             || (s[0] & 0xfe00) == 0xfc00                             // fc00::/7  ULA
-            || (s[0] & 0xffc0) == 0xfe80                             // fe80::/10 link-local
+            || (s[0] & 0xffc0) == 0xfe80 // fe80::/10 link-local
         },
     }
 }
@@ -233,12 +229,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
 
                     match self
                         .slack_action
-                        .execute(
-                            &slack_url,
-                            channel.as_deref(),
-                            message_template.as_deref(),
-                            event,
-                        )
+                        .execute(&slack_url, channel.as_deref(), message_template.as_deref(), event)
                         .await
                     {
                         Ok(response) => Ok(ActionResult {
@@ -292,16 +283,15 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         reason: "SMS 'phone' not provided".to_string(),
                     })?;
 
-                    match self
-                        .sms_action
-                        .execute(sms_phone.clone(), message_template.as_deref(), event)
-                    {
+                    match self.sms_action.execute(
+                        sms_phone.clone(),
+                        message_template.as_deref(),
+                        event,
+                    ) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "sms".to_string(),
                             success:     response.success,
-                            message:     response
-                                .message_id
-                                .unwrap_or_else(|| "sent".to_string()),
+                            message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -340,10 +330,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     }
                 },
                 ActionConfig::Search { index, id_template } => {
-                    match self
-                        .search_action
-                        .execute(index.clone(), id_template.as_deref(), event)
-                    {
+                    match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "search".to_string(),
                             success:     response.success,

@@ -55,9 +55,15 @@ fn rbac_router_with_auth() -> Router {
     // A lightweight stand-in for the RBAC handlers — the auth middleware
     // runs before the handler, so the handler type does not matter for
     // testing the 401 / 403 behavior.
-    async fn roles_handler() -> StatusCode { StatusCode::OK }
-    async fn permissions_handler() -> StatusCode { StatusCode::OK }
-    async fn user_roles_handler() -> StatusCode { StatusCode::OK }
+    async fn roles_handler() -> StatusCode {
+        StatusCode::OK
+    }
+    async fn permissions_handler() -> StatusCode {
+        StatusCode::OK
+    }
+    async fn user_roles_handler() -> StatusCode {
+        StatusCode::OK
+    }
 
     Router::new()
         .route("/api/roles", get(roles_handler))

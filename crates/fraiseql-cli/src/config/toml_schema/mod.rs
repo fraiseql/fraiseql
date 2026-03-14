@@ -14,6 +14,9 @@ pub mod server_settings;
 pub mod subscriptions;
 pub mod types;
 
+use std::collections::BTreeMap;
+
+use anyhow::{Context, Result};
 pub use caching::{AnalyticsConfig, AnalyticsQuery, CacheRule, CachingConfig};
 pub use domain::{Domain, DomainDiscovery, ResolvedIncludes, SchemaIncludes};
 pub use federation::{
@@ -27,20 +30,18 @@ pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
     EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationTomlConfig, FieldAuthRule,
     KeySource, OidcClientConfig, PkceConfig, RateLimitingSecurityConfig, SecuritySettings,
-    StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig,
-    TrustedDocumentMode, TrustedDocumentsConfig,
+    StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
+    TrustedDocumentsConfig,
 };
+use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
 pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 
-use std::collections::BTreeMap;
-
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-
-use super::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
-use super::expand_env_vars;
+use super::{
+    expand_env_vars,
+    runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig},
+};
 
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -318,7 +319,7 @@ impl TomlSchema {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,10 +376,7 @@ nats_url = "nats://localhost:4222"
 "#;
         let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
         assert_eq!(schema.observers.backend, "nats");
-        assert_eq!(
-            schema.observers.nats_url.as_deref(),
-            Some("nats://localhost:4222")
-        );
+        assert_eq!(schema.observers.nats_url.as_deref(), Some("nats://localhost:4222"));
         assert!(schema.observers.redis_url.is_none());
     }
 
@@ -397,10 +395,7 @@ redis_url = "redis://localhost:6379"
 "#;
         let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
         assert_eq!(schema.observers.backend, "redis");
-        assert_eq!(
-            schema.observers.redis_url.as_deref(),
-            Some("redis://localhost:6379")
-        );
+        assert_eq!(schema.observers.redis_url.as_deref(), Some("redis://localhost:6379"));
         assert!(schema.observers.nats_url.is_none());
     }
 
@@ -616,10 +611,7 @@ database_target = "postgresql"
 url = "${SCHEMA_TEST_DB_URL}"
 "#;
             let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
-            assert_eq!(
-                schema.database.url,
-                Some("postgres://test/fraiseql".to_string())
-            );
+            assert_eq!(schema.database.url, Some("postgres://test/fraiseql".to_string()));
         });
     }
 

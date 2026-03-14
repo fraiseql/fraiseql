@@ -4,14 +4,14 @@
 //! valid inputs — not just the representative samples covered by unit tests:
 //!
 //! 1. **Placeholder isolation** — generated SQL never contains raw user values.
-//! 2. **Param count consistency** — every dialect produces the same number of
-//!    bind parameters for the same logical clause.
-//! 3. **Placeholder syntax** — each dialect uses its own placeholder style
-//!    (`$N` for PG, `@pN` for SQL Server, `?` for MySQL/SQLite).
-//! 4. **No cross-dialect leakage** — PostgreSQL-specific syntax (`::`) never
-//!    appears in MySQL or SQLite output.
-//! 5. **Reusability** — calling `generate()` twice on the same generator produces
-//!    identical SQL (counter resets between calls).
+//! 2. **Param count consistency** — every dialect produces the same number of bind parameters for
+//!    the same logical clause.
+//! 3. **Placeholder syntax** — each dialect uses its own placeholder style (`$N` for PG, `@pN` for
+//!    SQL Server, `?` for MySQL/SQLite).
+//! 4. **No cross-dialect leakage** — PostgreSQL-specific syntax (`::`) never appears in MySQL or
+//!    SQLite output.
+//! 5. **Reusability** — calling `generate()` twice on the same generator produces identical SQL
+//!    (counter resets between calls).
 //!
 //! # Running
 //!
@@ -23,10 +23,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
-use fraiseql_db::{
-    PostgresDialect, WhereClause, WhereOperator,
-    postgres::PostgresWhereGenerator,
-};
+use fraiseql_db::{PostgresDialect, WhereClause, WhereOperator, postgres::PostgresWhereGenerator};
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
@@ -59,11 +56,7 @@ fn arb_bool_value() -> impl Strategy<Value = Value> {
 
 /// Mix of scalar types that any dialect can handle for Eq.
 fn arb_scalar_value() -> impl Strategy<Value = Value> {
-    prop_oneof![
-        arb_string_value(),
-        arb_number_value(),
-        arb_bool_value(),
-    ]
+    prop_oneof![arb_string_value(), arb_number_value(), arb_bool_value(),]
 }
 
 /// Simple LIKE-family operators that use exactly one param.
@@ -89,7 +82,11 @@ fn arb_comparison_operator() -> impl Strategy<Value = WhereOperator> {
 }
 
 const fn field(path: Vec<String>, op: WhereOperator, val: Value) -> WhereClause {
-    WhereClause::Field { path, operator: op, value: val }
+    WhereClause::Field {
+        path,
+        operator: op,
+        value: val,
+    }
 }
 
 // ── PostgreSQL property tests ─────────────────────────────────────────────────

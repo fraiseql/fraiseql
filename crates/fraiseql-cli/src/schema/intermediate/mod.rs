@@ -10,22 +10,31 @@ pub mod operations;
 pub mod subscriptions;
 pub mod types;
 
-pub use advanced_types::{IntermediateInputField, IntermediateInputObject, IntermediateInterface,
-    IntermediateUnion};
-pub use analytics::{IntermediateAggregateQuery, IntermediateDimensionPath, IntermediateDimensions,
-    IntermediateFactTable, IntermediateFilter, IntermediateMeasure};
-pub use fragments::{IntermediateAppliedDirective, IntermediateDirective, IntermediateFragment,
-    IntermediateFragmentField, IntermediateFragmentFieldDef};
-pub use operations::{IntermediateArgument, IntermediateAutoParams, IntermediateMutation,
-    IntermediateQuery, IntermediateQueryDefaults};
-pub use subscriptions::{IntermediateFilterCondition, IntermediateObserver,
-    IntermediateObserverAction, IntermediateRetryConfig, IntermediateSubscription,
-    IntermediateSubscriptionFilter};
-pub use types::{IntermediateDeprecation, IntermediateEnum, IntermediateEnumValue,
-    IntermediateField, IntermediateScalar, IntermediateType};
-
+pub use advanced_types::{
+    IntermediateInputField, IntermediateInputObject, IntermediateInterface, IntermediateUnion,
+};
+pub use analytics::{
+    IntermediateAggregateQuery, IntermediateDimensionPath, IntermediateDimensions,
+    IntermediateFactTable, IntermediateFilter, IntermediateMeasure,
+};
+pub use fragments::{
+    IntermediateAppliedDirective, IntermediateDirective, IntermediateFragment,
+    IntermediateFragmentField, IntermediateFragmentFieldDef,
+};
 use fraiseql_core::schema::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
+pub use operations::{
+    IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
+    IntermediateQueryDefaults,
+};
 use serde::{Deserialize, Serialize};
+pub use subscriptions::{
+    IntermediateFilterCondition, IntermediateObserver, IntermediateObserverAction,
+    IntermediateRetryConfig, IntermediateSubscription, IntermediateSubscriptionFilter,
+};
+pub use types::{
+    IntermediateDeprecation, IntermediateEnum, IntermediateEnumValue, IntermediateField,
+    IntermediateScalar, IntermediateType,
+};
 
 /// Intermediate schema - universal format from all language libraries
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

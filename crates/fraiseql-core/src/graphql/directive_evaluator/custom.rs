@@ -2,12 +2,11 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use crate::graphql::types::FieldSelection;
-
 use super::{
     evaluator::DirectiveEvaluator,
     types::{DirectiveError, DirectiveHandler, DirectiveResult, EvaluationContext},
 };
+use crate::graphql::types::FieldSelection;
 
 /// Evaluator with support for custom directive handlers.
 ///

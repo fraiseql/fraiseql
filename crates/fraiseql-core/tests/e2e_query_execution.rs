@@ -9,8 +9,8 @@
 
 #![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use std::collections::HashMap;
-use async_trait::async_trait;
 
+use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -115,9 +115,9 @@ impl MockDatabaseAdapter {
     }
 }
 
-    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-    // its transformed method signatures to satisfy the trait contract
-    #[async_trait]
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+#[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -185,7 +185,6 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for MockDatabaseAdapter {}

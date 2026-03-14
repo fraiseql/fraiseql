@@ -241,7 +241,8 @@ impl OperationTimer {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

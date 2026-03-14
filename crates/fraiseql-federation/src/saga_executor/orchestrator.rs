@@ -16,10 +16,7 @@ impl SagaExecutor {
     /// # Errors
     ///
     /// Returns an error if the saga cannot be loaded or step execution fails.
-    pub async fn execute_saga(
-        &self,
-        saga_id: Uuid,
-    ) -> SagaStoreResult<Vec<StepExecutionResult>> {
+    pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
         info!(saga_id = %saga_id, "Saga forward phase started");
 
         // If no store available, return empty results (for testing)
@@ -101,10 +98,7 @@ impl SagaExecutor {
 
                     // Transition saga to Failed state
                     if let Err(state_err) = store
-                        .update_saga_state(
-                            saga_id,
-                            &crate::saga_store::SagaState::Failed,
-                        )
+                        .update_saga_state(saga_id, &crate::saga_store::SagaState::Failed)
                         .await
                     {
                         warn!(saga_id = %saga_id, error = ?state_err, "Failed to transition saga to Failed state");
@@ -155,10 +149,7 @@ impl SagaExecutor {
     /// # Errors
     ///
     /// Returns an error if the saga store cannot be queried.
-    pub async fn get_execution_state(
-        &self,
-        saga_id: Uuid,
-    ) -> SagaStoreResult<ExecutionState> {
+    pub async fn get_execution_state(&self, saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
         // If no store available, return minimal state
         let Some(store) = &self.store else {
             debug!(saga_id = %saga_id, "No saga store available - returning empty execution state");

@@ -1,11 +1,9 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use crate::schema::observer_types::RetryConfig;
-use crate::schema::security_config::SecurityConfig;
-
-use super::query::QueryDefinition;
-use super::schema::CompiledSchema;
-use super::super::observer_types::ObserverDefinition;
+use super::{
+    super::observer_types::ObserverDefinition, query::QueryDefinition, schema::CompiledSchema,
+};
+use crate::schema::{observer_types::RetryConfig, security_config::SecurityConfig};
 
 #[test]
 fn test_compiled_schema_with_observers() {
@@ -151,7 +149,11 @@ fn test_retry_config_types() {
 #[test]
 fn test_content_hash_stable() {
     let schema = CompiledSchema::default();
-    assert_eq!(schema.content_hash(), schema.content_hash(), "Same schema must produce same hash");
+    assert_eq!(
+        schema.content_hash(),
+        schema.content_hash(),
+        "Same schema must produce same hash"
+    );
 }
 
 #[test]
@@ -164,10 +166,14 @@ fn test_content_hash_length() {
 #[test]
 fn test_content_hash_changes_on_field_rename() {
     let mut schema_a = CompiledSchema::default();
-    schema_a.queries.push(QueryDefinition::new("users", "User").with_sql_source("v_user"));
+    schema_a
+        .queries
+        .push(QueryDefinition::new("users", "User").with_sql_source("v_user"));
 
     let mut schema_b = CompiledSchema::default();
-    schema_b.queries.push(QueryDefinition::new("users", "User").with_sql_source("v_account")); // different view
+    schema_b
+        .queries
+        .push(QueryDefinition::new("users", "User").with_sql_source("v_account")); // different view
 
     assert_ne!(
         schema_a.content_hash(),
@@ -183,14 +189,20 @@ fn test_content_hash_changes_on_field_rename() {
 #[test]
 fn test_has_rls_configured_no_security() {
     let schema = CompiledSchema::default();
-    assert!(!schema.has_rls_configured(), "Schema with no security section must return false");
+    assert!(
+        !schema.has_rls_configured(),
+        "Schema with no security section must return false"
+    );
 }
 
 #[test]
 fn test_has_rls_configured_with_empty_policies() {
     let mut sec = SecurityConfig::default();
     sec.additional.insert("policies".to_string(), serde_json::json!([]));
-    let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
+    let schema = CompiledSchema {
+        security: Some(sec),
+        ..CompiledSchema::default()
+    };
     assert!(!schema.has_rls_configured(), "Empty policies array must return false");
 }
 
@@ -201,14 +213,21 @@ fn test_has_rls_configured_with_policies() {
         "policies".to_string(),
         serde_json::json!([{"name": "tenant_isolation", "condition": "tenant_id = $1"}]),
     );
-    let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
+    let schema = CompiledSchema {
+        security: Some(sec),
+        ..CompiledSchema::default()
+    };
     assert!(schema.has_rls_configured(), "Non-empty policies array must return true");
 }
 
 #[test]
 fn test_has_rls_configured_no_policies_key() {
     let mut sec = SecurityConfig::default();
-    sec.additional.insert("rate_limiting".to_string(), serde_json::json!({"enabled": true}));
-    let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
+    sec.additional
+        .insert("rate_limiting".to_string(), serde_json::json!({"enabled": true}));
+    let schema = CompiledSchema {
+        security: Some(sec),
+        ..CompiledSchema::default()
+    };
     assert!(!schema.has_rls_configured(), "Security without policies key must return false");
 }

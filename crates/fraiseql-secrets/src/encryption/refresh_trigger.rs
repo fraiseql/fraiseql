@@ -108,11 +108,11 @@ pub struct RefreshTrigger {
     /// Last refresh check time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    last_check:               Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_check: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh completion time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    last_refresh:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_refresh: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh duration in milliseconds
     last_refresh_duration_ms: Arc<AtomicU64>,
     /// Total refreshes performed
@@ -270,15 +270,15 @@ pub struct RefreshJob {
     /// Job status
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    status:             Arc<std::sync::Mutex<RefreshJobStatus>>,
+    status: Arc<std::sync::Mutex<RefreshJobStatus>>,
     /// Job start time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    start_time:         Arc<std::sync::Mutex<Option<Instant>>>,
+    start_time: Arc<std::sync::Mutex<Option<Instant>>>,
     /// Job last error message
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    last_error:         Arc<std::sync::Mutex<Option<String>>>,
+    last_error: Arc<std::sync::Mutex<Option<String>>>,
     /// Job is shutting down
     shutdown_requested: Arc<AtomicBool>,
 }
@@ -548,7 +548,7 @@ impl Default for RefreshManager {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -838,7 +838,7 @@ mod tests {
     fn test_refresh_manager_concurrent_trigger_prevention() {
         // Once job is running, a second trigger attempt should not double-trigger.
         let manager = RefreshManager::new(RefreshConfig::default());
-        assert!(manager.check_and_trigger(85));  // Sets pending
+        assert!(manager.check_and_trigger(85)); // Sets pending
         manager.start_job().expect("should start");
 
         // After start, pending is cleared by the job start signal; simulate

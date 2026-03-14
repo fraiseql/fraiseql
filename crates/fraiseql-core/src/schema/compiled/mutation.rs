@@ -1,10 +1,8 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::field_type::DeprecationInfo;
-use crate::schema::security_config::InjectedParamSource;
-
 use super::argument::ArgumentDefinition;
+use crate::schema::{field_type::DeprecationInfo, security_config::InjectedParamSource};
 
 /// A mutation definition compiled from `@fraiseql.mutation`.
 ///
@@ -106,16 +104,16 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:                   name.into(),
-            return_type:            return_type.into(),
-            arguments:              Vec::new(),
-            description:            None,
-            operation:              MutationOperation::default(),
-            deprecation:            None,
-            sql_source:             None,
-            inject_params:          IndexMap::new(),
+            name:                    name.into(),
+            return_type:             return_type.into(),
+            arguments:               Vec::new(),
+            description:             None,
+            operation:               MutationOperation::default(),
+            deprecation:             None,
+            sql_source:              None,
+            inject_params:           IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
-            invalidates_views:      Vec::new(),
+            invalidates_views:       Vec::new(),
         }
     }
 

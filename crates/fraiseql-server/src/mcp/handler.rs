@@ -3,15 +3,17 @@
 //! Implements the rmcp `ServerHandler` trait to expose FraiseQL queries and
 //! mutations as MCP tools.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema};
 use rmcp::{
     ServerHandler,
     model::{
-        CallToolRequestParams, CallToolResult, ListToolsResult, ServerCapabilities,
-        ServerInfo, Tool,
+        CallToolRequestParams, CallToolResult, ListToolsResult, ServerCapabilities, ServerInfo,
+        Tool,
     },
     service::RequestContext,
 };
@@ -46,11 +48,7 @@ pub struct FraiseQLMcpService<A: DatabaseAdapter> {
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// Create a new MCP service.
-    pub fn new(
-        schema: Arc<CompiledSchema>,
-        executor: Arc<Executor<A>>,
-        config: McpConfig,
-    ) -> Self {
+    pub fn new(schema: Arc<CompiledSchema>, executor: Arc<Executor<A>>, config: McpConfig) -> Self {
         let tools = super::tools::schema_to_tools(&schema, &config);
         Self {
             schema,
@@ -74,13 +72,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for Frais
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,
         _context: RequestContext<rmcp::RoleServer>,
-    ) -> impl std::future::Future<Output = Result<ListToolsResult, rmcp::ErrorData>>
-           + Send
-           + '_ {
+    ) -> impl std::future::Future<Output = Result<ListToolsResult, rmcp::ErrorData>> + Send + '_
+    {
         let result = ListToolsResult {
-            tools: self.tools.clone(),
+            tools:       self.tools.clone(),
             next_cursor: None,
-            meta: None,
+            meta:        None,
         };
         std::future::ready(Ok(result))
     }
@@ -89,9 +86,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for Frais
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<rmcp::RoleServer>,
-    ) -> impl std::future::Future<Output = Result<CallToolResult, rmcp::ErrorData>>
-           + Send
-           + '_ {
+    ) -> impl std::future::Future<Output = Result<CallToolResult, rmcp::ErrorData>> + Send + '_
+    {
         let tool_name = request.name.to_string();
         let arguments = request.arguments;
 

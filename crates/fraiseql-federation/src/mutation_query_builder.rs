@@ -4,9 +4,9 @@
 //! with parameter validation and SQL injection prevention.
 
 use fraiseql_db::quote_postgres_identifier;
+use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
-use fraiseql_error::{FraiseQLError, Result};
 use crate::{
     metadata_helpers::{find_federation_type, get_key_directive},
     sql_utils::value_to_sql_literal,
@@ -81,7 +81,8 @@ pub fn build_update_query(
 /// # Example
 ///
 /// Variables: `{ "id": "123", "name": "John", "email": "john@example.com" }`
-/// Returns: `INSERT INTO "users" ("id", "name", "email") VALUES ('123', 'John', 'john@example.com')`
+/// Returns: `INSERT INTO "users" ("id", "name", "email") VALUES ('123', 'John',
+/// 'john@example.com')`
 pub fn build_insert_query(
     typename: &str,
     variables: &Value,
@@ -115,8 +116,11 @@ pub fn build_insert_query(
         .collect();
 
     let values = values?;
-    let columns_str =
-        columns.iter().map(|s| quote_postgres_identifier(s)).collect::<Vec<_>>().join(", ");
+    let columns_str = columns
+        .iter()
+        .map(|s| quote_postgres_identifier(s))
+        .collect::<Vec<_>>()
+        .join(", ");
     let values_str = values.join(", ");
 
     Ok(format!("INSERT INTO {} ({}) VALUES ({})", table_name, columns_str, values_str))
@@ -175,8 +179,8 @@ mod tests {
             types:   vec![FederatedType {
                 name:             typename.to_string(),
                 keys:             vec![KeyDirective {
-                    fields:      vec![key_field.to_string()],
-                    resolvable:  true,
+                    fields:     vec![key_field.to_string()],
+                    resolvable: true,
                 }],
                 is_extends:       false,
                 external_fields:  Vec::new(),

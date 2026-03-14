@@ -9,29 +9,29 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Default policy to apply if none specified
-    pub default_policy:      Option<String>,
+    pub default_policy:     Option<String>,
     /// Custom authorization rules
-    pub rules:               Vec<AuthorizationRule>,
+    pub rules:              Vec<AuthorizationRule>,
     /// Authorization policies
-    pub policies:            Vec<AuthorizationPolicy>,
+    pub policies:           Vec<AuthorizationPolicy>,
     /// Field-level authorization rules
-    pub field_auth:          Vec<FieldAuthRule>,
+    pub field_auth:         Vec<FieldAuthRule>,
     /// Enterprise security configuration (legacy flags)
-    pub enterprise:          EnterpriseSecurityConfig,
+    pub enterprise:         EnterpriseSecurityConfig,
     /// Error sanitization — controls what detail clients see in error responses
-    pub error_sanitization:  Option<ErrorSanitizationTomlConfig>,
+    pub error_sanitization: Option<ErrorSanitizationTomlConfig>,
     /// Rate limiting — per-endpoint request caps
-    pub rate_limiting:       Option<RateLimitingSecurityConfig>,
+    pub rate_limiting:      Option<RateLimitingSecurityConfig>,
     /// State encryption — AEAD encryption for OAuth state and PKCE blobs
-    pub state_encryption:    Option<StateEncryptionConfig>,
+    pub state_encryption:   Option<StateEncryptionConfig>,
     /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
-    pub pkce:                Option<PkceConfig>,
+    pub pkce:               Option<PkceConfig>,
     /// API key authentication — static or database-backed key-based auth
-    pub api_keys:            Option<ApiKeySecurityConfig>,
+    pub api_keys:           Option<ApiKeySecurityConfig>,
     /// Token revocation — reject JWTs by `jti` after revocation
-    pub token_revocation:    Option<TokenRevocationSecurityConfig>,
+    pub token_revocation:   Option<TokenRevocationSecurityConfig>,
     /// Trusted documents — query allowlist (strict or permissive mode)
-    pub trusted_documents:   Option<TrustedDocumentsConfig>,
+    pub trusted_documents:  Option<TrustedDocumentsConfig>,
 }
 
 impl Default for SecuritySettings {
@@ -158,15 +158,15 @@ impl Default for EnterpriseSecurityConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationTomlConfig {
     /// Enable error sanitization (default: false — opt-in)
-    pub enabled: bool,
+    pub enabled:                     bool,
     /// Strip stack traces, SQL fragments, file paths (default: true)
     #[serde(default = "default_true")]
     pub hide_implementation_details: bool,
     /// Replace raw database error messages with a generic message (default: true)
     #[serde(default = "default_true")]
-    pub sanitize_database_errors: bool,
+    pub sanitize_database_errors:    bool,
     /// Replacement message shown to clients when an internal error is sanitized
-    pub custom_error_message: Option<String>,
+    pub custom_error_message:        Option<String>,
 }
 
 impl Default for ErrorSanitizationTomlConfig {
@@ -228,22 +228,22 @@ pub struct RateLimitingSecurityConfig {
 impl Default for RateLimitingSecurityConfig {
     fn default() -> Self {
         Self {
-            enabled:                      false,
-            requests_per_second:          100,
+            enabled: false,
+            requests_per_second: 100,
             requests_per_second_per_user: None,
-            burst_size:                   200,
-            auth_start_max_requests:      5,
-            auth_start_window_secs:       60,
-            auth_callback_max_requests:   10,
-            auth_callback_window_secs:    60,
-            auth_refresh_max_requests:    20,
-            auth_refresh_window_secs:     300,
-            auth_logout_max_requests:     30,
-            auth_logout_window_secs:      60,
-            failed_login_max_attempts:    10,
-            failed_login_lockout_secs:    900,
-            redis_url:                    None,
-            trust_proxy_headers:          false,
+            burst_size: 200,
+            auth_start_max_requests: 5,
+            auth_start_window_secs: 60,
+            auth_callback_max_requests: 10,
+            auth_callback_window_secs: 60,
+            auth_refresh_max_requests: 20,
+            auth_refresh_window_secs: 300,
+            auth_logout_max_requests: 30,
+            auth_logout_window_secs: 60,
+            failed_login_max_attempts: 10,
+            failed_login_lockout_secs: 900,
+            redis_url: None,
+            trust_proxy_headers: false,
         }
     }
 }
@@ -264,7 +264,7 @@ impl fmt::Display for EncryptionAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Chacha20Poly1305 => f.write_str("chacha20-poly1305"),
-            Self::Aes256Gcm        => f.write_str("aes-256-gcm"),
+            Self::Aes256Gcm => f.write_str("aes-256-gcm"),
         }
     }
 }
@@ -283,13 +283,13 @@ pub enum KeySource {
 #[serde(default, deny_unknown_fields)]
 pub struct StateEncryptionConfig {
     /// Enable state encryption
-    pub enabled: bool,
+    pub enabled:    bool,
     /// AEAD algorithm to use
-    pub algorithm: EncryptionAlgorithm,
+    pub algorithm:  EncryptionAlgorithm,
     /// Where to source the encryption key
     pub key_source: KeySource,
     /// Environment variable holding the 32-byte hex-encoded key
-    pub key_env: Option<String>,
+    pub key_env:    Option<String>,
 }
 
 impl Default for StateEncryptionConfig {
@@ -321,11 +321,11 @@ pub enum CodeChallengeMethod {
 #[serde(default, deny_unknown_fields)]
 pub struct PkceConfig {
     /// Enable PKCE for OAuth Authorization Code flows
-    pub enabled: bool,
+    pub enabled:               bool,
     /// Code challenge method (`S256` recommended)
     pub code_challenge_method: CodeChallengeMethod,
     /// How long the PKCE state is valid before the auth flow expires (seconds)
-    pub state_ttl_secs: u64,
+    pub state_ttl_secs:        u64,
     /// Redis URL for distributed PKCE state storage across multiple replicas.
     ///
     /// Required for multi-replica deployments (Kubernetes, ECS, fly.io with
@@ -335,7 +335,7 @@ pub struct PkceConfig {
     /// Requires the `redis-pkce` Cargo feature to be compiled in.
     /// Example: `"redis://localhost:6379"` or `"${REDIS_URL}"`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redis_url: Option<String>,
+    pub redis_url:             Option<String>,
 }
 
 impl Default for PkceConfig {
@@ -367,16 +367,16 @@ impl Default for PkceConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ApiKeySecurityConfig {
     /// Enable API key authentication
-    pub enabled: bool,
+    pub enabled:        bool,
     /// HTTP header name to read the API key from
-    pub header: String,
+    pub header:         String,
     /// Hash algorithm for key verification (`sha256`)
     pub hash_algorithm: String,
     /// Storage backend: `"env"` for static keys, `"postgres"` for DB-backed
-    pub storage: String,
+    pub storage:        String,
     /// Static API key entries (only for `storage = "env"`)
     #[serde(default, rename = "static")]
-    pub static_keys: Vec<StaticApiKeyEntry>,
+    pub static_keys:    Vec<StaticApiKeyEntry>,
 }
 
 impl Default for ApiKeySecurityConfig {
@@ -399,9 +399,9 @@ pub struct StaticApiKeyEntry {
     pub key_hash: String,
     /// Scopes granted by this key
     #[serde(default)]
-    pub scopes: Vec<String>,
+    pub scopes:   Vec<String>,
     /// Human-readable name for audit logging
-    pub name: String,
+    pub name:     String,
 }
 
 /// Trusted document mode.
@@ -428,15 +428,15 @@ pub enum TrustedDocumentMode {
 #[serde(default, deny_unknown_fields)]
 pub struct TrustedDocumentsConfig {
     /// Enable trusted documents
-    pub enabled: bool,
+    pub enabled:              bool,
     /// Enforcement mode: "strict" or "permissive"
-    pub mode: TrustedDocumentMode,
+    pub mode:                 TrustedDocumentMode,
     /// Path to the trusted documents manifest JSON file
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub manifest_path: Option<String>,
+    pub manifest_path:        Option<String>,
     /// URL to fetch the trusted documents manifest from at startup
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub manifest_url: Option<String>,
+    pub manifest_url:         Option<String>,
     /// Poll interval in seconds for hot-reloading the manifest (0 = no reload)
     #[serde(default)]
     pub reload_interval_secs: u64,
@@ -467,18 +467,20 @@ impl Default for TrustedDocumentsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct TokenRevocationSecurityConfig {
     /// Enable token revocation
-    pub enabled: bool,
+    pub enabled:     bool,
     /// Backend: `"redis"`, `"postgres"`, or `"memory"`
-    pub backend: String,
+    pub backend:     String,
     /// Reject JWTs without a `jti` claim when revocation is enabled
     #[serde(default = "default_true")]
     pub require_jti: bool,
-    /// If revocation store is unreachable: `false` = reject (fail-closed), `true` = allow (fail-open)
+    /// If revocation store is unreachable: `false` = reject (fail-closed), `true` = allow
+    /// (fail-open)
     #[serde(default)]
-    pub fail_open: bool,
-    /// Redis URL for distributed revocation (optional — inherited from `[fraiseql.redis]` if absent)
+    pub fail_open:   bool,
+    /// Redis URL for distributed revocation (optional — inherited from `[fraiseql.redis]` if
+    /// absent)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redis_url: Option<String>,
+    pub redis_url:   Option<String>,
 }
 
 impl Default for TokenRevocationSecurityConfig {

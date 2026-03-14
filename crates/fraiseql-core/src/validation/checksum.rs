@@ -277,14 +277,18 @@ mod tests {
         let value = "A".repeat(34);
         // Will be false (checksum fails) but must not panic; length guard allows it through
         let _ = Mod97Validator::validate(&value);
-        // Just verify 34-char input is not immediately rejected (returns false for checksum, not length)
-        // We can't check internal path from outside, so we verify no panic occurs and the function runs.
+        // Just verify 34-char input is not immediately rejected (returns false for checksum, not
+        // length) We can't check internal path from outside, so we verify no panic occurs
+        // and the function runs.
     }
 
     #[test]
     fn test_mod97_35_chars_rejected_by_length_guard() {
         let value = "A".repeat(35);
-        assert!(!Mod97Validator::validate(&value), "35-char string must be rejected by length guard");
+        assert!(
+            !Mod97Validator::validate(&value),
+            "35-char string must be rejected by length guard"
+        );
     }
 
     #[test]

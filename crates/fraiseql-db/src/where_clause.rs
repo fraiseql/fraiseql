@@ -1,8 +1,7 @@
 //! WHERE clause abstract syntax tree.
 
-use serde::{Deserialize, Serialize};
-
 use fraiseql_error::{FraiseQLError, Result};
+use serde::{Deserialize, Serialize};
 
 /// WHERE clause abstract syntax tree.
 ///
@@ -110,8 +109,7 @@ impl WhereClause {
                         message: "_and must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> =
-                        arr.iter().map(Self::from_graphql_json).collect();
+                    let sub: Result<Vec<Self>> = arr.iter().map(Self::from_graphql_json).collect();
                     conditions.push(Self::And(sub?));
                 },
                 "_or" => {
@@ -119,8 +117,7 @@ impl WhereClause {
                         message: "_or must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> =
-                        arr.iter().map(Self::from_graphql_json).collect();
+                    let sub: Result<Vec<Self>> = arr.iter().map(Self::from_graphql_json).collect();
                     conditions.push(Self::Or(sub?));
                 },
                 "_not" => {
@@ -133,14 +130,14 @@ impl WhereClause {
                         message: format!(
                             "where field '{field_name}' must be an object of {{operator: value}}"
                         ),
-                        path: None,
+                        path:    None,
                     })?;
                     for (op_str, op_val) in ops {
                         let operator = WhereOperator::from_str(op_str)?;
                         conditions.push(Self::Field {
-                            path:     vec![field_name.to_string()],
+                            path: vec![field_name.to_string()],
                             operator,
-                            value:    op_val.clone(),
+                            value: op_val.clone(),
                         });
                     }
                 },

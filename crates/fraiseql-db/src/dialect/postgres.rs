@@ -138,7 +138,10 @@ impl SqlDialect for PostgresDialect {
             "IsLoopback" => Ok(format!(
                 "(family({lhs}::inet) = 4 AND {lhs}::inet << '127.0.0.0/8'::inet) OR (family({lhs}::inet) = 6 AND {lhs}::inet << '::1/128'::inet)"
             )),
-            _ => Err(UnsupportedOperator { dialect: self.name(), operator: "InetCheck" }),
+            _ => Err(UnsupportedOperator {
+                dialect:  self.name(),
+                operator: "InetCheck",
+            }),
         }
     }
 
@@ -192,8 +195,9 @@ impl SqlDialect for PostgresDialect {
         field_sql: &str,
         params: &mut Vec<serde_json::Value>,
     ) -> fraiseql_error::Result<String> {
-        use crate::filters::ExtendedOperator;
         use fraiseql_error::FraiseQLError;
+
+        use crate::filters::ExtendedOperator;
         match operator {
             ExtendedOperator::EmailDomainEq(domain) => {
                 params.push(serde_json::Value::String(domain.clone()));
@@ -208,10 +212,7 @@ impl SqlDialect for PostgresDialect {
                         format!("${}", params.len())
                     })
                     .collect();
-                Ok(format!(
-                    "SPLIT_PART({field_sql}, '@', 2) IN ({})",
-                    placeholders.join(", ")
-                ))
+                Ok(format!("SPLIT_PART({field_sql}, '@', 2) IN ({})", placeholders.join(", ")))
             },
             ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));

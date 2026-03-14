@@ -52,8 +52,8 @@ use crate::{
 /// Stores last processed `pk_entity_change_log` per transport, enabling
 /// crash recovery and exactly-once processing semantics (from the bridge's
 /// perspective).
-// Reason: used as dyn Trait (Arc<dyn CheckpointStore>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn CheckpointStore>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait CheckpointStore: Send + Sync {
     /// Get checkpoint for transport.
@@ -331,7 +331,8 @@ impl PostgresNatsBridge {
     /// - Bridge restarted mid-run
     /// - Multiple publishers existed in the past
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<ChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]  // Reason: batch_size is a small positive config value, well within i64 range
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<ChangeLogEntry> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,

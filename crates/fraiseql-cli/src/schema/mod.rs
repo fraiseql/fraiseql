@@ -15,8 +15,7 @@ pub mod sql_templates;
 pub mod validator;
 
 pub use converter::SchemaConverter;
-pub use intermediate::IntermediateScalar;
-pub use intermediate::IntermediateSchema;
+pub use intermediate::{IntermediateScalar, IntermediateSchema};
 pub use merger::SchemaMerger;
 pub use multi_file_loader::MultiFileLoader;
 pub use optimizer::{OptimizationReport, SchemaOptimizer};

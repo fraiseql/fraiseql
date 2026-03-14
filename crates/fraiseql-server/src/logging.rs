@@ -564,7 +564,10 @@ mod tests {
         let entry = logger.info("test message");
 
         assert_eq!(entry.level, LogLevel::Info);
-        assert!(entry.request_context.is_some(), "RequestLogger should attach request_context to every log entry");
+        assert!(
+            entry.request_context.is_some(),
+            "RequestLogger should attach request_context to every log entry"
+        );
     }
 
     #[test]

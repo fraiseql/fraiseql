@@ -17,21 +17,24 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compiler::fact_table::FactTableMetadata;
-use crate::schema::config_types::{
-    DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig, ValidationConfig,
+use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
+use crate::{
+    compiler::fact_table::FactTableMetadata,
+    schema::{
+        config_types::{
+            DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig,
+            ValidationConfig,
+        },
+        graphql_type_defs::{
+            EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
+            UnionDefinition,
+        },
+        observer_types::ObserverDefinition,
+        security_config::{RoleDefinition, SecurityConfig},
+        subscription_types::SubscriptionDefinition,
+    },
+    validation::CustomTypeRegistry,
 };
-use crate::schema::graphql_type_defs::{
-    EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition, UnionDefinition,
-};
-use crate::schema::observer_types::ObserverDefinition;
-use crate::schema::security_config::{RoleDefinition, SecurityConfig};
-use crate::schema::subscription_types::SubscriptionDefinition;
-use crate::validation::CustomTypeRegistry;
-
-use super::directive::DirectiveDefinition;
-use super::mutation::MutationDefinition;
-use super::query::QueryDefinition;
 
 /// Current schema format version.
 ///
@@ -245,18 +248,10 @@ impl CompiledSchema {
     /// Called automatically by `from_json()`. Must be called manually after any
     /// direct mutation of `self.queries`, `self.mutations`, or `self.subscriptions`.
     pub fn build_indexes(&mut self) {
-        self.query_index = self
-            .queries
-            .iter()
-            .enumerate()
-            .map(|(i, q)| (q.name.clone(), i))
-            .collect();
-        self.mutation_index = self
-            .mutations
-            .iter()
-            .enumerate()
-            .map(|(i, m)| (m.name.clone(), i))
-            .collect();
+        self.query_index =
+            self.queries.iter().enumerate().map(|(i, q)| (q.name.clone(), i)).collect();
+        self.mutation_index =
+            self.mutations.iter().enumerate().map(|(i, m)| (m.name.clone(), i)).collect();
         self.subscription_index = self
             .subscriptions
             .iter()
@@ -612,9 +607,7 @@ impl CompiledSchema {
     #[must_use]
     pub fn content_hash(&self) -> String {
         use sha2::{Digest, Sha256};
-        let json = self
-            .to_json()
-            .expect("CompiledSchema always serialises — BUG if this fails");
+        let json = self.to_json().expect("CompiledSchema always serialises — BUG if this fails");
         let digest = Sha256::digest(json.as_bytes());
         hex::encode(&digest[..16]) // 32 hex chars — sufficient collision resistance
     }

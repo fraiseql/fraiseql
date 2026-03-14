@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use crate::validation::ValidationRule;
 use super::*;
+use crate::validation::ValidationRule;
 
 #[test]
 fn test_custom_type_def_new() {

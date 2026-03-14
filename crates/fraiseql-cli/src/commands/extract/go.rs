@@ -1,9 +1,12 @@
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
-use super::{ExtractedSchema, Language, Result, SchemaExtractor, map_type, parse_annotation_params};
+use super::{
+    ExtractedSchema, Language, Result, SchemaExtractor, map_type, parse_annotation_params,
+};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
+};
 
 pub(super) struct GoExtractor;
 
@@ -26,7 +29,11 @@ impl SchemaExtractor for GoExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").end()].lines().count() - 1;
+            let struct_line = source
+                [..cap.get(0).expect("regex group 0 is always Some on a successful match").end()]
+                .lines()
+                .count()
+                - 1;
             let fields = extract_go_struct_fields(&lines, struct_line + 1);
 
             let description = params.get("description").cloned();
@@ -62,7 +69,7 @@ impl SchemaExtractor for GoExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
-                 inject: IndexMap::default(),
+                inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
@@ -96,7 +103,7 @@ pub(super) fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<Inte
                 description: None,
                 directives: None,
                 requires_scope: None,
-                on_deny:        None,
+                on_deny: None,
             });
         }
     }

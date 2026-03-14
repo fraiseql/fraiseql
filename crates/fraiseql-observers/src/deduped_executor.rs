@@ -136,14 +136,14 @@ use crate::{
 #[cfg(feature = "dedup")]
 pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     /// Inner executor that performs actual event processing
-    inner:         Arc<ObserverExecutor>,
+    inner:        Arc<ObserverExecutor>,
     /// Deduplication store (typically Redis-backed)
-    dedup_store:   D,
+    dedup_store:  D,
     /// Tenant scope policy applied before dedup check
-    tenant_scope:  TenantScope,
+    tenant_scope: TenantScope,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics:       MetricsRegistry,
+    metrics:      MetricsRegistry,
 }
 
 #[cfg(feature = "dedup")]
@@ -173,7 +173,11 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
     /// * `executor` - The underlying `ObserverExecutor`
     /// * `dedup_store` - Deduplication store implementation (e.g., `RedisDeduplicationStore`)
     /// * `tenant_scope` - Tenant boundary policy (see [`TenantScope`])
-    pub fn new_with_scope(executor: ObserverExecutor, dedup_store: D, tenant_scope: TenantScope) -> Self {
+    pub fn new_with_scope(
+        executor: ObserverExecutor,
+        dedup_store: D,
+        tenant_scope: TenantScope,
+    ) -> Self {
         match &tenant_scope {
             TenantScope::Unrestricted => {
                 warn!(
@@ -226,8 +230,8 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
     /// # Flow
     ///
     /// 1. Validate `event.tenant_id` against the configured [`TenantScope`]
-    ///    - Violation → serialize event, push raw bytes to DLQ, increment metric,
-    ///      return `Ok(summary { tenant_rejected: true })`
+    ///    - Violation → serialize event, push raw bytes to DLQ, increment metric, return
+    ///      `Ok(summary { tenant_rejected: true })`
     /// 2. Generate dedup key from `event.id` (UUIDv4)
     /// 3. `claim_event()` — atomic `SET NX EX`: only one worker wins the claim
     /// 4. If not claimed (duplicate) → return early with `duplicate_skipped=true`
@@ -547,7 +551,11 @@ mod tests {
     }
 
     fn make_deduped(scope: TenantScope) -> DedupedObserverExecutor<InMemoryDedupStore> {
-        DedupedObserverExecutor::new_with_scope(make_executor(), InMemoryDedupStore::new(300), scope)
+        DedupedObserverExecutor::new_with_scope(
+            make_executor(),
+            InMemoryDedupStore::new(300),
+            scope,
+        )
     }
 
     /// `Unrestricted` passes events with any tenant (including None).
@@ -555,12 +563,8 @@ mod tests {
     async fn test_tenant_unrestricted_allows_all() {
         let deduped = make_deduped(TenantScope::Unrestricted);
 
-        let event_no_tenant = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event_no_tenant =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
         let summary = deduped.process_event(&event_no_tenant).await.unwrap();
         assert!(!summary.tenant_rejected);
 
@@ -610,10 +614,8 @@ mod tests {
     /// `AllowList` accepts a tenant in the list.
     #[tokio::test]
     async fn test_tenant_allowlist_accepts_listed_tenant() {
-        let deduped = make_deduped(TenantScope::AllowList(vec![
-            "acme".to_string(),
-            "globex".to_string(),
-        ]));
+        let deduped =
+            make_deduped(TenantScope::AllowList(vec!["acme".to_string(), "globex".to_string()]));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}))
@@ -625,10 +627,8 @@ mod tests {
     /// `AllowList` rejects a tenant not in the list.
     #[tokio::test]
     async fn test_tenant_allowlist_rejects_unlisted_tenant() {
-        let deduped = make_deduped(TenantScope::AllowList(vec![
-            "acme".to_string(),
-            "globex".to_string(),
-        ]));
+        let deduped =
+            make_deduped(TenantScope::AllowList(vec!["acme".to_string(), "globex".to_string()]));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}))

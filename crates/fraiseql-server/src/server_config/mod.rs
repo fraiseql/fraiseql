@@ -1,24 +1,14 @@
 //! Server configuration.
 
-pub mod tls;
-pub mod observers;
 pub(crate) mod defaults;
 mod methods;
+pub mod observers;
+pub mod tls;
 
 #[cfg(test)]
 mod tests;
 
-pub use tls::{PlaygroundTool, TlsServerConfig, DatabaseTlsConfig};
-pub use observers::AdmissionConfig;
-#[cfg(feature = "observers")]
-pub use observers::ObserverConfig;
-
 use std::{net::SocketAddr, path::PathBuf};
-
-use fraiseql_core::security::OidcConfig;
-use serde::{Deserialize, Serialize};
-
-use crate::middleware::RateLimitConfig;
 
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
@@ -27,6 +17,14 @@ use defaults::{
     default_pool_timeout, default_readiness_path, default_schema_path,
     default_shutdown_timeout_secs, default_subscription_path,
 };
+use fraiseql_core::security::OidcConfig;
+pub use observers::AdmissionConfig;
+#[cfg(feature = "observers")]
+pub use observers::ObserverConfig;
+use serde::{Deserialize, Serialize};
+pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
+
+use crate::middleware::RateLimitConfig;
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -428,16 +426,17 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,          // No auth by default
-            tls: None,           // TLS disabled by default
-            database_tls: None,  // Database TLS disabled by default
+            auth: None,                                               // No auth by default
+            tls: None,                                                // TLS disabled by default
+            database_tls: None,                                       /* Database TLS disabled
+                                                                       * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
-            rate_limiting: None, // Rate limiting uses defaults
+            rate_limiting: None,             // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
-            pool_tuning: None,  // Pool pressure monitoring disabled by default
-            admission_control: None, // Admission control disabled by default
+            pool_tuning: None,               // Pool pressure monitoring disabled by default
+            admission_control: None,         // Admission control disabled by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),

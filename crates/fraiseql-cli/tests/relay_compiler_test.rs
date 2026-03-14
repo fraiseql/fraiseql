@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Compiler tests for the Relay specification support.
 //!
 //! Verifies that the CLI SchemaConverter correctly:
@@ -21,13 +21,13 @@ use fraiseql_cli::schema::{
 
 fn relay_intermediate_schema() -> IntermediateSchema {
     IntermediateSchema {
-        version:           "2.0.0".to_string(),
-        types:             vec![IntermediateType {
-            name:       "User".to_string(),
-            fields:     vec![
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "User".to_string(),
+            fields:        vec![
                 IntermediateField {
                     name:           "id".to_string(),
-                    field_type:     "ID".to_string(),  // matches Node interface
+                    field_type:     "ID".to_string(), // matches Node interface
                     nullable:       false,
                     description:    None,
                     directives:     None,
@@ -44,50 +44,50 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     on_deny:        None,
                 },
             ],
-            description: None,
-            implements:  vec![],
+            description:   None,
+            implements:    vec![],
             requires_role: None,
-            is_error:    false,
-            relay:       true,
+            is_error:      false,
+            relay:         true,
         }],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![IntermediateQuery {
-            name:        "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable:    false,
-            arguments:   vec![],
-            description: None,
-            sql_source:  Some("v_user".to_string()),
-            auto_params: None,
-            deprecated:  None,
-            jsonb_column: None,
-            relay:       true,
-             inject: Default::default(),
-             cache_ttl_seconds: None,
-             additional_views: vec![],
-             requires_role: None,
+        enums:                vec![],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "users".to_string(),
+            return_type:       "User".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![],
+            description:       None,
+            sql_source:        Some("v_user".to_string()),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             true,
+            inject:            Default::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-        custom_scalars:    None,
-        security:          None,
-        observers_config:  None,
-            subscriptions_config: None,
-            validation_config: None,
-        federation_config: None,
-        debug_config:      None,
-        mcp_config:        None,
-        query_defaults:    None,
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        security:             None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
     }
 }
 
@@ -97,18 +97,21 @@ fn relay_intermediate_schema() -> IntermediateSchema {
 
 #[test]
 fn test_query_relay_flag_is_set() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
-    let users_query = compiled.queries.iter().find(|q| q.name == "users")
+    let users_query = compiled
+        .queries
+        .iter()
+        .find(|q| q.name == "users")
         .expect("users query should exist");
     assert!(users_query.relay, "users query should have relay=true");
 }
 
 #[test]
 fn test_query_relay_cursor_column_is_derived() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let users_query = compiled.queries.iter().find(|q| q.name == "users").unwrap();
     assert_eq!(
@@ -126,8 +129,8 @@ fn test_query_relay_cursor_column_is_derived() {
 
 #[test]
 fn test_user_type_relay_flag_is_set() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let user_type = compiled.types.iter().find(|t| t.name == "User").unwrap();
     assert!(user_type.relay, "User type should have relay=true");
@@ -139,8 +142,8 @@ fn test_user_type_relay_flag_is_set() {
 
 #[test]
 fn test_node_interface_is_injected() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let node_iface = compiled.interfaces.iter().find(|i| i.name == "Node");
     assert!(node_iface.is_some(), "Node interface should be injected into schema");
@@ -148,8 +151,8 @@ fn test_node_interface_is_injected() {
 
 #[test]
 fn test_node_interface_has_id_field() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let node_iface = compiled.interfaces.iter().find(|i| i.name == "Node").unwrap();
     assert!(
@@ -160,8 +163,8 @@ fn test_node_interface_has_id_field() {
 
 #[test]
 fn test_relay_type_implements_node() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let user_type = compiled.types.iter().find(|t| t.name == "User").unwrap();
     assert!(
@@ -176,8 +179,8 @@ fn test_relay_type_implements_node() {
 
 #[test]
 fn test_page_info_is_injected() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let page_info = compiled.types.iter().find(|t| t.name == "PageInfo");
     assert!(page_info.is_some(), "PageInfo type should be injected");
@@ -185,8 +188,8 @@ fn test_page_info_is_injected() {
 
 #[test]
 fn test_page_info_has_required_fields() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let page_info = compiled.types.iter().find(|t| t.name == "PageInfo").unwrap();
     let field_names: Vec<&str> = page_info.fields.iter().map(|f| f.name.as_str()).collect();
@@ -203,8 +206,8 @@ fn test_page_info_has_required_fields() {
 
 #[test]
 fn test_user_edge_type_is_injected() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let edge = compiled.types.iter().find(|t| t.name == "UserEdge");
     assert!(edge.is_some(), "UserEdge type should be injected");
@@ -212,8 +215,8 @@ fn test_user_edge_type_is_injected() {
 
 #[test]
 fn test_user_edge_has_cursor_and_node() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let edge = compiled.types.iter().find(|t| t.name == "UserEdge").unwrap();
     let field_names: Vec<&str> = edge.fields.iter().map(|f| f.name.as_str()).collect();
@@ -224,8 +227,8 @@ fn test_user_edge_has_cursor_and_node() {
 
 #[test]
 fn test_user_connection_type_is_injected() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let conn = compiled.types.iter().find(|t| t.name == "UserConnection");
     assert!(conn.is_some(), "UserConnection type should be injected");
@@ -233,8 +236,8 @@ fn test_user_connection_type_is_injected() {
 
 #[test]
 fn test_user_connection_has_edges_and_page_info() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let conn = compiled.types.iter().find(|t| t.name == "UserConnection").unwrap();
     let field_names: Vec<&str> = conn.fields.iter().map(|f| f.name.as_str()).collect();
@@ -282,8 +285,8 @@ fn test_non_relay_schema_has_no_node_interface() {
 fn test_relay_injection_is_idempotent() {
     // Running with the same schema twice should produce the same set of types
     // (Node + PageInfo injected only once).
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let node_count = compiled.interfaces.iter().filter(|i| i.name == "Node").count();
     let page_info_count = compiled.types.iter().filter(|t| t.name == "PageInfo").count();
@@ -300,8 +303,8 @@ fn test_relay_injection_is_idempotent() {
 
 #[test]
 fn test_relay_query_has_no_limit_offset_auto_params() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
     // Relay queries use first/after/last/before instead of limit/offset
@@ -311,8 +314,8 @@ fn test_relay_query_has_no_limit_offset_auto_params() {
 
 #[test]
 fn test_relay_query_has_where_auto_param() {
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
     assert!(q.auto_params.has_where, "relay query should keep has_where auto_param");
@@ -342,8 +345,8 @@ fn test_relay_uuid_cursor_type_is_set() {
 #[test]
 fn test_relay_int64_cursor_type_is_default() {
     // No relay_cursor_type set → defaults to Int64
-    let compiled = SchemaConverter::convert(relay_intermediate_schema())
-        .expect("schema conversion failed");
+    let compiled =
+        SchemaConverter::convert(relay_intermediate_schema()).expect("schema conversion failed");
 
     let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
     assert_eq!(

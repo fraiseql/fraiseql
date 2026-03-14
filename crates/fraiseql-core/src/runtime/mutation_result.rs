@@ -67,21 +67,26 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
         })?
         .to_string();
 
-    let message = row
-        .get("message")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    let message = row.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
     if is_error_status(&status) {
         let metadata = row.get("metadata").cloned().unwrap_or(JsonValue::Null);
-        Ok(MutationOutcome::Error { status, message, metadata })
+        Ok(MutationOutcome::Error {
+            status,
+            message,
+            metadata,
+        })
     } else {
         let entity = row.get("entity").cloned().unwrap_or(JsonValue::Null);
         let entity_type = row.get("entity_type").and_then(|v| v.as_str()).map(str::to_string);
         let entity_id = row.get("entity_id").and_then(|v| v.as_str()).map(str::to_string);
         let cascade = row.get("cascade").cloned().filter(|v| !v.is_null());
-        Ok(MutationOutcome::Success { entity, entity_type, entity_id, cascade })
+        Ok(MutationOutcome::Success {
+            entity,
+            entity_type,
+            entity_id,
+            cascade,
+        })
     }
 }
 
@@ -117,7 +122,9 @@ pub fn populate_error_fields(
 ) -> Map<String, JsonValue> {
     let mut output = Map::new();
 
-    let Some(obj) = metadata.as_object() else { return output };
+    let Some(obj) = metadata.as_object() else {
+        return output;
+    };
 
     for field in fields {
         // Try camelCase first, then the raw field name (snake_case)
@@ -170,9 +177,7 @@ fn to_camel_case(snake: &str) -> String {
 /// - `"[String!]!"` → `"String"`
 /// - `"DateTime"` → `"DateTime"`
 fn strip_list_and_bang(field_type: &str) -> String {
-    field_type
-        .trim_matches(|c| c == '[' || c == ']' || c == '!')
-        .to_string()
+    field_type.trim_matches(|c| c == '[' || c == ']' || c == '!').to_string()
 }
 
 #[cfg(test)]
@@ -196,7 +201,7 @@ mod tests {
             alias:          None,
             deprecation:    None,
             requires_scope: None,
-            on_deny: FieldDenyPolicy::default(),
+            on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
         }
     }
@@ -211,7 +216,13 @@ mod tests {
 
         let outcome = parse_mutation_row(&row).unwrap();
         assert!(matches!(outcome, MutationOutcome::Success { .. }));
-        if let MutationOutcome::Success { entity, entity_type, entity_id, .. } = outcome {
+        if let MutationOutcome::Success {
+            entity,
+            entity_type,
+            entity_id,
+            ..
+        } = outcome
+        {
             assert_eq!(entity["id"], "abc");
             assert_eq!(entity_type.as_deref(), Some("Machine"));
             assert!(entity_id.is_none());
@@ -228,7 +239,12 @@ mod tests {
         row.insert("entity_id".to_string(), json!("550e8400-e29b-41d4-a716-446655440000"));
 
         let outcome = parse_mutation_row(&row).unwrap();
-        if let MutationOutcome::Success { entity_id, entity_type, .. } = outcome {
+        if let MutationOutcome::Success {
+            entity_id,
+            entity_type,
+            ..
+        } = outcome
+        {
             assert_eq!(entity_id.as_deref(), Some("550e8400-e29b-41d4-a716-446655440000"));
             assert_eq!(entity_type.as_deref(), Some("User"));
         } else {
@@ -260,7 +276,10 @@ mod tests {
 
         let outcome = parse_mutation_row(&row).unwrap();
         assert!(matches!(outcome, MutationOutcome::Error { .. }));
-        if let MutationOutcome::Error { status, metadata, .. } = outcome {
+        if let MutationOutcome::Error {
+            status, metadata, ..
+        } = outcome
+        {
             assert_eq!(status, "failed:validation");
             assert!(metadata.is_object());
         }

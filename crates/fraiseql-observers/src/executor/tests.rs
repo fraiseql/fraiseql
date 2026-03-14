@@ -256,12 +256,21 @@ fn test_exponential_backoff_calculation() {
     let delay3 = executor.calculate_backoff(3, &config);
 
     // Jitter ±25%: 100 ms → [75, 125], 200 ms → [150, 250], 400 ms → [300, 500]
-    assert!(delay1.as_millis() >= 75 && delay1.as_millis() <= 125,
-        "delay1 expected ~100 ms (±25%), got {}", delay1.as_millis());
-    assert!(delay2.as_millis() >= 150 && delay2.as_millis() <= 250,
-        "delay2 expected ~200 ms (±25%), got {}", delay2.as_millis());
-    assert!(delay3.as_millis() >= 300 && delay3.as_millis() <= 500,
-        "delay3 expected ~400 ms (±25%), got {}", delay3.as_millis());
+    assert!(
+        delay1.as_millis() >= 75 && delay1.as_millis() <= 125,
+        "delay1 expected ~100 ms (±25%), got {}",
+        delay1.as_millis()
+    );
+    assert!(
+        delay2.as_millis() >= 150 && delay2.as_millis() <= 250,
+        "delay2 expected ~200 ms (±25%), got {}",
+        delay2.as_millis()
+    );
+    assert!(
+        delay3.as_millis() >= 300 && delay3.as_millis() <= 500,
+        "delay3 expected ~400 ms (±25%), got {}",
+        delay3.as_millis()
+    );
 }
 
 #[test]
@@ -279,10 +288,16 @@ fn test_exponential_backoff_cap() {
     let delay9 = executor.calculate_backoff(9, &config);
 
     // Both should be near max (1000); jitter ±25% gives [750, 1250]
-    assert!(delay8.as_millis() >= 750 && delay8.as_millis() <= 1250,
-        "delay8 expected ~1000 ms (±25%), got {}", delay8.as_millis());
-    assert!(delay9.as_millis() >= 750 && delay9.as_millis() <= 1250,
-        "delay9 expected ~1000 ms (±25%), got {}", delay9.as_millis());
+    assert!(
+        delay8.as_millis() >= 750 && delay8.as_millis() <= 1250,
+        "delay8 expected ~1000 ms (±25%), got {}",
+        delay8.as_millis()
+    );
+    assert!(
+        delay9.as_millis() >= 750 && delay9.as_millis() <= 1250,
+        "delay9 expected ~1000 ms (±25%), got {}",
+        delay9.as_millis()
+    );
 }
 
 #[tokio::test]
@@ -414,9 +429,8 @@ async fn test_retry_transient_then_success() {
             &'a self,
             action: &'a ActionConfig,
             _event: &'a EntityEvent,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>
+        {
             let attempt = self.attempts.fetch_add(1, Ordering::SeqCst) + 1;
             let action_type = action.action_type().to_string();
             Box::pin(async move {
@@ -436,7 +450,9 @@ async fn test_retry_transient_then_success() {
         }
     }
 
-    let dispatcher = Arc::new(TransientThenOkDispatcher { attempts: AtomicU32::new(0) });
+    let dispatcher = Arc::new(TransientThenOkDispatcher {
+        attempts: AtomicU32::new(0),
+    });
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
     let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
 
@@ -554,9 +570,8 @@ async fn test_retry_two_transient_then_success() {
             &'a self,
             action: &'a ActionConfig,
             _event: &'a EntityEvent,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>
+        {
             let n = self.count.fetch_add(1, Ordering::SeqCst) + 1;
             let at = action.action_type().to_string();
             Box::pin(async move {
@@ -576,7 +591,9 @@ async fn test_retry_two_transient_then_success() {
         }
     }
 
-    let dispatcher = Arc::new(FailTwiceThenOk { count: AtomicU32::new(0) });
+    let dispatcher = Arc::new(FailTwiceThenOk {
+        count: AtomicU32::new(0),
+    });
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
     let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
 
@@ -640,8 +657,7 @@ async fn test_failure_policy_dlq_success_no_dlq_error() {
     // MockDeadLetterQueue.push() always succeeds → dlq_errors should remain 0
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
     let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
-    let executor =
-        make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
+    let executor = make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
     let action = webhook_action();
     let event = test_event();
     let error = ObserverError::ActionExecutionFailed {
@@ -663,7 +679,7 @@ async fn test_failure_policy_dlq_success_no_dlq_error() {
 async fn test_failure_policy_dlq_error_counted() {
     use uuid::Uuid;
 
-    use crate::traits::{DlqItem, DeadLetterQueue};
+    use crate::traits::{DeadLetterQueue, DlqItem};
 
     /// A DLQ that always returns an error from push().
     struct AlwaysFailDlq;
@@ -696,11 +712,7 @@ async fn test_failure_policy_dlq_error_counted() {
 
     let failing_dlq = Arc::new(AlwaysFailDlq);
     let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
-    let executor = ObserverExecutor::with_dispatcher(
-        EventMatcher::new(),
-        failing_dlq,
-        dispatcher,
-    );
+    let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), failing_dlq, dispatcher);
     let action = webhook_action();
     let event = test_event();
     let error = ObserverError::ActionExecutionFailed {
@@ -929,7 +941,11 @@ async fn test_process_event_with_mock_dispatcher_success() {
         entity:     "Order".to_string(),
         condition:  None,
         actions:    vec![webhook_action()],
-        retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+        retry:      RetryConfig {
+            max_attempts: 1,
+            initial_delay_ms: 0,
+            ..RetryConfig::default()
+        },
         on_failure: FP::Log,
     };
     let mut observers = std::collections::HashMap::new();
@@ -937,11 +953,7 @@ async fn test_process_event_with_mock_dispatcher_success() {
     let matcher = EventMatcher::build(observers).unwrap();
 
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-    let executor = make_mock_executor_with_matcher(
-        matcher,
-        Arc::clone(&dispatcher),
-        dlq,
-    );
+    let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
 
     let event = test_event();
     let summary = executor.process_event(&event).await.unwrap();
@@ -968,7 +980,11 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
         entity:     "Order".to_string(),
         condition:  None,
         actions:    vec![webhook_action()],
-        retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+        retry:      RetryConfig {
+            max_attempts: 1,
+            initial_delay_ms: 0,
+            ..RetryConfig::default()
+        },
         on_failure: FP::Log,
     };
     let mut observers = std::collections::HashMap::new();
@@ -976,11 +992,7 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
     let matcher = EventMatcher::build(observers).unwrap();
 
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-    let executor = make_mock_executor_with_matcher(
-        matcher,
-        Arc::clone(&dispatcher),
-        dlq,
-    );
+    let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
 
     let summary = executor.process_event(&test_event()).await.unwrap();
 
@@ -1111,7 +1123,11 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
         entity:     "Order".to_string(),
         condition:  None,
         actions:    vec![webhook_action()],
-        retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+        retry:      RetryConfig {
+            max_attempts: 1,
+            initial_delay_ms: 0,
+            ..RetryConfig::default()
+        },
         on_failure: FP::Dlq,
     };
     let mut observers = std::collections::HashMap::new();
@@ -1119,11 +1135,8 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
     let matcher = EventMatcher::build(observers).unwrap();
 
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-    let executor = make_mock_executor_with_matcher(
-        matcher,
-        Arc::clone(&dispatcher),
-        Arc::clone(&dlq),
-    );
+    let executor =
+        make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), Arc::clone(&dlq));
 
     let summary = executor.process_event(&test_event()).await.unwrap();
 
@@ -1272,11 +1285,7 @@ async fn test_dlq_size_limit_allows_push_when_under_cap() {
     // With max_dlq_size = 2 and one push, the entry should reach the DLQ.
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
     let dlq_dyn: Arc<dyn crate::traits::DeadLetterQueue> = Arc::clone(&dlq) as _;
-    let executor = ObserverExecutor::new_with_dlq_limit(
-        EventMatcher::new(),
-        dlq_dyn,
-        2,
-    );
+    let executor = ObserverExecutor::new_with_dlq_limit(EventMatcher::new(), dlq_dyn, 2);
 
     let error = ObserverError::ActionExecutionFailed {
         reason: "test".to_string(),
@@ -1284,7 +1293,13 @@ async fn test_dlq_size_limit_allows_push_when_under_cap() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .handle_action_failure(&webhook_action(), &test_event(), &error, &FailurePolicy::Dlq, &mut summary)
+        .handle_action_failure(
+            &webhook_action(),
+            &test_event(),
+            &error,
+            &FailurePolicy::Dlq,
+            &mut summary,
+        )
         .await;
 
     assert_eq!(dlq.item_count(), 1, "entry should be in the DLQ");
@@ -1297,11 +1312,7 @@ async fn test_dlq_size_limit_drops_entry_when_at_cap() {
     // Fill DLQ to the cap (2 pushes), then a third push should be dropped.
     let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
     let dlq_dyn: Arc<dyn crate::traits::DeadLetterQueue> = Arc::clone(&dlq) as _;
-    let executor = ObserverExecutor::new_with_dlq_limit(
-        EventMatcher::new(),
-        dlq_dyn,
-        2,
-    );
+    let executor = ObserverExecutor::new_with_dlq_limit(EventMatcher::new(), dlq_dyn, 2);
 
     let error = ObserverError::ActionExecutionFailed {
         reason: "test".to_string(),
@@ -1326,7 +1337,13 @@ async fn test_dlq_size_limit_drops_entry_when_at_cap() {
     // Third push should be silently dropped.
     let mut summary = ExecutionSummary::new();
     executor
-        .handle_action_failure(&webhook_action(), &test_event(), &error, &FailurePolicy::Dlq, &mut summary)
+        .handle_action_failure(
+            &webhook_action(),
+            &test_event(),
+            &error,
+            &FailurePolicy::Dlq,
+            &mut summary,
+        )
         .await;
 
     assert_eq!(dlq.item_count(), 2, "DLQ must not grow past cap");
@@ -1394,7 +1411,10 @@ fn test_compile_condition_returns_none_when_no_condition() {
     };
     let result = observer.compile_condition();
     assert!(result.is_ok());
-    assert!(result.unwrap().is_none(), "compile_condition must return None when no condition");
+    assert!(
+        result.unwrap().is_none(),
+        "compile_condition must return None when no condition"
+    );
 }
 
 #[test]
@@ -1418,8 +1438,7 @@ fn test_compile_condition_returns_error_for_invalid_dsl() {
 async fn test_action_timeout_fires_when_dispatcher_is_slow() {
     use std::time::Duration;
 
-    use crate::executor::ActionDispatcher;
-    use crate::traits::ActionResult;
+    use crate::{executor::ActionDispatcher, traits::ActionResult};
 
     struct SlowDispatcher;
 
@@ -1436,8 +1455,8 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
                 tokio::time::sleep(Duration::from_millis(200)).await;
                 Ok(ActionResult {
                     action_type,
-                    success:     true,
-                    message:     "slow ok".to_string(),
+                    success: true,
+                    message: "slow ok".to_string(),
                     duration_ms: 200.0,
                 })
             })
@@ -1446,11 +1465,8 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
 
     let dlq = Arc::new(MockDeadLetterQueue::new());
     let dlq_dyn: Arc<dyn crate::traits::DeadLetterQueue> = Arc::clone(&dlq) as _;
-    let mut executor = ObserverExecutor::with_dispatcher(
-        EventMatcher::new(),
-        dlq_dyn,
-        Arc::new(SlowDispatcher),
-    );
+    let mut executor =
+        ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq_dyn, Arc::new(SlowDispatcher));
     // Set a 10 ms timeout — the dispatcher sleeps 200 ms, so it must time out.
     executor.action_timeout_ms = Some(10);
 
@@ -1459,8 +1475,5 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
     let result = executor.execute_action_internal(&action, &event).await;
     assert!(result.is_err(), "slow action must be interrupted by timeout");
     let err = result.unwrap_err();
-    assert!(
-        err.to_string().contains("timed out"),
-        "error must mention timeout, got: {err}"
-    );
+    assert!(err.to_string().contains("timed out"), "error must mention timeout, got: {err}");
 }

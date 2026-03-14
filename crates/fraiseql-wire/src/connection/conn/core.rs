@@ -2,9 +2,9 @@
 
 use super::config::ConnectionConfig;
 use super::helpers::extract_entity_from_query;
+use crate::auth::ScramClient;
 use crate::connection::state::ConnectionState;
 use crate::connection::transport::Transport;
-use crate::auth::ScramClient;
 use crate::protocol::{
     decode_message, encode_message, AuthenticationMessage, BackendMessage, FrontendMessage,
 };

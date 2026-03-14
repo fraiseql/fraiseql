@@ -50,8 +50,10 @@ use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-use crate::subscriptions::protocol::{ProtocolCodec, WsProtocol};
-use crate::subscriptions::lifecycle::SubscriptionLifecycle;
+use crate::subscriptions::{
+    lifecycle::SubscriptionLifecycle,
+    protocol::{ProtocolCodec, WsProtocol},
+};
 
 // ── Subscription metrics (module-level atomics) ──────────────────────
 
@@ -64,8 +66,8 @@ static WS_SUBSCRIPTIONS_REJECTED: AtomicU64 = AtomicU64::new(0);
 #[must_use]
 pub fn subscription_metrics() -> SubscriptionMetrics {
     SubscriptionMetrics {
-        connections_accepted:  WS_CONNECTIONS_ACCEPTED.load(Ordering::Relaxed),
-        connections_rejected:  WS_CONNECTIONS_REJECTED.load(Ordering::Relaxed),
+        connections_accepted:   WS_CONNECTIONS_ACCEPTED.load(Ordering::Relaxed),
+        connections_rejected:   WS_CONNECTIONS_REJECTED.load(Ordering::Relaxed),
         subscriptions_accepted: WS_SUBSCRIPTIONS_ACCEPTED.load(Ordering::Relaxed),
         subscriptions_rejected: WS_SUBSCRIPTIONS_REJECTED.load(Ordering::Relaxed),
     }
@@ -86,9 +88,9 @@ pub fn reset_metrics_for_test() {
 /// Snapshot of subscription counters.
 pub struct SubscriptionMetrics {
     /// Total WebSocket connections accepted (after on_connect).
-    pub connections_accepted: u64,
+    pub connections_accepted:   u64,
     /// Total WebSocket connections rejected by lifecycle hook.
-    pub connections_rejected: u64,
+    pub connections_rejected:   u64,
     /// Total subscriptions accepted (after on_subscribe).
     pub subscriptions_accepted: u64,
     /// Total subscriptions rejected (by hook or limit).
@@ -148,9 +150,7 @@ pub async fn subscription_handler(
     ws: WebSocketUpgrade,
     State(state): State<SubscriptionState>,
 ) -> impl IntoResponse {
-    let protocol_header = headers
-        .get("sec-websocket-protocol")
-        .and_then(|v| v.to_str().ok());
+    let protocol_header = headers.get("sec-websocket-protocol").and_then(|v| v.to_str().ok());
 
     let protocol = match protocol_header {
         None => WsProtocol::GraphqlTransportWs,
@@ -159,7 +159,7 @@ pub async fn subscription_handler(
             None => {
                 warn!(header = %header, "Unknown WebSocket sub-protocol requested");
                 return axum::http::StatusCode::BAD_REQUEST.into_response();
-            }
+            },
         },
     };
 
@@ -271,21 +271,14 @@ async fn handle_subscription_connection(
     // JWTs validated at ConnectionInit may expire while the WebSocket is open.
     // The check below should be added when the auth layer surfaces expiry data:
     //
-    //   1. At ConnectionInit, extract the `exp` claim from the JWT and store it:
-    //      `let token_expires_at: Option<std::time::Instant> = extract_exp(&init_payload);`
+    //   1. At ConnectionInit, extract the `exp` claim from the JWT and store it: `let
+    //      token_expires_at: Option<std::time::Instant> = extract_exp(&init_payload);`
     //
-    //   2. In the select! loop (before processing each client message or broadcast event),
-    //      check expiry:
-    //      ```rust,ignore
-    //      if token_expires_at.is_some_and(|exp| std::time::Instant::now() >= exp) {
-    //          warn!(connection_id = %connection_id, "Token expired; closing WebSocket");
-    //          let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
-    //              code: CloseCode::Unauthorized.code(),
-    //              reason: "Token expired".into(),
-    //          }))).await;
-    //          break;
-    //      }
-    //      ```
+    //   2. In the select! loop (before processing each client message or broadcast event), check
+    //      expiry: ```rust,ignore if token_expires_at.is_some_and(|exp| std::time::Instant::now()
+    //      >= exp) { warn!(connection_id = %connection_id, "Token expired; closing WebSocket"); let
+    //      _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame { code:
+    //      CloseCode::Unauthorized.code(), reason: "Token expired".into(), }))).await; break; } ```
     //
     // This requires the lifecycle `on_connect` hook or the JWT middleware to return
     // the expiry time, which is not yet threaded through `SubscriptionState`.
@@ -457,7 +450,7 @@ async fn handle_client_message(
                         debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
                     }
                     return Ok(());
-                }
+                },
             };
 
             // Call lifecycle on_subscribe hook
@@ -554,12 +547,7 @@ async fn send_server_message(
     msg: ServerMessage,
 ) -> Result<(), String> {
     match codec.encode(msg) {
-        Ok(Some(json)) => {
-            sender
-                .send(Message::Text(json.into()))
-                .await
-                .map_err(|e| e.to_string())
-        }
+        Ok(Some(json)) => sender.send(Message::Text(json.into())).await.map_err(|e| e.to_string()),
         Ok(None) => Ok(()), // Message suppressed by codec (e.g. pong in legacy mode)
         Err(e) => Err(e.to_string()),
     }

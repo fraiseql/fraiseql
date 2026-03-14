@@ -427,7 +427,10 @@ mod tests {
 
     #[test]
     fn test_oauth_client_secret_is_secret() {
-        assert_eq!(FieldMasker::detect_sensitivity("oauth_client_secret"), FieldSensitivity::Secret);
+        assert_eq!(
+            FieldMasker::detect_sensitivity("oauth_client_secret"),
+            FieldSensitivity::Secret
+        );
     }
 
     #[test]

@@ -146,11 +146,13 @@ fn test_schema_from_json_full() {
 #[test]
 fn test_query_full_fields() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
-        .parent().unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
         .join("tests/fixtures/golden/05-security-inject-cache.json");
-    let json = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
+    let json =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
     let schema = CompiledSchema::from_json(&json).unwrap();
 
     let q = schema.find_query("orders").unwrap();
@@ -166,11 +168,13 @@ fn test_query_full_fields() {
 #[test]
 fn test_mutation_full_fields() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
-        .parent().unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
         .join("tests/fixtures/golden/05-security-inject-cache.json");
-    let json = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
+    let json =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
     let schema = CompiledSchema::from_json(&json).unwrap();
 
     let m = schema.find_mutation("createOrder").unwrap();
@@ -186,30 +190,30 @@ fn test_mutation_full_fields() {
 #[test]
 fn test_schema_to_json_roundtrip() {
     let schema = CompiledSchema {
-        types:          vec![
+        types: vec![
             TypeDefinition::new("User", "v_user")
                 .with_field(FieldDefinition::new("id", FieldType::Id))
                 .with_field(FieldDefinition::new("email", FieldType::String)),
         ],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        queries:        vec![QueryDefinition::new("users", "User").returning_list()],
-        mutations:      vec![],
-        subscriptions:  vec![],
-        directives:     vec![],
-        fact_tables:    std::collections::HashMap::new(),
-        observers:      Vec::new(),
-        federation:     None,
-        security:       None,
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        queries: vec![QueryDefinition::new("users", "User").returning_list()],
+        mutations: vec![],
+        subscriptions: vec![],
+        directives: vec![],
+        fact_tables: std::collections::HashMap::new(),
+        observers: Vec::new(),
+        federation: None,
+        security: None,
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
@@ -384,29 +388,29 @@ fn test_argument_definition() {
 #[test]
 fn test_operation_count() {
     let schema = CompiledSchema {
-        types:          vec![TypeDefinition::new("User", "v_user")],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        queries:        vec![
+        types: vec![TypeDefinition::new("User", "v_user")],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        queries: vec![
             QueryDefinition::new("users", "User"),
             QueryDefinition::new("user", "User"),
         ],
-        mutations:      vec![MutationDefinition::new("createUser", "User")],
-        subscriptions:  vec![SubscriptionDefinition::new("userCreated", "User")],
-        directives:     vec![],
-        fact_tables:    std::collections::HashMap::new(),
-        observers:      Vec::new(),
-        federation:     None,
-        security:       None,
+        mutations: vec![MutationDefinition::new("createUser", "User")],
+        subscriptions: vec![SubscriptionDefinition::new("userCreated", "User")],
+        directives: vec![],
+        fact_tables: std::collections::HashMap::new(),
+        observers: Vec::new(),
+        federation: None,
+        security: None,
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
@@ -758,7 +762,7 @@ fn test_schema_with_vector_field_json() {
 #[test]
 fn test_vector_field_roundtrip() {
     let schema = CompiledSchema {
-        types:          vec![
+        types: vec![
             TypeDefinition::new("Document", "documents")
                 .with_field(FieldDefinition::new("id", FieldType::Id))
                 .with_field(
@@ -766,25 +770,25 @@ fn test_vector_field_roundtrip() {
                         .with_description("OpenAI embedding"),
                 ),
         ],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        queries:        vec![],
-        mutations:      vec![],
-        subscriptions:  vec![],
-        directives:     vec![],
-        fact_tables:    std::collections::HashMap::new(),
-        observers:      Vec::new(),
-        federation:     None,
-        security:       None,
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        queries: vec![],
+        mutations: vec![],
+        subscriptions: vec![],
+        directives: vec![],
+        fact_tables: std::collections::HashMap::new(),
+        observers: Vec::new(),
+        federation: None,
+        security: None,
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
@@ -861,7 +865,6 @@ fn test_python_generated_vector_schema_compat() {
     assert!(schema.validate().is_ok());
 }
 
-
 #[test]
 fn test_compiled_schema_has_version_after_stamp() {
     let schema = CompiledSchema {
@@ -876,7 +879,10 @@ fn test_compiled_schema_has_version_after_stamp() {
 
 #[test]
 fn test_future_schema_version_is_rejected() {
-    let schema = CompiledSchema { schema_format_version: Some(999), ..Default::default() };
+    let schema = CompiledSchema {
+        schema_format_version: Some(999),
+        ..Default::default()
+    };
     assert!(schema.validate_format_version().is_err());
 }
 

@@ -4,10 +4,7 @@
 //! `GenericWhereGenerator<MySqlDialect>`.  All logic lives in
 //! [`crate::where_generator::GenericWhereGenerator`].
 
-use crate::{
-    dialect::MySqlDialect,
-    where_generator::GenericWhereGenerator,
-};
+use crate::{dialect::MySqlDialect, where_generator::GenericWhereGenerator};
 
 /// MySQL WHERE clause generator.
 ///
@@ -48,12 +45,11 @@ impl MySqlWhereGenerator {
 mod tests {
     use serde_json::json;
 
+    use super::*;
     use crate::{
         dialect::MySqlDialect,
         where_clause::{WhereClause, WhereOperator},
     };
-
-    use super::*;
 
     #[test]
     fn test_simple_equality() {

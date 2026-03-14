@@ -33,10 +33,10 @@ pub struct TracingConfig {
 impl Default for TracingConfig {
     fn default() -> Self {
         Self {
-            enabled:                default_enabled(),
-            level:                  default_level(),
-            format:                 default_format(),
-            service_name:           default_service_name(),
+            enabled:                  default_enabled(),
+            level:                    default_level(),
+            format:                   default_format(),
+            service_name:             default_service_name(),
             otlp_export_timeout_secs: default_otlp_timeout_secs(),
         }
     }

@@ -16,7 +16,6 @@
 //! ```
 
 #![cfg(test)]
-
 #![allow(clippy::manual_let_else)] // Reason: test uses match for clarity in assertion context
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, RlsEnforcement},
@@ -84,7 +83,9 @@ async fn setup_raw_connection(db_url: &str) -> tokio_postgres::Client {
 #[tokio::test]
 #[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_cache_does_not_leak_across_tenant_boundaries() {
-    let db_url = if let Some(url) = test_db_url() { url } else {
+    let db_url = if let Some(url) = test_db_url() {
+        url
+    } else {
         eprintln!("Skipping: TEST_DATABASE_URL not set");
         return;
     };
@@ -173,11 +174,7 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
         .execute_where_query("v_tenant_item", Some(&where_a), None, None)
         .await
         .expect("cached query tenant A");
-    assert_eq!(
-        result_a_cached.len(),
-        3,
-        "Cached result for tenant A must still be 3"
-    );
+    assert_eq!(result_a_cached.len(), 3, "Cached result for tenant A must still be 3");
 
     eprintln!(
         "✅ Cache RLS isolation verified: \
@@ -194,7 +191,9 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_validate_rls_active_fails_without_rls() {
-    let db_url = if let Some(url) = test_db_url() { url } else {
+    let db_url = if let Some(url) = test_db_url() {
+        url
+    } else {
         eprintln!("Skipping: TEST_DATABASE_URL not set");
         return;
     };
@@ -219,7 +218,9 @@ async fn test_validate_rls_active_fails_without_rls() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL (set TEST_DATABASE_URL)"]
 async fn test_enforce_rls_off_skips_check() {
-    let db_url = if let Some(url) = test_db_url() { url } else {
+    let db_url = if let Some(url) = test_db_url() {
+        url
+    } else {
         eprintln!("Skipping: TEST_DATABASE_URL not set");
         return;
     };

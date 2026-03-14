@@ -1,7 +1,8 @@
 //! Query and mutation operation definitions for TOML schema.
 
-use super::types::ArgumentDefinition;
 use serde::{Deserialize, Serialize};
+
+use super::types::ArgumentDefinition;
 
 /// Global defaults for list-query auto-params.
 ///
@@ -23,18 +24,23 @@ pub struct QueryDefaults {
     pub where_clause: bool,
     /// Enable automatic `order_by` parameter (default: true)
     #[serde(default = "default_true")]
-    pub order_by: bool,
+    pub order_by:     bool,
     /// Enable automatic `limit` parameter (default: true)
     #[serde(default = "default_true")]
-    pub limit: bool,
+    pub limit:        bool,
     /// Enable automatic `offset` parameter (default: true)
     #[serde(default = "default_true")]
-    pub offset: bool,
+    pub offset:       bool,
 }
 
 impl Default for QueryDefaults {
     fn default() -> Self {
-        Self { where_clause: true, order_by: true, limit: true, offset: true }
+        Self {
+            where_clause: true,
+            order_by:     true,
+            limit:        true,
+            offset:       true,
+        }
     }
 }
 
@@ -47,11 +53,11 @@ fn default_true() -> bool {
 #[serde(default, deny_unknown_fields)]
 pub struct SchemaMetadata {
     /// Schema name
-    pub name: String,
+    pub name:            String,
     /// Schema version
-    pub version: String,
+    pub version:         String,
     /// Optional schema description
-    pub description: Option<String>,
+    pub description:     Option<String>,
     /// Target database (postgresql, mysql, sqlite, sqlserver)
     pub database_target: String,
 }
@@ -59,9 +65,9 @@ pub struct SchemaMetadata {
 impl Default for SchemaMetadata {
     fn default() -> Self {
         Self {
-            name: "myapp".to_string(),
-            version: "1.0.0".to_string(),
-            description: None,
+            name:            "myapp".to_string(),
+            version:         "1.0.0".to_string(),
+            description:     None,
             database_target: "postgresql".to_string(),
         }
     }
@@ -72,26 +78,26 @@ impl Default for SchemaMetadata {
 #[serde(default, deny_unknown_fields)]
 pub struct QueryDefinition {
     /// Return type name
-    pub return_type: String,
+    pub return_type:  String,
     /// Whether query returns an array
     #[serde(default)]
     pub return_array: bool,
     /// SQL source for the query
-    pub sql_source: String,
+    pub sql_source:   String,
     /// Query description
-    pub description: Option<String>,
+    pub description:  Option<String>,
     /// Query arguments
-    pub args: Vec<ArgumentDefinition>,
+    pub args:         Vec<ArgumentDefinition>,
 }
 
 impl Default for QueryDefinition {
     fn default() -> Self {
         Self {
-            return_type: "String".to_string(),
+            return_type:  "String".to_string(),
             return_array: false,
-            sql_source: "v_entity".to_string(),
-            description: None,
-            args: vec![],
+            sql_source:   "v_entity".to_string(),
+            description:  None,
+            args:         vec![],
         }
     }
 }
@@ -103,23 +109,23 @@ pub struct MutationDefinition {
     /// Return type name
     pub return_type: String,
     /// SQL function or procedure source
-    pub sql_source: String,
+    pub sql_source:  String,
     /// Operation type (CREATE, UPDATE, DELETE)
-    pub operation: String,
+    pub operation:   String,
     /// Mutation description
     pub description: Option<String>,
     /// Mutation arguments
-    pub args: Vec<ArgumentDefinition>,
+    pub args:        Vec<ArgumentDefinition>,
 }
 
 impl Default for MutationDefinition {
     fn default() -> Self {
         Self {
             return_type: "String".to_string(),
-            sql_source: "fn_operation".to_string(),
-            operation: "CREATE".to_string(),
+            sql_source:  "fn_operation".to_string(),
+            operation:   "CREATE".to_string(),
             description: None,
-            args: vec![],
+            args:        vec![],
         }
     }
 }

@@ -168,7 +168,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
-            let shutdown_timeout = std::time::Duration::from_secs(self.config.shutdown_timeout_secs);
+            let shutdown_timeout =
+                std::time::Duration::from_secs(self.config.shutdown_timeout_secs);
             info!(
                 timeout_secs = self.config.shutdown_timeout_secs,
                 "HTTP server stopped, draining remaining work"

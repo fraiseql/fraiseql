@@ -96,6 +96,7 @@ pub use database_resolver::*;
 pub use dependency_graph::DependencyGraph;
 pub use direct_db_resolver::*;
 pub use entity_resolver::*;
+use fraiseql_error::{FraiseQLError, Result};
 pub use http_resolver::*;
 pub use logging::{
     FederationLogContext, FederationOperationType, LogTimer, OperationStatus, ResolutionStrategy,
@@ -124,10 +125,9 @@ pub use saga_store::{
 pub use selection_parser::*;
 use serde_json::{Value, json};
 pub use service_sdl::*;
-pub use crate::tracing::{FederationSpan, FederationTraceContext};
 pub use types::*;
 
-use fraiseql_error::{FraiseQLError, Result};
+pub use crate::tracing::{FederationSpan, FederationTraceContext};
 
 /// Handle federation queries (federation introspection)
 pub async fn handle_federation_query(

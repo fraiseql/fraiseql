@@ -109,8 +109,7 @@ impl SchemaDependencyGraph {
             }
 
             // Check if any type references this one
-            let has_references =
-                self.incoming.get(type_name).is_some_and(|refs| !refs.is_empty());
+            let has_references = self.incoming.get(type_name).is_some_and(|refs| !refs.is_empty());
 
             if !has_references {
                 unused.push(type_name.clone());

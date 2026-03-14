@@ -4,8 +4,6 @@
 
 use std::sync::Arc;
 
-use subtle::ConstantTimeEq as _;
-
 use axum::{
     body::Body,
     extract::State,
@@ -13,6 +11,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use subtle::ConstantTimeEq as _;
 
 /// Shared state for bearer token authentication.
 #[derive(Clone)]
@@ -255,7 +254,10 @@ mod tests {
     fn test_subtle_compare_identical_tokens() {
         // Verify the subtle-based helper accepts identical tokens of various lengths.
         assert!(constant_time_compare("x", "x"));
-        assert!(constant_time_compare("super-secret-32-char-admin-token", "super-secret-32-char-admin-token"));
+        assert!(constant_time_compare(
+            "super-secret-32-char-admin-token",
+            "super-secret-32-char-admin-token"
+        ));
     }
 
     #[test]

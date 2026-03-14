@@ -1,20 +1,22 @@
 //! SQL Server database adapter implementation.
 use async_trait::async_trait;
-
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
+use fraiseql_error::{FraiseQLError, Result};
 use tiberius::Config;
 use tracing;
 
 use super::where_generator::SqlServerWhereGenerator;
-use crate::dialect::SqlServerDialect;
-use fraiseql_error::{FraiseQLError, Result};
-
 use crate::{
+    dialect::SqlServerDialect,
     identifier::quote_sqlserver_identifier,
-    traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
-    types::{DatabaseType, JsonbValue, PoolMetrics},
-    types::sql_hints::{OrderByClause, OrderDirection},
+    traits::{
+        CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+    },
+    types::{
+        DatabaseType, JsonbValue, PoolMetrics,
+        sql_hints::{OrderByClause, OrderDirection},
+    },
     where_clause::WhereClause,
 };
 
@@ -493,8 +495,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: SELECT * FROM [schema].[fn_name](@p1, @p2, ...)
-        let placeholders: Vec<String> =
-            (1..=args.len()).map(|i| format!("@p{i}")).collect();
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("@p{i}")).collect();
         let sql = format!(
             "SELECT * FROM {}({})",
             quote_sqlserver_identifier(function_name),
@@ -548,7 +549,6 @@ impl DatabaseAdapter for SqlServerAdapter {
 
         Ok(results)
     }
-
 }
 
 // ============================================================================
@@ -592,9 +592,7 @@ fn bind_json_params<'a>(
                     query.bind(f);
                 } else {
                     return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Cannot bind numeric value {n}: out of i64 and f64 range"
-                        ),
+                        message: format!("Cannot bind numeric value {n}: out of i64 and f64 range"),
                         path:    None,
                     });
                 }
@@ -697,10 +695,7 @@ fn is_valid_uuid_format(uuid: &str) -> bool {
 }
 
 /// Build the WHERE portion of a relay page query.
-fn build_relay_where_sql(
-    cursor_part: Option<&str>,
-    user_part: Option<&str>,
-) -> String {
+fn build_relay_where_sql(cursor_part: Option<&str>, user_part: Option<&str>) -> String {
     match (cursor_part, user_part) {
         (None, None) => String::new(),
         (Some(c), None) => format!(" WHERE {c}"),
@@ -754,9 +749,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                     let op = if forward { ">" } else { "<" };
                     (
                         Some(serde_json::json!(uuid)),
-                        Some(format!(
-                            "{quoted_col} {op} CONVERT(UNIQUEIDENTIFIER, @p1)"
-                        )),
+                        Some(format!("{quoted_col} {op} CONVERT(UNIQUEIDENTIFIER, @p1)")),
                     )
                 },
             };
@@ -766,8 +759,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         let mut user_where_params: Vec<serde_json::Value> = Vec::new();
         let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
             let generator = SqlServerWhereGenerator::new(SqlServerDialect);
-            let (sql, params) =
-                generator.generate_with_param_offset(clause, cursor_param_count)?;
+            let (sql, params) = generator.generate_with_param_offset(clause, cursor_param_count)?;
             user_where_params = params;
             Some(sql)
         } else {
@@ -803,11 +795,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                 String::new(),
                 |mut acc, (i, c)| {
                     use std::fmt::Write as _;
-                    let _ = write!(
-                        acc,
-                        ", JSON_VALUE(data, '$.{}') AS _relay_sort_{i}",
-                        c.field
-                    );
+                    let _ = write!(acc, ", JSON_VALUE(data, '$.{}') AS _relay_sort_{i}", c.field);
                     acc
                 },
             );
@@ -839,34 +827,29 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         let total_count = if include_total_count {
             let (count_sql, count_params) = if let Some(clause) = where_clause {
                 let generator = SqlServerWhereGenerator::new(SqlServerDialect);
-                let (where_sql, params) =
-                    generator.generate_with_param_offset(clause, 0)?;
+                let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
                 (
-                    format!(
-                        "SELECT COUNT_BIG(*) AS cnt FROM {quoted_view} WHERE ({where_sql})"
-                    ),
+                    format!("SELECT COUNT_BIG(*) AS cnt FROM {quoted_view} WHERE ({where_sql})"),
                     params,
                 )
             } else {
                 (format!("SELECT COUNT_BIG(*) AS cnt FROM {quoted_view}"), vec![])
             };
 
-            let mut conn =
-                self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
-                    message: format!("Failed to acquire connection for relay count: {e}"),
-                })?;
+            let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection for relay count: {e}"),
+            })?;
 
             // Serialise complex types up-front so their string refs live long enough.
             let count_string_params = serialise_complex_params(&count_params);
             let mut count_query = tiberius::Query::new(&count_sql);
             bind_json_params(&mut count_query, &count_params, &count_string_params)?;
 
-            let count_result = count_query.query(&mut *conn).await.map_err(|e| {
-                FraiseQLError::Database {
+            let count_result =
+                count_query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
                     message:   format!("SQL Server relay count query failed: {e}"),
                     sql_state: e.code().and_then(map_mssql_error_code),
-                }
-            })?;
+                })?;
 
             let count_rows =
                 count_result.into_first_result().await.map_err(|e| FraiseQLError::Database {
@@ -880,9 +863,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                 .first()
                 .and_then(|row| row.try_get::<i64, _>(0).ok().flatten())
                 .ok_or_else(|| FraiseQLError::Database {
-                    message:   format!(
-                        "Relay count query returned no rows for view '{view}'"
-                    ),
+                    message:   format!("Relay count query returned no rows for view '{view}'"),
                     sql_state: None,
                 })?;
             let count = u64::try_from(n).map_err(|_| FraiseQLError::Database {
@@ -977,7 +958,10 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_order_sql_forward_custom_order_by_asc() {
-        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let order_by = vec![OrderByClause {
+            field:     "score".to_string(),
+            direction: OrderDirection::Asc,
+        }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') ASC, [id] ASC");
     }
@@ -986,14 +970,20 @@ mod relay_sql_tests {
     fn test_build_relay_order_sql_backward_custom_order_by_asc_flips_to_desc() {
         // KEY TEST: backward pagination must flip ASC → DESC so the inner
         // FETCH NEXT subquery retrieves the correct N rows before the cursor.
-        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let order_by = vec![OrderByClause {
+            field:     "score".to_string(),
+            direction: OrderDirection::Asc,
+        }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') DESC, [id] DESC");
     }
 
     #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
-        let order_by = vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Desc }];
+        let order_by = vec![OrderByClause {
+            field:     "created_at".to_string(),
+            direction: OrderDirection::Desc,
+        }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.created_at') ASC, [id] DESC");
     }
@@ -1001,8 +991,14 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_forward() {
         let order_by = vec![
-            OrderByClause { field: "a".to_string(), direction: OrderDirection::Asc },
-            OrderByClause { field: "b".to_string(), direction: OrderDirection::Desc },
+            OrderByClause {
+                field:     "a".to_string(),
+                direction: OrderDirection::Asc,
+            },
+            OrderByClause {
+                field:     "b".to_string(),
+                direction: OrderDirection::Desc,
+            },
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(
@@ -1014,8 +1010,14 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_backward_all_flipped() {
         let order_by = vec![
-            OrderByClause { field: "a".to_string(), direction: OrderDirection::Asc },
-            OrderByClause { field: "b".to_string(), direction: OrderDirection::Desc },
+            OrderByClause {
+                field:     "a".to_string(),
+                direction: OrderDirection::Asc,
+            },
+            OrderByClause {
+                field:     "b".to_string(),
+                direction: OrderDirection::Desc,
+            },
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(
@@ -1034,14 +1036,20 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_with_custom_asc() {
-        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let order_by = vec![OrderByClause {
+            field:     "score".to_string(),
+            direction: OrderDirection::Asc,
+        }];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 ASC, _relay_cursor ASC");
     }
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_desc_preserved() {
-        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Desc }];
+        let order_by = vec![OrderByClause {
+            field:     "score".to_string(),
+            direction: OrderDirection::Desc,
+        }];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 DESC, _relay_cursor ASC");
     }

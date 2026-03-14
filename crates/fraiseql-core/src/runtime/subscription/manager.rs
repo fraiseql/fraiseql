@@ -6,7 +6,8 @@ use std::sync::{
 use dashmap::DashMap;
 use tokio::sync::broadcast;
 
-#[allow(clippy::wildcard_imports)] // Reason: types::* re-exports the subscription type vocabulary used throughout this module
+#[allow(clippy::wildcard_imports)]
+// Reason: types::* re-exports the subscription type vocabulary used throughout this module
 use super::{SubscriptionError, types::*};
 use crate::schema::CompiledSchema;
 
@@ -108,12 +109,11 @@ impl SubscriptionManager {
         // Each filter_field name becomes an argument_path entry mapping
         // the field name to a JSON pointer path (e.g., "user_id" → "/user_id").
         if !definition.filter_fields.is_empty() {
-            let filter = definition.filter.get_or_insert_with(|| {
-                crate::schema::SubscriptionFilter {
+            let filter =
+                definition.filter.get_or_insert_with(|| crate::schema::SubscriptionFilter {
                     argument_paths: std::collections::HashMap::new(),
                     static_filters: Vec::new(),
-                }
-            });
+                });
             for field in &definition.filter_fields {
                 filter
                     .argument_paths
@@ -135,10 +135,8 @@ impl SubscriptionManager {
 
         // Enforce per-connection subscription cap before inserting.
         {
-            let mut conn_subs = self
-                .subscriptions_by_connection
-                .entry(connection_id.to_string())
-                .or_default();
+            let mut conn_subs =
+                self.subscriptions_by_connection.entry(connection_id.to_string()).or_default();
             if conn_subs.len() >= MAX_SUBSCRIPTIONS_PER_CONNECTION {
                 return Err(SubscriptionError::Internal(format!(
                     "Connection '{connection_id}' has reached the maximum of \

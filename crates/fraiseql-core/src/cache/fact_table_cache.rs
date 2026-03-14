@@ -10,7 +10,10 @@ use super::{
     adapter::CachedDatabaseAdapter,
     fact_table_version::{FactTableVersionStrategy, generate_version_key_component},
 };
-use crate::{db::{DatabaseAdapter, types::JsonbValue}, error::Result};
+use crate::{
+    db::{DatabaseAdapter, types::JsonbValue},
+    error::Result,
+};
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Extract fact table name from SQL query.

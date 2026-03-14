@@ -211,8 +211,8 @@ impl AggregationSqlGenerator {
     pub(super) fn placeholder(&self, index: usize) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => format!("${}", index + 1),
-            DatabaseType::SQLServer  => format!("@P{}", index + 1),
-            _                        => "?".to_string(),
+            DatabaseType::SQLServer => format!("@P{}", index + 1),
+            _ => "?".to_string(),
         }
     }
 
@@ -312,8 +312,14 @@ impl AggregationSqlGenerator {
             String::new()
         };
 
-        let mut parts: Vec<&str> =
-            vec![&select_sql, &from_sql, &where_sql, &group_sql, &having_sql, &order_sql];
+        let mut parts: Vec<&str> = vec![
+            &select_sql,
+            &from_sql,
+            &where_sql,
+            &group_sql,
+            &having_sql,
+            &order_sql,
+        ];
         parts.retain(|s| !s.is_empty());
 
         let mut sql = parts.join("\n");

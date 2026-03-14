@@ -62,11 +62,7 @@ impl SqlDialect for MySqlDialect {
         Ok(format!("MATCH({expr}) AGAINST({param} IN BOOLEAN MODE)"))
     }
 
-    fn fts_phrase_query_sql(
-        &self,
-        expr: &str,
-        param: &str,
-    ) -> Result<String, UnsupportedOperator> {
+    fn fts_phrase_query_sql(&self, expr: &str, param: &str) -> Result<String, UnsupportedOperator> {
         Ok(format!("MATCH({expr}) AGAINST({param} IN NATURAL LANGUAGE MODE)"))
     }
 

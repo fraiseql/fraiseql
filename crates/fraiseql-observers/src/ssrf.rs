@@ -60,9 +60,7 @@ pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
 pub(crate) fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     if !url.starts_with("nats://") && !url.starts_with("tls://") {
         return Err(ObserverError::InvalidConfig {
-            message: format!(
-                "NATS URL must use nats:// or tls:// scheme (got: {url})"
-            ),
+            message: format!("NATS URL must use nats:// or tls:// scheme (got: {url})"),
         });
     }
     validate_outbound_url(url)
@@ -79,7 +77,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
             || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
             || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
-            || o == [0, 0, 0, 0]                                 // unspecified
+            || o == [0, 0, 0, 0] // unspecified
         },
         std::net::IpAddr::V6(v6) => {
             v6.is_loopback()                                     // ::1

@@ -4,9 +4,8 @@ use std::collections::HashMap;
 
 use serde_json::Value as JsonValue;
 
-use crate::graphql::types::{Directive, FieldSelection};
-
 use super::types::DirectiveError;
+use crate::graphql::types::{Directive, FieldSelection};
 
 /// Evaluates GraphQL directives in query field selections.
 ///

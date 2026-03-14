@@ -1,10 +1,11 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use crate::secrets_manager::SecretsError;
-use super::backend::VaultBackend;
-use super::cache::VaultResponse;
-use super::validation::{MAX_VAULT_SECRET_NAME_BYTES, validate_vault_addr, validate_vault_secret_name};
-use crate::secrets_manager::SecretsBackend;
+use super::{
+    backend::VaultBackend,
+    cache::VaultResponse,
+    validation::{MAX_VAULT_SECRET_NAME_BYTES, validate_vault_addr, validate_vault_secret_name},
+};
+use crate::secrets_manager::{SecretsBackend, SecretsError};
 
 /// Test VaultBackend creation
 #[test]
@@ -78,10 +79,7 @@ fn test_secret_name_special_chars_rejected() {
 fn test_secret_name_exactly_max_length_accepted() {
     // MAX_VAULT_SECRET_NAME_BYTES exactly — must be accepted.
     let name = "a".repeat(MAX_VAULT_SECRET_NAME_BYTES);
-    assert!(
-        validate_vault_secret_name(&name).is_ok(),
-        "name at max length must be accepted"
-    );
+    assert!(validate_vault_secret_name(&name).is_ok(), "name at max length must be accepted");
 }
 
 #[test]
@@ -134,8 +132,7 @@ fn test_extract_secret_dynamic_credentials() {
         "password": "A1B2C3"
     }));
     let result =
-        VaultBackend::extract_secret_from_response(&response, "database/creds/my-role")
-            .unwrap();
+        VaultBackend::extract_secret_from_response(&response, "database/creds/my-role").unwrap();
     assert!(result.contains("v-root-abc123") && result.contains("A1B2C3"), "got: {result}");
 }
 
@@ -169,7 +166,10 @@ async fn test_vault_fetch_secret_success() {
 
 #[tokio::test]
 async fn test_vault_fetch_secret_not_found_returns_not_found_error() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
     Mock::given(method("GET"))
@@ -188,7 +188,10 @@ async fn test_vault_fetch_secret_not_found_returns_not_found_error() {
 
 #[tokio::test]
 async fn test_vault_fetch_secret_403_returns_backend_error() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
     Mock::given(method("GET"))
@@ -207,14 +210,15 @@ async fn test_vault_fetch_secret_403_returns_backend_error() {
 
 #[tokio::test]
 async fn test_vault_fetch_secret_invalid_json_returns_backend_error() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/v1/secret/badjson"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_string("this is not valid json"),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_string("this is not valid json"))
         .mount(&mock)
         .await;
 
@@ -252,11 +256,7 @@ async fn test_renew_token_success_updates_token_and_ttl() {
     let mut vault = VaultBackend::new_for_test(mock.uri(), "old-token");
     vault.renew_token().await.expect("renewal should succeed");
 
-    assert_eq!(
-        vault.token(),
-        "new-rotated-token",
-        "token should be updated after renewal"
-    );
+    assert_eq!(vault.token(), "new-rotated-token", "token should be updated after renewal");
     assert_eq!(
         vault.token_ttl_secs_for_test(),
         Some(7200),
@@ -266,7 +266,10 @@ async fn test_renew_token_success_updates_token_and_ttl() {
 
 #[tokio::test]
 async fn test_renew_token_missing_client_token_returns_error() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
     Mock::given(method("POST"))
@@ -287,7 +290,10 @@ async fn test_renew_token_missing_client_token_returns_error() {
 
 #[tokio::test]
 async fn test_renew_token_403_returns_connection_error() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
     Mock::given(method("POST"))
@@ -299,10 +305,7 @@ async fn test_renew_token_403_returns_connection_error() {
     let mut vault = VaultBackend::new_for_test(mock.uri(), "expired-token");
     // 403 response body is not valid JSON for the renewal struct → ConnectionError
     let result = vault.renew_token().await;
-    assert!(
-        result.is_err(),
-        "403 renewal response should return an error; got: {result:?}"
-    );
+    assert!(result.is_err(), "403 renewal response should return an error; got: {result:?}");
 }
 
 // --- validate_vault_addr SSRF tests (S9-2) ---

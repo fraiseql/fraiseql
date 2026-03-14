@@ -2,16 +2,20 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use parking_lot::RwLock;
 
-use crate::security::errors::SecurityError;
-use crate::security::oidc::{
-    jwks::{CachedJwks, Jwk, Jwks},
-    providers::OidcConfig,
-    token::OidcValidator,
+use crate::security::{
+    errors::SecurityError,
+    oidc::{
+        jwks::{CachedJwks, Jwk, Jwks},
+        providers::OidcConfig,
+        token::OidcValidator,
+    },
 };
 
 // ============================================================================
@@ -54,20 +58,14 @@ fn test_oidc_config_okta() {
 #[test]
 fn test_oidc_config_cognito() {
     let config = OidcConfig::cognito("us-east-1", "us-east-1_abc123", "client123");
-    assert_eq!(
-        config.issuer,
-        "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"
-    );
+    assert_eq!(config.issuer, "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123");
     assert_eq!(config.audience, Some("client123".to_string()));
 }
 
 #[test]
 fn test_oidc_config_azure_ad() {
     let config = OidcConfig::azure_ad("tenant-id-123", "client-id-456");
-    assert_eq!(
-        config.issuer,
-        "https://login.microsoftonline.com/tenant-id-123/v2.0"
-    );
+    assert_eq!(config.issuer, "https://login.microsoftonline.com/tenant-id-123/v2.0");
     assert_eq!(config.audience, Some("client-id-456".to_string()));
 }
 
@@ -75,10 +73,7 @@ fn test_oidc_config_azure_ad() {
 fn test_oidc_config_google() {
     let config = OidcConfig::google("123456.apps.googleusercontent.com");
     assert_eq!(config.issuer, "https://accounts.google.com");
-    assert_eq!(
-        config.audience,
-        Some("123456.apps.googleusercontent.com".to_string())
-    );
+    assert_eq!(config.audience, Some("123456.apps.googleusercontent.com".to_string()));
 }
 
 #[test]
@@ -146,13 +141,13 @@ fn test_oidc_config_default_cache_ttl_is_short() {
 
 fn make_validator(issuer: &str) -> OidcValidator {
     OidcValidator {
-        config: OidcConfig {
+        config:      OidcConfig {
             issuer: issuer.to_string(),
             ..Default::default()
         },
         http_client: reqwest::Client::new(),
-        jwks_uri: format!("{issuer}/.well-known/jwks.json"),
-        jwks_cache: Arc::new(RwLock::new(None)),
+        jwks_uri:    format!("{issuer}/.well-known/jwks.json"),
+        jwks_cache:  Arc::new(RwLock::new(None)),
     }
 }
 
@@ -171,7 +166,9 @@ fn make_jwk(kid: &str) -> Jwk {
 #[test]
 fn test_detect_key_rotation_when_no_cache() {
     let validator = make_validator("http://localhost:8080");
-    let new_jwks = Jwks { keys: vec![make_jwk("key1")] };
+    let new_jwks = Jwks {
+        keys: vec![make_jwk("key1")],
+    };
     // Should not detect rotation when cache is empty
     assert!(!validator.detect_key_rotation(&new_jwks));
 }
@@ -180,7 +177,9 @@ fn test_detect_key_rotation_when_no_cache() {
 fn test_detect_key_rotation_when_keys_removed() {
     let validator = make_validator("http://localhost:8080");
 
-    let old_jwks = Jwks { keys: vec![make_jwk("old_key_1"), make_jwk("old_key_2")] };
+    let old_jwks = Jwks {
+        keys: vec![make_jwk("old_key_1"), make_jwk("old_key_2")],
+    };
     {
         let mut cache = validator.jwks_cache.write();
         *cache = Some(CachedJwks {
@@ -191,7 +190,9 @@ fn test_detect_key_rotation_when_keys_removed() {
     }
 
     // New JWKS with only 1 of the old keys (old_key_2 removed)
-    let new_jwks = Jwks { keys: vec![make_jwk("old_key_1"), make_jwk("new_key_1")] };
+    let new_jwks = Jwks {
+        keys: vec![make_jwk("old_key_1"), make_jwk("new_key_1")],
+    };
     // Should detect rotation because old_key_2 is missing
     assert!(validator.detect_key_rotation(&new_jwks));
 }
@@ -200,7 +201,9 @@ fn test_detect_key_rotation_when_keys_removed() {
 fn test_detect_key_rotation_when_no_keys_removed() {
     let validator = make_validator("http://localhost:8080");
 
-    let old_jwks = Jwks { keys: vec![make_jwk("key_1"), make_jwk("key_2")] };
+    let old_jwks = Jwks {
+        keys: vec![make_jwk("key_1"), make_jwk("key_2")],
+    };
     {
         let mut cache = validator.jwks_cache.write();
         *cache = Some(CachedJwks {
@@ -211,8 +214,9 @@ fn test_detect_key_rotation_when_no_keys_removed() {
     }
 
     // New JWKS with old keys + new key (no removal)
-    let new_jwks =
-        Jwks { keys: vec![make_jwk("key_1"), make_jwk("key_2"), make_jwk("new_key")] };
+    let new_jwks = Jwks {
+        keys: vec![make_jwk("key_1"), make_jwk("key_2"), make_jwk("new_key")],
+    };
     // Should NOT detect rotation because all old keys still exist
     assert!(!validator.detect_key_rotation(&new_jwks));
 }
@@ -220,7 +224,9 @@ fn test_detect_key_rotation_when_no_keys_removed() {
 #[test]
 fn test_find_key_by_kid() {
     let validator = make_validator("http://localhost:8080");
-    let jwks = Jwks { keys: vec![make_jwk("key1"), make_jwk("key2")] };
+    let jwks = Jwks {
+        keys: vec![make_jwk("key1"), make_jwk("key2")],
+    };
 
     assert!(validator.find_key(&jwks, "key1").is_some());
     assert!(validator.find_key(&jwks, "key2").is_some());
@@ -252,7 +258,11 @@ fn test_find_key_without_kid() {
 
 #[tokio::test]
 async fn oidc_discovery_oversized_response_is_rejected() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
     use crate::security::oidc::token::MAX_DISCOVERY_RESPONSE_BYTES;
 
     let mock = MockServer::start().await;
@@ -272,15 +282,15 @@ async fn oidc_discovery_oversized_response_is_rejected() {
     let result = OidcValidator::new(config).await;
     assert!(result.is_err(), "oversized discovery response must be rejected");
     let msg = result.err().unwrap().to_string();
-    assert!(
-        msg.contains("too large"),
-        "error must mention size limit: {msg}"
-    );
+    assert!(msg.contains("too large"), "error must mention size limit: {msg}");
 }
 
 #[tokio::test]
 async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     let mock = MockServer::start().await;
 
@@ -314,7 +324,7 @@ fn with_jwks_uri_creates_validator_without_panicking() {
     // with_jwks_uri must not panic even when the client builder is invoked;
     // verifies the fallback unwrap_or_default() path compiles and runs.
     let config = OidcConfig {
-        issuer:   "https://example.com".to_string(),
+        issuer: "https://example.com".to_string(),
         jwks_uri: Some("https://example.com/.well-known/jwks.json".to_string()),
         ..Default::default()
     };

@@ -14,9 +14,9 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
 use super::super::{
-    FlightDataStream, FraiseQLFlightService, QueryExecutor, build_insert_query, decode_upload_batch,
-    encode_json_to_arrow_batch, extract_session_token, record_batch_to_flight_data,
-    validate_session_token,
+    FlightDataStream, FraiseQLFlightService, QueryExecutor, build_insert_query,
+    decode_upload_batch, encode_json_to_arrow_batch, extract_session_token,
+    record_batch_to_flight_data, validate_session_token,
 };
 use crate::{
     exchange_protocol::{ExchangeMessage, RequestType},
@@ -36,7 +36,9 @@ async fn handle_query(
     info!(user_id, correlation_id, "Executing exchange query");
 
     let result = match executor {
-        Some(exec) => exec.execute_with_security(&query, variables.as_ref(), security_context).await,
+        Some(exec) => {
+            exec.execute_with_security(&query, variables.as_ref(), security_context).await
+        },
         None => Err("No executor configured".to_string()),
     };
 
@@ -54,11 +56,27 @@ async fn handle_query(
                                 return;
                             }
                             // Send completion marker
-                            if let Ok(bytes) = (ExchangeMessage::Complete { correlation_id: correlation_id.to_string() }).to_json_bytes() {
-                                let _ = tx.send(Ok(FlightData { app_metadata: bytes.into(), ..Default::default() })).await;
+                            if let Ok(bytes) = (ExchangeMessage::Complete {
+                                correlation_id: correlation_id.to_string(),
+                            })
+                            .to_json_bytes()
+                            {
+                                let _ = tx
+                                    .send(Ok(FlightData {
+                                        app_metadata: bytes.into(),
+                                        ..Default::default()
+                                    }))
+                                    .await;
                             }
                         },
-                        Err(e) => send_exchange_error(tx, correlation_id, &format!("Conversion error: {e}")).await,
+                        Err(e) => {
+                            send_exchange_error(
+                                tx,
+                                correlation_id,
+                                &format!("Conversion error: {e}"),
+                            )
+                            .await
+                        },
                     }
                 },
                 Err(e) => send_exchange_error(tx, correlation_id, &e).await,
@@ -116,7 +134,12 @@ async fn handle_upload(
                 result:         Ok(success_msg),
             };
             if let Ok(bytes) = response.to_json_bytes() {
-                let _ = tx.send(Ok(FlightData { app_metadata: bytes.into(), ..Default::default() })).await;
+                let _ = tx
+                    .send(Ok(FlightData {
+                        app_metadata: bytes.into(),
+                        ..Default::default()
+                    }))
+                    .await;
             }
         },
         Err(e) => {
@@ -136,11 +159,8 @@ async fn handle_subscribe(
 ) {
     info!(correlation_id = %correlation_id, entity_type = %entity_type, "Starting event subscription");
 
-    let mut event_rx = subscription_manager.subscribe(
-        correlation_id.clone(),
-        entity_type.clone(),
-        filter,
-    );
+    let mut event_rx =
+        subscription_manager.subscribe(correlation_id.clone(), entity_type.clone(), filter);
 
     // Send subscription acknowledgment
     let ack_response = ExchangeMessage::Response {
@@ -148,7 +168,12 @@ async fn handle_subscribe(
         result:         Ok(format!("Subscribed to {}", entity_type).into_bytes()),
     };
     if let Ok(ack_bytes) = ack_response.to_json_bytes() {
-        let _ = tx.send(Ok(FlightData { app_metadata: ack_bytes.into(), ..Default::default() })).await;
+        let _ = tx
+            .send(Ok(FlightData {
+                app_metadata: ack_bytes.into(),
+                ..Default::default()
+            }))
+            .await;
     }
 
     // Spawn task to forward events from subscription to client
@@ -157,7 +182,7 @@ async fn handle_subscribe(
             match serde_json::to_vec(&event) {
                 Ok(event_json) => {
                     let event_data = FlightData {
-                        data_body:    event_json.into(),
+                        data_body: event_json.into(),
                         app_metadata: b"observer_event".to_vec().into(),
                         ..Default::default()
                     };
@@ -187,7 +212,12 @@ async fn send_exchange_error(
         result:         Err(message.to_string()),
     };
     if let Ok(err_bytes) = error_response.to_json_bytes() {
-        let _ = tx.send(Ok(FlightData { app_metadata: err_bytes.into(), ..Default::default() })).await;
+        let _ = tx
+            .send(Ok(FlightData {
+                app_metadata: err_bytes.into(),
+                ..Default::default()
+            }))
+            .await;
     }
 }
 
@@ -225,18 +255,39 @@ pub(super) async fn handle(
             let msg_bytes = flight_data.app_metadata.as_ref();
 
             match ExchangeMessage::from_json_bytes(msg_bytes) {
-                Ok(ExchangeMessage::Request { correlation_id, request_type }) => {
-                    match request_type {
-                        RequestType::Query { query, variables } => {
-                            handle_query(&tx, &executor, &security_context, &user_id, &correlation_id, query, variables).await;
-                        },
-                        RequestType::Upload { table, batch } => {
-                            handle_upload(&tx, &db_adapter, &user_id, &correlation_id, table, batch).await;
-                        },
-                        RequestType::Subscribe { entity_type, filter } => {
-                            handle_subscribe(tx.clone(), subscription_manager.clone(), correlation_id, entity_type, filter).await;
-                        },
-                    }
+                Ok(ExchangeMessage::Request {
+                    correlation_id,
+                    request_type,
+                }) => match request_type {
+                    RequestType::Query { query, variables } => {
+                        handle_query(
+                            &tx,
+                            &executor,
+                            &security_context,
+                            &user_id,
+                            &correlation_id,
+                            query,
+                            variables,
+                        )
+                        .await;
+                    },
+                    RequestType::Upload { table, batch } => {
+                        handle_upload(&tx, &db_adapter, &user_id, &correlation_id, table, batch)
+                            .await;
+                    },
+                    RequestType::Subscribe {
+                        entity_type,
+                        filter,
+                    } => {
+                        handle_subscribe(
+                            tx.clone(),
+                            subscription_manager.clone(),
+                            correlation_id,
+                            entity_type,
+                            filter,
+                        )
+                        .await;
+                    },
                 },
                 Ok(ExchangeMessage::Complete { correlation_id }) => {
                     info!(user_id = %user_id, correlation_id = %correlation_id, "Client stream complete");

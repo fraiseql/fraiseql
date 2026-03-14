@@ -132,8 +132,7 @@ impl SqlQueryLogBuilder {
 
     /// Finish logging and create log entry (successful execution).
     pub fn finish_success(self, rows_affected: Option<usize>) -> SqlQueryLog {
-        let duration_us =
-            u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
+        let duration_us = u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
         let was_slow = self.slow_threshold_us.is_some_and(|t| duration_us > t);
 
         let log = SqlQueryLog {
@@ -172,8 +171,7 @@ impl SqlQueryLogBuilder {
 
     /// Finish logging and create log entry (failed execution).
     pub fn finish_error(self, error: &str) -> SqlQueryLog {
-        let duration_us =
-            u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
+        let duration_us = u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
 
         let log = SqlQueryLog {
             query_id: self.query_id.clone(),
@@ -231,8 +229,11 @@ impl SqlQueryLog {
     /// Get execution time in milliseconds (for human-friendly display).
     pub fn duration_ms(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
-        // Reason: duration_us is a microsecond counter used for display; f64 precision loss is acceptable.
-        { self.duration_us as f64 / 1000.0 }
+        // Reason: duration_us is a microsecond counter used for display; f64 precision loss is
+        // acceptable.
+        {
+            self.duration_us as f64 / 1000.0
+        }
     }
 }
 

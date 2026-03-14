@@ -110,7 +110,6 @@ pub struct RuntimeConfig {
     /// Graceful-shutdown timing and health-check endpoint paths.
     #[serde(default)]
     pub lifecycle: Option<LifecycleConfig>,
-
 }
 
 /// HTTP server binding configuration.
@@ -156,7 +155,8 @@ pub struct TlsConfig {
 /// Per-request body size and concurrency limits for the HTTP server.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerLimitsConfig {
-    /// Maximum allowed request body size as a human-readable string (e.g. `"10MB"`).  Default: `"10MB"`.
+    /// Maximum allowed request body size as a human-readable string (e.g. `"10MB"`).  Default:
+    /// `"10MB"`.
     #[serde(default = "default_max_request_size")]
     pub max_request_size: String,
 

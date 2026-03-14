@@ -4,10 +4,12 @@
 //! It wraps either the in-memory or the Redis backend behind a uniform
 //! async API so callers never need to know which backend is active.
 
-use super::config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
-use super::in_memory::InMemoryRateLimiter;
 #[cfg(feature = "redis-rate-limiting")]
 use super::redis::RedisRateLimiter;
+use super::{
+    config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig},
+    in_memory::InMemoryRateLimiter,
+};
 
 /// Rate limiter that dispatches to either an in-memory or Redis backend.
 ///

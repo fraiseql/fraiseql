@@ -12,7 +12,7 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: doc comments use terms like "IdP" informally
 
 use fraiseql_auth::{PkceError, PkceStateStore};
@@ -31,10 +31,8 @@ async fn create_state_returns_non_empty_state_token() {
     let store = PkceStateStore::new(300, None);
     let redirect_uri = "https://app.example.com/callback";
 
-    let (token, verifier) = store
-        .create_state(redirect_uri)
-        .await
-        .expect("create_state must not fail");
+    let (token, verifier) =
+        store.create_state(redirect_uri).await.expect("create_state must not fail");
 
     assert!(!token.is_empty(), "R2b regression: create_state returned empty state token");
     assert!(!verifier.is_empty(), "create_state returned empty code verifier");
@@ -56,10 +54,7 @@ async fn consume_state_with_wrong_token_is_rejected_as_csrf() {
     // Attempt to consume with an attacker-controlled fake token
     let result = store.consume_state("attacker_forged_state_token_00000000").await;
 
-    assert!(
-        result.is_err(),
-        "R2b regression: CSRF check accepted mismatched state token"
-    );
+    assert!(result.is_err(), "R2b regression: CSRF check accepted mismatched state token");
     assert!(
         matches!(result, Err(PkceError::StateNotFound)),
         "CSRF rejection must return StateNotFound, got: {result:?}"
@@ -75,10 +70,8 @@ async fn consume_state_with_correct_token_succeeds() {
     let store = PkceStateStore::new(300, None);
     let redirect_uri = "https://app.example.com/callback";
 
-    let (token, verifier) = store
-        .create_state(redirect_uri)
-        .await
-        .expect("create_state must succeed");
+    let (token, verifier) =
+        store.create_state(redirect_uri).await.expect("create_state must succeed");
 
     let consumed = store.consume_state(&token).await.expect("consume_state must succeed");
 

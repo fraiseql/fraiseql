@@ -18,11 +18,11 @@ pub const DEFAULT_MAX_ALIASES: usize = 30;
 #[derive(Debug, Clone)]
 pub struct ComplexityConfig {
     /// Maximum query depth (nesting level) — default: 10
-    pub max_depth: usize,
+    pub max_depth:      usize,
     /// Maximum complexity score — default: 100
     pub max_complexity: usize,
     /// Maximum number of field aliases per query — default: 30
-    pub max_aliases: usize,
+    pub max_aliases:    usize,
 }
 
 impl Default for ComplexityConfig {
@@ -275,9 +275,7 @@ impl RequestValidator {
                         self.selection_set_depth(ss, fragments, 0)
                     },
                 },
-                Definition::Fragment(f) => {
-                    self.selection_set_depth(&f.selection_set, fragments, 0)
-                },
+                Definition::Fragment(f) => self.selection_set_depth(&f.selection_set, fragments, 0),
             })
             .max()
             .unwrap_or(0)
@@ -310,9 +308,7 @@ impl RequestValidator {
                     self.selection_set_depth(&inline.selection_set, fragments, recursion_depth)
                 },
                 Selection::FragmentSpread(spread) => {
-                    if let Some(frag) =
-                        fragments.iter().find(|f| f.name == spread.fragment_name)
-                    {
+                    if let Some(frag) = fragments.iter().find(|f| f.name == spread.fragment_name) {
                         self.selection_set_depth(
                             &frag.selection_set,
                             fragments,
@@ -386,9 +382,7 @@ impl RequestValidator {
                     self.selection_set_complexity(&inline.selection_set, fragments, recursion_depth)
                 },
                 Selection::FragmentSpread(spread) => {
-                    if let Some(frag) =
-                        fragments.iter().find(|f| f.name == spread.fragment_name)
-                    {
+                    if let Some(frag) = fragments.iter().find(|f| f.name == spread.fragment_name) {
                         self.selection_set_complexity(
                             &frag.selection_set,
                             fragments,
@@ -435,7 +429,9 @@ impl Default for RequestValidator {
 }
 
 /// Collect all fragment definitions from a parsed document.
-fn collect_fragments<'a>(document: &'a Document<'a, String>) -> Vec<&'a FragmentDefinition<'a, String>> {
+fn collect_fragments<'a>(
+    document: &'a Document<'a, String>,
+) -> Vec<&'a FragmentDefinition<'a, String>> {
     document
         .definitions
         .iter()
@@ -450,9 +446,7 @@ fn collect_fragments<'a>(document: &'a Document<'a, String>) -> Vec<&'a Fragment
 }
 
 /// Extract pagination limit from field arguments to use as a cost multiplier.
-fn extract_limit_multiplier(
-    arguments: &[(String, graphql_parser::query::Value<String>)],
-) -> usize {
+fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<String>)]) -> usize {
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             if let graphql_parser::query::Value::Int(n) = value {
@@ -617,7 +611,10 @@ mod tests {
         assert!(
             matches!(
                 validator.validate_query(query),
-                Err(ValidationError::TooManyAliases { actual_aliases: 3, .. })
+                Err(ValidationError::TooManyAliases {
+                    actual_aliases: 3,
+                    ..
+                })
             ),
             "should report alias count"
         );
@@ -696,8 +693,6 @@ mod tests {
         };
         let validator = RequestValidator::from_config(config);
         // Depth-6 query should fail
-        assert!(validator
-            .validate_query("{ a { b { c { d { e { f } } } } } }")
-            .is_err());
+        assert!(validator.validate_query("{ a { b { c { d { e { f } } } } } }").is_err());
     }
 }

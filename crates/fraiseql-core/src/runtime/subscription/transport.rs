@@ -15,8 +15,8 @@ use super::{SubscriptionError, types::SubscriptionEvent};
 ///
 /// - [`super::WebhookAdapter`] - HTTP POST delivery with retry logic
 /// - [`super::KafkaAdapter`] - Apache Kafka event streaming
-// Reason: used as dyn Trait (Box<dyn TransportAdapter>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Box<dyn TransportAdapter>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait TransportAdapter: Send + Sync {
     /// Deliver an event to the transport.

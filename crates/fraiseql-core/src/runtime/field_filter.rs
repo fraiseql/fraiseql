@@ -16,7 +16,7 @@ pub struct FieldAccessResult {
     /// Fields the user can access (returned as-is).
     pub allowed: Vec<String>,
     /// Fields the user cannot access but `on_deny = Mask` (nulled out).
-    pub masked: Vec<String>,
+    pub masked:  Vec<String>,
 }
 
 /// Classify requested projection fields into allowed, masked, or rejected.
@@ -24,8 +24,8 @@ pub struct FieldAccessResult {
 /// For each requested field:
 /// - If the user can access it (public or has scope) → `allowed`
 /// - If the user lacks scope and `on_deny = Mask` → `masked`
-/// - If the user lacks scope and `on_deny = Reject` → returns `Err` with
-///   the field name (caller should produce a FORBIDDEN error)
+/// - If the user lacks scope and `on_deny = Reject` → returns `Err` with the field name (caller
+///   should produce a FORBIDDEN error)
 ///
 /// # Errors
 ///
@@ -122,7 +122,10 @@ pub fn can_access_field(
     }
 
     // Field has a scope requirement - check if user's roles grant it
-    let required_scope = field.requires_scope.as_ref().expect("requires_scope is Some; None was returned above");
+    let required_scope = field
+        .requires_scope
+        .as_ref()
+        .expect("requires_scope is Some; None was returned above");
     context.can_access_scope(security_config, required_scope)
 }
 
@@ -144,7 +147,7 @@ mod tests {
             alias:          None,
             deprecation:    None,
             requires_scope: requires_scope.map(|s| s.to_string()),
-            on_deny: FieldDenyPolicy::default(),
+            on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
         }
     }
@@ -257,17 +260,17 @@ mod tests {
         on_deny: FieldDenyPolicy,
     ) -> FieldDefinition {
         FieldDefinition {
-            name:           name.into(),
-            field_type:     FieldType::String,
-            nullable:       false,
-            default_value:  None,
-            description:    None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
+            name: name.into(),
+            field_type: FieldType::String,
+            nullable: false,
+            default_value: None,
+            description: None,
+            vector_config: None,
+            alias: None,
+            deprecation: None,
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny,
-            encryption:     None,
+            encryption: None,
         }
     }
 

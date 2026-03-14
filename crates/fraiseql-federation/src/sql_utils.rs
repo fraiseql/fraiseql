@@ -2,9 +2,8 @@
 //!
 //! Shared utilities for SQL generation across federation modules.
 
-use serde_json::Value;
-
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 /// Validates that a string is a safe SQL identifier.
 ///

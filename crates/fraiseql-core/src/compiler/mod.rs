@@ -255,7 +255,8 @@ impl Compiler {
         tracing::debug!("Validating schema...");
         let validated_ir = self.validator.validate(ir)?;
 
-        // Lower IR → SQL templates (validates SQL generation; templates currently unused by codegen)
+        // Lower IR → SQL templates (validates SQL generation; templates currently unused by
+        // codegen)
         tracing::debug!("Generating SQL templates...");
         let _sql_templates = self.lowering.generate(&validated_ir)?;
 
@@ -339,7 +340,10 @@ mod tests {
         let err = Compiler::new().compile(schema).unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }), "got: {err:?}");
         if let FraiseQLError::Validation { message, .. } = err {
-            assert!(message.contains("User"), "error message should name the unknown type: {message}");
+            assert!(
+                message.contains("User"),
+                "error message should name the unknown type: {message}"
+            );
         }
     }
 
@@ -402,7 +406,10 @@ mod tests {
         let metadata = FactTableMetadata {
             table_name:           "tf_sales".to_string(),
             measures:             vec![],
-            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
         };

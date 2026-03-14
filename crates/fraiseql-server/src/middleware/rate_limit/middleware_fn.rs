@@ -3,7 +3,10 @@
 //! Contains the axum middleware entry-point, IP extraction logic, and the
 //! JWT subject parser used for per-user rate limiting.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use axum::{
     body::Body,
@@ -15,7 +18,6 @@ use axum::{
 use tracing::warn;
 
 use super::{config::RateLimitConfig, dispatch::RateLimiter, key::is_private_or_loopback};
-use std::net::IpAddr;
 
 /// Rate limit middleware response.
 ///
@@ -122,8 +124,7 @@ pub(super) fn extract_jwt_subject(authorization: &str) -> Option<String> {
     use base64::Engine as _;
     let token = authorization.strip_prefix("Bearer ")?;
     let payload_b64 = token.split('.').nth(1)?;
-    let decoded =
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
     let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
     json.get("sub").and_then(|v| v.as_str()).map(String::from)
 }
@@ -132,9 +133,9 @@ pub(super) fn extract_jwt_subject(authorization: &str) -> Option<String> {
 ///
 /// Decision order:
 /// 1. Per-path limit (auth endpoints) — always checked, uses path-specific window.
-/// 2. Per-user limit (authenticated requests) — checked when a JWT `sub` claim is
-///    present in the `Authorization` header; authenticated users get `rps_per_user`
-///    (default 10× `rps_per_ip`) instead of the shared IP bucket.
+/// 2. Per-user limit (authenticated requests) — checked when a JWT `sub` claim is present in the
+///    `Authorization` header; authenticated users get `rps_per_user` (default 10× `rps_per_ip`)
+///    instead of the shared IP bucket.
 /// 3. Per-IP limit (unauthenticated or no bearer token) — fallback.
 ///
 /// # Errors
@@ -171,7 +172,9 @@ pub async fn rate_limit_middleware(
     let path_result = limiter.check_path_limit(&path, &ip).await;
     if !path_result.allowed {
         warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
-        return Err(RateLimitExceeded { retry_after_secs: path_result.retry_after_secs });
+        return Err(RateLimitExceeded {
+            retry_after_secs: path_result.retry_after_secs,
+        });
     }
 
     // ── Per-user or per-IP limit ──────────────────────────────────────────
@@ -189,7 +192,9 @@ pub async fn rate_limit_middleware(
         } else {
             warn!(ip = %ip, "IP rate limit exceeded");
         }
-        return Err(RateLimitExceeded { retry_after_secs: limit_result.retry_after_secs });
+        return Err(RateLimitExceeded {
+            retry_after_secs: limit_result.retry_after_secs,
+        });
     }
 
     let remaining = limit_result.remaining;

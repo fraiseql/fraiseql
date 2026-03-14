@@ -230,17 +230,15 @@ fn test_openapi_spec_endpoints_have_descriptions() {
     let paths = &spec["paths"];
 
     // Check that at least one endpoint has description
-    let has_descriptions = paths
-        .as_object()
-        .is_some_and(|paths| {
-            paths.iter().any(|(_, endpoint)| {
-                endpoint
-                    .get("post")
-                    .or_else(|| endpoint.get("get"))
-                    .and_then(|op| op.get("description"))
-                    .is_some()
-            })
-        });
+    let has_descriptions = paths.as_object().is_some_and(|paths| {
+        paths.iter().any(|(_, endpoint)| {
+            endpoint
+                .get("post")
+                .or_else(|| endpoint.get("get"))
+                .and_then(|op| op.get("description"))
+                .is_some()
+        })
+    });
 
     assert!(has_descriptions, "Endpoints should have descriptions");
 }

@@ -23,9 +23,7 @@ pub enum AuthError {
     TokenExpired,
 
     /// The token's cryptographic signature did not verify against the expected key.
-    #[error(
-        "Token signature is invalid. Ensure the token was issued by the expected provider."
-    )]
+    #[error("Token signature is invalid. Ensure the token was issued by the expected provider.")]
     InvalidSignature,
 
     /// A required JWT claim (`sub`, `iss`, `aud`, etc.) was absent from the token.
@@ -39,7 +37,7 @@ pub enum AuthError {
     #[error("Invalid claim: {claim} - {reason}")]
     InvalidClaimValue {
         /// Name of the claim that failed validation.
-        claim: String,
+        claim:  String,
         /// Internal description of the validation failure (not forwarded to callers).
         reason: String,
     },

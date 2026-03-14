@@ -3,10 +3,12 @@
 //! Converts `FieldDefinition`, `FieldType`, and validation rules from the compiled
 //! schema into their `__Field`, `__InputValue`, and related introspection types.
 
-use super::super::{FieldDefinition, FieldType};
-use super::types::{
-    IntrospectionField, IntrospectionInputValue, IntrospectionType, IntrospectionValidationRule,
-    TypeKind,
+use super::{
+    super::{FieldDefinition, FieldType},
+    types::{
+        IntrospectionField, IntrospectionInputValue, IntrospectionType,
+        IntrospectionValidationRule, TypeKind,
+    },
 };
 
 // =============================================================================
@@ -98,14 +100,14 @@ pub fn type_ref(name: &str) -> IntrospectionType {
 pub fn type_ref_with_kind(name: &str, kind: TypeKind) -> IntrospectionType {
     IntrospectionType {
         kind,
-        name:               Some(name.to_string()),
-        description:        None,
-        fields:             None,
-        interfaces:         None,
-        possible_types:     None,
-        enum_values:        None,
-        input_fields:       None,
-        of_type:            None,
+        name: Some(name.to_string()),
+        description: None,
+        fields: None,
+        interfaces: None,
+        possible_types: None,
+        enum_values: None,
+        input_fields: None,
+        of_type: None,
         specified_by_u_r_l: None,
     }
 }

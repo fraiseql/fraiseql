@@ -1,8 +1,7 @@
 //! Entity representation parsing for _Any scalar.
 
-use serde_json::Value;
-
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 /// Maximum number of entity representations accepted in a single `_entities` call.
 ///
@@ -35,19 +34,18 @@ pub fn parse_representations(
                 "Too many entity representations: {} (max {MAX_ENTITIES_BATCH_SIZE})",
                 array.len()
             ),
-            path: None,
+            path:    None,
         });
     }
 
     let mut reps = Vec::new();
 
     for (idx, item) in array.iter().enumerate() {
-        let mut rep = EntityRepresentation::from_any(item).map_err(|e| {
-            FraiseQLError::Validation {
+        let mut rep =
+            EntityRepresentation::from_any(item).map_err(|e| FraiseQLError::Validation {
                 message: format!("Representation {idx}: {e}"),
                 path:    None,
-            }
-        })?;
+            })?;
 
         // Extract key fields based on metadata
         if let Some(fed_type) = metadata.types.iter().find(|t| t.name == rep.typename) {
