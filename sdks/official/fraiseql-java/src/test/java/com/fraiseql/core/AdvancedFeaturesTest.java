@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Advanced features including argument defaults, validation, and nullable types
  */
-public class Phase5AdvancedTest {
+public class AdvancedFeaturesTest {
 
     @BeforeEach
     public void setUp() {

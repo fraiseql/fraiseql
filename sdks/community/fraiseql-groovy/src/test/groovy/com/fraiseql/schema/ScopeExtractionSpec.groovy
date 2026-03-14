@@ -7,7 +7,7 @@ import spock.lang.BeforeEach
 /**
  * Groovy SDK - Field Scope Extraction & Validation
  *
- * RED phase tests for field-level RBAC scope extraction.
+ * Tests for field-level RBAC scope extraction.
  * Tests cover:
  * - Field creation with scope metadata
  * - Single scope requirements (scope key)
@@ -16,7 +16,7 @@ import spock.lang.BeforeEach
  * - SchemaRegistry for type tracking
  * - JSON export with scope metadata
  */
-class Phase18Cycle18ScopeExtractionSpec extends Specification {
+class ScopeExtractionSpec extends Specification {
 
   @BeforeEach
   void setup() {

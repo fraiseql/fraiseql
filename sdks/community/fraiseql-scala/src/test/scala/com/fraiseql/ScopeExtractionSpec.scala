@@ -8,7 +8,7 @@ import org.scalatest.BeforeAndAfterEach
 /**
  * Scala SDK - Field Scope Extraction & Validation
  *
- * RED phase tests for field-level RBAC scope extraction.
+ * Tests for field-level RBAC scope extraction.
  * Tests cover:
  * - Field struct creation and properties
  * - Single scope requirements (scope)
@@ -17,7 +17,7 @@ import org.scalatest.BeforeAndAfterEach
  * - SchemaRegistry for type tracking
  * - JSON export with scope metadata
  */
-class Phase18Cycle17ScopeExtractionSpec extends AnyFlatSpec with Matchers with BeforeAndAfterEach {
+class ScopeExtractionSpec extends AnyFlatSpec with Matchers with BeforeAndAfterEach {
 
   override def beforeEach(): Unit = {
     Schema.reset()

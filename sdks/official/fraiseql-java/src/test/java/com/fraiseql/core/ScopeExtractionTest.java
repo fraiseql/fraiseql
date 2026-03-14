@@ -15,13 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Tests that field scopes are properly extracted from @GraphQLField annotations,
  * stored in the schema registry, and exported to JSON for compiler consumption.
- *
- * RED Phase: 21 comprehensive test cases
- * - 15 happy path tests for scope extraction and export
- * - 6 validation tests for error handling
  */
 @DisplayName("Java SDK Field Scope Extraction & Export")
-public class Phase18Cycle9ScopeExtractionTest {
+public class ScopeExtractionTest {
 
     private SchemaRegistry registry;
     private ObjectMapper mapper;
@@ -40,7 +36,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Single scope is extracted from @GraphQLField annotation")
     void testSingleScopeExtraction() {
-        // RED: This test fails because GraphQLFieldInfo doesn't store scope
         FraiseQL.registerType(UserWithSingleScope.class);
 
         var typeInfo = registry.getType("UserWithSingleScope");
@@ -55,7 +50,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Multiple different scopes on different fields are extracted correctly")
     void testMultipleDifferentScopesExtraction() {
-        // RED: Tests extraction of different scopes on different fields
         FraiseQL.registerType(UserWithMultipleScopes.class);
 
         var typeInfo = registry.getType("UserWithMultipleScopes");
@@ -70,7 +64,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Public field with no scope requirement is handled correctly")
     void testPublicFieldNoScopeExtraction() {
-        // RED: Public fields should have null/empty scope
         FraiseQL.registerType(UserWithMixedFields.class);
 
         var typeInfo = registry.getType("UserWithMixedFields");
@@ -89,7 +82,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Multiple scopes on single field are extracted as array")
     void testMultipleScopesOnSingleField() {
-        // RED: Field with requiresScopes = {...} array
         FraiseQL.registerType(AdminWithMultipleScopesPerField.class);
 
         var typeInfo = registry.getType("AdminWithMultipleScopesPerField");
@@ -108,7 +100,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Mixed: some fields with single scope, some with multiple")
     void testMixedSingleAndMultipleScopes() {
-        // RED: Type with both single-scope and multi-scope fields
         FraiseQL.registerType(MixedScopeTypes.class);
 
         var typeInfo = registry.getType("MixedScopeTypes");
@@ -128,7 +119,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope arrays are preserved in order")
     void testScopeArrayOrder() {
-        // RED: Scopes array order must be preserved
         FraiseQL.registerType(OrderedScopes.class);
 
         var typeInfo = registry.getType("OrderedScopes");
@@ -148,7 +138,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Resource-based scope pattern (read:Resource.field)")
     void testResourceBasedScopePattern() {
-        // RED: Resource pattern like read:User.email
         FraiseQL.registerType(ResourcePatternScopes.class);
 
         var typeInfo = registry.getType("ResourcePatternScopes");
@@ -162,7 +151,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Action-based scope pattern (action:*)")
     void testActionBasedScopePattern() {
-        // RED: Action patterns like read:*, write:*, admin:*
         FraiseQL.registerType(ActionPatternScopes.class);
 
         var typeInfo = registry.getType("ActionPatternScopes");
@@ -176,7 +164,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Global wildcard scope (*)")
     void testGlobalWildcardScope() {
-        // RED: Global wildcard matching all scopes
         FraiseQL.registerType(GlobalWildcardScope.class);
 
         var typeInfo = registry.getType("GlobalWildcardScope");
@@ -194,7 +181,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope is exported to JSON for single scope field")
     void testScopeExportToJsonSingleScope() throws Exception {
-        // RED: Scope must appear in JSON export
         FraiseQL.registerType(ExportTestSingleScope.class);
 
         var schema = SchemaFormatter.formatMinimalSchema(registry);
@@ -211,7 +197,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scopes array is exported to JSON for multiple scopes field")
     void testScopeExportToJsonMultipleScopes() throws Exception {
-        // RED: requiresScopes array exported as requires_scopes
         FraiseQL.registerType(ExportTestMultipleScopes.class);
 
         var schema = SchemaFormatter.formatMinimalSchema(registry);
@@ -229,7 +214,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Public fields without scope are not exported with scope field")
     void testPublicFieldJsonExport() throws Exception {
-        // RED: Public fields should NOT have requires_scope in JSON
         FraiseQL.registerType(ExportTestPublicField.class);
 
         var schema = SchemaFormatter.formatMinimalSchema(registry);
@@ -249,7 +233,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope is preserved alongside other field metadata")
     void testScopePreservedWithMetadata() {
-        // RED: Scope doesn't interfere with description, nullable, etc.
         FraiseQL.registerType(ScopeWithMetadata.class);
 
         var typeInfo = registry.getType("ScopeWithMetadata");
@@ -264,7 +247,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope works alongside deprecated field marker")
     void testScopeWithDeprecation() {
-        // RED: Scope and deprecated can coexist
         FraiseQL.registerType(ScopeWithDeprecation.class);
 
         var typeInfo = registry.getType("ScopeWithDeprecation");
@@ -278,7 +260,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Multiple fields with scopes maintain separate metadata")
     void testMultipleScopedFieldsMetadataIndependence() {
-        // RED: Each field's metadata is independent
         FraiseQL.registerType(MetadataIndependence.class);
 
         var typeInfo = registry.getType("MetadataIndependence");
@@ -303,7 +284,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Invalid scope format is detected and logged")
     void testInvalidScopeFormatDetection() {
-        // RED: Invalid scopes should be detected
         // Invalid: missing colon, wrong format
         assertThrows(RuntimeException.class, () -> {
             FraiseQL.registerType(InvalidScopeFormat.class);
@@ -313,7 +293,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Empty scope string is rejected")
     void testEmptyScopeRejection() {
-        // RED: Empty string scope invalid
         assertThrows(RuntimeException.class, () -> {
             FraiseQL.registerType(EmptyScope.class);
         }, "Empty scope should be rejected");
@@ -322,7 +301,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Null scope is handled gracefully")
     void testNullScopeHandling() {
-        // RED: Null scope treated as public field
         FraiseQL.registerType(NullScope.class);
 
         var typeInfo = registry.getType("NullScope");
@@ -336,7 +314,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Empty requiresScopes array is rejected")
     void testEmptyScopesArrayRejection() {
-        // RED: Empty array not allowed
         assertThrows(RuntimeException.class, () -> {
             FraiseQL.registerType(EmptyScopesArray.class);
         }, "Empty scopes array should be rejected");
@@ -345,7 +322,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope validation catches invalid action with hyphens")
     void testInvalidActionWithHyphensValidation() {
-        // RED: Hyphens in action prefix are invalid
         assertThrows(RuntimeException.class, () -> {
             FraiseQL.registerType(InvalidActionWithHyphens.class);
         }, "Action with hyphens should be rejected");
@@ -354,7 +330,6 @@ public class Phase18Cycle9ScopeExtractionTest {
     @Test
     @DisplayName("Scope validation catches invalid resource with hyphens")
     void testInvalidResourceWithHyphensValidation() {
-        // RED: Hyphens in resource name are invalid
         assertThrows(RuntimeException.class, () -> {
             FraiseQL.registerType(InvalidResourceWithHyphens.class);
         }, "Resource with hyphens should be rejected");

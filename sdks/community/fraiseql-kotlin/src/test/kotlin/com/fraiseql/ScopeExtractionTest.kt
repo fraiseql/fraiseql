@@ -19,12 +19,12 @@ import kotlin.test.assertFalse
  * Tests that field scopes are properly extracted from @GraphQLField annotations,
  * stored in field registry, and exported to JSON for compiler consumption.
  *
- * RED Phase: 21 comprehensive test cases
+ * 21 comprehensive test cases
  * - 15 happy path tests for scope extraction and export
  * - 6 validation tests for error handling
  */
 @DisplayName("Kotlin SDK Field Scope Extraction & Export")
-class Phase18Cycle12ScopeExtractionTest {
+class ScopeExtractionTest {
 
     @BeforeEach
     fun setUp() {
@@ -38,7 +38,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Single scope is extracted from @GraphQLField annotation")
     fun testSingleScopeExtraction() {
-        // RED: This test fails because FieldDefinition doesn't store scope
+        // Verify FieldDefinition stores scope
         val fields = mapOf(
             "id" to mapOf("type" to "Int"),
             "salary" to mapOf(
@@ -61,7 +61,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Multiple different scopes on different fields are extracted correctly")
     fun testMultipleDifferentScopesExtraction() {
-        // RED: Tests extraction of different scopes on different fields
+        // Tests extraction of different scopes on different fields
         val fields = mapOf(
             "id" to mapOf("type" to "Int"),
             "email" to mapOf("type" to "String", "scope" to "read:user.email"),
@@ -82,7 +82,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Public field with no scope requirement is handled correctly")
     fun testPublicFieldNoScopeExtraction() {
-        // RED: Public fields should have null/empty scope
+        // Public fields should have null/empty scope
         val fields = mapOf(
             "id" to mapOf("type" to "Int"),
             "name" to mapOf("type" to "String"),
@@ -106,7 +106,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Multiple scopes on single field are extracted as array")
     fun testMultipleScopesOnSingleField() {
-        // RED: Field with scopes array
+        // Field with scopes array
         val fields = mapOf(
             "id" to mapOf("type" to "Int"),
             "adminNotes" to mapOf(
@@ -133,7 +133,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Mixed: some fields with single scope, some with multiple")
     fun testMixedSingleAndMultipleScopes() {
-        // RED: Type with both single-scope and multi-scope fields
+        // Type with both single-scope and multi-scope fields
         val fields = mapOf(
             "basicField" to mapOf("type" to "String", "scope" to "read:basic"),
             "advancedField" to mapOf("type" to "String", "scopes" to listOf("read:advanced", "admin"))
@@ -151,7 +151,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope arrays are preserved in order")
     fun testScopeArrayOrder() {
-        // RED: Scopes array order must be preserved
+        // Scopes array order must be preserved
         val fields = mapOf(
             "restricted" to mapOf(
                 "type" to "String",
@@ -179,7 +179,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Resource-based scope pattern (read:Resource.field)")
     fun testResourceBasedScopePattern() {
-        // RED: Resource pattern like read:User.email
+        // Resource pattern like read:User.email
         val fields = mapOf(
             "email" to mapOf("type" to "String", "scope" to "read:User.email"),
             "phone" to mapOf("type" to "String", "scope" to "read:User.phone")
@@ -196,7 +196,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Action-based scope pattern (action:*)")
     fun testActionBasedScopePattern() {
-        // RED: Action patterns like read:*, write:*, admin:*
+        // Action patterns like read:*, write:*, admin:*
         val fields = mapOf(
             "readableField" to mapOf("type" to "String", "scope" to "read:User.*"),
             "writableField" to mapOf("type" to "String", "scope" to "write:User.*")
@@ -214,7 +214,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Global wildcard scope (*)")
     fun testGlobalWildcardScope() {
-        // RED: Global wildcard matching all scopes
+        // Global wildcard matching all scopes
         val fields = mapOf(
             "adminOverride" to mapOf("type" to "String", "scope" to "*")
         )
@@ -235,7 +235,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope is exported to JSON for single scope field")
     fun testScopeExportToJsonSingleScope() {
-        // RED: Scope must appear in JSON export
+        // Scope must appear in JSON export
         val fields = mapOf(
             "salary" to mapOf("type" to "Float", "scope" to "read:user.salary")
         )
@@ -262,7 +262,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scopes array is exported to JSON for multiple scopes field")
     fun testScopeExportToJsonMultipleScopes() {
-        // RED: scopes array exported as scopes field
+        // Scopes array exported as scopes field
         val fields = mapOf(
             "restricted" to mapOf("type" to "String", "scopes" to listOf("scope1", "scope2"))
         )
@@ -288,7 +288,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Public fields without scope are not exported with scope field")
     fun testPublicFieldJsonExport() {
-        // RED: Public fields should NOT have scope in JSON
+        // Public fields should NOT have scope in JSON
         val fields = mapOf(
             "id" to mapOf("type" to "Int"),
             "name" to mapOf("type" to "String")
@@ -320,7 +320,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope is preserved alongside other field metadata")
     fun testScopePreservedWithMetadata() {
-        // RED: Scope doesn't interfere with type, nullable, description
+        // Scope doesn't interfere with type, nullable, description
         val fields = mapOf(
             "salary" to mapOf(
                 "type" to "Float",
@@ -344,7 +344,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope works with nullable fields")
     fun testScopeWithNullableField() {
-        // RED: Scope works on nullable fields
+        // Scope works on nullable fields
         val fields = mapOf(
             "optionalEmail" to mapOf(
                 "type" to "String",
@@ -367,7 +367,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Multiple fields with scopes maintain separate metadata")
     fun testMultipleScopedFieldsMetadataIndependence() {
-        // RED: Each field's metadata is independent
+        // Each field's metadata is independent
         val fields = mapOf(
             "field1" to mapOf(
                 "type" to "String",
@@ -399,7 +399,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Invalid scope format is detected and raises error")
     fun testInvalidScopeFormatDetection() {
-        // RED: Invalid scopes should be detected
+        // Invalid scopes should be detected
         val fields = mapOf(
             "field" to mapOf(
                 "type" to "String",
@@ -415,7 +415,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Empty scope string is rejected")
     fun testEmptyScopeRejection() {
-        // RED: Empty string scope invalid
+        // Empty string scope invalid
         val fields = mapOf(
             "field" to mapOf("type" to "String", "scope" to "")
         )
@@ -428,7 +428,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Empty scopes array is rejected")
     fun testEmptyScopesArrayRejection() {
-        // RED: Empty array not allowed
+        // Empty array not allowed
         val fields = mapOf(
             "field" to mapOf("type" to "String", "scopes" to emptyList<String>())
         )
@@ -441,7 +441,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope validation catches invalid action prefix")
     fun testInvalidActionPrefixValidation() {
-        // RED: Invalid action prefix format
+        // Invalid action prefix format
         val fields = mapOf(
             "field" to mapOf("type" to "String", "scope" to "invalid-action:resource")
         )
@@ -454,7 +454,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Scope validation catches invalid resource name")
     fun testInvalidResourceNameValidation() {
-        // RED: Invalid resource name format
+        // Invalid resource name format
         val fields = mapOf(
             "field" to mapOf("type" to "String", "scope" to "read:invalid-resource-name")
         )
@@ -467,7 +467,7 @@ class Phase18Cycle12ScopeExtractionTest {
     @Test
     @DisplayName("Conflicting both scope and scopes is rejected")
     fun testConflictingBothScopeAndScopes() {
-        // RED: Can't have both scope and scopes on same field
+        // Can't have both scope and scopes on same field
         val fields = mapOf(
             "field" to mapOf(
                 "type" to "String",

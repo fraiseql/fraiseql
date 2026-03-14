@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Caching, performance optimization, and monitoring
  */
-public class Phase6OptimizationTest {
+public class CachingAndMonitoringTest {
 
     @BeforeEach
     public void setUp() {

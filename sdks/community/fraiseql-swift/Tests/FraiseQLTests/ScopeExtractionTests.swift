@@ -1,7 +1,7 @@
 import XCTest
 @testable import FraiseQL
 
-final class Phase18Cycle19ScopeExtractionTests: XCTestCase {
+final class ScopeExtractionTests: XCTestCase {
 
   override func setUp() {
     super.setUp()

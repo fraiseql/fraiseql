@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests: Complete workflows and real-world scenarios
  */
-public class Phase4IntegrationTest {
+public class WorkflowIntegrationTest {
 
     @BeforeEach
     public void setUp() {

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * JSON export and schema formatting
  */
-public class Phase3Test {
+public class JsonExportTest {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
@@ -73,7 +73,7 @@ public class Phase3Test {
 
         ObjectNode userType = (ObjectNode) types.get("User");
         assertEquals("User", userType.get("name").asText());
-        assertEquals("com.fraiseql.core.Phase3Test$User", userType.get("javaClass").asText());
+        assertEquals("com.fraiseql.core.JsonExportTest$User", userType.get("javaClass").asText());
 
         ObjectNode fields = (ObjectNode) userType.get("fields");
         assertTrue(fields.has("id"));
