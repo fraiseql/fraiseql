@@ -1,5 +1,5 @@
 # Trivy Vulnerability Exceptions for International Compliance
-# Last Updated: 2025-12-22
+# Last Updated: 2026-03-14
 # Review Schedule: Monthly
 # Approval: Security Team
 # Compliance: US (NIST/FedRAMP), EU (NIS2/GDPR), UK (NCSC), ISO 27001, SOC 2
@@ -131,17 +131,8 @@ CVE-2022-0563
 # -----------------------------------------------------------------------------
 
 # CVE-2025-14104: util-linux heap buffer overread
-# Justification: Requires 256+ byte username input to setpwnam() function
-# Impact: Heap buffer overread in rarely-used account management utilities
-# Severity: MEDIUM
-# Mitigation:
-#   - Container runs as non-root 'fraiseql' user
-#   - No user account management operations in runtime
-#   - chfn/chsh/getpwent utilities not exposed via API
-#   - Container filesystem is read-only during operation
-# Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
-# Review Date: 2026-02-11 (weekly check for Debian package update)
-CVE-2025-14104
+# Status: RESOLVED - Fixed in python:3.13-slim base image as of 2026-03-14
+# Removed from exceptions list (no longer needed)
 
 # CVE-2025-6141: ncurses stack buffer overflow
 # Justification: Stack buffer overflow in termcap handling (rare input)
@@ -153,7 +144,7 @@ CVE-2025-14104
 #   - No user input processed as termcap/terminfo
 #   - Defense-in-depth: ASLR, stack canaries prevent exploitation
 # Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
-# Review Date: 2026-02-11 (weekly check for Debian package update)
+# Review Date: 2026-03-21 (weekly check for Debian package update)
 CVE-2025-6141
 
 # CVE-2024-56433: shadow-utils subordinate ID configuration
@@ -166,7 +157,7 @@ CVE-2025-6141
 #   - /etc/login.defs is immutable during operation
 #   - No interactive shell access to container
 # Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
-# Review Date: 2026-02-11 (weekly check for Debian package update)
+# Review Date: 2026-03-21 (weekly check for Debian package update)
 CVE-2024-56433
 
 # CVE-2025-9820: GnuTLS vulnerability (GNUTLS-SA-2025-11-18)
