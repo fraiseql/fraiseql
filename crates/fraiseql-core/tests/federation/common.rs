@@ -106,7 +106,6 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for MockDatabaseAdapter {}
@@ -175,7 +174,6 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for MockMutationDatabaseAdapter {}

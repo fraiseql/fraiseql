@@ -1,6 +1,6 @@
 //! GraphQL introspection mirror types.
 //!
-//! Re-exports the introspection types from the [`introspection`](super::introspection) module.
+//! Re-exports the introspection types from the `introspection` module.
 //! These are the Rust representations of the standard GraphQL introspection system types
 //! (`__Schema`, `__Type`, `__Field`, `__EnumValue`, `__InputValue`, `__Directive`).
 //!

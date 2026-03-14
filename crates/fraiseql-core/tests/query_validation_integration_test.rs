@@ -6,7 +6,7 @@
 //! rather than hand-constructing JSON values.
 
 use fraiseql_core::{graphql::parse_query, schema::FieldType};
-use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
+use fraiseql_test_utils::schema_builder::{TestSchemaBuilder, TestTypeBuilder};
 
 // ============================================================================
 // PARSE QUERY

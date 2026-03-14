@@ -19,7 +19,7 @@ pub struct WebhookLifecycle {
     on_subscribe_url:   Option<String>,
     on_unsubscribe_url: Option<String>,
     #[allow(dead_code)] // Reason: kept for future use in fail-closed unsubscribe logic.
-    timeout:            Duration,
+    timeout: Duration,
 }
 
 impl WebhookLifecycle {
@@ -30,24 +30,21 @@ impl WebhookLifecycle {
     /// fire-and-forget (timeout is irrelevant for those hooks).
     #[must_use]
     pub fn new(
-        on_connect_url:     Option<String>,
-        on_disconnect_url:  Option<String>,
-        on_subscribe_url:   Option<String>,
+        on_connect_url: Option<String>,
+        on_disconnect_url: Option<String>,
+        on_subscribe_url: Option<String>,
         on_unsubscribe_url: Option<String>,
-        timeout_ms:         u64,
+        timeout_ms: u64,
     ) -> Self {
         let timeout = Duration::from_millis(timeout_ms);
-        let client = reqwest::Client::builder()
-            .timeout(timeout)
-            .build()
-            .unwrap_or_else(|e| {
-                warn!(
-                    error = %e,
-                    "Failed to build reqwest client with timeout; using default client. \
-                     Webhook lifecycle hooks may not respect the configured timeout."
-                );
-                reqwest::Client::default()
-            });
+        let client = reqwest::Client::builder().timeout(timeout).build().unwrap_or_else(|e| {
+            warn!(
+                error = %e,
+                "Failed to build reqwest client with timeout; using default client. \
+                 Webhook lifecycle hooks may not respect the configured timeout."
+            );
+            reqwest::Client::default()
+        });
         Self {
             client,
             on_connect_url,
@@ -62,9 +59,7 @@ impl WebhookLifecycle {
     ///
     /// Returns `None` if no hooks are configured.
     #[must_use]
-    pub fn from_config(
-        config: &fraiseql_core::schema::SubscriptionsConfig,
-    ) -> Option<Self> {
+    pub fn from_config(config: &fraiseql_core::schema::SubscriptionsConfig) -> Option<Self> {
         let hooks = config.hooks.as_ref()?;
         if hooks.on_connect.is_none()
             && hooks.on_disconnect.is_none()
@@ -94,14 +89,15 @@ impl WebhookLifecycle {
         let on_unsubscribe = hooks.get("on_unsubscribe").and_then(|v| v.as_str()).map(String::from);
 
         // If no hooks are configured, return None.
-        if on_connect.is_none() && on_disconnect.is_none() && on_subscribe.is_none() && on_unsubscribe.is_none() {
+        if on_connect.is_none()
+            && on_disconnect.is_none()
+            && on_subscribe.is_none()
+            && on_unsubscribe.is_none()
+        {
             return None;
         }
 
-        let timeout_ms = hooks
-            .get("timeout_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(500);
+        let timeout_ms = hooks.get("timeout_ms").and_then(|v| v.as_u64()).unwrap_or(500);
 
         Some(Self::new(on_connect, on_disconnect, on_subscribe, on_unsubscribe, timeout_ms))
     }
@@ -138,11 +134,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
                     "on_connect webhook rejected connection"
                 );
                 Err(text)
-            }
+            },
             Err(e) => {
                 error!(url = %url, error = %e, "on_connect webhook failed");
                 Err(format!("webhook timeout or error: {e}"))
-            }
+            },
         }
     }
 
@@ -197,11 +193,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
                     "on_subscribe webhook rejected subscription"
                 );
                 Err(text)
-            }
+            },
             Err(e) => {
                 error!(url = %url, error = %e, "on_subscribe webhook failed");
                 Err(format!("webhook timeout or error: {e}"))
-            }
+            },
         }
     }
 

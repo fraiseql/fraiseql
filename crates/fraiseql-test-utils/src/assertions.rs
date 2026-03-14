@@ -27,9 +27,7 @@ macro_rules! assert_json_key {
                 Some(v) => current = v,
                 None => panic!(
                     "assert_json_key!: key '{}' not found in path '{}'\nJSON was: {}",
-                    part,
-                    $key,
-                    current
+                    part, $key, current
                 ),
             }
         }
@@ -128,17 +126,18 @@ pub fn assert_graphql_error_contains(response: &serde_json::Value, expected: &st
         expected
     );
 
-    let found = errors.iter().any(|e| {
-        e.get("message")
-            .and_then(|m| m.as_str())
-            .is_some_and(|m| m.contains(expected))
-    });
+    let found = errors
+        .iter()
+        .any(|e| e.get("message").and_then(|m| m.as_str()).is_some_and(|m| m.contains(expected)));
 
     assert!(
         found,
         "Expected an error containing '{}', but got: {:?}",
         expected,
-        errors.iter().map(|e| e.get("message").and_then(|m| m.as_str()).unwrap_or("")).collect::<Vec<_>>()
+        errors
+            .iter()
+            .map(|e| e.get("message").and_then(|m| m.as_str()).unwrap_or(""))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -209,11 +208,7 @@ pub fn assert_graphql_error_code(response: &serde_json::Value, code: &str) {
 /// let response = json!({"data": {"user": {"email": "alice@example.com"}}});
 /// assert_field_path(&response, "data.user.email", &json!("alice@example.com"));
 /// ```
-pub fn assert_field_path(
-    response: &serde_json::Value,
-    path: &str,
-    expected: &serde_json::Value,
-) {
+pub fn assert_field_path(response: &serde_json::Value, path: &str, expected: &serde_json::Value) {
     let mut current = response;
     for part in path.split('.') {
         match current.get(part) {

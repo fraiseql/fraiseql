@@ -62,9 +62,9 @@ impl GraphQLValue {
             Self::Float(f) => serde_json::json!(*f),
             Self::String(s) => serde_json::Value::String(s.clone()),
             Self::List(v) => serde_json::Value::Array(v.iter().map(Self::to_json).collect()),
-            Self::Object(m) => serde_json::Value::Object(
-                m.iter().map(|(k, v)| (k.clone(), v.to_json())).collect(),
-            ),
+            Self::Object(m) => {
+                serde_json::Value::Object(m.iter().map(|(k, v)| (k.clone(), v.to_json())).collect())
+            },
         }
     }
 
@@ -97,10 +97,7 @@ impl GraphQLValue {
             },
             serde_json::Value::String(s) => Ok(Self::String(s.clone())),
             serde_json::Value::Array(arr) => {
-                let items = arr
-                    .iter()
-                    .map(Self::from_json)
-                    .collect::<Result<Vec<_>>>()?;
+                let items = arr.iter().map(Self::from_json).collect::<Result<Vec<_>>>()?;
                 Ok(Self::List(items))
             },
             serde_json::Value::Object(obj) => {

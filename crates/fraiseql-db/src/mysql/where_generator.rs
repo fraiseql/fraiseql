@@ -2,7 +2,7 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
-use crate::{where_clause::{WhereClause, WhereOperator}};
+use crate::where_clause::{WhereClause, WhereOperator};
 
 /// MySQL WHERE clause generator.
 ///
@@ -148,9 +148,7 @@ impl MySqlWhereGenerator {
             WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
                 message: "NILIKE operator not supported in MySQL (no native ILIKE)".to_string(),
             }),
-            WhereOperator::Regex => {
-                self.generate_comparison(&field_path, "REGEXP", value, params)
-            },
+            WhereOperator::Regex => self.generate_comparison(&field_path, "REGEXP", value, params),
             WhereOperator::Iregex => {
                 // MySQL REGEXP is case-insensitive by default with utf8mb4
                 self.generate_comparison(&field_path, "REGEXP", value, params)
@@ -486,6 +484,8 @@ impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are acceptable failures
+
     use serde_json::json;
 
     use super::*;
@@ -622,10 +622,7 @@ mod tests {
             value:    json!(100),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.score')) AS DECIMAL) > ?"
-        );
+        assert_eq!(sql, "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.score')) AS DECIMAL) > ?");
         assert_eq!(params, vec![json!(100)]);
     }
 
@@ -638,10 +635,7 @@ mod tests {
             value:    json!(99),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.price')) AS DECIMAL) <= ?"
-        );
+        assert_eq!(sql, "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.price')) AS DECIMAL) <= ?");
         assert_eq!(params, vec![json!(99)]);
     }
 
@@ -654,10 +648,7 @@ mod tests {
             value:    json!("US-"),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.code')) LIKE CONCAT(?, '%')"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.code')) LIKE CONCAT(?, '%')");
         assert_eq!(params, vec![json!("US-")]);
     }
 
@@ -670,10 +661,7 @@ mod tests {
             value:    json!(".pdf"),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.filename')) LIKE CONCAT('%', ?)"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.filename')) LIKE CONCAT('%', ?)");
         assert_eq!(params, vec![json!(".pdf")]);
     }
 
@@ -686,10 +674,7 @@ mod tests {
             value:    json!("alice"),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) LIKE CONCAT('%', ?, '%')"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) LIKE CONCAT('%', ?, '%')");
         assert_eq!(params, vec![json!("alice")]);
     }
 

@@ -289,7 +289,10 @@ GO
 ";
 
 /// Generate per-entity SQL split into (table, view, functions) for S/M layouts
-pub(super) fn generate_blog_entity_sql(database: Database, entity: &str) -> (String, String, String) {
+pub(super) fn generate_blog_entity_sql(
+    database: Database,
+    entity: &str,
+) -> (String, String, String) {
     if database != Database::Postgres {
         // Non-Postgres databases get the full schema in the first entity file only,
         // and empty strings for subsequent entities
@@ -553,4 +556,3 @@ BEGIN
 END;
 $$;
 ";
-

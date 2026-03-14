@@ -1,10 +1,8 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::field_type::DeprecationInfo;
-use crate::schema::security_config::InjectedParamSource;
-
-use super::argument::ArgumentDefinition;
+use super::{argument::ArgumentDefinition, rest::RestRoute};
+use crate::schema::{field_type::DeprecationInfo, security_config::InjectedParamSource};
 
 /// A mutation definition compiled from `@fraiseql.mutation`.
 ///
@@ -99,6 +97,13 @@ pub struct MutationDefinition {
     /// Each entry must be a valid SQL identifier validated at compile time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// REST transport annotation.
+    ///
+    /// When set, the server's REST transport layer mounts an HTTP route at
+    /// `{rest_config.prefix}{rest.path}` that delegates to this mutation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest: Option<RestRoute>,
 }
 
 impl MutationDefinition {
@@ -106,16 +111,17 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:                   name.into(),
-            return_type:            return_type.into(),
-            arguments:              Vec::new(),
-            description:            None,
-            operation:              MutationOperation::default(),
-            deprecation:            None,
-            sql_source:             None,
-            inject_params:          IndexMap::new(),
+            name:                    name.into(),
+            return_type:             return_type.into(),
+            arguments:               Vec::new(),
+            description:             None,
+            operation:               MutationOperation::default(),
+            deprecation:             None,
+            sql_source:              None,
+            inject_params:           IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
-            invalidates_views:      Vec::new(),
+            invalidates_views:       Vec::new(),
+            rest:                    None,
         }
     }
 

@@ -62,7 +62,7 @@ QueryBuilder.Query("authors")
 MutationBuilder.Mutation("createAuthor")
     .ReturnType("Author")
     .SqlSource("fn_create_author")
-    .Operation("insert")
+    .Operation("CREATE")
     .Argument("name", "String")
     .Register();
 
@@ -138,7 +138,7 @@ QueryBuilder.Query("authors")
 MutationBuilder.Mutation("createAuthor")
     .ReturnType("Author")          // required
     .SqlSource("fn_create_author") // required
-    .Operation("insert")           // required: insert|update|delete|upsert
+    .Operation("CREATE")           // required: CREATE|UPDATE|DELETE|CUSTOM
     .Argument("name", "String")    // optional, repeatable
     .Description("Create author")  // optional
     .Register();                   // adds to SchemaRegistry
@@ -167,7 +167,7 @@ new SchemaBuilder()
     .Mutation("createAuthor", m => m
         .ReturnType("Author")
         .SqlSource("fn_create_author")
-        .Operation("insert")
+        .Operation("CREATE")
         .Argument("name", "String"))
     .ExportToFile("schema.json");
 ```

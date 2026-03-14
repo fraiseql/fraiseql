@@ -40,13 +40,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Expand the view list with transitive dependents when a cascade
         // invalidator is configured.
         if let Some(cascader) = &self.cascade_invalidator {
-            let mut expanded: std::collections::HashSet<String> =
-                views.iter().cloned().collect();
-            let mut guard = cascader.lock().map_err(|e| {
-                crate::error::FraiseQLError::Internal {
-                    message: format!("Cascade invalidator lock poisoned: {e}"),
-                    source:  None,
-                }
+            let mut expanded: std::collections::HashSet<String> = views.iter().cloned().collect();
+            let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
+                message: format!("Cascade invalidator lock poisoned: {e}"),
+                source:  None,
             })?;
             for view in views {
                 let transitive = guard.cascade_invalidate(view)?;

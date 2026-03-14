@@ -1,7 +1,7 @@
-//! ClickHouse sink for consuming Arrow RecordBatches and inserting analytics events.
+//! `ClickHouse` sink for consuming Arrow `RecordBatches` and inserting analytics events.
 //!
-//! This module provides a high-performance sink that converts Arrow RecordBatches
-//! (from the NATS→Arrow bridge) into ClickHouse database events. It handles batching,
+//! This module provides a high-performance sink that converts Arrow `RecordBatch`es
+//! (from the NATS→Arrow bridge) into `ClickHouse` database events. It handles batching,
 //! retry logic, and graceful shutdown.
 //!
 //! # Architecture
@@ -32,10 +32,10 @@ use tracing::{error, info, warn};
 
 use crate::error::{ArrowFlightError, Result};
 
-/// ClickHouse sink configuration
+/// `ClickHouse` sink configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClickHouseSinkConfig {
-    /// ClickHouse HTTP endpoint (e.g., "http://localhost:8123")
+    /// `ClickHouse` HTTP endpoint (e.g., `http://localhost:8123`)
     #[serde(default = "default_clickhouse_url")]
     pub url: String,
 
@@ -43,7 +43,7 @@ pub struct ClickHouseSinkConfig {
     #[serde(default = "default_clickhouse_database")]
     pub database: String,
 
-    /// Table name (default: "fraiseql_events")
+    /// Table name (default: `fraiseql_events`)
     #[serde(default = "default_clickhouse_table")]
     pub table: String,
 
@@ -60,17 +60,17 @@ pub struct ClickHouseSinkConfig {
     pub max_retries: usize,
 }
 
-/// Default ClickHouse URL
+/// Default `ClickHouse` URL
 fn default_clickhouse_url() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
 }
 
-/// Default ClickHouse database
+/// Default `ClickHouse` database
 fn default_clickhouse_database() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string())
 }
 
-/// Default ClickHouse table
+/// Default `ClickHouse` table
 fn default_clickhouse_table() -> String {
     std::env::var("FRAISEQL_CLICKHOUSE_TABLE").unwrap_or_else(|_| "fraiseql_events".to_string())
 }
@@ -174,7 +174,7 @@ impl ClickHouseSinkConfig {
     }
 }
 
-/// Event row for ClickHouse insertion
+/// Event row for `ClickHouse` insertion
 #[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
 pub struct EventRow {
     /// Unique event identifier
@@ -195,7 +195,7 @@ pub struct EventRow {
     pub org_id:      Option<String>,
 }
 
-/// ClickHouse sink for consuming Arrow RecordBatches
+/// `ClickHouse` sink for consuming Arrow `RecordBatch`es
 pub struct ClickHouseSink {
     config: ClickHouseSinkConfig,
     #[cfg(feature = "clickhouse")]
@@ -203,7 +203,7 @@ pub struct ClickHouseSink {
 }
 
 impl ClickHouseSink {
-    /// Create a new ClickHouse sink with the given configuration
+    /// Create a new `ClickHouse` sink with the given configuration
     pub fn new(config: ClickHouseSinkConfig) -> Result<Self> {
         config.validate()?;
 
@@ -233,14 +233,14 @@ impl ClickHouseSink {
         }
     }
 
-    /// Run the sink, consuming RecordBatches from the channel
+    /// Run the sink, consuming `RecordBatch`es from the channel
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - The channel is closed unexpectedly
-    /// - Conversion fails (Arrow → EventRow)
-    /// - ClickHouse insertion fails permanently after retries
+    /// - Conversion fails (Arrow → `EventRow`)
+    /// - `ClickHouse` insertion fails permanently after retries
     #[cfg(feature = "clickhouse")]
     pub async fn run(&self, mut rx: mpsc::Receiver<RecordBatch>) -> Result<()> {
         let mut batch_buffer: Vec<EventRow> = Vec::with_capacity(self.config.batch_size);
@@ -266,7 +266,7 @@ impl ClickHouseSink {
                 }
 
                 // Flush on timeout
-                _ = tokio::time::sleep(batch_timeout) => {
+                () = tokio::time::sleep(batch_timeout) => {
                     if !batch_buffer.is_empty() {
                         info!(count = batch_buffer.len(), "Flushing batch due to timeout");
                         self.flush_batch(&batch_buffer).await?;
@@ -277,7 +277,7 @@ impl ClickHouseSink {
         }
     }
 
-    /// Process a single Arrow RecordBatch, converting to EventRows
+    /// Process a single Arrow `RecordBatch`, converting to `EventRow`s
     fn process_batch(&self, batch: &RecordBatch) -> Result<Vec<EventRow>> {
         let num_rows = batch.num_rows();
 
@@ -385,7 +385,7 @@ impl ClickHouseSink {
         Ok(rows)
     }
 
-    /// Flush a batch of rows to ClickHouse with retry logic
+    /// Flush a batch of rows to `ClickHouse` with retry logic
     #[cfg(feature = "clickhouse")]
     async fn flush_batch(&self, rows: &[EventRow]) -> Result<()> {
         let mut last_error = None;
@@ -428,7 +428,7 @@ impl ClickHouseSink {
         }))
     }
 
-    /// Attempt to insert rows into ClickHouse
+    /// Attempt to insert rows into `ClickHouse`
     #[cfg(feature = "clickhouse")]
     async fn try_insert(&self, rows: &[EventRow]) -> Result<()> {
         use clickhouse::inserter::Inserter;

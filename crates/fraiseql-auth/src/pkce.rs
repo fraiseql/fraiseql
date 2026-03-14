@@ -4,13 +4,13 @@
 //! the OAuth2 authorization round-trip is in flight.  The token sent to the
 //! OIDC provider in the `?state=` query parameter is either:
 //! - the raw internal key (no encryption configured), or
-//! - `encrypt(internal_key)` (when [`crate::state_encryption::StateEncryptionService`] is attached).
+//! - `encrypt(internal_key)` (when [`crate::state_encryption::StateEncryptionService`] is
+//!   attached).
 //!
 //! State lifecycle:
-//! - `create_state(redirect_uri)` → `internal_key = random 32 bytes (base64url)` →
-//!   `outbound_token = encrypt(internal_key)` (or `internal_key` if no encryption) →
-//!   `store.insert(internal_key, {verifier, redirect_uri, ttl})` →
-//!   returns `(outbound_token, verifier)`
+//! - `create_state(redirect_uri)` → `internal_key = random 32 bytes (base64url)` → `outbound_token
+//!   = encrypt(internal_key)` (or `internal_key` if no encryption) → `store.insert(internal_key,
+//!   {verifier, redirect_uri, ttl})` → returns `(outbound_token, verifier)`
 //! - `consume_state(outbound_token)` → `internal_key = decrypt(outbound_token)` (or
 //!   `outbound_token` if no encryption) → `entry = store.remove(internal_key)?` (
 //!   [`PkceError::StateNotFound`] if absent) → if `entry.elapsed > entry.ttl` →
@@ -42,7 +42,9 @@ pub enum PkceError {
     ///
     /// Clients receive the same message for unknown and tampered tokens to
     /// avoid leaking information about the store.
-    #[error("state not found — the authorization flow may have already been completed or the state is invalid")]
+    #[error(
+        "state not found — the authorization flow may have already been completed or the state is invalid"
+    )]
     StateNotFound,
 
     /// The state token was found but its TTL has elapsed.
@@ -77,8 +79,8 @@ struct PkceEntry {
     redirect_uri: String,
     /// Creation time as a Tokio instant so `tokio::time::pause()` +
     /// `tokio::time::advance()` can control TTL expiry in tests.
-    created_at: tokio::time::Instant,
-    ttl:        Duration,
+    created_at:   tokio::time::Instant,
+    ttl:          Duration,
 }
 
 /// In-memory PKCE state store backed by a [`DashMap`].
@@ -112,16 +114,19 @@ impl InMemoryPkceStateStore {
         OsRng.fill_bytes(&mut key_bytes);
         let internal_key = URL_SAFE_NO_PAD.encode(key_bytes);
 
-        self.entries.insert(internal_key.clone(), PkceEntry {
-            verifier:     verifier.clone(),
-            redirect_uri: redirect_uri.to_owned(),
-            created_at:   tokio::time::Instant::now(),
-            ttl:          Duration::from_secs(self.state_ttl_secs),
-        });
+        self.entries.insert(
+            internal_key.clone(),
+            PkceEntry {
+                verifier:     verifier.clone(),
+                redirect_uri: redirect_uri.to_owned(),
+                created_at:   tokio::time::Instant::now(),
+                ttl:          Duration::from_secs(self.state_ttl_secs),
+            },
+        );
 
         let outbound_token = match &self.encryptor {
             Some(enc) => enc.encrypt(internal_key.as_bytes())?,
-            None      => internal_key,
+            None => internal_key,
         };
 
         Ok((outbound_token, verifier))
@@ -130,11 +135,9 @@ impl InMemoryPkceStateStore {
     fn consume_state_sync(&self, outbound_token: &str) -> Result<ConsumedPkceState, PkceError> {
         let internal_key = match &self.encryptor {
             Some(enc) => {
-                let bytes = enc
-                    .decrypt(outbound_token)
-                    .map_err(|_| PkceError::StateNotFound)?;
+                let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;
                 String::from_utf8(bytes).map_err(|_| PkceError::StateNotFound)?
-            }
+            },
             None => outbound_token.to_owned(),
         };
 
@@ -167,8 +170,7 @@ impl InMemoryPkceStateStore {
 ///
 /// Exposed via `/metrics` as `fraiseql_pkce_redis_errors_total`.
 #[cfg(feature = "redis-pkce")]
-pub static REDIS_PKCE_ERRORS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
+pub static REDIS_PKCE_ERRORS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Return the total number of Redis PKCE errors observed so far.
 #[cfg(feature = "redis-pkce")]
@@ -205,7 +207,11 @@ impl RedisPkceStateStore {
     ) -> Result<Self, redis::RedisError> {
         let client = redis::Client::open(url)?;
         let pool = redis::aio::ConnectionManager::new(client).await?;
-        Ok(Self { pool, state_ttl_secs, encryptor })
+        Ok(Self {
+            pool,
+            state_ttl_secs,
+            encryptor,
+        })
     }
 
     async fn create_state_impl(
@@ -241,7 +247,7 @@ impl RedisPkceStateStore {
 
         let outbound_token = match &self.encryptor {
             Some(enc) => enc.encrypt(internal_key.as_bytes())?,
-            None      => internal_key,
+            None => internal_key,
         };
 
         Ok((outbound_token, verifier))
@@ -254,11 +260,9 @@ impl RedisPkceStateStore {
         // Recover internal key from outbound token
         let internal_key = match &self.encryptor {
             Some(enc) => {
-                let bytes = enc
-                    .decrypt(outbound_token)
-                    .map_err(|_| PkceError::StateNotFound)?;
+                let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;
                 String::from_utf8(bytes).map_err(|_| PkceError::StateNotFound)?
-            }
+            },
             None => outbound_token.to_owned(),
         };
 
@@ -303,12 +307,12 @@ impl RedisPkceStateStore {
 ///
 /// # Backends
 ///
-/// - **InMemory** (default): per-process DashMap. Safe for single-replica
-///   deployments. State is lost on restart.
+/// - **InMemory** (default): per-process DashMap. Safe for single-replica deployments. State is
+///   lost on restart.
 ///
-/// - **Redis** (requires `redis-pkce` Cargo feature): distributed, shared
-///   across all replicas. Required for multi-instance Kubernetes / ECS / fly.io
-///   deployments where `/auth/start` and `/auth/callback` may hit different nodes.
+/// - **Redis** (requires `redis-pkce` Cargo feature): distributed, shared across all replicas.
+///   Required for multi-instance Kubernetes / ECS / fly.io deployments where `/auth/start` and
+///   `/auth/callback` may hit different nodes.
 ///
 /// # Multi-replica requirement
 ///
@@ -355,18 +359,21 @@ impl PkceStateStore {
     ///
     /// Returns `(outbound_token, code_verifier)`:
     /// - `outbound_token` goes in the OIDC `?state=` query parameter.
-    /// - `code_verifier` is passed to [`Self::s256_challenge`] and stored
-    ///   until the callback arrives.
+    /// - `code_verifier` is passed to [`Self::s256_challenge`] and stored until the callback
+    ///   arrives.
     ///
     /// # Errors
     ///
     /// Returns an error if encryption fails (effectively never with a valid
     /// key) or the Redis backend is unreachable.
-    pub async fn create_state(&self, redirect_uri: &str) -> Result<(String, String), anyhow::Error> {
+    pub async fn create_state(
+        &self,
+        redirect_uri: &str,
+    ) -> Result<(String, String), anyhow::Error> {
         match self {
             Self::InMemory(s) => s.create_state_sync(redirect_uri),
             #[cfg(feature = "redis-pkce")]
-            Self::Redis(s)    => s.create_state_impl(redirect_uri).await,
+            Self::Redis(s) => s.create_state_impl(redirect_uri).await,
         }
     }
 
@@ -380,11 +387,14 @@ impl PkceStateStore {
     /// Returns [`PkceError::StateExpired`] when the in-memory token is valid
     /// but its TTL has elapsed. The Redis backend returns `StateNotFound` for
     /// expired tokens (Redis TTL handles expiry).
-    pub async fn consume_state(&self, outbound_token: &str) -> Result<ConsumedPkceState, PkceError> {
+    pub async fn consume_state(
+        &self,
+        outbound_token: &str,
+    ) -> Result<ConsumedPkceState, PkceError> {
         match self {
             Self::InMemory(s) => s.consume_state_sync(outbound_token),
             #[cfg(feature = "redis-pkce")]
-            Self::Redis(s)    => s.consume_state_impl(outbound_token).await,
+            Self::Redis(s) => s.consume_state_impl(outbound_token).await,
         }
     }
 
@@ -405,7 +415,7 @@ impl PkceStateStore {
         match self {
             Self::InMemory(s) => s.cleanup_expired_sync(),
             #[cfg(feature = "redis-pkce")]
-            Self::Redis(_)    => {}, // Redis TTL handles expiry
+            Self::Redis(_) => {}, // Redis TTL handles expiry
         }
     }
 
@@ -416,7 +426,7 @@ impl PkceStateStore {
         match self {
             Self::InMemory(s) => s.len_sync(),
             #[cfg(feature = "redis-pkce")]
-            Self::Redis(_)    => 0,
+            Self::Redis(_) => 0,
         }
     }
 
@@ -432,12 +442,13 @@ impl PkceStateStore {
 // Unit tests
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
     use crate::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
 
@@ -591,8 +602,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_pkce_create_and_consume_roundtrip() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let store = PkceStateStore::new_redis(&url, 300, None)
             .await
             .expect("Redis connection failed");
@@ -607,8 +618,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_pkce_one_shot_consumption() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let store = PkceStateStore::new_redis(&url, 300, None)
             .await
             .expect("Redis connection failed");
@@ -627,8 +638,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_pkce_two_instances_share_state() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
         // Simulate two server replicas sharing the same Redis instance
         let store_a = PkceStateStore::new_redis(&url, 300, None)
@@ -653,8 +664,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
     async fn test_redis_pkce_tampered_token_rejected() {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let enc = Some(Arc::new(StateEncryptionService::from_raw_key(
             &[0u8; 32],
             EncryptionAlgorithm::Chacha20Poly1305,

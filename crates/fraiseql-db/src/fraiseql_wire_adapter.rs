@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
@@ -15,7 +16,6 @@ use super::{
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,
 };
-use fraiseql_error::{FraiseQLError, Result};
 
 /// FraiseQL-Wire database adapter.
 ///
@@ -304,11 +304,12 @@ impl DatabaseAdapter for FraiseWireAdapter {
             sql_state: None,
         })
     }
-
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are acceptable failures
+
     use super::*;
 
     #[test]

@@ -8,7 +8,6 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity without extra imports
-use fraiseql_core::schema::FieldDenyPolicy;
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -24,7 +23,8 @@ use fraiseql_core::{
         relay::{decode_uuid_cursor, encode_node_id, encode_uuid_cursor},
     },
     schema::{
-        CompiledSchema, CursorType, FieldDefinition, FieldType, InterfaceDefinition,
+        CompiledSchema, CursorType, FieldDefinition, FieldType,
+        InterfaceDefinition,
     },
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
@@ -68,7 +68,9 @@ struct RelayMockAdapter {
 
 impl RelayMockAdapter {
     fn new() -> Self {
-        Self { rows: vec![alice(), bob(), carol()] }
+        Self {
+            rows: vec![alice(), bob(), carol()],
+        }
     }
 }
 
@@ -83,7 +85,11 @@ impl DatabaseAdapter for RelayMockAdapter {
     ) -> Result<Vec<JsonbValue>> {
         let mut out: Vec<JsonbValue> = match where_clause {
             // Filter by `id` equality — used for node queries.
-            Some(WhereClause::Field { path, operator: _, value }) if path == &["id"] => {
+            Some(WhereClause::Field {
+                path,
+                operator: _,
+                value,
+            }) if path == &["id"] => {
                 let uuid = value.as_str().unwrap_or("");
                 self.rows
                     .iter()
@@ -167,19 +173,33 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
         include_total_count: bool,
     ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
         // totalCount: full connection size, cursor ignored (Relay spec).
-        let total_count = if include_total_count { Some(self.rows.len() as u64) } else { None };
+        let total_count = if include_total_count {
+            Some(self.rows.len() as u64)
+        } else {
+            None
+        };
 
         // Apply cursor filter for the page rows (Int64 only in this mock).
-        let after_pk = after.and_then(|c| if let CursorValue::Int64(v) = c { Some(v) } else { None });
-        let before_pk =
-            before.and_then(|c| if let CursorValue::Int64(v) = c { Some(v) } else { None });
+        let after_pk = after.and_then(|c| {
+            if let CursorValue::Int64(v) = c {
+                Some(v)
+            } else {
+                None
+            }
+        });
+        let before_pk = before.and_then(|c| {
+            if let CursorValue::Int64(v) = c {
+                Some(v)
+            } else {
+                None
+            }
+        });
 
         let mut filtered: Vec<&JsonbValue> = self
             .rows
             .iter()
             .filter(|r| {
-                let pk =
-                    r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
+                let pk = r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
                 match (after_pk, before_pk) {
                     (Some(a), _) if forward => pk > a,
                     (_, Some(b)) if !forward => pk < b,
@@ -225,10 +245,7 @@ fn relay_schema() -> CompiledSchema {
         .relay_cursor_column("pk_user")
         .build();
 
-    let mut schema = TestSchemaBuilder::new()
-        .with_type(user_type)
-        .with_query(users_query)
-        .build();
+    let mut schema = TestSchemaBuilder::new().with_type(user_type).with_query(users_query).build();
     schema.interfaces.push(node_interface);
     schema
 }
@@ -261,7 +278,10 @@ async fn test_relay_forward_full_page() {
     let exec = executor();
     // Fetch all 3
     let result = exec
-        .execute_json("{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }", Some(&json!({"first": 10})))
+        .execute_json(
+            "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
+            Some(&json!({"first": 10})),
+        )
         .await
         .unwrap();
 
@@ -277,7 +297,10 @@ async fn test_relay_forward_with_after_cursor() {
     // After Alice (pk=1) → should get Bob and Carol
     let after = encode_edge_cursor(PK_ALICE);
     let result = exec
-        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 10, "after": after})))
+        .execute_json(
+            "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
+            Some(&json!({"first": 10, "after": after})),
+        )
         .await
         .unwrap();
 
@@ -294,7 +317,10 @@ async fn test_relay_backward_with_before_cursor() {
     // Before Carol (pk=3), fetch last 2 → should get Bob and Alice
     let before = encode_edge_cursor(PK_CAROL);
     let result = exec
-        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"last": 2, "before": before})))
+        .execute_json(
+            "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
+            Some(&json!({"last": 2, "before": before})),
+        )
         .await
         .unwrap();
 
@@ -311,7 +337,10 @@ async fn test_relay_empty_results() {
     // After Carol (pk=3) → no more rows
     let after = encode_edge_cursor(PK_CAROL);
     let result = exec
-        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 10, "after": after})))
+        .execute_json(
+            "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
+            Some(&json!({"first": 10, "after": after})),
+        )
         .await
         .unwrap();
 
@@ -346,10 +375,7 @@ async fn test_node_query_found() {
     let node_id = encode_node_id("User", alice_uuid);
 
     let result = exec
-        .execute_json(
-            "{ node(id: $id) { id } }",
-            Some(&json!({"id": node_id})),
-        )
+        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -365,10 +391,7 @@ async fn test_node_query_not_found() {
     let node_id = encode_node_id("User", unknown_uuid);
 
     let result = exec
-        .execute_json(
-            "{ node(id: $id) { id } }",
-            Some(&json!({"id": node_id})),
-        )
+        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -379,10 +402,7 @@ async fn test_node_query_not_found() {
 async fn test_node_query_invalid_id_returns_error() {
     let exec = executor();
     let result = exec
-        .execute_json(
-            "{ node(id: $id) { id } }",
-            Some(&json!({"id": "not-valid-base64!!!"})),
-        )
+        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
         .await;
 
     assert!(result.is_err(), "invalid node ID should return an error");
@@ -456,10 +476,7 @@ async fn test_introspection_node_interface_exists() {
 async fn test_introspection_user_implements_node() {
     let exec = executor();
     let result = exec
-        .execute_json(
-            "{ __type(name: \"User\") { kind interfaces { name } } }",
-            None,
-        )
+        .execute_json("{ __type(name: \"User\") { kind interfaces { name } } }", None)
         .await
         .unwrap();
 
@@ -486,23 +503,29 @@ async fn test_introspection_relay_query_returns_connection_type() {
         .unwrap();
 
     let fields = result["data"]["__type"]["fields"].as_array().unwrap();
-    let users_field = fields.iter().find(|f| f["name"] == json!("users"))
+    let users_field = fields
+        .iter()
+        .find(|f| f["name"] == json!("users"))
         .expect("Query type should have a `users` field");
 
     // Return type should be NON_NULL wrapping UserConnection
-    assert_eq!(users_field["type"]["kind"], json!("NON_NULL"),
-        "relay field return type should be NON_NULL");
-    assert_eq!(users_field["type"]["ofType"]["name"], json!("UserConnection"),
-        "relay field should return UserConnection");
+    assert_eq!(
+        users_field["type"]["kind"],
+        json!("NON_NULL"),
+        "relay field return type should be NON_NULL"
+    );
+    assert_eq!(
+        users_field["type"]["ofType"]["name"],
+        json!("UserConnection"),
+        "relay field should return UserConnection"
+    );
 
     // Arguments should include first/after/last/before
     let args = users_field["args"].as_array().unwrap();
-    let arg_names: Vec<&str> = args.iter()
-        .filter_map(|a| a["name"].as_str())
-        .collect();
+    let arg_names: Vec<&str> = args.iter().filter_map(|a| a["name"].as_str()).collect();
     assert!(arg_names.contains(&"first"), "relay field should have `first` arg");
     assert!(arg_names.contains(&"after"), "relay field should have `after` arg");
-    assert!(arg_names.contains(&"last"),  "relay field should have `last` arg");
+    assert!(arg_names.contains(&"last"), "relay field should have `last` arg");
     assert!(arg_names.contains(&"before"), "relay field should have `before` arg");
 }
 
@@ -512,21 +535,26 @@ async fn test_introspection_node_field_return_kind_is_interface() {
     // `node(id: ID!): Node` — the return type kind must be INTERFACE, not OBJECT.
     // Relay's fragment dispatch (`... on User`) relies on this being an interface.
     let result = exec
-        .execute_json(
-            "{ __type(name: \"Query\") { fields { name type { kind name } } } }",
-            None,
-        )
+        .execute_json("{ __type(name: \"Query\") { fields { name type { kind name } } } }", None)
         .await
         .unwrap();
 
     let fields = result["data"]["__type"]["fields"].as_array().unwrap();
-    let node_field = fields.iter().find(|f| f["name"] == json!("node"))
+    let node_field = fields
+        .iter()
+        .find(|f| f["name"] == json!("node"))
         .expect("Query type should have a `node` field");
 
-    assert_eq!(node_field["type"]["kind"], json!("INTERFACE"),
-        "node return type kind should be INTERFACE");
-    assert_eq!(node_field["type"]["name"], json!("Node"),
-        "node return type name should be Node");
+    assert_eq!(
+        node_field["type"]["kind"],
+        json!("INTERFACE"),
+        "node return type kind should be INTERFACE"
+    );
+    assert_eq!(
+        node_field["type"]["name"],
+        json!("Node"),
+        "node return type name should be Node"
+    );
 }
 
 // =============================================================================
@@ -568,10 +596,7 @@ async fn test_relay_total_count_ignores_cursor_position() {
 async fn test_relay_total_count_absent_when_not_requested() {
     let exec = executor();
     let result = exec
-        .execute_json(
-            "{ users { edges { cursor node { name } } } }",
-            Some(&json!({"first": 2})),
-        )
+        .execute_json("{ users { edges { cursor node { name } } } }", Some(&json!({"first": 2})))
         .await
         .unwrap();
 
@@ -640,9 +665,15 @@ impl UuidRelayMockAdapter {
     fn new() -> Self {
         Self {
             rows: vec![
-                JsonbValue::new(json!({"id": "aaa00000-0000-0000-0000-000000000001", "name": "Alice"})),
-                JsonbValue::new(json!({"id": "bbb00000-0000-0000-0000-000000000002", "name": "Bob"})),
-                JsonbValue::new(json!({"id": "ccc00000-0000-0000-0000-000000000003", "name": "Carol"})),
+                JsonbValue::new(
+                    json!({"id": "aaa00000-0000-0000-0000-000000000001", "name": "Alice"}),
+                ),
+                JsonbValue::new(
+                    json!({"id": "bbb00000-0000-0000-0000-000000000002", "name": "Bob"}),
+                ),
+                JsonbValue::new(
+                    json!({"id": "ccc00000-0000-0000-0000-000000000003", "name": "Carol"}),
+                ),
             ],
         }
     }
@@ -670,15 +701,27 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         Ok(vec![])
     }
 
-    fn database_type(&self) -> DatabaseType { DatabaseType::PostgreSQL }
-
-    async fn health_check(&self) -> Result<()> { Ok(()) }
-
-    fn pool_metrics(&self) -> PoolMetrics {
-        PoolMetrics { total_connections: 1, idle_connections: 1, active_connections: 0, waiting_requests: 0 }
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::PostgreSQL
     }
 
-    async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections:  1,
+            idle_connections:   1,
+            active_connections: 0,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
 
@@ -707,12 +750,26 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
         _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
     ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
-        let total_count = if include_total_count { Some(self.rows.len() as u64) } else { None };
+        let total_count = if include_total_count {
+            Some(self.rows.len() as u64)
+        } else {
+            None
+        };
 
-        let after_uuid =
-            after.and_then(|c| if let CursorValue::Uuid(v) = c { Some(v) } else { None });
-        let before_uuid =
-            before.and_then(|c| if let CursorValue::Uuid(v) = c { Some(v) } else { None });
+        let after_uuid = after.and_then(|c| {
+            if let CursorValue::Uuid(v) = c {
+                Some(v)
+            } else {
+                None
+            }
+        });
+        let before_uuid = before.and_then(|c| {
+            if let CursorValue::Uuid(v) = c {
+                Some(v)
+            } else {
+                None
+            }
+        });
 
         let mut filtered: Vec<&JsonbValue> = self
             .rows
@@ -755,10 +812,7 @@ fn uuid_relay_schema() -> CompiledSchema {
         .relay_cursor_type(CursorType::Uuid)
         .build();
 
-    TestSchemaBuilder::new()
-        .with_type(item_type)
-        .with_query(items_query)
-        .build()
+    TestSchemaBuilder::new().with_type(item_type).with_query(items_query).build()
 }
 
 fn uuid_executor() -> Executor<UuidRelayMockAdapter> {
@@ -935,10 +989,7 @@ async fn relay_cursor_column_is_pk_user_not_id() {
     use fraiseql_core::runtime::relay::decode_edge_cursor;
     let exec = executor();
     let result = exec
-        .execute_json(
-            "{ users { edges { cursor node { id name } } } }",
-            Some(&json!({"first": 3})),
-        )
+        .execute_json("{ users { edges { cursor node { id name } } } }", Some(&json!({"first": 3})))
         .await
         .unwrap();
 

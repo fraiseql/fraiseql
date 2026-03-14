@@ -96,7 +96,10 @@ fn error_frame_delivered_without_prior_next_modern() {
     let op_id = client_msg.id.as_deref().unwrap();
 
     // Server replies with error (no next sent first).
-    let errors = vec![GraphQLError::with_code("Cannot query field 'bad'", "GRAPHQL_VALIDATION_FAILED")];
+    let errors = vec![GraphQLError::with_code(
+        "Cannot query field 'bad'",
+        "GRAPHQL_VALIDATION_FAILED",
+    )];
     let err_msg = ServerMessage::error(op_id, errors);
     let wire = codec.encode(err_msg).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();

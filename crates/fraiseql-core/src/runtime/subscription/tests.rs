@@ -722,8 +722,7 @@ fn test_subscription_field_projection() {
 
 #[test]
 fn test_filter_fields_auto_generates_argument_paths() {
-    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
-        .with_topic("order_created");
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order").with_topic("order_created");
     def.filter_fields = vec!["user_id".to_string(), "tenant_id".to_string()];
 
     let schema = Arc::new(CompiledSchema {
@@ -753,6 +752,7 @@ fn test_filter_fields_auto_generates_argument_paths() {
 #[test]
 fn test_filter_fields_does_not_overwrite_explicit_argument_paths() {
     use std::collections::HashMap;
+
     use crate::schema::SubscriptionFilter;
 
     let mut argument_paths = HashMap::new();
@@ -793,8 +793,7 @@ fn test_filter_fields_does_not_overwrite_explicit_argument_paths() {
 
 #[test]
 fn test_filter_fields_filtering_events() {
-    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
-        .with_topic("order_created");
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order").with_topic("order_created");
     def.filter_fields = vec!["user_id".to_string()];
 
     let schema = Arc::new(CompiledSchema {

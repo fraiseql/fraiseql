@@ -199,10 +199,11 @@ fn pg_contains_param_count() {
 
 #[cfg(feature = "sqlite")]
 mod parity {
-    use super::*;
     use fraiseql_db::sqlite::SqliteWhereGenerator;
 
-    fn sq_gen() -> SqliteWhereGenerator {
+    use super::*;
+
+    const fn sq_gen() -> SqliteWhereGenerator {
         SqliteWhereGenerator::new()
     }
 

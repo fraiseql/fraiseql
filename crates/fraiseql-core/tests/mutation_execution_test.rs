@@ -4,10 +4,9 @@
 //! verify that scalar fields (`DateTime`, Int, UUID, String) are correctly
 //! populated from `metadata` JSONB, without requiring a database.
 
-use fraiseql_core::schema::FieldDenyPolicy;
 use fraiseql_core::{
     runtime::mutation_result::populate_error_fields,
-    schema::{FieldDefinition, FieldType},
+    schema::{FieldDefinition, FieldDenyPolicy, FieldType},
 };
 use serde_json::json;
 
@@ -24,7 +23,7 @@ fn field(name: &str, type_str: &str) -> FieldDefinition {
         alias:          None,
         deprecation:    None,
         requires_scope: None,
-        on_deny: FieldDenyPolicy::default(),
+        on_deny:        FieldDenyPolicy::default(),
         encryption:     None,
     }
 }
@@ -59,8 +58,7 @@ fn test_scalar_datetime_populated_from_metadata() {
     let result = populate_error_fields(&fields, &metadata);
 
     assert_eq!(
-        result["last_activity_date"],
-        "2024-06-01T12:00:00Z",
+        result["last_activity_date"], "2024-06-01T12:00:00Z",
         "DateTime scalar should be copied directly from metadata"
     );
 }
@@ -72,7 +70,10 @@ fn test_scalar_int_populated_from_metadata() {
 
     let result = populate_error_fields(&fields, &metadata);
 
-    assert_eq!(result["cascade_count"], 17, "Int scalar should be copied directly from metadata");
+    assert_eq!(
+        result["cascade_count"], 17,
+        "Int scalar should be copied directly from metadata"
+    );
 }
 
 #[test]
@@ -83,8 +84,7 @@ fn test_scalar_uuid_populated_from_metadata() {
     let result = populate_error_fields(&fields, &metadata);
 
     assert_eq!(
-        result["blocker_id"],
-        "550e8400-e29b-41d4-a716-446655440000",
+        result["blocker_id"], "550e8400-e29b-41d4-a716-446655440000",
         "UUID scalar should be copied directly from metadata"
     );
 }
@@ -115,8 +115,7 @@ fn test_camel_case_key_lookup_for_datetime() {
     let result = populate_error_fields(&fields, &metadata);
 
     assert_eq!(
-        result["last_activity_date"],
-        "2024-03-15T08:30:00Z",
+        result["last_activity_date"], "2024-03-15T08:30:00Z",
         "snake_case field should be found via camelCase metadata key"
     );
 }

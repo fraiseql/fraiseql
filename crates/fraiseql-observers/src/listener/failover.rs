@@ -76,8 +76,7 @@ impl FailoverManager {
         let failed = health
             .into_iter()
             .filter(|h| {
-                h.state != ListenerState::Running
-                    || h.last_heartbeat.elapsed() >= threshold
+                h.state != ListenerState::Running || h.last_heartbeat.elapsed() >= threshold
             })
             .map(|h| h.listener_id)
             .collect();
@@ -143,8 +142,7 @@ impl FailoverManager {
 
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_millis(manager.health_check_interval_ms))
-                    .await;
+                tokio::time::sleep(Duration::from_millis(manager.health_check_interval_ms)).await;
 
                 // Exit if shutdown was requested.
                 if manager.shutdown.load(Ordering::SeqCst) {
@@ -189,7 +187,7 @@ impl FailoverManager {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

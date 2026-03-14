@@ -63,8 +63,16 @@
 //! - ✅ Zero unsafe code
 //! - ✅ Fully documented
 
-#![allow(clippy::cast_lossless, clippy::cast_possible_truncation, clippy::cast_possible_wrap)] // Reason: test timing computations use integer casts for display
-#![allow(clippy::doc_markdown, clippy::missing_errors_doc, clippy::missing_panics_doc)] // Reason: test helper functions do not need full doc sections
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap
+)] // Reason: test timing computations use integer casts for display
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)] // Reason: test helper functions do not need full doc sections
 #![allow(clippy::missing_const_for_fn, clippy::trivially_copy_pass_by_ref)] // Reason: test helper stubs not worth const/ref optimization
 #![allow(clippy::no_effect_underscore_binding, clippy::used_underscore_binding)] // Reason: _ bindings used in test destructuring patterns
 #![allow(missing_docs)] // Reason: test helper types do not require documentation

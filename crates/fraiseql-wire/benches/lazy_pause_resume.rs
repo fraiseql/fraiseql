@@ -6,13 +6,14 @@
 //! This benchmark validates that lazy initialization of pause/resume
 //! infrastructure reduces startup overhead by ~5-8ms per query.
 //!
-//! Run with: cargo bench --bench lazy_pause_resume --features bench-with-postgres
+//! Run with: `cargo bench --bench lazy_pause_resume --features bench-with-postgres`
 //!
 //! Expected results:
 //! - Small result sets (1K-50K rows): Improved by 5-8ms per iteration
 //! - Time-to-first-row should show measurable improvement
 //! - Throughput unchanged (lazy init only affects startup)
 #![allow(missing_docs)]
+#![allow(clippy::unwrap_used)] // Reason: benchmark code — panics are acceptable failures
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use fraiseql_wire::client::FraiseClient;
@@ -85,7 +86,7 @@ fn large_result_sets(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     // 100K rows (where lazy initialization impact is less noticeable)
-    group.throughput(Throughput::Elements(100000));
+    group.throughput(Throughput::Elements(100_000));
     group.bench_function("100k_rows", |b| {
         b.to_async(&rt)
             .iter(|| async { benchmark_query(100_000).await.unwrap() });

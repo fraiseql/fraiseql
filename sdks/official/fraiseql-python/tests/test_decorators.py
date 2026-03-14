@@ -1303,3 +1303,224 @@ def test_mutation_invalidates_views_in_json() -> None:
     m = SchemaRegistry.get_schema()["mutations"][0]
     assert m["sql_source"] == "fn_create_order"
     assert m["invalidates_views"] == ["v_order_summary"]
+
+
+# =============================================================================
+# REST transport annotations (@fraiseql.query / @fraiseql.mutation)
+# =============================================================================
+
+
+def test_query_rest_path_emits_rest_block() -> None:
+    """rest_path= on @query emits a 'rest' block with path and method."""
+
+    @fraiseql.type
+    class User:
+        id: int
+        name: str
+
+    @fraiseql.query(sql_source="v_user", rest_path="/users")
+    def users() -> list[User]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["rest"] == {"path": "/users", "method": "GET"}
+
+
+def test_query_rest_path_default_method_is_get() -> None:
+    """Default REST method for @query is GET."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user", rest_path="/users")
+    def users() -> list[User]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["rest"]["method"] == "GET"
+
+
+def test_query_rest_path_custom_method() -> None:
+    """rest_method= overrides the default method for @query."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user", rest_path="/users/search", rest_method="POST")
+    def search_users(query: str) -> list[User]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["rest"]["method"] == "POST"
+
+
+def test_query_rest_path_with_path_param() -> None:
+    """Path parameter {id} declared in function sig passes validation."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user", rest_path="/users/{id}")
+    def get_user(id: int) -> User | None:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["rest"]["path"] == "/users/{id}"
+
+
+def test_query_rest_path_undeclared_param_raises() -> None:
+    """Path parameter not in function signature raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    with pytest.raises(ValueError, match="not a declared function argument"):
+
+        @fraiseql.query(sql_source="v_user", rest_path="/users/{user_id}")
+        def get_user(id: int) -> User | None:
+            pass
+
+
+def test_query_rest_path_invalid_method_raises() -> None:
+    """Invalid HTTP method raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid HTTP method"):
+
+        @fraiseql.query(sql_source="v_user", rest_path="/users", rest_method="FETCH")
+        def users() -> list[User]:
+            pass
+
+
+def test_query_rest_method_without_rest_path_is_discarded() -> None:
+    """rest_method= without rest_path= is silently discarded (no error, no 'rest' key)."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user", rest_method="GET")
+    def users() -> list[User]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert "rest" not in q
+
+
+def test_query_without_rest_path_has_no_rest_block() -> None:
+    """@query without rest_path emits no 'rest' key."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user")
+    def users() -> list[User]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert "rest" not in q
+
+
+def test_mutation_rest_path_emits_rest_block() -> None:
+    """rest_path= on @mutation emits a 'rest' block with path and method."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_user", rest_path="/users")
+    def create_user(name: str) -> User:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["rest"] == {"path": "/users", "method": "POST"}
+
+
+def test_mutation_rest_path_default_method_is_post() -> None:
+    """Default REST method for @mutation is POST."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_user", rest_path="/users")
+    def create_user(name: str) -> User:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["rest"]["method"] == "POST"
+
+
+def test_mutation_rest_path_custom_method_put() -> None:
+    """rest_method=PUT overrides POST default for @mutation."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="fn_update_user",
+        rest_path="/users/{id}",
+        rest_method="PUT",
+    )
+    def update_user(id: int, name: str) -> User:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["rest"] == {"path": "/users/{id}", "method": "PUT"}
+
+
+def test_mutation_rest_path_delete_method() -> None:
+    """rest_method=DELETE works for @mutation."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="fn_delete_user",
+        rest_path="/users/{id}",
+        rest_method="DELETE",
+    )
+    def delete_user(id: int) -> User:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["rest"]["method"] == "DELETE"
+
+
+def test_mutation_rest_path_undeclared_param_raises() -> None:
+    """Path parameter not in mutation signature raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    with pytest.raises(ValueError, match="not a declared function argument"):
+
+        @fraiseql.mutation(sql_source="fn_update_user", rest_path="/users/{user_id}")
+        def update_user(id: int, name: str) -> User:
+            pass
+
+
+def test_mutation_rest_path_method_case_insensitive() -> None:
+    """rest_method= is case-insensitive (lowercased input works)."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_user", rest_path="/users", rest_method="post")
+    def create_user(name: str) -> User:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["rest"]["method"] == "POST"

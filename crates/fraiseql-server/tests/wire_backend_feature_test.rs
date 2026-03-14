@@ -23,6 +23,8 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test helper functions
 #![allow(clippy::missing_errors_doc)] // Reason: test helper functions
 #![allow(missing_docs)] // Reason: test code
+#![allow(clippy::no_effect_underscore_binding)] // Reason: test code — underscore bindings used for compile-time type checks
+#![allow(clippy::redundant_clone)] // Reason: test code — intentional clones to verify Clone trait is implemented
 #![allow(clippy::items_after_statements)] // Reason: test helpers near use site
 #![allow(clippy::used_underscore_binding)] // Reason: test variables use _ prefix
 #![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures
@@ -114,7 +116,7 @@ mod wire_adapter_tests {
         let adapter = FraiseWireAdapter::new(&db_url);
 
         // Verify we got a valid adapter
-        let _ = adapter.clone();  // intentional
+        let _ = adapter.clone(); // intentional
     }
 
     /// Test Wire adapter with custom chunk size configuration.
@@ -127,7 +129,7 @@ mod wire_adapter_tests {
         let adapter = FraiseWireAdapter::new(&db_url).with_chunk_size(512);
 
         // Verify configuration was applied
-        let _ = adapter.clone();  // intentional
+        let _ = adapter.clone(); // intentional
     }
 
     /// Test that Wire adapter is truly a different type from PostgreSQL adapter.

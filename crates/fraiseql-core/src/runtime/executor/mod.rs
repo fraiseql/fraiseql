@@ -164,11 +164,9 @@ use std::{sync::Arc, time::Duration};
 use futures::future::BoxFuture;
 
 use super::{
-    ExecutionContext, QueryMatcher, QueryPlanner, RuntimeConfig,
-    classify_field_access,
+    ExecutionContext, QueryMatcher, QueryPlanner, RuntimeConfig, classify_field_access,
     suggest_similar,
 };
-use crate::db::types::PoolMetrics;
 #[cfg(test)]
 use crate::db::types::DatabaseType;
 use crate::{
@@ -176,20 +174,19 @@ use crate::{
     db::{
         CursorValue, RelayDatabaseAdapter, WhereClause,
         traits::{DatabaseAdapter, RelayPageResult},
+        types::PoolMetrics,
     },
     error::{FraiseQLError, Result},
-    schema::{
-        CompiledSchema, InjectedParamSource, IntrospectionResponses,
-    },
+    schema::{CompiledSchema, InjectedParamSource, IntrospectionResponses},
     security::{FieldAccessError, SecurityContext},
 };
 
+mod aggregate;
 mod classify;
 mod explain;
-mod query;
-mod mutation;
-mod aggregate;
 mod federation;
+mod mutation;
+mod query;
 
 #[cfg(test)]
 mod tests;
@@ -254,7 +251,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
 
 /// Query type classification for routing.
 #[derive(Debug, Clone, PartialEq)]
- enum QueryType {
+enum QueryType {
     /// Regular GraphQL query (non-analytics).
     Regular,
 
@@ -471,7 +468,6 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
-
     /// Execute a GraphQL query.
     ///
     /// This is the main entry point for query execution. It coordinates the three-phase
@@ -572,12 +568,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                             ),
                             _ => format!("Mutation '{name}' not found in schema"),
                         };
-                        FraiseQLError::Validation { message, path: None }
+                        FraiseQLError::Validation {
+                            message,
+                            path: None,
+                        }
                     })?;
-                let fn_name = mutation_def
-                    .sql_source
-                    .clone()
-                    .unwrap_or_else(|| format!("fn_{name}"));
+                let fn_name =
+                    mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
                 Ok(super::ExplainPlan {
                     sql:            format!("SELECT * FROM {fn_name}(...)"),
                     parameters:     Vec::new(),
@@ -689,16 +686,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         match query_type {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
-                // `maybe_parsed` is always Some for Regular queries (see classify_query_with_parse).
+                // `maybe_parsed` is always Some for Regular queries (see
+                // classify_query_with_parse).
                 let parsed = maybe_parsed.expect("parsed present for Regular query type");
                 if pipeline::is_multi_root(&parsed) {
                     let pr = self.execute_parallel(&parsed, variables).await?;
                     let data = pr.merge_into_data_map();
-                    return serde_json::to_string(&serde_json::json!({ "data": data }))
-                        .map_err(|e| FraiseQLError::Internal {
+                    return serde_json::to_string(&serde_json::json!({ "data": data })).map_err(
+                        |e| FraiseQLError::Internal {
                             message: e.to_string(),
                             source:  None,
-                        });
+                        },
+                    );
                 }
                 self.execute_regular_query(query, variables).await
             },
@@ -895,13 +894,13 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// This is the **main authenticated entry point** for the executor. It routes the
     /// incoming request to the appropriate handler based on the query type:
     ///
-    /// - **Regular queries**: RLS `WHERE` clauses are applied so each user only sees
-    ///   their own rows, as determined by the RLS policy in [`RuntimeConfig`].
-    /// - **Mutations**: The security context is forwarded to
-    ///   `execute_mutation_query_with_security` so server-side `inject` parameters
-    ///   (e.g. `jwt:sub`) are resolved from the caller's JWT claims.
-    /// - **Aggregations, window queries, federation, introspection**: Delegated to
-    ///   their respective handlers (security context is not yet applied to these).
+    /// - **Regular queries**: RLS `WHERE` clauses are applied so each user only sees their own
+    ///   rows, as determined by the RLS policy in [`RuntimeConfig`].
+    /// - **Mutations**: The security context is forwarded to `execute_mutation_query_with_security`
+    ///   so server-side `inject` parameters (e.g. `jwt:sub`) are resolved from the caller's JWT
+    ///   claims.
+    /// - **Aggregations, window queries, federation, introspection**: Delegated to their respective
+    ///   handlers (security context is not yet applied to these).
     ///
     /// If `query_timeout_ms` is non-zero in the [`RuntimeConfig`], the entire
     /// execution is raced against a Tokio deadline and returns
@@ -921,8 +920,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Errors
     ///
     /// * [`FraiseQLError::Parse`] — the query string is not valid GraphQL
-    /// * [`FraiseQLError::Validation`] — unknown mutation name, missing `sql_source`,
-    ///   or a mutation requires `inject` params but the security context is absent
+    /// * [`FraiseQLError::Validation`] — unknown mutation name, missing `sql_source`, or a mutation
+    ///   requires `inject` params but the security context is absent
     /// * [`FraiseQLError::Database`] — the underlying adapter returns an error
     /// * [`FraiseQLError::Timeout`] — execution exceeded `query_timeout_ms`
     ///
@@ -1118,7 +1117,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 ///
 /// Walks the result (which may be a single object or an array of objects)
 /// and sets each masked field's value to `null`.
- fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
+fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
     match value {
         serde_json::Value::Object(map) => {
             for field_name in masked {
@@ -1126,13 +1125,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                     map.insert(field_name.clone(), serde_json::Value::Null);
                 }
             }
-        }
+        },
         serde_json::Value::Array(items) => {
             for item in items {
                 null_masked_fields(item, masked);
             }
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -1198,7 +1197,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 /// // Builds SQL: SELECT * FROM fn_current_user($1, $2) with params [user_id, tenant_id]
 /// // User cannot bypass this by passing different values
 /// ```
- fn resolve_inject_value(
+fn resolve_inject_value(
     param_name: &str,
     source: &InjectedParamSource,
     security_ctx: &SecurityContext,
@@ -1217,7 +1216,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 message: format!(
                     "Inject param '{param_name}': JWT claim '{claim}' not present in token"
                 ),
-                path: None,
+                path:    None,
             })
         },
     }

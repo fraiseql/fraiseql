@@ -14,13 +14,13 @@ use crate::error::{ErrorCode, GraphQLError};
 #[serde(default)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization (default: false — opt-in for backwards compat).
-    pub enabled: bool,
+    pub enabled:                     bool,
     /// Strip stack traces, SQL fragments, file paths (default: true).
     pub hide_implementation_details: bool,
     /// Replace raw database error messages with a generic message (default: true).
-    pub sanitize_database_errors: bool,
+    pub sanitize_database_errors:    bool,
     /// Replacement message shown to clients when an internal error is sanitized.
-    pub custom_error_message: Option<String>,
+    pub custom_error_message:        Option<String>,
 }
 
 impl Default for ErrorSanitizationConfig {
@@ -68,10 +68,8 @@ impl ErrorSanitizer {
             return error;
         }
 
-        let is_internal = matches!(
-            error.code,
-            ErrorCode::InternalServerError | ErrorCode::DatabaseError
-        );
+        let is_internal =
+            matches!(error.code, ErrorCode::InternalServerError | ErrorCode::DatabaseError);
 
         if is_internal && self.config.sanitize_database_errors {
             error.message = self
@@ -160,7 +158,7 @@ mod tests {
     #[test]
     fn test_sanitizer_custom_message() {
         let s = ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:              true,
+            enabled: true,
             custom_error_message: Some("Contact support".to_string()),
             ..ErrorSanitizationConfig::default()
         });
@@ -189,7 +187,7 @@ mod tests {
     #[test]
     fn test_sanitize_database_errors_false_allows_db_message_through() {
         let s = ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:                  true,
+            enabled: true,
             sanitize_database_errors: false,
             ..ErrorSanitizationConfig::default()
         });

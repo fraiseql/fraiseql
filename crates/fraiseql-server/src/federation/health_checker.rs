@@ -279,7 +279,12 @@ impl SubgraphHealthChecker {
 
     /// Get cached health statuses.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
-        self.status_cache.lock().expect("status_cache mutex poisoned").iter().cloned().collect()
+        self.status_cache
+            .lock()
+            .expect("status_cache mutex poisoned")
+            .iter()
+            .cloned()
+            .collect()
     }
 
     /// Get overall federation health status.

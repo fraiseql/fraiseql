@@ -151,7 +151,7 @@ impl std::fmt::Debug for JwksCache {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -161,7 +161,8 @@ mod tests {
         matchers::{method, path},
     };
 
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn jwks_fixture() -> serde_json::Value {

@@ -11,7 +11,8 @@
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
 #![allow(clippy::similar_names)] // Reason: domain terms are conventional pairs
 #![allow(clippy::unused_self)] // Reason: trait implementations require &self
-#![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result
+#![allow(clippy::unnecessary_wraps)]
+// Reason: handler signatures must return Result
 //  clippy::too_many_lines — removed from module level; applied per-function where warranted.
 //  clippy::wildcard_imports — removed from module level; applied per-site on `use super::*`.
 #![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags
@@ -53,8 +54,8 @@ pub mod middleware;
 pub mod monitoring;
 pub mod oauth;
 pub mod oidc_provider;
-pub mod operation_rbac;
 pub mod oidc_server_client;
+pub mod operation_rbac;
 pub mod pkce;
 pub mod provider;
 pub mod providers;
@@ -109,7 +110,9 @@ pub use oauth::{
     TokenRefreshWorker, TokenRefresher,
 };
 pub use oidc_provider::OidcProvider;
+pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
+pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
@@ -124,8 +127,6 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
-pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
-pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,

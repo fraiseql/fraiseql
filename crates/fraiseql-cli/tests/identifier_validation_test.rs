@@ -1,10 +1,10 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Tests for SQL identifier validation at compile time.
 //!
 //! Ensures `sql_source`, `view_name`, and `function_name` values are safe SQL
 //! identifiers, blocking injection attempts before they reach the compiled schema.
 
-use fraiseql_cli::schema::validator::{validate_sql_identifier, ErrorSeverity};
+use fraiseql_cli::schema::validator::{ErrorSeverity, validate_sql_identifier};
 
 // ============================================================================
 // Valid identifiers
@@ -12,7 +12,13 @@ use fraiseql_cli::schema::validator::{validate_sql_identifier, ErrorSeverity};
 
 #[test]
 fn valid_simple_identifiers_pass() {
-    let cases = ["v_user", "fn_create_post", "v_sales_2024", "_internal", "Users"];
+    let cases = [
+        "v_user",
+        "fn_create_post",
+        "v_sales_2024",
+        "_internal",
+        "Users",
+    ];
     for id in cases {
         assert!(validate_sql_identifier(id, "sql_source", "Query.test").is_ok(), "{id}");
     }
@@ -20,7 +26,11 @@ fn valid_simple_identifiers_pass() {
 
 #[test]
 fn valid_schema_qualified_identifiers_pass() {
-    let cases = ["public.v_user", "myschema.fn_create_post", "_internal.v_data"];
+    let cases = [
+        "public.v_user",
+        "myschema.fn_create_post",
+        "_internal.v_data",
+    ];
     for id in cases {
         assert!(validate_sql_identifier(id, "sql_source", "Query.test").is_ok(), "{id}");
     }
@@ -32,12 +42,9 @@ fn valid_schema_qualified_identifiers_pass() {
 
 #[test]
 fn injection_attempt_rejected() {
-    let err = validate_sql_identifier(
-        "v_user\"; DROP TABLE users; --",
-        "sql_source",
-        "Query.users",
-    )
-    .unwrap_err();
+    let err =
+        validate_sql_identifier("v_user\"; DROP TABLE users; --", "sql_source", "Query.users")
+            .unwrap_err();
     assert_eq!(err.severity, ErrorSeverity::Error);
 }
 
@@ -65,18 +72,14 @@ fn invalid_identifiers_rejected() {
 
 #[test]
 fn error_message_is_actionable() {
-    let err =
-        validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
-            .unwrap_err();
+    let err = validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
+        .unwrap_err();
     assert!(err.message.contains("sql_source"), "should name the field");
     assert!(
         err.message.contains("v_user; DROP TABLE users"),
         "should show the offending value"
     );
-    assert!(
-        err.message.contains("valid SQL identifier"),
-        "should explain what's expected"
-    );
+    assert!(err.message.contains("valid SQL identifier"), "should explain what's expected");
 }
 
 #[test]

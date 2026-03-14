@@ -6,11 +6,7 @@
 /// `fraiseql:rl:{strategy}:{prefix}:{identifier}` when an optional path prefix is supplied.
 ///
 /// Exposed as `pub` for property testing.
-pub fn build_rate_limit_key(
-    strategy: &str,
-    identifier: &str,
-    prefix: Option<&str>,
-) -> String {
+pub fn build_rate_limit_key(strategy: &str, identifier: &str, prefix: Option<&str>) -> String {
     match prefix {
         Some(p) => format!("fraiseql:rl:{strategy}:{p}:{identifier}"),
         None => format!("fraiseql:rl:{strategy}:{identifier}"),

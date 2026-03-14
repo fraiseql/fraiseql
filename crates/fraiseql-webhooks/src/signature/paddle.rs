@@ -30,7 +30,9 @@ impl PaddleVerifier {
     /// Create a verifier with the default 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
-        Self { tolerance_secs: DEFAULT_TOLERANCE_SECS }
+        Self {
+            tolerance_secs: DEFAULT_TOLERANCE_SECS,
+        }
     }
 
     /// Set a custom timestamp tolerance (in seconds).

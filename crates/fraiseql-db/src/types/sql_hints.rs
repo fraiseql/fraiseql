@@ -5,9 +5,8 @@
 //! the compilation or schema layers — a prerequisite for eventually extracting
 //! `db/` into its own crate (`fraiseql-db`).
 
-use serde::{Deserialize, Serialize};
-
 use fraiseql_error::{FraiseQLError, Result};
+use serde::{Deserialize, Serialize};
 
 /// ORDER BY clause
 ///
@@ -50,10 +49,7 @@ impl OrderByClause {
     /// Returns `FraiseQLError::Validation` if the field contains invalid characters.
     fn validate_field_name(field: &str) -> Result<()> {
         let mut chars = field.chars();
-        let first_ok = chars
-            .next()
-            .map(|c| c.is_ascii_alphabetic() || c == '_')
-            .unwrap_or(false);
+        let first_ok = chars.next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false);
         let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
         if first_ok && rest_ok {
             Ok(())
@@ -96,8 +92,8 @@ impl OrderByClause {
                                 message: format!(
                                     "orderBy direction '{dir_str}' must be ASC or DESC"
                                 ),
-                                path: None,
-                            })
+                                path:    None,
+                            });
                         },
                     };
                     Self::validate_field_name(field)?;
@@ -123,10 +119,7 @@ impl OrderByClause {
                             path:    None,
                         })?
                         .to_string();
-                    let dir_str = obj
-                        .get("direction")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("ASC");
+                    let dir_str = obj.get("direction").and_then(|v| v.as_str()).unwrap_or("ASC");
                     let direction = match dir_str.to_ascii_uppercase().as_str() {
                         "ASC" => OrderDirection::Asc,
                         "DESC" => OrderDirection::Desc,
@@ -135,8 +128,8 @@ impl OrderByClause {
                                 message: format!(
                                     "orderBy direction '{dir_str}' must be ASC or DESC"
                                 ),
-                                path: None,
-                            })
+                                path:    None,
+                            });
                         },
                     };
                     Self::validate_field_name(&field)?;

@@ -2,9 +2,12 @@
 //!
 //! These helpers are shared across multiple test files, so not all may be used by every test.
 #![allow(dead_code)]
-
 #![allow(clippy::unwrap_used)] // Reason: test infrastructure, panics are acceptable
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap)] // Reason: test metric computations use integer→float casts for display
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap
+)] // Reason: test metric computations use integer→float casts for display
 use std::sync::Arc;
 
 use fraiseql_core::{

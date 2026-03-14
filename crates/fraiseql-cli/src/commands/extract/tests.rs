@@ -1,18 +1,11 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::{
-    Language, SchemaExtractor, derive_query_name, map_type, parse_annotation_params,
-    strip_class_ref, to_snake_case,
+    Language, SchemaExtractor, csharp::CSharpExtractor, derive_query_name, go::GoExtractor,
+    java::JavaExtractor, kotlin::KotlinExtractor, map_type, parse_annotation_params,
+    python::PythonExtractor, rust::RustExtractor, scala::ScalaExtractor, strip_class_ref,
+    swift::SwiftExtractor, to_snake_case, typescript::TypeScriptExtractor,
 };
-use super::csharp::CSharpExtractor;
-use super::go::GoExtractor;
-use super::java::JavaExtractor;
-use super::kotlin::KotlinExtractor;
-use super::python::PythonExtractor;
-use super::rust::RustExtractor;
-use super::scala::ScalaExtractor;
-use super::swift::SwiftExtractor;
-use super::typescript::TypeScriptExtractor;
 
 #[test]
 fn test_to_snake_case() {

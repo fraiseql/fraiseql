@@ -55,27 +55,43 @@ pub struct PoolTuningConfig {
     pub samples_before_action: u32,
 }
 
-const fn default_min_pool_size() -> u32 { 5 }
-const fn default_max_pool_size() -> u32 { 50 }
-const fn default_target_queue_depth() -> u32 { 3 }
-const fn default_scale_up_step() -> u32 { 5 }
-const fn default_scale_down_step() -> u32 { 2 }
-const fn default_scale_down_idle_ratio() -> f64 { 0.5 }
-const fn default_tuning_interval_ms() -> u64 { 30_000 }
-const fn default_samples_before_action() -> u32 { 3 }
+const fn default_min_pool_size() -> u32 {
+    5
+}
+const fn default_max_pool_size() -> u32 {
+    50
+}
+const fn default_target_queue_depth() -> u32 {
+    3
+}
+const fn default_scale_up_step() -> u32 {
+    5
+}
+const fn default_scale_down_step() -> u32 {
+    2
+}
+const fn default_scale_down_idle_ratio() -> f64 {
+    0.5
+}
+const fn default_tuning_interval_ms() -> u64 {
+    30_000
+}
+const fn default_samples_before_action() -> u32 {
+    3
+}
 
 impl Default for PoolTuningConfig {
     fn default() -> Self {
         Self {
-            enabled:                false,
-            min_pool_size:          default_min_pool_size(),
-            max_pool_size:          default_max_pool_size(),
-            target_queue_depth:     default_target_queue_depth(),
-            scale_up_step:          default_scale_up_step(),
-            scale_down_step:        default_scale_down_step(),
-            scale_down_idle_ratio:  default_scale_down_idle_ratio(),
-            tuning_interval_ms:     default_tuning_interval_ms(),
-            samples_before_action:  default_samples_before_action(),
+            enabled:               false,
+            min_pool_size:         default_min_pool_size(),
+            max_pool_size:         default_max_pool_size(),
+            target_queue_depth:    default_target_queue_depth(),
+            scale_up_step:         default_scale_up_step(),
+            scale_down_step:       default_scale_down_step(),
+            scale_down_idle_ratio: default_scale_down_idle_ratio(),
+            tuning_interval_ms:    default_tuning_interval_ms(),
+            samples_before_action: default_samples_before_action(),
         }
     }
 }
@@ -140,48 +156,74 @@ mod tests {
 
     #[test]
     fn test_validate_passes_for_defaults() {
-        assert!(PoolTuningConfig::default().validate().is_ok(), "default pool tuning config should pass validation");
+        assert!(
+            PoolTuningConfig::default().validate().is_ok(),
+            "default pool tuning config should pass validation"
+        );
     }
 
     #[test]
     fn test_validate_min_lt_max() {
-        let cfg = PoolTuningConfig { min_pool_size: 10, max_pool_size: 5, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            min_pool_size: 10,
+            max_pool_size: 5,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err(), "min >= max should be invalid");
     }
 
     #[test]
     fn test_validate_min_equals_max_is_invalid() {
-        let cfg = PoolTuningConfig { min_pool_size: 10, max_pool_size: 10, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            min_pool_size: 10,
+            max_pool_size: 10,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_idle_ratio_above_one() {
-        let cfg = PoolTuningConfig { scale_down_idle_ratio: 1.5, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            scale_down_idle_ratio: 1.5,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err(), "idle ratio > 1.0 should be invalid");
     }
 
     #[test]
     fn test_validate_idle_ratio_negative() {
-        let cfg = PoolTuningConfig { scale_down_idle_ratio: -0.1, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            scale_down_idle_ratio: -0.1,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_zero_scale_up_step() {
-        let cfg = PoolTuningConfig { scale_up_step: 0, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            scale_up_step: 0,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_zero_scale_down_step() {
-        let cfg = PoolTuningConfig { scale_down_step: 0, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            scale_down_step: 0,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_interval_too_short() {
-        let cfg = PoolTuningConfig { tuning_interval_ms: 50, ..Default::default() };
+        let cfg = PoolTuningConfig {
+            tuning_interval_ms: 50,
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 }

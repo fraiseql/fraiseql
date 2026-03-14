@@ -5,8 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::domain_types::FieldName;
-use super::scalar_types;
+use super::{domain_types::FieldName, scalar_types};
 
 // ============================================================================
 // Vector Types - pgvector support

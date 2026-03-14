@@ -13,7 +13,8 @@ pub struct MetricsConfig {
     #[serde(default = "default_path")]
     pub path: String,
 
-    /// Output format (`"prometheus"` is the only currently supported value).  Default: `"prometheus"`.
+    /// Output format (`"prometheus"` is the only currently supported value).  Default:
+    /// `"prometheus"`.
     #[serde(default = "default_format")]
     pub format: String,
 

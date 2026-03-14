@@ -4,11 +4,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::{ClickHouseConfig, JobQueueConfig, PerformanceConfig, RedisConfig, TransportConfig};
 use crate::error::{ObserverError, Result};
-
-use super::{
-    ClickHouseConfig, JobQueueConfig, PerformanceConfig, RedisConfig, TransportConfig,
-};
 
 // ============================================================================
 // Observer Runtime Configuration

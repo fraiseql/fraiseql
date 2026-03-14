@@ -282,7 +282,7 @@ const fn days_to_date(days: u64) -> (u64, u64, u64) {
     (y, m, d)
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -135,7 +135,10 @@ impl QueryMatcher {
                     ),
                     _ => format!("Query '{}' not found in schema", parsed.root_field),
                 };
-                FraiseQLError::Validation { message, path: None }
+                FraiseQLError::Validation {
+                    message,
+                    path: None,
+                }
             })?
             .clone();
 
@@ -205,7 +208,11 @@ pub fn suggest_similar<'a>(needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
         .iter()
         .filter_map(|&candidate| {
             let d = levenshtein(needle, candidate);
-            if d <= MAX_DISTANCE { Some((d, candidate)) } else { None }
+            if d <= MAX_DISTANCE {
+                Some((d, candidate))
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -253,23 +260,24 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    Vec::new(),
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  crate::schema::AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:     Default::default(),
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
+            rest:                None,
         });
         schema
     }
@@ -465,8 +473,9 @@ mod tests {
             relay_cursor_type:   Default::default(),
             inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
+            rest:                None,
         });
         let matcher = QueryMatcher::new(schema);
 

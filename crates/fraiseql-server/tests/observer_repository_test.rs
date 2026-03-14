@@ -15,16 +15,13 @@
 //! ```
 
 #![cfg(feature = "observers")]
-
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test functions, panics are expected
 #![allow(missing_docs)] // Reason: test code does not require documentation
 
 mod observer_test_helpers;
 
-use fraiseql_server::observers::{
-    CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
-};
+use fraiseql_server::observers::{ListObserverLogsQuery, ListObserversQuery, ObserverRepository};
 use observer_test_helpers::setup_observer_schema;
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;
@@ -52,7 +49,7 @@ async fn setup_pg() -> (PgPool, impl std::any::Any) {
 // Row insertion helpers
 // ---------------------------------------------------------------------------
 
-/// Insert a minimal observer row, controlling fk_customer_org precisely.
+/// Insert a minimal observer row, controlling `fk_customer_org` precisely.
 async fn insert_observer(
     pool: &PgPool,
     name: &str,
@@ -76,13 +73,8 @@ async fn insert_observer(
     row.0
 }
 
-/// Insert a minimal observer log row linked to a given pk_observer.
-async fn insert_log(
-    pool: &PgPool,
-    pk_observer: i64,
-    status: &str,
-    trace_id: Option<&str>,
-) -> Uuid {
+/// Insert a minimal observer log row linked to a given `pk_observer`.
+async fn insert_log(pool: &PgPool, pk_observer: i64, status: &str, trace_id: Option<&str>) -> Uuid {
     let event_id = Uuid::new_v4();
     let entity_id = Uuid::new_v4();
     sqlx::query(
@@ -105,7 +97,7 @@ async fn insert_log(
 // Tests
 // ---------------------------------------------------------------------------
 
-/// Verify that list() with a customer_org filter only returns observers
+/// Verify that `list()` with a `customer_org` filter only returns observers
 /// belonging to that org.
 #[tokio::test]
 async fn test_list_tenant_isolation() {
@@ -119,12 +111,12 @@ async fn test_list_tenant_isolation() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
-        entity_type: None,
-        event_type: None,
-        enabled: None,
+        entity_type:     None,
+        event_type:      None,
+        enabled:         None,
     };
 
     let (observers, count) = repo.list(&query, Some(1)).await.unwrap();
@@ -135,7 +127,7 @@ async fn test_list_tenant_isolation() {
     assert!(count >= 1);
 }
 
-/// The critical injection test: a malicious entity_type string is treated as
+/// The critical injection test: a malicious `entity_type` string is treated as
 /// a literal value, returning 0 rows rather than leaking cross-tenant data.
 #[tokio::test]
 async fn test_list_injection_payload_returns_no_rows() {
@@ -147,13 +139,13 @@ async fn test_list_injection_payload_returns_no_rows() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
         // Classic injection payload
-        entity_type: Some("' OR 1=1 --".to_string()),
-        event_type: None,
-        enabled: None,
+        entity_type:     Some("' OR 1=1 --".to_string()),
+        event_type:      None,
+        enabled:         None,
     };
 
     // Must return 0 rows: the payload is a literal string, not SQL.
@@ -168,7 +160,7 @@ async fn test_list_injection_payload_returns_no_rows() {
     assert_eq!(count, 0);
 }
 
-/// Verify that all optional list() filters narrow the result to exactly the
+/// Verify that all optional `list()` filters narrow the result to exactly the
 /// matching row.
 #[tokio::test]
 async fn test_list_all_filters() {
@@ -182,12 +174,12 @@ async fn test_list_all_filters() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
-        entity_type: Some("Invoice".to_string()),
-        event_type: Some("UPDATE".to_string()),
-        enabled: Some(true),
+        entity_type:     Some("Invoice".to_string()),
+        event_type:      Some("UPDATE".to_string()),
+        enabled:         Some(true),
     };
 
     let (observers, count) = repo.list(&query, Some(10)).await.unwrap();
@@ -210,17 +202,16 @@ async fn test_list_pagination_correctness() {
 
     let repo = ObserverRepository::new(pool);
     let base = ListObserversQuery {
-        page: 1,
-        page_size: 2,
+        page:            1,
+        page_size:       2,
         include_deleted: false,
-        entity_type: Some("Widget".to_string()),
-        event_type: Some("INSERT".to_string()),
-        enabled: None,
+        entity_type:     Some("Widget".to_string()),
+        event_type:      Some("INSERT".to_string()),
+        enabled:         None,
     };
 
     let (page1, total) = repo.list(&base, Some(99)).await.unwrap();
-    let (page2, _) =
-        repo.list(&ListObserversQuery { page: 2, ..base }, Some(99)).await.unwrap();
+    let (page2, _) = repo.list(&ListObserversQuery { page: 2, ..base }, Some(99)).await.unwrap();
 
     assert_eq!(total, 3);
     assert_eq!(page1.len(), 2);
@@ -231,8 +222,8 @@ async fn test_list_pagination_correctness() {
     assert!(ids1.is_disjoint(&ids2), "pages must not share rows");
 }
 
-/// Verify list_logs() filters (status, trace_id, observer_id) narrow results
-/// correctly, and that a malicious trace_id does not leak rows.
+/// Verify `list_logs()` filters (status, `trace_id`, `observer_id`) narrow results
+/// correctly, and that a malicious `trace_id` does not leak rows.
 #[tokio::test]
 async fn test_list_logs_filters() {
     let (pool, _container) = setup_pg().await;
@@ -244,23 +235,22 @@ async fn test_list_logs_filters() {
     insert_log(&pool, pk, "success", Some(&trace)).await;
     insert_log(&pool, pk, "failure", None).await;
 
-    let obs_uuid: (Uuid,) =
-        sqlx::query_as("SELECT id FROM tb_observer WHERE pk_observer = $1")
-            .bind(pk)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let obs_uuid: (Uuid,) = sqlx::query_as("SELECT id FROM tb_observer WHERE pk_observer = $1")
+        .bind(pk)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let repo = ObserverRepository::new(pool);
 
     // Filter by status — all returned rows must be "success"
     let q_status = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: Some(obs_uuid.0),
-        status: Some("success".to_string()),
-        event_id: None,
-        trace_id: None,
+        status:      Some("success".to_string()),
+        event_id:    None,
+        trace_id:    None,
     };
     let (logs, _) = repo.list_logs(&q_status, None).await.unwrap();
     assert!(logs.iter().all(|l| l.status == "success"));
@@ -268,12 +258,12 @@ async fn test_list_logs_filters() {
 
     // Filter by trace_id — exactly one match
     let q_trace = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: None,
-        status: None,
-        event_id: None,
-        trace_id: Some(trace.clone()),
+        status:      None,
+        event_id:    None,
+        trace_id:    Some(trace.clone()),
     };
     let (logs, count) = repo.list_logs(&q_trace, None).await.unwrap();
     assert_eq!(count, 1);
@@ -281,12 +271,12 @@ async fn test_list_logs_filters() {
 
     // Malicious trace_id must return 0 rows
     let q_inject = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: None,
-        status: None,
-        event_id: None,
-        trace_id: Some("x' OR 1=1 --".to_string()),
+        status:      None,
+        event_id:    None,
+        trace_id:    Some("x' OR 1=1 --".to_string()),
     };
     let (logs_inject, cnt_inject) = repo.list_logs(&q_inject, None).await.unwrap();
     assert_eq!(logs_inject.len(), 0, "injection payload must not match rows");
@@ -294,20 +284,20 @@ async fn test_list_logs_filters() {
 
     // Filter by observer_id — both rows visible
     let q_obs = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: Some(obs_uuid.0),
-        status: None,
-        event_id: None,
-        trace_id: None,
+        status:      None,
+        event_id:    None,
+        trace_id:    None,
     };
     let (logs_obs, cnt_obs) = repo.list_logs(&q_obs, None).await.unwrap();
     assert_eq!(cnt_obs, 2);
     assert!(logs_obs.iter().all(|l| l.fk_observer == pk));
 }
 
-/// Verify delete() only soft-deletes when the observer belongs to the
-/// specified customer_org (tenant isolation).
+/// Verify `delete()` only soft-deletes when the observer belongs to the
+/// specified `customer_org` (tenant isolation).
 #[tokio::test]
 async fn test_delete_tenant_isolation() {
     let (pool, _container) = setup_pg().await;
@@ -316,12 +306,11 @@ async fn test_delete_tenant_isolation() {
     insert_observer(&pool, &format!("del-org1-{id}"), "Thing", "INSERT", Some(1)).await;
     insert_observer(&pool, &format!("del-org2-{id}"), "Thing", "INSERT", Some(2)).await;
 
-    let (uuid_org2,): (Uuid,) =
-        sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1")
-            .bind(format!("del-org2-{id}"))
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (uuid_org2,): (Uuid,) = sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1")
+        .bind(format!("del-org2-{id}"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let repo = ObserverRepository::new(pool.clone());
 

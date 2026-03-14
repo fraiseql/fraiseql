@@ -126,9 +126,7 @@ async fn test_typed_query_with_rust_predicate() {
         .query::<TestUser>("test.v_user")
         .where_rust(|json| {
             // Rust predicate works on JSON values
-            json["email"]
-                .as_str()
-                .is_some_and(|e| e.contains('@'))
+            json["email"].as_str().is_some_and(|e| e.contains('@'))
         })
         .chunk_size(128)
         .execute()

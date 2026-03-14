@@ -66,10 +66,7 @@ fn migrate_up_without_confiture_exits_nonzero() {
         .args(["migrate", "up", "--database", "postgres://localhost/test"])
         .output()
         .unwrap();
-    assert!(
-        !out.status.success(),
-        "migrate up without confiture must exit non-zero"
-    );
+    assert!(!out.status.success(), "migrate up without confiture must exit non-zero");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("confiture") || stderr.contains("install"),
@@ -107,13 +104,16 @@ fn migrate_create_without_confiture_exits_nonzero() {
     }
     let tmp = tempfile::tempdir().unwrap();
     let out = cli()
-        .args(["migrate", "create", "add_posts_table", "--dir", tmp.path().to_str().unwrap()])
+        .args([
+            "migrate",
+            "create",
+            "add_posts_table",
+            "--dir",
+            tmp.path().to_str().unwrap(),
+        ])
         .output()
         .unwrap();
-    assert!(
-        !out.status.success(),
-        "migrate create without confiture must exit non-zero"
-    );
+    assert!(!out.status.success(), "migrate create without confiture must exit non-zero");
 }
 
 // ── `fraiseql.toml` URL resolution ───────────────────────────────────────────
@@ -132,11 +132,7 @@ fn migrate_reads_database_url_from_toml() {
         "[database]\nurl = \"postgres://localhost/toml_test\"\n",
     )
     .unwrap();
-    let out = cli()
-        .current_dir(tmp.path())
-        .args(["migrate", "up"])
-        .output()
-        .unwrap();
+    let out = cli().current_dir(tmp.path()).args(["migrate", "up"]).output().unwrap();
     // Without confiture this will fail, but the error should NOT be "no database URL"
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(

@@ -36,8 +36,6 @@
 
 use serde_json::Value;
 
-use crate::schema::GraphQLValue;
-
 use super::{
     enum_validator::EnumValidator,
     ir::{
@@ -45,7 +43,10 @@ use super::{
         IRMutation, IRQuery, IRScalar, IRSubscription, IRType, IRUnion, MutationOperation,
     },
 };
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    error::{FraiseQLError, Result},
+    schema::GraphQLValue,
+};
 
 /// Schema parser.
 ///
@@ -113,7 +114,7 @@ impl SchemaParser {
                             let meta: crate::compiler::fact_table::FactTableMetadata =
                                 serde_json::from_value(v.clone()).map_err(|e| {
                                     FraiseQLError::Parse {
-                                        message: format!(
+                                        message:  format!(
                                             "Invalid fact table metadata for '{}': {e}",
                                             k
                                         ),
@@ -126,8 +127,7 @@ impl SchemaParser {
                 },
             )?;
         let enums = obj.get("enums").map_or(Ok(vec![]), |v| EnumValidator::parse_enums(v))?;
-        let interfaces =
-            obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;
+        let interfaces = obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;
         let unions = obj.get("unions").map_or(Ok(vec![]), |v| self.parse_unions(v))?;
         let input_types =
             obj.get("input_types").map_or(Ok(vec![]), |v| self.parse_input_types(v))?;
@@ -367,7 +367,7 @@ impl SchemaParser {
                              Valid values are: create, update, delete, custom"
                         ),
                         location: format!("mutations.{name}.operation"),
-                    })
+                    });
                 },
             }
         } else {
@@ -478,10 +478,7 @@ impl SchemaParser {
             name,
             arg_type,
             nullable,
-            default_value: obj
-                .get("default_value")
-                .map(GraphQLValue::from_json)
-                .transpose()?,
+            default_value: obj.get("default_value").map(GraphQLValue::from_json).transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -690,10 +687,7 @@ impl SchemaParser {
             name,
             field_type,
             nullable,
-            default_value: obj
-                .get("default_value")
-                .map(GraphQLValue::from_json)
-                .transpose()?,
+            default_value: obj.get("default_value").map(GraphQLValue::from_json).transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -884,8 +878,7 @@ mod tests {
     #[test]
     fn test_parse_mutation_operation_missing_defaults_to_custom() {
         let parser = SchemaParser::new();
-        let json =
-            r#"{"mutations": [{"name": "m", "return_type": "T", "nullable": false, "arguments": []}]}"#;
+        let json = r#"{"mutations": [{"name": "m", "return_type": "T", "nullable": false, "arguments": []}]}"#;
         let ir = parser.parse(json).unwrap();
         assert_eq!(ir.mutations[0].operation, MutationOperation::Custom);
     }

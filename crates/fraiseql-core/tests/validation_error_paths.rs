@@ -10,7 +10,9 @@ use fraiseql_core::{
     error::FraiseQLError,
     validation::{
         async_validators::{AsyncValidator, EmailFormatValidator, PhoneE164Validator},
-        validators::{EnumValidator, LengthValidator, PatternValidator, RequiredValidator, Validator},
+        validators::{
+            EnumValidator, LengthValidator, PatternValidator, RequiredValidator, Validator,
+        },
     },
 };
 

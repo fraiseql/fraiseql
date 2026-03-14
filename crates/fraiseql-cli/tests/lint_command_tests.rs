@@ -94,10 +94,7 @@ fn lint_fail_on_critical_clean_schema_exits_zero() {
         .args(["lint", &fixture("empty_schema.json"), "--fail-on-critical"])
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "lint --fail-on-critical on clean schema must exit 0"
-    );
+    assert!(out.status.success(), "lint --fail-on-critical on clean schema must exit 0");
 }
 
 // ── Cycle 3.4: Category filters ───────────────────────────────────────────────

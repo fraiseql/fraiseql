@@ -7,7 +7,6 @@
 //! It is intentionally separate from the more general [`crate::oauth::OAuth2Client`] and
 //! [`crate::oauth::OIDCClient`] types in `oauth`: those carry JWKS caches and session
 //! management state that the PKCE route handlers do not need.
-//!
 // The client secret is loaded from the environment at runtime and is NEVER
 // stored in the compiled schema or TOML config.
 
@@ -68,8 +67,8 @@ pub struct OidcServerClient {
 impl fmt::Debug for OidcServerClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OidcServerClient")
-            .field("client_id",              &self.client_id)
-            .field("client_secret",          &"[REDACTED]")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
             .field("authorization_endpoint", &self.authorization_endpoint)
             .finish()
     }
@@ -81,11 +80,11 @@ impl OidcServerClient {
     /// Prefer [`Self::from_compiled_schema`] in production code.
     /// This constructor exists for testing and direct wiring.
     pub fn new(
-        client_id:              impl Into<String>,
-        client_secret:          impl Into<String>,
-        server_redirect_uri:    impl Into<String>,
+        client_id: impl Into<String>,
+        client_secret: impl Into<String>,
+        server_redirect_uri: impl Into<String>,
         authorization_endpoint: impl Into<String>,
-        token_endpoint:         impl Into<String>,
+        token_endpoint: impl Into<String>,
     ) -> Self {
         Self {
             client_id:              client_id.into(),
@@ -114,9 +113,8 @@ impl OidcServerClient {
             server_redirect_uri: String,
         }
 
-        let auth_cfg: AuthCfg = schema_json
-            .get("auth")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+        let auth_cfg: AuthCfg =
+            schema_json.get("auth").and_then(|v| serde_json::from_value(v.clone()).ok())?;
 
         // ── Read client secret from env ───────────────────────────────────
         let client_secret = match std::env::var(&auth_cfg.client_secret_env) {
@@ -127,7 +125,7 @@ impl OidcServerClient {
                     "PKCE init failed: env var for OIDC client secret is not set"
                 );
                 return None;
-            }
+            },
         };
 
         // ── Load cached endpoints ─────────────────────────────────────────
@@ -143,15 +141,15 @@ impl OidcServerClient {
                      document (authorization_endpoint, token_endpoint)."
                 );
                 return None;
-            }
+            },
         };
 
         Some(Arc::new(Self {
-            client_id:              auth_cfg.client_id,
+            client_id: auth_cfg.client_id,
             client_secret,
-            server_redirect_uri:    auth_cfg.server_redirect_uri,
+            server_redirect_uri: auth_cfg.server_redirect_uri,
             authorization_endpoint: endpoints.authorization_endpoint,
-            token_endpoint:         endpoints.token_endpoint,
+            token_endpoint: endpoints.token_endpoint,
         }))
     }
 
@@ -162,8 +160,8 @@ impl OidcServerClient {
     /// break query string parsing on the provider side.
     pub fn authorization_url(
         &self,
-        state:                 &str,
-        code_challenge:        &str,
+        state: &str,
+        code_challenge: &str,
         code_challenge_method: &str,
     ) -> String {
         format!(
@@ -194,26 +192,26 @@ impl OidcServerClient {
     /// non-success status, or the response body cannot be parsed as JSON.
     pub async fn exchange_code(
         &self,
-        code:          &str,
+        code: &str,
         code_verifier: &str,
-        http:          &reqwest::Client,
+        http: &reqwest::Client,
     ) -> Result<OidcTokenResponse, anyhow::Error> {
         let resp = http
             .post(&self.token_endpoint)
             .form(&[
-                ("grant_type",    "authorization_code"),
-                ("code",           code),
-                ("code_verifier",  code_verifier),
-                ("redirect_uri",   self.server_redirect_uri.as_str()),
-                ("client_id",      self.client_id.as_str()),
-                ("client_secret",  self.client_secret.as_str()),
+                ("grant_type", "authorization_code"),
+                ("code", code),
+                ("code_verifier", code_verifier),
+                ("redirect_uri", self.server_redirect_uri.as_str()),
+                ("client_id", self.client_id.as_str()),
+                ("client_secret", self.client_secret.as_str()),
             ])
             .send()
             .await?;
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let body   = resp.text().await.unwrap_or_default();
+            let body = resp.text().await.unwrap_or_default();
             anyhow::bail!("token endpoint returned {status}: {body}");
         }
 
@@ -225,10 +223,11 @@ impl OidcServerClient {
 // Unit tests
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn test_client() -> OidcServerClient {
@@ -245,12 +244,12 @@ mod tests {
     fn test_authorization_url_contains_required_pkce_params() {
         let client = test_client();
         let url = client.authorization_url("my_state", "my_challenge", "S256");
-        assert!(url.contains("response_type=code"),          "missing response_type");
-        assert!(url.contains("client_id=test-client"),       "missing client_id");
+        assert!(url.contains("response_type=code"), "missing response_type");
+        assert!(url.contains("client_id=test-client"), "missing client_id");
         assert!(url.contains("code_challenge=my_challenge"), "missing code_challenge");
-        assert!(url.contains("code_challenge_method=S256"),  "missing method");
-        assert!(url.contains("state="),                      "missing state");
-        assert!(url.contains("redirect_uri="),               "missing redirect_uri");
+        assert!(url.contains("code_challenge_method=S256"), "missing method");
+        assert!(url.contains("state="), "missing state");
+        assert!(url.contains("redirect_uri="), "missing redirect_uri");
     }
 
     #[test]
@@ -258,10 +257,7 @@ mod tests {
         let client = test_client();
         let url = client.authorization_url("s", "c", "S256");
         // scope must include "openid" (percent-encoded as openid%20email%20profile)
-        assert!(
-            url.contains("openid"),
-            "authorization URL must request the openid scope: {url}"
-        );
+        assert!(url.contains("openid"), "authorization URL must request the openid scope: {url}");
     }
 
     #[test]
@@ -272,13 +268,7 @@ mod tests {
         let state_with_spaces = "hello world+test";
         let url = client.authorization_url(state_with_spaces, "challenge", "S256");
         // The raw space must not appear unencoded
-        let state_segment = url
-            .split("state=")
-            .nth(1)
-            .unwrap()
-            .split('&')
-            .next()
-            .unwrap();
+        let state_segment = url.split("state=").nth(1).unwrap().split('&').next().unwrap();
         assert!(!state_segment.contains(' '), "space in state must be percent-encoded");
         assert!(!state_segment.contains('+'), "plus in state must be percent-encoded");
     }
@@ -316,8 +306,8 @@ mod tests {
 
     #[test]
     fn test_from_compiled_schema_missing_endpoints_returns_none() {
-        // auth section present, env var set (via a known-present env var), but no auth_endpoints cache.
-        // Use PATH which is always set in any Unix environment.
+        // auth section present, env var set (via a known-present env var), but no auth_endpoints
+        // cache. Use PATH which is always set in any Unix environment.
         let json = serde_json::json!({
             "auth": {
                 "discovery_url":       "https://example.com",

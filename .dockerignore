@@ -17,6 +17,7 @@
 
 # Build artifacts
 target/
+**/target/
 dist/
 build/
 *.o

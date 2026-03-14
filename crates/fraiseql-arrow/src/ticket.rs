@@ -431,7 +431,8 @@ mod tests {
     #[test]
     fn test_graphql_query_with_complex_variables_roundtrips() {
         let ticket = FlightTicket::GraphQLQuery {
-            query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
+            query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }"
+                .to_string(),
             variables: Some(serde_json::json!({
                 "filter": {
                     "status": "active",

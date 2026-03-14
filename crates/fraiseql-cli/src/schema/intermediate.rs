@@ -3,8 +3,10 @@
 //! Language-agnostic schema representation that all language libraries output.
 //! See .`claude/INTERMEDIATE_SCHEMA_FORMAT.md` for full specification.
 
-use fraiseql_core::schema::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
-use fraiseql_core::validation::ValidationRule;
+use fraiseql_core::{
+    schema::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig},
+    validation::ValidationRule,
+};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -666,7 +668,12 @@ pub struct IntermediateQueryDefaults {
 
 impl Default for IntermediateQueryDefaults {
     fn default() -> Self {
-        Self { where_clause: true, order_by: true, limit: true, offset: true }
+        Self {
+            where_clause: true,
+            order_by:     true,
+            limit:        true,
+            offset:       true,
+        }
     }
 }
 
@@ -1043,7 +1050,7 @@ pub struct IntermediateRetryConfig {
     pub max_delay_ms: u32,
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,9 +1,46 @@
-[[bench]]
-harness = false
-name = "performance_benchmarks"
+[package]
+name = "fraiseql-server"
+description = "HTTP server for FraiseQL v2 GraphQL engine"
+authors.workspace = true
+categories = ["database", "web-programming::http-server"]
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords = ["graphql", "sql", "database", "server", "api"]
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+# Arrow Flight server for high-performance data delivery
+arrow = ["dep:fraiseql-arrow", "dep:tonic"]
+auth = ["dep:fraiseql-auth"]
+aws-s3 = ["aws-sdk-s3", "aws-config"]
+cors = []
+database = []
+default = ["auth", "secrets", "webhooks"]
+# MCP (Model Context Protocol) server
+mcp = ["rmcp", "schemars"]
+metrics = ["dep:metrics", "metrics-exporter-prometheus"]
+# Observer system for reactive business logic
+observers = ["fraiseql-observers"]
+secrets = ["dep:fraiseql-secrets"]
+webhooks = ["dep:fraiseql-webhooks"]
+observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
+observers-nats = ["observers", "fraiseql-observers/nats"]
+redis-apq = ["fraiseql-core/redis-apq"]
+redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
+redis-rate-limiting = ["redis"]
+# REST transport layer: mounts HTTP endpoints that delegate to the GraphQL executor
+rest-transport = []
+testing = []
+tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
+# Wire backend for streaming JSON queries with low memory overhead
+wire-backend = ["fraiseql-core/wire-backend"]
 
 [dependencies]
 # Encryption
@@ -122,41 +159,10 @@ tokio-test = "0.4"
 tokio-util = "0.7"
 wiremock = "0.6"
 
-[features]
-# Arrow Flight server for high-performance data delivery
-arrow = ["dep:fraiseql-arrow", "dep:tonic"]
-auth = ["dep:fraiseql-auth"]
-aws-s3 = ["aws-sdk-s3", "aws-config"]
-cors = []
-database = []
-default = ["auth", "secrets", "webhooks"]
-# MCP (Model Context Protocol) server
-mcp = ["rmcp", "schemars"]
-metrics = ["dep:metrics", "metrics-exporter-prometheus"]
-# Observer system for reactive business logic
-observers = ["fraiseql-observers"]
-secrets = ["dep:fraiseql-secrets"]
-webhooks = ["dep:fraiseql-webhooks"]
-observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
-observers-nats = ["observers", "fraiseql-observers/nats"]
-redis-apq = ["fraiseql-core/redis-apq"]
-redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
-redis-rate-limiting = ["redis"]
-testing = []
-tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
-# Wire backend for streaming JSON queries with low memory overhead
-wire-backend = ["fraiseql-core/wire-backend"]
+[[bench]]
+harness = false
+name = "performance_benchmarks"
 
-[package]
-name = "fraiseql-server"
-description = "HTTP server for FraiseQL v2 GraphQL engine"
-authors.workspace = true
-categories = ["database", "web-programming::http-server"]
-documentation.workspace = true
-edition.workspace = true
-homepage.workspace = true
-keywords = ["graphql", "sql", "database", "server", "api"]
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+[[test]]
+name = "secrets_manager_integration_test"
+required-features = ["secrets"]

@@ -193,9 +193,7 @@ impl LeaseRenewalTask {
                     let remaining = expiry - Utc::now();
                     // Refresh if less than one full check interval remains,
                     // ensuring renewal completes before the next poll would be too late.
-                    if remaining
-                        < chrono::Duration::seconds(self.check_interval.as_secs() as i64)
-                    {
+                    if remaining < chrono::Duration::seconds(self.check_interval.as_secs() as i64) {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),
                             Err(e) => warn!(key = %key, error = %e, "Lease renewal failed"),
@@ -245,7 +243,7 @@ impl fmt::Display for SecretsError {
 
 impl std::error::Error for SecretsError {}
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

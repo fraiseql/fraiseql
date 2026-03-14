@@ -17,21 +17,29 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compiler::fact_table::FactTableMetadata;
-use crate::schema::config_types::{
-    DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig, ValidationConfig,
+use super::{
+    directive::DirectiveDefinition,
+    mutation::MutationDefinition,
+    query::QueryDefinition,
+    rest::RestConfig,
 };
-use crate::schema::graphql_type_defs::{
-    EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition, UnionDefinition,
+use crate::{
+    compiler::fact_table::FactTableMetadata,
+    schema::{
+        config_types::{
+            DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig,
+            ValidationConfig,
+        },
+        graphql_type_defs::{
+            EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
+            UnionDefinition,
+        },
+        observer_types::ObserverDefinition,
+        security_config::{RoleDefinition, SecurityConfig},
+        subscription_types::SubscriptionDefinition,
+    },
+    validation::CustomTypeRegistry,
 };
-use crate::schema::observer_types::ObserverDefinition;
-use crate::schema::security_config::{RoleDefinition, SecurityConfig};
-use crate::schema::subscription_types::SubscriptionDefinition;
-use crate::validation::CustomTypeRegistry;
-
-use super::directive::DirectiveDefinition;
-use super::mutation::MutationDefinition;
-use super::query::QueryDefinition;
 
 /// Current schema format version.
 ///
@@ -142,6 +150,24 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
 
+    /// REST transport configuration (from `[fraiseql.rest]` in `fraiseql.toml`).
+    ///
+    /// When present, the server mounts REST routes for all queries and mutations
+    /// that carry a `rest` annotation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_config: Option<RestConfig>,
+
+    /// Pre-generated OpenAPI 3.1.0 specification for REST endpoints.
+    ///
+    /// Embedded at compile time by `fraiseql-cli compile` when
+    /// `[fraiseql.rest].openapi_enabled = true`. The server serves this string
+    /// verbatim at `rest_config.openapi_path` without regenerating it on every request.
+    ///
+    /// When absent, the server generates the spec dynamically from the compiled schema
+    /// at startup (if `openapi_enabled = true`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_openapi_spec: Option<String>,
+
     /// Schema format version emitted by the compiler.
     ///
     /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
@@ -205,6 +231,8 @@ impl PartialEq for CompiledSchema {
             && self.validation_config == other.validation_config
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
+            && self.rest_config == other.rest_config
+            && self.rest_openapi_spec == other.rest_openapi_spec
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -245,18 +273,10 @@ impl CompiledSchema {
     /// Called automatically by `from_json()`. Must be called manually after any
     /// direct mutation of `self.queries`, `self.mutations`, or `self.subscriptions`.
     pub fn build_indexes(&mut self) {
-        self.query_index = self
-            .queries
-            .iter()
-            .enumerate()
-            .map(|(i, q)| (q.name.clone(), i))
-            .collect();
-        self.mutation_index = self
-            .mutations
-            .iter()
-            .enumerate()
-            .map(|(i, m)| (m.name.clone(), i))
-            .collect();
+        self.query_index =
+            self.queries.iter().enumerate().map(|(i, q)| (q.name.clone(), i)).collect();
+        self.mutation_index =
+            self.mutations.iter().enumerate().map(|(i, m)| (m.name.clone(), i)).collect();
         self.subscription_index = self
             .subscriptions
             .iter()
@@ -612,9 +632,7 @@ impl CompiledSchema {
     #[must_use]
     pub fn content_hash(&self) -> String {
         use sha2::{Digest, Sha256};
-        let json = self
-            .to_json()
-            .expect("CompiledSchema always serialises — BUG if this fails");
+        let json = self.to_json().expect("CompiledSchema always serialises — BUG if this fails");
         let digest = Sha256::digest(json.as_bytes());
         hex::encode(&digest[..16]) // 32 hex chars — sufficient collision resistance
     }
@@ -756,4 +774,3 @@ fn is_builtin_type(name: &str) -> bool {
             | "Decimal"
     )
 }
-

@@ -625,11 +625,9 @@ pub enum FrameExclusion {
     NoOthers,
 }
 
-
 mod codegen;
 mod planner;
-pub use self::codegen::WindowPlanner;
-pub use self::planner::WindowFunctionPlanner;
+pub use self::{codegen::WindowPlanner, planner::WindowFunctionPlanner};
 
 #[cfg(test)]
 mod tests;

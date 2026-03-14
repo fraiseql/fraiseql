@@ -15,9 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use parking_lot::Mutex;
-
 use dashmap::DashMap;
+use parking_lot::Mutex;
 use serde::Deserialize;
 use tracing::{info, warn};
 
@@ -95,10 +94,10 @@ impl EntityCircuitBreaker {
     /// Returns `Some(retry_after_secs)` if the request should be rejected, `None` to allow it.
     ///
     /// Transitions:
-    /// - `Open` → `HalfOpen` when `recovery_timeout` has elapsed; this first call
-    ///   becomes the recovery probe (sets `probe_in_flight = true`).
-    /// - `HalfOpen`: allows exactly one in-flight probe; subsequent calls are rejected
-    ///   until the probe outcome is recorded via [`record_success`] or [`record_failure`].
+    /// - `Open` → `HalfOpen` when `recovery_timeout` has elapsed; this first call becomes the
+    ///   recovery probe (sets `probe_in_flight = true`).
+    /// - `HalfOpen`: allows exactly one in-flight probe; subsequent calls are rejected until the
+    ///   probe outcome is recorded via [`record_success`] or [`record_failure`].
     fn check(&self) -> Option<u64> {
         let mut state = self.state.lock();
 
@@ -141,7 +140,9 @@ impl EntityCircuitBreaker {
                     successes:            0,
                 };
             },
-            CircuitState::HalfOpen { probe_in_flight, .. } => {
+            CircuitState::HalfOpen {
+                probe_in_flight, ..
+            } => {
                 // Allow this call through as the sole probe.
                 *probe_in_flight = true;
             },
@@ -194,7 +195,9 @@ impl EntityCircuitBreaker {
         // Read new failure count; short-circuit if already Open.
         let new_count = match &*state {
             CircuitState::Open { .. } => return,
-            CircuitState::Closed { consecutive_failures }
+            CircuitState::Closed {
+                consecutive_failures,
+            }
             | CircuitState::HalfOpen {
                 consecutive_failures,
                 ..
@@ -222,7 +225,9 @@ impl EntityCircuitBreaker {
             }
         } else {
             match &mut *state {
-                CircuitState::Closed { consecutive_failures } => {
+                CircuitState::Closed {
+                    consecutive_failures,
+                } => {
                     *consecutive_failures = new_count;
                 },
                 CircuitState::HalfOpen {
@@ -394,18 +399,13 @@ impl FederationCircuitBreakerManager {
                     .success_threshold
                     .unwrap_or(manager.default_config.success_threshold),
             };
-            manager
-                .per_entity_config
-                .insert(override_entry.entity_type, entity_config);
+            manager.per_entity_config.insert(override_entry.entity_type, entity_config);
         }
 
         // Pre-seed breakers for entities with per-entity overrides so they appear in
         // Prometheus metrics from startup rather than only after first traffic.
-        let override_keys: Vec<String> = manager
-            .per_entity_config
-            .iter()
-            .map(|r| r.key().clone())
-            .collect();
+        let override_keys: Vec<String> =
+            manager.per_entity_config.iter().map(|r| r.key().clone()).collect();
         for entity_type in override_keys {
             manager.get_or_create(&entity_type);
         }
@@ -584,10 +584,7 @@ mod tests {
         // First check: Open → HalfOpen, allows the probe (probe_in_flight = true)
         assert!(breaker.check().is_none(), "first probe should be allowed");
         // Second check: probe_in_flight = true, must be rejected
-        assert!(
-            breaker.check().is_some(),
-            "second concurrent probe should be rejected"
-        );
+        assert!(breaker.check().is_some(), "second concurrent probe should be rejected");
         assert_eq!(breaker.state_code(), STATE_HALF_OPEN);
     }
 
@@ -623,7 +620,10 @@ mod tests {
 
         breaker.record_failure();
         breaker.check(); // → HalfOpen, probe_in_flight = true
-        assert!(breaker.check().is_some(), "second check should return backoff while probe is in flight"); // blocked: probe in flight
+        assert!(
+            breaker.check().is_some(),
+            "second check should return backoff while probe is in flight"
+        ); // blocked: probe in flight
 
         breaker.record_success(); // successes=1, probe_in_flight = false
         assert!(breaker.check().is_none()); // second probe now allowed
@@ -817,10 +817,7 @@ mod tests {
         }
 
         // 8 failures < threshold of 10: circuit must still be closed.
-        assert!(
-            breaker.check().is_none(),
-            "circuit should remain closed after 8 < 10 failures"
-        );
+        assert!(breaker.check().is_none(), "circuit should remain closed after 8 < 10 failures");
         assert_eq!(breaker.state_code(), STATE_CLOSED);
     }
 }

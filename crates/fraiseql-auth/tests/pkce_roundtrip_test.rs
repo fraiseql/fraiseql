@@ -39,10 +39,8 @@ async fn test_pkce_state_roundtrip_with_encryption() {
     let store = PkceStateStore::new(300, Some(enc_svc()));
     let redirect_uri = "https://app.example.com/callback";
 
-    let (token, verifier) = store
-        .create_state(redirect_uri)
-        .await
-        .expect("create_state must succeed");
+    let (token, verifier) =
+        store.create_state(redirect_uri).await.expect("create_state must succeed");
 
     // The token must not contain the raw verifier — it is encrypted and base64-encoded.
     assert!(!token.contains(&verifier), "token must not contain plaintext verifier");
@@ -81,10 +79,8 @@ async fn test_pkce_state_roundtrip_without_encryption() {
     let store = PkceStateStore::new(300, None);
     let redirect_uri = "https://app.example.com/callback";
 
-    let (token, verifier) = store
-        .create_state(redirect_uri)
-        .await
-        .expect("create_state must succeed");
+    let (token, verifier) =
+        store.create_state(redirect_uri).await.expect("create_state must succeed");
 
     let consumed = store
         .consume_state(&token)

@@ -9,8 +9,9 @@
 //! **Infrastructure:** none (filesystem only)
 //! **Parallelism:** safe
 
-use sha2::{Digest, Sha256};
 use std::process::Command;
+
+use sha2::{Digest, Sha256};
 
 fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
@@ -67,14 +68,8 @@ fn validate_documents_prints_document_count() {
 /// Missing manifest file exits 1 (error).
 #[test]
 fn validate_documents_missing_file_exits_nonzero() {
-    let out = cli()
-        .args(["validate-documents", "does_not_exist.json"])
-        .output()
-        .unwrap();
-    assert!(
-        !out.status.success(),
-        "missing manifest must exit non-zero"
-    );
+    let out = cli().args(["validate-documents", "does_not_exist.json"]).output().unwrap();
+    assert!(!out.status.success(), "missing manifest must exit non-zero");
 }
 
 // ── Cycle 3.8: Hash validation ───────────────────────────────────────────────

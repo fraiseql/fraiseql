@@ -3,7 +3,6 @@
 //! Provides [`KeyedRateLimiter`] — a per-key sliding-window counter backed by
 //! a `Mutex<HashMap>` — and [`RateLimiters`], a pre-built set of limiters for
 //! each authentication endpoint.
-//
 // # Threading Model
 //
 // All rate limiting operations are **atomic** with respect to concurrent access:
@@ -148,10 +147,10 @@ impl KeyedRateLimiter {
     /// Create a new keyed rate limiter using wall-clock time.
     pub fn new(config: AuthRateLimitConfig) -> Self {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(system_clock),
+            clock: Box::new(system_clock),
         }
     }
 
@@ -164,10 +163,10 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(clock),
+            clock: Box::new(clock),
         }
     }
 
@@ -323,10 +322,11 @@ impl Default for RateLimiters {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

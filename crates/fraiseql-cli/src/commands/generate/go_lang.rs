@@ -1,9 +1,13 @@
 //! Go code generator.
 
-use super::super::init::Language;
-use super::utils::{infer_sql_source, map_graphql_to_lang, to_pascal_case, wrap_nullable};
-use super::SchemaGenerator;
-use crate::schema::intermediate::{IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType};
+use super::{
+    super::init::Language,
+    SchemaGenerator,
+    utils::{infer_sql_source, map_graphql_to_lang, to_pascal_case, wrap_nullable},
+};
+use crate::schema::intermediate::{
+    IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType,
+};
 
 // =============================================================================
 // Go generator

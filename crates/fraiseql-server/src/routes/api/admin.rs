@@ -107,7 +107,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
     } else {
         // Step 3: Apply the schema (invalidate cache after swap if configured)
         #[cfg(feature = "arrow")]
-        if let Some(cache) = state.cache() {
+        if let Some(cache) = _state.cache() {
             cache.clear();
             let response = ReloadSchemaResponse {
                 success: true,
@@ -152,7 +152,8 @@ pub struct CacheStatsResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with an internal error if the cache feature is not enabled.
-/// Returns `ApiError` with a validation error if required parameters are missing or scope is invalid.
+/// Returns `ApiError` with a validation error if required parameters are missing or scope is
+/// invalid.
 ///
 /// Requires admin token authentication.
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
@@ -194,8 +195,8 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let entity_type = req.entity_type.as_ref()
-                    .expect("entity_type is Some; None was rejected above");
+                let entity_type =
+                    req.entity_type.as_ref().expect("entity_type is Some; None was rejected above");
                 // Convert entity type to view name pattern (e.g., User → v_user)
                 let view_name = format!("v_{}", entity_type.to_lowercase());
                 let entries_cleared = cache.invalidate_views(&[&view_name]);
@@ -223,8 +224,8 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let pattern = req.pattern.as_ref()
-                    .expect("pattern is Some; None was rejected above");
+                let pattern =
+                    req.pattern.as_ref().expect("pattern is Some; None was rejected above");
                 let entries_cleared = cache.invalidate_pattern(pattern);
                 let response = CacheClearResponse {
                     success: true,
@@ -421,12 +422,7 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
 
     state
         .executor
-        .explain(
-            &req.query,
-            req.variables.as_ref(),
-            req.limit,
-            req.offset,
-        )
+        .explain(&req.query, req.variables.as_ref(), req.limit, req.offset)
         .await
         .map(ApiResponse::success)
         .map_err(|e| match e {

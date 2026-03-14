@@ -11,7 +11,9 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::schema::{
-    CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,};
+    CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition, SecurityConfig,
+    TypeDefinition,
+};
 
 /// Helper to create a test schema with scoped fields
 fn create_schema_with_scoped_fields() -> CompiledSchema {
@@ -28,7 +30,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -41,7 +43,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -54,7 +56,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -67,7 +69,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -78,7 +80,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         implements:          vec![],
         requires_role:       None,
         is_error:            false,
-        relay:            false,
+        relay:               false,
     };
 
     let mut security_config = SecurityConfig::new();
@@ -96,26 +98,26 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
     security_config.default_role = Some("viewer".to_string());
 
     CompiledSchema {
-        types:          vec![user_type],
-        queries:        vec![],
-        mutations:      vec![],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        subscriptions:  vec![],
-        directives:     vec![],
-        observers:      vec![],
-        fact_tables:    HashMap::default(),
-        federation:     None,
-        security:       Some(security_config),
+        types: vec![user_type],
+        queries: vec![],
+        mutations: vec![],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        subscriptions: vec![],
+        directives: vec![],
+        observers: vec![],
+        fact_tables: HashMap::default(),
+        federation: None,
+        security: Some(security_config),
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: Default::default(),
         ..CompiledSchema::default()
     }
@@ -334,5 +336,9 @@ fn test_default_role_fallback() {
     let security = schema.security.as_ref().expect("Schema should have security config");
 
     // Verify default role is set
-    assert_eq!(security.default_role.as_deref(), Some("viewer"), "Should have viewer as default role");
+    assert_eq!(
+        security.default_role.as_deref(),
+        Some("viewer"),
+        "Should have viewer as default role"
+    );
 }

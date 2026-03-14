@@ -27,12 +27,12 @@ type Post struct {
 
 // Revenue represents revenue data for analytics
 type Revenue struct {
-	ID        int     `fraiseql:"id,type=Int"`
-	Amount    float64 `fraiseql:"amount,type=Float"`
-	Currency  string  `fraiseql:"currency,type=String"`
-	Date      string  `fraiseql:"date,type=String"`
-	Category  string  `fraiseql:"category,type=String"`
-	Region    string  `fraiseql:"region,type=String"`
+	ID       int     `fraiseql:"id,type=Int"`
+	Amount   float64 `fraiseql:"amount,type=Float"`
+	Currency string  `fraiseql:"currency,type=String"`
+	Date     string  `fraiseql:"date,type=String"`
+	Category string  `fraiseql:"category,type=String"`
+	Region   string  `fraiseql:"region,type=String"`
 }
 
 func init() {
@@ -43,8 +43,8 @@ func init() {
 		Config(map[string]interface{}{
 			"sql_source": "v_user",
 			"auto_params": map[string]bool{
-				"limit":  true,
-				"offset": true,
+				"limit":    true,
+				"offset":   true,
 				"order_by": true,
 			},
 		}).
@@ -70,8 +70,8 @@ func init() {
 		Config(map[string]interface{}{
 			"sql_source": "v_post",
 			"auto_params": map[string]bool{
-				"limit":  true,
-				"offset": true,
+				"limit":    true,
+				"offset":   true,
 				"order_by": true,
 			},
 		}).
@@ -96,7 +96,7 @@ func init() {
 		ReturnType(User{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_create_user",
-			"operation": "CREATE",
+			"operation":  "CREATE",
 		}).
 		Arg("name", "String", nil).
 		Arg("email", "String", nil).
@@ -107,7 +107,7 @@ func init() {
 		ReturnType(User{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_update_user",
-			"operation": "UPDATE",
+			"operation":  "UPDATE",
 		}).
 		Arg("id", "Int", nil).
 		Arg("name", "String", nil, true).
@@ -120,7 +120,7 @@ func init() {
 		ReturnType(User{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_delete_user",
-			"operation": "DELETE",
+			"operation":  "DELETE",
 		}).
 		Arg("id", "Int", nil).
 		Description("Delete a user").
@@ -131,7 +131,7 @@ func init() {
 		ReturnType(Post{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_create_post",
-			"operation": "CREATE",
+			"operation":  "CREATE",
 		}).
 		Arg("title", "String", nil).
 		Arg("content", "String", nil).
@@ -143,7 +143,7 @@ func init() {
 		ReturnType(Post{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_publish_post",
-			"operation": "UPDATE",
+			"operation":  "UPDATE",
 		}).
 		Arg("id", "Int", nil).
 		Description("Publish a blog post").
@@ -153,7 +153,7 @@ func init() {
 		ReturnType(Post{}).
 		Config(map[string]interface{}{
 			"sql_source": "fn_delete_post",
-			"operation": "DELETE",
+			"operation":  "DELETE",
 		}).
 		Arg("id", "Int", nil).
 		Description("Delete a blog post").

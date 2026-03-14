@@ -8,12 +8,13 @@ pub mod health;
 pub mod introspection;
 pub mod metrics;
 pub mod playground;
+#[cfg(feature = "rest-transport")]
+pub mod rest;
 pub mod subscriptions;
 
 #[cfg(feature = "auth")]
 pub use auth::{
-    AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens,
-    revoke_token,
+    AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens, revoke_token,
 };
 pub use graphql::{graphql_get_handler, graphql_handler};
 pub use health::{federation_health_handler, health_handler, readiness_handler};

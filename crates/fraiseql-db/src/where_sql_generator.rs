@@ -3,9 +3,8 @@
 //! Converts FraiseQL's WHERE clause AST to SQL predicates that can be used
 //! with fraiseql-wire's `where_sql()` method.
 
-use serde_json::Value;
-
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 use crate::{WhereClause, WhereOperator};
 
@@ -108,10 +107,8 @@ impl WhereSqlGenerator {
             let last = &path[path.len() - 1];
 
             // Escape all nested components
-            let escaped_nested: Vec<String> = nested
-                .iter()
-                .map(|n| Self::escape_sql_string(n))
-                .collect::<Result<Vec<_>>>()?;
+            let escaped_nested: Vec<String> =
+                nested.iter().map(|n| Self::escape_sql_string(n)).collect::<Result<Vec<_>>>()?;
             let nested_path = escaped_nested.join(",");
             let escaped_last = Self::escape_sql_string(last)?;
             Ok(format!("data#>'{{{}}}'->>'{}'", nested_path, escaped_last))
@@ -286,7 +283,7 @@ impl WhereSqlGenerator {
                             json_str.len(),
                             MAX_SQL_VALUE_BYTES
                         ),
-                        path: None,
+                        path:    None,
                     });
                 }
                 let escaped = json_str.replace('\'', "''");
@@ -311,7 +308,7 @@ impl WhereSqlGenerator {
                     s.len(),
                     MAX_SQL_VALUE_BYTES
                 ),
-                path: None,
+                path:    None,
             });
         }
         Ok(s.replace('\'', "''"))

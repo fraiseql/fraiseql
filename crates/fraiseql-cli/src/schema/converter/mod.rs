@@ -16,7 +16,9 @@ use std::collections::HashSet;
 
 use anyhow::{Context, Result};
 use fraiseql_core::{
-    compiler::fact_table::{DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
+    compiler::fact_table::{
+        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    },
     schema::{CompiledSchema, FieldType},
     validation::CustomTypeRegistry,
 };
@@ -148,12 +150,13 @@ impl SchemaConverter {
                 .map(serde_json::from_value)
                 .transpose()
                 .context("observers_config: invalid JSON structure")?,
-            subscriptions_config: intermediate.subscriptions_config, // Subscriptions config from TOML
-            validation_config: intermediate.validation_config,       // Validation limits from TOML
-            debug_config: intermediate.debug_config,                 // Debug config from TOML
-            mcp_config: intermediate.mcp_config,                     // MCP config from TOML
-            schema_sdl: None,                                        // Raw GraphQL SDL
-            custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
+            subscriptions_config: intermediate.subscriptions_config, /* Subscriptions config from
+                                                                      * TOML */
+            validation_config: intermediate.validation_config, // Validation limits from TOML
+            debug_config: intermediate.debug_config,           // Debug config from TOML
+            mcp_config: intermediate.mcp_config,               // MCP config from TOML
+            schema_sdl: None,                                  // Raw GraphQL SDL
+            custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
             ..Default::default()
         };
@@ -378,4 +381,3 @@ impl SchemaConverter {
         }
     }
 }
-

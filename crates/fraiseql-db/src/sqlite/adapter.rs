@@ -13,14 +13,13 @@
 //! For mutation support, use PostgreSQL, MySQL, or SQL Server.
 
 use async_trait::async_trait;
+use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
     Column, Row,
     sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},
 };
 
 use super::where_generator::SqliteWhereGenerator;
-use fraiseql_error::{FraiseQLError, Result};
-
 use crate::{
     identifier::quote_sqlite_identifier,
     traits::DatabaseAdapter,
@@ -226,17 +225,16 @@ impl DatabaseAdapter for SqliteAdapter {
             quote_sqlite_identifier(view)
         );
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
             let generator = super::where_generator::SqliteWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
         if let Some(lim) = limit {
@@ -257,17 +255,16 @@ impl DatabaseAdapter for SqliteAdapter {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let mut params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
             let generator = SqliteWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT and OFFSET
         // Note: SQLite requires LIMIT when using OFFSET, so we use LIMIT -1 for "unlimited"
@@ -386,16 +383,16 @@ impl DatabaseAdapter for SqliteAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
-        let rows: Vec<sqlx::sqlite::SqliteRow> =
-            sqlx::query(&explain_sql).fetch_all(&self.pool).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   format!("SQLite EXPLAIN failed: {e}"),
-                    sql_state: None,
-                }
+        let rows: Vec<sqlx::sqlite::SqliteRow> = sqlx::query(&explain_sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite EXPLAIN failed: {e}"),
+                sql_state: None,
             })?;
 
         let steps: Vec<serde_json::Value> = rows
@@ -412,6 +409,8 @@ impl DatabaseAdapter for SqliteAdapter {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are acceptable failures
+
     use serde_json::json;
     use sqlx::Executor as _;
 
@@ -832,7 +831,7 @@ mod tests {
             .await
             .expect("explain_query should succeed");
         // EXPLAIN QUERY PLAN returns at least one step
-        assert!(result.as_array().map_or(false, |a| !a.is_empty()));
+        assert!(result.as_array().is_some_and(|a| !a.is_empty()));
     }
 
     // ── Projection ────────────────────────────────────────────────────────────
@@ -844,8 +843,8 @@ mod tests {
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {
             database:                    "sqlite".to_string(),
-            projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
-                .to_string(),
+            projection_template:
+                "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
             estimated_reduction_percent: 50,
         };
         let results = adapter

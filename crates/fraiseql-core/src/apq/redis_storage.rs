@@ -93,10 +93,7 @@ impl ApqStorage for RedisApqStorage {
 
     async fn set(&self, hash: String, query: String) -> Result<(), ApqError> {
         let mut conn = self.pool.clone();
-        match conn
-            .set_ex::<_, _, ()>(Self::key(&hash), &query, self.ttl_secs)
-            .await
-        {
+        match conn.set_ex::<_, _, ()>(Self::key(&hash), &query, self.ttl_secs).await {
             Ok(()) => Ok(()),
             Err(e) => Self::fail_open(e, "SET"),
         }
@@ -133,10 +130,7 @@ impl ApqStorage for RedisApqStorage {
         // For safety and simplicity, we use SCAN with the prefix pattern.
         let mut conn = self.pool.clone();
         let pattern = format!("{KEY_PREFIX}*");
-        let keys: Vec<String> = match redis::cmd("KEYS")
-            .arg(&pattern)
-            .query_async(&mut conn)
-            .await
+        let keys: Vec<String> = match redis::cmd("KEYS").arg(&pattern).query_async(&mut conn).await
         {
             Ok(k) => k,
             Err(e) => return Self::fail_open(e, "KEYS"),
@@ -157,7 +151,8 @@ mod tests {
     use super::*;
 
     /// These tests require a running Redis instance at `REDIS_URL`.
-    /// Run with: `REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-core --features redis-apq -- redis_apq --ignored`
+    /// Run with: `REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-core --features redis-apq
+    /// -- redis_apq --ignored`
     fn redis_url() -> Option<String> {
         std::env::var("REDIS_URL").ok()
     }

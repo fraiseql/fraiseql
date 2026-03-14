@@ -59,7 +59,12 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
     // Verify filter is a WHERE clause on author_id == user_id
     if let Some(rls) = user_result {
-        if let WhereClause::Field { path, operator, value } = rls.into_where_clause() {
+        if let WhereClause::Field {
+            path,
+            operator,
+            value,
+        } = rls.into_where_clause()
+        {
             assert_eq!(path, vec!["author_id".to_string()]);
             assert_eq!(operator, fraiseql_core::db::WhereOperator::Eq);
             assert_eq!(value, serde_json::json!("user1"));

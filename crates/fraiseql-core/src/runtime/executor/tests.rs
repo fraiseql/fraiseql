@@ -74,7 +74,6 @@ impl DatabaseAdapter for MockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for MockAdapter {}
@@ -82,23 +81,24 @@ impl MutationCapable for MockAdapter {}
 fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
-        name:         "users".to_string(),
-        return_type:  "User".to_string(),
-        returns_list: true,
-        nullable:     false,
-        arguments:    Vec::new(),
-        sql_source:   Some("v_user".to_string()),
-        description:  None,
-        auto_params:  AutoParams::default(),
-        deprecation:  None,
-        jsonb_column: "data".to_string(),
-        relay: false,
+        name:                "users".to_string(),
+        return_type:         "User".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           Vec::new(),
+        sql_source:          Some("v_user".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               false,
         relay_cursor_column: None,
-        relay_cursor_type: Default::default(),
-        inject_params:     Default::default(),
+        relay_cursor_type:   Default::default(),
+        inject_params:       Default::default(),
         cache_ttl_seconds:   None,
-        additional_views: vec![],
+        additional_views:    vec![],
         requires_role:       None,
+        rest:                None,
     });
     schema
 }
@@ -553,11 +553,8 @@ fn test_resolve_inject_org_id_alias() {
 
 #[test]
 fn test_resolve_inject_custom_attribute() {
-    let ctx = make_security_ctx(
-        "user-1",
-        None,
-        &[("department", serde_json::json!("engineering"))],
-    );
+    let ctx =
+        make_security_ctx("user-1", None, &[("department", serde_json::json!("engineering"))]);
     let source = InjectedParamSource::Jwt("department".to_string());
     let result = resolve_inject_value("dept", &source, &ctx).unwrap();
     assert_eq!(result, serde_json::Value::String("engineering".to_string()));
@@ -590,23 +587,24 @@ async fn test_query_with_inject_rejects_unauthenticated() {
     let mut inject_params = IndexMap::new();
     inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
     schema.queries.push(QueryDefinition {
-        name:                "org_items".to_string(),
-        return_type:         "User".to_string(),
-        returns_list:        true,
-        nullable:            false,
-        arguments:           Vec::new(),
-        sql_source:          Some("v_org_items".to_string()),
-        description:         None,
-        auto_params:         AutoParams::default(),
-        deprecation:         None,
-        jsonb_column:        "data".to_string(),
-        relay:               false,
+        name: "org_items".to_string(),
+        return_type: "User".to_string(),
+        returns_list: true,
+        nullable: false,
+        arguments: Vec::new(),
+        sql_source: Some("v_org_items".to_string()),
+        description: None,
+        auto_params: AutoParams::default(),
+        deprecation: None,
+        jsonb_column: "data".to_string(),
+        relay: false,
         relay_cursor_column: None,
-        relay_cursor_type:   Default::default(),
+        relay_cursor_type: Default::default(),
         inject_params,
-        cache_ttl_seconds:   None,
+        cache_ttl_seconds: None,
         additional_views: vec![],
-        requires_role:       None,
+        requires_role: None,
+        rest: None,
     });
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
@@ -675,9 +673,7 @@ fn test_plan_query_introspection() {
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
 
-    let plan = executor
-        .plan_query("{ __schema { types { name } } }", None)
-        .unwrap();
+    let plan = executor.plan_query("{ __schema { types { name } } }", None).unwrap();
     assert_eq!(plan.query_type, "introspection");
     assert!(plan.sql.is_empty());
     assert!(plan.views_accessed.is_empty());
@@ -711,7 +707,7 @@ async fn test_mutation_falls_back_to_operation_table_when_sql_source_none() {
 
     let mut schema = CompiledSchema::new();
     schema.mutations.push(MutationDefinition {
-        name:       "createUser".to_string(),
+        name: "createUser".to_string(),
         return_type: "User".to_string(),
         // sql_source deliberately absent — simulates codegen path before the fix.
         sql_source: None,
@@ -724,10 +720,7 @@ async fn test_mutation_falls_back_to_operation_table_when_sql_source_none() {
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
 
-    let err = executor
-        .execute("mutation { createUser { id } }", None)
-        .await
-        .unwrap_err();
+    let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
     let msg = err.to_string();
     // Must NOT be the "missing sql_source" error — the fallback must have fired.
@@ -750,7 +743,7 @@ async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
 
     let mut schema = CompiledSchema::new();
     schema.mutations.push(MutationDefinition {
-        name:       "deleteUser".to_string(),
+        name: "deleteUser".to_string(),
         return_type: "User".to_string(),
         sql_source: None,
         // Custom operation has no table — no fallback available.
@@ -761,10 +754,7 @@ async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
 
-    let err = executor
-        .execute("mutation { deleteUser { id } }", None)
-        .await
-        .unwrap_err();
+    let err = executor.execute("mutation { deleteUser { id } }", None).await.unwrap_err();
 
     assert!(
         err.to_string().contains("has no sql_source configured"),

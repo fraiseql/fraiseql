@@ -5,8 +5,7 @@
 //! 2. Each key is a valid SHA-256 hex string matching its query body
 //! 3. Exits 0 on success, 2 on validation failure
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -127,7 +126,10 @@ mod tests {
         let result = run(path.to_str().unwrap(), &formatter);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("Unsupported manifest version"), "expected version error, got: {msg}");
+        assert!(
+            msg.contains("Unsupported manifest version"),
+            "expected version error, got: {msg}"
+        );
     }
 
     #[test]

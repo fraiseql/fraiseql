@@ -99,7 +99,6 @@ impl DatabaseAdapter for MockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for MockAdapter {}
@@ -110,16 +109,30 @@ fn test_schema_with_fact_tables_validation() {
     let mut ir = AuthoringIR::new();
 
     // Add fact table metadata
-    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
-            MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
-            MeasureColumn { name: "quantity".to_string(), sql_type: SqlType::Int, nullable: false },
-        ],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-    });
+    ir.fact_tables.insert(
+        "tf_sales".to_string(),
+        FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
+                MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                },
+                MeasureColumn {
+                    name:     "quantity".to_string(),
+                    sql_type: SqlType::Int,
+                    nullable: false,
+                },
+            ],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        },
+    );
 
     // Validate
     let validator = SchemaValidator::new();
@@ -133,13 +146,23 @@ fn test_schema_with_fact_tables_validation() {
 fn test_validator_rejects_invalid_fact_table_prefix() {
     let mut ir = AuthoringIR::new();
 
-    ir.fact_tables.insert("sales".to_string(), FactTableMetadata {
-        table_name:           "sales".to_string(),
-        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-    }); // Missing tf_ prefix
+    ir.fact_tables.insert(
+        "sales".to_string(),
+        FactTableMetadata {
+            table_name:           "sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        },
+    ); // Missing tf_ prefix
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -156,13 +179,19 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
 fn test_validator_rejects_fact_table_without_measures() {
     let mut ir = AuthoringIR::new();
 
-    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-    });
+    ir.fact_tables.insert(
+        "tf_sales".to_string(),
+        FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        },
+    );
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -294,13 +323,23 @@ async fn test_executor_classifies_aggregate_query() {
     let mut schema = CompiledSchema::new();
 
     // Add fact table metadata
-    schema.add_fact_table("tf_sales".to_string(), FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-    });
+    schema.add_fact_table(
+        "tf_sales".to_string(),
+        FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        },
+    );
 
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);

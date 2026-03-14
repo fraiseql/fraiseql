@@ -30,9 +30,9 @@ const LTREE_OPERATORS: &[WhereOperator] = &[
 fn test_ltree_empty_path_handling() {
     // Test handling of empty or minimal paths
     let empty_paths = vec![
-        vec![],                                                 // Completely empty path
+        vec![],                                                // Completely empty path
         vec![String::new()],                                   // Single empty component
-        vec![String::new(), String::new()],                   // Multiple empty components
+        vec![String::new(), String::new()],                    // Multiple empty components
         vec!["a".to_string(), String::new(), "b".to_string()], // Empty in middle
     ];
 

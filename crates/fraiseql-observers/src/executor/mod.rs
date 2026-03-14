@@ -10,11 +10,11 @@
 mod dispatch;
 mod summary;
 
-pub(crate) use dispatch::ActionDispatcher;
-pub use summary::ExecutionSummary;
-
 use std::{sync::Arc, time::Duration};
 
+pub(crate) use dispatch::ActionDispatcher;
+use dispatch::DefaultActionDispatcher;
+pub use summary::ExecutionSummary;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -31,8 +31,6 @@ use crate::{
     matcher::EventMatcher,
     traits::{ActionResult, DeadLetterQueue},
 };
-
-use dispatch::DefaultActionDispatcher;
 
 /// Main observer executor engine
 pub struct ObserverExecutor {
@@ -441,7 +439,10 @@ impl ObserverExecutor {
                     // Note: Transport ACKs message internally after we return from process_event()
                     // This ensures at-least-once delivery semantics
                 },
-                Err(ObserverError::DeserializationError { ref raw, ref reason }) => {
+                Err(ObserverError::DeserializationError {
+                    ref raw,
+                    ref reason,
+                }) => {
                     // Unparseable payload: preserve raw bytes in DLQ and bump counter.
                     // The message was already ACKed by the transport to prevent infinite
                     // redelivery of permanently broken payloads.
@@ -1096,7 +1097,9 @@ mod tests {
             }
         }
 
-        let dispatcher = Arc::new(TransientThenOkDispatcher { attempts: AtomicU32::new(0) });
+        let dispatcher = Arc::new(TransientThenOkDispatcher {
+            attempts: AtomicU32::new(0),
+        });
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
         let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
 
@@ -1236,7 +1239,9 @@ mod tests {
             }
         }
 
-        let dispatcher = Arc::new(FailTwiceThenOk { count: AtomicU32::new(0) });
+        let dispatcher = Arc::new(FailTwiceThenOk {
+            count: AtomicU32::new(0),
+        });
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
         let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
 
@@ -1300,8 +1305,7 @@ mod tests {
         // MockDeadLetterQueue.push() always succeeds → dlq_errors should remain 0
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
         let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
-        let executor =
-            make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
+        let executor = make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
         let action = webhook_action();
         let event = test_event();
         let error = ObserverError::ActionExecutionFailed {
@@ -1324,7 +1328,7 @@ mod tests {
         use async_trait::async_trait;
         use uuid::Uuid;
 
-        use crate::traits::{DlqItem, DeadLetterQueue};
+        use crate::traits::{DeadLetterQueue, DlqItem};
 
         /// A DLQ that always returns an error from push().
         struct AlwaysFailDlq;
@@ -1357,11 +1361,8 @@ mod tests {
 
         let failing_dlq = Arc::new(AlwaysFailDlq);
         let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
-        let executor = ObserverExecutor::with_dispatcher(
-            EventMatcher::new(),
-            failing_dlq,
-            dispatcher,
-        );
+        let executor =
+            ObserverExecutor::with_dispatcher(EventMatcher::new(), failing_dlq, dispatcher);
         let action = webhook_action();
         let event = test_event();
         let error = ObserverError::ActionExecutionFailed {
@@ -1590,7 +1591,11 @@ mod tests {
             entity:     "Order".to_string(),
             condition:  None,
             actions:    vec![webhook_action()],
-            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            retry:      RetryConfig {
+                max_attempts: 1,
+                initial_delay_ms: 0,
+                ..RetryConfig::default()
+            },
             on_failure: FP::Log,
         };
         let mut observers = std::collections::HashMap::new();
@@ -1598,11 +1603,7 @@ mod tests {
         let matcher = EventMatcher::build(observers).unwrap();
 
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-        let executor = make_mock_executor_with_matcher(
-            matcher,
-            Arc::clone(&dispatcher),
-            dlq,
-        );
+        let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
 
         let event = test_event();
         let summary = executor.process_event(&event).await.unwrap();
@@ -1629,7 +1630,11 @@ mod tests {
             entity:     "Order".to_string(),
             condition:  None,
             actions:    vec![webhook_action()],
-            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            retry:      RetryConfig {
+                max_attempts: 1,
+                initial_delay_ms: 0,
+                ..RetryConfig::default()
+            },
             on_failure: FP::Log,
         };
         let mut observers = std::collections::HashMap::new();
@@ -1637,11 +1642,7 @@ mod tests {
         let matcher = EventMatcher::build(observers).unwrap();
 
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-        let executor = make_mock_executor_with_matcher(
-            matcher,
-            Arc::clone(&dispatcher),
-            dlq,
-        );
+        let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
 
         let summary = executor.process_event(&test_event()).await.unwrap();
 
@@ -1772,7 +1773,11 @@ mod tests {
             entity:     "Order".to_string(),
             condition:  None,
             actions:    vec![webhook_action()],
-            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            retry:      RetryConfig {
+                max_attempts: 1,
+                initial_delay_ms: 0,
+                ..RetryConfig::default()
+            },
             on_failure: FP::Dlq,
         };
         let mut observers = std::collections::HashMap::new();
@@ -1780,11 +1785,8 @@ mod tests {
         let matcher = EventMatcher::build(observers).unwrap();
 
         let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
-        let executor = make_mock_executor_with_matcher(
-            matcher,
-            Arc::clone(&dispatcher),
-            Arc::clone(&dlq),
-        );
+        let executor =
+            make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), Arc::clone(&dlq));
 
         let summary = executor.process_event(&test_event()).await.unwrap();
 

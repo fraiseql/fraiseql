@@ -8,21 +8,21 @@ import (
 
 // Sale represents a fact table for sales analytics
 type Sale struct {
-	ID        int     `fraiseql:"id,type=Int"`
-	Revenue   float64 `fraiseql:"revenue,type=Float"`
-	Quantity  int     `fraiseql:"quantity,type=Int"`
-	Cost      float64 `fraiseql:"cost,type=Float"`
-	Category  string  `fraiseql:"category,type=String"`
-	Region    string  `fraiseql:"region,type=String"`
-	OccurredAt string `fraiseql:"occurredAt,type=String"`
+	ID         int     `fraiseql:"id,type=Int"`
+	Revenue    float64 `fraiseql:"revenue,type=Float"`
+	Quantity   int     `fraiseql:"quantity,type=Int"`
+	Cost       float64 `fraiseql:"cost,type=Float"`
+	Category   string  `fraiseql:"category,type=String"`
+	Region     string  `fraiseql:"region,type=String"`
+	OccurredAt string  `fraiseql:"occurredAt,type=String"`
 }
 
 // Event represents a fact table for event analytics
 type Event struct {
-	ID        int    `fraiseql:"id,type=Int"`
-	EventType string `fraiseql:"eventType,type=String"`
-	Duration  int    `fraiseql:"duration,type=Int"`
-	UserID    string `fraiseql:"userId,type=String"`
+	ID         int    `fraiseql:"id,type=Int"`
+	EventType  string `fraiseql:"eventType,type=String"`
+	Duration   int    `fraiseql:"duration,type=Int"`
+	UserID     string `fraiseql:"userId,type=String"`
 	OccurredAt string `fraiseql:"occurredAt,type=String"`
 }
 

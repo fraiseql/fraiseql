@@ -20,6 +20,7 @@
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![cfg(feature = "auth")]
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
@@ -35,14 +36,13 @@
 
 use std::sync::Arc;
 
-use axum::{Router, routing::get};
+use axum::{Router, body::Body, routing::get};
+use fraiseql_auth::OidcServerClient;
 use fraiseql_server::{
     auth::PkceStateStore,
     routes::{AuthPkceState, auth_callback, auth_start},
 };
-use fraiseql_auth::OidcServerClient;
 use http::{Request, StatusCode};
-use axum::body::Body;
 use tower::ServiceExt;
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ fn auth_router() -> Router {
     });
 
     Router::new()
-        .route("/auth/start",    get(auth_start))
+        .route("/auth/start", get(auth_start))
         .route("/auth/callback", get(auth_callback))
         .with_state(state)
 }
@@ -114,9 +114,7 @@ fn extract_state_param(url: &str) -> &str {
         .map(|pos| pos + "state=".len())
         .expect("redirect URL must contain state= parameter");
 
-    let end = url[start..]
-        .find('&')
-        .map_or(url.len(), |rel| start + rel);
+    let end = url[start..].find('&').map_or(url.len(), |rel| start + rel);
 
     &url[start..end]
 }
@@ -136,11 +134,8 @@ fn extract_state_param(url: &str) -> &str {
 async fn auth_start_redirects_to_idp() {
     let router = auth_router();
 
-    let (status, location) = get_request(
-        &router,
-        "/auth/start?redirect_uri=https://app.example.com/after-login",
-    )
-    .await;
+    let (status, location) =
+        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
 
     // Axum's Redirect::to() returns 303 See Other.
     assert_eq!(status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
@@ -154,10 +149,7 @@ async fn auth_start_redirects_to_idp() {
         loc.contains("code_challenge"),
         "redirect must include PKCE code_challenge: {loc}"
     );
-    assert!(
-        loc.contains("state="),
-        "redirect must include opaque state token: {loc}"
-    );
+    assert!(loc.contains("state="), "redirect must include opaque state token: {loc}");
 }
 
 /// Pipeline 6, Stages A+B+C: full flow `auth_start` → `auth_callback`.
@@ -178,11 +170,8 @@ async fn auth_start_then_callback_completes_pkce_flow() {
     let router = auth_router();
 
     // ── Step 1: auth_start ────────────────────────────────────────────────
-    let (status, location) = get_request(
-        &router,
-        "/auth/start?redirect_uri=https://app.example.com/after-login",
-    )
-    .await;
+    let (status, location) =
+        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
 
     assert_eq!(status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
     let loc = location.expect("auth_start must provide Location header");
@@ -220,11 +209,7 @@ async fn auth_start_then_callback_completes_pkce_flow() {
 async fn auth_start_missing_redirect_uri_returns_400() {
     let router = auth_router();
     let (status, _) = get_request(&router, "/auth/start").await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "missing redirect_uri must return 400"
-    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "missing redirect_uri must return 400");
 }
 
 /// Pipeline 6 error path: `auth_callback` with unknown state token must return 400.
@@ -232,13 +217,8 @@ async fn auth_start_missing_redirect_uri_returns_400() {
 async fn auth_callback_unknown_state_returns_400() {
     let router = auth_router();
     let (status, _) =
-        get_request(&router, "/auth/callback?code=any_code&state=unknown-state-token")
-            .await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "unknown state token must return 400"
-    );
+        get_request(&router, "/auth/callback?code=any_code&state=unknown-state-token").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "unknown state token must return 400");
 }
 
 /// Pipeline 6 error path: `auth_callback` with a provider error parameter
@@ -246,13 +226,8 @@ async fn auth_callback_unknown_state_returns_400() {
 #[tokio::test]
 async fn auth_callback_provider_error_returns_400() {
     let router = auth_router();
-    let (status, _) =
-        get_request(&router, "/auth/callback?error=access_denied").await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "provider error must return 400"
-    );
+    let (status, _) = get_request(&router, "/auth/callback?error=access_denied").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "provider error must return 400");
 }
 
 /// Pipeline 6 error path: `auth_callback` with a missing code and missing state
@@ -261,11 +236,7 @@ async fn auth_callback_provider_error_returns_400() {
 async fn auth_callback_missing_code_and_state_returns_400() {
     let router = auth_router();
     let (status, _) = get_request(&router, "/auth/callback").await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "callback with no params must return 400"
-    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "callback with no params must return 400");
 }
 
 // ---------------------------------------------------------------------------
@@ -279,8 +250,8 @@ async fn auth_callback_missing_code_and_state_returns_400() {
 #[tokio::test]
 #[ignore = "requires REDIS_TEST_URL"]
 async fn auth_pkce_flow_with_redis_store() {
-    let redis_url = std::env::var("REDIS_TEST_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_TEST_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let pkce_store = PkceStateStore::new_redis(&redis_url, 300, None)
         .await
@@ -294,16 +265,13 @@ async fn auth_pkce_flow_with_redis_store() {
         post_login_redirect_uri: None,
     });
     let router = Router::new()
-        .route("/auth/start",    get(auth_start))
+        .route("/auth/start", get(auth_start))
         .route("/auth/callback", get(auth_callback))
         .with_state(state);
 
     // Step 1
-    let (status, location) = get_request(
-        &router,
-        "/auth/start?redirect_uri=https://app.example.com/after-login",
-    )
-    .await;
+    let (status, location) =
+        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     let loc = location.unwrap();
     let state_token = extract_state_param(&loc);

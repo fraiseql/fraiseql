@@ -1,7 +1,12 @@
-//! OpenAPI specification for FraiseQL REST APIs.
+//! OpenAPI specification for FraiseQL internal APIs (admin, federation, query intelligence).
 //!
-//! Provides a static OpenAPI 3.0.0 specification documenting all API endpoints,
-//! request/response schemas, and authentication requirements.
+//! Provides a **static** OpenAPI 3.0.0 specification documenting all built-in
+//! API endpoints, request/response schemas, and authentication requirements.
+//!
+//! For user-defined REST endpoint specs (derived from `@fraiseql.query` /
+//! `@fraiseql.mutation` annotations), see the dynamic OpenAPI generator in
+//! [`fraiseql_core::schema::compiled::openapi_gen`], served at the path configured
+//! in `[fraiseql.rest].openapi_path` (default: `/rest/openapi.json`).
 
 /// Get complete OpenAPI 3.0.0 specification as JSON string.
 pub fn get_openapi_spec() -> String {
@@ -750,7 +755,10 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let schemes = &parsed["components"]["securitySchemes"];
-        assert!(schemes.get("BearerAuth").is_some(), "security schemes must include 'BearerAuth'");
+        assert!(
+            schemes.get("BearerAuth").is_some(),
+            "security schemes must include 'BearerAuth'"
+        );
     }
 
     #[test]
@@ -759,8 +767,17 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let schemas = &parsed["components"]["schemas"];
-        assert!(schemas.get("ExplainRequest").is_some(), "component schemas must include 'ExplainRequest'");
-        assert!(schemas.get("ExplainResponse").is_some(), "component schemas must include 'ExplainResponse'");
-        assert!(schemas.get("ReloadSchemaRequest").is_some(), "component schemas must include 'ReloadSchemaRequest'");
+        assert!(
+            schemas.get("ExplainRequest").is_some(),
+            "component schemas must include 'ExplainRequest'"
+        );
+        assert!(
+            schemas.get("ExplainResponse").is_some(),
+            "component schemas must include 'ExplainResponse'"
+        );
+        assert!(
+            schemas.get("ReloadSchemaRequest").is_some(),
+            "component schemas must include 'ReloadSchemaRequest'"
+        );
     }
 }

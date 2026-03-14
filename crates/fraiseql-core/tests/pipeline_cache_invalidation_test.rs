@@ -82,10 +82,10 @@ impl DatabaseAdapter for InnerMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -198,8 +198,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
     // Build the adapter with a concrete type so Executor can infer A: Sized.
     // We clone the Arc to retain access to the cache after the executor runs.
     let inner = InnerMockAdapter::with_row(order_success_row());
-    let cached_adapter =
-        Arc::new(CachedDatabaseAdapter::new(inner, cache, "test-v1".to_string()));
+    let cached_adapter = Arc::new(CachedDatabaseAdapter::new(inner, cache, "test-v1".to_string()));
 
     // Executor<CachedDatabaseAdapter<InnerMockAdapter>> — concrete, Sized.
     let executor = Executor::new(schema, Arc::clone(&cached_adapter));
@@ -207,25 +206,15 @@ async fn mutation_invalidates_listed_views_in_cache() {
     let ctx = admin_security_context();
     let vars = serde_json::json!({"amount": "99.99"});
     executor
-        .execute_with_security(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-            &ctx,
-        )
+        .execute_with_security(r"mutation { createOrder { id } }", Some(&vars), &ctx)
         .await
         .expect("mutation must succeed");
 
     // After the mutation, all stale view entries must be gone
     for view in &views {
         let key = format!("pipeline4_stale:{view}");
-        let entry = cached_adapter
-            .cache()
-            .get(&key)
-            .expect("cache.get must not error");
-        assert!(
-            entry.is_none(),
-            "mutation must have invalidated cache entry for view '{view}'"
-        );
+        let entry = cached_adapter.cache().get(&key).expect("cache.get must not error");
+        assert!(entry.is_none(), "mutation must have invalidated cache entry for view '{view}'");
     }
 }
 
@@ -267,8 +256,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
     );
 
     let inner = InnerMockAdapter::with_row(failed_row);
-    let cached_adapter =
-        Arc::new(CachedDatabaseAdapter::new(inner, cache, "test-v1".to_string()));
+    let cached_adapter = Arc::new(CachedDatabaseAdapter::new(inner, cache, "test-v1".to_string()));
 
     let executor = Executor::new(schema, Arc::clone(&cached_adapter));
     let ctx = admin_security_context();
@@ -276,20 +264,13 @@ async fn failed_mutation_does_not_invalidate_cache() {
     // Execute — may return data or errors at the GraphQL level; either is fine
     let vars = serde_json::json!({"amount": "99.99"});
     let _ = executor
-        .execute_with_security(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-            &ctx,
-        )
+        .execute_with_security(r"mutation { createOrder { id } }", Some(&vars), &ctx)
         .await;
 
     // Regardless of GraphQL-level result, valid cache entries must remain intact
     for view in &views {
         let key = format!("pipeline4_valid:{view}");
-        let entry = cached_adapter
-            .cache()
-            .get(&key)
-            .expect("cache.get must not error");
+        let entry = cached_adapter.cache().get(&key).expect("cache.get must not error");
         assert!(
             entry.is_some(),
             "failed mutation must NOT invalidate cache entry for view '{view}'"
@@ -349,11 +330,7 @@ async fn mutation_bumps_fact_table_version_counter() {
     let vars = serde_json::json!({"amount": "99.99"});
 
     executor
-        .execute_with_security(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-            &ctx,
-        )
+        .execute_with_security(r"mutation { createOrder { id } }", Some(&vars), &ctx)
         .await
         .expect("mutation must succeed");
 
@@ -405,11 +382,7 @@ async fn mutation_skips_bump_for_time_based_strategy() {
     // Must succeed without error
     let vars = serde_json::json!({"amount": "99.99"});
     executor
-        .execute_with_security(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-            &ctx,
-        )
+        .execute_with_security(r"mutation { createOrder { id } }", Some(&vars), &ctx)
         .await
         .expect("mutation with TimeBased fact-table strategy must succeed");
 

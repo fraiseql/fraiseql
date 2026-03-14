@@ -101,12 +101,11 @@ impl SubscriptionManager {
         // Each filter_field name becomes an argument_path entry mapping
         // the field name to a JSON pointer path (e.g., "user_id" → "/user_id").
         if !definition.filter_fields.is_empty() {
-            let filter = definition.filter.get_or_insert_with(|| {
-                crate::schema::SubscriptionFilter {
+            let filter =
+                definition.filter.get_or_insert_with(|| crate::schema::SubscriptionFilter {
                     argument_paths: std::collections::HashMap::new(),
                     static_filters: Vec::new(),
-                }
-            });
+                });
             for field in &definition.filter_fields {
                 filter
                     .argument_paths

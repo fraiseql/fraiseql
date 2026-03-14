@@ -3,7 +3,6 @@
 //! Provides ID policy validation, GraphQL input processing, and comprehensive
 //! field-level validation rules including checksum, rich scalar, and async validation.
 
-pub(crate) mod patterns;
 pub mod async_validators;
 pub mod checksum;
 pub mod compile_time;
@@ -21,6 +20,7 @@ pub mod inheritance;
 pub mod input_object;
 mod input_processor;
 pub mod mutual_exclusivity;
+pub(crate) mod patterns;
 pub mod rate_limiting;
 pub mod rich_scalars;
 pub mod rules;

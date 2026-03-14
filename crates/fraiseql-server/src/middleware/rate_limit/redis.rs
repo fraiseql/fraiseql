@@ -120,7 +120,10 @@ impl RedisRateLimiter {
 
     /// Attach per-path rules from `[security.rate_limiting]` auth endpoint fields.
     #[must_use]
-    pub(super) fn with_path_rules_from_security(mut self, sec: &RateLimitingSecurityConfig) -> Self {
+    pub(super) fn with_path_rules_from_security(
+        mut self,
+        sec: &RateLimitingSecurityConfig,
+    ) -> Self {
         let mut rules = Vec::new();
 
         if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
@@ -153,11 +156,12 @@ impl RedisRateLimiter {
     }
 
     /// Return the active rate limit configuration.
-    pub(super) fn config(&self) -> &RateLimitConfig {
+    pub(super) const fn config(&self) -> &RateLimitConfig {
         &self.config
     }
 
     /// Number of per-path rate limit rules registered.
+    #[allow(clippy::missing_const_for_fn)] // Reason: Vec::len() is not const-stable yet
     pub(super) fn path_rule_count(&self) -> usize {
         self.path_rules.len()
     }
@@ -176,7 +180,8 @@ impl RedisRateLimiter {
 
     /// Load the Lua script into Redis and cache its SHA for subsequent calls.
     async fn load_script(&self) -> Result<String, redis::RedisError> {
-        if let Some(sha) = self.script_sha.read().await.as_ref().cloned() {
+        let cached_sha = self.script_sha.read().await.as_ref().cloned();
+        if let Some(sha) = cached_sha {
             return Ok(sha);
         }
         let mut conn = self.pool.clone();
@@ -250,12 +255,7 @@ impl RedisRateLimiter {
     /// Check a key against the token bucket, failing open on Redis error.
     ///
     /// Returns `(allowed, remaining_tokens, retry_after_ms)`.
-    async fn check_key(
-        &self,
-        key: &str,
-        capacity: u32,
-        rate_per_sec: f64,
-    ) -> (bool, f64, u64) {
+    async fn check_key(&self, key: &str, capacity: u32, rate_per_sec: f64) -> (bool, f64, u64) {
         if !self.config.enabled {
             return (true, f64::from(self.config.burst_size), 0);
         }
@@ -272,9 +272,9 @@ impl RedisRateLimiter {
     /// Check IP limit using the Redis token bucket.
     pub(super) async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         let key = format!("fraiseql:rl:ip:{ip}");
-        let (allowed, remaining, retry_after_ms) =
-            self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
-                .await;
+        let (allowed, remaining, retry_after_ms) = self
+            .check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
+            .await;
         if allowed {
             CheckResult::allow(remaining)
         } else {
@@ -286,9 +286,9 @@ impl RedisRateLimiter {
     /// Check user limit using the Redis token bucket.
     pub(super) async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         let key = format!("fraiseql:rl:user:{user_id}");
-        let (allowed, remaining, retry_after_ms) =
-            self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
-                .await;
+        let (allowed, remaining, retry_after_ms) = self
+            .check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
+            .await;
         if allowed {
             CheckResult::allow(remaining)
         } else {

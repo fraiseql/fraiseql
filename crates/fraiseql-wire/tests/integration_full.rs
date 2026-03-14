@@ -1,4 +1,4 @@
-#![allow(clippy::doc_markdown)]             // Reason: test runner instructions
+#![allow(clippy::doc_markdown)] // Reason: test runner instructions
 
 //! Comprehensive integration tests
 //!

@@ -129,9 +129,12 @@ impl SearchBackend for HttpSearchBackend {
                 }
             });
 
-            bulk_body.push_str(&serde_json::to_string(&meta).expect("meta is always JSON-serializable"));
+            bulk_body
+                .push_str(&serde_json::to_string(&meta).expect("meta is always JSON-serializable"));
             bulk_body.push('\n');
-            bulk_body.push_str(&serde_json::to_string(event).expect("event is always JSON-serializable"));
+            bulk_body.push_str(
+                &serde_json::to_string(event).expect("event is always JSON-serializable"),
+            );
             bulk_body.push('\n');
         }
 

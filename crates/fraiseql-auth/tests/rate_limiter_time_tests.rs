@@ -8,9 +8,13 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe (each test creates an independent limiter)
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 
@@ -31,19 +35,13 @@ fn rate_limiter_resets_after_window_expires() {
     for _ in 0..3 {
         limiter.check("key").unwrap();
     }
-    assert!(
-        limiter.check("key").is_err(),
-        "must be blocked after exhausting the window"
-    );
+    assert!(limiter.check("key").is_err(), "must be blocked after exhausting the window");
 
     // Wait for the window to expire.
     std::thread::sleep(Duration::from_secs(2));
 
     // Must be allowed again in the fresh window.
-    assert!(
-        limiter.check("key").is_ok(),
-        "must be allowed again after window expiry"
-    );
+    assert!(limiter.check("key").is_ok(), "must be allowed again after window expiry");
 }
 
 #[test]
@@ -156,8 +154,5 @@ fn rate_limiter_allows_exactly_max_requests() {
             i + 1
         );
     }
-    assert!(
-        limiter.check("key").is_err(),
-        "request 6 must be denied (off-by-one check)"
-    );
+    assert!(limiter.check("key").is_err(), "request 6 must be denied (off-by-one check)");
 }

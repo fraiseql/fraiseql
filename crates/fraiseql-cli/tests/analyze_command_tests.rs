@@ -23,10 +23,7 @@ fn fixture(name: &str) -> String {
 /// `fraiseql analyze <schema>` on a valid schema exits 0.
 #[test]
 fn analyze_on_valid_schema_exits_zero() {
-    let out = cli()
-        .args(["analyze", &fixture("empty_schema.json")])
-        .output()
-        .unwrap();
+    let out = cli().args(["analyze", &fixture("empty_schema.json")]).output().unwrap();
     assert!(
         out.status.success(),
         "analyze on valid schema must exit 0; stderr: {}",
@@ -37,10 +34,7 @@ fn analyze_on_valid_schema_exits_zero() {
 /// Missing schema file exits non-zero.
 #[test]
 fn analyze_on_missing_file_exits_nonzero() {
-    let out = cli()
-        .args(["analyze", "does_not_exist.json"])
-        .output()
-        .unwrap();
+    let out = cli().args(["analyze", "does_not_exist.json"]).output().unwrap();
     assert!(!out.status.success(), "analyze on missing file must exit non-zero");
 }
 
@@ -50,10 +44,7 @@ fn analyze_on_invalid_json_exits_nonzero() {
     let dir = tempfile::tempdir().unwrap();
     let bad_file = dir.path().join("bad.json");
     std::fs::write(&bad_file, b"not valid json at all {{{").unwrap();
-    let out = cli()
-        .args(["analyze", bad_file.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let out = cli().args(["analyze", bad_file.to_str().unwrap()]).output().unwrap();
     assert!(!out.status.success(), "analyze on invalid JSON must exit non-zero");
 }
 
@@ -171,10 +162,7 @@ fn analyze_each_category_has_recommendations() {
 /// `analyze` exits with code 0 on a valid schema.
 #[test]
 fn analyze_exit_code_zero_on_success() {
-    let out = cli()
-        .args(["analyze", &fixture("minimal_schema.json")])
-        .output()
-        .unwrap();
+    let out = cli().args(["analyze", &fixture("minimal_schema.json")]).output().unwrap();
     let code = out.status.code().unwrap_or(-1);
     assert_eq!(code, 0, "analyze on valid schema must exit with code 0, got {code}");
 }

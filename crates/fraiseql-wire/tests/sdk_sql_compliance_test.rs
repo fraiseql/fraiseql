@@ -18,8 +18,8 @@
 
 use std::collections::HashMap;
 
-use fraiseql_wire::operators::{Field, Value, WhereOperator};
 use fraiseql_wire::operators::sql_gen::generate_where_operator_sql;
+use fraiseql_wire::operators::{Field, Value, WhereOperator};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -135,8 +135,8 @@ fn ilike_direct_column_case_insensitive() {
 #[test]
 fn matches_generates_plainto_tsquery_english() {
     let op = WhereOperator::Matches {
-        field:    dc("body"),
-        query:    "rust async".to_string(),
+        field: dc("body"),
+        query: "rust async".to_string(),
         language: None,
     };
     let (sql, idx, params) = gen(&op);
@@ -149,8 +149,8 @@ fn matches_generates_plainto_tsquery_english() {
 #[test]
 fn matches_with_language_uses_specified_language() {
     let op = WhereOperator::Matches {
-        field:    dc("body"),
-        query:    "programmation".to_string(),
+        field: dc("body"),
+        query: "programmation".to_string(),
         language: Some("french".to_string()),
     };
     let (sql, idx, _) = gen(&op);
@@ -162,8 +162,8 @@ fn matches_with_language_uses_specified_language() {
 #[test]
 fn phrase_query_generates_phraseto_tsquery() {
     let op = WhereOperator::PhraseQuery {
-        field:    dc("content"),
-        query:    "database design".to_string(),
+        field: dc("content"),
+        query: "database design".to_string(),
         language: None,
     };
     let (sql, idx, _) = gen(&op);
@@ -175,8 +175,8 @@ fn phrase_query_generates_phraseto_tsquery() {
 #[test]
 fn phrase_query_with_explicit_language() {
     let op = WhereOperator::PhraseQuery {
-        field:    dc("content"),
-        query:    "hola mundo".to_string(),
+        field: dc("content"),
+        query: "hola mundo".to_string(),
         language: Some("spanish".to_string()),
     };
     let (sql, _, _) = gen(&op);
@@ -187,8 +187,8 @@ fn phrase_query_with_explicit_language() {
 #[test]
 fn websearch_query_generates_websearch_to_tsquery() {
     let op = WhereOperator::WebsearchQuery {
-        field:    dc("body"),
-        query:    "rust OR go -python".to_string(),
+        field: dc("body"),
+        query: "rust OR go -python".to_string(),
         language: None,
     };
     let (sql, idx, _) = gen(&op);
@@ -224,8 +224,14 @@ fn is_ipv6_generates_family_check() {
 fn is_loopback_generates_dual_stack_check() {
     let op = WhereOperator::IsLoopback(dc("ip"));
     let (sql, idx, _) = gen(&op);
-    assert!(sql.contains("127.0.0.0/8"), "IPv4 loopback range must be present");
-    assert!(sql.contains("::1/128"), "IPv6 loopback range must be present");
+    assert!(
+        sql.contains("127.0.0.0/8"),
+        "IPv4 loopback range must be present"
+    );
+    assert!(
+        sql.contains("::1/128"),
+        "IPv6 loopback range must be present"
+    );
     assert_eq!(idx, 0);
 }
 
@@ -253,7 +259,7 @@ fn is_public_negates_private_ranges() {
 #[test]
 fn in_subnet_generates_contained_by_operator() {
     let op = WhereOperator::InSubnet {
-        field:  dc("ip"),
+        field: dc("ip"),
         subnet: "192.168.1.0/24".to_string(),
     };
     let (sql, idx, params) = gen(&op);
@@ -266,7 +272,7 @@ fn in_subnet_generates_contained_by_operator() {
 #[test]
 fn contains_subnet_generates_contains_operator() {
     let op = WhereOperator::ContainsSubnet {
-        field:  dc("network"),
+        field: dc("network"),
         subnet: "10.0.0.0/8".to_string(),
     };
     let (sql, idx, _) = gen(&op);
@@ -279,7 +285,7 @@ fn contains_subnet_generates_contains_operator() {
 fn contains_ip_generates_contains_operator() {
     let op = WhereOperator::ContainsIP {
         field: dc("subnet"),
-        ip:    "10.0.0.1".to_string(),
+        ip: "10.0.0.1".to_string(),
     };
     let (sql, idx, _) = gen(&op);
     assert_eq!(sql, "subnet::inet >> $1::inet");

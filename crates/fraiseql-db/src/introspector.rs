@@ -1,7 +1,6 @@
 //! Database introspection trait for querying table metadata.
 
 use async_trait::async_trait;
-
 use fraiseql_error::Result;
 
 use crate::DatabaseType;

@@ -11,7 +11,7 @@
 //! - Postgres 17 running on localhost:5432
 //! - Test database and views created via SQL setup
 //!
-//! Run with: cargo bench --bench integration_benchmarks --features bench-with-postgres
+//! Run with: `cargo bench --bench integration_benchmarks --features bench-with-postgres`
 //!
 //! To set up test database:
 //! ```bash
@@ -57,10 +57,10 @@ fn throughput_benchmarks(c: &mut Criterion) {
     // - Bytes per second throughput
     // - JSON serialization efficiency
 
-    let row_counts = vec![1_000, 10_000, 100_000];
+    let row_counts: Vec<u64> = vec![1_000, 10_000, 100_000];
 
     for row_count in row_counts {
-        group.throughput(Throughput::Elements(row_count as u64));
+        group.throughput(Throughput::Elements(row_count));
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_rows", row_count)),
             &row_count,
@@ -235,16 +235,18 @@ fn predicate_benchmarks(c: &mut Criterion) {
     // Simulate filtering effectiveness
     // SQL predicates reduce data at server; Rust predicates filter on client
 
-    let scenarios = vec![
-        ("no_filter", 100_000, 1.0),      // No filtering, all rows
-        ("sql_1percent", 100_000, 0.01),  // SQL filters to 1% of rows
-        ("sql_10percent", 100_000, 0.10), // SQL filters to 10% of rows
-        ("sql_50percent", 100_000, 0.50), // SQL filters to 50% of rows
+    let scenarios: Vec<(&str, f64, f64)> = vec![
+        ("no_filter", 100_000.0, 1.0),      // No filtering, all rows
+        ("sql_1percent", 100_000.0, 0.01),  // SQL filters to 1% of rows
+        ("sql_10percent", 100_000.0, 0.10), // SQL filters to 10% of rows
+        ("sql_50percent", 100_000.0, 0.50), // SQL filters to 50% of rows
     ];
 
     for (name, total, ratio) in scenarios {
-        let filtered = (total as f64 * ratio) as i64;
-        group.throughput(Throughput::Elements(filtered as u64));
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: ratio in [0.0, 1.0] and total is non-negative, product fits u64
+        let filtered = (total * ratio) as u64;
+        group.throughput(Throughput::Elements(filtered));
 
         group.bench_with_input(BenchmarkId::from_parameter(name), &filtered, |b, &count| {
             b.iter(|| {
@@ -318,14 +320,14 @@ fn json_parsing_load_benchmarks(c: &mut Criterion) {
 
     // Different JSON payload sizes as they arrive from Postgres
     let payloads = vec![
-        ("small_200b", 200),
-        ("medium_2kb", 2_048),
-        ("large_10kb", 10_240),
-        ("huge_100kb", 102_400),
+        ("small_200b", 200_u64),
+        ("medium_2kb", 2_048_u64),
+        ("large_10kb", 10_240_u64),
+        ("huge_100kb", 102_400_u64),
     ];
 
     for (name, size) in payloads {
-        group.throughput(Throughput::Bytes(size as u64));
+        group.throughput(Throughput::Bytes(size));
 
         group.bench_with_input(
             BenchmarkId::from_parameter(name),

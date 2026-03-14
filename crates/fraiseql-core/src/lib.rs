@@ -5,7 +5,6 @@
 #![warn(clippy::missing_errors_doc)]
 #![warn(clippy::missing_panics_doc)]
 
-
 //! ## Architecture
 //!
 //! FraiseQL v2 compiles GraphQL schemas into optimized SQL execution plans at build time,

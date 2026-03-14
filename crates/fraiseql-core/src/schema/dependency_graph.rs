@@ -200,8 +200,14 @@ impl SchemaDependencyGraph {
             for field in &type_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing.entry(type_def.name.to_string()).or_default().insert(ref_type.clone());
-                        incoming.entry(ref_type.clone()).or_default().insert(type_def.name.to_string());
+                        outgoing
+                            .entry(type_def.name.to_string())
+                            .or_default()
+                            .insert(ref_type.clone());
+                        incoming
+                            .entry(ref_type.clone())
+                            .or_default()
+                            .insert(type_def.name.to_string());
                     }
                 }
             }
@@ -603,7 +609,7 @@ mod tests {
             implements:          vec![],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
         }
     }
 
@@ -1011,7 +1017,7 @@ mod tests {
                 implements:          vec!["Node".to_string()],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
             interfaces: vec![InterfaceDefinition {
                 name:        "Node".to_string(),

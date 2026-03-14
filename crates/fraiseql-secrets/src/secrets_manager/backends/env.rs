@@ -79,7 +79,7 @@ fn validate_secret_name(name: &str) -> Result<(), SecretsError> {
     Ok(())
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

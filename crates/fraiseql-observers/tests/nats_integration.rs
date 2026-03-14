@@ -65,6 +65,7 @@ mod nats_tests {
             ack_wait_secs:          60,
             retention_max_messages: 500_000,
             retention_max_bytes:    512_000_000,
+            dead_letter_subject:    None,
         };
 
         assert_eq!(config.url, "nats://custom:4222");

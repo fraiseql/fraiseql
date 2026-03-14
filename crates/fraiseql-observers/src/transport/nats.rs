@@ -125,9 +125,9 @@ impl Default for NatsConfig {
 /// ```
 #[cfg(feature = "nats")]
 pub struct NatsTransport {
-    client:    Arc<async_nats::Client>,
-    jetstream: Arc<jetstream::Context>,
-    config:    NatsConfig,
+    client:                Arc<async_nats::Client>,
+    jetstream:             Arc<jetstream::Context>,
+    config:                NatsConfig,
     /// Count of messages that could not be deserialized.
     ///
     /// Undecodable messages are ACKed (preventing infinite redelivery) and
@@ -163,8 +163,8 @@ impl NatsTransport {
         Self::ensure_stream(&jetstream, &config).await?;
 
         Ok(Self {
-            client:           Arc::new(client),
-            jetstream:        Arc::new(jetstream),
+            client: Arc::new(client),
+            jetstream: Arc::new(jetstream),
             config,
             undecodable_count: Arc::new(AtomicU64::new(0)),
         })

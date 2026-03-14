@@ -100,8 +100,8 @@ impl SchemaOptimizer {
     /// Detection heuristics:
     /// - Type must have a JSONB column
     /// - Type should have sufficient fields (>10) or estimated large payload (>1KB)
-    /// - PostgreSQL benefit: reduced payload and latency (proportional to fields omitted;
-    ///   run `cargo bench --bench sql_projection_benchmark` for hardware-specific numbers)
+    /// - PostgreSQL benefit: reduced payload and latency (proportional to fields omitted; run
+    ///   `cargo bench --bench sql_projection_benchmark` for hardware-specific numbers)
     fn apply_sql_projection_hints(schema: &mut CompiledSchema, report: &mut OptimizationReport) {
         for type_def in &mut schema.types {
             if Self::should_use_projection(type_def) {
@@ -313,15 +313,15 @@ pub struct ProjectionHint {
     pub estimated_reduction_percent: u32,
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use fraiseql_core::{
         schema::{
-            ArgumentDefinition, AutoParams, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
-            TypeDefinition,
+            ArgumentDefinition, AutoParams, CursorType, FieldDefinition, FieldDenyPolicy,
+            FieldType, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -332,27 +332,27 @@ mod tests {
     #[test]
     fn test_optimize_empty_schema() {
         let mut schema = CompiledSchema {
-            types:          vec![],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -363,17 +363,17 @@ mod tests {
     #[test]
     fn test_index_hint_for_list_query() {
         let mut schema = CompiledSchema {
-            types:          vec![],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![QueryDefinition {
-                name:         "users".to_string(),
-                return_type:  "User".to_string(),
-                returns_list: true,
-                nullable:     false,
-                arguments:    vec![ArgumentDefinition {
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![QueryDefinition {
+                name:                "users".to_string(),
+                return_type:         "User".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           vec![ArgumentDefinition {
                     name:          "status".to_string(),
                     arg_type:      FieldType::String,
                     nullable:      false,
@@ -381,34 +381,35 @@ mod tests {
                     description:   None,
                     deprecation:   None,
                 }],
-                sql_source:   Some("users".to_string()),
-                description:  None,
-                auto_params:  AutoParams::default(),
-                deprecation:  None,
-                jsonb_column: "data".to_string(),
-                relay: false,
+                sql_source:          Some("users".to_string()),
+                description:         None,
+                auto_params:         AutoParams::default(),
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type: CursorType::default(),
-                inject_params: IndexMap::default(),
-                cache_ttl_seconds: None,
-                additional_views: vec![],
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
                 requires_role:       None,
+                rest:                None,
             }],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -421,50 +422,51 @@ mod tests {
     #[test]
     fn test_pagination_note() {
         let mut schema = CompiledSchema {
-            types:          vec![],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![QueryDefinition {
-                name:         "products".to_string(),
-                return_type:  "Product".to_string(),
-                returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                sql_source:   Some("products".to_string()),
-                description:  None,
-                auto_params:  AutoParams {
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![QueryDefinition {
+                name:                "products".to_string(),
+                return_type:         "Product".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           vec![],
+                sql_source:          Some("products".to_string()),
+                description:         None,
+                auto_params:         AutoParams {
                     has_where:    false,
                     has_order_by: false,
                     has_limit:    true,
                     has_offset:   true,
                 },
-                deprecation:  None,
-                jsonb_column: "data".to_string(),
-                relay: false,
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type: CursorType::default(),
-                inject_params: IndexMap::default(),
-                cache_ttl_seconds: None,
-                additional_views: vec![],
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
                 requires_role:       None,
+                rest:                None,
             }],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -475,7 +477,7 @@ mod tests {
     #[test]
     fn test_large_type_warning() {
         let mut schema = CompiledSchema {
-            types:          vec![TypeDefinition {
+            types: vec![TypeDefinition {
                 name:                "BigType".into(),
                 sql_source:          String::new().into(),
                 jsonb_column:        String::new(),
@@ -490,7 +492,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
-                        on_deny: FieldDenyPolicy::default(),
+                        on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
                     })
                     .collect(),
@@ -499,28 +501,28 @@ mod tests {
                 implements:          vec![],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -531,7 +533,7 @@ mod tests {
     #[test]
     fn test_projection_hint_for_large_type() {
         let mut schema = CompiledSchema {
-            types:          vec![TypeDefinition {
+            types: vec![TypeDefinition {
                 name:                "User".into(),
                 sql_source:          "users".into(),
                 jsonb_column:        "data".to_string(),
@@ -546,7 +548,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
-                        on_deny: FieldDenyPolicy::default(),
+                        on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
                     })
                     .collect(),
@@ -555,28 +557,28 @@ mod tests {
                 implements:          vec![],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -597,7 +599,7 @@ mod tests {
     #[test]
     fn test_projection_not_applied_without_jsonb() {
         let mut schema = CompiledSchema {
-            types:          vec![TypeDefinition {
+            types: vec![TypeDefinition {
                 name:                "SmallType".into(),
                 sql_source:          "small_table".into(),
                 jsonb_column:        String::new(), // No JSONB column
@@ -612,7 +614,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
-                        on_deny: FieldDenyPolicy::default(),
+                        on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
                     })
                     .collect(),
@@ -621,28 +623,28 @@ mod tests {
                 implements:          vec![],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 

@@ -2,12 +2,11 @@
 
 use std::sync::Arc;
 
+use super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
 };
-
-use super::Executor;
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a federation query (_service or _entities).

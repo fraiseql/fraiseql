@@ -476,10 +476,7 @@ impl FraiseQLError {
             for (j, c2) in s2.chars().enumerate() {
                 let cost = usize::from(c1 != c2);
                 matrix[i + 1][j + 1] = std::cmp::min(
-                    std::cmp::min(
-                        matrix[i][j + 1] + 1,
-                        matrix[i + 1][j] + 1,
-                    ),
+                    std::cmp::min(matrix[i][j + 1] + 1, matrix[i + 1][j] + 1),
                     matrix[i][j] + cost,
                 );
             }
@@ -579,14 +576,16 @@ pub trait ErrorContext<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the given message.
+    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the
+    /// given message.
     fn context(self, message: impl Into<String>) -> Result<T>;
 
     /// Add context lazily (only computed on error).
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the context message.
+    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the
+    /// context message.
     fn with_context<F, M>(self, f: F) -> Result<T>
     where
         F: FnOnce() -> M,

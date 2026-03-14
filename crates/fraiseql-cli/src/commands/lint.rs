@@ -153,7 +153,7 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     Ok(CommandResult::success("lint", serde_json::to_value(&response)?))
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::io::Write;

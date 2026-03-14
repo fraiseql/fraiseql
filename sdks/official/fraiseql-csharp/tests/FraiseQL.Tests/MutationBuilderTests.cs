@@ -18,13 +18,13 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Build();
 
         Assert.Equal("createAuthor", mutation.Name);
         Assert.Equal("Author", mutation.ReturnType);
         Assert.Equal("fn_create_author", mutation.SqlSource);
-        Assert.Equal("insert", mutation.Operation);
+        Assert.Equal("CREATE", mutation.Operation);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Argument("name", "String", nullable: false)
             .Build();
 
@@ -49,7 +49,7 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("updateAuthor")
             .ReturnType("Author")
             .SqlSource("fn_update_author")
-            .Operation("update")
+            .Operation("UPDATE")
             .Argument("id", "ID", nullable: false)
             .Argument("name", "String", nullable: true)
             .Build();
@@ -63,7 +63,7 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("deleteAuthor")
             .ReturnType("Author")
             .SqlSource("fn_delete_author")
-            .Operation("delete")
+            .Operation("DELETE")
             .Build();
 
         Assert.NotNull(mutation.Arguments);
@@ -76,9 +76,9 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("m")
             .ReturnType("T")
             .SqlSource("fn_m")
-            .Operation("insert")
+            .Operation("CREATE")
             .Build();
-        Assert.Equal("insert", mutation.Operation);
+        Assert.Equal("CREATE", mutation.Operation);
     }
 
     [Fact]
@@ -87,9 +87,9 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("m")
             .ReturnType("T")
             .SqlSource("fn_m")
-            .Operation("update")
+            .Operation("UPDATE")
             .Build();
-        Assert.Equal("update", mutation.Operation);
+        Assert.Equal("UPDATE", mutation.Operation);
     }
 
     [Fact]
@@ -98,20 +98,20 @@ public sealed class MutationBuilderTests : IDisposable
         var mutation = MutationBuilder.Mutation("m")
             .ReturnType("T")
             .SqlSource("fn_m")
-            .Operation("delete")
+            .Operation("DELETE")
             .Build();
-        Assert.Equal("delete", mutation.Operation);
+        Assert.Equal("DELETE", mutation.Operation);
     }
 
     [Fact]
-    public void TestMutationBuilderUpsertOperation()
+    public void TestMutationBuilderCustomOperation()
     {
         var mutation = MutationBuilder.Mutation("m")
             .ReturnType("T")
             .SqlSource("fn_m")
-            .Operation("upsert")
+            .Operation("CUSTOM")
             .Build();
-        Assert.Equal("upsert", mutation.Operation);
+        Assert.Equal("CUSTOM", mutation.Operation);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class MutationBuilderTests : IDisposable
                 .SqlSource("fn_m")
                 .Operation("INVALID"));
 
-        Assert.Contains("insert", ex.Message);
+        Assert.Contains("CREATE", ex.Message);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class MutationBuilderTests : IDisposable
         MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Register();
 
         var mutations = SchemaRegistry.Instance.GetAllMutations();
@@ -146,7 +146,7 @@ public sealed class MutationBuilderTests : IDisposable
         MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Register();
 
         var json = SchemaExporter.Export(pretty: false);
@@ -162,7 +162,7 @@ public sealed class MutationBuilderTests : IDisposable
         var ex = Assert.Throws<InvalidOperationException>(() =>
             MutationBuilder.Mutation("m")
                 .SqlSource("fn_m")
-                .Operation("insert")
+                .Operation("CREATE")
                 .Build());
         Assert.Contains("ReturnType", ex.Message);
     }
@@ -173,7 +173,7 @@ public sealed class MutationBuilderTests : IDisposable
         var ex = Assert.Throws<InvalidOperationException>(() =>
             MutationBuilder.Mutation("m")
                 .ReturnType("T")
-                .Operation("insert")
+                .Operation("CREATE")
                 .Build());
         Assert.Contains("SqlSource", ex.Message);
     }

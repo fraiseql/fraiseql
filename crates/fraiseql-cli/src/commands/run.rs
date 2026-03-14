@@ -25,8 +25,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_server::{Server, ServerConfig};
-use fraiseql_server::server_config::TlsServerConfig;
+use fraiseql_server::{Server, ServerConfig, server_config::TlsServerConfig};
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
@@ -43,8 +42,8 @@ use crate::config::{
 /// # Arguments
 ///
 /// * `input`         - Path to input file; `None` triggers auto-detection.
-/// * `database`      - Database URL override; falls back to `DATABASE_URL` env var,
-///   then to `[database].url` in `fraiseql.toml`.
+/// * `database`      - Database URL override; falls back to `DATABASE_URL` env var, then to
+///   `[database].url` in `fraiseql.toml`.
 /// * `port`          - TCP port override; `None` means fall back to TOML / default.
 /// * `bind`          - Bind host override; `None` means fall back to TOML / default.
 /// * `watch`         - Watch input file for changes and hot-reload.
@@ -196,8 +195,7 @@ pub(crate) fn resolve_runtime_config(
     // 1. Load [server] and [database] from TOML (fatal for primary .toml, best-effort otherwise)
     let (server_cfg, db_cfg) = load_runtime_config_from_toml(input_path)?;
 
-    // 2. Resolve database URL
-    //    Priority: CLI flag > DATABASE_URL env > TOML [database].url
+    // 2. Resolve database URL Priority: CLI flag > DATABASE_URL env > TOML [database].url
     let db_url = db_cli
         .or_else(|| std::env::var("DATABASE_URL").ok())
         .or_else(|| db_cfg.url.clone())
@@ -208,22 +206,17 @@ pub(crate) fn resolve_runtime_config(
             )
         })?;
 
-    // 3. Resolve host and port
-    //    Priority: CLI flags > FRAISEQL_HOST/FRAISEQL_PORT env > TOML [server].*
+    // 3. Resolve host and port Priority: CLI flags > FRAISEQL_HOST/FRAISEQL_PORT env > TOML
+    //    [server].*
     let host = bind_cli
         .or_else(|| std::env::var("FRAISEQL_HOST").ok())
         .unwrap_or_else(|| server_cfg.host.clone());
 
     let port = port_cli
-        .or_else(|| {
-            std::env::var("FRAISEQL_PORT")
-                .ok()
-                .and_then(|v| v.parse::<u16>().ok())
-        })
+        .or_else(|| std::env::var("FRAISEQL_PORT").ok().and_then(|v| v.parse::<u16>().ok()))
         .unwrap_or(server_cfg.port);
 
-    let bind_addr: SocketAddr =
-        format!("{host}:{port}").parse().context("Invalid bind address")?;
+    let bind_addr: SocketAddr = format!("{host}:{port}").parse().context("Invalid bind address")?;
 
     server_cfg.validate()?;
     db_cfg.validate()?;
@@ -243,8 +236,8 @@ fn load_runtime_config_from_toml(
 
     if ext == "toml" {
         // Workflow A: the input IS the fraiseql.toml — parse errors are fatal
-        let schema = TomlSchema::from_file(input_path.to_str().unwrap_or(""))
-            .with_context(|| {
+        let schema =
+            TomlSchema::from_file(input_path.to_str().unwrap_or("")).with_context(|| {
                 format!("Failed to load runtime config from {}", input_path.display())
             })?;
         info!("Loaded [server] and [database] config from {}", input_path.display());
@@ -252,10 +245,7 @@ fn load_runtime_config_from_toml(
     }
 
     // Workflow B: input is schema.json — look for fraiseql.toml in the same directory
-    let toml_path = input_path
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join("fraiseql.toml");
+    let toml_path = input_path.parent().unwrap_or(Path::new(".")).join("fraiseql.toml");
 
     if toml_path.exists() {
         match FraiseQLConfig::from_file(toml_path.to_str().unwrap_or("fraiseql.toml")) {
@@ -401,7 +391,7 @@ fn auto_detect_input(base: &Path) -> Result<PathBuf> {
     )
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
@@ -523,7 +513,11 @@ mod tests {
     #[test]
     fn test_build_config_pool_sizes_from_db_cfg() {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
-        let db_cfg = DatabaseRuntimeConfig { pool_min: 5, pool_max: 50, ..Default::default() };
+        let db_cfg = DatabaseRuntimeConfig {
+            pool_min: 5,
+            pool_max: 50,
+            ..Default::default()
+        };
         let config = build_config_from(
             "postgres://localhost/test",
             addr,
@@ -574,14 +568,11 @@ url = "postgresql://toml-host/testdb"
         )
         .unwrap();
 
-        temp_env::with_vars(
-            [("DATABASE_URL", None::<&str>)],
-            || {
-                let (db_url, _addr, _srv, _db) =
-                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
-                assert_eq!(db_url, "postgresql://toml-host/testdb");
-            },
-        );
+        temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+            let (db_url, _addr, _srv, _db) =
+                resolve_runtime_config(&toml_path, None, None, None).unwrap();
+            assert_eq!(db_url, "postgresql://toml-host/testdb");
+        });
     }
 
     #[test]
@@ -628,14 +619,11 @@ url = "postgresql://toml-host/testdb"
         )
         .unwrap();
 
-        temp_env::with_vars(
-            [("DATABASE_URL", Some("postgresql://env-host/envdb"))],
-            || {
-                let (db_url, _addr, _srv, _db) =
-                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
-                assert_eq!(db_url, "postgresql://env-host/envdb");
-            },
-        );
+        temp_env::with_vars([("DATABASE_URL", Some("postgresql://env-host/envdb"))], || {
+            let (db_url, _addr, _srv, _db) =
+                resolve_runtime_config(&toml_path, None, None, None).unwrap();
+            assert_eq!(db_url, "postgresql://env-host/envdb");
+        });
     }
 
     #[test]
@@ -695,7 +683,10 @@ port = 9999
         .unwrap();
 
         temp_env::with_vars(
-            [("DATABASE_URL", None::<&str>), ("FRAISEQL_PORT", None::<&str>)],
+            [
+                ("DATABASE_URL", None::<&str>),
+                ("FRAISEQL_PORT", None::<&str>),
+            ],
             || {
                 let (_db_url, addr, _srv, _db) =
                     resolve_runtime_config(&toml_path, None, Some(7777), None).unwrap();
@@ -735,7 +726,10 @@ port = 0
         .unwrap();
 
         temp_env::with_vars(
-            [("DATABASE_URL", None::<&str>), ("FRAISEQL_PORT", None::<&str>)],
+            [
+                ("DATABASE_URL", None::<&str>),
+                ("FRAISEQL_PORT", None::<&str>),
+            ],
             || {
                 let result = resolve_runtime_config(&toml_path, None, None, None);
                 assert!(result.is_err());
@@ -764,15 +758,12 @@ pool_max = 10
         )
         .unwrap();
 
-        temp_env::with_vars(
-            [("DATABASE_URL", None::<&str>)],
-            || {
-                let result = resolve_runtime_config(&toml_path, None, None, None);
-                assert!(result.is_err());
-                let msg = result.unwrap_err().to_string();
-                assert!(msg.contains("pool_min"), "got: {msg}");
-            },
-        );
+        temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+            let result = resolve_runtime_config(&toml_path, None, None, None);
+            assert!(result.is_err());
+            let msg = result.unwrap_err().to_string();
+            assert!(msg.contains("pool_min"), "got: {msg}");
+        });
     }
 
     #[test]
@@ -789,14 +780,11 @@ database_target = "postgresql"
         )
         .unwrap();
 
-        temp_env::with_vars(
-            [("DATABASE_URL", None::<&str>)],
-            || {
-                let result = resolve_runtime_config(&toml_path, None, None, None);
-                assert!(result.is_err());
-                let msg = result.unwrap_err().to_string();
-                assert!(msg.contains("database URL"), "got: {msg}");
-            },
-        );
+        temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+            let result = resolve_runtime_config(&toml_path, None, None, None);
+            assert!(result.is_err());
+            let msg = result.unwrap_err().to_string();
+            assert!(msg.contains("database URL"), "got: {msg}");
+        });
     }
 }

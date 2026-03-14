@@ -505,7 +505,10 @@ mod tests {
         let result = TlsConfig::builder()
             .danger_accept_invalid_certs(true)
             .build();
-        assert!(result.is_err(), "danger mode must be rejected in release builds");
+        assert!(
+            result.is_err(),
+            "danger mode must be rejected in release builds"
+        );
         let err = result.unwrap_err();
         assert!(
             err.to_string().contains("not permitted in release builds"),

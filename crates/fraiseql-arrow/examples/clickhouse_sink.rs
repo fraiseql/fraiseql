@@ -1,4 +1,6 @@
 //! `ClickHouse` sink example demonstrating end-to-end event ingestion
+#![allow(clippy::unwrap_used)] // Reason: example code — panics are acceptable failures
+#![allow(clippy::items_after_statements)] // Reason: example code — item ordering is for readability
 //!
 //! This example shows how to:
 //! 1. Create test event data
@@ -58,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_events = 100;
     let mut rows = Vec::with_capacity(num_events);
 
+    #[allow(clippy::cast_possible_truncation)] // Reason: timestamps since epoch fit in i64 until year 292277
     let now_micros = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() as i64;
 
     for i in 0..num_events {
@@ -77,12 +80,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let event_types = ["created", "updated", "deleted"];
         let entity_types = ["User", "Product", "Order", "Invoice"];
 
+        #[allow(clippy::cast_possible_wrap)] // Reason: loop index is small (< 100), cannot wrap
+        let timestamp = now_micros + (i as i64) * 1_000_000; // Space out by 1 second each
         let row = EventRow {
             event_id,
             event_type: event_types[i % event_types.len()].to_string(),
             entity_type: entity_types[i % entity_types.len()].to_string(),
             entity_id,
-            timestamp: now_micros + (i as i64) * 1_000_000, // Space out by 1 second each
+            timestamp,
             data: format!(
                 r#"{{"event_number":{}, "processed_at": {}, "test": true}}"#,
                 i, now_micros

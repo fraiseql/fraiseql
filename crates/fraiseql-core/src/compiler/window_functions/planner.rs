@@ -165,7 +165,10 @@ impl WindowFunctionPlanner {
                     })
                     .map(|(field, direction)| {
                         validate_sql_expression(field, "orderBy.field")?;
-                        Ok(OrderByClause { field: field.to_string(), direction })
+                        Ok(OrderByClause {
+                            field: field.to_string(),
+                            direction,
+                        })
                     })
                     .collect()
             })

@@ -22,15 +22,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .iter()
                 .flat_map(|t| t.fields.iter())
                 .filter_map(|f| {
-                    f.encryption
-                        .as_ref()
-                        .map(|enc| (f.name.to_string(), enc.key_reference.clone()))
+                    f.encryption.as_ref().map(|enc| (f.name.to_string(), enc.key_reference.clone()))
                 })
                 .collect();
 
             if !field_keys.is_empty() {
-                use fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter;
-                use fraiseql_secrets::encryption::middleware::FieldEncryptionService;
+                use fraiseql_secrets::encryption::{
+                    database_adapter::DatabaseFieldAdapter, middleware::FieldEncryptionService,
+                };
                 let adapter = std::sync::Arc::new(DatabaseFieldAdapter::new(
                     secrets_manager.clone(),
                     field_keys,
@@ -53,7 +52,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
-            info!("Error sanitizer enabled — internal error details will be stripped from responses");
+            info!(
+                "Error sanitizer enabled — internal error details will be stripped from responses"
+            );
         }
 
         // Attach API key authenticator if configured
@@ -83,7 +84,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
             if let Some(complexity) = vc.max_query_complexity {
                 validator = validator.with_max_complexity(complexity as usize);
-                info!(max_query_complexity = complexity, "Custom query complexity limit configured");
+                info!(
+                    max_query_complexity = complexity,
+                    "Custom query complexity limit configured"
+                );
             }
         }
         state = state.with_validator(validator);
@@ -94,8 +98,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let tuner = std::sync::Arc::new(crate::pool::PoolAutoTuner::new(cfg.clone()));
                 // Spawn background polling task (recommendation mode — no resize_fn supplied
                 // because deadpool-postgres does not expose runtime resize).
-                let _handle = std::sync::Arc::clone(&tuner)
-                    .start(self.executor.adapter().clone(), None);
+                let _handle =
+                    std::sync::Arc::clone(&tuner).start(self.executor.adapter().clone(), None);
                 state = state.with_pool_tuner(tuner);
                 info!(
                     tuning_interval_ms = cfg.tuning_interval_ms,
@@ -144,11 +148,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 router.with_state(state.clone())
             }
         } else {
-            let router = Router::new()
-                .route(
-                    &self.config.graphql_path,
-                    get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-                );
+            let router = Router::new().route(
+                &self.config.graphql_path,
+                get(graphql_get_handler::<A>).post(graphql_handler::<A>),
+            );
 
             if self.config.require_json_content_type {
                 router
@@ -364,7 +367,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 post_login_redirect_uri: None,
             });
             let auth_router = Router::new()
-                .route("/auth/start",    get(auth_start))
+                .route("/auth/start", get(auth_start))
                 .route("/auth/callback", get(auth_callback))
                 .with_state(auth_state);
             app = app.merge(auth_router);
@@ -378,7 +381,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 revocation_manager: Arc::clone(rev_mgr),
             });
             let rev_router = Router::new()
-                .route("/auth/revoke",     post(crate::routes::revoke_token))
+                .route("/auth/revoke", post(crate::routes::revoke_token))
                 .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
                 .with_state(rev_state);
             app = app.merge(rev_router);
@@ -422,8 +425,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 };
 
                 if mount_mcp {
-                    use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
-                    use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+                    use rmcp::transport::{
+                        StreamableHttpServerConfig, StreamableHttpService,
+                        streamable_http_server::session::local::LocalSessionManager,
+                    };
 
                     let schema = Arc::new(self.executor.schema().clone());
                     let executor = self.executor.clone();
@@ -445,6 +450,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // REST transport routes (if feature enabled and schema has REST annotations)
+        #[cfg(feature = "rest-transport")]
+        {
+            let compiled = self.executor.schema();
+            let prefix = compiled
+                .rest_config
+                .as_ref()
+                .map(|c| c.prefix.clone())
+                .unwrap_or_else(|| "/rest".to_string());
+            if let Some(rest_router) = crate::routes::rest::router::build_rest_router(compiled, &state) {
+                app = app.nest(&prefix, rest_router);
+                info!(prefix = %prefix, "REST transport layer mounted");
+            }
+        }
+
         // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
@@ -463,11 +483,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // function is called; build_router() is sync so no await here.
                 let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
                 let auth_state = BearerAuthState::new(token.clone());
-                let rbac_router = crate::api::rbac_management_router(rbac_state)
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        bearer_auth_middleware,
-                    ));
+                let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(
+                    middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
+                );
                 app = app.merge(rbac_router);
             } else {
                 // SECURITY: Refuse to mount RBAC endpoints without authentication.

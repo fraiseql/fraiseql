@@ -81,11 +81,7 @@ impl TestSchemaBuilder {
     /// Defaults: `sql_source = "v_{name}"`, no arguments, `jsonb_column` = "data".
     #[must_use]
     pub fn with_simple_query(self, name: &str, return_type: &str, returns_list: bool) -> Self {
-        self.with_query(
-            TestQueryBuilder::new(name, return_type)
-                .returns_list(returns_list)
-                .build(),
-        )
+        self.with_query(TestQueryBuilder::new(name, return_type).returns_list(returns_list).build())
     }
 
     /// Add a query that requires a specific role to execute.
@@ -155,13 +151,11 @@ impl TestSchemaBuilder {
     #[must_use]
     pub fn build(self) -> CompiledSchema {
         let mut schema = CompiledSchema {
-            queries:    self.queries,
-            mutations:  self.mutations,
-            types:      self.types,
-            security:   self.security,
-            federation: self
-                .federation
-                .map(|v| serde_json::from_value(v).unwrap_or_default()),
+            queries: self.queries,
+            mutations: self.mutations,
+            types: self.types,
+            security: self.security,
+            federation: self.federation.map(|v| serde_json::from_value(v).unwrap_or_default()),
             ..CompiledSchema::default()
         };
         schema.build_indexes();
@@ -434,9 +428,7 @@ impl TestMutationBuilder {
     /// Uses `MutationDefinition::new()` so new fields are picked up automatically.
     #[must_use]
     pub fn build(self) -> MutationDefinition {
-        let sql_source = self
-            .sql_source
-            .unwrap_or_else(|| format!("fn_{}", self.name));
+        let sql_source = self.sql_source.unwrap_or_else(|| format!("fn_{}", self.name));
 
         let mut m = MutationDefinition::new(&self.name, &self.return_type);
         m.sql_source = Some(sql_source);
@@ -521,11 +513,7 @@ impl TestTypeBuilder {
     /// Add a scope-guarded field by name and type.
     #[must_use]
     pub fn with_scoped_field(self, name: &str, ty: FieldType, scope: &str) -> Self {
-        self.with_field(
-            TestFieldBuilder::new(name, ty)
-                .requires_scope(scope)
-                .build(),
-        )
+        self.with_field(TestFieldBuilder::new(name, ty).requires_scope(scope).build())
     }
 
     /// Require this role to see the type in introspection.
@@ -600,7 +588,7 @@ impl TestTypeBuilder {
 ///     .build();
 /// ```
 pub struct TestFieldBuilder {
-    inner:          FieldDefinition,
+    inner: FieldDefinition,
 }
 
 impl TestFieldBuilder {
@@ -648,7 +636,9 @@ impl TestFieldBuilder {
     /// Mark the field as deprecated with the given reason.
     #[must_use]
     pub fn deprecated(mut self, reason: &str) -> Self {
-        self.inner.deprecation = Some(DeprecationInfo { reason: Some(reason.to_string()) });
+        self.inner.deprecation = Some(DeprecationInfo {
+            reason: Some(reason.to_string()),
+        });
         self
     }
 
@@ -680,9 +670,7 @@ mod tests {
 
     #[test]
     fn test_schema_builder_with_simple_query() {
-        let schema = TestSchemaBuilder::new()
-            .with_simple_query("users", "User", true)
-            .build();
+        let schema = TestSchemaBuilder::new().with_simple_query("users", "User", true).build();
 
         assert_eq!(schema.queries.len(), 1);
         assert_eq!(schema.queries[0].name, "users");
@@ -717,9 +705,7 @@ mod tests {
 
     #[test]
     fn test_schema_builder_with_mutation() {
-        let schema = TestSchemaBuilder::new()
-            .with_simple_mutation("createUser", "User")
-            .build();
+        let schema = TestSchemaBuilder::new().with_simple_mutation("createUser", "User").build();
 
         assert_eq!(schema.mutations.len(), 1);
         assert_eq!(schema.mutations[0].name, "createUser");
@@ -744,10 +730,7 @@ mod tests {
             .with_scoped_field("salary", FieldType::Int, "read:Employee.salary")
             .build();
 
-        assert_eq!(
-            type_def.fields[0].requires_scope.as_deref(),
-            Some("read:Employee.salary")
-        );
+        assert_eq!(type_def.fields[0].requires_scope.as_deref(), Some("read:Employee.salary"));
     }
 
     #[test]
@@ -757,10 +740,7 @@ mod tests {
             .build();
 
         assert!(query.deprecation.is_some());
-        assert_eq!(
-            query.deprecation.unwrap().reason.as_deref(),
-            Some("Use newQuery instead")
-        );
+        assert_eq!(query.deprecation.unwrap().reason.as_deref(), Some("Use newQuery instead"));
     }
 
     #[test]
@@ -801,9 +781,7 @@ mod tests {
 
     #[test]
     fn test_query_builder_cache_ttl() {
-        let query = TestQueryBuilder::new("hot", "Item")
-            .with_cache_ttl(300)
-            .build();
+        let query = TestQueryBuilder::new("hot", "Item").with_cache_ttl(300).build();
 
         assert_eq!(query.cache_ttl_seconds, Some(300));
     }

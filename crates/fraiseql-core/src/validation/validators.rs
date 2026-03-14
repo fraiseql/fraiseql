@@ -8,7 +8,6 @@ use regex::Regex;
 use super::rules::ValidationRule;
 use crate::error::{FraiseQLError, Result, ValidationFieldError};
 
-
 /// Basic validator trait for field validation.
 pub trait Validator {
     /// Validate a value and return an error if validation fails.
@@ -224,8 +223,7 @@ impl Validator for RequiredValidator {
 }
 
 /// RFC 5321 practical email regex, shared with `async_validators`.
-const EMAIL_PATTERN: &str =
-    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
+const EMAIL_PATTERN: &str = r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
 
 /// E.164 international phone number regex, shared with `async_validators`.
 const PHONE_E164_PATTERN: &str = r"^\+[1-9]\d{6,14}$";
@@ -266,9 +264,12 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
         },
         ValidationRule::Phone => {
             // Reuse the same regex as PhoneE164Validator in async_validators.
-            PatternValidator::new(PHONE_E164_PATTERN, "Invalid E.164 phone number (expected +<country><number>)")
-                .ok()
-                .map(|v| Box::new(v) as Box<dyn Validator>)
+            PatternValidator::new(
+                PHONE_E164_PATTERN,
+                "Invalid E.164 phone number (expected +<country><number>)",
+            )
+            .ok()
+            .map(|v| Box::new(v) as Box<dyn Validator>)
         },
         _ => None, // Other validators handled separately (cross-field, composite, async)
     }

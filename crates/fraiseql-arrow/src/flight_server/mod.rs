@@ -39,13 +39,13 @@ mod service;
 mod tests;
 
 use std::{pin::Pin, sync::Arc};
-use tokio::sync::Semaphore;
 
 use arrow_flight::{ActionType, FlightData, FlightInfo, HandshakeResponse, PutResult};
 use async_trait::async_trait;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream; // Stream required for type aliases
 use serde::{Deserialize, Serialize};
+use tokio::sync::Semaphore;
 use tonic::Status;
 
 // Re-export auth helpers for use across submodules
@@ -53,13 +53,13 @@ pub(crate) use self::auth::{
     create_session_token, extract_session_token, map_security_error_to_status,
     validate_session_token,
 };
+#[cfg(any(test, feature = "testing"))]
+pub(crate) use self::convert::execute_placeholder_query;
 // Re-export convert functions for use across submodules
 pub(crate) use self::convert::{
     build_insert_query, build_optimized_sql, decode_flight_data_to_batch, decode_upload_batch,
     encode_json_to_arrow_batch, record_batch_to_flight_data, schema_to_flight_data,
 };
-#[cfg(any(test, feature = "testing"))]
-pub(crate) use self::convert::execute_placeholder_query;
 use crate::{
     cache::QueryCache, db::DatabaseAdapter, event_storage::EventStorage, metadata::SchemaRegistry,
     subscription::SubscriptionManager,
@@ -68,8 +68,8 @@ use crate::{
 /// Trait for executing GraphQL queries with security context (RLS filtering).
 ///
 /// This trait abstracts over the generic `Executor<A>` type (where `A` is the database adapter),
-/// allowing `FraiseQLFlightService` to execute queries without knowing the specific database adapter
-/// type.
+/// allowing `FraiseQLFlightService` to execute queries without knowing the specific database
+/// adapter type.
 ///
 /// **Architecture Note:**
 /// The Executor in fraiseql-core is generic over the database adapter type A.
@@ -159,18 +159,18 @@ pub struct FraiseQLFlightService {
     /// **SECURITY**: Disabled by default. Enabling this allows authenticated clients
     /// to execute arbitrary SQL, which bypasses RLS and query-level authorization.
     /// Only enable for trusted internal tooling with explicit intent.
-    pub(crate) allow_raw_sql: bool,
+    pub(crate) allow_raw_sql:        bool,
     /// HMAC-SHA256 secret used to sign and verify Flight session tokens.
     ///
     /// Read once at service construction from `FLIGHT_SESSION_SECRET` environment
     /// variable, or supplied via [`FraiseQLFlightService::with_session_secret`].
-    pub(crate) session_secret: Option<String>,
+    pub(crate) session_secret:       Option<String>,
     /// Semaphore limiting the number of concurrent `do_get` streams.
     ///
     /// `try_acquire()` is used (non-blocking): when all permits are taken, new
     /// `do_get` calls immediately return `Status::resource_exhausted` instead of
     /// queuing indefinitely. Default capacity: 50.
-    pub(crate) stream_semaphore: Arc<Semaphore>,
+    pub(crate) stream_semaphore:     Arc<Semaphore>,
 }
 
 /// Security context for authenticated Flight requests.

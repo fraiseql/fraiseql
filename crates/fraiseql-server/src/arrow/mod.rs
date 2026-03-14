@@ -8,10 +8,10 @@
 //!
 //! Arrow Flight support uses a library/consumer split:
 //!
-//! - [`fraiseql_arrow`] (the `fraiseql-arrow` crate) — full Arrow Flight gRPC
-//!   implementation, database-agnostic via `DatabaseAdapter` and `QueryExecutor` traits
-//! - This module (`fraiseql-server/src/arrow`) — thin adapter layer that bridges
-//!   `fraiseql-core` adapters to the `fraiseql-arrow` traits
+//! - [`fraiseql_arrow`] (the `fraiseql-arrow` crate) — full Arrow Flight gRPC implementation,
+//!   database-agnostic via `DatabaseAdapter` and `QueryExecutor` traits
+//! - This module (`fraiseql-server/src/arrow`) — thin adapter layer that bridges `fraiseql-core`
+//!   adapters to the `fraiseql-arrow` traits
 //!
 //! The Flight gRPC server binds on port 50051 alongside the HTTP server (port 3000).
 //! Enable with `--features arrow`.
@@ -22,12 +22,12 @@
 //! (authentication, streaming, caching, JSON↔Arrow conversion) lives in the
 //! [`fraiseql_arrow`] library crate. This module provides:
 //!
-//! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to
-//!   implement `fraiseql_arrow::DatabaseAdapter`
-//! - [`ExecutorQueryAdapter`]: Wraps `Executor<A>` to implement
-//!   `fraiseql_arrow::QueryExecutor` (type erasure)
-//! - [`create_flight_service`]: Factory that assembles a configured
-//!   `FraiseQLFlightService` from core adapters
+//! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to implement
+//!   `fraiseql_arrow::DatabaseAdapter`
+//! - [`ExecutorQueryAdapter`]: Wraps `Executor<A>` to implement `fraiseql_arrow::QueryExecutor`
+//!   (type erasure)
+//! - [`create_flight_service`]: Factory that assembles a configured `FraiseQLFlightService` from
+//!   core adapters
 //!
 //! # Usage
 //!
@@ -89,6 +89,13 @@ pub fn create_flight_service(adapter: Arc<PostgresAdapter>) -> FraiseQLFlightSer
     FraiseQLFlightService::new_with_db(Arc::new(flight_adapter))
 }
 
+/// Create an Arrow Flight service with a FraiseQL Wire database adapter.
+///
+/// Uses the FraiseQL Wire adapter for streaming JSON queries with low memory overhead.
+///
+/// # Arguments
+///
+/// * `adapter` - FraiseQL Wire adapter wrapped in Arc
 #[cfg(all(feature = "arrow", feature = "wire-backend"))]
 pub fn create_flight_service(adapter: Arc<FraiseWireAdapter>) -> FraiseQLFlightService {
     let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);

@@ -63,15 +63,15 @@ pub enum ValidationError {
 #[derive(Debug, Clone)]
 pub struct RequestValidator {
     /// Maximum query depth allowed.
-    max_depth:            usize,
+    max_depth:             usize,
     /// Maximum query complexity score allowed.
-    max_complexity:       usize,
+    max_complexity:        usize,
     /// Maximum number of field aliases per query (alias amplification protection).
     max_aliases_per_query: usize,
     /// Enable query depth validation.
-    validate_depth:       bool,
+    validate_depth:        bool,
     /// Enable query complexity validation.
-    validate_complexity:  bool,
+    validate_complexity:   bool,
 }
 
 impl RequestValidator {
@@ -642,7 +642,13 @@ mod tests {
         let result = validator.validate_query(query);
         assert!(result.is_err(), "Alias count exceeding limit must be rejected");
         assert!(
-            matches!(result, Err(ValidationError::TooManyAliases { actual_aliases: 3, .. })),
+            matches!(
+                result,
+                Err(ValidationError::TooManyAliases {
+                    actual_aliases: 3,
+                    ..
+                })
+            ),
             "Error should report correct alias count"
         );
     }
@@ -676,15 +682,27 @@ mod tests {
         let validator = RequestValidator::new();
 
         // Build a query with exactly 30 aliases
-        let fields: String =
-            (0..30).fold(String::new(), |mut s, i| { use std::fmt::Write; let _ = write!(s, "f{i}: user {{ id }} "); s });
+        let fields: String = (0..30).fold(String::new(), |mut s, i| {
+            use std::fmt::Write;
+            let _ = write!(s, "f{i}: user {{ id }} ");
+            s
+        });
         let query = format!("query {{ {fields} }}");
-        assert!(validator.validate_query(&query).is_ok(), "30 aliases should be within default limit");
+        assert!(
+            validator.validate_query(&query).is_ok(),
+            "30 aliases should be within default limit"
+        );
 
         // Build a query with 31 aliases
-        let fields: String =
-            (0..31).fold(String::new(), |mut s, i| { use std::fmt::Write; let _ = write!(s, "f{i}: user {{ id }} "); s });
+        let fields: String = (0..31).fold(String::new(), |mut s, i| {
+            use std::fmt::Write;
+            let _ = write!(s, "f{i}: user {{ id }} ");
+            s
+        });
         let query = format!("query {{ {fields} }}");
-        assert!(validator.validate_query(&query).is_err(), "31 aliases should exceed default limit of 30");
+        assert!(
+            validator.validate_query(&query).is_err(),
+            "31 aliases should exceed default limit of 30"
+        );
     }
 }

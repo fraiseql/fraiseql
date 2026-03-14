@@ -74,14 +74,9 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 
     let subgraphs = match federation {
         Some(fed) if fed.enabled => {
-            let service_name = fed
-                .service_name
-                .clone()
-                .unwrap_or_else(|| "this-service".to_string());
-            let url = fed
-                .schema_url
-                .clone()
-                .unwrap_or_else(|| "/__subgraph_schema".to_string());
+            let service_name =
+                fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
+            let url = fed.schema_url.clone().unwrap_or_else(|| "/__subgraph_schema".to_string());
             let entities = fed.entities.iter().map(|e| e.name.clone()).collect();
 
             vec![SubgraphInfo {
@@ -115,7 +110,8 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 ///
 /// # Errors
 ///
-/// Returns `ApiError` with a validation error if `format` is not one of `json`, `dot`, or `mermaid`.
+/// Returns `ApiError` with a validation error if `format` is not one of `json`, `dot`, or
+/// `mermaid`.
 pub async fn graph_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Query(query): Query<GraphFormatQuery>,
@@ -131,10 +127,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
 
     let content = generate_federation_graph(&format, federation);
 
-    let response = GraphResponse {
-        format,
-        content,
-    };
+    let response = GraphResponse { format, content };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -155,19 +148,11 @@ fn generate_federation_graph(
     }
 }
 
-fn generate_json_graph(
-    federation: Option<&fraiseql_core::schema::FederationConfig>,
-) -> String {
+fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     let subgraphs: Vec<serde_json::Value> = match federation {
         Some(fed) if fed.enabled => {
-            let name = fed
-                .service_name
-                .clone()
-                .unwrap_or_else(|| "this-service".to_string());
-            let url = fed
-                .schema_url
-                .clone()
-                .unwrap_or_else(|| "/__subgraph_schema".to_string());
+            let name = fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
+            let url = fed.schema_url.clone().unwrap_or_else(|| "/__subgraph_schema".to_string());
             let entities: Vec<_> = fed.entities.iter().map(|e| e.name.as_str()).collect();
             vec![serde_json::json!({ "name": name, "url": url, "entities": entities })]
         },
@@ -181,17 +166,13 @@ fn generate_json_graph(
     .unwrap_or_else(|_| r#"{"subgraphs":[],"edges":[]}"#.to_string())
 }
 
-fn generate_dot_graph(
-    federation: Option<&fraiseql_core::schema::FederationConfig>,
-) -> String {
-    let mut dot = "digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n".to_string();
+fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+    let mut dot =
+        "digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n".to_string();
 
     if let Some(fed) = federation {
         if fed.enabled {
-            let name = fed
-                .service_name
-                .clone()
-                .unwrap_or_else(|| "this_service".to_string());
+            let name = fed.service_name.clone().unwrap_or_else(|| "this_service".to_string());
             let entities: Vec<_> = fed.entities.iter().map(|e| e.name.as_str()).collect();
             let label = format!("{}\\n[{}]", name, entities.join(", "));
             dot.push_str(&format!("  {name} [label=\"{label}\"];\n"));
@@ -202,22 +183,14 @@ fn generate_dot_graph(
     dot
 }
 
-fn generate_mermaid_graph(
-    federation: Option<&fraiseql_core::schema::FederationConfig>,
-) -> String {
+fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     let mut mermaid = "graph LR\n".to_string();
 
     if let Some(fed) = federation {
         if fed.enabled {
-            let name = fed
-                .service_name
-                .clone()
-                .unwrap_or_else(|| "this-service".to_string());
+            let name = fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
             let entities: Vec<_> = fed.entities.iter().map(|e| e.name.as_str()).collect();
-            mermaid.push_str(&format!(
-                "    {name}[\"{name}<br/>[{}]\"]\n",
-                entities.join(", ")
-            ));
+            mermaid.push_str(&format!("    {name}[\"{name}<br/>[{}]\"]\n", entities.join(", ")));
         }
     }
 

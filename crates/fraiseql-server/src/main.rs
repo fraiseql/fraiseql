@@ -6,9 +6,7 @@ use std::{env, path::Path, sync::Arc};
 use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_server::{
-    CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig,
-};
+use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
@@ -37,6 +35,10 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
 }
 
 #[tokio::main]
+#[cfg_attr(
+    not(any(feature = "secrets", feature = "mcp", feature = "arrow")),
+    allow(unused_mut) // Reason: `mut` is needed when secrets/mcp/arrow features are enabled
+)]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
@@ -102,12 +104,12 @@ async fn main() -> anyhow::Result<()> {
         } else {
             config.rate_limiting = Some(RateLimitConfig {
                 enabled,
-                rps_per_ip:            100,
-                rps_per_user:          1000,
-                burst_size:            500,
+                rps_per_ip: 100,
+                rps_per_user: 1000,
+                burst_size: 500,
                 cleanup_interval_secs: 300,
-                trust_proxy_headers:   false,
-                trusted_proxy_cidrs:   Vec::new(),
+                trust_proxy_headers: false,
+                trusted_proxy_cidrs: Vec::new(),
             });
         }
     }
@@ -248,9 +250,13 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "observers")]
     let db_pool = {
         use sqlx::postgres::PgPoolOptions;
+        #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are validated to be small (< 1000)
+        let pool_min = config.pool_min_size as u32;
+        #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are validated to be small (< 1000)
+        let pool_max = config.pool_max_size as u32;
         let pool = PgPoolOptions::new()
-            .min_connections(config.pool_min_size as u32)
-            .max_connections(config.pool_max_size as u32)
+            .min_connections(pool_min)
+            .max_connections(pool_max)
             .connect(&config.database_url)
             .await?;
         Some(pool)

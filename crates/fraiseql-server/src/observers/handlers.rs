@@ -9,12 +9,11 @@ use axum::{
 use fraiseql_core::security::SecurityContext;
 use uuid::Uuid;
 
-use crate::extractors::OptionalSecurityContext;
-
 use super::{
     CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
     PaginatedResponse, UpdateObserverRequest,
 };
+use crate::extractors::OptionalSecurityContext;
 
 /// Application state for observer handlers.
 #[derive(Clone)]

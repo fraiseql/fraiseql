@@ -5,10 +5,10 @@
 //! through the executor, verifying that:
 //!
 //! 1. The compiled schema contains `inject_params` (fixture pre-condition).
-//! 2. `Executor::execute()` rejects inject queries called without a security
-//!    context (the unauthenticated guard added for issue #47).
-//! 3. `Executor::execute_with_security()` resolves inject params and succeeds
-//!    (happy path — mock adapter confirms the call arrives).
+//! 2. `Executor::execute()` rejects inject queries called without a security context (the
+//!    unauthenticated guard added for issue #47).
+//! 3. `Executor::execute_with_security()` resolves inject params and succeeds (happy path — mock
+//!    adapter confirms the call arrives).
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
@@ -171,14 +171,9 @@ async fn executor_rejects_inject_query_without_security_context() {
     let adapter = Arc::new(NoopAdapter);
     let executor = Executor::new(schema, adapter);
 
-    let result = executor
-        .execute(r#"{ orderSummary(id: "some-id") { id } }"#, None)
-        .await;
+    let result = executor.execute(r#"{ orderSummary(id: "some-id") { id } }"#, None).await;
 
-    assert!(
-        result.is_err(),
-        "inject query without security context must return Err"
-    );
+    assert!(result.is_err(), "inject query without security context must return Err");
     assert!(
         matches!(result.unwrap_err(), FraiseQLError::Validation { .. }),
         "error must be FraiseQLError::Validation"
@@ -197,9 +192,7 @@ async fn executor_rejects_role_guarded_inject_query_without_security_context() {
     let adapter = Arc::new(NoopAdapter);
     let executor = Executor::new(schema, adapter);
 
-    let result = executor
-        .execute(r"{ orders { id } }", None)
-        .await;
+    let result = executor.execute(r"{ orders { id } }", None).await;
 
     assert!(
         result.is_err(),
@@ -230,9 +223,7 @@ async fn executor_resolves_inject_params_with_security_context() {
 
     let ctx = tenant_security_context();
 
-    let result = executor
-        .execute_with_security(r"{ orders { id } }", None, &ctx)
-        .await;
+    let result = executor.execute_with_security(r"{ orders { id } }", None, &ctx).await;
 
     assert!(
         result.is_ok(),

@@ -17,10 +17,9 @@
 //!
 //! Rules are compiled into schema.compiled.json and applied at runtime.
 
+use fraiseql_error::{FraiseQLError, Result};
 use regex::Regex;
 use serde_json::Value;
-
-use fraiseql_error::{FraiseQLError, Result};
 
 /// Validation rule for an operator parameter.
 #[derive(Debug, Clone)]

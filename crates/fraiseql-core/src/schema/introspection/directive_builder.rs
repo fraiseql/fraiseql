@@ -3,9 +3,14 @@
 //! Provides `builtin_directives()` (skip, include, deprecated) and
 //! `build_custom_directives()` for schema-defined directives.
 
-use super::super::DirectiveDefinition;
-use super::field_resolver::{build_arg_input_value, type_ref};
-use super::types::{DirectiveLocation, IntrospectionDirective, IntrospectionInputValue, IntrospectionType, TypeKind};
+use super::{
+    super::DirectiveDefinition,
+    field_resolver::{build_arg_input_value, type_ref},
+    types::{
+        DirectiveLocation, IntrospectionDirective, IntrospectionInputValue, IntrospectionType,
+        TypeKind,
+    },
+};
 
 /// Return the three built-in GraphQL directives: `@skip`, `@include`, `@deprecated`.
 pub(super) fn builtin_directives() -> Vec<IntrospectionDirective> {
@@ -126,4 +131,3 @@ fn build_custom_directive(directive: &DirectiveDefinition) -> IntrospectionDirec
         is_repeatable: directive.is_repeatable,
     }
 }
-

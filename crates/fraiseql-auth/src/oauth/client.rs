@@ -4,9 +4,11 @@ use std::{sync::Arc, time::Duration as StdDuration};
 
 use serde::{Deserialize, Serialize};
 
-use super::super::jwks::JwksCache;
-use super::pkce::PKCEChallenge;
-use super::types::{IdTokenClaims, TokenResponse, UserInfo};
+use super::{
+    super::jwks::JwksCache,
+    pkce::PKCEChallenge,
+    types::{IdTokenClaims, TokenResponse, UserInfo},
+};
 
 /// OIDC provider configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,11 +60,11 @@ impl OIDCProviderConfig {
 #[derive(Debug, Clone)]
 pub struct AuthorizationRequest {
     /// The full authorization URL to redirect the user to.
-    pub url: String,
+    pub url:   String,
     /// CSRF state value — verify this matches the `state` query param at callback.
     pub state: String,
     /// PKCE challenge, present only when `use_pkce = true`.
-    pub pkce: Option<PKCEChallenge>,
+    pub pkce:  Option<PKCEChallenge>,
 }
 
 /// OAuth2 client for authorization code flow.

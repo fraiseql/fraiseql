@@ -2,7 +2,6 @@
 //!
 //! Tracks all secret access, authentication events, and security decisions.
 //! See the [`AuditLogger`] trait and [`StructuredAuditLogger`] for usage.
-//
 // # Bounds Documentation
 //
 // This module enforces strict size bounds on all audit log entries to prevent
@@ -384,12 +383,13 @@ impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     struct TestAuditLogger {

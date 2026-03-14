@@ -18,11 +18,11 @@ type Order struct {
 
 // Payment represents a payment record
 type Payment struct {
-	ID          string   `json:"id"`
-	OrderID     string   `json:"order_id"`
-	Amount      float64  `json:"amount"`
-	Status      string   `json:"status"`
-	ProcessedAt *string  `json:"processed_at"`
+	ID          string  `json:"id"`
+	OrderID     string  `json:"order_id"`
+	Amount      float64 `json:"amount"`
+	Status      string  `json:"status"`
+	ProcessedAt *string `json:"processed_at"`
 }
 
 func main() {
@@ -115,7 +115,7 @@ func main() {
 		Register()
 
 	// Export schema
-	err := fraiseql.ExportSchema("ecommerce_schema.json")
+	err := fraiseql.ExportSchema("../ecommerce_schema.json")
 	if err != nil {
 		log.Fatalf("Failed to export schema: %v", err)
 	}

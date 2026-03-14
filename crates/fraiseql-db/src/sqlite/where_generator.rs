@@ -2,7 +2,7 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
-use crate::{where_clause::{WhereClause, WhereOperator}};
+use crate::where_clause::{WhereClause, WhereOperator};
 
 /// SQLite WHERE clause generator.
 ///
@@ -144,14 +144,15 @@ impl SqliteWhereGenerator {
             WhereOperator::Nlike => {
                 self.generate_comparison(&field_path, "NOT LIKE", value, params)
             },
-            WhereOperator::Nilike | WhereOperator::Regex | WhereOperator::Iregex
-            | WhereOperator::Nregex | WhereOperator::Niregex => {
-                Err(FraiseQLError::Unsupported {
-                    message: format!(
-                        "{operator:?} operator not supported in SQLite (no native ILIKE or POSIX regex)"
-                    ),
-                })
-            },
+            WhereOperator::Nilike
+            | WhereOperator::Regex
+            | WhereOperator::Iregex
+            | WhereOperator::Nregex
+            | WhereOperator::Niregex => Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "{operator:?} operator not supported in SQLite (no native ILIKE or POSIX regex)"
+                ),
+            }),
 
             // Null checks
             WhereOperator::IsNull => {
@@ -427,6 +428,8 @@ impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are acceptable failures
+
     use serde_json::json;
 
     use super::*;

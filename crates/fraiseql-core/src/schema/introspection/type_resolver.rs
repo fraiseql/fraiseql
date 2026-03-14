@@ -4,14 +4,16 @@
 //! union) into their corresponding `IntrospectionType` nodes, including built-in
 //! scalar definitions.
 
-use super::super::{
-    CompiledSchema, EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
-    UnionDefinition,
-};
-use super::field_resolver::{build_field, build_validation_rule, type_ref};
-use super::types::{
-    IntrospectionEnumValue, IntrospectionInputValue, IntrospectionType, IntrospectionTypeRef,
-    TypeKind,
+use super::{
+    super::{
+        CompiledSchema, EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
+        UnionDefinition,
+    },
+    field_resolver::{build_field, build_validation_rule, type_ref},
+    types::{
+        IntrospectionEnumValue, IntrospectionInputValue, IntrospectionType, IntrospectionTypeRef,
+        TypeKind,
+    },
 };
 
 // =============================================================================
@@ -42,11 +44,7 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
             "ISO-8601 time string",
             Some("https://scalars.graphql.org/andimarek/local-time"),
         ),
-        scalar_type_with_url(
-            "UUID",
-            "UUID string",
-            Some("https://tools.ietf.org/html/rfc4122"),
-        ),
+        scalar_type_with_url("UUID", "UUID string", Some("https://tools.ietf.org/html/rfc4122")),
         scalar_type_with_url(
             "JSON",
             "Arbitrary JSON value",
@@ -147,11 +145,11 @@ pub(super) fn build_input_object_type(input_def: &InputObjectDefinition) -> Intr
                 f.validation_rules.iter().map(|rule| build_validation_rule(rule)).collect();
 
             IntrospectionInputValue {
-                name:               f.name.clone(),
-                description:        f.description.clone(),
-                input_type:         type_ref(&f.field_type),
-                default_value:      f.default_value.clone(),
-                is_deprecated:      f.is_deprecated(),
+                name: f.name.clone(),
+                description: f.description.clone(),
+                input_type: type_ref(&f.field_type),
+                default_value: f.default_value.clone(),
+                is_deprecated: f.is_deprecated(),
                 deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
                 validation_rules,
             }
@@ -233,4 +231,3 @@ pub(super) fn build_union_type(union_def: &UnionDefinition) -> IntrospectionType
         specified_by_u_r_l: None,
     }
 }
-

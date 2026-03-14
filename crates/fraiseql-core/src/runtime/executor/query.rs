@@ -1,19 +1,15 @@
 //! Regular and relay query execution.
 
-use crate::{
-    db::{
-        CursorValue, WhereClause, WhereOperator,
-        projection_generator::PostgresProjectionGenerator,
-    },
-    error::{FraiseQLError, Result},
-    schema::SqlProjectionHint,
-    security::{RlsWhereClause, SecurityContext},
-};
-
 use super::{Executor, null_masked_fields, resolve_inject_value};
 use crate::{
-    db::traits::DatabaseAdapter,
+    db::{
+        CursorValue, WhereClause, WhereOperator, projection_generator::PostgresProjectionGenerator,
+        traits::DatabaseAdapter,
+    },
+    error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
+    schema::SqlProjectionHint,
+    security::{RlsWhereClause, SecurityContext},
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -50,11 +46,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         if let Some(ref required_role) = query_match.query_def.requires_role {
             if !security_context.roles.iter().any(|r| r == required_role) {
                 return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Query '{}' not found in schema",
-                        query_match.query_def.name
-                    ),
-                    path: None,
+                    message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                    path:    None,
                 });
             }
         }
@@ -62,9 +55,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
-        // 4. Evaluate RLS policy and build WHERE clause filter.
-        //    The return type is Option<RlsWhereClause> — a compile-time proof
-        //    that the clause passed through RLS evaluation.
+        // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
+        //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
+        //    evaluation.
         let rls_where_clause: Option<RlsWhereClause> =
             if let Some(ref rls_policy) = self.config.rls_policy {
                 // Evaluate RLS policy with user's security context
@@ -105,36 +98,36 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // 7. AND inject conditions onto the RLS WHERE clause.
-        //    Inject conditions always come after RLS so they cannot bypass it.
-        let combined_where: Option<WhereClause> =
-            if query_match.query_def.inject_params.is_empty() {
-                // Common path: unwrap RlsWhereClause into WhereClause for the adapter
-                rls_where_clause.map(RlsWhereClause::into_where_clause)
-            } else {
-                let mut conditions: Vec<WhereClause> = query_match
-                    .query_def
-                    .inject_params
-                    .iter()
-                    .map(|(col, source)| {
-                        let value = resolve_inject_value(col, source, security_context)?;
-                        Ok(WhereClause::Field {
-                            path:     vec![col.clone()],
-                            operator: WhereOperator::Eq,
-                            value,
-                        })
+        // 7. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
+        //    RLS so they cannot bypass it.
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            // Common path: unwrap RlsWhereClause into WhereClause for the adapter
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, security_context)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
                     })
-                    .collect::<Result<Vec<_>>>()?;
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-                if let Some(rls) = rls_where_clause {
-                    conditions.insert(0, rls.into_where_clause());
-                }
-                match conditions.len() {
-                    0 => None,
-                    1 => Some(conditions.remove(0)),
-                    _ => Some(WhereClause::And(conditions)),
-                }
-            };
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
 
         // 8. Execute query with combined WHERE clause filter
         let results = self
@@ -185,11 +178,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Guard: role-restricted queries are invisible to unauthenticated users
         if query_match.query_def.requires_role.is_some() {
             return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' not found in schema",
-                    query_match.query_def.name
-                ),
-                path: None,
+                message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                path:    None,
             });
         }
 
@@ -200,7 +190,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_match.query_def.name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -289,25 +279,23 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         let query_def = &query_match.query_def;
 
-        let sql_source = query_def.sql_source.as_deref().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!(
-                    "Relay query '{}' has no sql_source configured",
-                    query_def.name
-                ),
-                path: None,
-            }
-        })?;
+        let sql_source =
+            query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Relay query '{}' has no sql_source configured", query_def.name),
+                path:    None,
+            })?;
 
-        let cursor_column = query_def.relay_cursor_column.as_deref().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!(
-                    "Relay query '{}' has no relay_cursor_column derived",
-                    query_def.name
-                ),
-                path: None,
-            }
-        })?;
+        let cursor_column =
+            query_def
+                .relay_cursor_column
+                .as_deref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Relay query '{}' has no relay_cursor_column derived",
+                        query_def.name
+                    ),
+                    path:    None,
+                })?;
 
         // Guard: relay pagination requires the executor to have been constructed
         // via `Executor::new_with_relay` with a `RelayDatabaseAdapter`.
@@ -318,21 +306,16 @@ impl<A: DatabaseAdapter> Executor<A> {
                  the executor with `Executor::new_with_relay`.",
                 self.adapter.database_type()
             ),
-            path: None,
+            path:    None,
         })?;
 
         // Extract relay pagination arguments from variables.
         let vars = variables.and_then(|v| v.as_object());
-        let first: Option<u32> = vars
-            .and_then(|v| v.get("first"))
-            .and_then(|v| v.as_u64())
-            .map(|n| n as u32);
-        let last: Option<u32> = vars
-            .and_then(|v| v.get("last"))
-            .and_then(|v| v.as_u64())
-            .map(|n| n as u32);
-        let after_cursor: Option<&str> =
-            vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
+        let first: Option<u32> =
+            vars.and_then(|v| v.get("first")).and_then(|v| v.as_u64()).map(|n| n as u32);
+        let last: Option<u32> =
+            vars.and_then(|v| v.get("last")).and_then(|v| v.as_u64()).map(|n| n as u32);
+        let after_cursor: Option<&str> = vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
         let before_cursor: Option<&str> =
             vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
 
@@ -340,50 +323,55 @@ impl<A: DatabaseAdapter> Executor<A> {
         // If a cursor string is provided but fails to decode, return a validation
         // error immediately. Silently ignoring an invalid cursor would return a
         // full result set, violating the client's pagination intent.
-        let (after_pk, before_pk) = match query_def.relay_cursor_type {
-            CursorType::Int64 => {
-                let after = match after_cursor {
-                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
-                        || FraiseQLError::Validation {
-                            message: format!("invalid relay cursor for `after`: {s:?}"),
-                            path:    Some("after".to_string()),
+        let (after_pk, before_pk) =
+            match query_def.relay_cursor_type {
+                CursorType::Int64 => {
+                    let after = match after_cursor {
+                        Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                            || FraiseQLError::Validation {
+                                message: format!("invalid relay cursor for `after`: {s:?}"),
+                                path:    Some("after".to_string()),
+                            },
+                        )?),
+                        None => None,
+                    };
+                    let before = match before_cursor {
+                        Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                            || FraiseQLError::Validation {
+                                message: format!("invalid relay cursor for `before`: {s:?}"),
+                                path:    Some("before".to_string()),
+                            },
+                        )?),
+                        None => None,
+                    };
+                    (after, before)
+                },
+                CursorType::Uuid => {
+                    let after = match after_cursor {
+                        Some(s) => {
+                            Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
+                                FraiseQLError::Validation {
+                                    message: format!("invalid relay cursor for `after`: {s:?}"),
+                                    path:    Some("after".to_string()),
+                                }
+                            })?)
                         },
-                    )?),
-                    None => None,
-                };
-                let before = match before_cursor {
-                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
-                        || FraiseQLError::Validation {
-                            message: format!("invalid relay cursor for `before`: {s:?}"),
-                            path:    Some("before".to_string()),
+                        None => None,
+                    };
+                    let before = match before_cursor {
+                        Some(s) => {
+                            Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
+                                FraiseQLError::Validation {
+                                    message: format!("invalid relay cursor for `before`: {s:?}"),
+                                    path:    Some("before".to_string()),
+                                }
+                            })?)
                         },
-                    )?),
-                    None => None,
-                };
-                (after, before)
-            },
-            CursorType::Uuid => {
-                let after = match after_cursor {
-                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
-                        || FraiseQLError::Validation {
-                            message: format!("invalid relay cursor for `after`: {s:?}"),
-                            path:    Some("after".to_string()),
-                        },
-                    )?),
-                    None => None,
-                };
-                let before = match before_cursor {
-                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
-                        || FraiseQLError::Validation {
-                            message: format!("invalid relay cursor for `before`: {s:?}"),
-                            path:    Some("before".to_string()),
-                        },
-                    )?),
-                    None => None,
-                };
-                (after, before)
-            },
-        };
+                        None => None,
+                    };
+                    (after, before)
+                },
+            };
 
         // Determine direction and limit.
         // Forward pagination takes priority; fallback to 20 if neither first/last given.
@@ -422,7 +410,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             .selections
             .iter()
             .find(|sel| sel.name == query_def.name)
-            .map(|connection_field| selections_contain_field(&connection_field.nested_fields, "totalCount"))
+            .map(|connection_field| {
+                selections_contain_field(&connection_field.nested_fields, "totalCount")
+            })
             .unwrap_or(false);
 
         // Capture before the move into execute_relay_page.
@@ -548,8 +538,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             runtime::relay::decode_node_id,
         };
 
-        // 1. Extract the raw opaque ID.
-        //    Priority: $variables.id > inline literal in query text.
+        // 1. Extract the raw opaque ID. Priority: $variables.id > inline literal in query text.
         let raw_id: String = if let Some(id_val) = variables
             .and_then(|v| v.as_object())
             .and_then(|obj| obj.get("id"))
@@ -565,15 +554,14 @@ impl<A: DatabaseAdapter> Executor<A> {
         };
 
         // 2. Decode base64("TypeName:uuid") → (type_name, uuid).
-        let (type_name, uuid) = decode_node_id(&raw_id).ok_or_else(|| {
-            FraiseQLError::Validation {
+        let (type_name, uuid) =
+            decode_node_id(&raw_id).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("node query: invalid node ID '{raw_id}'"),
                 path:    Some("node.id".to_string()),
-            }
-        })?;
+            })?;
 
-        // 3. Find the SQL view for this type.
-        //    Convention: look for the first query whose return_type matches.
+        // 3. Find the SQL view for this type. Convention: look for the first query whose
+        //    return_type matches.
         let sql_source = self
             .schema
             .queries
@@ -581,10 +569,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             .find(|q| q.return_type == type_name && q.sql_source.is_some())
             .and_then(|q| q.sql_source.as_deref())
             .ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "node query: no registered SQL view for type '{type_name}'"
-                ),
-                path: Some("node.id".to_string()),
+                message: format!("node query: no registered SQL view for type '{type_name}'"),
+                path:    Some("node.id".to_string()),
             })?
             .to_string();
 
@@ -602,11 +588,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 6. Return the first matching row (or null).
-        let node_value = rows
-            .into_iter()
-            .next()
-            .map(|row| row.data)
-            .unwrap_or(serde_json::Value::Null);
+        let node_value =
+            rows.into_iter().next().map(|row| row.data).unwrap_or(serde_json::Value::Null);
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(serde_json::to_string(&response)?)
@@ -618,7 +601,10 @@ impl<A: DatabaseAdapter> Executor<A> {
 ///
 /// Named fragment spreads are already flattened by [`FragmentResolver`] before this
 /// is called, so we only need to recurse one level into inline fragments.
-fn selections_contain_field(selections: &[crate::graphql::FieldSelection], field_name: &str) -> bool {
+fn selections_contain_field(
+    selections: &[crate::graphql::FieldSelection],
+    field_name: &str,
+) -> bool {
     for sel in selections {
         if sel.name == field_name {
             return true;

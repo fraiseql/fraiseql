@@ -418,8 +418,8 @@ impl CredentialRotationManager {
     ///
     /// - New records will be encrypted under the new version.
     /// - Existing records remain encrypted under the previous version.
-    /// - The previous version must remain accessible via the secrets backend
-    ///   until all records have been migrated.
+    /// - The previous version must remain accessible via the secrets backend until all records have
+    ///   been migrated.
     ///
     /// To complete a full rotation:
     /// 1. Call `rotate_key()` to activate the new version.
@@ -584,7 +584,7 @@ impl CredentialRotationManager {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

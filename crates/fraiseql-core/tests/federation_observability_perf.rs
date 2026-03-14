@@ -137,7 +137,6 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, Value>>> {
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for PerfTestDatabaseAdapter {}

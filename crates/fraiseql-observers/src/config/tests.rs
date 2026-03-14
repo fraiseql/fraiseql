@@ -416,13 +416,10 @@ fn transport_kind_from_env_unset_returns_none() {
 
 #[test]
 fn redis_config_from_env_overrides_url() {
-    temp_env::with_vars(
-        [("FRAISEQL_REDIS_URL", Some("redis://custom:6380"))],
-        || {
-            let cfg = RedisConfig::default().with_env_overrides();
-            assert_eq!(cfg.url, "redis://custom:6380");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_REDIS_URL", Some("redis://custom:6380"))], || {
+        let cfg = RedisConfig::default().with_env_overrides();
+        assert_eq!(cfg.url, "redis://custom:6380");
+    });
 }
 
 #[test]
@@ -453,35 +450,26 @@ fn redis_config_from_env_url_unset_preserves_default() {
 
 #[test]
 fn nats_transport_config_from_env_overrides_url() {
-    temp_env::with_vars(
-        [("FRAISEQL_NATS_URL", Some("nats://custom-nats:4222"))],
-        || {
-            let cfg = NatsTransportConfig::default().with_env_overrides();
-            assert_eq!(cfg.url, "nats://custom-nats:4222");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_NATS_URL", Some("nats://custom-nats:4222"))], || {
+        let cfg = NatsTransportConfig::default().with_env_overrides();
+        assert_eq!(cfg.url, "nats://custom-nats:4222");
+    });
 }
 
 #[test]
 fn nats_transport_config_from_env_overrides_subject_prefix() {
-    temp_env::with_vars(
-        [("FRAISEQL_NATS_SUBJECT_PREFIX", Some("myapp.events"))],
-        || {
-            let cfg = NatsTransportConfig::default().with_env_overrides();
-            assert_eq!(cfg.subject_prefix, "myapp.events");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_NATS_SUBJECT_PREFIX", Some("myapp.events"))], || {
+        let cfg = NatsTransportConfig::default().with_env_overrides();
+        assert_eq!(cfg.subject_prefix, "myapp.events");
+    });
 }
 
 #[test]
 fn nats_transport_config_from_env_overrides_consumer_name() {
-    temp_env::with_vars(
-        [("FRAISEQL_NATS_CONSUMER_NAME", Some("my_consumer"))],
-        || {
-            let cfg = NatsTransportConfig::default().with_env_overrides();
-            assert_eq!(cfg.consumer_name, "my_consumer");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_NATS_CONSUMER_NAME", Some("my_consumer"))], || {
+        let cfg = NatsTransportConfig::default().with_env_overrides();
+        assert_eq!(cfg.consumer_name, "my_consumer");
+    });
 }
 
 #[test]
@@ -495,13 +483,10 @@ fn nats_transport_config_from_env_url_unset_preserves_default() {
 
 #[test]
 fn jetstream_config_from_env_overrides_dedup_window() {
-    temp_env::with_vars(
-        [("FRAISEQL_NATS_DEDUP_WINDOW_MINUTES", Some("10"))],
-        || {
-            let cfg = JetStreamConfig::default().with_env_overrides();
-            assert_eq!(cfg.dedup_window_minutes, 10);
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_NATS_DEDUP_WINDOW_MINUTES", Some("10"))], || {
+        let cfg = JetStreamConfig::default().with_env_overrides();
+        assert_eq!(cfg.dedup_window_minutes, 10);
+    });
 }
 
 #[test]
@@ -538,25 +523,19 @@ fn job_queue_config_from_env_overrides_batch_size() {
 
 #[test]
 fn job_queue_config_from_env_overrides_worker_concurrency() {
-    temp_env::with_vars(
-        [("FRAISEQL_JOB_QUEUE_WORKER_CONCURRENCY", Some("8"))],
-        || {
-            let cfg = JobQueueConfig::default().with_env_overrides();
-            assert_eq!(cfg.worker_concurrency, 8);
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_JOB_QUEUE_WORKER_CONCURRENCY", Some("8"))], || {
+        let cfg = JobQueueConfig::default().with_env_overrides();
+        assert_eq!(cfg.worker_concurrency, 8);
+    });
 }
 
 #[test]
 fn job_queue_config_from_env_unset_preserves_defaults() {
-    temp_env::with_vars(
-        [("FRAISEQL_JOB_QUEUE_BATCH_SIZE", None::<&str>)],
-        || {
-            let default = JobQueueConfig::default();
-            let cfg = JobQueueConfig::default().with_env_overrides();
-            assert_eq!(cfg.batch_size, default.batch_size);
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_JOB_QUEUE_BATCH_SIZE", None::<&str>)], || {
+        let default = JobQueueConfig::default();
+        let cfg = JobQueueConfig::default().with_env_overrides();
+        assert_eq!(cfg.batch_size, default.batch_size);
+    });
 }
 
 #[test]
@@ -603,24 +582,18 @@ fn performance_config_from_env_unset_preserves_defaults() {
 
 #[test]
 fn clickhouse_config_from_env_overrides_url() {
-    temp_env::with_vars(
-        [("FRAISEQL_CLICKHOUSE_URL", Some("http://ch-server:8123"))],
-        || {
-            let cfg = ClickHouseConfig::default().with_env_overrides();
-            assert_eq!(cfg.url, "http://ch-server:8123");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_CLICKHOUSE_URL", Some("http://ch-server:8123"))], || {
+        let cfg = ClickHouseConfig::default().with_env_overrides();
+        assert_eq!(cfg.url, "http://ch-server:8123");
+    });
 }
 
 #[test]
 fn clickhouse_config_from_env_overrides_database() {
-    temp_env::with_vars(
-        [("FRAISEQL_CLICKHOUSE_DATABASE", Some("analytics"))],
-        || {
-            let cfg = ClickHouseConfig::default().with_env_overrides();
-            assert_eq!(cfg.database, "analytics");
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_CLICKHOUSE_DATABASE", Some("analytics"))], || {
+        let cfg = ClickHouseConfig::default().with_env_overrides();
+        assert_eq!(cfg.database, "analytics");
+    });
 }
 
 #[test]

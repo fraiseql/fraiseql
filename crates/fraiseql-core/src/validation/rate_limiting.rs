@@ -12,7 +12,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{error::FraiseQLError, utils::clock::{Clock, SystemClock}};
+use crate::{
+    error::FraiseQLError,
+    utils::clock::{Clock, SystemClock},
+};
 
 /// Rate limit configuration for a single dimension
 #[derive(Debug, Clone)]
@@ -98,7 +101,7 @@ impl DimensionRateLimiter {
 
     fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
         Self {
-            records:   Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             dimension: RateLimitDimension {
                 max_requests,
                 window_secs,

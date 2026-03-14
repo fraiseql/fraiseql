@@ -1,11 +1,14 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::field_type::DeprecationInfo;
-use crate::schema::graphql_type_defs::default_jsonb_column;
-use crate::schema::security_config::InjectedParamSource;
-
-use super::argument::{ArgumentDefinition, AutoParams};
+use super::{
+    argument::{ArgumentDefinition, AutoParams},
+    rest::RestRoute,
+};
+use crate::schema::{
+    field_type::DeprecationInfo, graphql_type_defs::default_jsonb_column,
+    security_config::InjectedParamSource,
+};
 
 /// The type of column used as the keyset cursor for relay pagination.
 ///
@@ -165,6 +168,13 @@ pub struct QueryDefinition {
     /// to prevent role enumeration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// REST transport annotation.
+    ///
+    /// When set, the server's REST transport layer mounts an HTTP route at
+    /// `{rest_config.prefix}{rest.path}` that delegates to this query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest: Option<RestRoute>,
 }
 
 impl QueryDefinition {
@@ -189,6 +199,7 @@ impl QueryDefinition {
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
             requires_role:       None,
+            rest:                None,
         }
     }
 

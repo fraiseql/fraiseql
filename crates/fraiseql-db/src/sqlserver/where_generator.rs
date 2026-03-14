@@ -2,7 +2,7 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
-use crate::{where_clause::{WhereClause, WhereOperator}};
+use crate::where_clause::{WhereClause, WhereOperator};
 
 /// SQL Server WHERE clause generator.
 ///
@@ -35,7 +35,7 @@ pub struct SqlServerWhereGenerator {
 impl SqlServerWhereGenerator {
     /// Create new SQL Server WHERE generator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             param_counter: std::cell::Cell::new(0),
         }
@@ -368,7 +368,7 @@ impl SqlServerWhereGenerator {
             (true, true) => format!("'%' + {param} + '%'"),
             (true, false) => format!("'%' + {param}"),
             (false, true) => format!("{param} + '%'"),
-            (false, false) => param.clone(),
+            (false, false) => param,
         };
 
         if case_insensitive {
@@ -466,7 +466,8 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
                 let param = self.next_param();
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' + @pN
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' +
+                // @pN
                 Ok(format!(
                     "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) LIKE '%' + {param}"
                 ))
@@ -508,6 +509,8 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are acceptable failures
+
     use serde_json::json;
 
     use super::*;
@@ -657,10 +660,7 @@ mod tests {
             value:    json!("US-"),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_VALUE(data, '$.code') COLLATE Latin1_General_CS_AS LIKE @p1 + '%'"
-        );
+        assert_eq!(sql, "JSON_VALUE(data, '$.code') COLLATE Latin1_General_CS_AS LIKE @p1 + '%'");
         assert_eq!(params, vec![json!("US-")]);
     }
 
@@ -705,10 +705,7 @@ mod tests {
             value:    json!("rust%"),
         };
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert!(
-            sql.contains("Latin1_General_CI_AI"),
-            "Ilike should use CI_AI collation: {sql}"
-        );
+        assert!(sql.contains("Latin1_General_CI_AI"), "Ilike should use CI_AI collation: {sql}");
         assert_eq!(params, vec![json!("rust%")]);
     }
 

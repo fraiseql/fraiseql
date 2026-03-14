@@ -13,10 +13,7 @@ use serde_json::{Value, json};
 
 use crate::{
     config::TomlSchema,
-    schema::{
-        IntermediateSchema,
-        intermediate::IntermediateQueryDefaults,
-    },
+    schema::{IntermediateSchema, intermediate::IntermediateQueryDefaults},
 };
 
 /// Schema merger combining language types and TOML config
@@ -125,7 +122,10 @@ impl SchemaMerger {
     }
 
     /// Apply TOML metadata (`sql_source`, `description`) to a type JSON object in place.
-    fn enrich_type_from_toml(enriched_type: &mut Value, toml_type: &crate::config::toml_schema::TypeDefinition) {
+    fn enrich_type_from_toml(
+        enriched_type: &mut Value,
+        toml_type: &crate::config::toml_schema::TypeDefinition,
+    ) {
         enriched_type["sql_source"] = json!(toml_type.sql_source);
         if let Some(desc) = &toml_type.description {
             enriched_type["description"] = json!(desc);
@@ -284,11 +284,8 @@ impl SchemaMerger {
             if !resolved.mutations.is_empty() {
                 let loaded = crate::schema::MultiFileLoader::load_from_paths(&resolved.mutations)
                     .context("Failed to load mutation files")?;
-                let new_items = loaded
-                    .get("mutations")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
+                let new_items =
+                    loaded.get("mutations").and_then(Value::as_array).cloned().unwrap_or_default();
                 if let Some(Value::Array(existing)) = merged_types.get_mut("mutations") {
                     existing.extend(new_items);
                 }
@@ -366,9 +363,7 @@ impl SchemaMerger {
         // Add types from TOML that aren't already in types_array
         let existing_type_names: std::collections::HashSet<_> = types_array
             .iter()
-            .filter_map(|t| {
-                t.get("name").and_then(|v| v.as_str()).map(str::to_string)
-            })
+            .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
 
         for (type_name, toml_type) in &toml_schema.types {
@@ -442,11 +437,8 @@ impl SchemaMerger {
         // Warn when PKCE is enabled without state encryption (insecure configuration).
         if let Some(pkce) = &toml_schema.security.pkce {
             if pkce.enabled {
-                let enc_enabled = toml_schema
-                    .security
-                    .state_encryption
-                    .as_ref()
-                    .is_some_and(|e| e.enabled);
+                let enc_enabled =
+                    toml_schema.security.state_encryption.as_ref().is_some_and(|e| e.enabled);
                 if !enc_enabled {
                     tracing::warn!(
                         "pkce.enabled = true but state_encryption.enabled = false. \
@@ -560,8 +552,8 @@ impl SchemaMerger {
 
         // Embed MCP config when enabled
         if toml_schema.mcp.enabled {
-            merged["mcp_config"] = serde_json::to_value(&toml_schema.mcp)
-                .context("Failed to serialize MCP config")?;
+            merged["mcp_config"] =
+                serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
         }
 
         // Convert to IntermediateSchema
@@ -581,7 +573,7 @@ impl SchemaMerger {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::fs;

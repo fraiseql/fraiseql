@@ -4,14 +4,15 @@
 //! pool or emits a recommended size when the queue depth or idle ratio crosses
 //! configured thresholds.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU32, AtomicU64, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU32, AtomicU64, Ordering},
+    },
+    time::Duration,
 };
-use std::time::Duration;
 
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::PoolMetrics;
+use fraiseql_core::db::{traits::DatabaseAdapter, types::PoolMetrics};
 
 use crate::config::pool_tuning::PoolTuningConfig;
 
@@ -43,15 +44,15 @@ pub enum PoolTuningDecision {
 /// background task that polls the adapter automatically.
 pub struct PoolAutoTuner {
     /// Tuning configuration.
-    pub(crate) config: PoolTuningConfig,
+    pub(crate) config:  PoolTuningConfig,
     /// Consecutive samples with high queue depth.
     high_queue_samples: AtomicU32,
     /// Consecutive samples with high idle ratio.
-    low_idle_samples: AtomicU32,
+    low_idle_samples:   AtomicU32,
     /// Total resize operations applied or recommended.
-    adjustments_total: AtomicU64,
+    adjustments_total:  AtomicU64,
     /// Current recommended/actual target pool size (0 = not yet sampled).
-    current_target: AtomicU32,
+    current_target:     AtomicU32,
 }
 
 impl PoolAutoTuner {
@@ -60,9 +61,9 @@ impl PoolAutoTuner {
         Self {
             config,
             high_queue_samples: AtomicU32::new(0),
-            low_idle_samples:   AtomicU32::new(0),
-            adjustments_total:  AtomicU64::new(0),
-            current_target:     AtomicU32::new(0),
+            low_idle_samples: AtomicU32::new(0),
+            adjustments_total: AtomicU64::new(0),
+            current_target: AtomicU32::new(0),
         }
     }
 
@@ -110,9 +111,7 @@ impl PoolAutoTuner {
             let idle_ratio =
                 f64::from(metrics.idle_connections) / f64::from(metrics.total_connections);
 
-            if idle_ratio > self.config.scale_down_idle_ratio
-                && metrics.waiting_requests == 0
-            {
+            if idle_ratio > self.config.scale_down_idle_ratio && metrics.waiting_requests == 0 {
                 let count = self.low_idle_samples.fetch_add(1, Ordering::Relaxed) + 1;
 
                 if count >= self.config.samples_before_action {
@@ -174,8 +173,7 @@ impl PoolAutoTuner {
                 );
             }
 
-            let mut ticker =
-                tokio::time::interval(Duration::from_millis(interval_ms.max(1)));
+            let mut ticker = tokio::time::interval(Duration::from_millis(interval_ms.max(1)));
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
@@ -183,8 +181,11 @@ impl PoolAutoTuner {
                 let metrics = adapter.pool_metrics();
 
                 match self.evaluate(&metrics) {
-                    PoolTuningDecision::Stable => {}
-                    PoolTuningDecision::ScaleUp { new_size, ref reason } => {
+                    PoolTuningDecision::Stable => {},
+                    PoolTuningDecision::ScaleUp {
+                        new_size,
+                        ref reason,
+                    } => {
                         if let Some(ref f) = resize_fn {
                             tracing::info!(
                                 new_size,
@@ -200,8 +201,11 @@ impl PoolAutoTuner {
                                  (resize not available — configure resize_fn)"
                             );
                         }
-                    }
-                    PoolTuningDecision::ScaleDown { new_size, ref reason } => {
+                    },
+                    PoolTuningDecision::ScaleDown {
+                        new_size,
+                        ref reason,
+                    } => {
                         if let Some(ref f) = resize_fn {
                             tracing::info!(
                                 new_size,
@@ -217,7 +221,7 @@ impl PoolAutoTuner {
                                  (resize not available — configure resize_fn)"
                             );
                         }
-                    }
+                    },
                 }
             }
         })
@@ -248,11 +252,14 @@ mod tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use super::*;
     use async_trait::async_trait;
-    use fraiseql_core::db::types::{DatabaseType, JsonbValue};
-    use fraiseql_core::db::WhereClause;
+    use fraiseql_core::db::{
+        WhereClause,
+        types::{DatabaseType, JsonbValue},
+    };
     use fraiseql_error::Result as FraiseQLResult;
+
+    use super::*;
 
     // Minimal mock adapter for tests — no database required.
     struct MockAdapter {
@@ -268,34 +275,51 @@ mod tests {
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
         async fn execute_where_query(
-            &self, _view: &str, _where_clause: Option<&WhereClause>,
-            _limit: Option<u32>, _offset: Option<u32>,
-        ) -> FraiseQLResult<Vec<JsonbValue>> { Ok(vec![]) }
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
 
         async fn execute_with_projection(
-            &self, _view: &str,
+            &self,
+            _view: &str,
             _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
-            _where_clause: Option<&WhereClause>, _limit: Option<u32>,
-        ) -> FraiseQLResult<Vec<JsonbValue>> { Ok(vec![]) }
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
 
-        fn database_type(&self) -> DatabaseType { DatabaseType::SQLite }
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::SQLite
+        }
 
-        async fn health_check(&self) -> FraiseQLResult<()> { Ok(()) }
+        async fn health_check(&self) -> FraiseQLResult<()> {
+            Ok(())
+        }
 
-        fn pool_metrics(&self) -> PoolMetrics { self.metrics }
+        fn pool_metrics(&self) -> PoolMetrics {
+            self.metrics
+        }
 
         async fn execute_raw_query(
-            &self, _sql: &str,
-        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>>
-        { Ok(vec![]) }
+            &self,
+            _sql: &str,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
     }
 
     fn make_tuner(min: u32, max: u32, target_queue: u32) -> PoolAutoTuner {
         PoolAutoTuner::new(PoolTuningConfig {
-            enabled:               true,
-            min_pool_size:         min,
-            max_pool_size:         max,
-            target_queue_depth:    target_queue,
+            enabled: true,
+            min_pool_size: min,
+            max_pool_size: max,
+            target_queue_depth: target_queue,
             samples_before_action: 1,
             ..Default::default()
         })
@@ -355,21 +379,17 @@ mod tests {
         let tuner = make_tuner(5, 25, 3);
         // Pool already at max with high queue
         let decision = tuner.evaluate(&metrics(25, 0, 20));
-        assert_eq!(
-            decision,
-            PoolTuningDecision::Stable,
-            "cannot scale above max"
-        );
+        assert_eq!(decision, PoolTuningDecision::Stable, "cannot scale above max");
     }
 
     #[test]
     fn test_consecutive_samples_required_before_action() {
         let tuner = PoolAutoTuner::new(PoolTuningConfig {
-            enabled:               true,
-            min_pool_size:         5,
-            max_pool_size:         50,
-            target_queue_depth:    3,
-            scale_up_step:         5,
+            enabled: true,
+            min_pool_size: 5,
+            max_pool_size: 50,
+            target_queue_depth: 3,
+            scale_up_step: 5,
             samples_before_action: 3,
             ..Default::default()
         });
@@ -415,8 +435,8 @@ mod tests {
     #[tokio::test]
     async fn test_start_task_samples_at_interval() {
         let config = PoolTuningConfig {
-            enabled:               true,
-            tuning_interval_ms:    10,
+            enabled: true,
+            tuning_interval_ms: 10,
             samples_before_action: 100, // never actually act
             ..Default::default()
         };

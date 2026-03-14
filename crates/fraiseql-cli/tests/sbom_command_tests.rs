@@ -30,9 +30,8 @@ fn sbom_default_format_is_cyclonedx() {
     let out = cli().arg("sbom").output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
-        panic!("sbom default output must be valid JSON: {e}\ngot: {stdout}")
-    });
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("sbom default output must be valid JSON: {e}\ngot: {stdout}"));
     assert_eq!(
         parsed["bomFormat"].as_str().unwrap_or(""),
         "CycloneDX",
@@ -47,10 +46,7 @@ fn sbom_cyclonedx_has_components() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert!(
-        parsed["components"].is_array(),
-        "sbom output must contain a `components` array"
-    );
+    assert!(parsed["components"].is_array(), "sbom output must contain a `components` array");
     assert!(
         !parsed["components"].as_array().unwrap().is_empty(),
         "components array must not be empty"
@@ -63,10 +59,7 @@ fn sbom_includes_fraiseql_core() {
     let out = cli().arg("sbom").output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("fraiseql-core"),
-        "sbom output must mention fraiseql-core"
-    );
+    assert!(stdout.contains("fraiseql-core"), "sbom output must mention fraiseql-core");
 }
 
 /// `--format cyclonedx` is identical to the default.
@@ -107,8 +100,5 @@ fn sbom_output_to_file() {
 #[test]
 fn sbom_unknown_format_exits_nonzero() {
     let out = cli().args(["sbom", "--format", "unknown_format"]).output().unwrap();
-    assert!(
-        !out.status.success(),
-        "sbom --format unknown_format must exit non-zero"
-    );
+    assert!(!out.status.success(), "sbom --format unknown_format must exit non-zero");
 }

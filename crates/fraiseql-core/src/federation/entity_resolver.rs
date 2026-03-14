@@ -216,18 +216,15 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
                 representations.len(),
                 MAX_ENTITIES_BATCH_SIZE
             ),
-            path: Some("_entities".into()),
+            path:    Some("_entities".into()),
         });
     }
 
     // Validate that all representations reference known types with required key fields.
     validate_representations(representations, &fed_resolver.metadata).map_err(|errors| {
         FraiseQLError::Validation {
-            message: format!(
-                "Invalid entity representations: {}",
-                errors.join("; ")
-            ),
-            path: Some("_entities".into()),
+            message: format!("Invalid entity representations: {}", errors.join("; ")),
+            path:    Some("_entities".into()),
         }
     })?;
 

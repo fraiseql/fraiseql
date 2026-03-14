@@ -117,12 +117,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
 
                     match self
                         .slack_action
-                        .execute(
-                            &slack_url,
-                            channel.as_deref(),
-                            message_template.as_deref(),
-                            event,
-                        )
+                        .execute(&slack_url, channel.as_deref(), message_template.as_deref(), event)
                         .await
                     {
                         Ok(response) => Ok(ActionResult {
@@ -176,16 +171,15 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         reason: "SMS 'phone' not provided".to_string(),
                     })?;
 
-                    match self
-                        .sms_action
-                        .execute(sms_phone.clone(), message_template.as_deref(), event)
-                    {
+                    match self.sms_action.execute(
+                        sms_phone.clone(),
+                        message_template.as_deref(),
+                        event,
+                    ) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "sms".to_string(),
                             success:     response.success,
-                            message:     response
-                                .message_id
-                                .unwrap_or_else(|| "sent".to_string()),
+                            message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -224,10 +218,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     }
                 },
                 ActionConfig::Search { index, id_template } => {
-                    match self
-                        .search_action
-                        .execute(index.clone(), id_template.as_deref(), event)
-                    {
+                    match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "search".to_string(),
                             success:     response.success,

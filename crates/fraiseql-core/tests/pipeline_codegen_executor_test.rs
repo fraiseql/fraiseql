@@ -39,7 +39,9 @@ struct PipelineMockAdapter {
 impl PipelineMockAdapter {
     fn new() -> Self {
         Self {
-            rows: vec![JsonbValue::new(json!({"id": 1, "name": "Alice", "email": "a@b.com"}))],
+            rows: vec![JsonbValue::new(
+                json!({"id": 1, "name": "Alice", "email": "a@b.com"}),
+            )],
         }
     }
 }
@@ -75,7 +77,12 @@ impl DatabaseAdapter for PipelineMockAdapter {
     }
 
     fn pool_metrics(&self) -> PoolMetrics {
-        PoolMetrics { total_connections: 1, active_connections: 1, idle_connections: 0, waiting_requests: 0 }
+        PoolMetrics {
+            total_connections:  1,
+            active_connections: 1,
+            idle_connections:   0,
+            waiting_requests:   0,
+        }
     }
 
     async fn execute_raw_query(
@@ -142,7 +149,9 @@ async fn pipeline_compile_then_execute_query_succeeds() {
         .expect("Compiler::compile() must succeed on valid authoring JSON");
 
     // Step 2: assert sql_source survived codegen
-    let q = compiled.find_query("users").expect("'users' query must be present in compiled schema");
+    let q = compiled
+        .find_query("users")
+        .expect("'users' query must be present in compiled schema");
     assert_eq!(
         q.sql_source.as_deref(),
         Some("v_user"),
@@ -204,9 +213,7 @@ fn pipeline_codegen_threads_sql_source_for_create_mutation() {
     "#;
 
     let compiler = Compiler::new();
-    let compiled = compiler
-        .compile(authoring_json)
-        .expect("compile must succeed");
+    let compiled = compiler.compile(authoring_json).expect("compile must succeed");
 
     let m = compiled
         .find_mutation("createUser")

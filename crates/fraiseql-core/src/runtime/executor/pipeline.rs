@@ -15,13 +15,12 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, GraphQLArgument, ParsedQuery},
 };
-
-use super::Executor;
 
 // ── Prometheus counter ────────────────────────────────────────────────────────
 
@@ -58,10 +57,7 @@ impl PipelineResult {
     /// Returns a `serde_json::Map` suitable for embedding in a `"data"` envelope.
     #[must_use]
     pub fn merge_into_data_map(&self) -> serde_json::Map<String, serde_json::Value> {
-        self.fields
-            .iter()
-            .map(|f| (f.field_name.clone(), f.data.clone()))
-            .collect()
+        self.fields.iter().map(|f| (f.field_name.clone(), f.data.clone())).collect()
     }
 }
 
@@ -155,10 +151,8 @@ fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
 fn json_value_to_graphql(val: &serde_json::Value) -> String {
     match val {
         serde_json::Value::Object(map) => {
-            let pairs: Vec<String> = map
-                .iter()
-                .map(|(k, v)| format!("{k}: {}", json_value_to_graphql(v)))
-                .collect();
+            let pairs: Vec<String> =
+                map.iter().map(|(k, v)| format!("{k}: {}", json_value_to_graphql(v))).collect();
             format!("{{{}}}", pairs.join(", "))
         },
         serde_json::Value::Array(arr) => {
@@ -179,7 +173,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Each root field is dispatched as an independent single-root query.
     /// Results are awaited with [`futures::future::try_join_all`] and merged
-    /// into a [`PipelineResult`].
+    /// into a `PipelineResult`.
     ///
     /// # Errors
     ///
@@ -220,11 +214,17 @@ impl<A: DatabaseAdapter> Executor<A> {
                         source:  None,
                     })?;
                 let data = response["data"][field_name.as_str()].clone();
-                Ok(RootFieldResult { field_name: field_name.clone(), data })
+                Ok(RootFieldResult {
+                    field_name: field_name.clone(),
+                    data,
+                })
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(PipelineResult { fields, parallel: true })
+        Ok(PipelineResult {
+            fields,
+            parallel: true,
+        })
     }
 }
 
@@ -240,12 +240,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        db::{WhereClause, types::DatabaseType},
+        db::{
+            WhereClause,
+            types::{DatabaseType, JsonbValue, PoolMetrics},
+        },
         graphql::parse_query,
         runtime::Executor,
         schema::{CompiledSchema, QueryDefinition, SqlProjectionHint},
     };
-    use crate::db::types::{JsonbValue, PoolMetrics};
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -297,13 +299,19 @@ mod tests {
         }
 
         fn pool_metrics(&self) -> PoolMetrics {
-            PoolMetrics { total_connections: 1, idle_connections: 1, active_connections: 0, waiting_requests: 0 }
+            PoolMetrics {
+                total_connections:  1,
+                idle_connections:   1,
+                active_connections: 0,
+                waiting_requests:   0,
+            }
         }
 
         async fn execute_raw_query(
             &self,
             _sql: &str,
-        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
+        {
             Ok(vec![])
         }
     }

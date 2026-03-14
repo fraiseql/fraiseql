@@ -43,8 +43,8 @@
 mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
-pub mod executor_adapter;
 mod executor;
+pub mod executor_adapter;
 mod explain;
 pub mod field_filter;
 pub mod input_validator;
@@ -67,13 +67,15 @@ use std::sync::Arc;
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSql, AggregationSqlGenerator};
-pub use executor::Executor;
+pub use executor::{
+    Executor,
+    pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
+};
 pub use executor_adapter::ExecutorAdapter;
-pub use executor::pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total};
+pub use explain::{ExplainPlan, ExplainResult};
 pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
-pub use matcher::{QueryMatch, QueryMatcher};
-pub use matcher::suggest_similar;
+pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use query_tracing::{
@@ -86,7 +88,6 @@ pub use subscription::{
     SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
     WebhookPayload, protocol,
 };
-pub use explain::{ExplainPlan, ExplainResult};
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;

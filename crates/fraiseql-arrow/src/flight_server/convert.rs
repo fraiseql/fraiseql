@@ -25,9 +25,7 @@ use tracing::warn;
 ///
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub fn record_batch_to_flight_data(
-    batch: &RecordBatch,
-) -> std::result::Result<FlightData, Status> {
+pub fn record_batch_to_flight_data(batch: &RecordBatch) -> std::result::Result<FlightData, Status> {
     use arrow::ipc::writer::CompressionContext;
 
     let options = IpcWriteOptions::default();
@@ -162,10 +160,7 @@ fn build_safe_order_by(order_by: &str) -> Result<String, Status> {
 
         // Validate column name: must be a simple SQL identifier.
         if col.is_empty()
-            || !col
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            || !col.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
             || !col.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         {
             return Err(Status::invalid_argument(format!(
@@ -369,7 +364,15 @@ fn arrow_value_to_sql(
     array: &std::sync::Arc<dyn arrow::array::Array>,
     row: usize,
 ) -> std::result::Result<String, String> {
-    use arrow::{array::{Array, Int8Array, Int16Array, Int32Array, Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array, Float32Array, Float64Array, StringArray, LargeStringArray, BooleanArray, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray, TimestampSecondArray, Date32Array}, datatypes::DataType};
+    use arrow::{
+        array::{
+            Array, BooleanArray, Date32Array, Float32Array, Float64Array, Int8Array, Int16Array,
+            Int32Array, Int64Array, LargeStringArray, StringArray, TimestampMicrosecondArray,
+            TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
+            UInt16Array, UInt32Array, UInt64Array,
+        },
+        datatypes::DataType,
+    };
 
     if array.is_null(row) {
         return Ok("NULL".to_string());
@@ -576,9 +579,7 @@ pub fn build_insert_query(
 ///
 /// # Errors
 /// Returns error if `RecordBatch` creation fails
-pub fn encode_json_to_arrow_batch(
-    json_str: &str,
-) -> std::result::Result<RecordBatch, String> {
+pub fn encode_json_to_arrow_batch(json_str: &str) -> std::result::Result<RecordBatch, String> {
     use arrow::{
         array::StringArray,
         datatypes::{DataType, Field, Schema},

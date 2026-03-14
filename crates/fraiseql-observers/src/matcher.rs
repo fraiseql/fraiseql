@@ -161,7 +161,7 @@ impl Default for EventMatcher {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -387,7 +387,11 @@ mod tests {
         matcher.add_observer(create_observer("UPDATE", "User")).unwrap();
         matcher.add_observer(create_observer("DELETE", "Product")).unwrap();
 
-        assert_eq!(matcher.observer_count(), 3, "Observer count should reflect all added observers");
+        assert_eq!(
+            matcher.observer_count(),
+            3,
+            "Observer count should reflect all added observers"
+        );
     }
 
     #[test]
@@ -433,9 +437,9 @@ mod tests {
         use std::sync::Arc;
 
         use crate::{
+            ObserverExecutor,
             matcher::EventMatcher,
             testing::mocks::{MockActionDispatcher, MockDeadLetterQueue},
-            ObserverExecutor,
         };
 
         let matcher = EventMatcher::new();

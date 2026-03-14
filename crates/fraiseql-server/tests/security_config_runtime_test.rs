@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-#[cfg(test)]
+#[cfg(all(test, feature = "auth"))]
 mod tests {
     use serde_json::json;
 

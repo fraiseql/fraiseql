@@ -63,7 +63,7 @@ pub enum CompositionError {
     /// Only one subgraph can own each @external field.
     ExternalFieldMultipleOwners {
         /// Fully-qualified field name.
-        field: String,
+        field:  String,
         /// Subgraphs that each claim ownership.
         owners: Vec<String>,
     },
@@ -103,7 +103,7 @@ pub enum CompositionError {
         /// Name of the conflicting type.
         typename: String,
         /// Human-readable description of the conflict.
-        reason: String,
+        reason:   String,
     },
 }
 

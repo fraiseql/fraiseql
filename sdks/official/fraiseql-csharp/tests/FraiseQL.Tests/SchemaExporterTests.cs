@@ -289,7 +289,7 @@ public sealed class SchemaExporterTests : IDisposable
         MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Argument("name", "String")
             .Register();
 
@@ -301,7 +301,7 @@ public sealed class SchemaExporterTests : IDisposable
         Assert.Equal("createAuthor", mutation.GetProperty("name").GetString());
         Assert.Equal("Author", mutation.GetProperty("return_type").GetString());
         Assert.Equal("fn_create_author", mutation.GetProperty("sql_source").GetString());
-        Assert.Equal("insert", mutation.GetProperty("operation").GetString());
+        Assert.Equal("CREATE", mutation.GetProperty("operation").GetString());
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class SchemaExporterTests : IDisposable
         MutationBuilder.Mutation("createAuthor")
             .ReturnType("Author")
             .SqlSource("fn_create_author")
-            .Operation("insert")
+            .Operation("CREATE")
             .Argument("name", "String", nullable: false)
             .Register();
 

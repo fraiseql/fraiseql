@@ -14,8 +14,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arrow_flight::{
-    Criteria, Empty, FlightDescriptor, Ticket,
-    flight_service_server::FlightService as _,
+    Criteria, Empty, FlightDescriptor, Ticket, flight_service_server::FlightService as _,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -110,7 +109,9 @@ fn descriptor_for_ticket(ticket: &FlightTicket) -> FlightDescriptor {
 /// Build a `Request<Ticket>` with a valid session token in the Authorization header.
 fn authenticated_ticket_request(ticket: &FlightTicket) -> Request<Ticket> {
     let bytes = ticket.encode().expect("Failed to encode ticket");
-    let mut req = Request::new(Ticket { ticket: bytes.into() });
+    let mut req = Request::new(Ticket {
+        ticket: bytes.into(),
+    });
     req.metadata_mut().insert(
         "authorization",
         format!("Bearer {}", make_session_token())
@@ -128,8 +129,11 @@ fn authenticated_ticket_request(ticket: &FlightTicket) -> Request<Ticket> {
 #[tokio::test]
 async fn test_list_flights_enumerates_four_default_views() {
     let service = FraiseQLFlightService::new();
-    let result =
-        service.list_flights(Request::new(Criteria { expression: vec![].into() })).await;
+    let result = service
+        .list_flights(Request::new(Criteria {
+            expression: vec![].into(),
+        }))
+        .await;
 
     assert!(result.is_ok(), "list_flights should succeed without auth");
     let mut stream = result.unwrap().into_inner();
@@ -268,11 +272,7 @@ async fn test_poll_flight_info_returns_completed_poll_info() {
         "flight_descriptor must be None to signal completion"
     );
     // progress = 1.0 confirms 100 % complete
-    assert_eq!(
-        poll_info.progress,
-        Some(1.0),
-        "progress must be 1.0 for a synchronous response"
-    );
+    assert_eq!(poll_info.progress, Some(1.0), "progress must be 1.0 for a synchronous response");
     // info must be populated with the FlightInfo
     assert!(poll_info.info.is_some(), "PollInfo.info must be populated");
     let info = poll_info.info.unwrap();
@@ -307,8 +307,7 @@ async fn test_poll_flight_info_unknown_view_returns_not_found() {
 #[tokio::test]
 async fn test_list_actions_includes_all_admin_actions() {
     let service = FraiseQLFlightService::new();
-    let mut stream =
-        service.list_actions(Request::new(Empty {})).await.unwrap().into_inner();
+    let mut stream = service.list_actions(Request::new(Empty {})).await.unwrap().into_inner();
 
     let mut types: Vec<String> = Vec::new();
     while let Some(Ok(action_type)) = stream.next().await {
@@ -336,8 +335,8 @@ async fn test_list_actions_includes_all_admin_actions() {
 /// Targets `ta_users` (all-Utf8 schema) to avoid unsupported timestamp conversion.
 #[tokio::test]
 async fn test_do_get_optimized_view_streams_arrow_data() {
-    let service = FraiseQLFlightService::new_with_db(Arc::new(MockAdapter))
-        .with_session_secret(TEST_SECRET);
+    let service =
+        FraiseQLFlightService::new_with_db(Arc::new(MockAdapter)).with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
         view:     "ta_users".to_string(),
         filter:   None,
@@ -399,7 +398,9 @@ async fn test_do_get_without_auth_returns_error() {
 
     let bytes = ticket.encode().expect("Failed to encode ticket");
     // Request with no Authorization header
-    let req = Request::new(Ticket { ticket: bytes.into() });
+    let req = Request::new(Ticket {
+        ticket: bytes.into(),
+    });
 
     let Err(err) = service.do_get(req).await else {
         panic!("Missing auth must fail");

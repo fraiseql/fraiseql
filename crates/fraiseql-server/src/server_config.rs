@@ -391,32 +391,32 @@ pub struct ServerConfig {
 }
 
 #[cfg(feature = "observers")]
-fn default_observers_enabled() -> bool {
+const fn default_observers_enabled() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_poll_interval_ms() -> u64 {
+const fn default_poll_interval_ms() -> u64 {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_batch_size() -> usize {
+const fn default_batch_size() -> usize {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_channel_capacity() -> usize {
+const fn default_channel_capacity() -> usize {
     1000
 }
 
 #[cfg(feature = "observers")]
-fn default_auto_reload() -> bool {
+const fn default_auto_reload() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_reload_interval_secs() -> u64 {
+const fn default_reload_interval_secs() -> u64 {
     60
 }
 
@@ -512,16 +512,17 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,          // No auth by default
-            tls: None,           // TLS disabled by default
-            database_tls: None,  // Database TLS disabled by default
+            auth: None, // No auth by default
+            tls: None,  // TLS disabled by default
+            database_tls: None, /* Database TLS disabled
+                         * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
-            rate_limiting: None, // Rate limiting uses defaults
+            rate_limiting: None,             // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
-            pool_tuning: None,  // Pool auto-tuning disabled by default
-            admission_control: None, // Admission control disabled by default
+            pool_tuning: None,               // Pool auto-tuning disabled by default
+            admission_control: None,         // Admission control disabled by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
         }
     }
@@ -795,7 +796,6 @@ const fn default_elasticsearch_https() -> bool {
 const fn default_verify_certs() -> bool {
     true
 }
-
 
 #[cfg(test)]
 mod tests {

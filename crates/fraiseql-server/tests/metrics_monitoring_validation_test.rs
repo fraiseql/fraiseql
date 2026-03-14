@@ -531,14 +531,16 @@ mod metrics_monitoring_tests {
         let error_budget_percent = 0.01; // 1% error budget = 99.9% SLO
 
         let errors = 8_000; // 0.8% error rate
-        let remaining_budget = error_budget_percent - (f64::from(errors) / f64::from(total_requests));
+        let remaining_budget =
+            error_budget_percent - (f64::from(errors) / f64::from(total_requests));
 
         // Should have budget remaining
         assert!(remaining_budget > 0.0, "Should have error budget remaining");
 
         // If errors were 10_000 (1% = fully spent)
         let errors_at_limit = (f64::from(total_requests) * error_budget_percent) as u64;
-        let fully_spent = error_budget_percent - (errors_at_limit as f64 / f64::from(total_requests));
+        let fully_spent =
+            error_budget_percent - (errors_at_limit as f64 / f64::from(total_requests));
 
         assert!(fully_spent.abs() < 0.001, "Budget should be fully spent");
     }

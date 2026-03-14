@@ -80,8 +80,8 @@ fn admin_security_context() -> SecurityContext {
 // ---------------------------------------------------------------------------
 
 struct RecordingMockAdapter {
-    called_fn: std::sync::Mutex<Option<String>>,
-    called_args: std::sync::Mutex<Vec<serde_json::Value>>,
+    called_fn:    std::sync::Mutex<Option<String>>,
+    called_args:  std::sync::Mutex<Vec<serde_json::Value>>,
     response_row: HashMap<String, serde_json::Value>,
 }
 
@@ -135,10 +135,10 @@ impl DatabaseAdapter for RecordingMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -191,12 +191,7 @@ async fn mutation_executor_uses_sql_source_from_compiled_schema() {
     let executor = Executor::new(schema, Arc::clone(&mock));
     let vars = serde_json::json!({"email": "a@b.com", "name": "Alice"});
 
-    let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     assert!(result.is_ok(), "mutation must succeed: {result:?}");
 
@@ -221,12 +216,7 @@ async fn mutation_executor_passes_arguments_to_function_call() {
     let executor = Executor::new(schema, Arc::clone(&mock));
     let vars = serde_json::json!({"email": "test@example.com", "name": "Bob"});
 
-    let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     assert!(result.is_ok(), "mutation with arguments must succeed: {result:?}");
 
@@ -252,10 +242,7 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
     let vars = serde_json::json!({"email": "a@b.com", "name": "Alice"});
 
     let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
+        .execute(r"mutation { createUser { id } }", Some(&vars))
         .await
         .expect("mutation must succeed");
 
@@ -298,11 +285,7 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
     let vars = serde_json::json!({"amount": "99.99"});
 
     let result = executor
-        .execute_with_security(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-            &ctx,
-        )
+        .execute_with_security(r"mutation { createOrder { id } }", Some(&vars), &ctx)
         .await;
 
     assert!(result.is_ok(), "mutation with inject_params must succeed: {result:?}");
@@ -316,10 +299,7 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
 
     // Inject params must be appended — args must include the resolved values
     let args = mock.called_args();
-    assert!(
-        !args.is_empty(),
-        "inject_params must cause at least one argument to be passed"
-    );
+    assert!(!args.is_empty(), "inject_params must cause at least one argument to be passed");
     // The injected user_id (from JWT "sub") must appear in the args
     let has_user_id = args.iter().any(|v| v.as_str() == Some("user-123"));
     assert!(
@@ -343,15 +323,7 @@ async fn mutation_executor_rejects_inject_params_without_security_context() {
 
     // Call execute() (unauthenticated path) — must fail with Validation error
     let vars = serde_json::json!({"amount": "99.99"});
-    let result = executor
-        .execute(
-            r"mutation { createOrder { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createOrder { id } }", Some(&vars)).await;
 
-    assert!(
-        result.is_err(),
-        "mutation with inject_params must fail without SecurityContext"
-    );
+    assert!(result.is_err(), "mutation with inject_params must fail without SecurityContext");
 }

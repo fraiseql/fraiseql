@@ -1,11 +1,12 @@
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
 use super::{
     ExtractedSchema, Result, SchemaExtractor, derive_query_name, map_primitive_type,
     parse_annotation_params, to_snake_case,
+};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
 };
 
 pub(super) struct JavaExtractor;
@@ -62,7 +63,7 @@ impl SchemaExtractor for JavaExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
-                 inject: IndexMap::default(),
+                inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
@@ -93,7 +94,7 @@ pub(super) fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
             description: None,
             directives: None,
             requires_scope: None,
-            on_deny:        None,
+            on_deny: None,
         });
     }
     fields
@@ -118,4 +119,3 @@ pub(super) fn extract_java_query_args(annotation_body: &str) -> Vec<Intermediate
     }
     args
 }
-

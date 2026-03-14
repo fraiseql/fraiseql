@@ -97,7 +97,7 @@ pub mod fraiseql_wire_adapter;
 pub use collation::{CollationCapabilities, CollationMapper};
 pub use collation_config::{
     CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
-    PostgresCollationConfig, SqliteCollationConfig, SqlServerCollationConfig,
+    PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
 };
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
@@ -119,7 +119,9 @@ pub use traits::{
     CursorValue, DatabaseAdapter, DatabaseCapabilities, MutationCapable, RelayDatabaseAdapter,
     RelayPageResult,
 };
-pub use types::sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint};
-pub use types::{DatabaseType, JsonbValue, PoolMetrics};
+pub use types::{
+    DatabaseType, JsonbValue, PoolMetrics,
+    sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
+};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_sql_generator::WhereSqlGenerator;

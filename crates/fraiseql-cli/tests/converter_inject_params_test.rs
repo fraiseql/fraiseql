@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Pipeline 5 — Stage B integration tests: CLI converter inject params.
 //!
 //! Verifies that `SchemaConverter::convert()` correctly parses every documented
@@ -12,13 +12,12 @@
 //! executor consumes.  A mis-parse (e.g. wrong claim name, wrong enum variant)
 //! would silently break tenant isolation at runtime.
 
-use indexmap::IndexMap;
-
 use fraiseql_cli::schema::{
     SchemaConverter,
     intermediate::{IntermediateField, IntermediateQuery, IntermediateSchema, IntermediateType},
 };
 use fraiseql_core::schema::InjectedParamSource;
+use indexmap::IndexMap;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -26,15 +25,15 @@ use fraiseql_core::schema::InjectedParamSource;
 
 fn order_type() -> IntermediateType {
     IntermediateType {
-        name:   "Order".to_string(),
+        name: "Order".to_string(),
         fields: vec![IntermediateField {
-            field_type:    "ID".to_string(),
-            name:          "id".to_string(),
-            nullable:      false,
-            description:   None,
-            directives:    None,
+            field_type:     "ID".to_string(),
+            name:           "id".to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
             requires_scope: None,
-            on_deny:       None,
+            on_deny:        None,
         }],
         ..Default::default()
     }
@@ -42,12 +41,12 @@ fn order_type() -> IntermediateType {
 
 fn schema_with_inject(inject: IndexMap<String, String>) -> IntermediateSchema {
     IntermediateSchema {
-        types:   vec![order_type()],
+        types: vec![order_type()],
         queries: vec![IntermediateQuery {
-            name:         "orders".to_string(),
-            return_type:  "Order".to_string(),
+            name: "orders".to_string(),
+            return_type: "Order".to_string(),
             returns_list: true,
-            sql_source:   Some("v_order".to_string()),
+            sql_source: Some("v_order".to_string()),
             inject,
             ..Default::default()
         }],
@@ -68,8 +67,8 @@ fn parse_inject_source_jwt_sub() {
     let mut inject = IndexMap::new();
     inject.insert("user_id".to_string(), "jwt:sub".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
     assert_eq!(q.inject_params.len(), 1);
@@ -88,8 +87,8 @@ fn parse_inject_source_jwt_tenant_id() {
     let mut inject = IndexMap::new();
     inject.insert("tenant_id".to_string(), "jwt:tenant_id".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
     assert_eq!(
@@ -107,8 +106,8 @@ fn parse_inject_source_jwt_org_id() {
     let mut inject = IndexMap::new();
     inject.insert("org_id".to_string(), "jwt:org_id".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
     assert_eq!(
@@ -127,8 +126,8 @@ fn parse_inject_source_jwt_arbitrary_claim() {
     let mut inject = IndexMap::new();
     inject.insert("department".to_string(), "jwt:department".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
     assert_eq!(
@@ -144,8 +143,8 @@ fn parse_inject_source_jwt_claim_with_underscores() {
     let mut inject = IndexMap::new();
     inject.insert("custom_attr".to_string(), "jwt:custom_attr".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
     assert_eq!(
@@ -214,12 +213,12 @@ fn parse_inject_source_arg_conflict_returns_error() {
     inject.insert("filter_id".to_string(), "jwt:sub".to_string());
 
     let schema = IntermediateSchema {
-        types:   vec![order_type()],
+        types: vec![order_type()],
         queries: vec![IntermediateQuery {
-            name:         "filteredOrders".to_string(),
-            return_type:  "Order".to_string(),
+            name: "filteredOrders".to_string(),
+            return_type: "Order".to_string(),
             returns_list: true,
-            sql_source:   Some("v_order".to_string()),
+            sql_source: Some("v_order".to_string()),
             // `filter_id` appears both as an argument and as an inject param
             arguments: vec![IntermediateArgument {
                 name:       "filter_id".to_string(),
@@ -258,15 +257,11 @@ fn converter_multi_inject_params_all_survive() {
     inject.insert("user_id".to_string(), "jwt:sub".to_string());
     inject.insert("org_id".to_string(), "jwt:org_id".to_string());
 
-    let compiled = SchemaConverter::convert(schema_with_inject(inject))
-        .expect("convert must succeed");
+    let compiled =
+        SchemaConverter::convert(schema_with_inject(inject)).expect("convert must succeed");
     let q = compiled.find_query("orders").expect("'orders' must be present");
 
-    assert_eq!(
-        q.inject_params.len(),
-        3,
-        "all three inject params must survive conversion"
-    );
+    assert_eq!(q.inject_params.len(), 3, "all three inject params must survive conversion");
 
     assert_eq!(
         *q.inject_params.get("tenant_id").unwrap(),
@@ -286,12 +281,12 @@ fn converter_multi_inject_params_all_survive() {
 #[test]
 fn converter_empty_inject_produces_empty_map() {
     let schema = IntermediateSchema {
-        types:   vec![order_type()],
+        types: vec![order_type()],
         queries: vec![IntermediateQuery {
-            name:         "allOrders".to_string(),
-            return_type:  "Order".to_string(),
+            name: "allOrders".to_string(),
+            return_type: "Order".to_string(),
             returns_list: true,
-            sql_source:   Some("v_order".to_string()),
+            sql_source: Some("v_order".to_string()),
             // No inject field — relies on Default
             ..Default::default()
         }],
@@ -301,10 +296,7 @@ fn converter_empty_inject_produces_empty_map() {
     let compiled = SchemaConverter::convert(schema).expect("convert must succeed");
     let q = compiled.find_query("allOrders").expect("'allOrders' must be present");
 
-    assert!(
-        q.inject_params.is_empty(),
-        "query with no inject must have empty inject_params"
-    );
+    assert!(q.inject_params.is_empty(), "query with no inject must have empty inject_params");
 }
 
 /// Stage A → B: inject params on mutations are also preserved.
@@ -318,7 +310,7 @@ fn converter_inject_params_on_mutation_survive() {
     let schema = IntermediateSchema {
         types: vec![order_type()],
         mutations: vec![IntermediateMutation {
-            name:       "placeOrder".to_string(),
+            name: "placeOrder".to_string(),
             return_type: "Order".to_string(),
             sql_source: Some("fn_place_order".to_string()),
             inject,

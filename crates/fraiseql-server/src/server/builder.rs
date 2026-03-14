@@ -57,17 +57,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         })?;
 
         // Read security configs from compiled schema BEFORE schema is moved.
-        let circuit_breaker = schema
-            .federation
-            .as_ref()
-            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config);
-        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        let circuit_breaker = schema.federation.as_ref().and_then(
+            crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
+        );
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
-        let state_encryption   = Self::state_encryption_from_schema(&schema)?;
+        let state_encryption = Self::state_encryption_from_schema(&schema)?;
         #[cfg(not(feature = "auth"))]
-        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        let state_encryption: Option<
+            std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>,
+        > = None;
         #[cfg(feature = "auth")]
-        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        let pkce_store = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         #[cfg(not(feature = "auth"))]
         let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
         #[cfg(feature = "auth")]
@@ -135,9 +136,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Apply pool tuning config from ServerConfig (if present).
         if let Some(pt) = server.config.pool_tuning.clone() {
             if pt.enabled {
-                server = server.with_pool_tuning(pt).map_err(|e| {
-                    ServerError::ConfigError(format!("pool_tuning: {e}"))
-                })?;
+                server = server
+                    .with_pool_tuning(pt)
+                    .map_err(|e| ServerError::ConfigError(format!("pool_tuning: {e}")))?;
             }
         }
 
@@ -145,10 +146,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "mcp")]
         if let Some(ref cfg) = server.executor.schema().mcp_config {
             if cfg.enabled {
-                let tool_count = crate::mcp::tools::schema_to_tools(
-                    server.executor.schema(),
-                    cfg,
-                ).len();
+                let tool_count =
+                    crate::mcp::tools::schema_to_tools(server.executor.schema(), cfg).len();
                 info!(
                     path = %cfg.path,
                     transport = %cfg.transport,
@@ -184,7 +183,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)]  // Reason: internal constructor that collects all pre-built subsystems; callers pass
+    #[allow(clippy::too_many_arguments)] // Reason: internal constructor that collects all pre-built subsystems; callers pass
     // already-constructed values rather than building them here, so grouping into a
     // builder struct would not reduce call-site clarity.
     pub(super) async fn from_executor(
@@ -194,17 +193,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         circuit_breaker: Option<
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
-        error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
-        state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
-        pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
-        oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
-        schema_rate_limiter:  Option<Arc<RateLimiter>>,
+        error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))] state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))] pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))] oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
+        schema_rate_limiter: Option<Arc<RateLimiter>>,
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
-        revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-        trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
-        // `db_pool` is forwarded to the observer runtime; unused when the `observers` feature is off.
-        #[cfg_attr(not(feature = "observers"), allow(unused_variables))]
-        db_pool: Option<sqlx::PgPool>,
+        revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+        trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+        // `db_pool` is forwarded to the observer runtime; unused when the `observers` feature is
+        // off.
+        #[cfg_attr(not(feature = "observers"), allow(unused_variables))] db_pool: Option<
+            sqlx::PgPool,
+        >,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -275,6 +276,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
+
             use tokio::time::MissedTickBehavior;
             let store_clone = Arc::clone(store);
             tokio::spawn(async move {
@@ -386,11 +388,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let schema = Arc::new(self.executor.schema().clone());
         let executor = self.executor.clone();
 
-        let service = crate::mcp::handler::FraiseQLMcpService::new(
-            schema,
-            executor,
-            mcp_cfg,
-        );
+        let service = crate::mcp::handler::FraiseQLMcpService::new(schema, executor, mcp_cfg);
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");
 
@@ -400,7 +398,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .await
             .map_err(|e| ServerError::ConfigError(format!("MCP stdio init failed: {e}")))?;
 
-        running.waiting().await
+        running
+            .waiting()
+            .await
             .map_err(|e| ServerError::ConfigError(format!("MCP stdio error: {e}")))?;
 
         Ok(())

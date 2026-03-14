@@ -56,7 +56,7 @@ pub struct ObserverRuntimeConfig {
 impl ObserverRuntimeConfig {
     /// Create config with defaults
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
@@ -236,6 +236,10 @@ impl ObserverRuntime {
     }
 
     /// Start the observer runtime
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ServerError`] if the runtime is already running or fails to load observers.
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
@@ -487,6 +491,10 @@ impl ObserverRuntime {
     }
 
     /// Stop the observer runtime gracefully
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ServerError`] if the shutdown signal cannot be sent.
     pub async fn stop(&mut self) -> Result<(), ServerError> {
         if !self.running.load(Ordering::SeqCst) {
             return Ok(());
@@ -528,6 +536,10 @@ impl ObserverRuntime {
     }
 
     /// Reload observers from the database
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ServerError`] if the database query fails or the event matcher cannot be built.
     pub async fn reload_observers(&self) -> Result<usize, ServerError> {
         debug!("Reloading observers from database");
 
@@ -575,7 +587,7 @@ struct InMemoryDlq {
 }
 
 impl InMemoryDlq {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }

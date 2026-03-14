@@ -178,7 +178,9 @@ impl DependencyGraph {
         // Count incoming edges (only for nodes that exist in the graph)
         for edge in &self.edges {
             if self.nodes.contains_key(&edge.to) {
-                *in_degree.get_mut(&edge.to).expect("all node IDs were inserted into in_degree above") += 1;
+                *in_degree
+                    .get_mut(&edge.to)
+                    .expect("all node IDs were inserted into in_degree above") += 1;
             }
         }
 

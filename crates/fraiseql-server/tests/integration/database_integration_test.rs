@@ -46,8 +46,7 @@ async fn test_postgres_adapter_initialization() {
 #[tokio::test]
 #[ignore = "requires live PostgreSQL (set DATABASE_URL)"]
 async fn test_postgres_adapter_with_pool_config() {
-    let db_url =
-        database_url();
+    let db_url = database_url();
 
     let min_size = 5;
     let max_size = 20;
@@ -115,8 +114,7 @@ fn test_server_config_database_url_override() {
 #[tokio::test]
 #[ignore = "requires live PostgreSQL (set DATABASE_URL)"]
 async fn test_postgres_adapter_arc_compatibility() {
-    let db_url =
-        database_url();
+    let db_url = database_url();
 
     let adapter = PostgresAdapter::new(&db_url).await.expect("Failed to create adapter");
 

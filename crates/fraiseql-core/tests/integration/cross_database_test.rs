@@ -13,26 +13,22 @@
 //! column, matching the fraiseql adapter contract.
 
 #![cfg(all(feature = "test-postgres", feature = "test-mysql"))]
-#![allow(clippy::unwrap_used)]  // Reason: test setup code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test setup code, panics are acceptable
 
 use fraiseql_core::db::{
-    WhereClause, WhereOperator,
-    mysql::MySqlAdapter,
-    postgres::PostgresAdapter,
+    WhereClause, WhereOperator, mysql::MySqlAdapter, postgres::PostgresAdapter,
     traits::DatabaseAdapter,
 };
 use serde_json::json;
 use testcontainers_modules::{
-    mysql::Mysql,
-    postgres::Postgres,
-    testcontainers::runners::AsyncRunner,
+    mysql::Mysql, postgres::Postgres, testcontainers::runners::AsyncRunner,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared schema SQL (per database)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PG_SCHEMA: &str = r#"
+const PG_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS tb_cross_item (
     id   CHAR(36) NOT NULL PRIMARY KEY,
     name TEXT     NOT NULL UNIQUE,
@@ -41,7 +37,7 @@ CREATE TABLE IF NOT EXISTS tb_cross_item (
 );
 CREATE OR REPLACE VIEW v_cross_item AS
     SELECT data FROM tb_cross_item;
-"#;
+";
 
 const PG_SEED: &str = r#"
 INSERT INTO tb_cross_item (id, name, age, data) VALUES
@@ -54,7 +50,7 @@ INSERT INTO tb_cross_item (id, name, age, data) VALUES
 ON CONFLICT DO NOTHING;
 "#;
 
-const MYSQL_SCHEMA: &str = r#"
+const MYSQL_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS tb_cross_item (
     id   CHAR(36)     NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -64,7 +60,7 @@ CREATE TABLE IF NOT EXISTS tb_cross_item (
 );
 CREATE OR REPLACE VIEW v_cross_item AS
     SELECT data FROM tb_cross_item;
-"#;
+";
 
 const MYSQL_SEED: &str = r#"
 INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES
@@ -81,17 +77,13 @@ INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES
 // ─────────────────────────────────────────────────────────────────────────────
 
 async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
-    let container = Postgres::default()
-        .start()
-        .await
-        .expect("Failed to start PostgreSQL container");
+    let container =
+        Postgres::default().start().await.expect("Failed to start PostgreSQL container");
 
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("Failed to get container port");
+    let port = container.get_host_port_ipv4(5432).await.expect("Failed to get container port");
 
-    let conn_str = format!("host=127.0.0.1 port={port} user=postgres password=postgres dbname=postgres");
+    let conn_str =
+        format!("host=127.0.0.1 port={port} user=postgres password=postgres dbname=postgres");
 
     // Apply schema and seed via tokio_postgres
     let (client, conn) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls)
@@ -105,9 +97,7 @@ async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
     client.batch_execute(PG_SCHEMA).await.expect("Failed to apply PG schema");
     client.batch_execute(PG_SEED).await.expect("Failed to seed PG data");
 
-    let adapter_str = format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    );
+    let adapter_str = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
     let adapter = PostgresAdapter::new(&adapter_str)
         .await
         .expect("Failed to create PostgresAdapter");
@@ -116,15 +106,9 @@ async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
 }
 
 async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
-    let container = Mysql::default()
-        .start()
-        .await
-        .expect("Failed to start MySQL container");
+    let container = Mysql::default().start().await.expect("Failed to start MySQL container");
 
-    let port = container
-        .get_host_port_ipv4(3306)
-        .await
-        .expect("Failed to get container port");
+    let port = container.get_host_port_ipv4(3306).await.expect("Failed to get container port");
 
     // MySQL default image: user=root, no password, db=test
     let conn_str = format!("mysql://root@127.0.0.1:{port}/test");
@@ -138,15 +122,10 @@ async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
         .execute(&pool)
         .await
         .expect("Failed to apply MySQL schema");
-    sqlx::query(MYSQL_SEED)
-        .execute(&pool)
-        .await
-        .expect("Failed to seed MySQL data");
+    sqlx::query(MYSQL_SEED).execute(&pool).await.expect("Failed to seed MySQL data");
     drop(pool);
 
-    let adapter = MySqlAdapter::new(&conn_str)
-        .await
-        .expect("Failed to create MySqlAdapter");
+    let adapter = MySqlAdapter::new(&conn_str).await.expect("Failed to create MySqlAdapter");
 
     (adapter, container)
 }
@@ -297,14 +276,8 @@ async fn null_fields_represented_identically_across_adapters() {
     let pg_score = &pg_rows[0].as_value()["score"];
     let my_score = &my_rows[0].as_value()["score"];
 
-    assert!(
-        pg_score.is_null(),
-        "PG score should be null for alice, got: {pg_score}"
-    );
-    assert!(
-        my_score.is_null(),
-        "MySQL score should be null for alice, got: {my_score}"
-    );
+    assert!(pg_score.is_null(), "PG score should be null for alice, got: {pg_score}");
+    assert!(my_score.is_null(), "MySQL score should be null for alice, got: {my_score}");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

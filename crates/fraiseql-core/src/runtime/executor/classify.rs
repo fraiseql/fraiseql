@@ -1,12 +1,11 @@
 //! Query classification — determines operation type for routing.
 
+use super::{Executor, QueryType};
 use crate::{
+    db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::parse_query,
 };
-
-use super::{Executor, QueryType};
-use crate::db::traits::DatabaseAdapter;
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Classify a GraphQL query into its operation type for routing.
@@ -135,10 +134,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 /// returns `Some("User".to_string())`.
 ///
 /// Returns `None` if the argument is absent or is not a JSON string literal.
-fn extract_root_string_arg(
-    parsed: &crate::graphql::ParsedQuery,
-    arg_name: &str,
-) -> Option<String> {
+fn extract_root_string_arg(parsed: &crate::graphql::ParsedQuery, arg_name: &str) -> Option<String> {
     let root_field = parsed.selections.first()?;
     let arg = root_field.arguments.iter().find(|a| a.name == arg_name)?;
 

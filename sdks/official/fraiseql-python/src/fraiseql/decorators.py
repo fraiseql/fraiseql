@@ -15,6 +15,7 @@ from fraiseql.types import extract_field_info, extract_function_signature
 _INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
+_VALID_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 
 
 def _validate_sql_identifier(value: str, param: str, context: str) -> None:
@@ -29,6 +30,32 @@ def _validate_sql_identifier(value: str, param: str, context: str) -> None:
             "Use only ASCII letters, digits, and underscores, with an optional "
             "schema prefix (e.g. 'v_user' or 'public.v_user')."
         )
+
+
+def _validate_rest_path(
+    rest_path: str,
+    rest_method: str,
+    arg_names: set[str],
+    context: str,
+) -> None:
+    """Validate rest_path and rest_method for @query/@mutation.
+
+    Raises:
+        ValueError: If method is invalid or a path parameter is not a declared argument.
+    """
+    if rest_method not in _VALID_HTTP_METHODS:
+        raise ValueError(
+            f"{context}: rest_method={rest_method!r} is not a valid HTTP method. "
+            f"Use one of: {', '.join(sorted(_VALID_HTTP_METHODS))}."
+        )
+    path_params = re.findall(r"\{(\w+)\}", rest_path)
+    for param in path_params:
+        if param not in arg_names:
+            raise ValueError(
+                f"{context}: rest_path path parameter '{{{param}}}' "
+                f"is not a declared function argument. "
+                f"Declare it as a parameter of the decorated function."
+            )
 
 
 def _validate_inject(
@@ -344,7 +371,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                     f"@fraiseql.query cache_ttl_seconds= on {f.__name__!r} must be a "
                     f"non-negative integer (got {ttl!r})."
                 )
-                raise ValueError(msg)
+                raise TypeError(msg)
 
         # additional_views validation — fail fast at authoring time
         if (av := cfg.get("additional_views")) is not None:
@@ -393,6 +420,15 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 ap.pop("limit", None)
                 ap.pop("offset", None)
                 cfg["auto_params"] = ap
+
+        # REST transport annotations — build "rest" block if rest_path is set
+        if rest_path := cfg.pop("rest_path", None):
+            method = cfg.pop("rest_method", "GET").upper()
+            arg_names = {arg["name"] for arg in signature["arguments"]}
+            _validate_rest_path(rest_path, method, arg_names, f"@fraiseql.query on {f.__name__!r}")
+            cfg["rest"] = {"path": rest_path, "method": method}
+        else:
+            cfg.pop("rest_method", None)
 
         # Register query with schema registry
         # description= in cfg overrides the docstring
@@ -535,6 +571,15 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                         "letter or underscore)."
                     )
                     raise ValueError(msg)
+
+        # REST transport annotations — build "rest" block if rest_path is set
+        if rest_path := cfg.pop("rest_path", None):
+            method = cfg.pop("rest_method", "POST").upper()
+            arg_names = {arg["name"] for arg in signature["arguments"]}
+            _validate_rest_path(rest_path, method, arg_names, f"@fraiseql.mutation on {f.__name__!r}")
+            cfg["rest"] = {"path": rest_path, "method": method}
+        else:
+            cfg.pop("rest_method", None)
 
         # Register mutation with schema registry
         # description= in cfg overrides the docstring

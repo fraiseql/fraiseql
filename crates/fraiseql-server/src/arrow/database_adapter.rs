@@ -35,6 +35,12 @@ pub struct FlightDatabaseAdapter {
     inner: Arc<PostgresAdapter>,
 }
 
+/// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's DatabaseAdapter trait.
+///
+/// This enables the Arrow Flight service to execute queries against different database backends
+/// without requiring direct knowledge of fraiseql-core's DatabaseAdapter interface.
+///
+/// Uses `FraiseWireAdapter` for streaming JSON queries with low memory overhead.
 #[cfg(feature = "wire-backend")]
 pub struct FlightDatabaseAdapter {
     /// Inner FraiseQL Wire adapter from fraiseql-core (with lower memory usage)
@@ -59,12 +65,12 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - PostgreSQL adapter wrapped in Arc
-    pub fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
+    pub const fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
         Self { inner: adapter }
     }
 
     /// Get a reference to the inner PostgreSQL adapter.
-    pub fn inner(&self) -> &Arc<PostgresAdapter> {
+    pub const fn inner(&self) -> &Arc<PostgresAdapter> {
         &self.inner
     }
 }
@@ -87,12 +93,12 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - FraiseQL Wire adapter wrapped in Arc
-    pub fn from_arc(adapter: Arc<FraiseWireAdapter>) -> Self {
+    pub const fn from_arc(adapter: Arc<FraiseWireAdapter>) -> Self {
         Self { inner: adapter }
     }
 
     /// Get a reference to the inner FraiseQL Wire adapter.
-    pub fn inner(&self) -> &Arc<FraiseWireAdapter> {
+    pub const fn inner(&self) -> &Arc<FraiseWireAdapter> {
         &self.inner
     }
 }

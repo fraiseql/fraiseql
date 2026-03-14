@@ -11,12 +11,13 @@
 //! - Throughput (rows/second)
 //!
 //! Run with:
-//!   cargo bench --bench comparison_benchmarks --features bench-with-tokio-postgres
+//!   `cargo bench --bench comparison_benchmarks --features bench-with-tokio-postgres`
 //!
 //! Requirements:
 //!   - Postgres 17 running on localhost:5432
-//!   - Test database and views created: psql -U postgres fraiseql_bench < benches/setup.sql
+//!   - Test database and views created: `psql -U postgres fraiseql_bench < benches/setup.sql`
 #![allow(missing_docs)]
+#![allow(clippy::unwrap_used)] // Reason: benchmark code — panics are acceptable failures
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
@@ -234,8 +235,8 @@ fn memory_efficiency_benchmarks(c: &mut Criterion) {
             // fraiseql-wire: memory = chunk_size + overhead
             // Simulating 10K rows with 256-byte chunks
             let chunk_size = black_box(256);
-            let _overhead = black_box(1024); // ~1KB overhead
-            let total_memory = chunk_size + _overhead;
+            let overhead = black_box(1024); // ~1KB overhead
+            let total_memory = chunk_size + overhead;
             let _memory = black_box(total_memory);
         });
     });
@@ -256,8 +257,8 @@ fn memory_efficiency_benchmarks(c: &mut Criterion) {
     group.bench_function("fraiseql_100k_rows_bounded", |b| {
         b.iter(|| {
             let chunk_size = black_box(256);
-            let _overhead = black_box(1024);
-            let total_memory = chunk_size + _overhead;
+            let overhead = black_box(1024);
+            let total_memory = chunk_size + overhead;
             let _memory = black_box(total_memory);
         });
     });

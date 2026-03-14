@@ -603,7 +603,7 @@ enum Token {
     RParen,
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -906,13 +906,15 @@ mod tests {
             json!({"status": "shipped", "priority": "high"}),
         );
         // Both conditions true
-        let result =
-            parser.parse_and_evaluate("status == 'shipped' && priority == 'high'", &event).unwrap();
+        let result = parser
+            .parse_and_evaluate("status == 'shipped' && priority == 'high'", &event)
+            .unwrap();
         assert!(result, "Both conditions true should pass AND");
 
         // One condition false
-        let result =
-            parser.parse_and_evaluate("status == 'shipped' && priority == 'low'", &event).unwrap();
+        let result = parser
+            .parse_and_evaluate("status == 'shipped' && priority == 'low'", &event)
+            .unwrap();
         assert!(!result, "One false condition should fail AND");
     }
 

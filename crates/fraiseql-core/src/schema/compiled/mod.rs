@@ -6,7 +6,9 @@
 pub mod argument;
 pub mod directive;
 pub mod mutation;
+pub mod openapi_gen;
 pub mod query;
+pub mod rest;
 pub mod schema;
 pub mod validation;
 
@@ -17,5 +19,6 @@ pub use argument::{ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{MutationDefinition, MutationOperation};
 pub use query::{CursorType, QueryDefinition};
-pub use schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
+pub use rest::{RestConfig, RestRoute};
+pub use schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
 pub use validation::is_safe_sql_identifier;

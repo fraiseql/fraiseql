@@ -66,7 +66,7 @@ impl Clock for SystemClock {
 /// Manually advanceable clock for deterministic tests.
 ///
 /// Starts at `UNIX_EPOCH + 1_000_000 s` to avoid edge cases near the epoch.
-/// All clones share the same underlying time via an [`Arc`].
+/// All clones share the same underlying time via an `Arc`.
 ///
 /// # Example
 ///
@@ -100,8 +100,7 @@ impl ManualClock {
     pub fn new() -> Self {
         Self {
             current: std::sync::Arc::new(std::sync::Mutex::new(
-                SystemTime::UNIX_EPOCH
-                    + std::time::Duration::from_secs(1_000_000),
+                SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000),
             )),
         }
     }

@@ -136,7 +136,8 @@ impl FragmentGraph {
 
         if recursion_stack.contains(dep) {
             // Cycle found - extract cycle path
-            #[allow(clippy::expect_used)]  // Reason: dep is guaranteed to be in cycle_path when found in recursion_stack
+            #[allow(clippy::expect_used)]
+            // Reason: dep is guaranteed to be in cycle_path when found in recursion_stack
             let cycle_start = cycle_path
                 .iter()
                 .position(|f| f == dep)

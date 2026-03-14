@@ -77,12 +77,12 @@ impl SchemaConverter {
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
         let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
-        let inject_params = Self::convert_inject_params(
-            &intermediate.name,
-            &arg_names,
-            intermediate.inject,
-        )
-        .context(format!("Failed to convert inject params for query '{}'", intermediate.name))?;
+        let inject_params =
+            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject)
+                .context(format!(
+                    "Failed to convert inject params for query '{}'",
+                    intermediate.name
+                ))?;
 
         // Determine auto_params using the priority chain:
         //   1. Relay:       always {where:T, order_by:T, limit:F, offset:F} (spec-mandated)
@@ -96,8 +96,7 @@ impl SchemaConverter {
                 has_offset:   false,
             }
         } else if intermediate.returns_list {
-            let resolved =
-                Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
+            let resolved = Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
             Self::warn_auto_params(&intermediate.name, &resolved);
             resolved
         } else {
@@ -150,6 +149,7 @@ impl SchemaConverter {
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
             additional_views: intermediate.additional_views,
             requires_role: intermediate.requires_role,
+            rest: None,
         })
     }
 
@@ -183,8 +183,8 @@ impl SchemaConverter {
 
     /// Resolve the final `AutoParams` for a list query using the priority chain:
     ///
-    /// - `per_query`: flags explicitly set by the authoring-language decorator (`Some(v)`)
-    ///   or absent (`None` → inherit from defaults)
+    /// - `per_query`: flags explicitly set by the authoring-language decorator (`Some(v)`) or
+    ///   absent (`None` → inherit from defaults)
     /// - `defaults`:  project-wide values from `[query_defaults]` in `fraiseql.toml`
     ///
     /// Relay queries and single-item queries are handled separately in `convert_query`

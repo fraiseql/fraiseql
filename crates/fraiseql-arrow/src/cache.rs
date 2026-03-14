@@ -135,7 +135,7 @@ impl QueryCache {
     ///
     /// # Arguments
     ///
-    /// * `view_names` - View names to invalidate (e.g., ["`v_user`"])
+    /// * `view_names` - View names to invalidate (e.g., `["v_user"]`)
     ///
     /// # Returns
     ///
@@ -418,10 +418,14 @@ mod tests {
     fn test_put_overwrites_existing_entry() {
         let cache = QueryCache::new(60);
         let q = "SELECT * FROM users";
-        let result1 =
-            Arc::new(vec![std::collections::HashMap::from([("id".to_string(), serde_json::json!("1"))])]);
-        let result2 =
-            Arc::new(vec![std::collections::HashMap::from([("id".to_string(), serde_json::json!("99"))])]);
+        let result1 = Arc::new(vec![std::collections::HashMap::from([(
+            "id".to_string(),
+            serde_json::json!("1"),
+        )])]);
+        let result2 = Arc::new(vec![std::collections::HashMap::from([(
+            "id".to_string(),
+            serde_json::json!("99"),
+        )])]);
 
         cache.put(q, Arc::clone(&result1));
         assert_eq!(cache.len(), 1);

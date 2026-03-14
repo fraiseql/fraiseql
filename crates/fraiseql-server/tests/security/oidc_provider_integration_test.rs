@@ -12,6 +12,7 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![cfg(feature = "auth")]
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};
@@ -192,7 +193,7 @@ async fn test_oidc_discovery_missing_required_field() {
     .await;
 
     // May fail or succeed depending on implementation
-    let _ = provider;  // intentional
+    let _ = provider; // intentional
 }
 
 #[tokio::test]

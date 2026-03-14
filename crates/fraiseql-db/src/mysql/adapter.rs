@@ -1,19 +1,22 @@
 //! MySQL database adapter implementation.
 
 use async_trait::async_trait;
+use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
     Column, Row,
     mysql::{MySqlPool, MySqlPoolOptions, MySqlRow},
 };
 
 use super::where_generator::MySqlWhereGenerator;
-use fraiseql_error::{FraiseQLError, Result};
-
 use crate::{
     identifier::quote_mysql_identifier,
-    traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
-    types::{DatabaseType, JsonbValue, PoolMetrics},
-    types::sql_hints::{OrderByClause, OrderDirection},
+    traits::{
+        CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+    },
+    types::{
+        DatabaseType, JsonbValue, PoolMetrics,
+        sql_hints::{OrderByClause, OrderDirection},
+    },
     where_clause::WhereClause,
 };
 
@@ -156,10 +159,7 @@ impl MySqlAdapter {
 
         let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
             let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                db_err
-                    .code()
-                    .and_then(|c| c.parse::<u16>().ok())
-                    .and_then(map_mysql_error_code)
+                db_err.code().and_then(|c| c.parse::<u16>().ok()).and_then(map_mysql_error_code)
             } else {
                 None
             };
@@ -208,17 +208,16 @@ impl DatabaseAdapter for MySqlAdapter {
             quote_mysql_identifier(view)
         );
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
             let generator = super::where_generator::MySqlWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT if present
         if let Some(lim) = limit {
@@ -239,17 +238,16 @@ impl DatabaseAdapter for MySqlAdapter {
         // Build base query
         let mut sql = format!("SELECT data FROM {}", quote_mysql_identifier(view));
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let mut params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
             let generator = MySqlWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT and OFFSET
         // Note: MySQL requires LIMIT when using OFFSET, so we use a large number for "unlimited"
@@ -321,17 +319,17 @@ impl DatabaseAdapter for MySqlAdapter {
         // Convert each row to HashMap<String, Value>.
         //
         // Type-probe order is chosen to minimise false positives:
-        //   1. serde_json::Value — MySQL JSON columns decode directly; avoids returning JSON
-        //      blobs as escaped string literals.
-        //   2. bool — TINYINT(1)/BIT(1) must come before i64; otherwise MySQL returns "0"/"1"
-        //      as strings because String succeeds on TINYINT first.
-        //   3. i64 — covers BIGINT, INT, MEDIUMINT, SMALLINT, TINYINT(>1).  Using i64
-        //      throughout avoids the asymmetry of i32 succeeding for values in [−2³¹, 2³¹)
-        //      and i64 for larger values on the same column.
+        //   1. serde_json::Value — MySQL JSON columns decode directly; avoids returning JSON blobs
+        //      as escaped string literals.
+        //   2. bool — TINYINT(1)/BIT(1) must come before i64; otherwise MySQL returns "0"/"1" as
+        //      strings because String succeeds on TINYINT first.
+        //   3. i64 — covers BIGINT, INT, MEDIUMINT, SMALLINT, TINYINT(>1).  Using i64 throughout
+        //      avoids the asymmetry of i32 succeeding for values in [−2³¹, 2³¹) and i64 for larger
+        //      values on the same column.
         //   4. f64 — DOUBLE, FLOAT.
-        //   5. String — TEXT, VARCHAR, CHAR, DECIMAL (rendered as decimal string by sqlx),
-        //      DATE, DATETIME, TIMESTAMP.  Attempt JSON parse so that TEXT columns storing
-        //      JSON blobs (e.g. `entity` in mutation_response) return proper objects.
+        //   5. String — TEXT, VARCHAR, CHAR, DECIMAL (rendered as decimal string by sqlx), DATE,
+        //      DATETIME, TIMESTAMP.  Attempt JSON parse so that TEXT columns storing JSON blobs
+        //      (e.g. `entity` in mutation_response) return proper objects.
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
             .into_iter()
             .map(|row| {
@@ -369,11 +367,7 @@ impl DatabaseAdapter for MySqlAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: CALL `schema`.`sp_name`(?, ?, ...)
         let placeholders = vec!["?"; args.len()].join(", ");
-        let sql = format!(
-            "CALL {}({})",
-            quote_mysql_identifier(function_name),
-            placeholders
-        );
+        let sql = format!("CALL {}({})", quote_mysql_identifier(function_name), placeholders);
 
         let mut query = sqlx::query(&sql);
 
@@ -450,16 +444,16 @@ impl DatabaseAdapter for MySqlAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
-        let row: sqlx::mysql::MySqlRow =
-            sqlx::query(&explain_sql).fetch_one(&self.pool).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   format!("MySQL EXPLAIN failed: {e}"),
-                    sql_state: None,
-                }
+        let row: sqlx::mysql::MySqlRow = sqlx::query(&explain_sql)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("MySQL EXPLAIN failed: {e}"),
+                sql_state: None,
             })?;
 
         let raw: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
@@ -539,10 +533,7 @@ fn build_mysql_relay_order_sql(
 }
 
 /// Combine cursor and user WHERE conditions into a single `WHERE` clause fragment.
-fn build_mysql_relay_where(
-    cursor_sql: Option<&str>,
-    user_sql: Option<&str>,
-) -> String {
+fn build_mysql_relay_where(cursor_sql: Option<&str>, user_sql: Option<&str>) -> String {
     match (cursor_sql, user_sql) {
         (None, None) => String::new(),
         (Some(c), None) => format!(" WHERE {c}"),
@@ -555,11 +546,7 @@ impl MySqlAdapter {
     /// Execute a parameterized SQL query and return the first column of the first row as `i64`.
     ///
     /// Used internally for `COUNT(*)` queries in relay pagination.
-    async fn execute_count_query(
-        &self,
-        sql: &str,
-        params: Vec<serde_json::Value>,
-    ) -> Result<u64> {
+    async fn execute_count_query(&self, sql: &str, params: Vec<serde_json::Value>) -> Result<u64> {
         let mut query = sqlx::query(sql);
 
         for param in &params {
@@ -582,12 +569,11 @@ impl MySqlAdapter {
             };
         }
 
-        let row: MySqlRow = query.fetch_one(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
+        let row: MySqlRow =
+            query.fetch_one(&self.pool).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("MySQL COUNT query failed: {e}"),
                 sql_state: None,
-            }
-        })?;
+            })?;
 
         // COUNT(*) returns BIGINT UNSIGNED in MySQL; try i64 first (covers most real counts).
         let cnt: u64 = if let Ok(v) = row.try_get::<i64, _>(0) {
@@ -652,10 +638,7 @@ impl RelayDatabaseAdapter for MySqlAdapter {
                 Some(CursorValue::Uuid(uuid)) => {
                     // MySQL UUIDs stored as CHAR(36); string comparison works for canonical form.
                     let op = if forward { ">" } else { "<" };
-                    (
-                        Some(format!("{quoted_col} {op} ?")),
-                        Some(serde_json::Value::String(uuid)),
-                    )
+                    (Some(format!("{quoted_col} {op} ?")), Some(serde_json::Value::String(uuid)))
                 },
             };
 
@@ -807,10 +790,7 @@ mod unit_tests {
 
     #[test]
     fn relay_where_user_only_wraps_in_parens() {
-        assert_eq!(
-            build_mysql_relay_where(None, Some("active = ?")),
-            " WHERE (active = ?)"
-        );
+        assert_eq!(build_mysql_relay_where(None, Some("active = ?")), " WHERE (active = ?)");
     }
 
     #[test]
@@ -839,8 +819,10 @@ mod unit_tests {
     fn relay_order_sql_forward_with_desc_custom_order() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by =
-            vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Desc }];
+        let order_by = vec![OrderByClause {
+            field:     "created_at".to_string(),
+            direction: OrderDirection::Desc,
+        }];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` ASC"));
@@ -850,8 +832,10 @@ mod unit_tests {
     fn relay_order_sql_backward_flips_asc_to_desc() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by =
-            vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Asc }];
+        let order_by = vec![OrderByClause {
+            field:     "created_at".to_string(),
+            direction: OrderDirection::Asc,
+        }];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` DESC"));

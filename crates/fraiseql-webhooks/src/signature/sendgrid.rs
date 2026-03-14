@@ -9,8 +9,10 @@
 //! See: <https://docs.sendgrid.com/for-developers/tracking-events/getting-started-event-webhook-security-features>
 
 use base64::{Engine as _, engine::general_purpose};
-use p256::ecdsa::{DerSignature, VerifyingKey, signature::Verifier as _};
-use p256::pkcs8::DecodePublicKey as _;
+use p256::{
+    ecdsa::{DerSignature, VerifyingKey, signature::Verifier as _},
+    pkcs8::DecodePublicKey as _,
+};
 
 use crate::{signature::SignatureError, traits::SignatureVerifier};
 
@@ -34,7 +36,9 @@ impl SendGridVerifier {
     /// Create a verifier with the default 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
-        Self { tolerance_secs: DEFAULT_TOLERANCE_SECS }
+        Self {
+            tolerance_secs: DEFAULT_TOLERANCE_SECS,
+        }
     }
 
     /// Set a custom timestamp tolerance (in seconds).
@@ -87,8 +91,9 @@ impl SignatureVerifier for SendGridVerifier {
         }
 
         // Decode the PEM public key from `secret`.
-        let public_key = VerifyingKey::from_public_key_pem(secret)
-            .map_err(|e| SignatureError::Crypto(format!("invalid SendGrid P-256 public key: {e}")))?;
+        let public_key = VerifyingKey::from_public_key_pem(secret).map_err(|e| {
+            SignatureError::Crypto(format!("invalid SendGrid P-256 public key: {e}"))
+        })?;
 
         // Decode the Base64-encoded DER signature.
         let sig_der = general_purpose::STANDARD

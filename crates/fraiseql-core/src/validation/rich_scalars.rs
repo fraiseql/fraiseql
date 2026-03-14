@@ -384,7 +384,8 @@ mod tests {
         assert!(!EmailValidator::validate("invalid.email"));
         assert!(!EmailValidator::validate("user@"));
         assert!(!EmailValidator::validate("@example.com"));
-        // Single-label domain (no TLD dot) must be rejected — regression for patterns::EMAIL `+` vs `*`
+        // Single-label domain (no TLD dot) must be rejected — regression for patterns::EMAIL `+` vs
+        // `*`
         assert!(!EmailValidator::validate("user@localhost"));
         assert!(!EmailValidator::validate("user@example"));
     }

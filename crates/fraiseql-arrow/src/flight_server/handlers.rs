@@ -14,8 +14,7 @@ mod send_helpers;
 
 use arrow_flight::{
     Action, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, PollInfo,
-    SchemaResult, Ticket,
-    flight_service_server::FlightService,
+    SchemaResult, Ticket, flight_service_server::FlightService,
 };
 use tonic::{Request, Response, Status, Streaming};
 

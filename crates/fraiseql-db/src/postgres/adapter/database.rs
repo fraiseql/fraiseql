@@ -1,18 +1,15 @@
 //! `DatabaseAdapter` and `MutationCapable` implementations for `PostgresAdapter`.
 
 use async_trait::async_trait;
+use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use fraiseql_error::{FraiseQLError, Result};
-
+use super::{PostgresAdapter, build_where_select_sql};
 use crate::{
     traits::{DatabaseAdapter, MutationCapable},
-    types::{DatabaseType, JsonbValue, PoolMetrics},
-    types::sql_hints::SqlProjectionHint,
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::SqlProjectionHint},
     where_clause::WhereClause,
 };
-
-use super::{build_where_select_sql, PostgresAdapter};
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
@@ -50,14 +47,13 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<serde_json::Value> {
-        let (select_sql, typed_params) =
-            build_where_select_sql(view, where_clause, limit, offset)?;
+        let (select_sql, typed_params) = build_where_select_sql(view, where_clause, limit, offset)?;
         // Defense-in-depth: compiler-generated SQL should never contain a
         // semicolon, but guard against it to prevent statement injection.
         if select_sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
@@ -68,20 +64,18 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect();
 
         let client = self.acquire_connection_with_retry().await?;
-        let rows = client
-            .query(explain_sql.as_str(), &param_refs)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("EXPLAIN ANALYZE failed: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+            }
+        })?;
 
         if let Some(row) = rows.first() {
-            let plan: serde_json::Value =
-                row.try_get(0).map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to parse EXPLAIN output: {e}"),
-                    sql_state: None,
-                })?;
+            let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to parse EXPLAIN output: {e}"),
+                sql_state: None,
+            })?;
             Ok(plan)
         } else {
             Ok(serde_json::Value::Null)
@@ -175,28 +169,21 @@ impl DatabaseAdapter for PostgresAdapter {
         // names, and names with special characters are handled correctly.
         // Any embedded double quotes are escaped by doubling them ("").
         let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
-        let placeholders: Vec<String> =
-            (1..=args.len()).map(|i| format!("${i}")).collect();
-        let sql = format!(
-            "SELECT * FROM {quoted_fn}({})",
-            placeholders.join(", ")
-        );
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
+        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
 
         let client = self.acquire_connection_with_retry().await?;
 
         // Bind each JSON argument as a text parameter (PostgreSQL can cast text→jsonb)
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = args
-            .iter()
-            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+            args.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
 
-        let rows: Vec<Row> =
-            client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {e}"),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                }
-            })?;
+        let rows: Vec<Row> = client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("Function call {function_name} failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
 
         let results = rows
             .into_iter()
@@ -204,22 +191,21 @@ impl DatabaseAdapter for PostgresAdapter {
                 let mut map = std::collections::HashMap::new();
                 for (idx, column) in row.columns().iter().enumerate() {
                     let column_name = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<_, i32>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, f64>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
-                            v
-                        } else if let Ok(v) = row.try_get::<_, String>(idx) {
-                            serde_json::json!(v)
-                        } else {
-                            serde_json::Value::Null
-                        };
+                    let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+                        v
+                    } else if let Ok(v) = row.try_get::<_, String>(idx) {
+                        serde_json::json!(v)
+                    } else {
+                        serde_json::Value::Null
+                    };
                     map.insert(column_name, value);
                 }
                 map
@@ -240,17 +226,19 @@ impl DatabaseAdapter for PostgresAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         let client = self.acquire_connection_with_retry().await?;
-        let rows: Vec<Row> = client.query(explain_sql.as_str(), &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   format!("EXPLAIN failed: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+        let rows: Vec<Row> =
+            client
+                .query(explain_sql.as_str(), &[])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("EXPLAIN failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
 
         if let Some(row) = rows.first() {
             let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {

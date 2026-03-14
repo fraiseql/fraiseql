@@ -28,7 +28,9 @@ impl DiscordVerifier {
     /// Create a verifier with the default 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
-        Self { tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS }
+        Self {
+            tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS,
+        }
     }
 
     /// Set a custom timestamp tolerance (in seconds).
@@ -63,9 +65,7 @@ impl SignatureVerifier for DiscordVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
-                "Discord public key must not be empty".to_string(),
-            ));
+            return Err(SignatureError::Crypto("Discord public key must not be empty".to_string()));
         }
 
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;

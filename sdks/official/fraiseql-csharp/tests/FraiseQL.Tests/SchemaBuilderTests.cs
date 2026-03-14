@@ -91,7 +91,7 @@ public sealed class SchemaBuilderTests : IDisposable
             .Mutation("createAuthor", m => m
                 .ReturnType("Author")
                 .SqlSource("fn_create_author")
-                .Operation("insert")
+                .Operation("CREATE")
                 .Argument("name", "String"))
             .ToSchema();
 

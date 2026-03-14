@@ -4,16 +4,19 @@
 //! It wraps either the in-memory or the Redis backend behind a uniform
 //! async API so callers never need to know which backend is active.
 
-use super::config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
-use super::in_memory::InMemoryRateLimiter;
 #[cfg(feature = "redis-rate-limiting")]
 use super::redis::RedisRateLimiter;
+use super::{
+    config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig},
+    in_memory::InMemoryRateLimiter,
+};
 
 /// Rate limiter that dispatches to either an in-memory or Redis backend.
 ///
 /// Construct via [`RateLimiter::new`] (in-memory, default) or
 /// `RateLimiter::new_redis` (distributed Redis, requires the
 /// `redis-rate-limiting` Cargo feature).
+#[allow(private_interfaces)] // Reason: RedisRateLimiter is intentionally pub(super) — internal backend, public enum
 pub enum RateLimiter {
     /// Single-node token-bucket limiter backed by `HashMap` with `RwLock`.
     InMemory(InMemoryRateLimiter),
@@ -60,7 +63,8 @@ impl RateLimiter {
     }
 
     /// Number of per-path rate limit rules registered.
-    pub const fn path_rule_count(&self) -> usize {
+    #[allow(clippy::missing_const_for_fn)] // Reason: non-const when `redis-rate-limiting` feature is enabled
+    pub fn path_rule_count(&self) -> usize {
         match self {
             Self::InMemory(rl) => rl.path_rule_count(),
             #[cfg(feature = "redis-rate-limiting")]

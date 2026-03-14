@@ -76,7 +76,7 @@ use crate::{
 /// by [`RLSPolicy::evaluate()`] rather than arbitrary user code.
 ///
 /// `RlsWhereClause` can only be constructed within `fraiseql-core` via
-/// [`RlsWhereClause::new()`], ensuring all instances originate from RLS evaluation.
+/// `RlsWhereClause::new()`, ensuring all instances originate from RLS evaluation.
 ///
 /// # Invariant
 ///
@@ -405,8 +405,7 @@ impl RLSPolicy for CompiledRLSPolicy {
             }
 
             // Evaluate the RLS expression and generate WHERE clause
-            let result: Option<WhereClause> =
-                evaluate_rls_expression(&rule.expression, context)?;
+            let result: Option<WhereClause> = evaluate_rls_expression(&rule.expression, context)?;
 
             // Cache the raw WhereClause for reuse
             if let Some(key) = cache_key {

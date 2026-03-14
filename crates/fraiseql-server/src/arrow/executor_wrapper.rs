@@ -24,7 +24,7 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
     ///
     /// # Arguments
     /// * `executor` - The executor instance to wrap
-    pub fn new(executor: Arc<Executor<A>>) -> Self {
+    pub const fn new(executor: Arc<Executor<A>>) -> Self {
         Self { executor }
     }
 }

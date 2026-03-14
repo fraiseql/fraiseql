@@ -1,6 +1,6 @@
-#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_possible_truncation)] // Reason: test buffer protocol encoding
-#![allow(clippy::cast_possible_wrap)]       // Reason: test data values within positive range
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values within positive range
 
 //! Wire Protocol Robustness Tests
 //!

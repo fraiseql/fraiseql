@@ -108,6 +108,10 @@ export interface OperationConfig {
   operation?: string;
   jsonbColumn?: string;
   relay?: boolean;
+  /** REST path pattern, e.g. "/users/{id}". Path params must match declared arguments. */
+  restPath?: string;
+  /** HTTP method for the REST endpoint. Defaults to "GET" for queries, "POST" for mutations. */
+  restMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
   [key: string]: unknown;
 }
 

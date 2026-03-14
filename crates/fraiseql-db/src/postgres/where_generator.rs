@@ -7,7 +7,7 @@ use std::{
 
 use fraiseql_error::{FraiseQLError, Result};
 
-use crate::{where_clause::{WhereClause, WhereOperator}};
+use crate::where_clause::{WhereClause, WhereOperator};
 
 /// Cache of indexed columns for views.
 ///

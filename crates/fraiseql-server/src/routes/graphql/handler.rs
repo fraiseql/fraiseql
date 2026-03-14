@@ -1,9 +1,6 @@
 //! GraphQL HTTP handlers and execution logic.
 
-use std::{
-    sync::atomic::Ordering,
-    time::Instant,
-};
+use std::{sync::atomic::Ordering, time::Instant};
 
 use axum::{
     Json,
@@ -17,14 +14,15 @@ use fraiseql_core::{
 };
 use tracing::{debug, error, info, warn};
 
+use super::{
+    app_state::AppState,
+    request::{GraphQLGetParams, GraphQLRequest, GraphQLResponse},
+};
 use crate::{
     error::{ErrorResponse, GraphQLError},
     extractors::OptionalSecurityContext,
     tracing_utils,
 };
-
-use super::app_state::AppState;
-use super::request::{GraphQLGetParams, GraphQLRequest, GraphQLResponse};
 
 /// GraphQL HTTP handler for POST requests.
 ///
@@ -147,6 +145,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 /// spoofable by attackers to bypass rate limiting. Returns "unknown" as a safe
 /// fallback — callers requiring real IPs should use `ConnectInfo<SocketAddr>`
 /// or `ProxyConfig::extract_client_ip()` with validated proxy chains.
+#[allow(dead_code)] // Reason: used only when rate-limiting feature reads IP from headers
 pub(crate) fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
     // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
     // ProxyConfig::extract_client_ip() for validated IP extraction.
@@ -155,10 +154,7 @@ pub(crate) fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
 
 /// Extract the APQ SHA-256 hash from the `extensions.persistedQuery` field, if present.
 pub(crate) fn extract_apq_hash(extensions: Option<&serde_json::Value>) -> Option<&str> {
-    extensions?
-        .get("persistedQuery")?
-        .get("sha256Hash")?
-        .as_str()
+    extensions?.get("persistedQuery")?.get("sha256Hash")?.as_str()
 }
 
 /// Extract a trusted document ID from the request.
@@ -204,9 +200,7 @@ pub(crate) async fn resolve_apq(
         // Hash + body present: verify and register.
         if !fraiseql_core::apq::verify_hash(body, hash) {
             apq_metrics.record_error();
-            return Err(ErrorResponse::from_error(
-                GraphQLError::persisted_query_mismatch(),
-            ));
+            return Err(ErrorResponse::from_error(GraphQLError::persisted_query_mismatch()));
         }
         // Store the query (best-effort; log on failure).
         if let Err(e) = apq_store.set(hash.to_owned(), body.to_owned()).await {
@@ -222,20 +216,16 @@ pub(crate) async fn resolve_apq(
             Ok(Some(stored)) => {
                 apq_metrics.record_hit();
                 Ok(stored)
-            }
+            },
             Ok(None) => {
                 apq_metrics.record_miss();
-                Err(ErrorResponse::from_error(
-                    GraphQLError::persisted_query_not_found(),
-                ))
-            }
+                Err(ErrorResponse::from_error(GraphQLError::persisted_query_not_found()))
+            },
             Err(e) => {
                 warn!(error = %e, "APQ store lookup failed — treating as miss");
                 apq_metrics.record_error();
-                Err(ErrorResponse::from_error(
-                    GraphQLError::persisted_query_not_found(),
-                ))
-            }
+                Err(ErrorResponse::from_error(GraphQLError::persisted_query_not_found()))
+            },
         }
     }
 }
@@ -255,16 +245,16 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 crate::api_key::ApiKeyResult::Authenticated(ctx) => {
                     debug!("Authenticated via API key");
                     security_context = Some(*ctx);
-                }
+                },
                 crate::api_key::ApiKeyResult::Invalid => {
                     return Err(ErrorResponse::from_error(GraphQLError::new(
                         "Invalid API key",
                         crate::error::ErrorCode::Unauthenticated,
                     )));
-                }
+                },
                 crate::api_key::ApiKeyResult::NotPresent => {
                     // Fall through to JWT/OIDC (or unauthenticated).
-                }
+                },
             }
         }
     }
@@ -281,36 +271,28 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 }
                 // Replace the query with the resolved body so APQ and execution use it.
                 request.query = Some(resolved);
-            }
+            },
             Err(crate::trusted_documents::TrustedDocumentError::ForbiddenRawQuery) => {
                 crate::trusted_documents::record_rejected();
                 return Err(ErrorResponse::from_error(GraphQLError::forbidden_query()));
-            }
+            },
             Err(crate::trusted_documents::TrustedDocumentError::DocumentNotFound { id }) => {
                 crate::trusted_documents::record_miss();
-                return Err(ErrorResponse::from_error(
-                    GraphQLError::document_not_found(&id),
-                ));
-            }
+                return Err(ErrorResponse::from_error(GraphQLError::document_not_found(&id)));
+            },
             Err(crate::trusted_documents::TrustedDocumentError::ManifestLoad(msg)) => {
                 error!(error = %msg, "Trusted document manifest error");
-                return Err(ErrorResponse::from_error(
-                    GraphQLError::internal("Trusted documents unavailable"),
-                ));
-            }
+                return Err(ErrorResponse::from_error(GraphQLError::internal(
+                    "Trusted documents unavailable",
+                )));
+            },
         }
     }
 
     // Resolve query body — either from APQ or from the request payload.
     let query = if let Some(hash) = extract_apq_hash(request.extensions.as_ref()) {
         if let Some(ref store) = state.apq_store {
-            resolve_apq(
-                store.as_ref(),
-                &state.apq_metrics,
-                hash,
-                request.query.as_deref(),
-            )
-            .await?
+            resolve_apq(store.as_ref(), &state.apq_metrics, hash, request.query.as_deref()).await?
         } else {
             // APQ extension present but no store configured — use the body if available.
             request.query.ok_or_else(|| {
@@ -320,11 +302,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             })?
         }
     } else {
-        request.query.ok_or_else(|| {
-            ErrorResponse::from_error(GraphQLError::request(
-                "No query provided",
-            ))
-        })?
+        request
+            .query
+            .ok_or_else(|| ErrorResponse::from_error(GraphQLError::request("No query provided")))?
     };
 
     let start_time = Instant::now();
@@ -417,33 +397,32 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     }
 
     // Check federation circuit breaker for _entities queries before execution
-    let cb_entity_types: Vec<String> =
-        if fraiseql_core::federation::is_federation_query(&query) {
-            if let Some(ref cb_manager) = state.circuit_breaker {
-                let entity_types = crate::federation::circuit_breaker::extract_entity_types(
-                    request.variables.as_ref(),
-                );
-                for entity_type in &entity_types {
-                    if let Some(retry_after) = cb_manager.check(entity_type) {
-                        warn!(
-                            entity = %entity_type,
-                            retry_after_secs = retry_after,
-                            "Federation circuit breaker open — rejecting _entities request"
-                        );
-                        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-                        return Err(ErrorResponse::from_error(GraphQLError::circuit_breaker_open(
-                            entity_type,
-                            retry_after,
-                        )));
-                    }
+    let cb_entity_types: Vec<String> = if fraiseql_core::federation::is_federation_query(&query) {
+        if let Some(ref cb_manager) = state.circuit_breaker {
+            let entity_types = crate::federation::circuit_breaker::extract_entity_types(
+                request.variables.as_ref(),
+            );
+            for entity_type in &entity_types {
+                if let Some(retry_after) = cb_manager.check(entity_type) {
+                    warn!(
+                        entity = %entity_type,
+                        retry_after_secs = retry_after,
+                        "Federation circuit breaker open — rejecting _entities request"
+                    );
+                    metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+                    return Err(ErrorResponse::from_error(GraphQLError::circuit_breaker_open(
+                        entity_type,
+                        retry_after,
+                    )));
                 }
-                entity_types
-            } else {
-                vec![]
             }
+            entity_types
         } else {
             vec![]
-        };
+        }
+    } else {
+        vec![]
+    };
 
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let exec_result = if let Some(sec_ctx) = security_context {
@@ -513,6 +492,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
+    #[allow(unused_mut)] // Reason: `mut` is needed when the `auth` feature injects claims into the response
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,

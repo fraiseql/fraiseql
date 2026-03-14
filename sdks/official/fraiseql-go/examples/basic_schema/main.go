@@ -34,10 +34,10 @@ func init() {
 		Config(map[string]interface{}{
 			"sql_source": "v_user",
 			"auto_params": map[string]bool{
-				"limit":     true,
-				"offset":    true,
-				"where":     true,
-				"order_by":  true,
+				"limit":    true,
+				"offset":   true,
+				"where":    true,
+				"order_by": true,
 			},
 		}).
 		Arg("limit", "Int", 10).
@@ -63,10 +63,10 @@ func init() {
 		Config(map[string]interface{}{
 			"sql_source": "v_post",
 			"auto_params": map[string]bool{
-				"limit":     true,
-				"offset":    true,
-				"where":     true,
-				"order_by":  true,
+				"limit":    true,
+				"offset":   true,
+				"where":    true,
+				"order_by": true,
 			},
 		}).
 		Arg("authorId", "Int", nil, true).

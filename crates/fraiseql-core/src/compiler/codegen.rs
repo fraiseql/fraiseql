@@ -19,9 +19,8 @@ use crate::{
     schema::{
         ArgumentDefinition, AutoParams as SchemaAutoParams, CompiledSchema, DeprecationInfo,
         EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy, FieldType,
-        InputFieldDefinition,
-        InputObjectDefinition, InterfaceDefinition, MutationDefinition, QueryDefinition,
-        SubscriptionDefinition, TypeDefinition, UnionDefinition,
+        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
+        QueryDefinition, SubscriptionDefinition, TypeDefinition, UnionDefinition,
         domain_types::{SqlSource, TypeName},
     },
     validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
@@ -113,7 +112,9 @@ impl CodeGenerator {
             .map(|t| {
                 TypeDefinition {
                     name:                TypeName::new(t.name.clone()),
-                    sql_source:          SqlSource::new(t.sql_source.clone().unwrap_or_else(|| t.name.clone())),
+                    sql_source:          SqlSource::new(
+                        t.sql_source.clone().unwrap_or_else(|| t.name.clone()),
+                    ),
                     jsonb_column:        "data".to_string(),
                     fields:              Self::map_fields(&t.fields, &known_types),
                     description:         t.description.clone(),
@@ -122,7 +123,7 @@ impl CodeGenerator {
                                                 * implementation yet */
                     requires_role:       None,
                     is_error:            false,
-                    relay:            false,
+                    relay:               false,
                 }
             })
             .collect();
@@ -132,28 +133,29 @@ impl CodeGenerator {
             .iter()
             .map(|q| {
                 QueryDefinition {
-                    name:         q.name.clone(),
-                    return_type:  q.return_type.clone(),
-                    returns_list: q.returns_list,
-                    nullable:     q.nullable,
-                    arguments:    Self::map_arguments(&q.arguments, &known_types),
-                    sql_source:   q.sql_source.clone(),
-                    description:  q.description.clone(),
-                    auto_params:  SchemaAutoParams {
+                    name:                q.name.clone(),
+                    return_type:         q.return_type.clone(),
+                    returns_list:        q.returns_list,
+                    nullable:            q.nullable,
+                    arguments:           Self::map_arguments(&q.arguments, &known_types),
+                    sql_source:          q.sql_source.clone(),
+                    description:         q.description.clone(),
+                    auto_params:         SchemaAutoParams {
                         has_where:    q.auto_params.has_where,
                         has_order_by: q.auto_params.has_order_by,
                         has_limit:    q.auto_params.has_limit,
                         has_offset:   q.auto_params.has_offset,
                     },
-                    deprecation:  None, // Note: IR doesn't have deprecation info yet
-                    jsonb_column: "data".to_string(), // Default to "data" column
-                    relay:        false,
+                    deprecation:         None, // Note: IR doesn't have deprecation info yet
+                    jsonb_column:        "data".to_string(), // Default to "data" column
+                    relay:               false,
                     relay_cursor_column: None,
-                    relay_cursor_type: Default::default(),
-                    inject_params:     Default::default(),
+                    relay_cursor_type:   Default::default(),
+                    inject_params:       Default::default(),
                     cache_ttl_seconds:   None,
-                    additional_views: vec![],
-                    requires_role:   None,
+                    additional_views:    vec![],
+                    requires_role:       None,
+                    rest:                None,
                 }
             })
             .collect();
@@ -316,16 +318,17 @@ impl CodeGenerator {
         };
 
         MutationDefinition {
-            name:        m.name.clone(),
+            name: m.name.clone(),
             return_type: m.return_type.clone(),
-            arguments:   Self::map_arguments(&m.arguments, known_types),
+            arguments: Self::map_arguments(&m.arguments, known_types),
             description: m.description.clone(),
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
             sql_source,
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:      vec![],
+            invalidates_views: vec![],
+            rest: None,
         }
     }
 

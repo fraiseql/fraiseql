@@ -12,13 +12,13 @@ use std::time::Instant;
 /// Simulated HTTP/JSON query result
 struct HttpJsonResult {
     bytes: Vec<u8>,
-    rows: usize,
+    rows:  usize,
 }
 
 /// Simulated Arrow Flight result
 struct ArrowFlightResult {
     batches: Vec<Vec<u8>>,
-    rows: usize,
+    rows:    usize,
 }
 
 impl HttpJsonResult {
@@ -104,12 +104,8 @@ fn benchmark_query_sizes() {
 
         // Size comparison
         let json_mb = http_result.bytes.len() as f64 / (1024.0 * 1024.0);
-        let arrow_mb = arrow_result
-            .batches
-            .iter()
-            .map(|b| b.len())
-            .sum::<usize>() as f64
-            / (1024.0 * 1024.0);
+        let arrow_mb =
+            arrow_result.batches.iter().map(|b| b.len()).sum::<usize>() as f64 / (1024.0 * 1024.0);
         let compression_ratio = json_mb / arrow_mb;
 
         println!(
@@ -140,17 +136,16 @@ fn benchmark_event_streaming() {
         let duration = start.elapsed();
 
         let throughput = count as f64 / duration.as_secs_f64() / 1000.0; // K events/sec
-        let data_rate = result
-            .batches
-            .iter()
-            .map(|b| b.len())
-            .sum::<usize>() as f64
+        let data_rate = result.batches.iter().map(|b| b.len()).sum::<usize>() as f64
             / (1024.0 * 1024.0)
             / duration.as_secs_f64(); // MB/sec
 
         println!(
             "Events: {:>7} | Duration: {:.2}ms | Throughput: {:>7.1}K/s | Data Rate: {:>6.1} MB/s",
-            count, duration.as_millis(), throughput, data_rate,
+            count,
+            duration.as_millis(),
+            throughput,
+            data_rate,
         );
     }
 

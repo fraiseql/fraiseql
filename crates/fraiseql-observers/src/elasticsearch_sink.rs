@@ -330,7 +330,7 @@ impl ElasticsearchSink {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,10 +435,7 @@ mod tests {
         // Full override behaviour is tested via env-var integration; here we
         // verify the function compiles, returns Self, and produces a valid result.
         let after = ElasticsearchSinkConfig::default().with_env_overrides();
-        assert!(
-            after.validate().is_ok(),
-            "config after with_env_overrides must still be valid"
-        );
+        assert!(after.validate().is_ok(), "config after with_env_overrides must still be valid");
     }
 
     #[test]

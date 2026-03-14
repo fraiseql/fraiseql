@@ -598,8 +598,8 @@ impl AggregationSqlGenerator {
     /// # Arguments
     ///
     /// * `where_clause` - The [`WhereClause`] AST to convert; may be empty
-    /// * `metadata` - [`FactTableMetadata`] describing which fields are denormalized
-    ///   columns vs. JSONB dimensions
+    /// * `metadata` - [`FactTableMetadata`] describing which fields are denormalized columns vs.
+    ///   JSONB dimensions
     ///
     /// # Returns
     ///

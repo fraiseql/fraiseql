@@ -1,12 +1,11 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
 
-use super::*;
-
-use std::sync::Arc;
-use std::time::Duration as StdDuration;
+use std::{sync::Arc, time::Duration as StdDuration};
 
 use chrono::{Duration, Utc};
+
+use super::*;
 
 #[test]
 fn test_token_response_creation() {
@@ -123,12 +122,8 @@ fn test_oauth_session_token_refresh() {
 
 #[test]
 fn test_external_auth_provider_creation() {
-    let provider = ExternalAuthProvider::new(
-        ProviderType::OIDC,
-        "auth0",
-        "client_id",
-        "vault/path/to/secret",
-    );
+    let provider =
+        ExternalAuthProvider::new(ProviderType::OIDC, "auth0", "client_id", "vault/path/to/secret");
     assert_eq!(provider.provider_name, "auth0");
     assert!(provider.enabled);
 }
@@ -298,12 +293,7 @@ fn test_oauth_audit_event_with_metadata() {
 // --- OAuth2Client HTTP tests ---
 
 fn mock_oauth2_client(token_endpoint: &str) -> OAuth2Client {
-    OAuth2Client::new(
-        "test_client",
-        "test_secret",
-        "https://example.com/authorize",
-        token_endpoint,
-    )
+    OAuth2Client::new("test_client", "test_secret", "https://example.com/authorize", token_endpoint)
 }
 
 #[tokio::test]

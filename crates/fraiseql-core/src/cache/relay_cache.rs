@@ -6,12 +6,13 @@
 use async_trait::async_trait;
 
 use super::adapter::CachedDatabaseAdapter;
-use crate::{db::{DatabaseAdapter, RelayDatabaseAdapter}, error::Result};
+use crate::{
+    db::{DatabaseAdapter, RelayDatabaseAdapter},
+    error::Result,
+};
 
 #[async_trait]
-impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter
-    for CachedDatabaseAdapter<A>
-{
+impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedDatabaseAdapter<A> {
     async fn execute_relay_page(
         &self,
         view: &str,

@@ -1,8 +1,9 @@
 //! TypeScript code generator.
 
-use super::SchemaGenerator;
-use super::utils::infer_sql_source;
-use crate::schema::intermediate::{IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType};
+use super::{SchemaGenerator, utils::infer_sql_source};
+use crate::schema::intermediate::{
+    IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType,
+};
 
 // =============================================================================
 // TypeScript generator

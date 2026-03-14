@@ -6,7 +6,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
-use rand::{Rng, rngs::OsRng};
+use rand::{rngs::OsRng, Rng};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
@@ -75,8 +75,7 @@ impl ScramClient {
         // gs2-header = "n,," (n = no channel binding, empty authorization identity)
         // client-first-message-bare = "n=<username>,r=<nonce>"
         // RFC 5802 §5.1: username must have ',' escaped as '=2C' and '=' escaped as '=3D'.
-        let escaped_username =
-            self.username.replace('=', "=3D").replace(',', "=2C");
+        let escaped_username = self.username.replace('=', "=3D").replace(',', "=2C");
         format!("n,,n={},r={}", escaped_username, self.nonce)
     }
 

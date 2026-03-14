@@ -1,19 +1,19 @@
 //! `RelayDatabaseAdapter` implementation for `PostgresAdapter`.
 
 use async_trait::async_trait;
-
 use fraiseql_error::{FraiseQLError, Result};
 
+use super::{PostgresAdapter, escape_jsonb_key};
 use crate::{
     identifier::quote_postgres_identifier,
+    postgres::where_generator::PostgresWhereGenerator,
     traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
-    types::QueryParam,
-    types::sql_hints::{OrderByClause, OrderDirection},
+    types::{
+        QueryParam,
+        sql_hints::{OrderByClause, OrderDirection},
+    },
     where_clause::WhereClause,
 };
-
-use super::{escape_jsonb_key, PostgresAdapter};
-use crate::postgres::where_generator::PostgresWhereGenerator;
 
 #[async_trait]
 impl RelayDatabaseAdapter for PostgresAdapter {
@@ -24,10 +24,10 @@ impl RelayDatabaseAdapter for PostgresAdapter {
     /// When `include_total_count` is `true`, **two queries** are issued on the same
     /// connection:
     ///
-    /// 1. A count query — `SELECT COUNT(*) FROM {view} WHERE {user_filter}` — that
-    ///    reflects the **full connection** size, ignoring cursor position. This is
-    ///    required by the Relay Cursor Connections spec, which defines `totalCount` as
-    ///    the count of all objects in the connection, regardless of `after`/`before`.
+    /// 1. A count query — `SELECT COUNT(*) FROM {view} WHERE {user_filter}` — that reflects the
+    ///    **full connection** size, ignoring cursor position. This is required by the Relay Cursor
+    ///    Connections spec, which defines `totalCount` as the count of all objects in the
+    ///    connection, regardless of `after`/`before`.
     ///
     /// 2. A page query — the cursor-filtered, limited result set.
     ///
@@ -42,10 +42,9 @@ impl RelayDatabaseAdapter for PostgresAdapter {
     ///
     /// The count query scans all rows matching the user filter without LIMIT. On
     /// large unfiltered tables this may be slow. Mitigations:
-    /// - Only enable `totalCount` when the client explicitly requests it (enforced
-    ///   by the executor via `include_total_count`).
-    /// - Add a `statement_timeout` on the connection for relay queries on very large
-    ///   datasets.
+    /// - Only enable `totalCount` when the client explicitly requests it (enforced by the executor
+    ///   via `include_total_count`).
+    /// - Add a `statement_timeout` on the connection for relay queries on very large datasets.
     /// - Maintain a denormalised count table or materialised view for hot paths.
     async fn execute_relay_page(
         &self,
@@ -78,17 +77,17 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             None => {
                 cursor_param = None;
                 cursor_where_part = None;
-            }
+            },
             Some(CursorValue::Int64(pk)) => {
                 let op = if forward { ">" } else { "<" };
                 cursor_param = Some(QueryParam::BigInt(pk));
                 cursor_where_part = Some(format!("{quoted_col} {op} $1"));
-            }
+            },
             Some(CursorValue::Uuid(uuid)) => {
                 let op = if forward { ">" } else { "<" };
                 cursor_param = Some(QueryParam::Text(uuid));
                 cursor_where_part = Some(format!("{quoted_col} {op} $1::uuid"));
-            }
+            },
         }
         let cursor_param_count: usize = if cursor_param.is_some() { 1 } else { 0 };
 
@@ -99,8 +98,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         let mut user_where_json_params: Vec<serde_json::Value> = Vec::new();
         let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
             let generator = PostgresWhereGenerator::new();
-            let (sql, params) =
-                generator.generate_with_param_offset(clause, cursor_param_count)?;
+            let (sql, params) = generator.generate_with_param_offset(clause, cursor_param_count)?;
             user_where_json_params = params;
             Some(sql)
         } else {
@@ -137,10 +135,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         //
         // Combines cursor condition AND user filter with offset parameter indices.
         let cursor_part = cursor_where_part.as_deref().unwrap_or("");
-        let user_part = page_user_where_sql
-            .as_deref()
-            .map(|s| format!("({s})"))
-            .unwrap_or_default();
+        let user_part =
+            page_user_where_sql.as_deref().map(|s| format!("({s})")).unwrap_or_default();
         let page_where_sql = if cursor_part.is_empty() && user_part.is_empty() {
             String::new()
         } else if cursor_part.is_empty() {
@@ -181,11 +177,16 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         // ── Execute page query ─────────────────────────────────────────────────
-        let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            page_typed_params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+        let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = page_typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
 
         let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
-            FraiseQLError::Database { message: e.to_string(), sql_state: e.code().map(|c| c.code().to_string()) }
+            FraiseQLError::Database {
+                message:   e.to_string(),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
         })?;
 
         let rows: Vec<crate::types::JsonbValue> = page_rows
@@ -213,10 +214,16 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             };
 
             let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-                count_typed_params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+                count_typed_params
+                    .iter()
+                    .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                    .collect();
 
             let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
-                FraiseQLError::Database { message: e.to_string(), sql_state: e.code().map(|c| c.code().to_string()) }
+                FraiseQLError::Database {
+                    message:   e.to_string(),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                }
             })?;
 
             let total: i64 = count_row.get(0);

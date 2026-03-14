@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Mock implementations for testing.
 
 /// In-memory mock implementations of all webhook traits for use in unit and integration tests.
@@ -20,8 +20,9 @@ pub mod mocks {
 
     /// Mock signature verifier that always succeeds or fails based on configuration.
     ///
-    /// Constructed with [`MockSignatureVerifier::succeeding`] or [`MockSignatureVerifier::failing`].
-    /// All calls to `verify` are recorded and can be retrieved with [`MockSignatureVerifier::get_calls`].
+    /// Constructed with [`MockSignatureVerifier::succeeding`] or
+    /// [`MockSignatureVerifier::failing`]. All calls to `verify` are recorded and can be
+    /// retrieved with [`MockSignatureVerifier::get_calls`].
     pub struct MockSignatureVerifier {
         /// Whether `verify` should return `Ok(true)` or `Ok(false)`.
         pub should_succeed: bool,
