@@ -18,3 +18,34 @@ timeout_multiplier = 3.0
 # Add packages here as their test suites mature.
 [profile.default]
 timeout_seconds = 60
+
+# ── Tier 1: Security-critical files (original targets) ───────────────────────
+[[include]]
+file = "crates/fraiseql-core/src/cache/key.rs"
+
+[[include]]
+file = "crates/fraiseql-core/src/runtime/executor/query.rs"
+
+[[include]]
+file = "crates/fraiseql-core/src/compiler/aggregation.rs"
+
+[[include]]
+file = "crates/fraiseql-core/src/cache/adapter/query.rs"
+
+# ── Tier 2: Expanded targets (added in S3) ────────────────────────────────────
+[[include]]
+file = "crates/fraiseql-core/src/cache/adapter/mutation.rs"
+
+[[include]]
+file = "crates/fraiseql-core/src/runtime/executor/mutation.rs"
+
+[[include]]
+file = "crates/fraiseql-error/src/core_error.rs"
+
+[[include]]
+file = "crates/fraiseql-error/src/http.rs"
+
+# ── Explicit exclusions: generated/infallible code ───────────────────────────
+[[exclude]]
+file = "crates/fraiseql-core/src/schema/compiled/openapi_gen.rs"
+# Reason: generated spec text — string formatting mutations not meaningful
