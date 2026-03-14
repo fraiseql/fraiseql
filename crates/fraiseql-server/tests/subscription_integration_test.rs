@@ -46,7 +46,7 @@ fn create_test_schema() -> CompiledSchema {
 }
 
 // ============================================================================
-// Cycle 1: SubscriptionManager Integration Tests
+// SubscriptionManager Integration Tests
 // ============================================================================
 
 /// Test 1: `SubscriptionManager` initialization
@@ -212,7 +212,7 @@ fn test_multiple_subscription_instances() {
 }
 
 // ============================================================================
-// Cycle 1 Integration Tests: ChangeLogListener + SubscriptionManager
+// Integration Tests: ChangeLogListener + SubscriptionManager
 // ============================================================================
 
 /// Test 11: `EventBridge` initialization
@@ -312,7 +312,7 @@ fn test_filtering_by_entity_type() {
 }
 
 // ============================================================================
-// Cycle 1 Error Handling Tests
+// Error Handling Tests
 // ============================================================================
 
 /// Test 16: Handle listener errors gracefully
@@ -345,7 +345,7 @@ fn test_subscription_manager_errors() {
 }
 
 // ============================================================================
-// Cycle 1 Shutdown Tests
+// Shutdown Tests
 // ============================================================================
 
 /// Test 18: Shutdown and cleanup

@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 
 /**
- * Phase 18 Cycle 12: Field-Level RBAC for Kotlin SDK
+ * Field-Level RBAC for Kotlin SDK
  *
  * Tests that field scopes are properly extracted from @GraphQLField annotations,
  * stored in field registry, and exported to JSON for compiler consumption.
@@ -23,7 +23,7 @@ import kotlin.test.assertFalse
  * - 15 happy path tests for scope extraction and export
  * - 6 validation tests for error handling
  */
-@DisplayName("Phase 18 Cycle 12: Kotlin SDK Field Scope Extraction & Export")
+@DisplayName("Kotlin SDK Field Scope Extraction & Export")
 class Phase18Cycle12ScopeExtractionTest {
 
     @BeforeEach

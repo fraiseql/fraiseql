@@ -5,7 +5,7 @@ import spock.lang.Specification
 import spock.lang.BeforeEach
 
 /**
- * Phase 18 Cycle 18: Groovy SDK - Field Scope Extraction & Validation
+ * Groovy SDK - Field Scope Extraction & Validation
  *
  * RED phase tests for field-level RBAC scope extraction.
  * Tests cover:

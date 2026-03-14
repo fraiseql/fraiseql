@@ -335,15 +335,15 @@ describe("Field-Level Scope Requirements", () => {
 
   describe("Placeholder tests for future cycles", () => {
     it.skip("should compile scopes from schema.json to schema.compiled.json", () => {
-      // Future: Cycle 4 - Compiler Integration
+      // Future: Compiler Integration
     });
 
     it.skip("should enforce scope requirements at runtime", () => {
-      // Future: Cycle 5 - Runtime Field Filtering
+      // Future: Runtime Field Filtering
     });
 
     it.skip("should support TOML-based scope overrides", () => {
-      // Future: Cycle 3 - TOML Schema Support
+      // Future: TOML Schema Support
     });
   });
 });

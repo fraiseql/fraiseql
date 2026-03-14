@@ -67,7 +67,7 @@ fn test_valid_token_accepted() {
 }
 
 // ============================================================================
-// Cycle 1: Payload tampering with original signature
+// Payload tampering with original signature
 // ============================================================================
 
 /// A valid JWT signature covers header+payload.  If we swap the payload for a
@@ -112,7 +112,7 @@ fn test_wrong_key_rejected() {
 }
 
 // ============================================================================
-// Cycle 2: Algorithm attacks
+// Algorithm attacks
 // ============================================================================
 
 /// Replace the `alg` header with `"none"` to bypass signature verification.
@@ -159,7 +159,7 @@ fn test_algorithm_mismatch_rejected() {
 }
 
 // ============================================================================
-// Cycle 3: Expiration enforcement
+// Expiration enforcement
 // ============================================================================
 
 /// A token with `exp` in the past must be rejected with `TokenExpired`.
@@ -193,7 +193,7 @@ fn test_long_lived_valid_token_accepted() {
 }
 
 // ============================================================================
-// Cycle 4: Issuer mismatch
+// Issuer mismatch
 // ============================================================================
 
 /// A valid token issued by a different issuer must be rejected.
@@ -214,7 +214,7 @@ fn test_wrong_issuer_rejected() {
 }
 
 // ============================================================================
-// Cycle 5: Malformed token structure
+// Malformed token structure
 // ============================================================================
 
 /// A token with only one segment (no dots) must be rejected.
@@ -273,7 +273,7 @@ fn test_extra_segments_rejected() {
 }
 
 // ============================================================================
-// Cycle 6: Cross-user / cross-tenant token swap
+// Cross-user / cross-tenant token swap
 // ============================================================================
 
 /// Token minted for `tenant-A` must not validate when used with a different

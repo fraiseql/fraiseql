@@ -1,4 +1,4 @@
-//! Integration tests for Cycle 4: Compiler Integration (Field-Level RBAC)
+//! Integration tests: Compiler Integration (Field-Level RBAC)
 //!
 //! Tests that the compiler correctly:
 //! 1. Preserves field scopes from schema.json (Python/TypeScript decorators)

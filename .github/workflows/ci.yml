@@ -90,7 +90,7 @@ jobs:
       - name: Check async_trait usage count
         run: make lint-async-trait
         # Prevents new dyn-dispatch traits from being added without the RFC 3425 tracking comment.
-        # Baseline: 128 usages (Phase 0 annotation complete). Only remove when RTN + Send is stable.
+        # Baseline: 128 usages (annotation complete). Only remove when RTN + Send is stable.
 
       - name: Check fraiseql-db cast lint scope
         run: make lint-gate-db

@@ -8,7 +8,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 5 tests: Advanced features including argument defaults, validation, and nullable types
+ * Advanced features including argument defaults, validation, and nullable types
  */
 public class Phase5AdvancedTest {
 

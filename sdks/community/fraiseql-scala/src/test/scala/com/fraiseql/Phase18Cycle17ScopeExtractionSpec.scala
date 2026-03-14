@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.BeforeAndAfterEach
 
 /**
- * Phase 18 Cycle 17: Scala SDK - Field Scope Extraction & Validation
+ * Scala SDK - Field Scope Extraction & Validation
  *
  * RED phase tests for field-level RBAC scope extraction.
  * Tests cover:

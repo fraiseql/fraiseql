@@ -21,7 +21,7 @@
 use fraiseql_core::runtime::protocol::{ClientMessageType, GraphQLError, ServerMessage};
 use fraiseql_server::subscriptions::protocol::{ProtocolCodec, WsProtocol};
 
-// ── Cycle 6.1: ConnectionAck ─────────────────────────────────────────────────
+// ── ConnectionAck ─────────────────────────────────────────────────
 
 /// `connection_init` arrives → codec decodes it as `ConnectionInit` → server
 /// replies with `connection_ack` → codec encodes that reply.
@@ -80,7 +80,7 @@ fn connection_init_produces_connection_ack_legacy() {
     );
 }
 
-// ── Cycle 6.2: Error frame ───────────────────────────────────────────────────
+// ── Error frame ───────────────────────────────────────────────────
 
 /// Server sends an `error` frame in response to a bad subscription, without
 /// ever sending a `next` frame first.
@@ -140,7 +140,7 @@ fn error_frame_type_unchanged_in_legacy_protocol() {
     assert_eq!(parsed["type"], "error", "legacy protocol does not rename `error`");
 }
 
-// ── Cycle 6.3: Complete handshake ───────────────────────────────────────────
+// ── Complete handshake ───────────────────────────────────────────
 
 /// Client sends `complete` to terminate a subscription; server acknowledges
 /// with its own `complete` carrying the same operation id.
@@ -203,7 +203,7 @@ fn complete_has_no_payload() {
     );
 }
 
-// ── Cycle 6.4: Ping / Pong keepalive ────────────────────────────────────────
+// ── Ping / Pong keepalive ────────────────────────────────────────
 
 /// Modern protocol: server sends `ping`, client decodes it and replies `pong`.
 #[test]

@@ -164,7 +164,7 @@ impl FieldDefinition {
 }
 
 // ============================================================================
-// Cycle 1: Basic Field Access Control
+// Basic Field Access Control
 // ============================================================================
 
 #[test]
@@ -209,7 +209,7 @@ fn test_user_cannot_write_field_with_read_only_scope() {
 }
 
 // ============================================================================
-// Cycle 2: Wildcard Scope Handling
+// Wildcard Scope Handling
 // ============================================================================
 
 #[test]
@@ -256,7 +256,7 @@ fn test_nested_wildcard_scope() {
 }
 
 // ============================================================================
-// Cycle 3: Multi-Role & Scope Combination
+// Multi-Role & Scope Combination
 // ============================================================================
 
 #[test]
@@ -303,7 +303,7 @@ fn test_admin_with_wildcard_has_all_access() {
 }
 
 // ============================================================================
-// Cycle 4: Scope Precedence & Conflicts
+// Scope Precedence & Conflicts
 // ============================================================================
 
 #[test]
@@ -337,7 +337,7 @@ fn test_admin_read_cannot_grant_write() {
 }
 
 // ============================================================================
-// Cycle 5: Tenant Isolation
+// Tenant Isolation
 // ============================================================================
 
 #[test]
@@ -389,7 +389,7 @@ fn test_cross_tenant_token_swap_prevents_access() {
 }
 
 // ============================================================================
-// Cycle 6: Field Masking & Sensitive Data
+// Field Masking & Sensitive Data
 // ============================================================================
 
 #[test]
@@ -436,7 +436,7 @@ fn test_masked_field_access_still_controlled() {
 }
 
 // ============================================================================
-// Cycle 7: Nested Field Access
+// Nested Field Access
 // ============================================================================
 
 #[test]
@@ -478,7 +478,7 @@ fn test_deep_nesting_with_cascading_permissions() {
 }
 
 // ============================================================================
-// Cycle 8: Mutation & Subscription Fields
+// Mutation & Subscription Fields
 // ============================================================================
 
 #[test]
@@ -509,7 +509,7 @@ fn test_subscription_field_requires_read_scope() {
 }
 
 // ============================================================================
-// Cycle 9: Introspection & Schema Access
+// Introspection & Schema Access
 // ============================================================================
 
 #[test]
@@ -535,7 +535,7 @@ fn test_admin_introspection_shows_all_fields() {
 }
 
 // ============================================================================
-// Cycle 10: Argument Injection Prevention
+// Argument Injection Prevention
 // ============================================================================
 
 #[test]

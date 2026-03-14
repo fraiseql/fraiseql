@@ -633,7 +633,7 @@ mod tests {
         }
     }
 
-    // ── Cycle 1: Core comparison / logical operators ──────────────────────────
+    // ── Core comparison / logical operators ──────────────────────────
 
     #[test]
     fn generic_eq_postgres() {
@@ -702,7 +702,7 @@ mod tests {
         assert!(sql.contains("$3"), "Expected $3 (offset 2 + 1), got: {sql}");
     }
 
-    // ── Cycle 2: String operators ─────────────────────────────────────────────
+    // ── String operators ─────────────────────────────────────────────
 
     #[test]
     fn generic_icontains_postgres() {
@@ -731,7 +731,7 @@ mod tests {
         assert_eq!(params, vec![json!("son")]);
     }
 
-    // ── Cycle 3: Array / IN operators ────────────────────────────────────────
+    // ── Array / IN operators ────────────────────────────────────────
 
     #[test]
     fn generic_in_postgres() {

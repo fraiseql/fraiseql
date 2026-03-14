@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 3 tests: JSON export and schema formatting
+ * JSON export and schema formatting
  */
 public class Phase3Test {
     private static final ObjectMapper mapper = new ObjectMapper();

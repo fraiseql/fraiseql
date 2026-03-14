@@ -1054,7 +1054,7 @@ def test_query_requires_role_absent_by_default() -> None:
 
 
 # =============================================================================
-# Phase 03 Cycle 1: @fraiseql.type — missing fields
+# @fraiseql.type — missing fields
 # =============================================================================
 
 
@@ -1114,7 +1114,7 @@ def test_type_decorator_implements() -> None:
 
 
 # =============================================================================
-# Phase 03 Cycle 2: @fraiseql.error decorator
+# @fraiseql.error decorator
 # =============================================================================
 
 
@@ -1168,7 +1168,7 @@ def test_error_type_not_is_error_by_default() -> None:
 
 
 # =============================================================================
-# Phase 03 Cycle 3: @fraiseql.query — missing fields in JSON
+# @fraiseql.query — missing fields in JSON
 # =============================================================================
 
 
@@ -1252,7 +1252,7 @@ def test_query_relay_cursor_type_in_json() -> None:
 
 
 # =============================================================================
-# Phase 03 Cycle 4: @fraiseql.mutation — missing fields in JSON
+# @fraiseql.mutation — missing fields in JSON
 # =============================================================================
 
 
