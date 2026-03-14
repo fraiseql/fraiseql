@@ -472,7 +472,7 @@ impl AggregationPlanner {
                             column:    measure.clone(),
                             function:  *function,
                             alias:     alias.clone(),
-                            delimiter: if *function != /* ~ changed by cargo-mutants ~ */ AggregateFunction::StringAgg {
+                            delimiter: if *function == AggregateFunction::StringAgg {
                                 Some(", ".to_string())
                             } else {
                                 None

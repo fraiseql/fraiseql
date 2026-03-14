@@ -21,10 +21,10 @@
 
 use fraiseql_core::compiler::aggregation::{
     AggregateExpression, AggregateSelection, AggregationPlanner, AggregationRequest,
-    GroupByExpression, GroupBySelection,
+    GroupByExpression, GroupBySelection, HavingCondition,
 };
 use fraiseql_core::compiler::aggregate_types::{
-    AggregateFunction, BoolAggregateFunction, TemporalBucket,
+    AggregateFunction, BoolAggregateFunction, HavingOperator, TemporalBucket,
 };
 use fraiseql_core::compiler::fact_table::{
     DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
@@ -407,5 +407,82 @@ fn plan_aggregate_alias_is_propagated_into_count_expression() {
             assert_eq!(alias, "total_orders", "alias must be propagated into Count expression");
         },
         other => panic!("expected Count, got: {other:?}"),
+    }
+}
+
+/// B5h — kills `aggregation.rs:557: replace == with !=` in `validate_having`.
+///
+/// A `MeasureAggregate` with `StringAgg` in a HAVING condition must produce an
+/// `AdvancedAggregate` expression whose `delimiter` is `Some(", ")`.
+#[test]
+fn having_string_agg_produces_delimiter() {
+    let metadata = base_metadata();
+    let request = AggregationRequest {
+        table_name:   "tf_orders".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::Count { alias: "n".to_string() }],
+        having:       vec![HavingCondition {
+            aggregate: AggregateSelection::MeasureAggregate {
+                measure:  "amount".to_string(),
+                function: AggregateFunction::StringAgg,
+                alias:    "amount_str".to_string(),
+            },
+            operator:  HavingOperator::Gt,
+            value:     serde_json::json!(""),
+        }],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+    assert_eq!(plan.having_conditions.len(), 1);
+    match &plan.having_conditions[0].aggregate {
+        AggregateExpression::AdvancedAggregate { delimiter, .. } => {
+            assert_eq!(
+                delimiter.as_deref(),
+                Some(", "),
+                "StringAgg HAVING condition must carry a comma delimiter",
+            );
+        },
+        other => panic!("expected AdvancedAggregate, got: {other:?}"),
+    }
+}
+
+/// B6h — kills `aggregation.rs:557: replace == with !=` in `validate_having` (inverted branch).
+///
+/// A `MeasureAggregate` with `ArrayAgg` in a HAVING condition must produce an
+/// `AdvancedAggregate` expression whose `delimiter` is `None`.
+#[test]
+fn having_array_agg_produces_no_delimiter() {
+    let metadata = base_metadata();
+    let request = AggregationRequest {
+        table_name:   "tf_orders".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::Count { alias: "n".to_string() }],
+        having:       vec![HavingCondition {
+            aggregate: AggregateSelection::MeasureAggregate {
+                measure:  "amount".to_string(),
+                function: AggregateFunction::ArrayAgg,
+                alias:    "amount_arr".to_string(),
+            },
+            operator:  HavingOperator::Gt,
+            value:     serde_json::json!(0),
+        }],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+    assert_eq!(plan.having_conditions.len(), 1);
+    match &plan.having_conditions[0].aggregate {
+        AggregateExpression::AdvancedAggregate { delimiter, .. } => {
+            assert!(
+                delimiter.is_none(),
+                "ArrayAgg HAVING condition must not carry a delimiter",
+            );
+        },
+        other => panic!("expected AdvancedAggregate, got: {other:?}"),
     }
 }
