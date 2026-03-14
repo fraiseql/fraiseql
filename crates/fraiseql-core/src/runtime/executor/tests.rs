@@ -1,12 +1,20 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
 use async_trait::async_trait;
 
 use super::*;
 use crate::{
-    db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
+    compiler::aggregation::OrderByClause,
+    db::{
+        CursorValue, MutationCapable, RelayDatabaseAdapter,
+        traits::{RelayPageResult},
+        types::JsonbValue,
+        where_clause::WhereClause,
+    },
     graphql::FieldSelection,
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
-    schema::{AutoParams, CompiledSchema, QueryDefinition},
+    schema::{AutoParams, CompiledSchema, CursorType, QueryDefinition},
 };
 
 // ── selections_contain_field — mutation-targeted tests (C1–C6) ───────────────
@@ -870,5 +878,744 @@ async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
     assert!(
         err.to_string().contains("has no sql_source configured"),
         "expected sql_source error, got: {err}"
+    );
+}
+
+// ── execute_with_security — mutation-targeted tests (D1–D6) ──────────────────
+//
+// These tests target mutations in execute_regular_query_with_security (query.rs).
+//
+// | Mutant | Location | What cargo-mutants changes | Killed by |
+// |--------|----------|---------------------------|-----------|
+// | D1 | line 47 | delete ! in role check    | user_with_role_can_access_role_gated_query |
+// | D2 | line 47 | delete ! in role check    | user_without_role_is_rejected_for_role_gated_query |
+// | D3 | line 35 | is_expired() not checked  | expired_token_is_rejected |
+// | D4 | line 47 | == with != in any() check | user_with_role_can_access_role_gated_query |
+
+fn make_role_gated_schema(required_role: &str) -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.queries.push(QueryDefinition {
+        name:                "adminReport".to_string(),
+        return_type:         "Report".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           Vec::new(),
+        sql_source:          Some("v_admin_report".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               false,
+        relay_cursor_column: None,
+        relay_cursor_type:   Default::default(),
+        inject_params:       Default::default(),
+        cache_ttl_seconds:   None,
+        additional_views:    vec![],
+        requires_role:       Some(required_role.to_string()),
+        rest:                None,
+    });
+    schema
+}
+
+fn make_security_ctx_with_roles(user_id: &str, roles: Vec<String>) -> SecurityContext {
+    use chrono::Utc;
+    let now = Utc::now();
+    SecurityContext {
+        user_id:          user_id.to_string(),
+        roles,
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "test-req".to_string(),
+        ip_address:       None,
+        authenticated_at: now,
+        expires_at:       now + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+    }
+}
+
+fn make_expired_security_ctx() -> SecurityContext {
+    use chrono::Utc;
+    let now = Utc::now();
+    SecurityContext {
+        user_id:          "user-1".to_string(),
+        roles:            vec![],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "test-req".to_string(),
+        ip_address:       None,
+        authenticated_at: now - chrono::Duration::hours(2),
+        expires_at:       now - chrono::Duration::hours(1), // expired 1h ago
+        issuer:           None,
+        audience:         None,
+    }
+}
+
+/// D1/D4: User WITH the required role must be allowed to execute the query.
+///
+/// Mutation "delete !" at line 47 → `if security_context.roles.iter().any(|r| r == required_role)`
+/// would REJECT users who have the role (inverts the check).
+/// Mutation "== with !=" → always rejects matching roles.
+#[tokio::test]
+async fn user_with_role_can_access_role_gated_query() {
+    let schema = make_role_gated_schema("admin");
+    let adapter = Arc::new(MockAdapter::new(vec![
+        JsonbValue::new(serde_json::json!({"id": "1", "title": "Report"})),
+    ]));
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec!["admin".to_string()]);
+
+    let result = executor
+        .execute_with_security("query { adminReport { id title } }", None, &ctx)
+        .await;
+    assert!(
+        result.is_ok(),
+        "D1/D4: user with required role must succeed, got: {:?}",
+        result.err()
+    );
+}
+
+/// D2: User WITHOUT the required role must be rejected.
+///
+/// This is the baseline correctness test. With the mutant (delete !), a user
+/// WITHOUT the role would be ALLOWED — this test would catch that.
+#[tokio::test]
+async fn user_without_role_is_rejected_for_role_gated_query() {
+    let schema = make_role_gated_schema("admin");
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec!["viewer".to_string()]);
+
+    let err = executor
+        .execute_with_security("query { adminReport { id title } }", None, &ctx)
+        .await
+        .unwrap_err();
+    // Must fail with a "not found" error (not "forbidden") to prevent enumeration
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not found"),
+        "D2: unauthorized access must return 'not found', got: {msg}"
+    );
+}
+
+/// D2b: User with NO roles at all must be rejected.
+#[tokio::test]
+async fn user_with_no_roles_is_rejected_for_role_gated_query() {
+    let schema = make_role_gated_schema("admin");
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec![]);
+
+    let result =
+        executor.execute_with_security("query { adminReport { id title } }", None, &ctx).await;
+    assert!(result.is_err(), "D2b: user with no roles must be rejected");
+}
+
+/// D3: Expired security token must be rejected before any query execution.
+///
+/// Mutation "replace body with Ok(String::new())" or "delete is_expired() check"
+/// would bypass expiration validation, allowing expired tokens.
+#[tokio::test]
+async fn expired_token_is_rejected() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_expired_security_ctx();
+
+    let err = executor
+        .execute_with_security("query { users { id } }", None, &ctx)
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("expired") || msg.contains("Expired"),
+        "D3: expired token must fail with 'expired' message, got: {msg}"
+    );
+}
+
+/// D5: Non-role-gated query must be accessible to any authenticated user.
+///
+/// Verifies that the role check is only applied when requires_role is Some.
+#[tokio::test]
+async fn non_role_gated_query_is_accessible_without_any_role() {
+    let schema = test_schema(); // "users" query has requires_role: None
+    let adapter = Arc::new(MockAdapter::new(vec![
+        JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"})),
+    ]));
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec![]);
+
+    let result = executor.execute_with_security("query { users { id } }", None, &ctx).await;
+    assert!(
+        result.is_ok(),
+        "D5: query without requires_role must succeed for any authenticated user, got: {:?}",
+        result.err()
+    );
+}
+
+// ── E/F: Projection hint — mutation-targeted tests ────────────────────────────
+//
+// These tests verify that `execute_regular_query` and
+// `execute_regular_query_with_security` correctly compute the SqlProjectionHint.
+//
+// The surviving mutants in query.rs (lines 83-84, 216-217) are:
+//   `delete !` — inverts the empty-check, so non-empty fields would produce no hint
+//   `replace && with ||` — Stream strategy would produce a hint anyway
+//   `replace == with !=` — Project strategy treated as non-Project, inverts the hint decision
+//
+// | Mutant        | Location   | Killed by |
+// |---------------|------------|-----------|
+// | delete !      | line 83,216| E2/F2 (Project + non-empty → must be Some) |
+// | replace && || | line 84,217| E1/F1 (Stream + non-empty → must be None)  |
+// | replace == != | line 84,217| E1+E2/F1+F2 together                        |
+
+/// Adapter that records whether a projection hint was passed.
+struct RecordingAdapter {
+    results:              Vec<JsonbValue>,
+    got_projection_hint:  Arc<AtomicBool>,
+}
+
+#[async_trait]
+impl DatabaseAdapter for RecordingAdapter {
+    async fn execute_with_projection(
+        &self,
+        _view: &str,
+        projection: Option<&crate::schema::SqlProjectionHint>,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        if projection.is_some() {
+            self.got_projection_hint.store(true, Ordering::SeqCst);
+        }
+        Ok(self.results.clone())
+    }
+
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(self.results.clone())
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn database_type(&self) -> crate::db::types::DatabaseType {
+        crate::db::types::DatabaseType::PostgreSQL
+    }
+
+    fn pool_metrics(&self) -> crate::db::types::PoolMetrics {
+        crate::db::types::PoolMetrics {
+            total_connections:  1,
+            active_connections: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+impl MutationCapable for RecordingAdapter {}
+
+/// E1: Requesting ≥80% of estimated fields triggers Stream strategy → no projection hint.
+///
+/// The planner estimates 10 total fields by default. Requesting 10 fields yields
+/// 100% coverage → Stream strategy → no hint sent.
+///
+/// Kills `replace && with ||` at query.rs:217:
+///   With `||`, `!empty || strategy == Project` = `true || false` → hint sent even for Stream.
+/// Also kills `replace == with !=` at query.rs:217:
+///   With `!=`, `!empty && strategy != Project` = `true && true` → hint sent for Stream.
+#[tokio::test]
+async fn execute_regular_query_stream_strategy_sends_no_projection_hint() {
+    let schema = test_schema();
+    let hint_flag = Arc::new(AtomicBool::new(false));
+    let adapter = Arc::new(RecordingAdapter {
+        results:             vec![JsonbValue::new(serde_json::json!({"id": "1"}))],
+        got_projection_hint: hint_flag.clone(),
+    });
+    let executor = Executor::new(schema, adapter);
+
+    // 10 fields → planner: 10/max(10,10) = 100% >= 80% threshold → Stream strategy.
+    executor
+        .execute("{ users { id name age email phone addr city country role status } }", None)
+        .await
+        .unwrap();
+    assert!(
+        !hint_flag.load(Ordering::SeqCst),
+        "E1: Stream strategy (many fields) must NOT produce a projection hint"
+    );
+}
+
+/// E2: Requesting few fields triggers Project strategy → projection hint IS sent.
+///
+/// Kills `delete !` at query.rs:216:
+///   With `delete !`, `plan.projection_fields.is_empty()` on a non-empty list → false → no hint.
+#[tokio::test]
+async fn execute_regular_query_project_strategy_sends_projection_hint() {
+    let schema = test_schema();
+    let hint_flag = Arc::new(AtomicBool::new(false));
+    let adapter = Arc::new(RecordingAdapter {
+        results:             vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"}))],
+        got_projection_hint: hint_flag.clone(),
+    });
+    // 2 fields → 2/max(2,10) = 20% < 80% threshold → Project strategy → hint must be sent.
+    let executor = Executor::new(schema, adapter);
+
+    executor.execute("{ users { id name } }", None).await.unwrap();
+    assert!(
+        hint_flag.load(Ordering::SeqCst),
+        "E2: Project strategy with non-empty fields must produce a projection hint"
+    );
+}
+
+/// F1: Security path with many fields → Stream → no projection hint.
+///
+/// Kills `replace && with ||` at query.rs:84 and `replace == with !=` at query.rs:84.
+#[tokio::test]
+async fn execute_with_security_stream_strategy_sends_no_projection_hint() {
+    let schema = test_schema();
+    let hint_flag = Arc::new(AtomicBool::new(false));
+    let adapter = Arc::new(RecordingAdapter {
+        results:             vec![JsonbValue::new(serde_json::json!({"id": "1"}))],
+        got_projection_hint: hint_flag.clone(),
+    });
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec![]);
+
+    // 10 fields → Stream strategy (same threshold as E1).
+    executor
+        .execute_with_security(
+            "query { users { id name age email phone addr city country role status } }",
+            None,
+            &ctx,
+        )
+        .await
+        .unwrap();
+    assert!(
+        !hint_flag.load(Ordering::SeqCst),
+        "F1: Stream strategy must NOT produce a projection hint (security path)"
+    );
+}
+
+/// F2: Security path with few fields → Project → projection hint IS sent.
+///
+/// Kills `delete !` at query.rs:83.
+#[tokio::test]
+async fn execute_with_security_project_strategy_sends_projection_hint() {
+    let schema = test_schema();
+    let hint_flag = Arc::new(AtomicBool::new(false));
+    let adapter = Arc::new(RecordingAdapter {
+        results:             vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"}))],
+        got_projection_hint: hint_flag.clone(),
+    });
+    let executor = Executor::new(schema, adapter);
+    let ctx = make_security_ctx_with_roles("user-1", vec![]);
+
+    executor
+        .execute_with_security("query { users { id name } }", None, &ctx)
+        .await
+        .unwrap();
+    assert!(
+        hint_flag.load(Ordering::SeqCst),
+        "F2: Project strategy with non-empty fields must produce a projection hint (security path)"
+    );
+}
+
+// ── G: Relay pagination — mutation-targeted tests ─────────────────────────────
+//
+// Surviving mutants in execute_relay_query (query.rs):
+//
+// | Mutant              | Line | What changes              | Killed by |
+// |---------------------|------|---------------------------|-----------|
+// | replace && with ||  | 378  | direction logic           | G1c       |
+// | replace + with -    | 385  | fetch_limit undercount    | G2        |
+// | replace + with *    | 385  | fetch_limit = page_size*1 | G2        |
+// | replace == with !=  | 412  | totalCount detection      | G3        |
+// | replace > with ==   | 437  | has_extra detection       | G4        |
+// | replace > with <    | 437  | has_extra detection       | G4b       |
+// | replace > with >=   | 437  | has_extra detection       | G4c       |
+// | replace == with !=  | 481  | startCursor assignment    | G5        |
+
+/// Relay mock adapter that records the `forward` flag and `limit` passed,
+/// and returns a configurable slice of rows.
+struct RecordingRelayAdapter {
+    rows:                     Vec<JsonbValue>,
+    last_forward:             Arc<AtomicBool>,
+    last_limit:               Arc<AtomicU32>,
+    last_include_total_count: Arc<AtomicBool>,
+}
+
+impl RecordingRelayAdapter {
+    fn new(rows: Vec<JsonbValue>) -> (Arc<Self>, Arc<AtomicBool>, Arc<AtomicU32>, Arc<AtomicBool>) {
+        let forward_flag = Arc::new(AtomicBool::new(true));
+        let limit_val = Arc::new(AtomicU32::new(0));
+        let total_flag = Arc::new(AtomicBool::new(false));
+        let adapter = Arc::new(Self {
+            rows,
+            last_forward:             forward_flag.clone(),
+            last_limit:               limit_val.clone(),
+            last_include_total_count: total_flag.clone(),
+        });
+        (adapter, forward_flag, limit_val, total_flag)
+    }
+}
+
+#[async_trait]
+impl DatabaseAdapter for RecordingRelayAdapter {
+    async fn execute_with_projection(
+        &self,
+        _view: &str,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(self.rows.clone())
+    }
+
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(self.rows.clone())
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn database_type(&self) -> crate::db::types::DatabaseType {
+        crate::db::types::DatabaseType::PostgreSQL
+    }
+
+    fn pool_metrics(&self) -> crate::db::types::PoolMetrics {
+        crate::db::types::PoolMetrics {
+            total_connections:  1,
+            active_connections: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+impl MutationCapable for RecordingRelayAdapter {}
+
+#[async_trait]
+impl RelayDatabaseAdapter for RecordingRelayAdapter {
+    async fn execute_relay_page(
+        &self,
+        _view: &str,
+        _cursor_column: &str,
+        _after: Option<CursorValue>,
+        _before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        _where_clause: Option<&crate::db::WhereClause>,
+        _order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        self.last_forward.store(forward, Ordering::SeqCst);
+        self.last_limit.store(limit, Ordering::SeqCst);
+        self.last_include_total_count.store(include_total_count, Ordering::SeqCst);
+        let total_count = if include_total_count {
+            Some(self.rows.len() as u64)
+        } else {
+            None
+        };
+        let rows = self.rows.iter().take(limit as usize).cloned().collect();
+        Ok(RelayPageResult { rows, total_count })
+    }
+}
+
+/// Build a schema with a relay-enabled `users` query (Int64 cursor on pk_user).
+fn relay_query_schema() -> crate::schema::CompiledSchema {
+    let mut schema = crate::schema::CompiledSchema::new();
+    schema.queries.push(QueryDefinition {
+        name:                "users".to_string(),
+        return_type:         "User".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           Vec::new(),
+        sql_source:          Some("v_user".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               true,
+        relay_cursor_column: Some("pk_user".to_string()),
+        relay_cursor_type:   CursorType::Int64,
+        inject_params:       Default::default(),
+        cache_ttl_seconds:   None,
+        additional_views:    vec![],
+        requires_role:       None,
+        rest:                None,
+    });
+    schema
+}
+
+/// Build 3 relay rows with sequential pk_user values.
+fn relay_rows() -> Vec<JsonbValue> {
+    vec![
+        JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice", "pk_user": 1})),
+        JsonbValue::new(serde_json::json!({"id": "2", "name": "Bob",   "pk_user": 2})),
+        JsonbValue::new(serde_json::json!({"id": "3", "name": "Carol", "pk_user": 3})),
+    ]
+}
+
+/// G1: `first` given and no `last` → forward direction.
+#[tokio::test]
+async fn relay_forward_direction_when_first_given() {
+    let (adapter, forward_flag, _, _) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    executor
+        .execute("{ users { edges { node { id } } pageInfo { hasNextPage } } }", None)
+        .await
+        .unwrap();
+    assert!(
+        forward_flag.load(Ordering::SeqCst),
+        "G1: no 'last' arg → forward must be true"
+    );
+}
+
+/// G1b: `last` given and no `first` → backward direction.
+#[tokio::test]
+async fn relay_backward_direction_when_only_last_given() {
+    let (adapter, forward_flag, _, _) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"last": 2});
+    executor
+        .execute(
+            "query($last: Int) { users(last: $last) { edges { node { id } } pageInfo { hasPreviousPage } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !forward_flag.load(Ordering::SeqCst),
+        "G1b: only 'last' given → forward must be false"
+    );
+}
+
+/// G1c: When BOTH `first` AND `last` are given, FORWARD wins.
+///
+/// Kills `replace && with ||` at query.rs:378:
+///   Original: `last.is_some() && first.is_none()` — backward only if last given AND first absent.
+///   Mutated:  `last.is_some() || first.is_none()` — backward if last given OR first absent.
+///   With both first+last given: original → forward; mutated → backward.
+#[tokio::test]
+async fn relay_forward_wins_when_both_first_and_last_given() {
+    let (adapter, forward_flag, _, _) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"first": 2, "last": 3});
+    executor
+        .execute(
+            "query($first: Int, $last: Int) { users(first: $first, last: $last) { edges { node { id } } pageInfo { hasNextPage } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+    assert!(
+        forward_flag.load(Ordering::SeqCst),
+        "G1c: when both first+last given, forward must win (first takes priority)"
+    );
+}
+
+/// G2: hasNextPage is true when the adapter returns page_size + 1 rows.
+///
+/// Kills both `replace + with -` and `replace + with *` at query.rs:385:
+///   With `- 1`: fetch_limit = page_size - 1 → adapter only asked for 1 row → no extra detected.
+///   With `* 1`: fetch_limit = page_size (same as page_size) → no over-fetch → hasNextPage false.
+#[tokio::test]
+async fn relay_has_next_page_when_adapter_returns_extra_row() {
+    // 3 rows available; request first=2 → fetch_limit should be 3 → adapter returns 3 rows.
+    let (adapter, _, limit_val, _) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"first": 2});
+    let json = executor
+        .execute_json(
+            "query($first: Int) { users(first: $first) { edges { node { id } } pageInfo { hasNextPage } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+
+    // Verify the executor requested page_size + 1 = 3 rows from the adapter.
+    assert_eq!(
+        limit_val.load(Ordering::SeqCst),
+        3,
+        "G2: fetch_limit must be page_size + 1 = 3"
+    );
+
+    // Verify hasNextPage reflects the extra row.
+    let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(false);
+    assert!(has_next, "G2: hasNextPage must be true when adapter returns page_size + 1 rows");
+}
+
+/// G3: totalCount is included in the response when the query selects it.
+///
+/// Kills `replace == with !=` at query.rs:412:
+///   With mutant, `sel.name == query_def.name` becomes `!=` → the find() looks in
+///   the WRONG field for totalCount → include_total_count stays false → totalCount absent.
+#[tokio::test]
+async fn relay_total_count_included_when_selected() {
+    let (adapter, _, _, total_flag) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let json = executor
+        .execute_json(
+            "{ users { edges { node { id } } totalCount } }",
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Adapter must have been asked for totalCount.
+    assert!(
+        total_flag.load(Ordering::SeqCst),
+        "G3: include_total_count must be true when query selects totalCount"
+    );
+
+    // totalCount must appear in the response.
+    let tc = &json["data"]["users"]["totalCount"];
+    assert!(
+        !tc.is_null(),
+        "G3: totalCount must be present in response, got: {json}"
+    );
+    assert_eq!(tc.as_u64().unwrap(), 3, "G3: totalCount must equal number of available rows");
+}
+
+/// G4: hasNextPage is false when the adapter returns exactly page_size rows.
+///
+/// Kills `replace > with >=` at query.rs:437:
+///   With `>=`, len == page_size → has_extra = true → hasNextPage = true (wrong).
+#[tokio::test]
+async fn relay_no_next_page_when_adapter_returns_exactly_page_size_rows() {
+    // Exactly 2 rows; request first=2 → fetch_limit=3 → adapter returns min(3,2)=2.
+    let rows = vec![
+        JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice", "pk_user": 1})),
+        JsonbValue::new(serde_json::json!({"id": "2", "name": "Bob",   "pk_user": 2})),
+    ];
+    let (adapter, _, _, _) = RecordingRelayAdapter::new(rows);
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"first": 2});
+    let json = executor
+        .execute_json(
+            "query($first: Int) { users(first: $first) { edges { node { id } } pageInfo { hasNextPage } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+
+    let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(true);
+    assert!(!has_next, "G4: hasNextPage must be false when result has exactly page_size rows");
+}
+
+/// G4b: hasNextPage is false when fewer than page_size rows are returned.
+///
+/// Kills `replace > with <` at query.rs:437:
+///   With `<`, rows.len() < page_size → has_extra = true for partial pages (wrong).
+#[tokio::test]
+async fn relay_no_next_page_when_adapter_returns_fewer_than_page_size_rows() {
+    // 1 row; request first=2 → fetch_limit=3 → adapter returns 1.
+    let rows = vec![JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice", "pk_user": 1}))];
+    let (adapter, _, _, _) = RecordingRelayAdapter::new(rows);
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"first": 2});
+    let json = executor
+        .execute_json(
+            "query($first: Int) { users(first: $first) { edges { node { id } } pageInfo { hasNextPage } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+
+    let has_next = json["data"]["users"]["pageInfo"]["hasNextPage"].as_bool().unwrap_or(true);
+    assert!(!has_next, "G4b: hasNextPage must be false when result has fewer than page_size rows");
+}
+
+/// G5: pageInfo.startCursor must correspond to the FIRST edge's cursor.
+///
+/// Kills `replace == with !=` at query.rs:481:
+///   With mutant, `if i == 0` becomes `if i != 0` → startCursor is set for every row
+///   EXCEPT the first, leaving it as the last row's cursor at the end.
+#[tokio::test]
+async fn relay_start_cursor_is_first_edge_cursor() {
+    // 3 rows; request first=3 → edges = [Alice(1), Bob(2), Carol(3)].
+    let (adapter, _, _, _) = RecordingRelayAdapter::new(relay_rows());
+    let executor = Executor::new_with_relay(relay_query_schema(), adapter);
+
+    let vars = serde_json::json!({"first": 3});
+    let json = executor
+        .execute_json(
+            "query($first: Int) { users(first: $first) { edges { cursor node { id pk_user } } pageInfo { startCursor endCursor } } }",
+            Some(&vars),
+        )
+        .await
+        .unwrap();
+
+    let edges = json["data"]["users"]["edges"].as_array().expect("edges must be an array");
+    assert_eq!(edges.len(), 3, "G5: must have 3 edges");
+
+    let first_edge_cursor = edges[0]["cursor"].as_str().expect("first edge must have cursor");
+    let start_cursor = json["data"]["users"]["pageInfo"]["startCursor"]
+        .as_str()
+        .expect("startCursor must be a string");
+
+    assert_eq!(
+        start_cursor, first_edge_cursor,
+        "G5: pageInfo.startCursor must equal the first edge's cursor"
+    );
+
+    // Also verify endCursor != startCursor (so we know they're distinct).
+    let end_cursor = json["data"]["users"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("endCursor must be a string");
+    assert_ne!(
+        start_cursor, end_cursor,
+        "G5: startCursor and endCursor must differ for a multi-row page"
     );
 }
