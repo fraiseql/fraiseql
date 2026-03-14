@@ -9,7 +9,7 @@
 //! # What is NOT tested here
 //! - Real OIDC token exchange (requires a live `IdP`)
 //! - Encrypted PKCE state (requires `state_encryption` feature config)
-//! - Redis-backed PKCE store (see the `#[ignore]` variant in Cycle 5)
+//! - Redis-backed PKCE store (see the `#[ignore]` variant in the redis integration variant)
 //!
 //! # Why this test exists
 //! Each stage of Pipeline 6 has unit tests, but no single test wires

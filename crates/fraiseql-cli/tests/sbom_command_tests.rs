@@ -14,7 +14,7 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
 }
 
-// ── Cycle 3.6: SBOM basic ────────────────────────────────────────────────────
+// ── SBOM basic ────────────────────────────────────────────────────
 
 /// `fraiseql sbom` exits 0 and produces non-empty output.
 #[test]

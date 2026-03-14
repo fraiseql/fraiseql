@@ -1,4 +1,4 @@
-//! Integration tests for Cycle 5: Runtime Field Filtering (Field-Level RBAC)
+//! Integration tests for Runtime Field Filtering (Field-Level RBAC)
 //!
 //! Tests that the runtime executor correctly:
 //! 1. Checks user roles against field scope requirements

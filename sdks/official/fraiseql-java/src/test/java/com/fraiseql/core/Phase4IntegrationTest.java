@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 4 integration tests: Complete workflows and real-world scenarios
+ * Integration tests: Complete workflows and real-world scenarios
  */
 public class Phase4IntegrationTest {
 

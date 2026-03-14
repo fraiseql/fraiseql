@@ -8,7 +8,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 2 tests: Type system and schema registry
+ * Type system and schema registry
  */
 public class Phase2Test {
 

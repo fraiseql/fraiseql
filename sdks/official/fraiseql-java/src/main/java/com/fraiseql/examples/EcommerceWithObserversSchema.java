@@ -61,7 +61,7 @@ public class EcommerceWithObserversSchema {
         FraiseQL.registerType(Payment.class);
 
         // NOTE: Observers are now configured in fraiseql.toml instead of Java code
-        // See Phase 2 refactoring: TOML-based configuration reduces per-language scope
+        // See refactoring notes: TOML-based configuration reduces per-language scope
         //
         // Example fraiseql.toml configuration:
         //   [fraiseql.observers.onHighValueOrder]

@@ -16,7 +16,7 @@ import { Schema } from '../src/schema';
  * - Multiple scopes: { type: 'String', requiresScopes: ['admin', 'auditor'] }
  */
 
-describe('Phase 18 Cycle 14: Node.js SDK Field Scope Extraction & Export', () => {
+describe('Node.js SDK Field Scope Extraction & Export', () => {
   beforeEach(() => {
     Schema.reset();
   });

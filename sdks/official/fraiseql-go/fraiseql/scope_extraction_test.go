@@ -7,7 +7,7 @@ import (
 )
 
 /**
- * Phase 18 Cycle 10: Field-Level RBAC for Go SDK
+ * Field-Level RBAC for Go SDK
  *
  * Tests that field scopes are properly extracted from struct tags,
  * stored in registry, and exported to JSON for compiler consumption.

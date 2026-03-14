@@ -5,7 +5,7 @@
 //! - @external only on @extends types
 //! - @key fields exist
 //!
-//! CYCLE 3: Tests for compile-time federation validation
+//! Tests for compile-time federation validation
 
 use fraiseql_core::federation::{
     DependencyGraph,

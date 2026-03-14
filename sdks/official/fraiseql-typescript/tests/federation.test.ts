@@ -1,5 +1,5 @@
 /**
- * Federation decorator tests for Cycle 16-3 RED phase.
+ * Federation decorator tests for federation decorators.
  *
  * Tests TypeScript federation decorators: @Key, @Extends, @External, @Requires, @Provides.
  * All tests expected to FAIL initially (RED phase).

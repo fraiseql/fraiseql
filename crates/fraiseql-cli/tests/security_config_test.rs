@@ -7,7 +7,7 @@ use fraiseql_cli::config::toml_schema::{
 };
 
 // ---------------------------------------------------------------------------
-// Cycle 1: ErrorSanitizationTomlConfig
+// ErrorSanitizationTomlConfig
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -44,7 +44,7 @@ fn test_error_sanitization_defaults_are_safe() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 2: RateLimitingSecurityConfig
+// RateLimitingSecurityConfig
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -85,7 +85,7 @@ fn test_rate_limiting_defaults() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 3: StateEncryptionConfig
+// StateEncryptionConfig
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -129,7 +129,7 @@ fn test_state_encryption_valid_algorithms() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 4: PkceConfig
+// PkceConfig
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -180,7 +180,7 @@ fn test_pkce_plain_method_allowed_in_config() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 5: All four fields present simultaneously
+// All four fields present simultaneously
 // ---------------------------------------------------------------------------
 
 #[test]

@@ -146,7 +146,7 @@ fn user_message(err: &FraiseQLError) -> String {
 }
 
 // ============================================================================
-// Cycle 1: Parse Error Sanitization
+// Parse Error Sanitization
 // ============================================================================
 
 #[test]
@@ -179,7 +179,7 @@ fn test_parse_error_deterministic_hash() {
 }
 
 // ============================================================================
-// Cycle 2: Database Error Sanitization
+// Database Error Sanitization
 // ============================================================================
 
 #[test]
@@ -233,7 +233,7 @@ fn test_database_error_no_sql_keywords() {
 }
 
 // ============================================================================
-// Cycle 3: Authorization Error Sanitization
+// Authorization Error Sanitization
 // ============================================================================
 
 #[test]
@@ -280,7 +280,7 @@ fn test_authorization_error_no_sensitive_resource_leak() {
 }
 
 // ============================================================================
-// Cycle 4: Configuration Error Sanitization
+// Configuration Error Sanitization
 // ============================================================================
 
 #[test]
@@ -322,7 +322,7 @@ fn test_config_error_no_env_var_leak() {
 }
 
 // ============================================================================
-// Cycle 5: Error Message Consistency
+// Error Message Consistency
 // ============================================================================
 
 #[test]
@@ -402,7 +402,7 @@ fn test_error_messages_do_not_contain_internal_marker() {
 }
 
 // ============================================================================
-// Cycle 6: DoS Prevention via Error Bounds
+// DoS Prevention via Error Bounds
 // ============================================================================
 
 #[test]
@@ -443,7 +443,7 @@ fn test_error_hash_deterministic_across_formats() {
 }
 
 // ============================================================================
-// Cycle 7: Sensitive Data Protection
+// Sensitive Data Protection
 // ============================================================================
 
 #[test]
@@ -509,7 +509,7 @@ fn test_no_common_system_paths() {
 }
 
 // ============================================================================
-// Cycle 8: Network/Database Endpoint Protection
+// Network/Database Endpoint Protection
 // ============================================================================
 
 #[test]
@@ -559,7 +559,7 @@ fn test_no_hostnames_or_ips_leaked() {
 }
 
 // ============================================================================
-// Cycle 9: Stack Trace & Implementation Detail Protection
+// Stack Trace & Implementation Detail Protection
 // ============================================================================
 
 #[test]
@@ -612,7 +612,7 @@ fn test_no_module_paths_leaked() {
 }
 
 // ============================================================================
-// Cycle 10: Attack Vector Coverage
+// Attack Vector Coverage
 // ============================================================================
 
 #[test]

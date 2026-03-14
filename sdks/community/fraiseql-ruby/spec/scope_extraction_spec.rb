@@ -14,7 +14,7 @@ require 'json'
 # - Single scope: { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
 # - Multiple scopes: { name: 'admin_notes', type: 'String', requires_scopes: ['admin', 'auditor'] }
 
-RSpec.describe 'Phase 18 Cycle 13: Ruby SDK Field Scope Extraction & Export' do
+RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
   before(:each) do
     FraiseQL::Schema.reset
   end

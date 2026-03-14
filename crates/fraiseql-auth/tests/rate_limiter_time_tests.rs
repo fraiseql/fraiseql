@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 
-// ── Cycle 5.2: Window expiry ────────────────────────────────────────────────
+// ── Window expiry ────────────────────────────────────────────────
 
 #[test]
 #[ignore = "uses real 2 s sleep; run with --ignored in a dedicated slow-test CI job"]
@@ -72,7 +72,7 @@ fn rate_limiter_allows_exactly_max_requests_then_resets() {
     );
 }
 
-// ── Cycle 5.4: System time fail-safe ────────────────────────────────────────
+// ── System time fail-safe ────────────────────────────────────────
 
 /// Simulated broken clock that always returns `u64::MAX`.
 ///
@@ -137,7 +137,7 @@ fn rate_limiter_injectable_clock_controls_window_expiry() {
     );
 }
 
-// ── Cycle 5.3: Boundary condition ───────────────────────────────────────────
+// ── Boundary condition ───────────────────────────────────────────
 
 #[test]
 fn rate_limiter_allows_exactly_max_requests() {

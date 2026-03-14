@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
 
-//! Cycle 13: Saga Performance Benchmarks
+//! Saga Performance Benchmarks
 //!
 //! Criterion.rs benchmarks for precise latency and throughput measurement of the
 //! FraiseQL saga system using statistical analysis and parameterized testing.
