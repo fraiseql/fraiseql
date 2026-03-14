@@ -5,6 +5,32 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-03-14
+
+### Added
+
+- **CLI: `validate-mutation-return` command** (#280): New CLI command and library function
+  to validate mutation return values against GraphQL schema types at build time or in CI.
+  Supports recursive type validation (objects, lists, unions, enums, scalars), NonNull vs
+  nullable field handling, union type matching with `__typename` disambiguation, and three
+  output formats: human-readable, JSON, and JUnit XML. Available as both
+  `fraiseql validate-mutation-return` CLI command and `from fraiseql import validate_mutation_return`
+  library function.
+
+- **DB: `fraiseql.started_at` session variable** (#304): `_set_session_variables` now injects
+  `SET LOCAL fraiseql.started_at = clock_timestamp()::text` before every query and mutation,
+  enabling PostgreSQL functions to compute their own execution duration via
+  `clock_timestamp() - current_setting('fraiseql.started_at', true)::timestamptz`. Uses
+  `clock_timestamp()` (not `NOW()`) for accurate wall-clock timing including lock waits.
+
+### Security
+
+- **CVE-2025-14104 resolved** (#295, #299): Removed util-linux heap buffer overread exception
+  from `.trivyignore` — now fixed in upstream `python:3.13-slim` base image. Updated review
+  dates for remaining monitored CVEs (gnutls28, ncurses, shadow).
+
+---
+
 ## [1.9.20] - 2026-02-25
 
 ### Fixed
