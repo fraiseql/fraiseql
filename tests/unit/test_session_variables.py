@@ -7,10 +7,14 @@ via SET LOCAL before each query/mutation execution.
 from unittest.mock import AsyncMock, call
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.db import FraiseQLRepository
 
 pytestmark = pytest.mark.unit
+
+STARTED_AT_SQL = SQL("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
+STARTED_AT_STR = "SET LOCAL fraiseql.started_at = clock_timestamp()::text"
 
 
 def _make_repo(context: dict | None = None) -> FraiseQLRepository:
@@ -24,30 +28,28 @@ class TestStartedAtSessionVariable:
 
     @pytest.mark.asyncio
     async def test_started_at_injected_with_psycopg_cursor(self) -> None:
-        """fraiseql.started_at is SET LOCAL'd via a psycopg cursor."""
+        """fraiseql.started_at is SET LOCAL'd via a psycopg cursor using SQL()."""
         repo = _make_repo()
         cursor = AsyncMock()
-        # psycopg cursors have both execute and fetchone
         cursor.execute = AsyncMock()
         cursor.fetchone = AsyncMock()
 
         await repo._set_session_variables(cursor)
 
-        cursor.execute.assert_called_with("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
+        cursor.execute.assert_called_with(STARTED_AT_SQL)
 
     @pytest.mark.asyncio
     async def test_started_at_injected_with_asyncpg_connection(self) -> None:
-        """fraiseql.started_at is SET LOCAL'd via an asyncpg connection."""
+        """fraiseql.started_at is SET LOCAL'd via an asyncpg connection as plain string."""
         repo = _make_repo()
         conn = AsyncMock()
-        # asyncpg connections have execute but NOT fetchone
         conn.execute = AsyncMock()
         if hasattr(conn, "fetchone"):
             del conn.fetchone
 
         await repo._set_session_variables(conn)
 
-        conn.execute.assert_called_with("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
+        conn.execute.assert_called_with(STARTED_AT_STR)
 
     @pytest.mark.asyncio
     async def test_started_at_is_last_set_local(self) -> None:
@@ -62,9 +64,8 @@ class TestStartedAtSessionVariable:
 
         await repo._set_session_variables(cursor)
 
-        # The last execute call should be the started_at injection
         last_call = cursor.execute.call_args_list[-1]
-        assert last_call == call("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
+        assert last_call == call(STARTED_AT_SQL)
 
     @pytest.mark.asyncio
     async def test_started_at_injected_even_without_context(self) -> None:
@@ -76,8 +77,5 @@ class TestStartedAtSessionVariable:
 
         await repo._set_session_variables(cursor)
 
-        # With empty context, started_at should be the only execute call
         assert cursor.execute.call_count == 1
-        cursor.execute.assert_called_once_with(
-            "SET LOCAL fraiseql.started_at = clock_timestamp()::text"
-        )
+        cursor.execute.assert_called_once_with(STARTED_AT_SQL)

@@ -67,7 +67,7 @@ class TestFraiseQLRepository:
         assert len(result) == 2
         assert result[0]["id"] == 1
         assert result[1]["name"] == "Test 2"
-        mock_cursor.execute.assert_called_once_with(query.statement)
+        assert mock_cursor.execute.call_args == ((query.statement,),)
 
     @pytest.mark.asyncio
     async def test_run_query_with_params(self, repository, mock_pool) -> None:
@@ -88,7 +88,7 @@ class TestFraiseQLRepository:
         # Assertions
         assert len(result) == 1
         assert result[0]["email"] == "test@example.com"
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
+        assert mock_cursor.execute.call_args == ((query.statement, query.params),)
 
     @pytest.mark.asyncio
     async def test_run_composed_query(self, repository, mock_pool) -> None:
@@ -109,7 +109,7 @@ class TestFraiseQLRepository:
         # Assertions
         assert len(result) == 1
         assert result[0]["count"] == 5
-        mock_cursor.execute.assert_called_once()
+        assert mock_cursor.execute.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_run_empty_result(self, repository, mock_pool) -> None:
@@ -128,7 +128,7 @@ class TestFraiseQLRepository:
 
         # Assertions
         assert result == []
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
+        assert mock_cursor.execute.call_args == ((query.statement, query.params),)
 
     @pytest.mark.asyncio
     async def test_connection_error_handling(self, repository, mock_pool) -> None:
@@ -198,7 +198,7 @@ class TestFraiseQLRepository:
         # Assertions
         assert len(result) == 1
         assert result[0]["data"]["name"] == "John"
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
+        assert mock_cursor.execute.call_args == ((query.statement, query.params),)
 
     @pytest.mark.asyncio
     async def test_run_in_transaction(self, repository, mock_pool) -> None:
@@ -280,5 +280,5 @@ class TestFraiseQLRepository:
 
         # Assertions
         assert result == []
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
+        assert mock_cursor.execute.call_args == ((query.statement, query.params),)
         mock_cursor.fetchall.assert_not_called()

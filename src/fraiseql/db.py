@@ -339,9 +339,12 @@ class FraiseQLRepository:
         # Inject wall-clock timestamp for DB-side execution duration measurement.
         # SQL functions can compute elapsed time via:
         #   clock_timestamp() - current_setting('fraiseql.started_at', true)::timestamptz
-        await cursor_or_conn.execute(
-            "SET LOCAL fraiseql.started_at = clock_timestamp()::text"
-        )
+        if is_cursor:
+            await cursor_or_conn.execute(
+                SQL("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
+            )
+        else:
+            await cursor_or_conn.execute("SET LOCAL fraiseql.started_at = clock_timestamp()::text")
 
     async def run(self, query: DatabaseQuery) -> list[dict[str, object]]:
         """Execute a SQL query using a connection from the pool.
