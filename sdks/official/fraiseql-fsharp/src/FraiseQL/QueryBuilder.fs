@@ -23,6 +23,7 @@ module QueryBuilder =
             arguments: ArgumentDefinition list
             cacheTtlSeconds: int option
             description: string option
+            rest: RestConfig option
         }
 
     /// Creates a new <see cref="QueryState"/> for the given query name.
@@ -36,6 +37,7 @@ module QueryBuilder =
             arguments = []
             cacheTtlSeconds = None
             description = None
+            rest = None
         }
 
     /// Sets the GraphQL return type for this query.
@@ -62,6 +64,9 @@ module QueryBuilder =
         let arg: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
         { s with arguments = s.arguments @ [ arg ] }
 
+    /// Sets the optional REST endpoint annotation.
+    let rest (cfg: RestConfig) (s: QueryState) : QueryState = { s with rest = Some cfg }
+
     /// Converts the accumulated state into a <see cref="QueryDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
     let toDefinition (s: QueryState) : QueryDefinition =
@@ -80,6 +85,7 @@ module QueryBuilder =
             arguments = s.arguments
             cache_ttl_seconds = s.cacheTtlSeconds
             description = s.description
+            rest = s.rest
         }
 
     /// Converts the state to a <see cref="QueryDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

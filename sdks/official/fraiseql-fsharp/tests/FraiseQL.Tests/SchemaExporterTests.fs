@@ -47,6 +47,7 @@ let private singleQuery: QueryDefinition =
         arguments = []
         cache_ttl_seconds = None
         description = None
+        rest = None
     }
 
 let private singleMutation: MutationDefinition =
@@ -57,6 +58,7 @@ let private singleMutation: MutationDefinition =
         operation = "insert"
         arguments = []
         description = None
+        rest = None
     }
 
 let private parseJson (json: string) =

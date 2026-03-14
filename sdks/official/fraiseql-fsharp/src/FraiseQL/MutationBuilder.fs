@@ -21,6 +21,7 @@ module MutationBuilder =
             operation: string
             arguments: ArgumentDefinition list
             description: string option
+            rest: RestConfig option
         }
 
     /// Creates a new <see cref="MutationState"/> for the given mutation name.
@@ -32,6 +33,7 @@ module MutationBuilder =
             operation = "custom"
             arguments = []
             description = None
+            rest = None
         }
 
     /// Sets the GraphQL return type for this mutation.
@@ -51,6 +53,9 @@ module MutationBuilder =
     let withArgument (name: string) (type_: string) (isNullable: bool) (s: MutationState) : MutationState =
         let arg: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
         { s with arguments = s.arguments @ [ arg ] }
+
+    /// Sets the optional REST endpoint annotation.
+    let rest (cfg: RestConfig) (s: MutationState) : MutationState = { s with rest = Some cfg }
 
     /// Converts the accumulated state into a <see cref="MutationDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
@@ -72,6 +77,7 @@ module MutationBuilder =
             operation = s.operation
             arguments = s.arguments
             description = s.description
+            rest = s.rest
         }
 
     /// Converts the state to a <see cref="MutationDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

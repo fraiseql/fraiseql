@@ -167,6 +167,7 @@ module Dsl =
             arguments: ArgumentDefinition list
             cacheTtlSeconds: int option
             description: string option
+            rest: RestConfig option
         }
 
     /// Computation expression builder for a <see cref="QueryDefinition"/>.
@@ -191,6 +192,7 @@ module Dsl =
                 arguments = []
                 cacheTtlSeconds = None
                 description = None
+                rest = None
             }
 
         member this.Zero() : QueryCEAccState = this.Yield(())
@@ -207,6 +209,7 @@ module Dsl =
                 arguments = s.arguments
                 cache_ttl_seconds = s.cacheTtlSeconds
                 description = s.description
+                rest = s.rest
             }
 
         /// Sets the GraphQL return type.
@@ -241,6 +244,10 @@ module Dsl =
             let a: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
             { s with arguments = s.arguments @ [ a ] }
 
+        /// Sets the optional REST endpoint annotation.
+        [<CustomOperation("rest")>]
+        member _.Rest(s: QueryCEAccState, cfg: RestConfig) = { s with rest = Some cfg }
+
     // -------------------------------------------------------------------------
     // MutationCEBuilder
     // -------------------------------------------------------------------------
@@ -254,6 +261,7 @@ module Dsl =
             operation: string
             arguments: ArgumentDefinition list
             description: string option
+            rest: RestConfig option
         }
 
     /// Computation expression builder for a <see cref="MutationDefinition"/>.
@@ -276,6 +284,7 @@ module Dsl =
                 operation = "custom"
                 arguments = []
                 description = None
+                rest = None
             }
 
         member this.Zero() : MutationCEAccState = this.Yield(())
@@ -290,6 +299,7 @@ module Dsl =
                 operation = s.operation
                 arguments = s.arguments
                 description = s.description
+                rest = s.rest
             }
 
         /// Sets the GraphQL return type.
@@ -314,6 +324,10 @@ module Dsl =
         member _.Arg(s: MutationCEAccState, name: string, type_: string, isNullable: bool) =
             let a: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
             { s with arguments = s.arguments @ [ a ] }
+
+        /// Sets the optional REST endpoint annotation.
+        [<CustomOperation("rest")>]
+        member _.Rest(s: MutationCEAccState, cfg: RestConfig) = { s with rest = Some cfg }
 
     // -------------------------------------------------------------------------
     // FraiseQLBuilder (outer CE)
