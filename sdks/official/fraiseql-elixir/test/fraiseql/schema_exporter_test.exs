@@ -295,4 +295,89 @@ defmodule FraiseQL.SchemaExporterTest do
     author = Enum.find(parsed["types"], &(&1["name"] == "Author"))
     assert author["sql_source"] == "v_author"
   end
+
+  # ---------------------------------------------------------------------------
+  # REST annotation tests
+  # ---------------------------------------------------------------------------
+
+  defmodule RestQuerySchema do
+    use FraiseQL.Schema
+
+    fraiseql_query :users,
+      return_type: "User",
+      returns_list: true,
+      sql_source: "v_user",
+      rest_path: "/api/users",
+      rest_method: "GET"
+  end
+
+  defmodule RestQueryDefaultMethodSchema do
+    use FraiseQL.Schema
+
+    fraiseql_query :users,
+      return_type: "User",
+      returns_list: true,
+      sql_source: "v_user",
+      rest_path: "/api/users"
+  end
+
+  defmodule RestMutationSchema do
+    use FraiseQL.Schema
+
+    fraiseql_mutation :create_user,
+      return_type: "User",
+      sql_source: "fn_create_user",
+      operation: "insert",
+      rest_path: "/api/users",
+      rest_method: "POST"
+  end
+
+  defmodule RestMutationDefaultMethodSchema do
+    use FraiseQL.Schema
+
+    fraiseql_mutation :delete_user,
+      return_type: "User",
+      sql_source: "fn_delete_user",
+      operation: "delete",
+      rest_path: "/api/users/{id}"
+  end
+
+  test "query with rest_path emits rest block in JSON" do
+    json = SchemaExporter.export(RestQuerySchema)
+    parsed = Jason.decode!(json)
+    [query] = parsed["queries"]
+    assert query["rest"]["path"] == "/api/users"
+    assert query["rest"]["method"] == "GET"
+  end
+
+  test "query rest defaults method to GET when rest_method is nil" do
+    json = SchemaExporter.export(RestQueryDefaultMethodSchema)
+    parsed = Jason.decode!(json)
+    [query] = parsed["queries"]
+    assert query["rest"]["path"] == "/api/users"
+    assert query["rest"]["method"] == "GET"
+  end
+
+  test "query without rest_path omits rest block" do
+    json = SchemaExporter.export(SimpleSchema)
+    parsed = Jason.decode!(json)
+    [query] = parsed["queries"]
+    refute Map.has_key?(query, "rest")
+  end
+
+  test "mutation with rest_path emits rest block in JSON" do
+    json = SchemaExporter.export(RestMutationSchema)
+    parsed = Jason.decode!(json)
+    [mutation] = parsed["mutations"]
+    assert mutation["rest"]["path"] == "/api/users"
+    assert mutation["rest"]["method"] == "POST"
+  end
+
+  test "mutation rest defaults method to POST when rest_method is nil" do
+    json = SchemaExporter.export(RestMutationDefaultMethodSchema)
+    parsed = Jason.decode!(json)
+    [mutation] = parsed["mutations"]
+    assert mutation["rest"]["path"] == "/api/users/{id}"
+    assert mutation["rest"]["method"] == "POST"
+  end
 end
