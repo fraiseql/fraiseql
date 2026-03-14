@@ -47,6 +47,7 @@ let private singleQuery: QueryDefinition =
         arguments = []
         cache_ttl_seconds = None
         description = None
+        rest = None
     }
 
 let private singleMutation: MutationDefinition =
@@ -57,6 +58,7 @@ let private singleMutation: MutationDefinition =
         operation = "insert"
         arguments = []
         description = None
+        rest = None
     }
 
 let private parseJson (json: string) =
@@ -334,3 +336,87 @@ let ``export from registry after reset produces empty schema`` () =
     let json = SchemaExporter.export ()
     let root = parseJson json
     root.GetProperty("types").GetArrayLength() |> should equal 0
+
+// ---------------------------------------------------------------------------
+// REST annotation tests
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``query with rest emits rest block in JSON`` () =
+    let q: QueryDefinition =
+        { singleQuery with
+            rest = Some { path = "/users/{id}"; method = "GET" } }
+
+    let schema = { emptySchema with queries = [ q ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let query = root.GetProperty("queries").[0]
+    let rest = query.GetProperty("rest")
+    rest.GetProperty("path").GetString() |> should equal "/users/{id}"
+    rest.GetProperty("method").GetString() |> should equal "GET"
+
+[<Fact>]
+let ``query without rest omits rest block in JSON`` () =
+    let schema = { emptySchema with queries = [ singleQuery ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let query = root.GetProperty("queries").[0]
+    query.TryGetProperty("rest") |> fst |> should equal false
+
+[<Fact>]
+let ``mutation with rest emits rest block in JSON`` () =
+    let m: MutationDefinition =
+        { singleMutation with
+            rest = Some { path = "/users"; method = "POST" } }
+
+    let schema = { emptySchema with mutations = [ m ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let mutation = root.GetProperty("mutations").[0]
+    let rest = mutation.GetProperty("rest")
+    rest.GetProperty("path").GetString() |> should equal "/users"
+    rest.GetProperty("method").GetString() |> should equal "POST"
+
+[<Fact>]
+let ``mutation without rest omits rest block in JSON`` () =
+    let schema = { emptySchema with mutations = [ singleMutation ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let mutation = root.GetProperty("mutations").[0]
+    mutation.TryGetProperty("rest") |> fst |> should equal false
+
+[<Fact>]
+let ``query builder with restPath and restMethod produces rest block`` () =
+    let q =
+        QueryBuilder.query "users"
+        |> QueryBuilder.returnType "User"
+        |> QueryBuilder.sqlSource "v_user"
+        |> QueryBuilder.restPath "/users/{id}"
+        |> QueryBuilder.restMethod "get"
+        |> QueryBuilder.toDefinition
+
+    q.rest |> should not' (equal None)
+    q.rest.Value.path |> should equal "/users/{id}"
+    q.rest.Value.method |> should equal "GET"
+
+[<Fact>]
+let ``query builder without restPath produces rest None`` () =
+    let q =
+        QueryBuilder.query "users"
+        |> QueryBuilder.returnType "User"
+        |> QueryBuilder.sqlSource "v_user"
+        |> QueryBuilder.toDefinition
+
+    q.rest |> should equal None
+
+[<Fact>]
+let ``mutation builder with restPath defaults method to POST`` () =
+    let m =
+        MutationBuilder.mutation "createUser"
+        |> MutationBuilder.returnType "User"
+        |> MutationBuilder.sqlSource "fn_create_user"
+        |> MutationBuilder.restPath "/users"
+        |> MutationBuilder.toDefinition
+
+    m.rest |> should not' (equal None)
+    m.rest.Value.method |> should equal "POST"

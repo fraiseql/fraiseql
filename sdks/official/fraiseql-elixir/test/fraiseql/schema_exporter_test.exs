@@ -295,4 +295,85 @@ defmodule FraiseQL.SchemaExporterTest do
     author = Enum.find(parsed["types"], &(&1["name"] == "Author"))
     assert author["sql_source"] == "v_author"
   end
+
+  # ---------------------------------------------------------------------------
+  # REST annotation tests
+  # ---------------------------------------------------------------------------
+
+  defmodule RestSchema do
+    use FraiseQL.Schema
+
+    fraiseql_type "User", sql_source: "v_user"
+
+    fraiseql_query :users,
+      return_type: "User",
+      returns_list: true,
+      sql_source: "v_user",
+      rest_path: "/users",
+      rest_method: "GET"
+
+    fraiseql_query :user_no_rest,
+      return_type: "User",
+      sql_source: "v_user"
+
+    fraiseql_mutation :create_user,
+      return_type: "User",
+      sql_source: "fn_create_user",
+      operation: "insert",
+      rest_path: "/users",
+      rest_method: "POST"
+  end
+
+  test "query with rest_path emits rest block in JSON" do
+    json = SchemaExporter.export(RestSchema)
+    parsed = Jason.decode!(json)
+    q = Enum.find(parsed["queries"], &(&1["name"] == "users"))
+    assert q["rest"] == %{"path" => "/users", "method" => "GET"}
+  end
+
+  test "query without rest_path omits rest block in JSON" do
+    json = SchemaExporter.export(RestSchema)
+    parsed = Jason.decode!(json)
+    q = Enum.find(parsed["queries"], &(&1["name"] == "user_no_rest"))
+    refute Map.has_key?(q, "rest")
+  end
+
+  test "mutation with rest_path emits rest block in JSON" do
+    json = SchemaExporter.export(RestSchema)
+    parsed = Jason.decode!(json)
+    m = Enum.find(parsed["mutations"], &(&1["name"] == "createUser"))
+    assert m["rest"] == %{"path" => "/users", "method" => "POST"}
+  end
+
+  defmodule RestDefaultMethodSchema do
+    use FraiseQL.Schema
+
+    fraiseql_type "Item", sql_source: "v_item"
+
+    fraiseql_query :items,
+      return_type: "Item",
+      returns_list: true,
+      sql_source: "v_item",
+      rest_path: "/items"
+
+    fraiseql_mutation :create_item,
+      return_type: "Item",
+      sql_source: "fn_create_item",
+      operation: "insert",
+      rest_path: "/items"
+  end
+
+  test "query rest_path without rest_method defaults to GET" do
+    json = SchemaExporter.export(RestDefaultMethodSchema)
+    parsed = Jason.decode!(json)
+    q = Enum.find(parsed["queries"], &(&1["name"] == "items"))
+    assert q["rest"]["method"] == "GET"
+  end
+
+  test "mutation rest_path without rest_method defaults to POST" do
+    json = SchemaExporter.export(RestDefaultMethodSchema)
+    parsed = Jason.decode!(json)
+    m = Enum.find(parsed["mutations"], &(&1["name"] == "createItem"))
+    assert m["rest"]["method"] == "POST"
+  end
 end

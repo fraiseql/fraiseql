@@ -159,6 +159,9 @@ defmodule FraiseQL.Schema do
     * `:nullable` — boolean (default `false`)
     * `:cache_ttl_seconds` — optional integer TTL for caching
     * `:description` — optional human-readable description
+    * `:rest_path` — optional REST endpoint path, e.g. `"/users/{id}"`
+    * `:rest_method` — optional HTTP method (default `"GET"`); one of
+      `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`, `"HEAD"`, `"OPTIONS"`
 
   ## Examples
 
@@ -192,7 +195,9 @@ defmodule FraiseQL.Schema do
           nullable: unquote(Keyword.get(query_opts, :nullable, false)),
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
-          description: unquote(query_opts[:description])
+          description: unquote(query_opts[:description]),
+          rest_path: unquote(query_opts[:rest_path]),
+          rest_method: unquote(query_opts[:rest_method])
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -208,7 +213,9 @@ defmodule FraiseQL.Schema do
           nullable: unquote(Keyword.get(query_opts, :nullable, false)),
           arguments: [],
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
-          description: unquote(query_opts[:description])
+          description: unquote(query_opts[:description]),
+          rest_path: unquote(query_opts[:rest_path]),
+          rest_method: unquote(query_opts[:rest_method])
         }
       end
     end
@@ -233,6 +240,8 @@ defmodule FraiseQL.Schema do
     * `:sql_source` — (required) the underlying function name
     * `:operation` — (required) one of `"insert"`, `"update"`, `"delete"`
     * `:description` — optional human-readable description
+    * `:rest_path` — optional REST endpoint path, e.g. `"/users"`
+    * `:rest_method` — optional HTTP method (default `"POST"`)
 
   ## Examples
 
@@ -268,7 +277,9 @@ defmodule FraiseQL.Schema do
           sql_source: unquote(mutation_opts[:sql_source]),
           operation: unquote(mutation_opts[:operation]),
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
-          description: unquote(mutation_opts[:description])
+          description: unquote(mutation_opts[:description]),
+          rest_path: unquote(mutation_opts[:rest_path]),
+          rest_method: unquote(mutation_opts[:rest_method])
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -282,7 +293,9 @@ defmodule FraiseQL.Schema do
           sql_source: unquote(mutation_opts[:sql_source]),
           operation: unquote(mutation_opts[:operation]),
           arguments: [],
-          description: unquote(mutation_opts[:description])
+          description: unquote(mutation_opts[:description]),
+          rest_path: unquote(mutation_opts[:rest_path]),
+          rest_method: unquote(mutation_opts[:rest_method])
         }
       end
     end

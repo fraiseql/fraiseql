@@ -36,6 +36,11 @@ final class MutationBuilder
     /** @var array<string> */
     private array $invalidatesFactTablesList = [];
 
+    private ?string $restPathValue = null;
+    private ?string $restMethodValue = null;
+
+    private const VALID_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
     private function __construct(private readonly string $name)
     {
     }
@@ -104,6 +109,24 @@ final class MutationBuilder
         return $this;
     }
 
+    public function restPath(string $path): self
+    {
+        $this->restPathValue = $path;
+        return $this;
+    }
+
+    public function restMethod(string $method): self
+    {
+        $upper = strtoupper($method);
+        if (!in_array($upper, self::VALID_HTTP_METHODS, true)) {
+            throw new \InvalidArgumentException(
+                "Invalid HTTP method '{$method}'. Must be one of: " . implode(', ', self::VALID_HTTP_METHODS)
+            );
+        }
+        $this->restMethodValue = $upper;
+        return $this;
+    }
+
     public function register(): void
     {
         SchemaRegistry::getInstance()->registerMutation($this);
@@ -147,6 +170,13 @@ final class MutationBuilder
             $result['inject'] = $this->injectMap;
         }
 
+        if ($this->restPathValue !== null) {
+            $result['rest'] = [
+                'path'   => $this->restPathValue,
+                'method' => $this->restMethodValue ?? 'POST',
+            ];
+        }
+
         return $result;
     }
 
@@ -187,6 +217,13 @@ final class MutationBuilder
 
         if (!empty($this->invalidatesFactTablesList)) {
             $result['invalidates_fact_tables'] = $this->invalidatesFactTablesList;
+        }
+
+        if ($this->restPathValue !== null) {
+            $result['rest'] = [
+                'path'   => $this->restPathValue,
+                'method' => $this->restMethodValue ?? 'POST',
+            ];
         }
 
         return $result;
