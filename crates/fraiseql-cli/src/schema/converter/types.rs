@@ -29,8 +29,8 @@ impl SchemaConverter {
             fields,
             description: intermediate.description,
             sql_source: String::new().into(), // Not used for regular types (empty string)
-            jsonb_column: String::new(), // Not used for regular types (empty string)
-            sql_projection_hint: None, // Will be populated by optimizer in
+            jsonb_column: String::new(),      // Not used for regular types (empty string)
+            sql_projection_hint: None,        // Will be populated by optimizer in
             implements: intermediate.implements,
             requires_role: intermediate.requires_role,
             is_error: intermediate.is_error,
@@ -63,9 +63,7 @@ impl SchemaConverter {
     }
 
     /// Convert `IntermediateScalar` to `CustomTypeDef`
-    pub(super) fn convert_custom_scalar(
-        intermediate: IntermediateScalar,
-    ) -> Result<CustomTypeDef> {
+    pub(super) fn convert_custom_scalar(intermediate: IntermediateScalar) -> Result<CustomTypeDef> {
         Ok(CustomTypeDef {
             name:             intermediate.name,
             description:      intermediate.description,
@@ -166,10 +164,13 @@ impl SchemaConverter {
             alias: None,
             deprecation,
             requires_scope: intermediate.requires_scope,
-            on_deny: intermediate.on_deny.map_or(
-                FieldDenyPolicy::default(),
-                |v| if v == "mask" { FieldDenyPolicy::Mask } else { FieldDenyPolicy::Reject },
-            ),
+            on_deny: intermediate.on_deny.map_or(FieldDenyPolicy::default(), |v| {
+                if v == "mask" {
+                    FieldDenyPolicy::Mask
+                } else {
+                    FieldDenyPolicy::Reject
+                }
+            }),
             encryption: None,
         })
     }

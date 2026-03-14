@@ -137,7 +137,7 @@ fn test_validator_rejects_malformed_query() {
         let result = validator.validate_query(query);
         // Should either reject as malformed or succeed if parser is lenient
         // (we just verify no panic)
-        let _ = result;  // intentional
+        let _ = result; // intentional
     }
 }
 
@@ -284,9 +284,7 @@ fn test_error_response_multiple_errors() {
         GraphQLError::forbidden().with_path(vec!["user".to_string(), "ssn".to_string()]),
     ];
 
-    let response = ErrorResponse {
-        errors,
-    };
+    let response = ErrorResponse { errors };
 
     assert_eq!(response.errors.len(), 2);
     // All errors should have generic messages

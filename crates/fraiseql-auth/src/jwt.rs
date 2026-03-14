@@ -260,7 +260,8 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn create_test_claims() -> Claims {
@@ -352,10 +353,7 @@ mod tests {
         let token = generate_test_token(&claims, secret).expect("Failed to generate token");
 
         let result = validator.validate_hmac(&token, secret);
-        assert!(
-            result.is_err(),
-            "validator without configured audience must reject tokens"
-        );
+        assert!(result.is_err(), "validator without configured audience must reject tokens");
     }
 
     #[test]

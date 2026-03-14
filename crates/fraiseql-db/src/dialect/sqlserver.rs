@@ -71,11 +71,7 @@ impl SqlDialect for SqlServerDialect {
         Ok(format!("CONTAINS({expr}, {param})"))
     }
 
-    fn fts_phrase_query_sql(
-        &self,
-        expr: &str,
-        param: &str,
-    ) -> Result<String, UnsupportedOperator> {
+    fn fts_phrase_query_sql(&self, expr: &str, param: &str) -> Result<String, UnsupportedOperator> {
         Ok(format!("FREETEXT({expr}, {param})"))
     }
 }

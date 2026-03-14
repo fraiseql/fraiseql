@@ -72,7 +72,12 @@ pub struct KeyReference {
 
 impl KeyReference {
     /// Create a new key reference.
-    pub const fn new(provider: String, key_id: String, purpose: KeyPurpose, created_at: i64) -> Self {
+    pub const fn new(
+        provider: String,
+        key_id: String,
+        purpose: KeyPurpose,
+        created_at: i64,
+    ) -> Self {
         Self {
             provider,
             key_id,

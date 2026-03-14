@@ -445,7 +445,8 @@ mod tests {
     #[test]
     fn test_graphql_query_with_complex_variables_roundtrips() {
         let ticket = FlightTicket::GraphQLQuery {
-            query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
+            query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }"
+                .to_string(),
             variables: Some(serde_json::json!({
                 "filter": {
                     "status": "active",
@@ -468,10 +469,7 @@ mod tests {
         assert!(result.is_err());
         // The error must be an InvalidTicket (parse error), not a size error.
         if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
-            assert!(
-                !msg.contains("too large"),
-                "Should fail JSON parsing, not size limit: {msg}"
-            );
+            assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
         }
     }
 
@@ -481,10 +479,7 @@ mod tests {
         let result = FlightTicket::decode(&oversized);
         assert!(result.is_err());
         if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
-            assert!(
-                msg.contains("too large"),
-                "Expected size-limit error, got: {msg}"
-            );
+            assert!(msg.contains("too large"), "Expected size-limit error, got: {msg}");
         } else {
             panic!("Expected InvalidTicket error");
         }

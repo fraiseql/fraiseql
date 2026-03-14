@@ -74,7 +74,11 @@ async fn explain_returns_sql_when_query_matches_schema() {
     )
     .await;
 
-    assert!(json["data"]["sql"].is_string(), "expected SQL string, got: {}", json["data"]["sql"]);
+    assert!(
+        json["data"]["sql"].is_string(),
+        "expected SQL string, got: {}",
+        json["data"]["sql"]
+    );
     assert!(json["data"]["views_accessed"].as_array().is_some());
 }
 

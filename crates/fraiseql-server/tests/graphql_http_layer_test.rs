@@ -17,7 +17,7 @@ use std::collections::HashMap;
 // Common test utilities
 mod common;
 #[allow(unused_imports)]
-use common::{DatabaseFixture, GraphQLResult, TestDataBuilder, FakeGraphQLExecutor};
+use common::{DatabaseFixture, FakeGraphQLExecutor, GraphQLResult, TestDataBuilder};
 
 // ============================================================================
 // Mock GraphQL Schema & Query Builder

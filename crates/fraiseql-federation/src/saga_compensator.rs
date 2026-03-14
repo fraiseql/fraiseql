@@ -117,9 +117,7 @@ use std::{sync::Arc, time::Instant};
 use ::tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::saga_store::{
-    PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState,
-};
+use crate::saga_store::{PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState};
 
 /// Represents the result of a compensation step execution
 ///

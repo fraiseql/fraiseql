@@ -79,10 +79,7 @@ impl CascadeMetadata {
 
         self.mutation_entity_map.insert(mutation_name.clone(), entity_type.clone());
 
-        self.entity_mutations_map
-            .entry(entity_type)
-            .or_default()
-            .push(mutation_name);
+        self.entity_mutations_map.entry(entity_type).or_default().push(mutation_name);
     }
 
     /// Get the entity type modified by a mutation.

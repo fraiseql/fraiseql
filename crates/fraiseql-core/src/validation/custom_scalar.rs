@@ -107,9 +107,7 @@ mod tests {
                 .as_str()
                 .ok_or_else(|| FraiseQLError::validation("Email must be a string"))?;
             if !s.contains('@') {
-                return Err(FraiseQLError::validation(format!(
-                    "invalid email: {s}"
-                )));
+                return Err(FraiseQLError::validation(format!("invalid email: {s}")));
             }
             Ok(Value::String(s.to_string()))
         }

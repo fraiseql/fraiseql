@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Failure-injecting database adapter for error path testing.
 //!
 //! Provides a configurable `DatabaseAdapter` implementation that can simulate
@@ -357,7 +357,6 @@ impl DatabaseAdapter for FailingAdapter {
         self.check_failure(function_name)?;
         Ok(vec![])
     }
-
 }
 
 impl MutationCapable for FailingAdapter {}

@@ -293,10 +293,8 @@ impl JobQueue for RedisJobQueue {
         });
 
         // Get average processing time (stored in Redis as float)
-        let avg_processing_time_ms: f64 = conn
-            .get("queue:v1:stats:avg_processing_ms")
-            .await
-            .unwrap_or_else(|e| {
+        let avg_processing_time_ms: f64 =
+            conn.get("queue:v1:stats:avg_processing_ms").await.unwrap_or_else(|e| {
                 tracing::warn!(error = %e, "get_stats: get failed; avg_processing_ms may be stale");
                 0.0
             });

@@ -116,8 +116,14 @@ async fn test_concurrent_queries_different_views_independent() {
     };
 
     // Warm both caches
-    cached.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
-    cached.execute_where_query("v_post", Some(&where_clause), None, None).await.unwrap();
+    cached
+        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .await
+        .unwrap();
+    cached
+        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .await
+        .unwrap();
     let count_after_warm = cached.inner().query_count();
     assert_eq!(count_after_warm, 2);
 
@@ -141,7 +147,10 @@ async fn test_concurrent_queries_different_views_independent() {
 
     // v_post should still be cached (no additional DB hit)
     let count_before = cached.inner().query_count();
-    cached.execute_where_query("v_post", Some(&where_clause), None, None).await.unwrap();
+    cached
+        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .await
+        .unwrap();
     assert_eq!(
         cached.inner().query_count(),
         count_before,
@@ -149,7 +158,10 @@ async fn test_concurrent_queries_different_views_independent() {
     );
 
     // v_user should miss cache (causes a DB hit)
-    cached.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+    cached
+        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .await
+        .unwrap();
     assert_eq!(cached.inner().query_count(), count_before + 1);
 }
 
@@ -165,8 +177,10 @@ async fn test_concurrent_cache_hits_return_consistent_data() {
     };
 
     // Warm the cache
-    let expected =
-        cached.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+    let expected = cached
+        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .await
+        .unwrap();
     let expected_json: Vec<String> =
         expected.iter().map(|v| serde_json::to_string(v.as_value()).unwrap()).collect();
 
@@ -176,8 +190,7 @@ async fn test_concurrent_cache_hits_return_consistent_data() {
         let expected_json = expected_json.clone();
         let wc = where_clause.clone();
         handles.push(tokio::spawn(async move {
-            let result =
-                cached.execute_where_query("v_user", Some(&wc), None, None).await.unwrap();
+            let result = cached.execute_where_query("v_user", Some(&wc), None, None).await.unwrap();
             let result_json: Vec<String> =
                 result.iter().map(|v| serde_json::to_string(v.as_value()).unwrap()).collect();
             assert_eq!(result_json, expected_json, "cached data must be consistent");

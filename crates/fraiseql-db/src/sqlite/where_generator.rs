@@ -4,10 +4,7 @@
 //! `GenericWhereGenerator<SqliteDialect>`.  All logic lives in
 //! [`crate::where_generator::GenericWhereGenerator`].
 
-use crate::{
-    dialect::SqliteDialect,
-    where_generator::GenericWhereGenerator,
-};
+use crate::{dialect::SqliteDialect, where_generator::GenericWhereGenerator};
 
 /// SQLite WHERE clause generator.
 ///
@@ -48,12 +45,11 @@ impl SqliteWhereGenerator {
 mod tests {
     use serde_json::json;
 
+    use super::*;
     use crate::{
         dialect::SqliteDialect,
         where_clause::{WhereClause, WhereOperator},
     };
-
-    use super::*;
 
     #[test]
     fn test_simple_equality() {

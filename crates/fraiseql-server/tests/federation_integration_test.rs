@@ -125,9 +125,7 @@ async fn service_sdl_contains_federation_directives() {
 
     assert!(resp["errors"].is_null(), "unexpected errors: {}", resp["errors"]);
 
-    let sdl = resp["data"]["_service"]["sdl"]
-        .as_str()
-        .expect("_service.sdl must be a string");
+    let sdl = resp["data"]["_service"]["sdl"].as_str().expect("_service.sdl must be a string");
 
     assert!(
         sdl.contains("@key(fields: \"id\")"),
@@ -164,8 +162,7 @@ async fn entities_resolves_user_by_id() {
         .expect("insert test user");
 
     let db_url = format!("postgresql://testuser:testpw@127.0.0.1:{pg_port}/testdb");
-    let adapter =
-        Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
+    let adapter = Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
 
     let schema = user_schema_with_federation();
     let server = TestServer::start(schema, adapter).await;
@@ -187,10 +184,7 @@ async fn entities_resolves_user_by_id() {
         .expect("json parse failed");
 
     assert!(resp["errors"].is_null(), "unexpected errors: {}", resp["errors"]);
-    assert_eq!(
-        resp["data"]["_entities"][0]["name"], "Alice",
-        "full response: {resp}"
-    );
+    assert_eq!(resp["data"]["_entities"][0]["name"], "Alice", "full response: {resp}");
 }
 
 // ─── Test 3: Apollo Router routes through FraiseQL ───────────────────────────
@@ -226,18 +220,16 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
         .expect("insert test user");
 
     let db_url = format!("postgresql://testuser:testpw@127.0.0.1:{pg_port}/testdb");
-    let adapter =
-        Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
+    let adapter = Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
 
     let schema = user_schema_with_federation();
     let server = TestServer::start(schema, adapter).await;
 
     // Build supergraph SDL: replace the __SUBGRAPH_URL__ placeholder with the
     // real server URL so Apollo Router knows where to send subgraph requests.
-    let supergraph = include_str!(
-        "../../fraiseql-core/tests/federation/fixtures/supergraph_single.graphql"
-    )
-    .replace("__SUBGRAPH_URL__", &format!("{}/graphql", server.url));
+    let supergraph =
+        include_str!("../../fraiseql-core/tests/federation/fixtures/supergraph_single.graphql")
+            .replace("__SUBGRAPH_URL__", &format!("{}/graphql", server.url));
 
     let supergraph_file = tempfile::NamedTempFile::new().expect("tmpfile");
     std::fs::write(supergraph_file.path(), &supergraph).expect("write supergraph");

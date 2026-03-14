@@ -5,9 +5,9 @@
 
 use std::time::Duration;
 
+use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
-use fraiseql_error::{FraiseQLError, Result};
 use crate::{metadata_helpers::find_federation_type, types::FederationMetadata};
 
 /// Maximum byte size for a federated mutation response.
@@ -212,7 +212,7 @@ impl HttpMutationClient {
                                 "Federation mutation response too large ({} bytes, max {MAX_MUTATION_RESPONSE_BYTES})",
                                 body_bytes.len()
                             ),
-                            source: None,
+                            source:  None,
                         });
                     }
                     return serde_json::from_slice(&body_bytes).map_err(|e| {
@@ -234,10 +234,8 @@ impl HttpMutationClient {
                 // Exponential backoff: base_delay * 2^(attempt-1).
                 // Consistent with http_resolver.rs; avoids thundering-herd on
                 // transient subgraph failures.
-                let backoff = self
-                    .config
-                    .retry_delay_ms
-                    .saturating_mul(2_u64.saturating_pow(attempts - 1));
+                let backoff =
+                    self.config.retry_delay_ms.saturating_mul(2_u64.saturating_pow(attempts - 1));
                 tokio::time::sleep(Duration::from_millis(backoff)).await;
             }
         }
@@ -400,7 +398,10 @@ mod tests {
 
     #[tokio::test]
     async fn mutation_response_oversized_is_rejected() {
-        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
         let mock = MockServer::start().await;
 
@@ -424,15 +425,15 @@ mod tests {
 
         assert!(result.is_err(), "oversized mutation response must be rejected");
         let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("too large"),
-            "error must mention size limit: {msg}"
-        );
+        assert!(msg.contains("too large"), "error must mention size limit: {msg}");
     }
 
     #[tokio::test]
     async fn mutation_response_within_limit_is_parsed() {
-        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
         let mock = MockServer::start().await;
 

@@ -235,10 +235,7 @@ impl SagaCoordinator {
     /// # Arguments
     ///
     /// * `compensator` - SagaCompensator instance (type-erased)
-    pub fn with_compensator(
-        mut self,
-        compensator: Arc<dyn std::any::Any + Send + Sync>,
-    ) -> Self {
+    pub fn with_compensator(mut self, compensator: Arc<dyn std::any::Any + Send + Sync>) -> Self {
         self.compensator = compensator;
         self
     }

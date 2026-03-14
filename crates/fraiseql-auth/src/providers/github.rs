@@ -159,10 +159,7 @@ impl GitHubOAuth {
         }
         if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
             return Err(AuthError::OAuthError {
-                message: format!(
-                    "GitHub user response too large ({} bytes)",
-                    user_bytes.len()
-                ),
+                message: format!("GitHub user response too large ({} bytes)", user_bytes.len()),
             });
         }
         let user: GitHubUser =
@@ -262,10 +259,7 @@ impl OAuthProvider for GitHubOAuth {
         }
         if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
             return Err(AuthError::OAuthError {
-                message: format!(
-                    "GitHub user response too large ({} bytes)",
-                    user_bytes.len()
-                ),
+                message: format!("GitHub user response too large ({} bytes)", user_bytes.len()),
             });
         }
         let github_user: GitHubUser =
@@ -337,7 +331,8 @@ impl OAuthProvider for GitHubOAuth {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

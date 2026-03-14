@@ -61,32 +61,32 @@ mod tests {
 
         // Add a users query
         schema.queries.push(QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   Some("v_user".to_string()),
-            description:  Some("Get all users".to_string()),
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          Some("v_user".to_string()),
+            description:         Some("Get all users".to_string()),
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:     Default::default(),
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
         });
 
         // Add a user query with argument
         schema.queries.push(QueryDefinition {
-            name:         "user".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: false,
-            nullable:     true,
-            arguments:    vec![crate::schema::ArgumentDefinition {
+            name:                "user".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           vec![crate::schema::ArgumentDefinition {
                 name:          "id".to_string(),
                 arg_type:      FieldType::Id,
                 nullable:      false, // required
@@ -94,17 +94,17 @@ mod tests {
                 description:   Some("User ID".to_string()),
                 deprecation:   None,
             }],
-            sql_source:   Some("v_user".to_string()),
-            description:  Some("Get user by ID".to_string()),
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            sql_source:          Some("v_user".to_string()),
+            description:         Some("Get user by ID".to_string()),
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:     Default::default(),
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
         });
 
@@ -225,7 +225,7 @@ mod tests {
             implements:          vec![],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
@@ -240,7 +240,7 @@ mod tests {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
                     requires_scope: None,
-                    on_deny: FieldDenyPolicy::default(),
+                    on_deny:        FieldDenyPolicy::default(),
                     encryption:     None,
                 },
                 FieldDefinition::new("sku", FieldType::String),
@@ -453,9 +453,7 @@ mod tests {
 
     #[test]
     fn test_interface_introspection() {
-        use crate::schema::{
-            CompiledSchema, FieldDefinition, InterfaceDefinition, TypeDefinition,
-        };
+        use crate::schema::{CompiledSchema, FieldDefinition, InterfaceDefinition, TypeDefinition};
 
         let mut schema = CompiledSchema::new();
 
@@ -476,7 +474,7 @@ mod tests {
             implements:          vec!["Node".to_string()],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
@@ -492,7 +490,7 @@ mod tests {
             implements:          vec!["Node".to_string()],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
@@ -556,7 +554,7 @@ mod tests {
             implements:          vec!["Node".to_string(), "Timestamped".to_string()],
             requires_role:       None,
             is_error:            false,
-            relay:            false,
+            relay:               false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),
@@ -756,34 +754,34 @@ mod tests {
 
         // Add a deprecated query
         schema.queries.push(QueryDefinition {
-            name:         "oldUsers".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   Some("v_user".to_string()),
-            description:  Some("Old way to get users".to_string()),
-            auto_params:  AutoParams::default(),
-            deprecation:  Some(DeprecationInfo {
+            name:                "oldUsers".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          Some("v_user".to_string()),
+            description:         Some("Old way to get users".to_string()),
+            auto_params:         AutoParams::default(),
+            deprecation:         Some(DeprecationInfo {
                 reason: Some("Use 'users' instead".to_string()),
             }),
-            jsonb_column: "data".to_string(),
-            relay: false,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:     Default::default(),
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
         });
 
         // Add a non-deprecated query with a deprecated argument
         schema.queries.push(QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    vec![
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![
                 ArgumentDefinition {
                     name:          "first".to_string(),
                     arg_type:      FieldType::Int,
@@ -803,17 +801,17 @@ mod tests {
                     }),
                 },
             ],
-            sql_source:   Some("v_user".to_string()),
-            description:  Some("Get users with pagination".to_string()),
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            sql_source:          Some("v_user".to_string()),
+            description:         Some("Get users with pagination".to_string()),
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:     Default::default(),
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
             cache_ttl_seconds:   None,
-            additional_views: vec![],
+            additional_views:    vec![],
             requires_role:       None,
         });
 

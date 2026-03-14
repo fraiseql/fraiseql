@@ -157,7 +157,8 @@ async fn test_observer_conditional_execution() {
 
     // Case 1: INSERT with status = 'pending' → should NOT fire
     let order_id_1 = Uuid::new_v4();
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "UPDATE",
         &format!("Order_{}", test_id),
@@ -178,7 +179,8 @@ async fn test_observer_conditional_execution() {
 
     // Case 2: Update with status = 'shipped' → SHOULD fire
     let order_id_2 = Uuid::new_v4();
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "UPDATE",
         &format!("Order_{}", test_id),
@@ -242,7 +244,8 @@ async fn test_multiple_observers_single_event() {
 
     // Insert single event
     let order_id = Uuid::new_v4();
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
@@ -299,7 +302,8 @@ async fn test_observer_retry_exponential_backoff() {
     .expect("Failed to create observer");
 
     let order_id = Uuid::new_v4();
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
@@ -359,7 +363,8 @@ async fn test_observer_dlq_permanent_failure() {
     .expect("Failed to create observer");
 
     let order_id = Uuid::new_v4();
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
@@ -439,7 +444,8 @@ async fn test_multiple_event_types_same_entity() {
     let entity_type = format!("Order_{}", test_id);
 
     // INSERT event
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "INSERT",
         &entity_type,
@@ -453,7 +459,8 @@ async fn test_multiple_event_types_same_entity() {
     wait_for_webhook(&mock_server, 1, Duration::from_secs(10)).await;
 
     // UPDATE event
-    let _ = insert_change_log_entry(  // intentional
+    let _ = insert_change_log_entry(
+        // intentional
         &pool,
         "UPDATE",
         &entity_type,
@@ -501,7 +508,8 @@ async fn test_batch_processing() {
     let event_count = 10;
     for i in 0..event_count {
         let order_id = Uuid::new_v4();
-        let _ = insert_change_log_entry(  // intentional
+        let _ = insert_change_log_entry(
+            // intentional
             &pool,
             "INSERT",
             &format!("Order_{}", test_id),
@@ -554,7 +562,8 @@ async fn benchmark_observer_latency() {
         let order_id = Uuid::new_v4();
         let start = tokio::time::Instant::now();
 
-        let _ = insert_change_log_entry(  // intentional
+        let _ = insert_change_log_entry(
+            // intentional
             &pool,
             "INSERT",
             &format!("Order_{}", test_id),

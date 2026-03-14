@@ -595,8 +595,9 @@ impl ComplianceChecker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json;
+
+    use super::*;
 
     #[test]
     fn test_dashboard_overview_creation() {

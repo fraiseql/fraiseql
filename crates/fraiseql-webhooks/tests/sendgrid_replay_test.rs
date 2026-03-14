@@ -8,12 +8,11 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: doc comments use type names without backticks for readability
 
 use base64::{Engine as _, engine::general_purpose};
-use fraiseql_webhooks::signature::sendgrid::SendGridVerifier;
-use fraiseql_webhooks::traits::SignatureVerifier as _;
+use fraiseql_webhooks::{signature::sendgrid::SendGridVerifier, traits::SignatureVerifier as _};
 use p256::{
     ecdsa::{DerSignature, SigningKey, signature::Signer as _},
     pkcs8::{EncodePublicKey as _, LineEnding},
@@ -116,7 +115,8 @@ fn signature_over_wrong_timestamp_is_rejected() {
 
     // Sign with a fresh timestamp
     let sign_ts = fresh_timestamp();
-    // Claim a slightly different timestamp at verification (still fresh, but doesn't match signed message)
+    // Claim a slightly different timestamp at verification (still fresh, but doesn't match signed
+    // message)
     let verify_ts = format!("{}9", sign_ts); // append "9" to make it different but still parse as i64
 
     let sig_b64 = sendgrid_sign(&signing_key, payload, &sign_ts);
@@ -160,6 +160,7 @@ fn invalid_base64_signature_returns_error() {
     let (_signing_key, pem_public_key) = generate_p256_key();
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"payload", "not-valid-base64!!!", &pem_public_key, Some(&ts), None);
+    let result =
+        verifier.verify(b"payload", "not-valid-base64!!!", &pem_public_key, Some(&ts), None);
     assert!(result.is_err(), "O2 regression: invalid base64 signature must return Err");
 }

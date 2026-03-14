@@ -325,12 +325,11 @@ impl Default for SchemaValidator {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType};
-
     use super::{
         super::ir::{IRField, IRType},
         *,
     };
+    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType};
 
     #[test]
     fn test_validator_new() {
@@ -350,11 +349,14 @@ mod tests {
 
     fn make_fact_table(measures: Vec<MeasureColumn>, dim_name: &str) -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           String::new(),
+            table_name: String::new(),
             measures,
-            dimensions:           DimensionColumn { name: dim_name.to_string(), paths: vec![] },
+            dimensions: DimensionColumn {
+                name:  dim_name.to_string(),
+                paths: vec![],
+            },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -365,7 +367,11 @@ mod tests {
         ir.fact_tables.insert(
             "tf_sales".to_string(),
             make_fact_table(
-                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                vec![MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                }],
                 "data",
             ),
         );
@@ -379,7 +385,11 @@ mod tests {
         ir.fact_tables.insert(
             "sales".to_string(),
             make_fact_table(
-                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                vec![MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                }],
                 "data",
             ),
         );
@@ -409,7 +419,11 @@ mod tests {
         ir.fact_tables.insert(
             "tf_sales".to_string(),
             make_fact_table(
-                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                vec![MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                }],
                 "",
             ),
         );

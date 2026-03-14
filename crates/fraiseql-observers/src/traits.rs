@@ -99,7 +99,6 @@ pub trait DeadLetterQueue: Send + Sync {
     }
 }
 
-
 /// Item in the dead letter queue
 #[derive(Debug, Clone)]
 pub struct DlqItem {

@@ -42,17 +42,18 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
-        let circuit_breaker = schema
-            .federation
-            .as_ref()
-            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config);
-        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        let circuit_breaker = schema.federation.as_ref().and_then(
+            crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
+        );
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
-        let state_encryption   = Self::state_encryption_from_schema(&schema)?;
+        let state_encryption = Self::state_encryption_from_schema(&schema)?;
         #[cfg(not(feature = "auth"))]
-        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        let state_encryption: Option<
+            std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>,
+        > = None;
         #[cfg(feature = "auth")]
-        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        let pkce_store = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         #[cfg(not(feature = "auth"))]
         let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
         #[cfg(feature = "auth")]
@@ -88,10 +89,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         #[cfg(feature = "mcp")]
         if let Some(ref cfg) = server.executor.schema().mcp_config {
             if cfg.enabled {
-                let tool_count = crate::mcp::tools::schema_to_tools(
-                    server.executor.schema(),
-                    cfg,
-                ).len();
+                let tool_count =
+                    crate::mcp::tools::schema_to_tools(server.executor.schema(), cfg).len();
                 info!(
                     path = %cfg.path,
                     transport = %cfg.transport,
@@ -139,21 +138,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
-        let circuit_breaker = schema
-            .federation
-            .as_ref()
-            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config);
-        let error_sanitizer     = Self::error_sanitizer_from_schema(&schema);
+        let circuit_breaker = schema.federation.as_ref().and_then(
+            crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
+        );
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
-        let state_encryption    = Self::state_encryption_from_schema(&schema)?;
+        let state_encryption = Self::state_encryption_from_schema(&schema)?;
         #[cfg(not(feature = "auth"))]
-        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        let state_encryption: Option<
+            std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>,
+        > = None;
         #[cfg(feature = "auth")]
-        let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        let pkce_store = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         #[cfg(not(feature = "auth"))]
         let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
         #[cfg(feature = "auth")]
-        let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
+        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         #[cfg(not(feature = "auth"))]
         let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
@@ -218,6 +218,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
+
             use tokio::time::MissedTickBehavior;
             let store_clone = Arc::clone(store);
             tokio::spawn(async move {

@@ -5,9 +5,7 @@
 
 use super::CachedDatabaseAdapter;
 use crate::{
-    cache::fact_table_version::FactTableVersionStrategy,
-    db::DatabaseAdapter,
-    error::Result,
+    cache::fact_table_version::FactTableVersionStrategy, db::DatabaseAdapter, error::Result,
 };
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -39,9 +37,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             // Extract the new version number from the function result.
             // The function must return a single-column row with the incremented
             // integer.  Accept whatever column name the function uses.
-            if let Some(new_version) = rows
-                .first()
-                .and_then(|row| row.values().find_map(serde_json::Value::as_i64))
+            if let Some(new_version) =
+                rows.first().and_then(|row| row.values().find_map(serde_json::Value::as_i64))
             {
                 self.version_provider.set_cached_version(table, new_version);
             }

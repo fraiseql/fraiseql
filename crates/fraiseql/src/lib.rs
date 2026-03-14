@@ -67,8 +67,7 @@ pub use fraiseql_cli as cli;
 pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 // Re-export core modules for namespaced access
 pub use fraiseql_core::{
-    apq, cache, compiler, db, federation, graphql, runtime, schema, security, tenancy,
-    validation,
+    apq, cache, compiler, db, federation, graphql, runtime, schema, security, tenancy, validation,
 };
 // Re-export error types
 pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
@@ -88,14 +87,13 @@ pub mod prelude {
 
     // Core types
     // Database access
-    pub use fraiseql_core::db;
     // GraphQL parsing
     pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
     // Runtime executor
     pub use fraiseql_core::runtime::Executor;
-    pub use fraiseql_core::runtime::ExecutorAdapter;
     // Tenancy support
     pub use fraiseql_core::tenancy::TenantContext as Tenant;
+    pub use fraiseql_core::{db, runtime::ExecutorAdapter};
 
     // Optional: Observer system
     #[cfg(feature = "observers")]

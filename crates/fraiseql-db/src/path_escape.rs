@@ -164,7 +164,8 @@ mod tests {
     fn test_postgres_injection_double_quote_or() {
         let payload = r#"" OR "1"="1"#;
         let escaped = escape_postgres_jsonb_segment(payload);
-        // No single quotes in payload — output must be identical (double quotes are not special in PG segment)
+        // No single quotes in payload — output must be identical (double quotes are not special in
+        // PG segment)
         assert_eq!(escaped, payload);
     }
 
@@ -172,7 +173,8 @@ mod tests {
     fn test_postgres_injection_backslash() {
         let payload = r"\";
         let escaped = escape_postgres_jsonb_segment(payload);
-        // PostgreSQL does not treat backslash specially in dollar-quoted / JSONB operators; output is unchanged
+        // PostgreSQL does not treat backslash specially in dollar-quoted / JSONB operators; output
+        // is unchanged
         assert_eq!(escaped, payload);
     }
 
@@ -242,14 +244,18 @@ mod tests {
         // All 4 single quotes in "' OR '1'='1" must be doubled.
         let original_quote_count = payload.chars().filter(|&c| c == '\'').count();
         let doubled_count = result.matches("''").count();
-        assert_eq!(doubled_count, original_quote_count, "Every single quote must be doubled in MySQL");
+        assert_eq!(
+            doubled_count, original_quote_count,
+            "Every single quote must be doubled in MySQL"
+        );
     }
 
     #[test]
     fn test_mysql_injection_double_quote_or() {
         let payload = r#"" OR "1"="1"#;
         let result = escape_mysql_json_path(&[payload.to_string()]);
-        // No single quotes — path contains original (double quotes are not special in MySQL JSON path string)
+        // No single quotes — path contains original (double quotes are not special in MySQL JSON
+        // path string)
         assert!(result.starts_with("$."), "MySQL path must start with '$.'");
     }
 
@@ -322,7 +328,10 @@ mod tests {
         let result = escape_sqlite_json_path(&[payload.to_string()]);
         let original_quote_count = payload.chars().filter(|&c| c == '\'').count();
         let doubled_count = result.matches("''").count();
-        assert_eq!(doubled_count, original_quote_count, "Every single quote must be doubled in SQLite");
+        assert_eq!(
+            doubled_count, original_quote_count,
+            "Every single quote must be doubled in SQLite"
+        );
     }
 
     #[test]
@@ -397,7 +406,10 @@ mod tests {
         let result = escape_sqlserver_json_path(&[payload.to_string()]);
         let original_quote_count = payload.chars().filter(|&c| c == '\'').count();
         let doubled_count = result.matches("''").count();
-        assert_eq!(doubled_count, original_quote_count, "Every single quote must be doubled in SQL Server");
+        assert_eq!(
+            doubled_count, original_quote_count,
+            "Every single quote must be doubled in SQL Server"
+        );
     }
 
     #[test]
@@ -471,7 +483,10 @@ mod tests {
         let mysql_result = escape_mysql_json_path(&[payload.to_string()]);
         let sqlite_result = escape_sqlite_json_path(&[payload.to_string()]);
         // Both use double-single-quote escaping (no backslash dependency)
-        assert_eq!(mysql_result, sqlite_result, "MySQL and SQLite should escape single quotes identically");
+        assert_eq!(
+            mysql_result, sqlite_result,
+            "MySQL and SQLite should escape single quotes identically"
+        );
         assert!(mysql_result.contains("''"), "MySQL must use double-single-quote escaping");
         assert!(!mysql_result.contains("\\'"), "MySQL must not use backslash escaping");
     }
@@ -496,7 +511,11 @@ mod tests {
 
     #[test]
     fn test_mysql_multi_segment_path_joins_with_dot() {
-        let path = vec!["user".to_string(), "address".to_string(), "city".to_string()];
+        let path = vec![
+            "user".to_string(),
+            "address".to_string(),
+            "city".to_string(),
+        ];
         let result = escape_mysql_json_path(&path);
         assert_eq!(result, "$.user.address.city");
     }
@@ -508,7 +527,10 @@ mod tests {
         // Verifies that the MySQL path escaper uses '' rather than \' so it is
         // safe when the server operates with NO_BACKSLASH_ESCAPES enabled.
         let result = escape_mysql_json_path(&["user'name".to_string()]);
-        assert!(!result.contains('\\'), "Must not contain backslash (breaks under NO_BACKSLASH_ESCAPES)");
+        assert!(
+            !result.contains('\\'),
+            "Must not contain backslash (breaks under NO_BACKSLASH_ESCAPES)"
+        );
         assert!(result.contains("''"), "Must double single quotes");
         assert_eq!(result, "$.user''name");
     }

@@ -17,10 +17,9 @@
 //!
 //! Rules are compiled into schema.compiled.json and applied at runtime.
 
+use fraiseql_error::{FraiseQLError, Result};
 use regex::{Regex, RegexBuilder};
 use serde_json::Value;
-
-use fraiseql_error::{FraiseQLError, Result};
 
 /// Maximum byte length for a validation regex pattern.
 ///
@@ -33,8 +32,8 @@ const MAX_PATTERN_BYTES: usize = 1024;
 ///
 /// # Guards
 /// 1. Rejects patterns longer than [`MAX_PATTERN_BYTES`] before compilation.
-/// 2. Caps the DFA state-machine size at 1 MiB via [`RegexBuilder::size_limit`].
-///    Patterns that require a larger DFA are rejected rather than executed.
+/// 2. Caps the DFA state-machine size at 1 MiB via [`RegexBuilder::size_limit`]. Patterns that
+///    require a larger DFA are rejected rather than executed.
 ///
 /// # Errors
 ///
@@ -106,7 +105,8 @@ impl ValidationRule {
                 if !re.is_match(value) {
                     return Err(FraiseQLError::validation(format!(
                         "Value '{}' does not match pattern '{}'",
-                        value, re.as_str()
+                        value,
+                        re.as_str()
                     )));
                 }
                 Ok(())
@@ -228,10 +228,7 @@ impl ValidationRule {
                             usize::try_from(min_val).unwrap_or(usize::MAX),
                             usize::try_from(max_val).unwrap_or(usize::MAX),
                         );
-                        rules.push(ValidationRule::LengthRange {
-                            min,
-                            max,
-                        });
+                        rules.push(ValidationRule::LengthRange { min, max });
                     }
                 }
 
@@ -364,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_pattern_validation() {
-        let rule = ValidationRule::Pattern(Regex::new("^[a-z]+$").unwrap());
+        let rule = ValidationRule::Pattern(Regex::new("^[a-z]+$").expect("valid regex"));
         assert!(rule.validate("hello").is_ok());
         assert!(rule.validate("Hello").is_err());
     }

@@ -70,7 +70,7 @@ pub use types::{
     ActiveSubscription, SubscriptionEvent, SubscriptionId, SubscriptionOperation,
     SubscriptionPayload,
 };
-pub use webhook::{WebhookAdapter, WebhookTransportConfig, WebhookPayload};
+pub use webhook::{WebhookAdapter, WebhookPayload, WebhookTransportConfig};
 /// Backward-compatible type alias — use [`WebhookTransportConfig`] in new code.
 pub type WebhookConfig = WebhookTransportConfig;
 

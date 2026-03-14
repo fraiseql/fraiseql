@@ -39,17 +39,17 @@ fn fixed_vars() -> serde_json::Value {
 
 fn simple_where() -> WhereClause {
     WhereClause::Field {
-        path: vec!["status".to_string()],
+        path:     vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("active"),
+        value:    json!("active"),
     }
 }
 
 fn other_where() -> WhereClause {
     WhereClause::Field {
-        path: vec!["status".to_string()],
+        path:     vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("inactive"),
+        value:    json!("inactive"),
     }
 }
 
@@ -60,11 +60,11 @@ fn other_where() -> WhereClause {
 #[test]
 fn where_clause_component_contributes_independently() {
     let vars = fixed_vars();
-    let key_none  = generate_cache_key(FIXED_QUERY, &vars, None,               FIXED_VERSION);
-    let key_some  = generate_cache_key(FIXED_QUERY, &vars, Some(&simple_where()), FIXED_VERSION);
-    let key_other = generate_cache_key(FIXED_QUERY, &vars, Some(&other_where()),  FIXED_VERSION);
+    let key_none = generate_cache_key(FIXED_QUERY, &vars, None, FIXED_VERSION);
+    let key_some = generate_cache_key(FIXED_QUERY, &vars, Some(&simple_where()), FIXED_VERSION);
+    let key_other = generate_cache_key(FIXED_QUERY, &vars, Some(&other_where()), FIXED_VERSION);
 
-    assert_ne!(key_none, key_some,  "M1: WHERE clause must contribute to key");
+    assert_ne!(key_none, key_some, "M1: WHERE clause must contribute to key");
     assert_ne!(key_some, key_other, "M1: Different WHERE values must produce different keys");
     assert_ne!(key_none, key_other, "M1: Absent vs present WHERE must differ");
 }
@@ -100,8 +100,9 @@ fn query_component_contributes_independently() {
 /// variables would collide — this is a security regression.
 #[test]
 fn variables_component_contributes_independently() {
-    let key_alice = generate_cache_key(FIXED_QUERY, &json!({"userId": "alice"}), None, FIXED_VERSION);
-    let key_bob   = generate_cache_key(FIXED_QUERY, &json!({"userId": "bob"}),   None, FIXED_VERSION);
+    let key_alice =
+        generate_cache_key(FIXED_QUERY, &json!({"userId": "alice"}), None, FIXED_VERSION);
+    let key_bob = generate_cache_key(FIXED_QUERY, &json!({"userId": "bob"}), None, FIXED_VERSION);
     assert_ne!(key_alice, key_bob, "M3: Variable values must contribute to key");
 }
 
@@ -112,18 +113,21 @@ fn variables_component_contributes_independently() {
 #[test]
 fn extract_views_includes_additional_views() {
     let query_def = QueryDefinition {
-        name:             "usersWithPosts".to_string(),
-        return_type:      "UserWithPosts".to_string(),
-        returns_list:     true,
-        sql_source:       Some("v_user_with_posts".to_string()),
+        name: "usersWithPosts".to_string(),
+        return_type: "UserWithPosts".to_string(),
+        returns_list: true,
+        sql_source: Some("v_user_with_posts".to_string()),
         additional_views: vec!["v_post".to_string(), "v_comment".to_string()],
         ..QueryDefinition::new("usersWithPosts", "UserWithPosts")
     };
 
     let views = extract_accessed_views(&query_def);
 
-    assert!(views.contains(&"v_post".to_string()),    "M4: additional_views must be included");
-    assert!(views.contains(&"v_comment".to_string()), "M4: all additional_views must be included");
+    assert!(views.contains(&"v_post".to_string()), "M4: additional_views must be included");
+    assert!(
+        views.contains(&"v_comment".to_string()),
+        "M4: all additional_views must be included"
+    );
     assert_eq!(views.len(), 3, "M4: primary + 2 additional = 3 views total");
 }
 
@@ -133,9 +137,8 @@ fn extract_views_includes_additional_views() {
 /// mutation invalidation would silently skip the main view.
 #[test]
 fn extract_views_includes_primary_sql_source() {
-    let query_def = QueryDefinition::new("users", "User")
-        .returning_list()
-        .with_sql_source("v_user");
+    let query_def =
+        QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user");
 
     let views = extract_accessed_views(&query_def);
 
@@ -155,7 +158,7 @@ fn extract_views_with_no_sql_source_returns_empty() {
 /// Catches a mutation that negates `is_some()` or unconditionally returns `""`.
 #[test]
 fn none_and_some_where_clause_produce_different_keys() {
-    let k_none = generate_cache_key(FIXED_QUERY, &json!({}), None,               "v1");
+    let k_none = generate_cache_key(FIXED_QUERY, &json!({}), None, "v1");
     let k_some = generate_cache_key(FIXED_QUERY, &json!({}), Some(&simple_where()), "v1");
     assert_ne!(k_none, k_some, "M6: None WHERE must differ from Some WHERE");
 }

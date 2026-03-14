@@ -14,8 +14,7 @@
 //! **Redis** uses `SET NX EX` with Lua-guarded release and renewal; `renew()` extends
 //! the TTL atomically.
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use tokio::sync::Mutex;
 
@@ -47,7 +46,10 @@ impl InProcessLease {
         Self {
             listener_id,
             checkpoint_id,
-            state: Arc::new(Mutex::new(LeaseState { holder: None, acquired_at: None })),
+            state: Arc::new(Mutex::new(LeaseState {
+                holder:      None,
+                acquired_at: None,
+            })),
             lease_duration_ms,
         }
     }
@@ -273,7 +275,12 @@ impl RedisAdvisoryLease {
         checkpoint_id: i64,
         lease_duration_secs: u64,
     ) -> Self {
-        Self { conn, listener_id, checkpoint_id, lease_duration_secs }
+        Self {
+            conn,
+            listener_id,
+            checkpoint_id,
+            lease_duration_secs,
+        }
     }
 
     fn redis_key(&self) -> String {
@@ -363,9 +370,12 @@ impl RedisAdvisoryLease {
     /// Returns `0` when the key is absent or has no TTL.
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         let key = self.redis_key();
-        let ttl_secs: i64 =
-            redis::cmd("TTL").arg(&key).query_async(&mut self.conn.clone()).await?;
-        if ttl_secs < 0 { Ok(0) } else { Ok(ttl_secs as u64 * 1_000) }
+        let ttl_secs: i64 = redis::cmd("TTL").arg(&key).query_async(&mut self.conn.clone()).await?;
+        if ttl_secs < 0 {
+            Ok(0)
+        } else {
+            Ok(ttl_secs as u64 * 1_000)
+        }
     }
 }
 
@@ -392,7 +402,11 @@ pub struct CheckpointLease(LeaseKind);
 impl CheckpointLease {
     /// Create an in-process lease suitable for testing or single-node deployments.
     pub fn in_process(listener_id: String, checkpoint_id: i64, lease_duration_ms: u64) -> Self {
-        Self(LeaseKind::InProcess(InProcessLease::new(listener_id, checkpoint_id, lease_duration_ms)))
+        Self(LeaseKind::InProcess(InProcessLease::new(
+            listener_id,
+            checkpoint_id,
+            lease_duration_ms,
+        )))
     }
 
     /// Construct an in-process lease (back-compat alias for [`Self::in_process`]).
@@ -403,7 +417,11 @@ impl CheckpointLease {
     /// Create a distributed lease backed by a PostgreSQL session advisory lock.
     #[cfg(feature = "postgres")]
     pub fn postgres(pool: sqlx::PgPool, listener_id: String, checkpoint_id: i64) -> Self {
-        Self(LeaseKind::Postgres(PostgresAdvisoryLease::new(pool, listener_id, checkpoint_id)))
+        Self(LeaseKind::Postgres(PostgresAdvisoryLease::new(
+            pool,
+            listener_id,
+            checkpoint_id,
+        )))
     }
 
     /// Create a distributed lease backed by Redis `SET NX EX`.
@@ -521,7 +539,7 @@ impl CheckpointLease {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,11 +612,7 @@ mod tests {
     async fn test_lease_multiple_listeners() {
         let leases: Vec<_> = (0..3)
             .map(|i| {
-                CheckpointLease::in_process(
-                    format!("listener-{i}"),
-                    1000 + i64::from(i),
-                    5000,
-                )
+                CheckpointLease::in_process(format!("listener-{i}"), 1000 + i64::from(i), 5000)
             })
             .collect();
 

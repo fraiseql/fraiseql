@@ -19,13 +19,11 @@ fn create_test_metadata() -> FactTableMetadata {
         ],
         dimensions:           DimensionColumn {
             name:  "dimensions".to_string(),
-            paths: vec![
-                crate::compiler::fact_table::DimensionPath {
-                    name:      "category".to_string(),
-                    json_path: "dimensions->>'category'".to_string(),
-                    data_type: "text".to_string(),
-                },
-            ],
+            paths: vec![crate::compiler::fact_table::DimensionPath {
+                name:      "category".to_string(),
+                json_path: "dimensions->>'category'".to_string(),
+                data_type: "text".to_string(),
+            }],
         },
         denormalized_filters: vec![
             FilterColumn {
@@ -104,8 +102,7 @@ fn test_parse_row_number_query() {
         }]
     });
 
-    let plan =
-        WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+    let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.table, "tf_sales");
     assert_eq!(plan.windows.len(), 1);
@@ -130,8 +127,7 @@ fn test_parse_lag_function() {
         }]
     });
 
-    let plan =
-        WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+    let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
     match &plan.windows[0].function {
         WindowFunctionType::Lag {
@@ -174,9 +170,7 @@ fn test_validate_groups_frame_postgres_only() {
     };
 
     // Should pass for PostgreSQL
-    assert!(
-        WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL).is_ok()
-    );
+    assert!(WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL).is_ok());
 
     // Should fail for MySQL
     assert!(WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::MySQL).is_err());

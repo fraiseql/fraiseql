@@ -62,11 +62,11 @@ pub struct AuthStartQuery {
 #[derive(Deserialize)]
 pub struct AuthCallbackQuery {
     /// Authorization code to exchange for tokens.
-    code:  Option<String>,
+    code:              Option<String>,
     /// State token for CSRF and PKCE state lookup.
-    state: Option<String>,
+    state:             Option<String>,
     /// OIDC provider error code (e.g. `"access_denied"`).
-    error: Option<String>,
+    error:             Option<String>,
     /// Human-readable error description from the provider.
     error_description: Option<String>,
 }
@@ -132,13 +132,11 @@ pub async fn auth_start(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "authorization flow could not be started",
             );
-        }
+        },
     };
 
     let challenge = PkceStateStore::s256_challenge(&verifier);
-    let location  = state
-        .oidc_client
-        .authorization_url(&outbound_token, &challenge, "S256");
+    let location = state.oidc_client.authorization_url(&outbound_token, &challenge, "S256");
 
     Redirect::to(&location).into_response()
 }
@@ -162,8 +160,8 @@ pub async fn auth_start(
 ///
 /// # Responses
 ///
-/// - `200` JSON `{ access_token, id_token?, expires_in?, token_type }`.
-///   Or `302` with `Set-Cookie` when `post_login_redirect_uri` is configured.
+/// - `200` JSON `{ access_token, id_token?, expires_in?, token_type }`. Or `302` with `Set-Cookie`
+///   when `post_login_redirect_uri` is configured.
 /// - `400` — invalid/expired state, missing parameters, or provider error.
 /// - `502` — token exchange with the OIDC provider failed.
 pub async fn auth_callback(
@@ -178,11 +176,11 @@ pub async fn auth_callback(
         // provider details (tenant info, stack traces) or enabling injection.
         tracing::warn!(oidc_error = %err, description = %desc, "OIDC provider returned error");
         let client_message = match err.as_str() {
-            "access_denied"                  => "Access was denied",
-            "login_required"                 => "Authentication is required",
+            "access_denied" => "Access was denied",
+            "login_required" => "Authentication is required",
             "invalid_request" | "invalid_scope" => "Invalid authorization request",
             "server_error" | "temporarily_unavailable" => "Authorization server error",
-            _                                => "Authorization failed",
+            _ => "Authorization failed",
         };
         return auth_error(StatusCode::BAD_REQUEST, client_message);
     }
@@ -201,7 +199,7 @@ pub async fn auth_callback(
             // Log at debug to avoid spamming warnings from probing attacks.
             tracing::debug!(error = %e, "pkce consume_state failed");
             return auth_error(StatusCode::BAD_REQUEST, &e.to_string());
-        }
+        },
     };
 
     // ── Exchange code + verifier at the OIDC provider ────────────────────
@@ -214,7 +212,7 @@ pub async fn auth_callback(
         Err(e) => {
             tracing::error!("token exchange failed: {e}");
             return auth_error(StatusCode::BAD_GATEWAY, "token exchange with OIDC provider failed");
-        }
+        },
     };
 
     // ── Return tokens ─────────────────────────────────────────────────────
@@ -227,10 +225,10 @@ pub async fn auth_callback(
         //
         // Cookie notes:
         // - `__Host-` prefix mandates Secure, Path=/, no Domain, blocking subdomain override.
-        // - Token value is double-quoted (RFC 6265 quoted-string) to safely embed any
-        //   printable ASCII that OAuth servers may include.
-        // - Max-Age uses 300s when expires_in is absent — a conservative default that
-        //   prevents the cookie outliving a short-lived token by a large margin.
+        // - Token value is double-quoted (RFC 6265 quoted-string) to safely embed any printable
+        //   ASCII that OAuth servers may include.
+        // - Max-Age uses 300s when expires_in is absent — a conservative default that prevents the
+        //   cookie outliving a short-lived token by a large margin.
         let max_age = tokens.expires_in.unwrap_or(300);
         // Escape '"' and '\' inside the token value per RFC 6265 quoted-string rules.
         let token_escaped = tokens.access_token.replace('\\', r"\\").replace('"', r#"\""#);
@@ -278,7 +276,7 @@ pub struct RevokeTokenRequest {
 #[derive(Serialize)]
 pub struct RevokeTokenResponse {
     /// Whether the token was successfully revoked.
-    pub revoked: bool,
+    pub revoked:    bool,
     /// ISO-8601 timestamp at which the revocation record will expire, if known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
@@ -327,14 +325,14 @@ pub async fn revoke_token(
         Ok(data) => data.claims,
         Err(e) => {
             return auth_error(StatusCode::BAD_REQUEST, &format!("Invalid token: {e}"));
-        }
+        },
     };
 
     let jti = match claims.jti {
         Some(j) if !j.is_empty() => j,
         _ => {
             return auth_error(StatusCode::BAD_REQUEST, "Token has no jti claim");
-        }
+        },
     };
 
     // TTL = remaining token lifetime, or 24h if no exp.
@@ -348,10 +346,7 @@ pub async fn revoke_token(
 
     if let Err(e) = state.revocation_manager.revoke(&jti, ttl_secs).await {
         tracing::error!(error = %e, "Failed to revoke token");
-        return auth_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to revoke token",
-        );
+        return auth_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke token");
     }
 
     let expires_at = claims.exp.map(|exp| {
@@ -399,14 +394,14 @@ pub async fn revoke_all_tokens(
     }
 
     match state.revocation_manager.revoke_all_for_user(&body.sub).await {
-        Ok(count) => Json(RevokeAllResponse { revoked_count: count }).into_response(),
+        Ok(count) => Json(RevokeAllResponse {
+            revoked_count: count,
+        })
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, sub = %body.sub, "Failed to revoke tokens for user");
-            auth_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to revoke tokens",
-            )
-        }
+            auth_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke tokens")
+        },
     }
 }
 
@@ -418,10 +413,10 @@ pub async fn revoke_all_tokens(
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use super::*;
     use axum::{Router, body::Body, http::Request, routing::get};
     use tower::ServiceExt as _;
 
+    use super::*;
     use crate::auth::PkceStateStore;
 
     fn mock_pkce_store() -> Arc<PkceStateStore> {
@@ -446,7 +441,7 @@ mod tests {
             post_login_redirect_uri: None,
         });
         Router::new()
-            .route("/auth/start",    get(auth_start))
+            .route("/auth/start", get(auth_start))
             .route("/auth/callback", get(auth_callback))
             .with_state(auth_state)
     }
@@ -461,31 +456,24 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
 
         // axum's Redirect::to() returns 303 See Other; allow any 3xx redirect.
-        assert!(
-            resp.status().is_redirection(),
-            "expected redirect, got {}",
-            resp.status()
-        );
+        assert!(resp.status().is_redirection(), "expected redirect, got {}", resp.status());
         let location = resp
             .headers()
             .get(header::LOCATION)
             .and_then(|v| v.to_str().ok())
             .expect("Location header must be present");
 
-        assert!(location.contains("response_type=code"),         "missing response_type");
-        assert!(location.contains("code_challenge="),            "missing code_challenge");
+        assert!(location.contains("response_type=code"), "missing response_type");
+        assert!(location.contains("code_challenge="), "missing code_challenge");
         assert!(location.contains("code_challenge_method=S256"), "missing challenge method");
-        assert!(location.contains("state="),                     "missing state param");
-        assert!(location.contains("client_id=test-client"),      "missing client_id");
+        assert!(location.contains("state="), "missing state param");
+        assert!(location.contains("client_id=test-client"), "missing client_id");
     }
 
     #[tokio::test]
     async fn test_auth_start_missing_redirect_uri_returns_400() {
         let app = auth_router();
-        let req = Request::builder()
-            .uri("/auth/start")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/auth/start").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
         // Missing required query param → axum returns 422 (or our guard returns 400).
         // Either is acceptable; what matters is it's not 200 or 302.
@@ -613,13 +601,13 @@ mod tests {
 
         let auth_state = Arc::new(AuthPkceState {
             pkce_store,
-            oidc_client:             mock_oidc_client(),
-            http_client:             Arc::new(reqwest::Client::new()),
+            oidc_client: mock_oidc_client(),
+            http_client: Arc::new(reqwest::Client::new()),
             post_login_redirect_uri: None,
         });
 
         let app = Router::new()
-            .route("/auth/start",    get(auth_start))
+            .route("/auth/start", get(auth_start))
             .route("/auth/callback", get(auth_callback))
             .with_state(auth_state);
 
@@ -646,8 +634,8 @@ mod tests {
         // Extract the state= token from the redirect URL using proper URL parsing to
         // avoid false matches when "state=" appears elsewhere in the URL (e.g. in path
         // or other parameters).
-        let parsed_location = reqwest::Url::parse(&location)
-            .expect("Location header must be a valid URL");
+        let parsed_location =
+            reqwest::Url::parse(&location).expect("Location header must be a valid URL");
         let state_token = parsed_location
             .query_pairs()
             .find(|(k, _)| k == "state")
@@ -660,10 +648,7 @@ mod tests {
         // Expected result: 502 Bad Gateway (token exchange fails — no real OIDC provider).
         // A 400 would mean the PKCE state was not found, which would be a regression.
         let callback_uri = format!("/auth/callback?code=test_code&state={state_token}");
-        let req2 = Request::builder()
-            .uri(&callback_uri)
-            .body(Body::empty())
-            .unwrap();
+        let req2 = Request::builder().uri(&callback_uri).body(Body::empty()).unwrap();
         let resp2 = app.clone().oneshot(req2).await.unwrap();
 
         assert_ne!(

@@ -1,11 +1,11 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::field_type::DeprecationInfo;
-use crate::schema::graphql_type_defs::default_jsonb_column;
-use crate::schema::security_config::InjectedParamSource;
-
 use super::argument::{ArgumentDefinition, AutoParams};
+use crate::schema::{
+    field_type::DeprecationInfo, graphql_type_defs::default_jsonb_column,
+    security_config::InjectedParamSource,
+};
 
 /// The type of column used as the keyset cursor for relay pagination.
 ///

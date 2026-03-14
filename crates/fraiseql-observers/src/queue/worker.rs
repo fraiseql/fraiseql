@@ -12,7 +12,6 @@ use std::{
 };
 
 use tokio::time::timeout;
-
 use tracing::{error, warn};
 
 use super::{Job, JobQueue, JobResult, JobStatus, RetryPolicy};

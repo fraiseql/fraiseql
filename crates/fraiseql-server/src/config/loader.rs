@@ -86,7 +86,8 @@ impl RuntimeConfig {
     ///
     /// # Errors
     ///
-    /// Returns `ConfigError::ParseError` if the content is not valid TOML or cannot be deserialized.
+    /// Returns `ConfigError::ParseError` if the content is not valid TOML or cannot be
+    /// deserialized.
     pub fn validate_syntax(content: &str) -> Result<(), ConfigError> {
         let _config: RuntimeConfig =
             toml::from_str(content).map_err(|e| ConfigError::ParseError { source: e })?;

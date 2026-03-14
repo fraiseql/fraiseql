@@ -2,22 +2,24 @@
 
 use indexmap::IndexMap;
 
-use super::csharp::CSharpGenerator;
-use super::go_lang::GoGenerator;
-use super::java::JavaGenerator;
-use super::kotlin::KotlinGenerator;
-use super::php::PhpGenerator;
-use super::python::PythonGenerator;
-use super::rust_lang::RustGenerator;
-use super::scala::ScalaGenerator;
-use super::swift::SwiftGenerator;
-use super::typescript::TypeScriptGenerator;
-use super::utils::{
-    derive_class_name, infer_sql_source, map_graphql_to_lang, to_camel_case, to_pascal_case,
-    wrap_nullable,
+use super::{
+    super::init::Language,
+    SchemaGenerator,
+    csharp::CSharpGenerator,
+    go_lang::GoGenerator,
+    java::JavaGenerator,
+    kotlin::KotlinGenerator,
+    php::PhpGenerator,
+    python::PythonGenerator,
+    rust_lang::RustGenerator,
+    scala::ScalaGenerator,
+    swift::SwiftGenerator,
+    typescript::TypeScriptGenerator,
+    utils::{
+        derive_class_name, infer_sql_source, map_graphql_to_lang, to_camel_case, to_pascal_case,
+        wrap_nullable,
+    },
 };
-use super::SchemaGenerator;
-use super::super::init::Language;
 use crate::schema::intermediate::{
     IntermediateArgument, IntermediateEnum, IntermediateEnumValue, IntermediateField,
     IntermediateQuery, IntermediateSchema, IntermediateType,
@@ -78,47 +80,47 @@ fn test_wrap_nullable() {
 #[test]
 fn test_derive_class_name() {
     let list_query = IntermediateQuery {
-        name:         "authors".to_string(),
-        return_type:  "Author".to_string(),
-        returns_list: true,
-        nullable:     false,
-        arguments:    vec![],
-        description:  None,
-        sql_source:   None,
-        auto_params:  None,
-        deprecated:   None,
-        jsonb_column: None,
-        relay: false,
-         inject: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
+        name:              "authors".to_string(),
+        return_type:       "Author".to_string(),
+        returns_list:      true,
+        nullable:          false,
+        arguments:         vec![],
+        description:       None,
+        sql_source:        None,
+        auto_params:       None,
+        deprecated:        None,
+        jsonb_column:      None,
+        relay:             false,
+        inject:            IndexMap::default(),
+        cache_ttl_seconds: None,
+        additional_views:  vec![],
+        requires_role:     None,
         relay_cursor_type: None,
     };
     assert_eq!(derive_class_name(&list_query), "Authors");
 
     let single_query = IntermediateQuery {
-        name:         "author".to_string(),
-        return_type:  "Author".to_string(),
-        returns_list: false,
-        nullable:     false,
-        arguments:    vec![IntermediateArgument {
+        name:              "author".to_string(),
+        return_type:       "Author".to_string(),
+        returns_list:      false,
+        nullable:          false,
+        arguments:         vec![IntermediateArgument {
             name:       "id".to_string(),
             arg_type:   "ID".to_string(),
             nullable:   false,
             default:    None,
             deprecated: None,
         }],
-        description:  None,
-        sql_source:   None,
-        auto_params:  None,
-        deprecated:   None,
-        jsonb_column: None,
-        relay: false,
-         inject: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
+        description:       None,
+        sql_source:        None,
+        auto_params:       None,
+        deprecated:        None,
+        jsonb_column:      None,
+        relay:             false,
+        inject:            IndexMap::default(),
+        cache_ttl_seconds: None,
+        additional_views:  vec![],
+        requires_role:     None,
         relay_cursor_type: None,
     };
     assert_eq!(derive_class_name(&single_query), "AuthorById");
@@ -135,8 +137,8 @@ fn sample_schema() -> IntermediateSchema {
     IntermediateSchema {
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
-            name:        "Author".to_string(),
-            fields:      vec![
+            name:          "Author".to_string(),
+            fields:        vec![
                 IntermediateField {
                     name:           "pk".to_string(),
                     field_type:     "Int".to_string(),
@@ -174,53 +176,53 @@ fn sample_schema() -> IntermediateSchema {
                     on_deny:        None,
                 },
             ],
-            description: None,
-            implements:  Vec::new(),
+            description:   None,
+            implements:    Vec::new(),
             requires_role: None,
-            is_error:    false,
-            relay:    false,
+            is_error:      false,
+            relay:         false,
         }],
         queries: vec![
             IntermediateQuery {
-                name:         "authors".to_string(),
-                return_type:  "Author".to_string(),
-                returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                description:  None,
-                sql_source:   Some("v_author".to_string()),
-                auto_params:  None,
-                deprecated:   None,
-                jsonb_column: None,
-                relay: false,
-                 inject: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
+                name:              "authors".to_string(),
+                return_type:       "Author".to_string(),
+                returns_list:      true,
+                nullable:          false,
+                arguments:         vec![],
+                description:       None,
+                sql_source:        Some("v_author".to_string()),
+                auto_params:       None,
+                deprecated:        None,
+                jsonb_column:      None,
+                relay:             false,
+                inject:            IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views:  vec![],
+                requires_role:     None,
                 relay_cursor_type: None,
             },
             IntermediateQuery {
-                name:         "author".to_string(),
-                return_type:  "Author".to_string(),
-                returns_list: false,
-                nullable:     false,
-                arguments:    vec![IntermediateArgument {
+                name:              "author".to_string(),
+                return_type:       "Author".to_string(),
+                returns_list:      false,
+                nullable:          false,
+                arguments:         vec![IntermediateArgument {
                     name:       "id".to_string(),
                     arg_type:   "ID".to_string(),
                     nullable:   false,
                     default:    None,
                     deprecated: None,
                 }],
-                description:  None,
-                sql_source:   Some("v_author".to_string()),
-                auto_params:  None,
-                deprecated:   None,
-                jsonb_column: None,
-                relay: false,
-                 inject: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
+                description:       None,
+                sql_source:        Some("v_author".to_string()),
+                auto_params:       None,
+                deprecated:        None,
+                jsonb_column:      None,
+                relay:             false,
+                inject:            IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views:  vec![],
+                requires_role:     None,
                 relay_cursor_type: None,
             },
         ],
@@ -398,7 +400,11 @@ fn test_php_generator() {
     assert!(code.contains("final class Author"));
     assert!(code.contains("    #[GraphQLField(type: 'Int')]\n    public int $pk;"));
     assert!(code.contains("    #[GraphQLField(type: 'ID')]\n    public string $id;"));
-    assert!(code.contains("    #[GraphQLField(type: 'String', nullable: true)]\n    public ?string $bio;"));
+    assert!(
+        code.contains(
+            "    #[GraphQLField(type: 'String', nullable: true)]\n    public ?string $bio;"
+        )
+    );
     assert!(code.contains("returnArray: true"));
     assert!(code.contains("#[Query(returnType: 'Author::class', sqlSource: 'v_author',"));
     assert!(code.contains("new Arg(name: 'id', type: 'ID')"));

@@ -27,7 +27,9 @@ use std::collections::HashMap;
 /// PostgreSQL uses `\` as the default LIKE escape character.
 fn escape_like_literal(s: &str) -> String {
     // Order matters: escape `\` first to avoid double-escaping.
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// Infers the PostgreSQL type cast needed for a value
@@ -825,10 +827,8 @@ mod tests {
     fn test_startswith_escapes_wildcard_in_prefix() {
         let mut param_index = 0;
         let mut params = HashMap::new();
-        let op = WhereOperator::Startswith(
-            Field::DirectColumn("name".to_string()),
-            "C%D".to_string(),
-        );
+        let op =
+            WhereOperator::Startswith(Field::DirectColumn("name".to_string()), "C%D".to_string());
         generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
         // prefix escaped, trailing % appended for LIKE
         assert_eq!(value_as_str(&params[&1]), "C\\%D%");

@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Integration tests for AI agent introspection features
 //!
 //! Tests the --help-json, --list-commands, and --show-output-schema flags

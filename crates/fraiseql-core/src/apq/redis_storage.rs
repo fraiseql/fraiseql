@@ -96,10 +96,7 @@ impl ApqStorage for RedisApqStorage {
 
     async fn set(&self, hash: String, query: String) -> Result<(), ApqError> {
         let mut conn = self.pool.clone();
-        match conn
-            .set_ex::<_, _, ()>(Self::key(&hash), &query, self.ttl_secs)
-            .await
-        {
+        match conn.set_ex::<_, _, ()>(Self::key(&hash), &query, self.ttl_secs).await {
             Ok(()) => Ok(()),
             Err(e) => Self::fail_open(e, "SET"),
         }
@@ -174,7 +171,8 @@ mod tests {
     use super::*;
 
     /// These tests require a running Redis instance at `REDIS_URL`.
-    /// Run with: `REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-core --features redis-apq -- redis_apq --ignored`
+    /// Run with: `REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-core --features redis-apq
+    /// -- redis_apq --ignored`
     fn redis_url() -> Option<String> {
         std::env::var("REDIS_URL").ok()
     }

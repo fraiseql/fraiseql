@@ -108,11 +108,31 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
 
     // When category flags are given, treat unselected categories as empty so
     // they don't affect severity counts or scores.
-    let fed_issues   = if show_all || f.federation  { audit.federation_issues.len() } else { 0 };
-    let cost_issues  = if show_all || f.cost         { audit.cost_warnings.len()     } else { 0 };
-    let cache_issues = if show_all || f.cache        { audit.cache_issues.len()      } else { 0 };
-    let auth_issues  = if show_all || f.auth         { audit.auth_issues.len()       } else { 0 };
-    let comp_issues  = if show_all || f.compilation  { audit.schema_issues.len()     } else { 0 };
+    let fed_issues = if show_all || f.federation {
+        audit.federation_issues.len()
+    } else {
+        0
+    };
+    let cost_issues = if show_all || f.cost {
+        audit.cost_warnings.len()
+    } else {
+        0
+    };
+    let cache_issues = if show_all || f.cache {
+        audit.cache_issues.len()
+    } else {
+        0
+    };
+    let auth_issues = if show_all || f.auth {
+        audit.auth_issues.len()
+    } else {
+        0
+    };
+    let comp_issues = if show_all || f.compilation {
+        audit.schema_issues.len()
+    } else {
+        0
+    };
 
     // Check for fail conditions if enabled (only considering visible categories).
     let visible_critical = if show_all {
@@ -124,19 +144,39 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
         use fraiseql_core::design::IssueSeverity;
         let mut n = 0;
         if f.federation {
-            n += audit.federation_issues.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
+            n += audit
+                .federation_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Critical)
+                .count();
         }
         if f.cost {
-            n += audit.cost_warnings.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
+            n += audit
+                .cost_warnings
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Critical)
+                .count();
         }
         if f.cache {
-            n += audit.cache_issues.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
+            n += audit
+                .cache_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Critical)
+                .count();
         }
         if f.auth {
-            n += audit.auth_issues.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
+            n += audit
+                .auth_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Critical)
+                .count();
         }
         if f.compilation {
-            n += audit.schema_issues.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
+            n += audit
+                .schema_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Critical)
+                .count();
         }
         n
     };
@@ -155,19 +195,39 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
         use fraiseql_core::design::IssueSeverity;
         let mut n = 0;
         if f.federation {
-            n += audit.federation_issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+            n += audit
+                .federation_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Warning)
+                .count();
         }
         if f.cost {
-            n += audit.cost_warnings.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+            n += audit
+                .cost_warnings
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Warning)
+                .count();
         }
         if f.cache {
-            n += audit.cache_issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+            n += audit
+                .cache_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Warning)
+                .count();
         }
         if f.auth {
-            n += audit.auth_issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+            n += audit
+                .auth_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Warning)
+                .count();
         }
         if f.compilation {
-            n += audit.schema_issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+            n += audit
+                .schema_issues
+                .iter()
+                .filter(|i| i.severity == IssueSeverity::Warning)
+                .count();
         }
         n
     };
@@ -189,11 +249,31 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
         score
     };
 
-    let fed_score  = if fed_issues   == 0 { 100 } else { score_from_count(fed_issues,   10) };
-    let cost_score = if cost_issues  == 0 { 100 } else { score_from_count(cost_issues,   8) };
-    let cache_score = if cache_issues == 0 { 100 } else { score_from_count(cache_issues,  6) };
-    let auth_score = if auth_issues  == 0 { 100 } else { score_from_count(auth_issues,  12) };
-    let comp_score = if comp_issues  == 0 { 100 } else { score_from_count(comp_issues,  10) };
+    let fed_score = if fed_issues == 0 {
+        100
+    } else {
+        score_from_count(fed_issues, 10)
+    };
+    let cost_score = if cost_issues == 0 {
+        100
+    } else {
+        score_from_count(cost_issues, 8)
+    };
+    let cache_score = if cache_issues == 0 {
+        100
+    } else {
+        score_from_count(cache_issues, 6)
+    };
+    let auth_score = if auth_issues == 0 {
+        100
+    } else {
+        score_from_count(auth_issues, 12)
+    };
+    let comp_score = if comp_issues == 0 {
+        100
+    } else {
+        score_from_count(comp_issues, 10)
+    };
 
     let severity_counts = SeverityCounts {
         critical: visible_critical,
@@ -220,7 +300,7 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     Ok(CommandResult::success("lint", serde_json::to_value(&response)?))
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::io::Write;

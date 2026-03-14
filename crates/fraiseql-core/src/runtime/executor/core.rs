@@ -136,9 +136,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
         for q in &schema.queries {
             if let Some(src) = q.sql_source.as_deref() {
-                node_type_index
-                    .entry(q.return_type.clone())
-                    .or_insert_with(|| Arc::from(src));
+                node_type_index.entry(q.return_type.clone()).or_insert_with(|| Arc::from(src));
             }
         }
 
@@ -222,9 +220,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
         let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
         for q in &schema.queries {
             if let Some(src) = q.sql_source.as_deref() {
-                node_type_index
-                    .entry(q.return_type.clone())
-                    .or_insert_with(|| Arc::from(src));
+                node_type_index.entry(q.return_type.clone()).or_insert_with(|| Arc::from(src));
             }
         }
 

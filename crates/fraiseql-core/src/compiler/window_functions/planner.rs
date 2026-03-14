@@ -1,6 +1,5 @@
-use crate::compiler::window_allowlist::WindowAllowlist;
-
 use super::*;
+use crate::compiler::window_allowlist::WindowAllowlist;
 
 /// Window function plan generator
 pub struct WindowFunctionPlanner;
@@ -121,9 +120,9 @@ impl WindowFunctionPlanner {
             .iter()
             .filter_map(|col| {
                 col.as_str().map(|col_str| SelectColumn {
-                        expression: col_str.to_string(),
-                        alias:      col_str.to_string(),
-                    })
+                    expression: col_str.to_string(),
+                    alias:      col_str.to_string(),
+                })
             })
             .collect();
 
@@ -186,7 +185,10 @@ impl WindowFunctionPlanner {
                         validate_sql_expression(field, "orderBy.field")?;
                         // Layer 2: schema-based allowlist (defence-in-depth)
                         allowlist.validate(field, "ORDER BY")?;
-                        Ok(OrderByClause { field: field.to_string(), direction })
+                        Ok(OrderByClause {
+                            field: field.to_string(),
+                            direction,
+                        })
                     })
                     .collect()
             })
@@ -275,11 +277,12 @@ impl WindowFunctionPlanner {
         for window in &plan.windows {
             if let Some(frame) = &window.frame {
                 if frame.frame_type == FrameType::Groups
-                    && !matches!(database_target, DatabaseType::PostgreSQL) {
-                        return Err(FraiseQLError::validation(
-                            "GROUPS frame type only supported on PostgreSQL",
-                        ));
-                    }
+                    && !matches!(database_target, DatabaseType::PostgreSQL)
+                {
+                    return Err(FraiseQLError::validation(
+                        "GROUPS frame type only supported on PostgreSQL",
+                    ));
+                }
 
                 // Validate frame exclusion (PostgreSQL only)
                 if frame.exclusion.is_some() && !matches!(database_target, DatabaseType::PostgreSQL)

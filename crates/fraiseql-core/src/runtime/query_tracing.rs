@@ -166,8 +166,7 @@ impl QueryTraceBuilder {
         error: Option<&str>,
         result_count: Option<usize>,
     ) -> Result<QueryExecutionTrace> {
-        let total_duration_us =
-            u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
+        let total_duration_us = u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
 
         Ok(QueryExecutionTrace {
             query_id: self.query_id.clone(),

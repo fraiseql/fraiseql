@@ -182,11 +182,10 @@ pub trait CheckpointStore: Send + Sync + Clone {
 ///
 /// # Choosing a Strategy
 ///
-/// - **`AtLeastOnce`** (default): suitable for idempotent side-effects such as
-///   cache invalidation, search index updates, and best-effort webhook fanout.
-/// - **`EffectivelyOnce`**: required for non-idempotent operations such as
-///   billing events, audit log writes, and email sends where duplicate execution
-///   would be observable by end users.
+/// - **`AtLeastOnce`** (default): suitable for idempotent side-effects such as cache invalidation,
+///   search index updates, and best-effort webhook fanout.
+/// - **`EffectivelyOnce`**: required for non-idempotent operations such as billing events, audit
+///   log writes, and email sends where duplicate execution would be observable by end users.
 ///
 /// # Example
 ///
@@ -252,7 +251,6 @@ pub enum CheckpointStrategy {
     },
 }
 
-
 impl CheckpointStrategy {
     /// Returns `true` if this strategy requires an idempotency table.
     #[must_use]
@@ -295,12 +293,11 @@ impl CheckpointStrategy {
                ON {table} (processed_at)"
         );
 
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .map_err(|e| crate::error::ObserverError::DatabaseError {
+        sqlx::raw_sql(&sql).execute(pool).await.map_err(|e| {
+            crate::error::ObserverError::DatabaseError {
                 reason: format!("Failed to create idempotency table '{table}': {e}"),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -443,7 +440,9 @@ impl InMemoryCheckpointStore {
     /// Only use this in unit tests where the warning would add noise.
     #[must_use]
     pub fn new_silent() -> Self {
-        Self { store: Arc::new(dashmap::DashMap::new()) }
+        Self {
+            store: Arc::new(dashmap::DashMap::new()),
+        }
     }
 }
 
@@ -551,7 +550,7 @@ pub fn check_checkpoint_requirement(mode: CheckpointMode) -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -566,10 +565,12 @@ mod tests {
     #[test]
     fn test_strategy_is_effectively_once() {
         assert!(!CheckpointStrategy::AtLeastOnce.is_effectively_once());
-        assert!(CheckpointStrategy::EffectivelyOnce {
-            idempotency_table: "t".to_string()
-        }
-        .is_effectively_once());
+        assert!(
+            CheckpointStrategy::EffectivelyOnce {
+                idempotency_table: "t".to_string(),
+            }
+            .is_effectively_once()
+        );
     }
 
     #[test]
@@ -577,7 +578,7 @@ mod tests {
         assert!(CheckpointStrategy::AtLeastOnce.idempotency_table().is_none());
         assert_eq!(
             CheckpointStrategy::EffectivelyOnce {
-                idempotency_table: "observer_idempotency_keys".to_string()
+                idempotency_table: "observer_idempotency_keys".to_string(),
             }
             .idempotency_table(),
             Some("observer_idempotency_keys")
@@ -718,9 +719,7 @@ mod tests {
         let tasks: Vec<_> = (1..=16_i64)
             .map(|new_id| {
                 let s = store.clone();
-                tokio::spawn(async move {
-                    s.compare_and_swap("l1", 0, new_id).await.unwrap()
-                })
+                tokio::spawn(async move { s.compare_and_swap("l1", 0, new_id).await.unwrap() })
             })
             .collect();
 
@@ -758,8 +757,7 @@ mod tests {
         let truthy_values = ["true", "1", "yes"];
         for val in truthy_values {
             // Simulate what check_checkpoint_requirement does internally.
-            let required =
-                matches!(val.to_lowercase().as_str(), "true" | "1" | "yes");
+            let required = matches!(val.to_lowercase().as_str(), "true" | "1" | "yes");
             assert!(required, "'{val}' should be treated as truthy");
         }
     }

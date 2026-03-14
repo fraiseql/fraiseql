@@ -1,7 +1,7 @@
 // Rate limiting integration tests
 
 #[cfg(test)]
-use crate::rate_limiting::{KeyedRateLimiter, AuthRateLimitConfig};
+use crate::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 
 #[test]
 fn test_rate_limit_allows_requests_within_limit() {

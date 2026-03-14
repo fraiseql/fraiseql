@@ -4,12 +4,11 @@ use std::{collections::HashSet, sync::Arc};
 
 use fraiseql_error::{FraiseQLError, Result};
 
+use super::counter::ParamCounter;
 use crate::{
     dialect::SqlDialect,
     where_clause::{WhereClause, WhereOperator},
 };
-
-use super::counter::ParamCounter;
 
 /// Generic WHERE clause SQL generator.
 ///
@@ -42,8 +41,8 @@ use super::counter::ParamCounter;
 /// assert_eq!(sql, "data->>'email' = $1");
 /// ```
 pub struct GenericWhereGenerator<D: SqlDialect> {
-    dialect: D,
-    counter: ParamCounter,
+    dialect:         D,
+    counter:         ParamCounter,
     /// Optional indexed-column set (PostgreSQL optimisation: short-circuits JSONB
     /// extraction when a generated column covers the path).
     indexed_columns: Option<Arc<HashSet<String>>>,
@@ -52,7 +51,11 @@ pub struct GenericWhereGenerator<D: SqlDialect> {
 impl<D: SqlDialect> GenericWhereGenerator<D> {
     /// Create a new generator for the given dialect.
     pub const fn new(dialect: D) -> Self {
-        Self { dialect, counter: ParamCounter::new(), indexed_columns: None }
+        Self {
+            dialect,
+            counter: ParamCounter::new(),
+            indexed_columns: None,
+        }
     }
 
     /// Attach an indexed-columns set (PostgreSQL optimisation).
@@ -71,10 +74,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     ///
     /// Returns `FraiseQLError::Validation` if the clause uses an operator
     /// not supported by the dialect.
-    pub fn generate(
-        &self,
-        clause: &WhereClause,
-    ) -> Result<(String, Vec<serde_json::Value>)> {
+    pub fn generate(&self, clause: &WhereClause) -> Result<(String, Vec<serde_json::Value>)> {
         self.generate_with_param_offset(clause, 0)
     }
 
@@ -100,20 +100,16 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
     // ── Visitor ───────────────────────────────────────────────────────────────
 
-    fn visit(
-        &self,
-        clause: &WhereClause,
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
+    fn visit(&self, clause: &WhereClause, params: &mut Vec<serde_json::Value>) -> Result<String> {
         match clause {
             WhereClause::And(clauses) => self.visit_and(clauses, params),
             WhereClause::Or(clauses) => self.visit_or(clauses, params),
-            WhereClause::Not(inner) => {
-                Ok(format!("NOT ({})", self.visit(inner, params)?))
-            },
-            WhereClause::Field { path, operator, value } => {
-                self.visit_field(path, operator, value, params)
-            },
+            WhereClause::Not(inner) => Ok(format!("NOT ({})", self.visit(inner, params)?)),
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => self.visit_field(path, operator, value, params),
         }
     }
 
@@ -125,8 +121,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         if clauses.is_empty() {
             return Ok(self.dialect.always_true().to_string());
         }
-        let parts: Result<Vec<_>> =
-            clauses.iter().map(|c| self.visit(c, params)).collect();
+        let parts: Result<Vec<_>> = clauses.iter().map(|c| self.visit(c, params)).collect();
         Ok(format!("({})", parts?.join(" AND ")))
     }
 
@@ -138,8 +133,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         if clauses.is_empty() {
             return Ok(self.dialect.always_false().to_string());
         }
-        let parts: Result<Vec<_>> =
-            clauses.iter().map(|c| self.visit(c, params)).collect();
+        let parts: Result<Vec<_>> = clauses.iter().map(|c| self.visit(c, params)).collect();
         Ok(format!("({})", parts?.join(" OR ")))
     }
 
@@ -158,11 +152,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
     // ── Push a parameter and return its placeholder ───────────────────────────
 
-    fn push_param(
-        &self,
-        params: &mut Vec<serde_json::Value>,
-        v: serde_json::Value,
-    ) -> String {
+    fn push_param(&self, params: &mut Vec<serde_json::Value>, v: serde_json::Value) -> String {
         params.push(v);
         self.dialect.placeholder(self.counter.next())
     }
@@ -209,10 +199,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     Ok(format!("{field_expr} {neq} {p}"))
                 }
             },
-            WhereOperator::Gt
-            | WhereOperator::Gte
-            | WhereOperator::Lt
-            | WhereOperator::Lte => {
+            WhereOperator::Gt | WhereOperator::Gte | WhereOperator::Lt | WhereOperator::Lte => {
                 let op = match operator {
                     WhereOperator::Gt => ">",
                     WhereOperator::Gte => ">=",
@@ -240,7 +227,11 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     arr.iter().map(|v| self.push_param(params, v.clone())).collect();
                 let in_list = placeholders.join(", ");
                 let sql = format!("{field_expr} IN ({in_list})");
-                Ok(if matches!(operator, WhereOperator::Nin) { format!("NOT ({sql})") } else { sql })
+                Ok(if matches!(operator, WhereOperator::Nin) {
+                    format!("NOT ({sql})")
+                } else {
+                    sql
+                })
             },
 
             // ── NULL ──────────────────────────────────────────────────────────
@@ -307,22 +298,26 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             // ── String: Regex ─────────────────────────────────────────────────
             WhereOperator::Regex => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.regex_sql(&field_expr, &p, false, false)
+                self.dialect
+                    .regex_sql(&field_expr, &p, false, false)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Iregex => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.regex_sql(&field_expr, &p, true, false)
+                self.dialect
+                    .regex_sql(&field_expr, &p, true, false)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Nregex => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.regex_sql(&field_expr, &p, false, true)
+                self.dialect
+                    .regex_sql(&field_expr, &p, false, true)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Niregex => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.regex_sql(&field_expr, &p, true, true)
+                self.dialect
+                    .regex_sql(&field_expr, &p, true, true)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
@@ -351,130 +346,150 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 // Both @> (ArrayContains) and @> (StrictlyContains, a JSONB-level
                 // strict containment) are routed to array_contains_sql.
                 let p = self.push_param(params, value.clone());
-                self.dialect.array_contains_sql(&field_expr, &p)
+                self.dialect
+                    .array_contains_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::ArrayContainedBy => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.array_contained_by_sql(&field_expr, &p)
+                self.dialect
+                    .array_contained_by_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::ArrayOverlaps => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.array_overlaps_sql(&field_expr, &p)
+                self.dialect
+                    .array_overlaps_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
             // ── Full-text search ──────────────────────────────────────────────
             WhereOperator::Matches => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.fts_matches_sql(&field_expr, &p)
+                self.dialect
+                    .fts_matches_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::PlainQuery => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.fts_plain_query_sql(&field_expr, &p)
+                self.dialect
+                    .fts_plain_query_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::PhraseQuery => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.fts_phrase_query_sql(&field_expr, &p)
+                self.dialect
+                    .fts_phrase_query_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::WebsearchQuery => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.fts_websearch_query_sql(&field_expr, &p)
+                self.dialect
+                    .fts_websearch_query_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
             // ── Vector (pgvector) ─────────────────────────────────────────────
             WhereOperator::CosineDistance => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.vector_distance_sql("<=>", &field_expr, &p)
+                self.dialect
+                    .vector_distance_sql("<=>", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::L2Distance => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.vector_distance_sql("<->", &field_expr, &p)
+                self.dialect
+                    .vector_distance_sql("<->", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::L1Distance => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.vector_distance_sql("<+>", &field_expr, &p)
+                self.dialect
+                    .vector_distance_sql("<+>", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::HammingDistance => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.vector_distance_sql("<~>", &field_expr, &p)
+                self.dialect
+                    .vector_distance_sql("<~>", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::InnerProduct => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.vector_distance_sql("<#>", &field_expr, &p)
+                self.dialect
+                    .vector_distance_sql("<#>", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::JaccardDistance => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.jaccard_distance_sql(&field_expr, &p)
+                self.dialect
+                    .jaccard_distance_sql(&field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
             // ── Network (INET/CIDR) ───────────────────────────────────────────
-            WhereOperator::IsIPv4 => {
-                self.dialect.inet_check_sql(&field_expr, "IsIPv4")
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
-            WhereOperator::IsIPv6 => {
-                self.dialect.inet_check_sql(&field_expr, "IsIPv6")
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
-            WhereOperator::IsPrivate => {
-                self.dialect.inet_check_sql(&field_expr, "IsPrivate")
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
-            WhereOperator::IsPublic => {
-                self.dialect.inet_check_sql(&field_expr, "IsPublic")
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
-            WhereOperator::IsLoopback => {
-                self.dialect.inet_check_sql(&field_expr, "IsLoopback")
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
+            WhereOperator::IsIPv4 => self
+                .dialect
+                .inet_check_sql(&field_expr, "IsIPv4")
+                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsIPv6 => self
+                .dialect
+                .inet_check_sql(&field_expr, "IsIPv6")
+                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsPrivate => self
+                .dialect
+                .inet_check_sql(&field_expr, "IsPrivate")
+                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsPublic => self
+                .dialect
+                .inet_check_sql(&field_expr, "IsPublic")
+                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsLoopback => self
+                .dialect
+                .inet_check_sql(&field_expr, "IsLoopback")
+                .map_err(|e| FraiseQLError::validation(e.to_string())),
             WhereOperator::InSubnet => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.inet_binary_sql("<<", &field_expr, &p)
+                self.dialect
+                    .inet_binary_sql("<<", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::ContainsSubnet | WhereOperator::ContainsIP => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.inet_binary_sql(">>", &field_expr, &p)
+                self.dialect
+                    .inet_binary_sql(">>", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Overlaps => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.inet_binary_sql("&&", &field_expr, &p)
+                self.dialect
+                    .inet_binary_sql("&&", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
             // ── LTree ─────────────────────────────────────────────────────────
             WhereOperator::AncestorOf => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_binary_sql("@>", &field_expr, &p, "ltree")
+                self.dialect
+                    .ltree_binary_sql("@>", &field_expr, &p, "ltree")
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DescendantOf => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_binary_sql("<@", &field_expr, &p, "ltree")
+                self.dialect
+                    .ltree_binary_sql("<@", &field_expr, &p, "ltree")
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::MatchesLquery => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_binary_sql("~", &field_expr, &p, "lquery")
+                self.dialect
+                    .ltree_binary_sql("~", &field_expr, &p, "lquery")
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::MatchesLtxtquery => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_binary_sql("@", &field_expr, &p, "ltxtquery")
+                self.dialect
+                    .ltree_binary_sql("@", &field_expr, &p, "ltxtquery")
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::MatchesAnyLquery => {
@@ -492,37 +507,44 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .iter()
                     .map(|v| format!("{}::lquery", self.push_param(params, v.clone())))
                     .collect();
-                self.dialect.ltree_any_lquery_sql(&field_expr, &placeholders)
+                self.dialect
+                    .ltree_any_lquery_sql(&field_expr, &placeholders)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthEq => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql("=", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql("=", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthNeq => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql("!=", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql("!=", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthGt => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql(">", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql(">", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthGte => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql(">=", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql(">=", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthLt => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql("<", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql("<", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::DepthLte => {
                 let p = self.push_param(params, value.clone());
-                self.dialect.ltree_depth_sql("<=", &field_expr, &p)
+                self.dialect
+                    .ltree_depth_sql("<=", &field_expr, &p)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Lca => {
@@ -538,7 +560,8 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .iter()
                     .map(|v| format!("{}::ltree", self.push_param(params, v.clone())))
                     .collect();
-                self.dialect.ltree_lca_sql(&field_expr, &placeholders)
+                self.dialect
+                    .ltree_lca_sql(&field_expr, &placeholders)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
@@ -557,7 +580,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     "Operator {operator:?} is not supported by the {} dialect",
                     self.dialect.name()
                 ),
-                path: None,
+                path:    None,
             }),
         }
     }
@@ -596,12 +619,11 @@ impl<D: SqlDialect> crate::filters::ExtendedOperatorHandler for GenericWhereGene
 mod tests {
     use serde_json::json;
 
+    use super::GenericWhereGenerator;
     use crate::{
         dialect::PostgresDialect,
         where_clause::{WhereClause, WhereOperator},
     };
-
-    use super::GenericWhereGenerator;
 
     fn field(path: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
         WhereClause::Field {

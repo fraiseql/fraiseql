@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::schema::field_type::{DeprecationInfo, FieldType};
-use crate::schema::graphql_value::GraphQLValue;
+use crate::schema::{
+    field_type::{DeprecationInfo, FieldType},
+    graphql_value::GraphQLValue,
+};
 
 /// Query/mutation/subscription argument definition.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

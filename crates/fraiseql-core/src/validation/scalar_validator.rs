@@ -290,8 +290,8 @@ mod tests {
     #[test]
     fn test_validate_serialize_failure_wraps_error() {
         let scalar = FailScalar;
-        let err = validate_custom_scalar(&scalar, &json!("x"), ValidationContext::Serialize)
-            .unwrap_err();
+        let err =
+            validate_custom_scalar(&scalar, &json!("x"), ValidationContext::Serialize).unwrap_err();
         let msg = format!("{err}");
         assert!(
             msg.contains("AlwaysFail") || msg.contains("serialize"),

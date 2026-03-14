@@ -85,7 +85,8 @@ pub fn parse_size(s: &str) -> Result<usize, ParseError> {
 ///
 /// # Errors
 ///
-/// Returns `ParseError::InvalidDuration` if the string is missing a unit suffix or the number is invalid.
+/// Returns `ParseError::InvalidDuration` if the string is missing a unit suffix or the number is
+/// invalid.
 pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
     let s = s.trim().to_lowercase();
 
@@ -128,7 +129,7 @@ pub enum EnvError {
     #[error("Missing environment variable {name}: {message}")]
     MissingVarWithMessage {
         /// Name of the missing variable.
-        name: String,
+        name:    String,
         /// Human-readable explanation of why the variable is required.
         message: String,
     },
@@ -141,7 +142,7 @@ pub enum ParseError {
     #[error("Invalid size value '{value}': {reason}")]
     InvalidSize {
         /// The raw string that failed parsing.
-        value: String,
+        value:  String,
         /// Explanation of why parsing failed.
         reason: String,
     },
@@ -150,7 +151,7 @@ pub enum ParseError {
     #[error("Invalid duration value '{value}': {reason}")]
     InvalidDuration {
         /// The raw string that failed parsing.
-        value: String,
+        value:  String,
         /// Explanation of why parsing failed.
         reason: String,
     },

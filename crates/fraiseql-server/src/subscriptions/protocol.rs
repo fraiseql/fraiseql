@@ -35,7 +35,7 @@ impl WsProtocol {
             match token.trim() {
                 "graphql-transport-ws" => return Some(Self::GraphqlTransportWs),
                 "graphql-ws" => return Some(Self::GraphqlWs),
-                _ => {}
+                _ => {},
             }
         }
         None
@@ -84,14 +84,14 @@ impl ProtocolCodec {
         match self.protocol {
             WsProtocol::GraphqlTransportWs => {
                 serde_json::from_str(raw).map_err(|e| ProtocolError::InvalidJson(e.to_string()))
-            }
+            },
             WsProtocol::GraphqlWs => {
                 // Deserialise first, then remap legacy type strings.
-                let mut msg: ClientMessage =
-                    serde_json::from_str(raw).map_err(|e| ProtocolError::InvalidJson(e.to_string()))?;
+                let mut msg: ClientMessage = serde_json::from_str(raw)
+                    .map_err(|e| ProtocolError::InvalidJson(e.to_string()))?;
                 msg.message_type = translate_legacy_client_type(&msg.message_type).to_string();
                 Ok(msg)
-            }
+            },
         }
     }
 
@@ -111,9 +111,10 @@ impl ProtocolCodec {
     pub fn encode(&self, msg: ServerMessage) -> Result<Option<String>, ProtocolError> {
         match self.protocol {
             WsProtocol::GraphqlTransportWs => {
-                let json = msg.to_json().map_err(|e| ProtocolError::SerializationFailed(e.to_string()))?;
+                let json =
+                    msg.to_json().map_err(|e| ProtocolError::SerializationFailed(e.to_string()))?;
                 Ok(Some(json))
-            }
+            },
             WsProtocol::GraphqlWs => {
                 let wire_type = translate_legacy_server_type(&msg.message_type);
 
@@ -132,12 +133,15 @@ impl ProtocolCodec {
                 let mut value = serde_json::to_value(&msg)
                     .map_err(|e| ProtocolError::SerializationFailed(e.to_string()))?;
                 if let Some(obj) = value.as_object_mut() {
-                    obj.insert("type".to_string(), serde_json::Value::String(wire_type.to_string()));
+                    obj.insert(
+                        "type".to_string(),
+                        serde_json::Value::String(wire_type.to_string()),
+                    );
                 }
                 let json = serde_json::to_string(&value)
                     .map_err(|e| ProtocolError::SerializationFailed(e.to_string()))?;
                 Ok(Some(json))
-            }
+            },
         }
     }
 
@@ -204,8 +208,9 @@ mod tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use super::*;
     use fraiseql_core::runtime::protocol::ServerMessage;
+
+    use super::*;
 
     // ── WsProtocol::from_header ──────────────────────────────────
 
@@ -219,10 +224,7 @@ mod tests {
 
     #[test]
     fn from_header_legacy_ws() {
-        assert_eq!(
-            WsProtocol::from_header(Some("graphql-ws")),
-            Some(WsProtocol::GraphqlWs)
-        );
+        assert_eq!(WsProtocol::from_header(Some("graphql-ws")), Some(WsProtocol::GraphqlWs));
     }
 
     #[test]

@@ -139,9 +139,8 @@ fn test_subscription_path_serialization() {
     let json = serde_json::to_string(&config).expect(
         "ServerConfig derives Serialize with serializable fields; serialization is infallible",
     );
-    let restored: ServerConfig = serde_json::from_str(&json).expect(
-        "ServerConfig roundtrip: deserialization of just-serialized data is infallible",
-    );
+    let restored: ServerConfig = serde_json::from_str(&json)
+        .expect("ServerConfig roundtrip: deserialization of just-serialized data is infallible");
 
     assert_eq!(restored.subscription_path, config.subscription_path);
     assert_eq!(restored.subscriptions_enabled, config.subscriptions_enabled);
@@ -303,8 +302,9 @@ fn test_database_tls_serialization() {
         ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
     };
 
-    let json = serde_json::to_string(&db_tls)
-        .expect("DatabaseTlsConfig derives Serialize with serializable fields; serialization is infallible");
+    let json = serde_json::to_string(&db_tls).expect(
+        "DatabaseTlsConfig derives Serialize with serializable fields; serialization is infallible",
+    );
     let restored: DatabaseTlsConfig = serde_json::from_str(&json).expect(
         "DatabaseTlsConfig roundtrip: deserialization of just-serialized data is infallible",
     );

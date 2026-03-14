@@ -32,7 +32,6 @@ pub use runtime::{
     ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
     ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
 };
-
 pub use transport::{
     BridgeTransportConfig, JetStreamConfig, NatsTransportConfig, TransportConfig, TransportKind,
 };

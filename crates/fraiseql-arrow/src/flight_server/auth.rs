@@ -8,9 +8,7 @@ use tracing::warn;
 use super::SessionTokenClaims;
 
 /// Map security error to gRPC status.
-pub fn map_security_error_to_status(
-    error: fraiseql_core::security::SecurityError,
-) -> Status {
+pub fn map_security_error_to_status(error: fraiseql_core::security::SecurityError) -> Status {
     use fraiseql_core::security::SecurityError;
 
     match error {
@@ -122,9 +120,7 @@ pub fn validate_session_token(
 /// * `Ok(String)` - Session token extracted from header
 /// * `Err(Status)` - Missing or malformed authorization header
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub fn extract_session_token<T>(
-    request: &Request<T>,
-) -> std::result::Result<String, Status> {
+pub fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<String, Status> {
     let metadata = request.metadata();
 
     let auth_header = metadata.get("authorization").ok_or_else(|| {

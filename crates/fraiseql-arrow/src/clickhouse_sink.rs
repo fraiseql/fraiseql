@@ -116,11 +116,12 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
     }
 
     // Extract the host portion (strip scheme, then take up to the first / : ? #)
-    let after_scheme = if lower.starts_with("https://") { &url[8..] } else { &url[7..] };
-    let host = after_scheme
-        .split(['/', ':', '?', '#'])
-        .next()
-        .unwrap_or("");
+    let after_scheme = if lower.starts_with("https://") {
+        &url[8..]
+    } else {
+        &url[7..]
+    };
+    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
 
     if is_ssrf_blocked_host_ch(host) {
         return Err(ArrowFlightError::Configuration(format!(
@@ -143,7 +144,7 @@ fn is_ssrf_blocked_host_ch(host: &str) -> bool {
         return addr.is_loopback()    // 127.0.0.0/8
             || addr.is_private()     // 10/8, 172.16/12, 192.168/16
             || addr.is_link_local()  // 169.254/16
-            || is_cgnat_v4(addr);    // 100.64/10
+            || is_cgnat_v4(addr); // 100.64/10
     }
 
     // Literal IPv6 (strip optional brackets)
@@ -151,7 +152,7 @@ fn is_ssrf_blocked_host_ch(host: &str) -> bool {
     if let Ok(addr) = ipv6_host.parse::<std::net::Ipv6Addr>() {
         return addr.is_loopback()       // ::1
             || addr.is_unspecified()    // ::
-            || is_ula_v6(addr);         // fc00::/7
+            || is_ula_v6(addr); // fc00::/7
     }
 
     false
@@ -555,7 +556,7 @@ mod tests {
     #[test]
     fn test_config_validate_empty_database() {
         let config = ClickHouseSinkConfig {
-            url:      TEST_URL.to_string(),
+            url: TEST_URL.to_string(),
             database: String::new(),
             ..Default::default()
         };
@@ -565,7 +566,7 @@ mod tests {
     #[test]
     fn test_config_validate_empty_table() {
         let config = ClickHouseSinkConfig {
-            url:   TEST_URL.to_string(),
+            url: TEST_URL.to_string(),
             table: String::new(),
             ..Default::default()
         };
@@ -575,14 +576,14 @@ mod tests {
     #[test]
     fn test_config_validate_invalid_batch_size() {
         let config = ClickHouseSinkConfig {
-            url:        TEST_URL.to_string(),
+            url: TEST_URL.to_string(),
             batch_size: 0,
             ..Default::default()
         };
         assert!(config.validate().is_err());
 
         let config = ClickHouseSinkConfig {
-            url:        TEST_URL.to_string(),
+            url: TEST_URL.to_string(),
             batch_size: 200_000,
             ..Default::default()
         };
@@ -592,7 +593,7 @@ mod tests {
     #[test]
     fn test_config_validate_invalid_timeout() {
         let config = ClickHouseSinkConfig {
-            url:                TEST_URL.to_string(),
+            url: TEST_URL.to_string(),
             batch_timeout_secs: 0,
             ..Default::default()
         };
@@ -647,10 +648,7 @@ mod tests {
             "http://127.1.2.3:8123",
             "http://[::1]:8123",
         ] {
-            assert!(
-                validate_clickhouse_url(url).is_err(),
-                "Expected SSRF rejection for: {url}"
-            );
+            assert!(validate_clickhouse_url(url).is_err(), "Expected SSRF rejection for: {url}");
         }
     }
 
@@ -664,10 +662,7 @@ mod tests {
             "http://169.254.1.1:8123", // link-local
             "http://100.64.0.1:8123",  // CGNAT
         ] {
-            assert!(
-                validate_clickhouse_url(url).is_err(),
-                "Expected SSRF rejection for: {url}"
-            );
+            assert!(validate_clickhouse_url(url).is_err(), "Expected SSRF rejection for: {url}");
         }
     }
 
@@ -678,10 +673,7 @@ mod tests {
             "https://analytics.production.example.com:8443",
             "http://203.0.113.10:8123", // TEST-NET-3 (documentation range)
         ] {
-            assert!(
-                validate_clickhouse_url(url).is_ok(),
-                "Expected SSRF pass for: {url}"
-            );
+            assert!(validate_clickhouse_url(url).is_ok(), "Expected SSRF pass for: {url}");
         }
     }
 }

@@ -159,18 +159,16 @@
 //! In **multi-tenant deployments**, two requirements must be met to prevent data
 //! leakage between tenants:
 //!
-//! 1. **Row-Level Security (RLS) must be active.** The cache key includes the
-//!    per-request WHERE clause injected by FraiseQL's RLS policy engine. Different
-//!    users with different RLS predicates receive different cache entries.
-//!    If RLS is disabled or returns an empty clause, all users share the same key
-//!    for identical queries and variables — Tenant A's data appears in Tenant B's
-//!    responses.
+//! 1. **Row-Level Security (RLS) must be active.** The cache key includes the per-request WHERE
+//!    clause injected by FraiseQL's RLS policy engine. Different users with different RLS
+//!    predicates receive different cache entries. If RLS is disabled or returns an empty clause,
+//!    all users share the same key for identical queries and variables — Tenant A's data appears in
+//!    Tenant B's responses.
 //!
 //! 2. **Schema content hash must be used as the schema version.** Use
-//!    `CompiledSchema::content_hash()` (not `env!("CARGO_PKG_VERSION")`) when
-//!    constructing `CachedDatabaseAdapter`. This ensures that any schema change
-//!    automatically invalidates all cached entries, preventing stale-schema hits
-//!    after deployment.
+//!    `CompiledSchema::content_hash()` (not `env!("CARGO_PKG_VERSION")`) when constructing
+//!    `CachedDatabaseAdapter`. This ensures that any schema change automatically invalidates all
+//!    cached entries, preventing stale-schema hits after deployment.
 //!
 //! The server emits a startup `warn!` when caching is enabled but no RLS policies
 //! are declared in the compiled schema. This warning is informational in
@@ -216,7 +214,7 @@ pub mod uuid_extractor;
 pub mod fact_table_version;
 
 // Public exports
-pub use adapter::{view_name_to_entity_type, CachedDatabaseAdapter};
+pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;

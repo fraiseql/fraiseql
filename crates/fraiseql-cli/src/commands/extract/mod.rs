@@ -17,27 +17,23 @@ use tracing::info;
 use super::init::Language;
 use crate::schema::intermediate::{IntermediateQuery, IntermediateSchema, IntermediateType};
 
-mod python;
-mod typescript;
-mod rust;
+mod csharp;
+mod go;
 mod java;
 mod kotlin;
-mod go;
-mod csharp;
-mod swift;
+mod python;
+mod rust;
 mod scala;
+mod swift;
 #[cfg(test)]
 mod tests;
+mod typescript;
 
-use self::python::PythonExtractor;
-use self::typescript::TypeScriptExtractor;
-use self::rust::RustExtractor;
-use self::java::JavaExtractor;
-use self::kotlin::KotlinExtractor;
-use self::go::GoExtractor;
-use self::csharp::CSharpExtractor;
-use self::swift::SwiftExtractor;
-use self::scala::ScalaExtractor;
+use self::{
+    csharp::CSharpExtractor, go::GoExtractor, java::JavaExtractor, kotlin::KotlinExtractor,
+    python::PythonExtractor, rust::RustExtractor, scala::ScalaExtractor, swift::SwiftExtractor,
+    typescript::TypeScriptExtractor,
+};
 
 // =============================================================================
 // Core types
@@ -198,7 +194,9 @@ fn dispatch_extractor(lang: Language, source: &str) -> Result<ExtractedSchema> {
         Language::CSharp => CSharpExtractor.extract(source),
         Language::Swift => SwiftExtractor.extract(source),
         Language::Scala => ScalaExtractor.extract(source),
-        Language::Php => anyhow::bail!("PHP extraction is handled by the PHP SDK binary (`vendor/bin/fraiseql export`). Run that first to produce schema.json, then use `fraiseql compile`."),
+        Language::Php => anyhow::bail!(
+            "PHP extraction is handled by the PHP SDK binary (`vendor/bin/fraiseql export`). Run that first to produce schema.json, then use `fraiseql compile`."
+        ),
     }
 }
 

@@ -204,7 +204,7 @@ impl MultiFileLoader {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -517,10 +517,7 @@ mod tests {
             MultiFileLoader::load_from_directory_with_tracking(temp_dir.path().to_str().unwrap());
         assert!(result.is_err(), "expected error when file count exceeds limit");
         let msg = result.err().unwrap().to_string();
-        assert!(
-            msg.contains("more than"),
-            "error should mention the limit: {msg}"
-        );
+        assert!(msg.contains("more than"), "error should mention the limit: {msg}");
         Ok(())
     }
 }

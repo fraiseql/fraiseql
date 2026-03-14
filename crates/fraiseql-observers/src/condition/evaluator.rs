@@ -5,12 +5,11 @@ use std::cmp::Ordering;
 use serde_json::Value;
 use tracing::warn;
 
+use super::ConditionParser;
 use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
 };
-
-use super::ConditionParser;
 
 impl ConditionParser {
     pub(super) fn eval_comparison(

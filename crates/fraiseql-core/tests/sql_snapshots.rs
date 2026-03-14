@@ -194,7 +194,8 @@ mod edge_cases {
     #[test]
     fn snapshot_type_casting_timestamp() {
         // Test: Type casting for timestamp comparison
-        let sql = r#"SELECT data FROM "v_post" WHERE (data->>'created_at')::TIMESTAMP > $1::TIMESTAMP"#;
+        let sql =
+            r#"SELECT data FROM "v_post" WHERE (data->>'created_at')::TIMESTAMP > $1::TIMESTAMP"#;
         assert_snapshot!(sql);
     }
 
@@ -336,8 +337,7 @@ mod parity {
 
     #[test]
     fn snapshot_parity_mysql_offset_pagination() {
-        let sql =
-            r"SELECT `data` FROM `v_post` ORDER BY JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.id')) ASC LIMIT 11 OFFSET 10";
+        let sql = r"SELECT `data` FROM `v_post` ORDER BY JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.id')) ASC LIMIT 11 OFFSET 10";
         assert_snapshot!(sql);
     }
 
@@ -412,7 +412,8 @@ mod relay_aggregation {
     fn snapshot_relay_pagination_keyset() {
         // Test: Relay cursor pagination (keyset, PostgreSQL optimized)
         // Uses (cursor_column) > $1 for efficient keyset pagination
-        let sql = r#"SELECT data FROM "v_post" WHERE data->>'id' > $1 ORDER BY data->>'id' ASC LIMIT 11"#;
+        let sql =
+            r#"SELECT data FROM "v_post" WHERE data->>'id' > $1 ORDER BY data->>'id' ASC LIMIT 11"#;
         assert_snapshot!(sql);
     }
 
@@ -457,10 +458,12 @@ mod relay_aggregation {
 // ============================================================================
 
 mod generated_sql {
-    use insta::assert_snapshot;
-    use fraiseql_core::db::{WhereClause, WhereOperator, postgres::PostgresWhereGenerator, PostgresDialect};
     #[allow(unused_imports)]
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
+    use fraiseql_core::db::{
+        PostgresDialect, WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
+    };
+    use insta::assert_snapshot;
     use serde_json::json;
 
     const fn pg() -> PostgresWhereGenerator {
@@ -474,9 +477,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_eq() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -485,9 +488,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_neq() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Neq,
-            value: json!("deleted"),
+            value:    json!("deleted"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -496,9 +499,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_gt() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(100),
+            value:    json!(100),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -507,9 +510,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_gte() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(100),
+            value:    json!(100),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -518,9 +521,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_lt() {
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Lt,
-            value: json!(18),
+            value:    json!(18),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -529,9 +532,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_lte() {
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Lte,
-            value: json!(65),
+            value:    json!(65),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -540,9 +543,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_like() {
         let clause = WhereClause::Field {
-            path: vec!["title".to_string()],
+            path:     vec!["title".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%rust%"),
+            value:    json!("%rust%"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -551,9 +554,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_ilike() {
         let clause = WhereClause::Field {
-            path: vec!["title".to_string()],
+            path:     vec!["title".to_string()],
             operator: WhereOperator::Ilike,
-            value: json!("%rust%"),
+            value:    json!("%rust%"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -562,9 +565,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_contains() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Contains,
-            value: json!("alice"),
+            value:    json!("alice"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -573,9 +576,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_icontains() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("alice"),
+            value:    json!("alice"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -584,9 +587,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_in_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending", "review"]),
+            value:    json!(["active", "pending", "review"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -595,9 +598,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_nin_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Nin,
-            value: json!(["deleted", "banned"]),
+            value:    json!(["deleted", "banned"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -606,9 +609,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_is_null_true() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -617,9 +620,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_is_null_false() {
         let clause = WhereClause::Field {
-            path: vec!["published_at".to_string()],
+            path:     vec!["published_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(false),
+            value:    json!(false),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -628,9 +631,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_startswith() {
         let clause = WhereClause::Field {
-            path: vec!["username".to_string()],
+            path:     vec!["username".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!("admin"),
+            value:    json!("admin"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -639,9 +642,9 @@ mod generated_sql {
     #[test]
     fn generated_pg_endswith() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Endswith,
-            value: json!("@example.com"),
+            value:    json!("@example.com"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -655,14 +658,14 @@ mod generated_sql {
     fn generated_pg_and_two_fields() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["published".to_string()],
+                path:     vec!["published".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Field {
-                path: vec!["author_id".to_string()],
+                path:     vec!["author_id".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("00000000-0000-0000-0000-000000000001"),
+                value:    json!("00000000-0000-0000-0000-000000000001"),
             },
         ]);
         let (sql, _params) = pg().generate(&clause).unwrap();
@@ -673,14 +676,14 @@ mod generated_sql {
     fn generated_pg_or_two_fields() {
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("admin"),
+                value:    json!("admin"),
             },
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("superuser"),
+                value:    json!("superuser"),
             },
         ]);
         let (sql, _params) = pg().generate(&clause).unwrap();
@@ -692,20 +695,20 @@ mod generated_sql {
         // (active = true) AND (role = 'admin' OR role = 'mod')
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Or(vec![
                 WhereClause::Field {
-                    path: vec!["role".to_string()],
+                    path:     vec!["role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("admin"),
+                    value:    json!("admin"),
                 },
                 WhereClause::Field {
-                    path: vec!["role".to_string()],
+                    path:     vec!["role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("mod"),
+                    value:    json!("mod"),
                 },
             ]),
         ]);
@@ -717,9 +720,9 @@ mod generated_sql {
     fn generated_pg_deep_nested_path() {
         // Nested JSON: data->'address'->>'city'
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -734,9 +737,9 @@ mod generated_sql {
     fn generated_mysql_eq() {
         use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -747,9 +750,9 @@ mod generated_sql {
     fn generated_mysql_like() {
         use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%alice%"),
+            value:    json!("%alice%"),
         };
         let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -760,9 +763,9 @@ mod generated_sql {
     fn generated_mysql_in_operator() {
         use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
         let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -777,9 +780,9 @@ mod generated_sql {
     fn generated_sqlite_eq() {
         use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -790,9 +793,9 @@ mod generated_sql {
     fn generated_sqlite_like() {
         use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%alice%"),
+            value:    json!("%alice%"),
         };
         let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -803,9 +806,9 @@ mod generated_sql {
     fn generated_sqlite_gt() {
         use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(50),
+            value:    json!(50),
         };
         let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -819,9 +822,9 @@ mod generated_sql {
     fn generated_pg_param_offset_two() {
         // With param_offset=2: first param should be $3
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Alice"),
+            value:    json!("Alice"),
         };
         let gen = PostgresWhereGenerator::new(PostgresDialect);
         let (sql, _params) = gen.generate_with_param_offset(&clause, 2).unwrap();

@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
@@ -15,7 +16,6 @@ use super::{
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,
 };
-use fraiseql_error::{FraiseQLError, Result};
 
 /// FraiseQL-Wire database adapter.
 ///
@@ -315,11 +315,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         // fraiseql-wire does not support aggregate queries with arbitrary SQL.
         Err(FraiseQLError::Database {
-            message: "fraiseql-wire does not support aggregate SQL queries.".to_string(),
+            message:   "fraiseql-wire does not support aggregate SQL queries.".to_string(),
             sql_state: None,
         })
     }
-
 }
 
 #[cfg(test)]

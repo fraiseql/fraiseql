@@ -38,11 +38,11 @@
 use serde::{Deserialize, Serialize};
 
 mod detector;
-pub use self::detector::FactTableDetector;
-
 // Re-export from fraiseql-db to avoid duplication
 pub use fraiseql_db::introspector::DatabaseIntrospector;
 pub use fraiseql_db::types::DatabaseType;
+
+pub use self::detector::FactTableDetector;
 
 #[cfg(test)]
 mod tests;

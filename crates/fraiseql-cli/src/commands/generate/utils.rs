@@ -1,7 +1,7 @@
 //! Shared utilities for language code generators.
 
 use super::super::init::Language;
-use crate::schema::intermediate::{IntermediateQuery};
+use crate::schema::intermediate::IntermediateQuery;
 
 // =============================================================================
 // Shared utilities

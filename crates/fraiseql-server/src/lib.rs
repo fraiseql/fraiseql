@@ -102,12 +102,12 @@ pub mod resilience;
 pub mod tracing_utils;
 
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
-#[cfg(feature = "webhooks")]
-pub use fraiseql_webhooks as webhooks;
-
-// Authentication (extracted to fraiseql-auth crate) — optional, enable with `features = ["auth"]`
+// Authentication (extracted to fraiseql-auth crate) — optional, enable with `features =
+// ["auth"]`
 #[cfg(feature = "auth")]
 pub use fraiseql_auth as auth;
+#[cfg(feature = "webhooks")]
+pub use fraiseql_webhooks as webhooks;
 
 /// Stub auth types compiled when the `auth` feature is disabled.
 ///
@@ -139,6 +139,7 @@ pub mod auth {
         pub fn is_in_memory(&self) -> bool {
             true
         }
+
         /// Stub: no-op.
         pub async fn cleanup_expired(&self) {}
     }
@@ -153,7 +154,8 @@ pub mod auth {
     }
 }
 
-// Secrets management and encryption (extracted to fraiseql-secrets crate) — optional, enable with `features = ["secrets"]`
+// Secrets management and encryption (extracted to fraiseql-secrets crate) — optional, enable with
+// `features = ["secrets"]`
 #[cfg(feature = "secrets")]
 pub use fraiseql_secrets::{encryption, secrets_manager};
 

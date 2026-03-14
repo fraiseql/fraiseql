@@ -13,13 +13,11 @@ const MAX_ENTITY_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
 
 use std::time::Duration;
 
+use fraiseql_error::Result;
 use serde_json::{Value, json};
 
-use fraiseql_error::Result;
 use crate::{
-    selection_parser::FieldSelection,
-    tracing::FederationTraceContext,
-    types::EntityRepresentation,
+    selection_parser::FieldSelection, tracing::FederationTraceContext, types::EntityRepresentation,
 };
 
 /// Configuration for HTTP client behavior
@@ -46,11 +44,11 @@ impl Default for HttpClientConfig {
 /// HTTP entity resolver
 #[derive(Clone)]
 pub struct HttpEntityResolver {
-    client:     reqwest::Client,
-    config:     HttpClientConfig,
+    client:    reqwest::Client,
+    config:    HttpClientConfig,
     /// When `true`, URL validation is skipped. Only settable in test code.
     #[cfg(any(test, feature = "test-utils"))]
-    skip_ssrf:  bool,
+    skip_ssrf: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -73,11 +71,11 @@ struct GraphQLError {
 /// Validate that a subgraph URL is safe to contact.
 ///
 /// Blocks SSRF attacks by:
-/// 1. Requiring `https://` scheme by default; `http://` is allowed only when the
-///    environment variable `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` is set.
+/// 1. Requiring `https://` scheme by default; `http://` is allowed only when the environment
+///    variable `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` is set.
 /// 2. Blocking `localhost` and `.localhost` hostnames.
-/// 3. Blocking literal private/reserved IP addresses (RFC 1918, loopback,
-///    link-local, CGNAT, ULA, IPv4-mapped IPv6).
+/// 3. Blocking literal private/reserved IP addresses (RFC 1918, loopback, link-local, CGNAT, ULA,
+///    IPv4-mapped IPv6).
 ///
 /// Note: DNS-level SSRF (attacker-controlled domain that resolves to a
 /// private IP) is not mitigated here; that requires egress filtering at the
@@ -103,13 +101,13 @@ pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
                           Set FRAISEQL_FEDERATION_ALLOW_INSECURE=true to permit plain HTTP \
                           in development environments."
                     .to_string(),
-                source: None,
+                source:  None,
             });
         }
     } else {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL must use https:// scheme (got: {url})"),
-            source: None,
+            source:  None,
         });
     }
 
@@ -130,7 +128,7 @@ pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     if host_raw.is_empty() {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL has no host: {url}"),
-            source: None,
+            source:  None,
         });
     }
 
@@ -147,7 +145,7 @@ pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     if lower_host == "localhost" || lower_host.ends_with(".localhost") {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL targets a loopback host: {host}"),
-            source: None,
+            source:  None,
         });
     }
 
@@ -159,7 +157,7 @@ pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
                     "Subgraph URL targets a private or reserved IP address ({ip}) — \
                      SSRF protection blocked the request"
                 ),
-                source: None,
+                source:  None,
             });
         }
     }
@@ -182,7 +180,7 @@ pub(crate) fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
                 || (o[0] == 192 && o[1] == 168)                          // RFC 1918 /16
                 || (o[0] == 169 && o[1] == 254)                          // link-local
                 || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000) // CGNAT RFC 6598
-                || o[0] == 0                                             // unspecified
+                || o[0] == 0 // unspecified
         },
         std::net::IpAddr::V6(v6) => {
             let s = v6.segments();
@@ -190,7 +188,7 @@ pub(crate) fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
                 || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
                     && s[4] == 0 && s[5] == 0xffff)                      // IPv4-mapped
                 || (s[0] & 0xfe00) == 0xfc00                             // ULA fc00::/7
-                || (s[0] & 0xffc0) == 0xfe80                             // link-local fe80::/10
+                || (s[0] & 0xffc0) == 0xfe80 // link-local fe80::/10
         },
     }
 }
@@ -235,7 +233,11 @@ impl HttpEntityResolver {
                 message: format!("HTTP client init failed: {e}"),
                 source:  None,
             })?;
-        Ok(Self { client, config, skip_ssrf: true })
+        Ok(Self {
+            client,
+            config,
+            skip_ssrf: true,
+        })
     }
 
     /// Resolve entities via HTTP _entities query
@@ -334,24 +336,22 @@ impl HttpEntityResolver {
             attempts += 1;
 
             match self.client.post(url).json(request).send().await {
-                Ok(response) if response.status().is_success() => {
-                    match response.bytes().await {
-                        Ok(body) if body.len() > MAX_ENTITY_RESPONSE_BYTES => {
-                            last_error = Some(format!(
-                                "Entity response too large ({} bytes, max {MAX_ENTITY_RESPONSE_BYTES})",
-                                body.len()
-                            ));
-                        },
-                        Ok(body) => match serde_json::from_slice::<GraphQLResponse>(&body) {
-                            Ok(gql_response) => return Ok(gql_response),
-                            Err(e) => {
-                                last_error = Some(format!("Failed to parse response: {}", e));
-                            },
-                        },
+                Ok(response) if response.status().is_success() => match response.bytes().await {
+                    Ok(body) if body.len() > MAX_ENTITY_RESPONSE_BYTES => {
+                        last_error = Some(format!(
+                            "Entity response too large ({} bytes, max {MAX_ENTITY_RESPONSE_BYTES})",
+                            body.len()
+                        ));
+                    },
+                    Ok(body) => match serde_json::from_slice::<GraphQLResponse>(&body) {
+                        Ok(gql_response) => return Ok(gql_response),
                         Err(e) => {
-                            last_error = Some(format!("Failed to read response: {}", e));
+                            last_error = Some(format!("Failed to parse response: {}", e));
                         },
-                    }
+                    },
+                    Err(e) => {
+                        last_error = Some(format!("Failed to read response: {}", e));
+                    },
                 },
                 Ok(response) => {
                     last_error = Some(format!("HTTP {}", response.status()));
@@ -525,11 +525,7 @@ mod tests {
 
         rt.block_on(async {
             let result = resolver
-                .resolve_entities(
-                    "https://example.com/graphql",
-                    &[],
-                    &FieldSelection::default(),
-                )
+                .resolve_entities("https://example.com/graphql", &[], &FieldSelection::default())
                 .await;
 
             assert!(result.is_ok());
@@ -694,10 +690,12 @@ mod tests {
     async fn entity_resolver_oversized_response_is_rejected() {
         use std::collections::HashMap;
 
-        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
-        use crate::selection_parser::FieldSelection;
-        use crate::types::EntityRepresentation;
+        use crate::{selection_parser::FieldSelection, types::EntityRepresentation};
 
         let mock = MockServer::start().await;
         let oversized = vec![b'x'; MAX_ENTITY_RESPONSE_BYTES + 1];
@@ -733,10 +731,12 @@ mod tests {
     async fn entity_resolver_valid_response_is_parsed() {
         use std::collections::HashMap;
 
-        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
-        use crate::selection_parser::FieldSelection;
-        use crate::types::EntityRepresentation;
+        use crate::{selection_parser::FieldSelection, types::EntityRepresentation};
 
         let mock = MockServer::start().await;
         Mock::given(method("POST"))

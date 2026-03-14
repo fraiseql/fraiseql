@@ -109,12 +109,10 @@ impl SagaExecutor {
 
             // 2. Check step state is Pending
             if saga_step.state != StepState::Pending {
-                return Err(
-                    crate::saga_store::SagaStoreError::InvalidStateTransition {
-                        from: format!("{:?}", saga_step.state),
-                        to:   "Executing".to_string(),
-                    },
-                );
+                return Err(crate::saga_store::SagaStoreError::InvalidStateTransition {
+                    from: format!("{:?}", saga_step.state),
+                    to:   "Executing".to_string(),
+                });
             }
 
             // 3. Transition step to Executing

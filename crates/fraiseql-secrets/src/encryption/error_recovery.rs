@@ -240,7 +240,7 @@ pub struct CircuitBreaker {
     /// Last state change time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    last_change:       Arc<std::sync::Mutex<DateTime<Utc>>>,
+    last_change: Arc<std::sync::Mutex<DateTime<Utc>>>,
 }
 
 mod atomic {

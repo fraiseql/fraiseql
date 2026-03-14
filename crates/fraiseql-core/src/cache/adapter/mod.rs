@@ -76,7 +76,9 @@ use super::{
 };
 use crate::{
     cache::config::RlsEnforcement,
-    db::{DatabaseAdapter, DatabaseType, MutationCapable, PoolMetrics, WhereClause, types::JsonbValue},
+    db::{
+        DatabaseAdapter, DatabaseType, MutationCapable, PoolMetrics, WhereClause, types::JsonbValue,
+    },
     error::{FraiseQLError, Result},
     schema::CompiledSchema,
 };
@@ -171,9 +173,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// * `adapter` - Underlying database adapter to wrap
     /// * `cache` - Query result cache instance
-    /// * `schema_version` - Uniquely identifies the compiled schema. Use
-    ///   `schema.content_hash()` (NOT `env!("CARGO_PKG_VERSION")`) so that any schema
-    ///   content change automatically invalidates cached entries across deploys.
+    /// * `schema_version` - Uniquely identifies the compiled schema. Use `schema.content_hash()`
+    ///   (NOT `env!("CARGO_PKG_VERSION")`) so that any schema content change automatically
+    ///   invalidates cached entries across deploys.
     ///
     /// # Example
     ///
@@ -432,9 +434,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     pub async fn validate_rls_active(&self) -> Result<()> {
         let result = self
             .adapter
-            .execute_raw_query(
-                "SELECT current_setting('row_security', true) AS rls_setting",
-            )
+            .execute_raw_query("SELECT current_setting('row_security', true) AS rls_setting")
             .await;
 
         let rls_active = match result {

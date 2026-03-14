@@ -3,18 +3,20 @@
 //! Contains handlers for: `handshake`, `list_flights`, `get_schema`,
 //! `get_flight_info`, and `poll_flight_info`.
 
-use arrow::ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions};
-use arrow::datatypes::SchemaRef;
-use prost::bytes::Bytes;
-use arrow_flight::{
-    Criteria, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse,
-    PollInfo, SchemaResult,
+use arrow::{
+    datatypes::SchemaRef,
+    ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
 };
+use arrow_flight::{
+    Criteria, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PollInfo,
+    SchemaResult,
+};
+use prost::bytes::Bytes;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 use super::super::{
-    FraiseQLFlightService, FlightInfoStream, HandshakeStream, create_session_token,
+    FlightInfoStream, FraiseQLFlightService, HandshakeStream, create_session_token,
     map_security_error_to_status,
 };
 use crate::{
@@ -30,11 +32,10 @@ fn ticket_to_schema(
     match ticket {
         FlightTicket::GraphQLQuery { .. } => Ok(graphql_result_schema()),
         FlightTicket::ObserverEvents { .. } => Ok(observer_event_schema()),
-        FlightTicket::OptimizedView { view, .. } => {
-            svc.schema_registry
-                .get(&view)
-                .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))
-        },
+        FlightTicket::OptimizedView { view, .. } => svc
+            .schema_registry
+            .get(&view)
+            .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}"))),
         FlightTicket::BulkExport { .. } => Err(Status::unimplemented(
             "BulkExport schema introspection is not supported: the schema varies by \
              table and export format. Use do_get with a BulkExport ticket to export \

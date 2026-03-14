@@ -1,4 +1,4 @@
-#![allow(clippy::format_push_string)]       // Reason: test query building
+#![allow(clippy::format_push_string)] // Reason: test query building
 
 //! Stress testing suite for fraiseql-wire
 //!

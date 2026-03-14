@@ -11,7 +11,11 @@ impl AggregationSqlGenerator {
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
         match clause {
-            WhereClause::Field { path, operator, value } => {
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => {
                 let field_name = &path[0];
                 let is_denormalized =
                     metadata.denormalized_filters.iter().any(|f| f.name == *field_name);
@@ -22,7 +26,11 @@ impl AggregationSqlGenerator {
                 } else {
                     let jsonb_column = &metadata.dimensions.name;
                     self.generate_jsonb_where_parameterized(
-                        jsonb_column, path, operator, value, params,
+                        jsonb_column,
+                        path,
+                        operator,
+                        value,
+                        params,
                     )
                 }
             },
@@ -65,8 +73,7 @@ impl AggregationSqlGenerator {
             let arr = value.as_array().ok_or_else(|| {
                 FraiseQLError::validation("IN/NOT IN operators require array values")
             })?;
-            let phs: Vec<String> =
-                arr.iter().map(|v| self.emit_value_param(v, params)).collect();
+            let phs: Vec<String> = arr.iter().map(|v| self.emit_value_param(v, params)).collect();
             return Ok(format!("{field} {op_sql} ({})", phs.join(", ")));
         }
 
@@ -77,9 +84,9 @@ impl AggregationSqlGenerator {
                 | WhereOperator::Endswith
                 | WhereOperator::Like
         ) {
-            let s = value.as_str().ok_or_else(|| {
-                FraiseQLError::validation("LIKE operators require string values")
-            })?;
+            let s = value
+                .as_str()
+                .ok_or_else(|| FraiseQLError::validation("LIKE operators require string values"))?;
             let (ph, needs_escape) = self.emit_like_pattern_param(operator, s, params);
             return if needs_escape {
                 Ok(format!("{field} {op_sql} {ph} ESCAPE '!'"))
@@ -92,9 +99,7 @@ impl AggregationSqlGenerator {
             let s = value.as_str().ok_or_else(|| {
                 FraiseQLError::validation("Case-insensitive operators require string values")
             })?;
-            return self.generate_case_insensitive_where_parameterized(
-                field, operator, s, params,
-            );
+            return self.generate_case_insensitive_where_parameterized(field, operator, s, params);
         }
 
         let ph = self.emit_value_param(value, params);
@@ -124,7 +129,10 @@ impl AggregationSqlGenerator {
                 FraiseQLError::validation("Case-insensitive operators require string values")
             })?;
             return self.generate_case_insensitive_where_parameterized(
-                &jsonb_extract, operator, s, params,
+                &jsonb_extract,
+                operator,
+                s,
+                params,
             );
         }
 
@@ -132,8 +140,7 @@ impl AggregationSqlGenerator {
             let arr = value.as_array().ok_or_else(|| {
                 FraiseQLError::validation("IN/NOT IN operators require array values")
             })?;
-            let phs: Vec<String> =
-                arr.iter().map(|v| self.emit_value_param(v, params)).collect();
+            let phs: Vec<String> = arr.iter().map(|v| self.emit_value_param(v, params)).collect();
             return Ok(format!("{jsonb_extract} {op_sql} ({})", phs.join(", ")));
         }
 
@@ -141,9 +148,9 @@ impl AggregationSqlGenerator {
             operator,
             WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith
         ) {
-            let s = value.as_str().ok_or_else(|| {
-                FraiseQLError::validation("LIKE operators require string values")
-            })?;
+            let s = value
+                .as_str()
+                .ok_or_else(|| FraiseQLError::validation("LIKE operators require string values"))?;
             // needs_escape is always true for semantic LIKE operators (Contains etc.)
             let (ph, _) = self.emit_like_pattern_param(operator, s, params);
             return Ok(format!("{jsonb_extract} {op_sql} {ph} ESCAPE '!'"));
@@ -214,8 +221,8 @@ impl AggregationSqlGenerator {
         let mut conditions = Vec::new();
         for condition in having_conditions {
             let aggregate_sql = self.aggregate_expression_to_sql(&condition.aggregate)?;
-            let operator_sql  = condition.operator.sql_operator();
-            let value_sql     = self.emit_value_param(&condition.value, params);
+            let operator_sql = condition.operator.sql_operator();
+            let value_sql = self.emit_value_param(&condition.value, params);
             conditions.push(format!("{aggregate_sql} {operator_sql} {value_sql}"));
         }
         Ok(format!("HAVING {}", conditions.join(" AND ")))

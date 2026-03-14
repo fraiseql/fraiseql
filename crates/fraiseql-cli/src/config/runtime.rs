@@ -250,7 +250,7 @@ impl DatabaseRuntimeConfig {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,7 +276,10 @@ mod tests {
 
     #[test]
     fn test_server_runtime_config_validate_port_zero() {
-        let cfg = ServerRuntimeConfig { port: 0, ..Default::default() };
+        let cfg = ServerRuntimeConfig {
+            port: 0,
+            ..Default::default()
+        };
         let err = cfg.validate().unwrap_err();
         assert!(err.to_string().contains("port"), "got: {err}");
     }
@@ -369,15 +372,21 @@ enabled = false
 
     #[test]
     fn test_database_runtime_config_validate_pool_range() {
-        let cfg = DatabaseRuntimeConfig { pool_min: 10, pool_max: 5, ..Default::default() };
+        let cfg = DatabaseRuntimeConfig {
+            pool_min: 10,
+            pool_max: 5,
+            ..Default::default()
+        };
         let err = cfg.validate().unwrap_err();
         assert!(err.to_string().contains("pool_min"), "got: {err}");
     }
 
     #[test]
     fn test_database_runtime_config_validate_ssl_mode() {
-        let cfg =
-            DatabaseRuntimeConfig { ssl_mode: "bogus".to_string(), ..Default::default() };
+        let cfg = DatabaseRuntimeConfig {
+            ssl_mode: "bogus".to_string(),
+            ..Default::default()
+        };
         let err = cfg.validate().unwrap_err();
         assert!(err.to_string().contains("ssl_mode"), "got: {err}");
     }

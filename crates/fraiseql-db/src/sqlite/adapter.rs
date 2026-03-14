@@ -13,17 +13,15 @@
 //! For mutation support, use PostgreSQL, MySQL, or SQL Server.
 
 use async_trait::async_trait;
-
+use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
     Column, Row,
     sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},
 };
 
 use super::where_generator::SqliteWhereGenerator;
-use crate::dialect::SqliteDialect;
-use fraiseql_error::{FraiseQLError, Result};
-
 use crate::{
+    dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
     traits::DatabaseAdapter,
     types::{DatabaseType, JsonbValue, PoolMetrics},
@@ -413,12 +411,11 @@ impl DatabaseAdapter for SqliteAdapter {
             };
         }
 
-        let rows: Vec<SqliteRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
+        let rows: Vec<SqliteRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("SQLite parameterized aggregate query failed: {e}"),
                 sql_state: None,
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()
@@ -465,16 +462,16 @@ impl DatabaseAdapter for SqliteAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
-        let rows: Vec<sqlx::sqlite::SqliteRow> =
-            sqlx::query(&explain_sql).fetch_all(&self.pool).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   format!("SQLite EXPLAIN failed: {e}"),
-                    sql_state: None,
-                }
+        let rows: Vec<sqlx::sqlite::SqliteRow> = sqlx::query(&explain_sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite EXPLAIN failed: {e}"),
+                sql_state: None,
             })?;
 
         let steps: Vec<serde_json::Value> = rows
@@ -924,8 +921,8 @@ mod tests {
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {
             database:                    crate::DatabaseType::SQLite,
-            projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
-                .to_string(),
+            projection_template:
+                "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
             estimated_reduction_percent: 50,
         };
         let results = adapter

@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use axum::{
-    Router, extract::DefaultBodyLimit, middleware,
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
     routing::{get, post},
 };
 #[cfg(feature = "arrow")]
@@ -15,7 +17,12 @@ use fraiseql_core::{
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-#[cfg(any(feature = "mcp", feature = "observers", feature = "redis-rate-limiting", feature = "redis-pkce"))]
+#[cfg(any(
+    feature = "mcp",
+    feature = "observers",
+    feature = "redis-rate-limiting",
+    feature = "redis-pkce"
+))]
 use tracing::error;
 use tracing::{info, warn};
 #[cfg(feature = "observers")]
@@ -24,6 +31,8 @@ use {
     tokio::sync::RwLock,
 };
 
+#[cfg(feature = "auth")]
+use crate::routes::{AuthPkceState, auth_callback, auth_start};
 use crate::{
     Result, ServerError,
     middleware::{
@@ -31,16 +40,13 @@ use crate::{
         metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
     },
     routes::{
-        PlaygroundState, SubscriptionState, api,
-        graphql::AppState, graphql_get_handler, graphql_handler, health_handler, readiness_handler,
-        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
-        subscription_handler,
+        PlaygroundState, SubscriptionState, api, graphql::AppState, graphql_get_handler,
+        graphql_handler, health_handler, introspection_handler, metrics_handler,
+        metrics_json_handler, playground_handler, readiness_handler, subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
 };
-#[cfg(feature = "auth")]
-use crate::routes::{AuthPkceState, auth_callback, auth_start};
 
 mod builder;
 mod extensions;
@@ -68,30 +74,30 @@ mod routing;
 /// adapter handles application queries, while the pool is used exclusively by
 /// the observer subsystem to store and retrieve reactive rule metadata.
 pub struct Server<A: DatabaseAdapter> {
-    pub(super) config:               ServerConfig,
-    pub(super) executor:             Arc<Executor<A>>,
+    pub(super) config: ServerConfig,
+    pub(super) executor: Arc<Executor<A>>,
     pub(super) subscription_manager: Arc<SubscriptionManager>,
     pub(super) subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
     pub(super) max_subscriptions_per_connection: Option<u32>,
-    pub(super) oidc_validator:       Option<Arc<OidcValidator>>,
-    pub(super) rate_limiter:         Option<Arc<RateLimiter>>,
+    pub(super) oidc_validator: Option<Arc<OidcValidator>>,
+    pub(super) rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "secrets")]
-    pub(super) secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
+    pub(super) secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
     pub(super) circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
-    pub(super) error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    pub(super) error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
     #[cfg(feature = "auth")]
-    pub(super) state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    pub(super) state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
     #[cfg(feature = "auth")]
-    pub(super) pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
+    pub(super) pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
     #[cfg(feature = "auth")]
-    pub(super) oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
+    pub(super) oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
     #[allow(dead_code)]
-    pub(super) revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-    pub(super) apq_store:            Option<fraiseql_core::apq::ArcApqStorage>,
-    pub(super) trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+    pub(super) revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    pub(super) apq_store: Option<fraiseql_core::apq::ArcApqStorage>,
+    pub(super) trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
 
     #[cfg(feature = "observers")]
     pub(super) observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,

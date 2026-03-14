@@ -360,7 +360,11 @@ impl CompileTimeValidator {
         let left_quoted = format!("\"{}\"", left_field.replace('"', "\"\""));
         let right_quoted = format!("\"{}\"", right_field.replace('"', "\"\""));
         let constraint = match left_type {
-            FieldType::Date | FieldType::DateTime | FieldType::Integer | FieldType::Float | FieldType::String => {
+            FieldType::Date
+            | FieldType::DateTime
+            | FieldType::Integer
+            | FieldType::Float
+            | FieldType::String => {
                 format!("CHECK ({} {} {})", left_quoted, sql_op, right_quoted)
             },
             _ => return None,

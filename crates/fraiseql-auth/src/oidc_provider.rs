@@ -114,11 +114,11 @@ impl OidcProvider {
         client_secret: &str,
         redirect_uri: &str,
     ) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(OIDC_REQUEST_TIMEOUT)
-            .build()
-            .map_err(|e| AuthError::OidcMetadataError {
-                message: format!("Failed to create HTTP client: {}", e),
+        let client =
+            reqwest::Client::builder().timeout(OIDC_REQUEST_TIMEOUT).build().map_err(|e| {
+                AuthError::OidcMetadataError {
+                    message: format!("Failed to create HTTP client: {}", e),
+                }
             })?;
 
         // Fetch OIDC discovery document
@@ -342,17 +342,14 @@ impl OAuthProvider for OidcProvider {
             ];
 
             let resp =
-                self.client.post(revocation_endpoint).form(&params).send().await.map_err(
-                    |e| AuthError::OAuthError {
+                self.client.post(revocation_endpoint).form(&params).send().await.map_err(|e| {
+                    AuthError::OAuthError {
                         message: format!("Failed to revoke token: {}", e),
-                    },
-                )?;
+                    }
+                })?;
             if !resp.status().is_success() {
                 return Err(AuthError::OAuthError {
-                    message: format!(
-                        "Token revocation returned HTTP {}",
-                        resp.status()
-                    ),
+                    message: format!("Token revocation returned HTTP {}", resp.status()),
                 });
             }
         }
@@ -374,7 +371,8 @@ impl std::fmt::Debug for OidcProvider {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     // ── S24-H1: OidcProvider response size caps ────────────────────────────────
@@ -423,7 +421,10 @@ mod tests {
 
         assert!(result.is_err(), "oversized discovery response must be rejected");
         let msg = result.err().unwrap().to_string();
-        assert!(msg.contains("too large") || msg.contains("large"), "error must mention size: {msg}");
+        assert!(
+            msg.contains("too large") || msg.contains("large"),
+            "error must mention size: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -543,7 +544,7 @@ mod tests {
                 jwks_uri:               None,
                 revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         let result = provider.revoke_token("some_token").await;
@@ -583,7 +584,7 @@ mod tests {
                 jwks_uri:               None,
                 revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         let result = provider.revoke_token("some_token").await;

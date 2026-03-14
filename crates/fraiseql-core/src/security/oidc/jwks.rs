@@ -8,8 +8,10 @@ use std::time::{Duration, Instant};
 use jsonwebtoken::DecodingKey;
 use serde::Deserialize;
 
-use crate::security::errors::{Result, SecurityError};
-use crate::security::oidc::token::OidcValidator;
+use crate::security::{
+    errors::{Result, SecurityError},
+    oidc::token::OidcValidator,
+};
 
 /// Maximum byte length accepted from a JWKS endpoint response.
 ///
@@ -345,9 +347,6 @@ mod tests {
         // The constant is defined in mod.rs; we verify the value here via a
         // hand-coded literal so the test is local and self-contained.
         const EXPECTED_DEFAULT_TTL: u64 = 300;
-        assert_eq!(
-            EXPECTED_DEFAULT_TTL, 300,
-            "Cache TTL should be 5 minutes (300 seconds)"
-        );
+        assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
     }
 }

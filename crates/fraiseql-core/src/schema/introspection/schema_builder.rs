@@ -5,18 +5,18 @@
 
 use std::collections::HashMap;
 
-use super::super::{
-    CompiledSchema, MutationDefinition, QueryDefinition, SubscriptionDefinition,
-};
-use super::directive_builder::{build_custom_directives, builtin_directives};
-use super::field_resolver::{build_arg_input_value, type_ref};
-use super::type_resolver::{
-    build_enum_type, build_input_object_type, build_interface_type, build_object_type,
-    build_union_type, builtin_scalars,
-};
-use super::types::{
-    IntrospectionField, IntrospectionInputValue, IntrospectionSchema, IntrospectionType,
-    IntrospectionTypeRef, TypeKind,
+use super::{
+    super::{CompiledSchema, MutationDefinition, QueryDefinition, SubscriptionDefinition},
+    directive_builder::{build_custom_directives, builtin_directives},
+    field_resolver::{build_arg_input_value, type_ref},
+    type_resolver::{
+        build_enum_type, build_input_object_type, build_interface_type, build_object_type,
+        build_union_type, builtin_scalars,
+    },
+    types::{
+        IntrospectionField, IntrospectionInputValue, IntrospectionSchema, IntrospectionType,
+        IntrospectionTypeRef, TypeKind,
+    },
 };
 
 // =============================================================================
@@ -130,8 +130,8 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
         schema.queries.iter().map(build_query_field).collect();
 
     // Inject synthetic `node(id: ID!): Node` field when relay types exist.
-    let has_relay_types = schema.types.iter().any(|t| t.relay)
-        || schema.interfaces.iter().any(|i| i.name == "Node");
+    let has_relay_types =
+        schema.types.iter().any(|t| t.relay) || schema.interfaces.iter().any(|i| i.name == "Node");
     if has_relay_types && !fields.iter().any(|f| f.name == "node") {
         fields.push(build_node_query_field());
     }
@@ -253,8 +253,8 @@ fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
 ///
 /// Relay connection queries differ from normal list queries:
 /// - Return type is `XxxConnection!` (non-null), not `[Xxx!]!`
-/// - Arguments are `first: Int, after: String, last: Int, before: String`
-///   (instead of `limit`/`offset`)
+/// - Arguments are `first: Int, after: String, last: Int, before: String` (instead of
+///   `limit`/`offset`)
 fn build_relay_query_field(query: &QueryDefinition) -> IntrospectionField {
     let connection_type = format!("{}Connection", query.return_type);
 

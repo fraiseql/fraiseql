@@ -2,11 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::domain_types::{SqlSource, TypeName};
-use super::field_type::{DeprecationInfo, FieldDefinition};
-use crate::validation::ValidationRule;
-
+use super::{
+    domain_types::{SqlSource, TypeName},
+    field_type::{DeprecationInfo, FieldDefinition},
+};
 pub use crate::types::SqlProjectionHint;
+use crate::validation::ValidationRule;
 
 // =============================================================================
 // Object Type Definitions

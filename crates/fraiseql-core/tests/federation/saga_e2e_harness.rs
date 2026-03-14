@@ -1,7 +1,6 @@
 //! In-memory saga test harness for E2E integration tests.
 
 #![allow(dead_code)]
-
 #![allow(clippy::needless_pass_by_value)] // Reason: test harness methods mirror production API signatures
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::needless_collect)] // Reason: intermediate collect needed to spawn all tasks before joining

@@ -52,15 +52,17 @@ fn validate_outbound_url(url: &str) -> Result<()> {
     // Extract the host portion (strip scheme, then take up to the first / : ? #).
     // IPv6 literals use bracket notation [addr]:port — handle separately so we
     // don't split on the `:` inside the brackets and miss the closing `]`.
-    let after_scheme = if lower.starts_with("https://") { &url[8..] } else { &url[7..] };
+    let after_scheme = if lower.starts_with("https://") {
+        &url[8..]
+    } else {
+        &url[7..]
+    };
     let host = if after_scheme.starts_with('[') {
         // IPv6 bracket notation: extract everything up to and including the `]`.
-        after_scheme
-            .find(']')
-            .map_or_else(
-                || after_scheme.split(['/', '?', '#']).next().unwrap_or(""),
-                |end| &after_scheme[..=end],
-            )
+        after_scheme.find(']').map_or_else(
+            || after_scheme.split(['/', '?', '#']).next().unwrap_or(""),
+            |end| &after_scheme[..=end],
+        )
     } else {
         after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("")
     };
@@ -96,7 +98,7 @@ fn is_ssrf_blocked_host_obs(host: &str) -> bool {
     if let Ok(addr) = ipv6.parse::<std::net::Ipv6Addr>() {
         return addr.is_loopback()       // ::1
             || addr.is_unspecified()    // ::
-            || is_ula_v6_obs(addr);     // fc00::/7
+            || is_ula_v6_obs(addr); // fc00::/7
     }
 
     false
@@ -488,7 +490,7 @@ pub struct ActionExecutionResult {
     pub tracking_id: Option<String>,
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -601,10 +603,7 @@ mod tests {
     #[test]
     fn test_validate_headers_lf_in_value_rejected() {
         let mut headers = HashMap::new();
-        headers.insert(
-            "X-Legit".to_string(),
-            "value\r\nX-Injected: malicious".to_string(),
-        );
+        headers.insert("X-Legit".to_string(), "value\r\nX-Injected: malicious".to_string());
         assert!(validate_headers(&headers).is_err());
     }
 

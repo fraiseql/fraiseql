@@ -410,7 +410,7 @@ impl SecurityConfig {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]                 // Reason: test code, panics acceptable
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
     #![allow(clippy::field_reassign_with_default)] // Reason: test code, mutate-after-default is clearer
 
     use super::*;
@@ -490,10 +490,7 @@ mod tests {
         let mut config = StateEncryptionConfig::default();
         config.algorithm = "rot13".to_string();
         let err = config.validate().unwrap_err();
-        assert!(
-            err.to_string().contains("rot13"),
-            "error should name the bad algorithm: {err}"
-        );
+        assert!(err.to_string().contains("rot13"), "error should name the bad algorithm: {err}");
         assert!(
             err.to_string().contains("chacha20-poly1305"),
             "error should list supported algorithms: {err}"

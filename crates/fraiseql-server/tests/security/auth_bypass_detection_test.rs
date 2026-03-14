@@ -2,10 +2,10 @@
 //!
 //! Each test:
 //! 1. Mints a cryptographically signed JWT via `fraiseql_auth::jwt`.
-//! 2. Applies an attack vector (payload tampering, algorithm swap, expiry
-//!    manipulation, malformed structure, …).
-//! 3. Calls the real [`JwtValidator`] and asserts the exact [`AuthError`]
-//!    variant returned — **not** just that two strings differ.
+//! 2. Applies an attack vector (payload tampering, algorithm swap, expiry manipulation, malformed
+//!    structure, …).
+//! 3. Calls the real [`JwtValidator`] and asserts the exact [`AuthError`] variant returned —
+//!    **not** just that two strings differ.
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none
@@ -35,11 +35,11 @@ fn timestamps() -> (u64, u64) {
 fn valid_claims() -> Claims {
     let (iat, exp) = timestamps();
     Claims {
-        sub:   "user123".to_string(),
+        sub: "user123".to_string(),
         iat,
         exp,
-        iss:   ISSUER.to_string(),
-        aud:   vec!["test".to_string()],
+        iss: ISSUER.to_string(),
+        aud: vec!["test".to_string()],
         extra: HashMap::new(),
     }
 }
@@ -80,7 +80,9 @@ fn test_tampered_payload_rejected() {
 
     let mut parts: Vec<&str> = token.splitn(3, '.').collect();
     // Replace payload with elevated-privilege claims (still valid base64-url)
-    let evil_payload = base64_url_no_pad(br#"{"sub":"admin","exp":9999999999,"iss":"https://test.fraiseql.dev","iat":0,"aud":[]}"#);
+    let evil_payload = base64_url_no_pad(
+        br#"{"sub":"admin","exp":9999999999,"iss":"https://test.fraiseql.dev","iat":0,"aud":[]}"#,
+    );
     parts[1] = &evil_payload;
     let tampered = parts.join(".");
 
@@ -120,9 +122,8 @@ fn test_algorithm_none_rejected() {
     // Build a "none"-algorithm token manually (header.payload.)
     let header = base64_url_no_pad(br#"{"alg":"none","typ":"JWT"}"#);
     let (iat, exp) = timestamps();
-    let payload_json = format!(
-        r#"{{"sub":"admin","exp":{exp},"iat":{iat},"iss":"{ISSUER}","aud":[]}}"#
-    );
+    let payload_json =
+        format!(r#"{{"sub":"admin","exp":{exp},"iat":{iat},"iss":"{ISSUER}","aud":[]}}"#);
     let payload = base64_url_no_pad(payload_json.as_bytes());
     let unsigned_token = format!("{header}.{payload}.");
 
@@ -174,10 +175,7 @@ fn test_expired_token_rejected() {
     let err = validator()
         .validate_hmac(&token, SECRET)
         .expect_err("expired token must be rejected");
-    assert!(
-        matches!(err, AuthError::TokenExpired),
-        "expected TokenExpired; got: {err:?}"
-    );
+    assert!(matches!(err, AuthError::TokenExpired), "expected TokenExpired; got: {err:?}");
 }
 
 /// A token expiring far in the future must still be accepted today.
@@ -234,9 +232,7 @@ fn test_missing_segments_rejected() {
 /// An empty token must be rejected.
 #[test]
 fn test_empty_token_rejected() {
-    let err = validator()
-        .validate_hmac("", SECRET)
-        .expect_err("empty token must be rejected");
+    let err = validator().validate_hmac("", SECRET).expect_err("empty token must be rejected");
     assert!(
         matches!(err, AuthError::InvalidToken { .. }),
         "expected InvalidToken; got: {err:?}"

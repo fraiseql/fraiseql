@@ -115,7 +115,7 @@ mod connection_pooling_tests {
         }
 
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let successful = success_count.load(Ordering::Relaxed);
@@ -193,7 +193,7 @@ mod connection_pooling_tests {
 
         // Wait for all tasks
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let successful = success_count.load(Ordering::Relaxed);
@@ -229,7 +229,7 @@ mod connection_pooling_tests {
 
         // Wait for all tasks
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let successful = success_count.load(Ordering::Relaxed);
@@ -267,7 +267,7 @@ mod connection_pooling_tests {
 
         // Wait for all tasks
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let acquired = acquire_count.load(Ordering::Relaxed);
@@ -309,7 +309,7 @@ mod connection_pooling_tests {
         }
 
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let _elapsed = start.elapsed();
@@ -345,7 +345,7 @@ mod connection_pooling_tests {
             tasks.push(task);
         }
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
         let _time_small = start_small.elapsed();
 
@@ -365,7 +365,7 @@ mod connection_pooling_tests {
             tasks.push(task);
         }
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
         let _time_large = start_large.elapsed();
 
@@ -414,7 +414,7 @@ mod connection_pooling_tests {
         }
 
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
 
         let valid = valid_count.load(Ordering::Relaxed);
@@ -453,7 +453,7 @@ mod connection_pooling_tests {
         // Wait with reasonable timeout (5 seconds should be plenty)
         let start = Instant::now();
         for task in tasks {
-            let _ = task.await;  // intentional
+            let _ = task.await; // intentional
         }
         let elapsed = start.elapsed();
 

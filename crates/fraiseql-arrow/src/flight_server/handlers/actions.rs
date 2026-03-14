@@ -36,9 +36,7 @@ pub(super) async fn do_action(
         "ClearCache" => {
             // Admin-only action - verify "admin" scope
             if !authenticated_user.scopes.contains(&"admin".to_string()) {
-                return Err(Status::permission_denied(
-                    "Cache invalidation requires 'admin' scope",
-                ));
+                return Err(Status::permission_denied("Cache invalidation requires 'admin' scope"));
             }
 
             svc.handle_clear_cache()
@@ -56,9 +54,7 @@ pub(super) async fn do_action(
         "GetSchemaVersions" => {
             // Admin-only action - verify "admin" scope
             if !authenticated_user.scopes.contains(&"admin".to_string()) {
-                return Err(Status::permission_denied(
-                    "GetSchemaVersions requires 'admin' scope",
-                ));
+                return Err(Status::permission_denied("GetSchemaVersions requires 'admin' scope"));
             }
 
             svc.handle_get_schema_versions()
@@ -68,10 +64,7 @@ pub(super) async fn do_action(
             svc.handle_health_check()
         },
         _ => {
-            return Err(Status::invalid_argument(format!(
-                "Unknown action: {}",
-                action.r#type
-            )));
+            return Err(Status::invalid_argument(format!("Unknown action: {}", action.r#type)));
         },
     };
 

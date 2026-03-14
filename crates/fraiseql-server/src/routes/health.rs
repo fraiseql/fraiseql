@@ -13,8 +13,8 @@ pub struct HealthResponse {
     /// Overall server status: `"healthy"`, `"degraded"`, or `"unhealthy"`.
     ///
     /// - `"healthy"` — database and all enabled subsystems are reachable.
-    /// - `"degraded"` — database is healthy but an optional subsystem is failing.
-    ///   Returns HTTP 200 so load balancers keep the pod in rotation; alert on the field value.
+    /// - `"degraded"` — database is healthy but an optional subsystem is failing. Returns HTTP 200
+    ///   so load balancers keep the pod in rotation; alert on the field value.
     /// - `"unhealthy"` — database is unreachable. Returns HTTP 503.
     pub status: String,
 
@@ -55,19 +55,19 @@ pub struct FederationHealth {
     /// Whether federation is configured at all.
     pub configured: bool,
     /// Per-entity circuit breaker state.
-    pub subgraphs: Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
+    pub subgraphs:  Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
 }
 
 /// Observer runtime health snapshot.
 #[derive(Debug, Serialize)]
 pub struct ObserverHealth {
     /// Whether the observer runtime is currently running.
-    pub running: bool,
+    pub running:        bool,
     /// Approximate number of events pending in the internal queue.
     pub pending_events: usize,
     /// Last error message from the observer runtime, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_error: Option<String>,
+    pub last_error:     Option<String>,
 }
 
 /// Cache subsystem health.
@@ -77,7 +77,7 @@ pub struct CacheHealth {
     /// `true` for the in-memory backend).
     pub connected: bool,
     /// Cache backend type: `"redis"` or `"in-memory"`.
-    pub backend: String,
+    pub backend:   String,
 }
 
 /// Secrets backend health.
@@ -86,7 +86,7 @@ pub struct SecretsHealth {
     /// Whether the secrets backend is reachable and the token is valid.
     pub connected: bool,
     /// Backend type: `"vault"`, `"env"`, `"aws-secrets"`, etc.
-    pub backend: String,
+    pub backend:   String,
 }
 
 /// Readiness response (subset of HealthResponse).
@@ -215,14 +215,17 @@ pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stati
     if db_healthy {
         (
             StatusCode::OK,
-            Json(ReadinessResponse { status: "ready".to_string(), reason: None }),
+            Json(ReadinessResponse {
+                status: "ready".to_string(),
+                reason: None,
+            }),
         )
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(ReadinessResponse {
-                status:  "not_ready".to_string(),
-                reason:  Some("Database connection unavailable".to_string()),
+                status: "not_ready".to_string(),
+                reason: Some("Database connection unavailable".to_string()),
             }),
         )
     }
@@ -259,19 +262,19 @@ pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync 
                         | crate::federation::circuit_breaker::CircuitHealthState::HalfOpen
                 );
                 crate::federation::SubgraphHealthStatus {
-                    name:                 entry.subgraph,
+                    name: entry.subgraph,
                     available,
-                    latency_ms:           0.0,
-                    last_check:           chrono::Utc::now().to_rfc3339(),
+                    latency_ms: 0.0,
+                    last_check: chrono::Utc::now().to_rfc3339(),
                     error_count_last_60s: 0,
-                    error_rate_percent:   0.0,
+                    error_rate_percent: 0.0,
                 }
             })
             .collect()
     });
 
     let response = FederationHealthResponse {
-        status:    status.to_string(),
+        status: status.to_string(),
         subgraphs,
         timestamp: chrono::Utc::now().to_rfc3339(),
     };

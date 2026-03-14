@@ -45,10 +45,9 @@ impl FraiseClient {
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info
-                    .unix_socket
-                    .as_ref()
-                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
+                let path = info.unix_socket.as_ref().ok_or_else(|| {
+                    crate::Error::Config("Unix transport requires a socket path".into())
+                })?;
                 Transport::connect_unix(path).await?
             }
         };
@@ -159,10 +158,9 @@ impl FraiseClient {
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info
-                    .unix_socket
-                    .as_ref()
-                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
+                let path = info.unix_socket.as_ref().ok_or_else(|| {
+                    crate::Error::Config("Unix transport requires a socket path".into())
+                })?;
                 Transport::connect_unix(path).await?
             }
         };

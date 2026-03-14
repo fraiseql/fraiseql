@@ -22,9 +22,9 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use fraiseql_db::{
+    PostgresDialect,
     postgres::PostgresWhereGenerator,
     where_clause::{WhereClause, WhereOperator},
-    PostgresDialect,
 };
 use serde_json::json;
 
@@ -200,8 +200,9 @@ fn pg_contains_param_count() {
 
 #[cfg(feature = "sqlite")]
 mod parity {
-    use super::*;
     use fraiseql_db::{SqliteDialect, sqlite::SqliteWhereGenerator};
+
+    use super::*;
 
     const fn sq_gen() -> SqliteWhereGenerator {
         SqliteWhereGenerator::new(SqliteDialect)

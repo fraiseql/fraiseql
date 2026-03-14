@@ -1,4 +1,4 @@
-#![allow(clippy::doc_markdown)]             // Reason: test function names in docs
+#![allow(clippy::doc_markdown)] // Reason: test function names in docs
 
 //! Integration tests for stream pause/resume functionality
 

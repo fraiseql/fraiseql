@@ -1,9 +1,13 @@
 //! C# code generator.
 
-use super::super::init::Language;
-use super::utils::{derive_class_name, infer_sql_source, map_graphql_to_lang, to_pascal_case};
-use super::SchemaGenerator;
-use crate::schema::intermediate::{IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType};
+use super::{
+    super::init::Language,
+    SchemaGenerator,
+    utils::{derive_class_name, infer_sql_source, map_graphql_to_lang, to_pascal_case},
+};
+use crate::schema::intermediate::{
+    IntermediateEnum, IntermediateQuery, IntermediateSchema, IntermediateType,
+};
 
 // =============================================================================
 // C# generator

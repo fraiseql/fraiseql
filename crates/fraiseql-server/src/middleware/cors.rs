@@ -167,7 +167,9 @@ mod tests {
     use axum::{Router, body::Body, http::Request, middleware, routing::get};
     use tower::ServiceExt;
 
-    async fn ok_handler() -> &'static str { "ok" }
+    async fn ok_handler() -> &'static str {
+        "ok"
+    }
 
     fn sec_app() -> Router {
         Router::new()

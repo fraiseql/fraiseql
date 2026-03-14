@@ -156,12 +156,10 @@ fn test_evaluate_and_operator() {
         json!({"total": 150, "status": "shipped"}),
     );
 
-    let result =
-        parser.parse_and_evaluate("total > 100 && status == 'shipped'", &event).unwrap();
+    let result = parser.parse_and_evaluate("total > 100 && status == 'shipped'", &event).unwrap();
     assert!(result);
 
-    let result =
-        parser.parse_and_evaluate("total > 100 && status == 'pending'", &event).unwrap();
+    let result = parser.parse_and_evaluate("total > 100 && status == 'pending'", &event).unwrap();
     assert!(!result);
 }
 
@@ -214,10 +212,7 @@ fn test_evaluate_complex_condition() {
     );
 
     let result = parser
-        .parse_and_evaluate(
-            "(total > 100 && status == 'shipped') || priority == 'high'",
-            &event,
-        )
+        .parse_and_evaluate("(total > 100 && status == 'shipped') || priority == 'high'", &event)
         .unwrap();
     assert!(result);
 }
@@ -300,13 +295,15 @@ fn test_multiple_and_conditions_all_must_match() {
         json!({"status": "shipped", "priority": "high"}),
     );
     // Both conditions true
-    let result =
-        parser.parse_and_evaluate("status == 'shipped' && priority == 'high'", &event).unwrap();
+    let result = parser
+        .parse_and_evaluate("status == 'shipped' && priority == 'high'", &event)
+        .unwrap();
     assert!(result, "Both conditions true should pass AND");
 
     // One condition false
-    let result =
-        parser.parse_and_evaluate("status == 'shipped' && priority == 'low'", &event).unwrap();
+    let result = parser
+        .parse_and_evaluate("status == 'shipped' && priority == 'low'", &event)
+        .unwrap();
     assert!(!result, "One false condition should fail AND");
 }
 
@@ -386,7 +383,10 @@ fn make_update_event_with_status_change(old: &str, new: &str) -> EntityEvent {
     let mut changes = std::collections::HashMap::new();
     changes.insert(
         "status".to_string(),
-        FieldChanges { old: json!(old), new: json!(new) },
+        FieldChanges {
+            old: json!(old),
+            new: json!(new),
+        },
     );
     EntityEvent::new(
         EventKind::Updated,
@@ -474,7 +474,10 @@ fn test_evaluate_field_changed_to_combined_with_and() {
     let mut changes = std::collections::HashMap::new();
     changes.insert(
         "status".to_string(),
-        FieldChanges { old: json!("pending"), new: json!("shipped") },
+        FieldChanges {
+            old: json!("pending"),
+            new: json!("shipped"),
+        },
     );
     let event = EntityEvent::new(
         EventKind::Updated,
@@ -484,9 +487,12 @@ fn test_evaluate_field_changed_to_combined_with_and() {
     )
     .with_changes(changes);
 
-    let result = parser
-        .parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
-    assert!(result.unwrap(), "combined condition with field_changed_to should evaluate correctly");
+    let result =
+        parser.parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
+    assert!(
+        result.unwrap(),
+        "combined condition with field_changed_to should evaluate correctly"
+    );
 }
 
 #[test]
@@ -496,7 +502,10 @@ fn test_evaluate_field_changed_to_combined_false_when_not_changed() {
     let mut changes = std::collections::HashMap::new();
     changes.insert(
         "total".to_string(),
-        FieldChanges { old: json!(50), new: json!(150) },
+        FieldChanges {
+            old: json!(50),
+            new: json!(150),
+        },
     );
     let event = EntityEvent::new(
         EventKind::Updated,
@@ -506,8 +515,8 @@ fn test_evaluate_field_changed_to_combined_false_when_not_changed() {
     )
     .with_changes(changes);
 
-    let result = parser
-        .parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
+    let result =
+        parser.parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
     assert!(!result.unwrap(), "condition should be false when field_changed_to mismatch");
 }
 
@@ -599,9 +608,6 @@ fn condition_function_at_arg_limit_is_accepted() {
     // We don't assert Ok because in_set may not be a recognised function;
     // the key property is that it must NOT fail with the arg-limit error.
     if let Err(e) = parser.parse(&condition) {
-        assert!(
-            !e.to_string().contains("Too many"),
-            "32 args must not trigger arg limit: {e}"
-        );
+        assert!(!e.to_string().contains("Too many"), "32 args must not trigger arg limit: {e}");
     }
 }

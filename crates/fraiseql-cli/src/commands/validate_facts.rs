@@ -102,7 +102,11 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql validate facts --schema schema.json --database postgresql://localhost/mydb
 /// ```
-pub async fn run(schema_path: &Path, database_url: &str, formatter: &OutputFormatter) -> Result<()> {
+pub async fn run(
+    schema_path: &Path,
+    database_url: &str,
+    formatter: &OutputFormatter,
+) -> Result<()> {
     formatter.section("Validating fact tables");
     formatter.progress(&format!("   Schema: {}", schema_path.display()));
     formatter.progress(&format!("   Database: {database_url}"));
@@ -116,7 +120,8 @@ pub async fn run(schema_path: &Path, database_url: &str, formatter: &OutputForma
 
     let declared_tables: HashSet<String> = ir.fact_tables.keys().cloned().collect();
 
-    formatter.progress(&format!("Found {} declared fact table(s) in schema", declared_tables.len()));
+    formatter
+        .progress(&format!("Found {} declared fact table(s) in schema", declared_tables.len()));
 
     if declared_tables.is_empty() {
         formatter.progress("   No fact tables declared - nothing to validate");
@@ -306,7 +311,6 @@ fn compare_metadata(
     issues
 }
 
-
 #[cfg(test)]
 mod tests {
     use fraiseql_core::compiler::fact_table::{
@@ -337,11 +341,14 @@ mod tests {
         filters: Vec<FilterColumn>,
     ) -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             measures,
-            dimensions:           DimensionColumn { name: dim_name.to_string(), paths: vec![] },
+            dimensions: DimensionColumn {
+                name:  dim_name.to_string(),
+                paths: vec![],
+            },
             denormalized_filters: filters,
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -349,11 +356,23 @@ mod tests {
     fn test_compare_metadata_matching() {
         let declared = make_metadata(
             vec![
-                MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
-                MeasureColumn { name: "quantity".to_string(), sql_type: SqlType::Int, nullable: false },
+                MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                },
+                MeasureColumn {
+                    name:     "quantity".to_string(),
+                    sql_type: SqlType::Int,
+                    nullable: false,
+                },
             ],
             "data",
-            vec![FilterColumn { name: "customer_id".to_string(), sql_type: SqlType::Uuid, indexed: true }],
+            vec![FilterColumn {
+                name:     "customer_id".to_string(),
+                sql_type: SqlType::Uuid,
+                indexed:  true,
+            }],
         );
         let actual = declared.clone();
 
@@ -366,14 +385,26 @@ mod tests {
     fn test_compare_metadata_missing_measure() {
         let declared = make_metadata(
             vec![
-                MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
-                MeasureColumn { name: "profit".to_string(), sql_type: SqlType::Decimal, nullable: false },
+                MeasureColumn {
+                    name:     "revenue".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                },
+                MeasureColumn {
+                    name:     "profit".to_string(),
+                    sql_type: SqlType::Decimal,
+                    nullable: false,
+                },
             ],
             "data",
             vec![],
         );
         let actual = make_metadata(
-            vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+            vec![MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
             "data",
             vec![],
         );

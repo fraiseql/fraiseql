@@ -1,11 +1,12 @@
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
 use super::{
     ExtractedSchema, Language, Result, SchemaExtractor, map_primitive_type, map_type,
     parse_annotation_params, to_snake_case,
+};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
 };
 
 pub(super) struct SwiftExtractor;
@@ -27,7 +28,11 @@ impl SchemaExtractor for SwiftExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").end()].lines().count() - 1;
+            let struct_line = source
+                [..cap.get(0).expect("regex group 0 is always Some on a successful match").end()]
+                .lines()
+                .count()
+                - 1;
             let mut fields = Vec::new();
             for line in lines.iter().skip(struct_line + 1) {
                 let trimmed = line.trim();
@@ -47,7 +52,7 @@ impl SchemaExtractor for SwiftExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
-                        on_deny:        None,
+                        on_deny: None,
                     });
                 }
             }
@@ -71,7 +76,10 @@ impl SchemaExtractor for SwiftExtractor {
             let returns_list = params.get("returnArray").is_some_and(|v| v == "true");
             let sql_source = params.get("sqlSource").cloned();
 
-            let arguments = extract_swift_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
+            let arguments = extract_swift_query_args(
+                source,
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end(),
+            );
 
             queries.push(IntermediateQuery {
                 name,
@@ -85,7 +93,7 @@ impl SchemaExtractor for SwiftExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
-                 inject: IndexMap::default(),
+                inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
@@ -97,7 +105,10 @@ impl SchemaExtractor for SwiftExtractor {
     }
 }
 
-pub(super) fn extract_swift_query_args(source: &str, fn_paren_start: usize) -> Vec<IntermediateArgument> {
+pub(super) fn extract_swift_query_args(
+    source: &str,
+    fn_paren_start: usize,
+) -> Vec<IntermediateArgument> {
     let mut args = Vec::new();
     let rest = &source[fn_paren_start..];
     let Some(close) = rest.find(')') else {

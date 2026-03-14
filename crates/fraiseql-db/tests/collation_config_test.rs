@@ -68,10 +68,10 @@ fn collation_config_serde_round_trip() {
 #[test]
 fn collation_config_serde_with_overrides() {
     let cfg = CollationConfig {
-        enabled: true,
-        fallback_locale: "de-DE".to_string(),
-        allowed_locales: vec!["de-DE".to_string(), "en-US".to_string()],
-        on_invalid_locale: InvalidLocaleStrategy::DatabaseDefault,
+        enabled:            true,
+        fallback_locale:    "de-DE".to_string(),
+        allowed_locales:    vec!["de-DE".to_string(), "en-US".to_string()],
+        on_invalid_locale:  InvalidLocaleStrategy::DatabaseDefault,
         database_overrides: Some(DatabaseCollationOverrides {
             postgres:  Some(PostgresCollationConfig::default()),
             mysql:     None,
@@ -126,7 +126,10 @@ fn postgres_collation_default_uses_icu() {
 
 #[test]
 fn postgres_collation_serde_round_trip() {
-    let original = PostgresCollationConfig { use_icu: false, provider: "libc".to_string() };
+    let original = PostgresCollationConfig {
+        use_icu:  false,
+        provider: "libc".to_string(),
+    };
     let json = serde_json::to_string(&original).unwrap();
     let restored: PostgresCollationConfig = serde_json::from_str(&json).unwrap();
     assert!(!restored.use_icu);
@@ -196,8 +199,10 @@ fn sqlserver_collation_defaults_ci_ai() {
 
 #[test]
 fn sqlserver_collation_serde_round_trip() {
-    let original =
-        SqlServerCollationConfig { case_insensitive: false, accent_insensitive: true };
+    let original = SqlServerCollationConfig {
+        case_insensitive:   false,
+        accent_insensitive: true,
+    };
     let json = serde_json::to_string(&original).unwrap();
     let restored: SqlServerCollationConfig = serde_json::from_str(&json).unwrap();
     assert!(!restored.case_insensitive);

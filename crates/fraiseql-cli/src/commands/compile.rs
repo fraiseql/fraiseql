@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
+use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
 use tracing::{info, warn};
 
 use crate::{
@@ -368,16 +368,10 @@ fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
     let Ok(content) = fs::read_to_string(toml_path) else {
         return false;
     };
-    let Ok(toml_schema) =
-        toml::from_str::<crate::config::toml_schema::TomlSchema>(&content)
-    else {
+    let Ok(toml_schema) = toml::from_str::<crate::config::toml_schema::TomlSchema>(&content) else {
         return false;
     };
-    toml_schema
-        .schema
-        .database_target
-        .to_ascii_lowercase()
-        .contains("sqlite")
+    toml_schema.schema.database_target.to_ascii_lowercase().contains("sqlite")
 }
 
 /// Validate indexed columns against database views.
@@ -467,7 +461,7 @@ mod tests {
     #[test]
     fn test_validate_schema_success() {
         let schema = CompiledSchema {
-            types:            vec![TypeDefinition {
+            types: vec![TypeDefinition {
                 name:                "User".into(),
                 fields:              vec![
                     FieldDefinition {
@@ -480,7 +474,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
-                        on_deny: FieldDenyPolicy::default(),
+                        on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
                     },
                     FieldDefinition {
@@ -493,7 +487,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
-                        on_deny: FieldDenyPolicy::default(),
+                        on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
                     },
                 ],
@@ -504,49 +498,49 @@ mod tests {
                 implements:          vec![],
                 requires_role:       None,
                 is_error:            false,
-                relay:            false,
+                relay:               false,
             }],
-            queries:          vec![QueryDefinition {
-                name:         "users".to_string(),
-                return_type:  "User".to_string(),
-                returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                sql_source:   Some("v_user".to_string()),
-                description:  Some("Get users".to_string()),
-                auto_params:  AutoParams::default(),
-                deprecation:  None,
-                jsonb_column: "data".to_string(),
-                relay: false,
+            queries: vec![QueryDefinition {
+                name:                "users".to_string(),
+                return_type:         "User".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           vec![],
+                sql_source:          Some("v_user".to_string()),
+                description:         Some("Get users".to_string()),
+                auto_params:         AutoParams::default(),
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type: CursorType::default(),
-                inject_params: IndexMap::default(),
-                cache_ttl_seconds: None,
-                additional_views: vec![],
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
                 requires_role:       None,
             }],
-            enums:            vec![],
-            input_types:      vec![],
-            interfaces:       vec![],
-            unions:           vec![],
-            mutations:        vec![],
-            subscriptions:    vec![],
-            directives:       vec![],
-            observers:        Vec::new(),
-            fact_tables:      HashMap::default(),
-            federation:       None,
-            security:         None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             // None is intentional here: this struct is used only for in-process
             // validation assertions and is never serialised to disk. The real
             // compile path stamps the version at compile_impl() line 220.
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -559,48 +553,48 @@ mod tests {
     #[test]
     fn test_validate_schema_unknown_type() {
         let schema = CompiledSchema {
-            types:            vec![],
-            enums:            vec![],
-            input_types:      vec![],
-            interfaces:       vec![],
-            unions:           vec![],
-            queries:          vec![QueryDefinition {
-                name:         "users".to_string(),
-                return_type:  "UnknownType".to_string(),
-                returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                sql_source:   Some("v_user".to_string()),
-                description:  Some("Get users".to_string()),
-                auto_params:  AutoParams::default(),
-                deprecation:  None,
-                jsonb_column: "data".to_string(),
-                relay: false,
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![QueryDefinition {
+                name:                "users".to_string(),
+                return_type:         "UnknownType".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           vec![],
+                sql_source:          Some("v_user".to_string()),
+                description:         Some("Get users".to_string()),
+                auto_params:         AutoParams::default(),
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type: CursorType::default(),
-                inject_params: IndexMap::default(),
-                cache_ttl_seconds: None,
-                additional_views: vec![],
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
                 requires_role:       None,
             }],
-            mutations:        vec![],
-            subscriptions:    vec![],
-            directives:       vec![],
-            observers:        Vec::new(),
-            fact_tables:      HashMap::default(),
-            federation:       None,
-            security:         None,
+            mutations: vec![],
+            subscriptions: vec![],
+            directives: vec![],
+            observers: Vec::new(),
+            fact_tables: HashMap::default(),
+            federation: None,
+            security: None,
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
-            schema_sdl:            None,
+            debug_config: None,
+            mcp_config: None,
+            schema_sdl: None,
             // None is intentional here: this struct is used only for in-process
             // validation assertions and is never serialised to disk. The real
             // compile path stamps the version at compile_impl() line 220.
             schema_format_version: None,
-            custom_scalars:        CustomTypeRegistry::default(),
+            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 

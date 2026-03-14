@@ -1,13 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
-use chrono::Utc;
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
+use chrono::Utc;
 use tokio::sync::RwLock;
 use zeroize::Zeroizing;
 
+use super::{
+    cache::{CACHE_TTL_PERCENTAGE, DEFAULT_MAX_CACHE_ENTRIES, SecretCache, VaultResponse},
+    validation::{validate_vault_addr, validate_vault_secret_name},
+};
 use crate::secrets_manager::{SecretsBackend, SecretsError};
-use super::cache::{CACHE_TTL_PERCENTAGE, DEFAULT_MAX_CACHE_ENTRIES, SecretCache, VaultResponse};
-use super::validation::{validate_vault_addr, validate_vault_secret_name};
 
 /// Fraction of the token TTL after which the token should be proactively renewed.
 /// At 80% of TTL elapsed, renewal is triggered before the token expires.
@@ -92,32 +94,32 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// ```
 #[derive(Debug)]
 pub struct VaultBackend {
-    addr:       String,
-    token:      Zeroizing<String>,
-    namespace:  Option<String>,
-    tls_verify: bool,
+    addr:              String,
+    token:             Zeroizing<String>,
+    namespace:         Option<String>,
+    tls_verify:        bool,
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
-    client:     reqwest::Client,
-    cache:      Arc<RwLock<SecretCache>>,
+    client:            reqwest::Client,
+    cache:             Arc<RwLock<SecretCache>>,
     /// When the current token was obtained (for renewal tracking).
     /// `None` when using a static long-lived token.
     token_obtained_at: Option<chrono::DateTime<Utc>>,
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` when using a static long-lived token.
-    token_ttl_secs: Option<i64>,
+    token_ttl_secs:    Option<i64>,
 }
 
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
-            addr:               self.addr.clone(),
-            token:              Zeroizing::new((*self.token).clone()),
-            namespace:          self.namespace.clone(),
-            tls_verify:         self.tls_verify,
-            client:             self.client.clone(),
-            cache:              Arc::clone(&self.cache),
-            token_obtained_at:  self.token_obtained_at,
-            token_ttl_secs:     self.token_ttl_secs,
+            addr:              self.addr.clone(),
+            token:             Zeroizing::new((*self.token).clone()),
+            namespace:         self.namespace.clone(),
+            tls_verify:        self.tls_verify,
+            client:            self.client.clone(),
+            cache:             Arc::clone(&self.cache),
+            token_obtained_at: self.token_obtained_at,
+            token_ttl_secs:    self.token_ttl_secs,
         }
     }
 }
@@ -152,10 +154,8 @@ impl SecretsBackend for VaultBackend {
         // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
         // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
         // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
-        let cache_ttl_secs = response
-            .lease_duration
-            .saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64)
-            / 100;
+        let cache_ttl_secs =
+            response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
         let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
         // Extract secret from response data
@@ -197,15 +197,15 @@ impl VaultBackend {
         validate_vault_addr(&addr_str).expect("Vault address failed SSRF validation");
         let client = build_http_client(true).expect("Failed to build Vault HTTP client");
         VaultBackend {
-            addr:               addr_str,
-            token:              Zeroizing::new(token.into()),
-            namespace:          None,
-            tls_verify:         true,
+            addr: addr_str,
+            token: Zeroizing::new(token.into()),
+            namespace: None,
+            tls_verify: true,
             client,
-            cache:              Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
             // Static token — no TTL tracking
-            token_obtained_at:  None,
-            token_ttl_secs:     None,
+            token_obtained_at: None,
+            token_ttl_secs: None,
         }
     }
 
@@ -315,14 +315,14 @@ impl VaultBackend {
     pub(super) fn new_for_test(addr: impl Into<String>, token: impl Into<String>) -> Self {
         let client = build_http_client(false).expect("Failed to build test Vault HTTP client");
         VaultBackend {
-            addr:              addr.into(),
-            token:             Zeroizing::new(token.into()),
-            namespace:         None,
-            tls_verify:        false,
+            addr: addr.into(),
+            token: Zeroizing::new(token.into()),
+            namespace: None,
+            tls_verify: false,
             client,
-            cache:             Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
             token_obtained_at: None,
-            token_ttl_secs:    None,
+            token_ttl_secs: None,
         }
     }
 
@@ -344,9 +344,8 @@ impl VaultBackend {
 
         let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
         // Use integer arithmetic to avoid f64 precision loss for large TTL values.
-        let renewal_threshold_secs = ttl_secs
-            .saturating_mul((TOKEN_RENEWAL_THRESHOLD * 100.0) as i64)
-            / 100;
+        let renewal_threshold_secs =
+            ttl_secs.saturating_mul((TOKEN_RENEWAL_THRESHOLD * 100.0) as i64) / 100;
         elapsed_secs >= renewal_threshold_secs
     }
 
@@ -382,12 +381,11 @@ impl VaultBackend {
             })?;
 
         // Vault returns the renewed token info under `auth`
-        let new_token =
-            response["auth"]["client_token"].as_str().ok_or_else(|| {
-                SecretsError::ConnectionError(
-                    "No client_token in renewal response — token may not be renewable".into(),
-                )
-            })?;
+        let new_token = response["auth"]["client_token"].as_str().ok_or_else(|| {
+            SecretsError::ConnectionError(
+                "No client_token in renewal response — token may not be renewable".into(),
+            )
+        })?;
 
         self.token = Zeroizing::new(new_token.to_string());
         self.token_obtained_at = Some(Utc::now());

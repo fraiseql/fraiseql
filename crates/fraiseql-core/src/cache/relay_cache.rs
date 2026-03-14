@@ -4,11 +4,12 @@
 //! directly to the underlying adapter.
 
 use super::adapter::CachedDatabaseAdapter;
-use crate::{db::{DatabaseAdapter, RelayDatabaseAdapter}, error::Result};
+use crate::{
+    db::{DatabaseAdapter, RelayDatabaseAdapter},
+    error::Result,
+};
 
-impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter
-    for CachedDatabaseAdapter<A>
-{
+impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedDatabaseAdapter<A> {
     async fn execute_relay_page(
         &self,
         view: &str,

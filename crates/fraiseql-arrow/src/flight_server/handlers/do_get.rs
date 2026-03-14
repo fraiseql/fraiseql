@@ -54,8 +54,7 @@ pub(super) async fn handle(
     match ticket {
         FlightTicket::GraphQLQuery { query, variables } => {
             // Pass security_context to execute_graphql_query for RLS
-            let stream =
-                svc.execute_graphql_query(&query, variables, &security_context).await?;
+            let stream = svc.execute_graphql_query(&query, variables, &security_context).await?;
             Ok(Response::new(Box::pin(stream)))
         },
         FlightTicket::OptimizedView {
@@ -67,14 +66,7 @@ pub(super) async fn handle(
         } => {
             // Pass security_context to execute_optimized_view for RLS
             let stream = svc
-                .execute_optimized_view(
-                    &view,
-                    filter,
-                    order_by,
-                    limit,
-                    offset,
-                    &security_context,
-                )
+                .execute_optimized_view(&view, filter, order_by, limit, offset, &security_context)
                 .await?;
             Ok(Response::new(Box::pin(stream)))
         },

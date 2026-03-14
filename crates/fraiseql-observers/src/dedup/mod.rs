@@ -298,7 +298,7 @@ mod tests {
     fn test_dedup_stats_single_new_single_dup_equals_50_percent() {
         let mut stats = DeduplicationStats::new();
         stats.record(false); // new
-        stats.record(true);  // duplicate
+        stats.record(true); // duplicate
         assert!((stats.hit_rate - 0.5).abs() < f64::EPSILON, "50% hit rate");
         assert_eq!(stats.total_checked, 2);
     }

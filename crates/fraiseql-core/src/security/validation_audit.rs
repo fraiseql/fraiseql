@@ -6,8 +6,8 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
-use tracing;
 use serde::{Deserialize, Serialize};
+use tracing;
 
 /// Redaction policy for sensitive fields in audit logs
 #[derive(Debug, Clone, Copy, Default)]

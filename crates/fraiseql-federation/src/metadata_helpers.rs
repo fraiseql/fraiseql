@@ -3,6 +3,7 @@
 //! Provides common patterns for metadata lookups and error handling.
 
 use fraiseql_error::{FraiseQLError, Result};
+
 use crate::types::{FederatedType, FederationMetadata, KeyDirective};
 
 /// Find a federation type by name in the metadata.

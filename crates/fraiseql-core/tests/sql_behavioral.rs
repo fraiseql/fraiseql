@@ -12,7 +12,8 @@
 //! [`docs/testing.md`]: ../../../../docs/testing.md
 
 use fraiseql_core::db::{
-    PostgresDialect, postgres::PostgresWhereGenerator,
+    PostgresDialect,
+    postgres::PostgresWhereGenerator,
     where_clause::{WhereClause, WhereOperator},
 };
 use serde_json::json;
@@ -129,10 +130,7 @@ fn where_in_operator() {
         value:    json!(["active", "pending", "review"]),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
-    assert!(
-        sql.contains("ANY") || sql.contains("IN"),
-        "Expected ANY or IN in: {sql}"
-    );
+    assert!(sql.contains("ANY") || sql.contains("IN"), "Expected ANY or IN in: {sql}");
     assert!(sql.contains("status"), "Expected field name in: {sql}");
     // Must use parameterized form — no literal values in SQL.
     assert!(!sql.contains("active"), "Literals must not appear in SQL: {sql}");
@@ -153,10 +151,7 @@ fn where_is_null() {
         value:    json!(true),
     };
     let (sql, _params) = pg().generate(&clause).expect("generate");
-    assert!(
-        sql.to_uppercase().contains("IS NULL"),
-        "Expected IS NULL in: {sql}"
-    );
+    assert!(sql.to_uppercase().contains("IS NULL"), "Expected IS NULL in: {sql}");
     assert!(sql.contains("deleted_at"), "Expected field name in: {sql}");
 }
 
@@ -169,10 +164,7 @@ fn where_is_not_null() {
         value:    json!(false),
     };
     let (sql, _params) = pg().generate(&clause).expect("generate");
-    assert!(
-        sql.to_uppercase().contains("IS NOT NULL"),
-        "Expected IS NOT NULL in: {sql}"
-    );
+    assert!(sql.to_uppercase().contains("IS NOT NULL"), "Expected IS NOT NULL in: {sql}");
     assert!(sql.contains("published_at"), "Expected field name in: {sql}");
 }
 
@@ -245,10 +237,7 @@ fn keyset_pagination_where_clause() {
         value:    json!("cursor-value-here"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
-    assert!(
-        sql.contains('>'),
-        "Keyset pagination must use > not OFFSET: {sql}"
-    );
+    assert!(sql.contains('>'), "Keyset pagination must use > not OFFSET: {sql}");
     assert!(sql.contains("id"), "Expected cursor field in: {sql}");
     assert_eq!(params.len(), 1, "Cursor must be a single parameter");
     assert!(
@@ -273,10 +262,7 @@ fn field_projection_sql() {
     let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
     let sql = gen.generate_projection_sql(&fields).expect("generate");
 
-    assert!(
-        sql.contains("jsonb_build_object"),
-        "Expected jsonb_build_object in: {sql}"
-    );
+    assert!(sql.contains("jsonb_build_object"), "Expected jsonb_build_object in: {sql}");
     assert!(sql.contains("'id'"), "Expected 'id' key in: {sql}");
     assert!(sql.contains("'name'"), "Expected 'name' key in: {sql}");
     assert!(sql.contains("'email'"), "Expected 'email' key in: {sql}");
@@ -299,13 +285,13 @@ fn field_projection_sql() {
 fn aggregate_sum_produces_correct_sql() {
     use fraiseql_core::{
         compiler::{
+            aggregate_types::AggregateFunction,
             aggregation::{AggregateSelection, AggregationPlanner, AggregationRequest},
             fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
         },
-        runtime::AggregationSqlGenerator,
         db::types::DatabaseType,
+        runtime::AggregationSqlGenerator,
     };
-    use fraiseql_core::compiler::aggregate_types::AggregateFunction;
 
     let metadata = FactTableMetadata {
         table_name:           "tf_sales".to_string(),
@@ -314,7 +300,10 @@ fn aggregate_sum_produces_correct_sql() {
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
     };
@@ -339,16 +328,8 @@ fn aggregate_sum_produces_correct_sql() {
         .generate_parameterized(&plan)
         .expect("generate");
 
-    assert!(
-        sql.sql.contains("SUM(amount)"),
-        "Expected SUM(amount) in: {}",
-        sql.sql
-    );
-    assert!(
-        sql.sql.contains("tf_sales"),
-        "Expected table name in: {}",
-        sql.sql
-    );
+    assert!(sql.sql.contains("SUM(amount)"), "Expected SUM(amount) in: {}", sql.sql);
+    assert!(sql.sql.contains("tf_sales"), "Expected table name in: {}", sql.sql);
     assert!(
         !sql.sql.to_uppercase().contains("GROUP BY"),
         "SUM without grouping must not emit GROUP BY: {}",
@@ -364,13 +345,17 @@ fn aggregate_sum_produces_correct_sql() {
 fn aggregate_group_by_produces_correct_sql() {
     use fraiseql_core::{
         compiler::{
-            aggregation::{AggregateSelection, AggregationPlanner, AggregationRequest, GroupBySelection},
-            fact_table::{DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType},
+            aggregate_types::AggregateFunction,
+            aggregation::{
+                AggregateSelection, AggregationPlanner, AggregationRequest, GroupBySelection,
+            },
+            fact_table::{
+                DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType,
+            },
         },
-        runtime::AggregationSqlGenerator,
         db::types::DatabaseType,
+        runtime::AggregationSqlGenerator,
     };
-    use fraiseql_core::compiler::aggregate_types::AggregateFunction;
 
     let metadata = FactTableMetadata {
         table_name:           "tf_sales".to_string(),
@@ -414,21 +399,9 @@ fn aggregate_group_by_produces_correct_sql() {
         .generate_parameterized(&plan)
         .expect("generate");
 
-    assert!(
-        sql.sql.to_uppercase().contains("GROUP BY"),
-        "Expected GROUP BY in: {}",
-        sql.sql
-    );
-    assert!(
-        sql.sql.contains("category"),
-        "Expected dimension name in: {}",
-        sql.sql
-    );
-    assert!(
-        sql.sql.contains("SUM(amount)"),
-        "Expected SUM aggregate in: {}",
-        sql.sql
-    );
+    assert!(sql.sql.to_uppercase().contains("GROUP BY"), "Expected GROUP BY in: {}", sql.sql);
+    assert!(sql.sql.contains("category"), "Expected dimension name in: {}", sql.sql);
+    assert!(sql.sql.contains("SUM(amount)"), "Expected SUM aggregate in: {}", sql.sql);
 }
 
 // ============================================================================

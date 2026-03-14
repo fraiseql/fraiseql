@@ -52,12 +52,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                             ),
                             _ => format!("Mutation '{name}' not found in schema"),
                         };
-                        FraiseQLError::Validation { message, path: None }
+                        FraiseQLError::Validation {
+                            message,
+                            path: None,
+                        }
                     })?;
-                let fn_name = mutation_def
-                    .sql_source
-                    .clone()
-                    .unwrap_or_else(|| format!("fn_{name}"));
+                let fn_name =
+                    mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
                 Ok(super::super::ExplainPlan {
                     sql:            format!("SELECT * FROM {fn_name}(...)"),
                     parameters:     Vec::new(),

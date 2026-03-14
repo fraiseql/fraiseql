@@ -328,8 +328,10 @@ impl VersionedKeyStorage {
 
     /// Add a new key version
     pub fn add_version(&self, metadata: KeyVersionMetadata) -> Result<KeyVersion, RotationError> {
-        let mut versions =
-            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
+        let mut versions = self
+            .versions
+            .lock()
+            .map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         let version = metadata.version;
         versions.insert(version, metadata);
@@ -338,8 +340,10 @@ impl VersionedKeyStorage {
 
     /// Set current version
     pub fn set_current_version(&self, version: KeyVersion) -> Result<(), RotationError> {
-        let versions =
-            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
+        let versions = self
+            .versions
+            .lock()
+            .map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         if !versions.contains_key(&version) {
             return Err(RotationError::VersionNotFound(version));
@@ -363,16 +367,23 @@ impl VersionedKeyStorage {
     }
 
     /// Get version metadata by ID
-    pub fn get_version(&self, version: KeyVersion) -> Result<Option<KeyVersionMetadata>, RotationError> {
-        let versions =
-            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
+    pub fn get_version(
+        &self,
+        version: KeyVersion,
+    ) -> Result<Option<KeyVersionMetadata>, RotationError> {
+        let versions = self
+            .versions
+            .lock()
+            .map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
         Ok(versions.get(&version).cloned())
     }
 
     /// Get all versions sorted by issue date (newest first)
     pub fn get_all_versions(&self) -> Result<Vec<KeyVersionMetadata>, RotationError> {
-        let versions =
-            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
+        let versions = self
+            .versions
+            .lock()
+            .map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         let mut all_versions: Vec<_> = versions.values().cloned().collect();
         all_versions.sort_by_key(|v| std::cmp::Reverse(v.issued_at));
@@ -431,8 +442,8 @@ impl CredentialRotationManager {
     ///
     /// - New records will be encrypted under the new version.
     /// - Existing records remain encrypted under the previous version.
-    /// - The previous version must remain accessible via the secrets backend
-    ///   until all records have been migrated.
+    /// - The previous version must remain accessible via the secrets backend until all records have
+    ///   been migrated.
     ///
     /// To complete a full rotation:
     /// 1. Call `rotate_key()` to activate the new version.
@@ -597,7 +608,7 @@ impl CredentialRotationManager {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

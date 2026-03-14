@@ -52,8 +52,8 @@ impl fmt::Display for JobQueueError {
 impl std::error::Error for JobQueueError {}
 
 /// Job queue trait for asynchronous job execution
-// Reason: used as dyn Trait (Arc<dyn JobQueue>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn JobQueue>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait JobQueue: Send + Sync {
     /// Enqueue a job for execution

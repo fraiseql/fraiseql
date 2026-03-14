@@ -11,9 +11,9 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use fraiseql_webhooks::SignatureError;
-use fraiseql_webhooks::signature::slack::SlackVerifier;
-use fraiseql_webhooks::traits::SignatureVerifier as _;
+use fraiseql_webhooks::{
+    SignatureError, signature::slack::SlackVerifier, traits::SignatureVerifier as _,
+};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
@@ -56,10 +56,7 @@ fn fresh_slack_signature_verifies() {
     let verifier = SlackVerifier::new();
     let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
 
-    assert!(
-        result.unwrap_or(false),
-        "SR-5 regression: valid fresh Slack signature rejected"
-    );
+    assert!(result.unwrap_or(false), "SR-5 regression: valid fresh Slack signature rejected");
 }
 
 /// A replayed Slack signature with a timestamp 10 minutes in the past must be rejected.

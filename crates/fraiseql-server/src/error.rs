@@ -268,7 +268,8 @@ impl GraphQLError {
         Self::new(message, ErrorCode::RateLimitExceeded)
     }
 
-    /// Construct a typed [`GraphQLError`] from a [`fraiseql_core::error::FraiseQLError`] executor error.
+    /// Construct a typed [`GraphQLError`] from a [`fraiseql_core::error::FraiseQLError`] executor
+    /// error.
     ///
     /// Maps specific core error variants to their closest HTTP-semantic equivalent,
     /// preserving type information for correct client handling and sanitizer routing.
@@ -295,19 +296,13 @@ impl GraphQLError {
     /// Persisted query not found — client must re-send the full query body.
     #[must_use]
     pub fn persisted_query_not_found() -> Self {
-        Self::new(
-            "PersistedQueryNotFound",
-            ErrorCode::PersistedQueryNotFound,
-        )
+        Self::new("PersistedQueryNotFound", ErrorCode::PersistedQueryNotFound)
     }
 
     /// Persisted query hash mismatch — SHA-256 of body does not match the provided hash.
     #[must_use]
     pub fn persisted_query_mismatch() -> Self {
-        Self::new(
-            "provided sha does not match query",
-            ErrorCode::PersistedQueryMismatch,
-        )
+        Self::new("provided sha does not match query", ErrorCode::PersistedQueryMismatch)
     }
 
     /// Raw query forbidden — trusted documents strict mode requires a documentId.
@@ -321,10 +316,7 @@ impl GraphQLError {
 
     /// Document not found — the provided documentId is not in the trusted manifest.
     pub fn document_not_found(doc_id: impl Into<String>) -> Self {
-        Self::new(
-            format!("Unknown document: {}", doc_id.into()),
-            ErrorCode::DocumentNotFound,
-        )
+        Self::new(format!("Unknown document: {}", doc_id.into()), ErrorCode::DocumentNotFound)
     }
 
     /// Circuit breaker open — federation entity temporarily unavailable.
@@ -462,9 +454,8 @@ mod tests {
     fn test_circuit_breaker_response_has_retry_after_header() {
         use axum::response::IntoResponse;
 
-        let response =
-            ErrorResponse::from_error(GraphQLError::circuit_breaker_open("User", 60))
-                .into_response();
+        let response = ErrorResponse::from_error(GraphQLError::circuit_breaker_open("User", 60))
+            .into_response();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         let retry_after = response.headers().get(axum::http::header::RETRY_AFTER);
         assert_eq!(retry_after.and_then(|v| v.to_str().ok()), Some("60"));
@@ -568,8 +559,8 @@ mod tests {
         assert_eq!(ErrorCode::PersistedQueryNotFound.status_code(), StatusCode::OK);
 
         use axum::response::IntoResponse;
-        let response = ErrorResponse::from_error(GraphQLError::persisted_query_not_found())
-            .into_response();
+        let response =
+            ErrorResponse::from_error(GraphQLError::persisted_query_not_found()).into_response();
         assert_eq!(response.status(), StatusCode::OK);
     }
 
@@ -647,18 +638,16 @@ mod tests {
     #[test]
     fn test_rate_limit_response_has_correct_status() {
         use axum::response::IntoResponse;
-        let response =
-            ErrorResponse::from_error(GraphQLError::rate_limited("too many requests"))
-                .into_response();
+        let response = ErrorResponse::from_error(GraphQLError::rate_limited("too many requests"))
+            .into_response();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 
     #[test]
     fn test_not_found_response_has_correct_status() {
         use axum::response::IntoResponse;
-        let response =
-            ErrorResponse::from_error(GraphQLError::not_found("resource not found"))
-                .into_response();
+        let response = ErrorResponse::from_error(GraphQLError::not_found("resource not found"))
+            .into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
@@ -676,33 +665,40 @@ mod tests {
     #[test]
     fn test_complexity_rejection_returns_200() {
         use axum::response::IntoResponse;
-        let response = ErrorResponse::from_error(
-            GraphQLError::validation("Query exceeds maximum complexity: 121 > 100"),
-        )
+        let response = ErrorResponse::from_error(GraphQLError::validation(
+            "Query exceeds maximum complexity: 121 > 100",
+        ))
         .into_response();
-        assert_eq!(response.status(), StatusCode::OK,
-            "complexity validation errors must return HTTP 200 per GraphQL-over-HTTP spec");
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "complexity validation errors must return HTTP 200 per GraphQL-over-HTTP spec"
+        );
     }
 
     #[test]
     fn test_depth_rejection_returns_200() {
         use axum::response::IntoResponse;
-        let response = ErrorResponse::from_error(
-            GraphQLError::validation("Query exceeds maximum depth: 16 > 15"),
-        )
+        let response = ErrorResponse::from_error(GraphQLError::validation(
+            "Query exceeds maximum depth: 16 > 15",
+        ))
         .into_response();
-        assert_eq!(response.status(), StatusCode::OK,
-            "depth validation errors must return HTTP 200 per GraphQL-over-HTTP spec");
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "depth validation errors must return HTTP 200 per GraphQL-over-HTTP spec"
+        );
     }
 
     #[test]
     fn test_parse_error_returns_200() {
         use axum::response::IntoResponse;
-        let response = ErrorResponse::from_error(
-            GraphQLError::parse("unexpected token '}'"),
-        )
-        .into_response();
-        assert_eq!(response.status(), StatusCode::OK,
-            "GraphQL parse errors must return HTTP 200 per GraphQL-over-HTTP spec");
+        let response =
+            ErrorResponse::from_error(GraphQLError::parse("unexpected token '}'")).into_response();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "GraphQL parse errors must return HTTP 200 per GraphQL-over-HTTP spec"
+        );
     }
 }

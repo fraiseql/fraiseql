@@ -16,7 +16,7 @@ pub struct ProviderFailoverManager {
     /// Providers currently unavailable
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
-    unavailable:        Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
+    unavailable: Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
 }
 
 impl ProviderFailoverManager {

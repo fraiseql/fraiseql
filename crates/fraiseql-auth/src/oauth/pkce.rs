@@ -46,10 +46,7 @@ impl PKCEChallenge {
         let computed_challenge = urlencoding::encode_binary(&digest).to_string();
 
         // SECURITY: Use constant-time comparison to prevent timing attacks.
-        computed_challenge
-            .as_bytes()
-            .ct_eq(self.code_challenge.as_bytes())
-            .into()
+        computed_challenge.as_bytes().ct_eq(self.code_challenge.as_bytes()).into()
     }
 }
 
@@ -86,11 +83,7 @@ impl StateParameter {
     pub fn verify(&self, provided_state: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored state value.
-        let match_ok: bool = self
-            .state
-            .as_bytes()
-            .ct_eq(provided_state.as_bytes())
-            .into();
+        let match_ok: bool = self.state.as_bytes().ct_eq(provided_state.as_bytes()).into();
         match_ok && !self.is_expired()
     }
 }
@@ -128,11 +121,7 @@ impl NonceParameter {
     pub fn verify(&self, provided_nonce: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored nonce value.
-        let match_ok: bool = self
-            .nonce
-            .as_bytes()
-            .ct_eq(provided_nonce.as_bytes())
-            .into();
+        let match_ok: bool = self.nonce.as_bytes().ct_eq(provided_nonce.as_bytes()).into();
         match_ok && !self.is_expired()
     }
 }

@@ -4,8 +4,8 @@
 //! - `cascade_invalidate` always includes the target view itself.
 //! - `cascade_invalidate` always includes all direct dependents of the target.
 //! - `cascade_invalidate` never includes views that are not in the dependency graph.
-//! - `cascade_invalidate` is idempotent with respect to the returned set
-//!   (calling again on a separate invalidator with the same graph gives the same set).
+//! - `cascade_invalidate` is idempotent with respect to the returned set (calling again on a
+//!   separate invalidator with the same graph gives the same set).
 
 use std::collections::HashSet;
 
@@ -15,10 +15,7 @@ use proptest::prelude::*;
 /// Generate a list of (dependent, dependency) string pairs.
 /// Using short names to keep the graph small and cycles manageable.
 fn arb_dependency_pairs() -> impl Strategy<Value = Vec<(String, String)>> {
-    prop::collection::vec(
-        ("[a-e]{1,3}", "[a-e]{1,3}"),
-        0..8,
-    )
+    prop::collection::vec(("[a-e]{1,3}", "[a-e]{1,3}"), 0..8)
 }
 
 /// Build a `CascadeInvalidator` from dependency pairs, silently skipping

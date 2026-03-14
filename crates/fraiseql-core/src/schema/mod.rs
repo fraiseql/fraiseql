@@ -44,8 +44,8 @@ mod config_types;
 mod dependency_graph;
 pub mod domain_types;
 mod field_type;
-pub mod graphql_value;
 mod graphql_type_defs;
+pub mod graphql_value;
 mod introspection;
 pub mod introspection_types;
 mod observer_types;
@@ -54,19 +54,10 @@ pub mod security_config;
 mod subscription_types;
 
 pub use compiled::{
-    ArgumentDefinition, AutoParams, CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION, CursorType,
+    ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
     QueryDefinition, is_safe_sql_identifier,
 };
-pub use graphql_type_defs::{
-    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
-    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
-};
-pub use observer_types::{ObserverDefinition, RetryConfig};
-pub use subscription_types::{
-    FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
-};
-pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
     DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
@@ -78,13 +69,22 @@ pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
     FieldType, VectorConfig, VectorIndexType,
 };
+pub use graphql_type_defs::{
+    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
+};
 pub use graphql_value::GraphQLValue;
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
     IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
 };
+pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
+pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
+pub use subscription_types::{
+    FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
+};
 
 #[cfg(test)]
 mod tests;

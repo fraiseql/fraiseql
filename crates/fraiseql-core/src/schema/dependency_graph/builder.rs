@@ -2,9 +2,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::schema::{CompiledSchema, FieldType};
-
 use super::graph::SchemaDependencyGraph;
+use crate::schema::{CompiledSchema, FieldType};
 
 impl SchemaDependencyGraph {
     /// Build a dependency graph from a compiled schema.
@@ -74,8 +73,14 @@ impl SchemaDependencyGraph {
             for field in &type_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing.entry(type_def.name.to_string()).or_default().insert(ref_type.clone());
-                        incoming.entry(ref_type.clone()).or_default().insert(type_def.name.to_string());
+                        outgoing
+                            .entry(type_def.name.to_string())
+                            .or_default()
+                            .insert(ref_type.clone());
+                        incoming
+                            .entry(ref_type.clone())
+                            .or_default()
+                            .insert(type_def.name.to_string());
                     }
                 }
             }

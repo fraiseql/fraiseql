@@ -1,5 +1,6 @@
 use fraiseql_core::schema::{
-    CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InterfaceDefinition, TypeDefinition,
+    CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InterfaceDefinition,
+    TypeDefinition,
 };
 
 /// Inject PageInfo, Node interface, and XxxConnection/XxxEdge types for each relay type.
@@ -10,16 +11,13 @@ use fraiseql_core::schema::{
 /// - Generates `TConnection { edges: [TEdge!]!, pageInfo: PageInfo! }`
 ///
 /// Also generates:
-/// - `PageInfo` type (once): `{ hasNextPage: Boolean!, hasPreviousPage: Boolean!, startCursor: String, endCursor: String }`
+/// - `PageInfo` type (once): `{ hasNextPage: Boolean!, hasPreviousPage: Boolean!, startCursor:
+///   String, endCursor: String }`
 /// - `Node` interface (once): `{ id: ID! }`
 pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
     // Collect relay type names (those with relay=true).
-    let relay_types: Vec<String> = schema
-        .types
-        .iter()
-        .filter(|t| t.relay)
-        .map(|t| t.name.to_string())
-        .collect();
+    let relay_types: Vec<String> =
+        schema.types.iter().filter(|t| t.relay).map(|t| t.name.to_string()).collect();
 
     if relay_types.is_empty() {
         return;
@@ -52,17 +50,17 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
     let has_page_info = schema.types.iter().any(|t| t.name == "PageInfo");
     if !has_page_info {
         let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
-            name:           name.into(),
-            field_type:     ft,
+            name: name.into(),
+            field_type: ft,
             nullable,
-            description:    Some(desc.to_string()),
-            default_value:  None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
+            description: Some(desc.to_string()),
+            default_value: None,
+            vector_config: None,
+            alias: None,
+            deprecation: None,
             requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
+            on_deny: FieldDenyPolicy::default(),
+            encryption: None,
         };
         let page_info = TypeDefinition {
             name:                "PageInfo".into(),
@@ -113,17 +111,17 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
 
     // --- Generate XxxEdge and XxxConnection for each relay type ---
     let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
-        name:           name.into(),
-        field_type:     ft,
+        name: name.into(),
+        field_type: ft,
         nullable,
-        description:    Some(desc.to_string()),
-        default_value:  None,
-        vector_config:  None,
-        alias:          None,
-        deprecation:    None,
+        description: Some(desc.to_string()),
+        default_value: None,
+        vector_config: None,
+        alias: None,
+        deprecation: None,
         requires_scope: None,
-        on_deny:        FieldDenyPolicy::default(),
-        encryption:     None,
+        on_deny: FieldDenyPolicy::default(),
+        encryption: None,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();

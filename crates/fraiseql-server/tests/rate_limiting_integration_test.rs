@@ -14,13 +14,13 @@ mod tests {
     /// Helper to create a rate limiter with configurable limits.
     fn create_test_limiter(rps_per_ip: u32, burst_size: u32) -> RateLimiter {
         RateLimiter::new(RateLimitConfig {
-            enabled:               true,
+            enabled: true,
             rps_per_ip,
-            rps_per_user:          1000,
+            rps_per_user: 1000,
             burst_size,
             cleanup_interval_secs: 300,
-            trust_proxy_headers:   false,
-            trusted_proxy_cidrs:   Vec::new(),
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
         })
     }
 
