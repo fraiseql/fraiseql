@@ -24,12 +24,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
+ARG CARGO_FEATURES=""
+
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 RUN TARGET=$(cat /tmp/rust_target.txt) && \
-    cargo build --release --target "$TARGET" -p fraiseql-server
+    if [ -n "$CARGO_FEATURES" ]; then \
+      cargo build --release --target "$TARGET" -p fraiseql-server --features "$CARGO_FEATURES"; \
+    else \
+      cargo build --release --target "$TARGET" -p fraiseql-server; \
+    fi
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim AS runtime
