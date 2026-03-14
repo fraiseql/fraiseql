@@ -169,7 +169,8 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                 // Date32 is days since Unix epoch (1970-01-01)
                 NaiveDate::parse_from_str(s, "%Y-%m-%d")
                     .map(|date| {
-                        // SAFETY: 1970-01-01 is a valid calendar date; cannot fail.
+                        // Reason: 1970-01-01 is a valid calendar date constant; from_ymd_opt only
+                        // returns None for out-of-range values, which cannot happen here.
                         #[allow(clippy::unwrap_used)]
                         let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                         let days = (date - epoch).num_days() as i32;
@@ -308,7 +309,9 @@ mod tests {
 
     #[test]
     fn test_int32_conversion_from_json_number() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Int32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("val".to_string(), json!(100));
         let rows = vec![row];
@@ -321,7 +324,9 @@ mod tests {
 
     #[test]
     fn test_int32_overflow_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Int32, false),
+        ]));
         let mut row = HashMap::new();
         // i64::MAX cannot fit in i32
         row.insert("val".to_string(), json!(i64::MAX));
@@ -333,7 +338,9 @@ mod tests {
 
     #[test]
     fn test_int32_from_non_number_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Int32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("val".to_string(), json!("not-a-number"));
         let rows = vec![row];
@@ -346,7 +353,9 @@ mod tests {
 
     #[test]
     fn test_int64_from_non_number_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Int64, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("val".to_string(), json!(true));
         let rows = vec![row];
@@ -359,7 +368,9 @@ mod tests {
 
     #[test]
     fn test_float64_from_non_number_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Float64, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::Float64, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("val".to_string(), json!("three-point-one-four"));
         let rows = vec![row];
@@ -372,7 +383,9 @@ mod tests {
 
     #[test]
     fn test_boolean_false_is_preserved() {
-        let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("flag", DataType::Boolean, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("flag".to_string(), json!(false));
         let rows = vec![row];
@@ -385,7 +398,9 @@ mod tests {
 
     #[test]
     fn test_boolean_from_string_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("flag", DataType::Boolean, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("flag".to_string(), json!("true"));
         let rows = vec![row];
@@ -396,7 +411,9 @@ mod tests {
 
     #[test]
     fn test_boolean_from_number_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("flag", DataType::Boolean, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("flag".to_string(), json!(1));
         let rows = vec![row];
@@ -409,7 +426,9 @@ mod tests {
 
     #[test]
     fn test_utf8_from_number_is_coerced_to_string() {
-        let schema = Arc::new(Schema::new(vec![Field::new("label", DataType::Utf8, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("label", DataType::Utf8, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("label".to_string(), json!(42));
         let rows = vec![row];
@@ -422,7 +441,9 @@ mod tests {
 
     #[test]
     fn test_utf8_from_bool_is_coerced_to_string() {
-        let schema = Arc::new(Schema::new(vec![Field::new("label", DataType::Utf8, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("label", DataType::Utf8, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("label".to_string(), json!(true));
         let rows = vec![row];
@@ -437,11 +458,9 @@ mod tests {
 
     #[test]
     fn test_timestamp_microsecond_from_rfc3339_string() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None), false),
+        ]));
         let mut row = HashMap::new();
         row.insert("ts".to_string(), json!("2026-01-01T00:00:00Z"));
         let rows = vec![row];
@@ -454,11 +473,9 @@ mod tests {
 
     #[test]
     fn test_timestamp_microsecond_from_naive_datetime_string() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None), false),
+        ]));
         let mut row = HashMap::new();
         row.insert("ts".to_string(), json!("2026-03-06T12:00:00"));
         let rows = vec![row];
@@ -471,11 +488,9 @@ mod tests {
 
     #[test]
     fn test_timestamp_microsecond_from_integer() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None), false),
+        ]));
         let ts_micros = 1_700_000_000_000_000i64;
         let mut row = HashMap::new();
         row.insert("ts".to_string(), json!(ts_micros));
@@ -489,11 +504,9 @@ mod tests {
 
     #[test]
     fn test_timestamp_microsecond_from_invalid_string_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None), false),
+        ]));
         let mut row = HashMap::new();
         row.insert("ts".to_string(), json!("not-a-timestamp"));
         let rows = vec![row];
@@ -504,11 +517,9 @@ mod tests {
 
     #[test]
     fn test_timestamp_microsecond_from_boolean_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "ts",
-            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None), false),
+        ]));
         let mut row = HashMap::new();
         row.insert("ts".to_string(), json!(true));
         let rows = vec![row];
@@ -521,7 +532,9 @@ mod tests {
 
     #[test]
     fn test_date32_from_iso_string() {
-        let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("d", DataType::Date32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("d".to_string(), json!("1970-01-01"));
         let rows = vec![row];
@@ -535,7 +548,9 @@ mod tests {
 
     #[test]
     fn test_date32_from_integer() {
-        let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("d", DataType::Date32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("d".to_string(), json!(18500i32));
         let rows = vec![row];
@@ -548,7 +563,9 @@ mod tests {
 
     #[test]
     fn test_date32_from_invalid_string_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("d", DataType::Date32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("d".to_string(), json!("not-a-date"));
         let rows = vec![row];
@@ -559,7 +576,9 @@ mod tests {
 
     #[test]
     fn test_date32_from_boolean_returns_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("d", DataType::Date32, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("d".to_string(), json!(true));
         let rows = vec![row];
@@ -572,7 +591,9 @@ mod tests {
 
     #[test]
     fn test_unsupported_data_type_returns_invalid_ticket_error() {
-        let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::LargeUtf8, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("val", DataType::LargeUtf8, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("val".to_string(), json!("hello"));
         let rows = vec![row];
@@ -585,7 +606,9 @@ mod tests {
 
     #[test]
     fn test_empty_rows_returns_empty_arrow_rows() {
-        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+        ]));
         let rows: Vec<HashMap<String, serde_json::Value>> = vec![];
         let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
         assert!(arrow_rows.is_empty());
@@ -595,7 +618,9 @@ mod tests {
 
     #[test]
     fn test_json_null_treated_as_none() {
-        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+        ]));
         let mut row = HashMap::new();
         row.insert("id".to_string(), json!(null));
         let rows = vec![row];
