@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-//! Cycle 13: Saga Stress Testing
+//! Saga Stress Testing
 //!
 //! Validates saga system under extreme conditions with 13 comprehensive stress tests.
 //! Tests validate stability, correctness, memory efficiency, and failure handling

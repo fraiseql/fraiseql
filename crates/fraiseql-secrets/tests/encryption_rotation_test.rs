@@ -28,7 +28,7 @@ const fn key_from_seed(seed: u8) -> [u8; 32] {
     [seed; 32]
 }
 
-// ── Cycle 8.1: Old-key backward compatibility ─────────────────────────────────
+// ── Old-key backward compatibility ────────────────────────────────────────────
 
 /// Encrypting with an old key and decrypting with a keyring (old key as
 /// fallback) must succeed after key rotation.
@@ -122,7 +122,7 @@ fn versioned_encryption_multi_hop_fallback_chain() {
     assert_eq!(keyring.decrypt(&ciphertext_v2).unwrap(), "intermediate_record");
 }
 
-// ── Cycle 8.2: Key ID embedded in ciphertext ─────────────────────────────────
+// ── Key ID embedded in ciphertext ─────────────────────────────────────────────
 
 /// Every ciphertext produced by `VersionedFieldEncryption` must embed the key
 /// version as the first two bytes (little-endian u16).
@@ -179,7 +179,7 @@ fn extract_version_on_short_blob_returns_error() {
     );
 }
 
-// ── Cycle 8.3: Re-encryption migration ──────────────────────────────────────
+// ── Re-encryption migration ─────────────────────────────────────────────────
 
 /// `reencrypt_from_fallback` decrypts with the old key and re-encrypts with
 /// the current primary, returning a new ciphertext that carries the primary version.
@@ -232,7 +232,7 @@ fn after_migration_removing_fallback_blocks_old_ciphertext() {
     assert!(result.is_err(), "removing the fallback must block decryption of v1 ciphertexts");
 }
 
-// ── Cycle 8.4: Vault unavailability ─────────────────────────────────────────
+// ── Vault unavailability ────────────────────────────────────────────────────
 
 /// A `SecretsBackend` that always fails with `ConnectionError`.
 struct FailingBackend;

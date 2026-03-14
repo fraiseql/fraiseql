@@ -1,4 +1,4 @@
-//! Integration tests for Cycle 7: Executor Integration (Field-Level RBAC at Execution)
+//! Integration tests for executor integration (field-level RBAC at execution)
 //!
 //! Tests that the executor correctly applies field filtering during query execution:
 //! 1. Query matching with security context

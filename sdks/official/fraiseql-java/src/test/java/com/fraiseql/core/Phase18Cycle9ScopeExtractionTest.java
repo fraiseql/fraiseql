@@ -11,16 +11,12 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 18 Cycle 9: Field-Level RBAC for Java SDK
+ * Field-Level RBAC for Java SDK
  *
  * Tests that field scopes are properly extracted from @GraphQLField annotations,
  * stored in the schema registry, and exported to JSON for compiler consumption.
- *
- * RED Phase: 21 comprehensive test cases
- * - 15 happy path tests for scope extraction and export
- * - 6 validation tests for error handling
  */
-@DisplayName("Phase 18 Cycle 9: Java SDK Field Scope Extraction & Export")
+@DisplayName("Java SDK Field Scope Extraction & Export")
 public class Phase18Cycle9ScopeExtractionTest {
 
     private SchemaRegistry registry;

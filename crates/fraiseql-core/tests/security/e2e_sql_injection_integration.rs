@@ -152,7 +152,7 @@ fn assert_injection_safe(sql: &str, payload: &str, operator: &str) {
 }
 
 // ============================================================================
-// Cycle 1: Multi-Operator Injection Tests
+// Multi-Operator Injection Tests
 // ============================================================================
 
 /// Test SQL injection prevention across all comparison operators
@@ -241,7 +241,7 @@ fn test_in_operator_injection_safety() {
 }
 
 // ============================================================================
-// Cycle 2: Advanced Attack Patterns
+// Advanced Attack Patterns
 // ============================================================================
 
 /// Test parameter pollution — multiple values with injection
@@ -322,7 +322,7 @@ fn test_compound_condition_injection_safety() {
 }
 
 // ============================================================================
-// Cycle 3: Edge Cases & Boundary Conditions
+// Edge Cases & Boundary Conditions
 // ============================================================================
 
 /// Test empty payload (boundary condition)
@@ -400,7 +400,7 @@ fn test_all_quote_variants_injection_safety() {
 }
 
 // ============================================================================
-// Cycle 4: Database-Specific Patterns
+// Database-Specific Patterns
 // ============================================================================
 
 /// Test PostgreSQL-specific injection attempts

@@ -1,7 +1,7 @@
 //! Saga single-step failure scenario tests.
 //!
 //! Split from `federation_saga_e2e_scenarios.rs`:
-//! - Cycle 2: Single-step failure scenarios (6 tests)
+//! - Single-step failure scenarios (6 tests)
 
 #![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -13,7 +13,7 @@ use fraiseql_core::federation::{
 use super::common;
 
 // ===========================================================================================
-// CYCLE 2: SINGLE-STEP FAILURE SCENARIOS
+// SINGLE-STEP FAILURE SCENARIOS
 // ===========================================================================================
 
 #[tokio::test]

@@ -60,7 +60,7 @@ fn order_updated(total: u64) -> EntityEvent {
     )
 }
 
-// ── Cycle 4.1: Transport type and health ─────────────────────────────────────
+// ── Transport type and health ────────────────────────────────────────────────
 
 /// `InMemoryTransport` reports `TransportType::InMemory`.
 #[test]
@@ -78,7 +78,7 @@ async fn transport_health_is_healthy() {
     assert!(health.message.is_some(), "healthy message should be present");
 }
 
-// ── Cycle 4.2: EventFilter construction ──────────────────────────────────────
+// ── EventFilter construction ─────────────────────────────────────────────────
 
 /// `EventFilter::default()` has all fields as `None`.
 #[test]
@@ -102,7 +102,7 @@ fn event_filter_fields_set_correctly() {
     assert_eq!(f.tenant_id.as_deref(), Some("tenant-abc"));
 }
 
-// ── Cycle 4.3: Publish/subscribe pipeline ────────────────────────────────────
+// ── Publish/subscribe pipeline ───────────────────────────────────────────────
 
 /// A single event published to `InMemoryTransport` is received by the subscriber.
 #[tokio::test]
@@ -159,7 +159,7 @@ async fn mixed_event_kinds_all_received() {
     }
 }
 
-// ── Cycle 4.4: EventMatcher routing ──────────────────────────────────────────
+// ── EventMatcher routing ─────────────────────────────────────────────────────
 
 /// An empty `EventMatcher` returns no matches for any event.
 #[test]
@@ -230,7 +230,7 @@ fn matcher_count_reflects_registered_observers() {
     assert_eq!(matcher.observer_count(), 3);
 }
 
-// ── Cycle 4.5: ConditionParser evaluation ────────────────────────────────────
+// ── ConditionParser evaluation ───────────────────────────────────────────────
 
 /// Condition `total > 100` passes for an event with `total: 200`.
 #[test]
@@ -268,7 +268,7 @@ fn condition_logical_or_fails_when_neither_branch_matches() {
     assert!(!result, "total=50 satisfies neither total < 10 nor total > 100");
 }
 
-// ── Cycle 4.6: End-to-end transport + matcher + condition ────────────────────
+// ── End-to-end transport + matcher + condition ───────────────────────────────
 
 /// Events published via transport that pass condition evaluation are matched by observer.
 #[tokio::test]

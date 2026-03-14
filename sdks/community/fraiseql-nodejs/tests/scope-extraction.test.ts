@@ -7,16 +7,13 @@ import { Schema } from '../src/schema';
  * Tests that field scopes are properly extracted from field configuration,
  * stored in field registry, and exported to JSON for compiler consumption.
  *
- * RED Phase: 21 comprehensive test cases
- * - 15 happy path tests for scope extraction and export
- * - 6 validation tests for error handling
  *
  * Field format:
  * - Single scope: { type: 'Float', requiresScope: 'read:user.salary' }
  * - Multiple scopes: { type: 'String', requiresScopes: ['admin', 'auditor'] }
  */
 
-describe('Phase 18 Cycle 14: Node.js SDK Field Scope Extraction & Export', () => {
+describe('Node.js SDK Field Scope Extraction & Export', () => {
   beforeEach(() => {
     Schema.reset();
   });

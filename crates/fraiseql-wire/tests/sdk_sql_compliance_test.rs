@@ -57,7 +57,7 @@ fn param_is_number(params: &ParamMap, key: usize, expected: f64) {
     }
 }
 
-// ── Cycle 10.1: String pattern operators ─────────────────────────────────────
+// ── String pattern operators ─────────────────────────────────────────────────
 
 /// `Startswith` on a `JSONB` field produces `LIKE prefix%`.
 #[test]
@@ -129,7 +129,7 @@ fn ilike_direct_column_case_insensitive() {
     param_is_string(&params, 1, "%rust%");
 }
 
-// ── Cycle 10.2: Full-text search operators ───────────────────────────────────
+// ── Full-text search operators ───────────────────────────────────────────────
 
 /// `Matches` generates `@@ plainto_tsquery('english', $N)` by default.
 #[test]
@@ -208,7 +208,7 @@ fn plain_query_generates_plain_tsquery() {
     assert_eq!(idx, 1);
 }
 
-// ── Cycle 10.3: Network / INET operators ─────────────────────────────────────
+// ── Network / INET operators ─────────────────────────────────────────────────
 
 /// `IsIPv6` generates `family(...)::inet = 6`.
 #[test]
@@ -304,7 +304,7 @@ fn ip_range_overlap_generates_overlap_operator() {
     assert_eq!(idx, 1);
 }
 
-// ── Cycle 10.4: Null operators ────────────────────────────────────────────────
+// ── Null operators ───────────────────────────────────────────────────────────
 
 /// `Eq(field, Null)` generates `IS NULL` without parameter binding.
 #[test]
@@ -344,7 +344,7 @@ fn is_null_false_generates_is_not_null() {
     assert_eq!(idx, 0);
 }
 
-// ── Cycle 10.5: JSONB strict containment ─────────────────────────────────────
+// ── JSONB strict containment ─────────────────────────────────────────────────
 
 /// `StrictlyContains` generates `::jsonb @> $N::jsonb`.
 #[test]
@@ -359,7 +359,7 @@ fn strictly_contains_generates_jsonb_contains_operator() {
     param_is_string(&params, 1, r#"{"role":"admin"}"#);
 }
 
-// ── Cycle 10.6: Multi-operator parameter chaining ────────────────────────────
+// ── Multi-operator parameter chaining ────────────────────────────────────────
 
 /// Sequential operator calls share the same `param_index`, producing
 /// monotonically increasing `$N` numbers.
@@ -428,7 +428,7 @@ fn nin_operator_generates_not_in_clause() {
     param_is_string(&params, 2, "banned");
 }
 
-// ── Cycle 10.7: Array operators ───────────────────────────────────────────────
+// ── Array operators ──────────────────────────────────────────────────────────
 
 /// `ArrayContainedBy` generates `field <@ ARRAY[$N]`.
 #[test]
@@ -457,7 +457,7 @@ fn array_overlaps_generates_overlap_operator() {
     param_is_string(&params, 2, "write");
 }
 
-// ── Cycle 10.8: JSONB field type casting ─────────────────────────────────────
+// ── JSONB field type casting ─────────────────────────────────────────────────
 
 /// `JSONB` number comparison applies `::numeric` cast.
 #[test]

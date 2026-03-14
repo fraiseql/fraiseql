@@ -1,8 +1,8 @@
 //! Saga basic execution and concurrent handling tests.
 //!
 //! Split from `federation_saga_e2e_scenarios.rs`:
-//! - Cycle 1: Basic multi-step saga execution (8 tests)
-//! - Cycle 5: Concurrent saga handling (6 tests)
+//! - Basic multi-step saga execution (8 tests)
+//! - Concurrent saga handling (6 tests)
 
 #![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -15,7 +15,7 @@ use fraiseql_core::federation::{
 use super::common;
 
 // ===========================================================================================
-// CYCLE 1: BASIC MULTI-STEP SAGA EXECUTION
+// BASIC MULTI-STEP SAGA EXECUTION
 // ===========================================================================================
 
 #[tokio::test]
@@ -198,7 +198,7 @@ async fn test_concurrent_10_sagas_execute_independently() {
 }
 
 // ===========================================================================================
-// CYCLE 5: CONCURRENT SAGA HANDLING
+// CONCURRENT SAGA HANDLING
 // ===========================================================================================
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-"""RED Phase: Tests for field-level scope requirements (scope-based RBAC).
+"""Tests for field-level scope requirements (scope-based RBAC).
 
 These tests verify that field scopes defined with fraiseql.field(requires_scope=...)
 are properly collected, exported in schema.json, and ready for compiler integration.
@@ -361,18 +361,18 @@ class TestScopeValidation:
 
 # Placeholder for future cycles
 class TestScopeInCompiledSchema:
-    """Test that scopes are preserved in compiled schema (Cycle 4)."""
+    """Test that scopes are preserved in compiled schema."""
 
-    @pytest.mark.skip(reason="Requires Cycle 4: Compiler Integration")
+    @pytest.mark.skip(reason="Requires compiler integration")
     def test_scope_in_compiled_schema(self):
         """Test scope appears in schema.compiled.json."""
         pass
 
 
 class TestRuntimeScopeEnforcement:
-    """Test runtime enforcement of field scopes (Cycle 5)."""
+    """Test runtime enforcement of field scopes."""
 
-    @pytest.mark.skip(reason="Requires Cycle 5: Runtime Field Filtering")
+    @pytest.mark.skip(reason="Requires runtime field filtering")
     def test_runtime_filters_fields_by_scope(self):
         """Test executor filters fields based on user scopes."""
         pass

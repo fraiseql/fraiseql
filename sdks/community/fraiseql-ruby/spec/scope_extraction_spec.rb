@@ -6,15 +6,11 @@ require 'json'
 # Tests that field scopes are properly extracted from field configuration,
 # stored in field registry, and exported to JSON for compiler consumption.
 #
-# RED Phase: 21 comprehensive test cases
-# - 15 happy path tests for scope extraction and export
-# - 6 validation tests for error handling
-#
 # Field format:
 # - Single scope: { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
 # - Multiple scopes: { name: 'admin_notes', type: 'String', requires_scopes: ['admin', 'auditor'] }
 
-RSpec.describe 'Phase 18 Cycle 13: Ruby SDK Field Scope Extraction & Export' do
+RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
   before(:each) do
     FraiseQL::Schema.reset
   end

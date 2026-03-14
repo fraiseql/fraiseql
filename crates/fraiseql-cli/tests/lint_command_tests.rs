@@ -20,7 +20,7 @@ fn fixture(name: &str) -> String {
     format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
-// ── Cycle 3.1: Basic invocation ──────────────────────────────────────────────
+// ── Basic invocation ────────────────────────────────────────────────────────
 
 /// `fraiseql lint <schema>` on an empty schema exits 0 and prints a summary.
 #[test]
@@ -43,7 +43,7 @@ fn lint_on_missing_file_exits_nonzero() {
     assert!(!out.status.success(), "lint on missing file must exit non-zero");
 }
 
-// ── Cycle 3.2: JSON output ────────────────────────────────────────────────────
+// ── JSON output ──────────────────────────────────────────────────────────────
 
 /// `--json` flag produces valid JSON with expected keys.
 #[test]
@@ -85,7 +85,7 @@ fn lint_empty_schema_scores_100() {
     assert_eq!(score, 100, "empty schema must score 100; got: {parsed}");
 }
 
-// ── Cycle 3.3: --fail-on-critical flag ───────────────────────────────────────
+// ── --fail-on-critical flag ──────────────────────────────────────────────────
 
 /// `--fail-on-critical` on a clean schema exits 0 (no critical issues).
 #[test]
@@ -97,7 +97,7 @@ fn lint_fail_on_critical_clean_schema_exits_zero() {
     assert!(out.status.success(), "lint --fail-on-critical on clean schema must exit 0");
 }
 
-// ── Cycle 3.4: Category filters ───────────────────────────────────────────────
+// ── Category filters ─────────────────────────────────────────────────────────
 
 /// `--federation` filter limits output to federation category only.
 #[test]
@@ -129,7 +129,7 @@ fn lint_cache_filter_exits_zero() {
     assert!(out.status.success(), "`lint --cache` must exit 0 on valid schema");
 }
 
-// ── Cycle 3.5: Exit code contract ────────────────────────────────────────────
+// ── Exit code contract ──────────────────────────────────────────────────────
 
 /// `lint` exits with code 0 (not 1 or 2) on a valid schema with no flags.
 #[test]

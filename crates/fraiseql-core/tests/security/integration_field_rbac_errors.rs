@@ -1,4 +1,4 @@
-//! Integration tests for Cycle 8: Field Filtering Error Handling & Edge Cases
+//! Integration tests for field filtering error handling & edge cases
 //!
 //! Tests error handling and edge cases when field filtering is applied:
 //! 1. User requests fields they can't access

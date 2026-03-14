@@ -34,7 +34,7 @@ fn sha256_key(query: &str) -> String {
     format!("sha256:{hash}")
 }
 
-// ── Cycle 3.7: validate-documents basic ─────────────────────────────────────
+// ── validate-documents basic ───────────────────────────────────────────────
 
 /// A valid manifest (correct hash → body mapping) exits 0.
 #[test]
@@ -72,7 +72,7 @@ fn validate_documents_missing_file_exits_nonzero() {
     assert!(!out.status.success(), "missing manifest must exit non-zero");
 }
 
-// ── Cycle 3.8: Hash validation ───────────────────────────────────────────────
+// ── Hash validation ─────────────────────────────────────────────────────────
 
 /// A manifest with a mismatched hash exits 2 (validation failure).
 #[test]

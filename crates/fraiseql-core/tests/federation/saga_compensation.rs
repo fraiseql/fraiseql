@@ -1,8 +1,8 @@
 //! Saga compensation scenario tests.
 //!
 //! Split from `federation_saga_e2e_scenarios.rs`:
-//! - Cycle 3: Automatic compensation scenarios (9 tests)
-//! - Cycle 4: Manual compensation strategy (5 tests)
+//! - Automatic compensation scenarios (9 tests)
+//! - Manual compensation strategy (5 tests)
 
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
@@ -12,7 +12,7 @@ use fraiseql_core::federation::{
 use super::common;
 
 // ===========================================================================================
-// CYCLE 3: AUTOMATIC COMPENSATION SCENARIOS
+// AUTOMATIC COMPENSATION SCENARIOS
 // ===========================================================================================
 
 #[tokio::test]
@@ -202,7 +202,7 @@ async fn test_compensation_duration_metrics_recorded() {
 }
 
 // ===========================================================================================
-// CYCLE 4: MANUAL COMPENSATION STRATEGY
+// MANUAL COMPENSATION STRATEGY
 // ===========================================================================================
 
 #[tokio::test]

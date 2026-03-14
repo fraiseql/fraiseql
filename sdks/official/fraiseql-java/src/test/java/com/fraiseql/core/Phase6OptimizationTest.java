@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 6 tests: Caching, performance optimization, and monitoring
+ * Caching, performance optimization, and monitoring
  */
 public class Phase6OptimizationTest {
 

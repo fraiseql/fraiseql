@@ -870,10 +870,10 @@ async fn test_uuid_relay_forward_with_after_cursor() {
 }
 
 // =============================================================================
-// Edge case tests (Cycles 7.1–7.5)
+// Edge case tests
 // =============================================================================
 
-// ── Cycle 7.1: Cursor tampering ─────────────────────────────────────────────
+// ── Cursor tampering ───────────────────────────────────────────────────────
 
 /// A client sending a corrupted cursor must receive a clean GraphQL error,
 /// not a panic or a raw database error.
@@ -924,7 +924,7 @@ async fn relay_returns_error_on_non_integer_cursor_content() {
     }
 }
 
-// ── Cycle 7.3: Bidirectional pagination ─────────────────────────────────────
+// ── Bidirectional pagination ───────────────────────────────────────────────
 
 /// Per the Relay Cursor Connections spec, using `first`+`after` together with
 /// `last`+`before` simultaneously is undefined behavior. FraiseQL must either
@@ -961,7 +961,7 @@ async fn relay_handles_bidirectional_pagination_gracefully() {
     }
 }
 
-// ── Cycle 7.5: Custom cursor sort column ─────────────────────────────────────
+// ── Custom cursor sort column ───────────────────────────────────────────────
 
 /// The `relay_cursor_column` schema field controls which column is encoded in
 /// the cursor. Verify that the cursor value encodes `pk_user` (our configured

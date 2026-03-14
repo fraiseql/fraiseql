@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-//! Week 13, Cycle 2: Saga Store - PostgreSQL Persistence for Distributed Transactions
+//! Saga Store - PostgreSQL Persistence for Distributed Transactions
 //!
 //! This module implements persistent saga state storage, enabling crash recovery and
 //! distributed saga coordination across stateless instances.
@@ -68,7 +68,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 // ============================================================================
-// Type Definitions (matching Week 12 Saga Coordinator)
+// Type Definitions (matching Saga Coordinator)
 // ============================================================================
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

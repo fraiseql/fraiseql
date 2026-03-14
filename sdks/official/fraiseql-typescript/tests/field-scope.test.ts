@@ -1,5 +1,5 @@
 /**
- * RED Phase: Tests for field-level scope requirements (scope-based RBAC).
+ * Tests for field-level scope requirements (scope-based RBAC).
  *
  * These tests verify that field scopes defined with field({ requiresScope: ... })
  * are properly collected, exported in schema.json, and ready for compiler integration.
@@ -333,17 +333,17 @@ describe("Field-Level Scope Requirements", () => {
     });
   });
 
-  describe("Placeholder tests for future cycles", () => {
+  describe("Placeholder tests for future features", () => {
     it.skip("should compile scopes from schema.json to schema.compiled.json", () => {
-      // Future: Cycle 4 - Compiler Integration
+      // Future: Compiler Integration
     });
 
     it.skip("should enforce scope requirements at runtime", () => {
-      // Future: Cycle 5 - Runtime Field Filtering
+      // Future: Runtime Field Filtering
     });
 
     it.skip("should support TOML-based scope overrides", () => {
-      // Future: Cycle 3 - TOML Schema Support
+      // Future: TOML Schema Support
     });
   });
 });
