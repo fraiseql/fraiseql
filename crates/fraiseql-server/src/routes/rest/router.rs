@@ -150,25 +150,12 @@ pub fn build_rest_router<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     Some(router)
 }
 
-/// Convert a schema REST path (e.g. `/users/{id}`) to an axum path (e.g. `/users/:id`).
-fn to_axum_path(schema_path: &str) -> String {
-    // Replace `{param}` with `:param`
-    let mut result = String::with_capacity(schema_path.len());
-    let mut chars = schema_path.chars();
-    while let Some(c) = chars.next() {
-        if c == '{' {
-            result.push(':');
-            for inner in chars.by_ref() {
-                if inner == '}' {
-                    break;
-                }
-                result.push(inner);
-            }
-        } else {
-            result.push(c);
-        }
-    }
-    result
+/// Convert a schema REST path to an axum path.
+///
+/// Axum 0.7+ uses `{param}` syntax (same as the schema), so this is an identity function.
+/// Schema paths like `/users/{id}` are already valid axum route patterns.
+pub(crate) fn to_axum_path(schema_path: &str) -> String {
+    schema_path.to_string()
 }
 
 /// Derive the list of scalar field names for a return type.

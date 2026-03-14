@@ -402,6 +402,8 @@ fn scalar_name_to_json_schema(name: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::schema::{
         compiled::{

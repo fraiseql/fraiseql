@@ -97,14 +97,19 @@ impl FailError {
 /// All fields are `Arc`-wrapped, so cloning is cheap and shares state.
 #[derive(Clone)]
 pub struct FailingAdapter {
-    /// Canned responses per view name.
-    responses:   Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    /// Canned responses per view name (for `execute_where_query` / `execute_with_projection`).
+    responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    /// Canned responses per function name (for `execute_function_call`).
+    /// Each entry is a list of rows, where each row is a `HashMap<String, serde_json::Value>`
+    /// matching the `app.mutation_response` column layout
+    /// (`status`, `message`, `entity`, `entity_type`, `entity_id`, `cascade`, `metadata`).
+    function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
     /// Failure injection configuration.
-    fail_config: Arc<Mutex<FailConfig>>,
+    fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count: Arc<AtomicU64>,
+    query_count:        Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log:   Arc<Mutex<Vec<String>>>,
+    query_log:          Arc<Mutex<Vec<String>>>,
 }
 
 impl FailingAdapter {
@@ -112,14 +117,15 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:   Arc::new(Mutex::new(HashMap::new())),
-            fail_config: Arc::new(Mutex::new(FailConfig::default())),
-            query_count: Arc::new(AtomicU64::new(0)),
-            query_log:   Arc::new(Mutex::new(Vec::new())),
+            responses:          Arc::new(Mutex::new(HashMap::new())),
+            function_responses: Arc::new(Mutex::new(HashMap::new())),
+            fail_config:        Arc::new(Mutex::new(FailConfig::default())),
+            query_count:        Arc::new(AtomicU64::new(0)),
+            query_log:          Arc::new(Mutex::new(Vec::new())),
         }
     }
 
-    /// Set a canned response for a specific view.
+    /// Set a canned response for a specific view (used by `execute_where_query`).
     ///
     /// # Panics
     ///
@@ -127,6 +133,26 @@ impl FailingAdapter {
     #[must_use]
     pub fn with_response(self, view: &str, data: Vec<JsonbValue>) -> Self {
         self.responses.lock().unwrap().insert(view.to_string(), data);
+        self
+    }
+
+    /// Set a canned function-call response for a specific function (used by `execute_function_call`).
+    ///
+    /// Each row must be shaped as an `app.mutation_response` row, e.g.:
+    /// ```json
+    /// {"status": "new", "message": "", "entity": {"id": "1", "name": "Alice"}, "entity_type": "User"}
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal responses mutex is poisoned.
+    #[must_use]
+    pub fn with_function_response(
+        self,
+        function: &str,
+        rows: Vec<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.function_responses.lock().unwrap().insert(function.to_string(), rows);
         self
     }
 
@@ -183,6 +209,11 @@ impl FailingAdapter {
         *self.fail_config.lock().unwrap() = FailConfig::default();
         self.query_count.store(0, Ordering::SeqCst);
         self.query_log.lock().unwrap().clear();
+    }
+
+    /// Get canned function-call response for a function, or empty vec.
+    fn get_function_response(&self, function: &str) -> Vec<HashMap<String, serde_json::Value>> {
+        self.function_responses.lock().unwrap().get(function).cloned().unwrap_or_default()
     }
 
     /// Get all recorded query view names.
@@ -343,7 +374,7 @@ impl DatabaseAdapter for FailingAdapter {
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
-        Ok(vec![])
+        Ok(self.get_function_response(function_name))
     }
 }
 

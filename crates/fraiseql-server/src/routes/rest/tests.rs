@@ -261,39 +261,24 @@ fn test_to_axum_path_no_params() {
 
 #[test]
 fn test_to_axum_path_single_param() {
-    assert_eq!(to_axum_path_test("/users/{id}"), "/users/:id");
+    // Axum 0.7+ uses {param} syntax — schema paths are already valid axum patterns.
+    assert_eq!(to_axum_path_test("/users/{id}"), "/users/{id}");
 }
 
 #[test]
 fn test_to_axum_path_multiple_params() {
     assert_eq!(
         to_axum_path_test("/orgs/{org_id}/users/{user_id}"),
-        "/orgs/:org_id/users/:user_id"
+        "/orgs/{org_id}/users/{user_id}"
     );
 }
 
 #[test]
 fn test_to_axum_path_trailing_slash() {
-    assert_eq!(to_axum_path_test("/users/{id}/"), "/users/:id/");
+    assert_eq!(to_axum_path_test("/users/{id}/"), "/users/{id}/");
 }
 
-// Helper: call the private function through a pub(crate) test wrapper
+// Helper: delegates to the production function (identity for axum 0.7+ {param} syntax).
 fn to_axum_path_test(s: &str) -> String {
-    // Inline the same logic as the private function
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '{' {
-            result.push(':');
-            for inner in chars.by_ref() {
-                if inner == '}' {
-                    break;
-                }
-                result.push(inner);
-            }
-        } else {
-            result.push(c);
-        }
-    }
-    result
+    super::router::to_axum_path(s)
 }

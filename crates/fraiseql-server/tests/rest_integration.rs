@@ -8,7 +8,7 @@
 //! responses for each view, and the real `Executor` executes the GraphQL
 //! documents produced by the REST translator.
 //!
-//! **Execution engine:** real FraiseQL executor (FailingAdapter canned responses)
+//! **Execution engine:** real FraiseQL executor (`FailingAdapter` canned responses)
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 //!
@@ -36,10 +36,8 @@ use fraiseql_core::{
     db::types::JsonbValue,
     runtime::Executor,
     schema::{
-        ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition, QueryDefinition,
-        TypeDefinition,
-        compiled::rest::{RestConfig, RestRoute},
-        field_type::FieldDefinition,
+        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
+        QueryDefinition, RestConfig, RestRoute, TypeDefinition,
     },
 };
 use fraiseql_server::routes::{
@@ -265,15 +263,25 @@ async fn get_user_by_id_returns_404_when_not_found() {
 // ── Test 3: POST /rest/users — create mutation ─────────────────────────────────
 
 /// POST body `{"name": "Bob"}` is mapped to the `create_user` mutation.
-/// The adapter is seeded for `fn_create_user` with the new user row.
+/// The adapter is seeded for `fn_create_user` with a canned `mutation_response` row.
 /// The REST handler returns HTTP 200 with the created resource.
 #[tokio::test]
 async fn post_create_user_returns_200_with_created_resource() {
     let schema = schema_rest_routes_no_openapi();
     let adapter = FailingAdapter::new()
-        .with_response(
+        .with_function_response(
             "fn_create_user",
-            vec![JsonbValue::new(serde_json::json!({"id": "user-new", "name": "Bob"}))],
+            vec![{
+                let mut row = std::collections::HashMap::new();
+                row.insert("status".to_string(), serde_json::json!("new"));
+                row.insert("message".to_string(), serde_json::json!("created"));
+                row.insert(
+                    "entity".to_string(),
+                    serde_json::json!({"id": "user-new", "name": "Bob"}),
+                );
+                row.insert("entity_type".to_string(), serde_json::json!("User"));
+                row
+            }],
         );
 
     let router = nested_rest_router(&schema, adapter);
