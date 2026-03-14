@@ -1,0 +1,167 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "field_type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A user in the system."
+    },
+    {
+      "name": "Post",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "author",
+          "field_type": {
+            "Object": "User"
+          },
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "field_type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A blog post."
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true,
+          "default_value": 100
+        }
+      ],
+      "sql_source": "v_users",
+      "description": "Get all users.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_users",
+      "description": "Get a user by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true,
+          "default_value": 100
+        },
+        {
+          "name": "author_id",
+          "arg_type": "Int",
+          "nullable": true
+        }
+      ],
+      "sql_source": "v_posts",
+      "description": "Get all posts, optionally filtered by author.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_posts",
+      "description": "Get a post by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": []
+}

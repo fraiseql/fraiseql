@@ -1,0 +1,306 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "age",
+          "field_type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "active",
+          "field_type": "Boolean",
+          "nullable": true
+        },
+        {
+          "name": "role",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "metadata",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "deleted_at",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "A user in the system."
+    },
+    {
+      "name": "PostAuthor",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Author information embedded in posts."
+    },
+    {
+      "name": "Post",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "author",
+          "field_type": {
+            "Object": "PostAuthor"
+          },
+          "nullable": true
+        },
+        {
+          "name": "published",
+          "field_type": "Boolean",
+          "nullable": true
+        },
+        {
+          "name": "views",
+          "field_type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "A blog post."
+    },
+    {
+      "name": "Product",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "price",
+          "field_type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "stock",
+          "field_type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "category",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "attributes",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "A product in the catalog."
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true,
+          "default_value": 100
+        }
+      ],
+      "sql_source": "v_user",
+      "description": "Get all users.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "String",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_user",
+      "description": "Get a user by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true,
+          "default_value": 100
+        }
+      ],
+      "sql_source": "v_post",
+      "description": "Get all posts.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "String",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_post",
+      "description": "Get a post by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true,
+          "default_value": 100
+        }
+      ],
+      "sql_source": "v_product",
+      "description": "Get all products.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "String",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_product",
+      "description": "Get a product by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": []
+}

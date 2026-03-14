@@ -1,0 +1,575 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "description": "Unique user identifier"
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false,
+          "description": "User email address"
+        },
+        {
+          "name": "firstName",
+          "field_type": "String",
+          "nullable": true,
+          "description": "User's first name"
+        },
+        {
+          "name": "lastName",
+          "field_type": "String",
+          "nullable": true,
+          "description": "User's last name"
+        },
+        {
+          "name": "role",
+          "field_type": "String",
+          "nullable": false,
+          "description": "User role (admin, customer, vendor)"
+        }
+      ],
+      "description": "User account information"
+    },
+    {
+      "name": "Session",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "token",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "expiresAt",
+          "field_type": "String",
+          "nullable": false,
+          "description": "ISO 8601 timestamp"
+        }
+      ],
+      "description": "User session token"
+    },
+    {
+      "name": "Inventory",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "productId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "warehouseId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "reserved",
+          "field_type": "Int",
+          "nullable": false,
+          "description": "Quantity reserved for pending orders"
+        },
+        {
+          "name": "available",
+          "field_type": "Int",
+          "nullable": false,
+          "description": "Available quantity (quantity - reserved)"
+        }
+      ],
+      "description": "Product inventory tracking per warehouse"
+    },
+    {
+      "name": "Warehouse",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "location",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "field_type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "description": "Warehouse location"
+    },
+    {
+      "name": "Order",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "field_type": "ID",
+          "nullable": false,
+          "description": "Customer who placed the order"
+        },
+        {
+          "name": "status",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Order status (pending, processing, shipped, delivered)"
+        },
+        {
+          "name": "totalPrice",
+          "field_type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "itemCount",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "shippedAt",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "deliveredAt",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "Customer order"
+    },
+    {
+      "name": "OrderItem",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "orderId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "productId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "pricePerUnit",
+          "field_type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "subtotal",
+          "field_type": "Float",
+          "nullable": false
+        }
+      ],
+      "description": "Line item in an order"
+    },
+    {
+      "name": "Product",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "price",
+          "field_type": "Float",
+          "nullable": false,
+          "description": "Price in dollars"
+        },
+        {
+          "name": "categoryId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "vendorId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "stock",
+          "field_type": "Int",
+          "nullable": false,
+          "description": "Available quantity"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Product listing with pricing and inventory"
+    },
+    {
+      "name": "Category",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "slug",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Product category"
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "getUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get user by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getCurrentUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get authenticated user's profile",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getInventory",
+      "return_type": "Inventory",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Check stock at specific warehouse",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "checkGlobalStock",
+      "return_type": "Inventory",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Check product stock across all warehouses",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listWarehouses",
+      "return_type": "Warehouse",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List all warehouses",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getOrder",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get order by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getUserOrders",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get all orders for a user",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getOrderItems",
+      "return_type": "OrderItem",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get items in an order",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getProduct",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get product by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listProducts",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List all products with optional filtering",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getCategory",
+      "return_type": "Category",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get category by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listCategories",
+      "return_type": "Category",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List all categories",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "login",
+      "return_type": "Session",
+      "arguments": [],
+      "description": "Authenticate user and create session",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "logout",
+      "return_type": "User",
+      "arguments": [],
+      "description": "Invalidate user session",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "updateInventory",
+      "return_type": "Inventory",
+      "arguments": [],
+      "description": "Update inventory quantity",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "reserveInventory",
+      "return_type": "Inventory",
+      "arguments": [],
+      "description": "Reserve inventory for order",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "createOrder",
+      "return_type": "Order",
+      "arguments": [],
+      "description": "Create new order from cart",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "updateOrderStatus",
+      "return_type": "Order",
+      "arguments": [],
+      "description": "Update order status (admin only)",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "createProduct",
+      "return_type": "Product",
+      "arguments": [],
+      "description": "Create new product (vendors only)",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "updateProduct",
+      "return_type": "Product",
+      "arguments": [],
+      "description": "Update product details",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    }
+  ],
+  "subscriptions": []
+}

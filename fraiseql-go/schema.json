@@ -1,0 +1,286 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "fields": [
+        {
+          "name": "createdAt",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "fields": [
+        {
+          "name": "createdAt",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "authorId",
+          "type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": false,
+          "default": true
+        },
+        {
+          "name": "limit",
+          "type": "Int",
+          "nullable": false,
+          "default": 10
+        },
+        {
+          "name": "offset",
+          "type": "Int",
+          "nullable": false,
+          "default": 0
+        }
+      ],
+      "description": "Get list of posts with filtering",
+      "config": {
+        "auto_params": {
+          "limit": true,
+          "offset": true,
+          "order_by": true,
+          "where": true
+        },
+        "sql_source": "v_post"
+      }
+    },
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "type": "Int",
+          "nullable": false,
+          "default": 10
+        },
+        {
+          "name": "offset",
+          "type": "Int",
+          "nullable": false,
+          "default": 0
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Get list of users with pagination",
+      "config": {
+        "auto_params": {
+          "limit": true,
+          "offset": true,
+          "order_by": true,
+          "where": true
+        },
+        "sql_source": "v_user"
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get a single user by ID",
+      "config": {
+        "sql_source": "v_user"
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createPost",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new blog post",
+      "config": {
+        "operation": "CREATE",
+        "sql_source": "fn_create_post"
+      }
+    },
+    {
+      "name": "publishPost",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Publish a blog post",
+      "config": {
+        "operation": "UPDATE",
+        "sql_source": "fn_publish_post"
+      }
+    },
+    {
+      "name": "createUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new user",
+      "config": {
+        "operation": "CREATE",
+        "sql_source": "fn_create_user"
+      }
+    },
+    {
+      "name": "updateUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Update an existing user",
+      "config": {
+        "operation": "UPDATE",
+        "sql_source": "fn_update_user"
+      }
+    },
+    {
+      "name": "deleteUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a user",
+      "config": {
+        "operation": "DELETE",
+        "sql_source": "fn_delete_user"
+      }
+    }
+  ]
+}

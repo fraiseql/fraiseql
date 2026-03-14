@@ -1,0 +1,550 @@
+{
+  "types": [
+    {
+      "name": "Account",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "field_type": "String",
+          "nullable": false,
+          "description": "URL-friendly identifier"
+        },
+        {
+          "name": "tier",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Subscription tier (free, pro, enterprise)"
+        },
+        {
+          "name": "ownerId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "SaaS account"
+    },
+    {
+      "name": "AccountUser",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Account role (owner, admin, member)"
+        }
+      ],
+      "description": "User membership in an account"
+    },
+    {
+      "name": "Subscription",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "plan",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Plan identifier (free, pro, enterprise)"
+        },
+        {
+          "name": "status",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Subscription status (active, paused, cancelled)"
+        },
+        {
+          "name": "billingCycle",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Billing cycle (monthly, annual)"
+        },
+        {
+          "name": "nextBillingDate",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "cancelledAt",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "Account subscription"
+    },
+    {
+      "name": "Invoice",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "amount",
+          "field_type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Invoice status (draft, sent, paid, overdue)"
+        },
+        {
+          "name": "dueDate",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "issuedAt",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "paidAt",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "Account invoice"
+    },
+    {
+      "name": "Integration",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "provider",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Integration provider (stripe, sendgrid, slack, etc)"
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "field_type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "configuredAt",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Third-party service integration"
+    },
+    {
+      "name": "WebhookLog",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "integrationId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "event",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Delivery status (success, failed, pending)"
+        },
+        {
+          "name": "receivedAt",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Webhook delivery log"
+    },
+    {
+      "name": "Team",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "leadId",
+          "field_type": "ID",
+          "nullable": false,
+          "description": "Team lead user ID"
+        }
+      ],
+      "description": "Team within an account"
+    },
+    {
+      "name": "TeamMember",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "teamId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "field_type": "String",
+          "nullable": false,
+          "description": "Team role (lead, manager, member)"
+        }
+      ],
+      "description": "Team membership"
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "getAccount",
+      "return_type": "Account",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get account by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getAccountBySlug",
+      "return_type": "Account",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get account by URL slug",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listAccountUsers",
+      "return_type": "AccountUser",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List users in an account",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getSubscription",
+      "return_type": "Subscription",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get account subscription",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listInvoices",
+      "return_type": "Invoice",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List account invoices",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listIntegrations",
+      "return_type": "Integration",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List account integrations",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getIntegration",
+      "return_type": "Integration",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get integration by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listWebhookLogs",
+      "return_type": "WebhookLog",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List webhook delivery logs",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listTeams",
+      "return_type": "Team",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List all teams in account",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "getTeam",
+      "return_type": "Team",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get team by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listTeamMembers",
+      "return_type": "TeamMember",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List team members",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createAccount",
+      "return_type": "Account",
+      "arguments": [],
+      "description": "Create new SaaS account",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "updateAccount",
+      "return_type": "Account",
+      "arguments": [],
+      "description": "Update account settings",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "updateSubscription",
+      "return_type": "Subscription",
+      "arguments": [],
+      "description": "Update subscription plan or cycle",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "cancelSubscription",
+      "return_type": "Subscription",
+      "arguments": [],
+      "description": "Cancel account subscription",
+      "operation": {
+        "Update": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "addIntegration",
+      "return_type": "Integration",
+      "arguments": [],
+      "description": "Configure new integration",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "removeIntegration",
+      "return_type": "Integration",
+      "arguments": [],
+      "description": "Remove integration",
+      "operation": {
+        "Delete": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "createTeam",
+      "return_type": "Team",
+      "arguments": [],
+      "description": "Create new team",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "addTeamMember",
+      "return_type": "TeamMember",
+      "arguments": [],
+      "description": "Add user to team",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    }
+  ],
+  "subscriptions": []
+}
