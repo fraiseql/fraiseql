@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - dev
-      - feature/phase-*
+      - 'feature/**'
     tags:
       - 'v*'
   pull_request:
@@ -39,7 +39,7 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server-full"
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
             optional: true
 
           - name: tutorial
@@ -103,7 +103,7 @@ jobs:
 
           - name: fraiseql-server-full
             dockerfile: Dockerfile
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -158,7 +158,7 @@ jobs:
             build-context: .
             image-suffix: "server-full"
             docker-hub-image: fraiseql/server-full
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -260,7 +260,7 @@ jobs:
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/server\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (all optional features)" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
