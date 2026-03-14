@@ -25,6 +25,7 @@ public sealed class QueryBuilder
     private string _sqlSource = string.Empty;
     private int? _cacheTtlSeconds;
     private string? _description;
+    private RestAnnotation? _rest;
     private readonly List<IntermediateArgument> _arguments = new();
 
     private QueryBuilder(string name) => _name = name;
@@ -64,6 +65,15 @@ public sealed class QueryBuilder
     /// <returns>This builder for chaining.</returns>
     public QueryBuilder Description(string desc) { _description = desc; return this; }
 
+    /// <summary>
+    /// Sets optional REST transport metadata for this query.
+    /// When set, the schema JSON will include <c>"rest": {"path": path, "method": method}</c>.
+    /// </summary>
+    /// <param name="path">The REST path template, e.g. <c>/users/{id}</c>.</param>
+    /// <param name="method">The HTTP method, e.g. <c>GET</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder Rest(string path, string method) { _rest = new RestAnnotation(path, method); return this; }
+
     /// <summary>Adds a typed argument to this query.</summary>
     /// <param name="name">The argument name.</param>
     /// <param name="type">The GraphQL type name.</param>
@@ -99,7 +109,8 @@ public sealed class QueryBuilder
             SqlSource: _sqlSource,
             Arguments: _arguments.AsReadOnly(),
             CacheTtlSeconds: _cacheTtlSeconds,
-            Description: _description);
+            Description: _description,
+            Rest: _rest);
     }
 
     /// <summary>

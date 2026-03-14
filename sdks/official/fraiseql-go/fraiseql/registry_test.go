@@ -343,6 +343,124 @@ func TestMutationUnknownConfigKeysPreserved(t *testing.T) {
 	}
 }
 
+func TestRESTAnnotationOnQuery(t *testing.T) {
+	Reset()
+
+	err := NewQuery("getUser").
+		ReturnType("User").
+		SqlSource("v_user").
+		Rest("/users/{id}", "GET").
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	data, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	queries, ok := schema["queries"].([]interface{})
+	if !ok || len(queries) != 1 {
+		t.Fatalf("expected 1 query in JSON, got schema: %s", string(data))
+	}
+
+	qry, ok := queries[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("query is not a JSON object")
+	}
+
+	rest, ok := qry["rest"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected 'rest' key in query JSON, got: %v", qry)
+	}
+	if got, ok := rest["path"].(string); !ok || got != "/users/{id}" {
+		t.Errorf("expected rest.path='/users/{id}', got %v", rest["path"])
+	}
+	if got, ok := rest["method"].(string); !ok || got != "GET" {
+		t.Errorf("expected rest.method='GET', got %v", rest["method"])
+	}
+}
+
+func TestRESTAnnotationOnMutation(t *testing.T) {
+	Reset()
+
+	err := NewMutation("createUser").
+		ReturnType("User").
+		SqlSource("fn_create_user").
+		Rest("/users", "POST").
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	data, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	mutations, ok := schema["mutations"].([]interface{})
+	if !ok || len(mutations) != 1 {
+		t.Fatalf("expected 1 mutation in JSON, got schema: %s", string(data))
+	}
+
+	mut, ok := mutations[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("mutation is not a JSON object")
+	}
+
+	rest, ok := mut["rest"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected 'rest' key in mutation JSON, got: %v", mut)
+	}
+	if got, ok := rest["path"].(string); !ok || got != "/users" {
+		t.Errorf("expected rest.path='/users', got %v", rest["path"])
+	}
+	if got, ok := rest["method"].(string); !ok || got != "POST" {
+		t.Errorf("expected rest.method='POST', got %v", rest["method"])
+	}
+}
+
+func TestNoRESTAnnotationOmitsField(t *testing.T) {
+	Reset()
+
+	err := NewQuery("users").
+		ReturnType("User").
+		ReturnsArray(true).
+		SqlSource("v_user").
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	data, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	queries := schema["queries"].([]interface{})
+	qry := queries[0].(map[string]interface{})
+
+	if _, hasRest := qry["rest"]; hasRest {
+		t.Error("expected no 'rest' key when REST annotation not set, but found one")
+	}
+}
+
 func TestDuplicateRegistrationErrors(t *testing.T) {
 	t.Run("RegisterType returns error for duplicate", func(t *testing.T) {
 		Reset()

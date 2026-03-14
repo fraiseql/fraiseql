@@ -271,6 +271,13 @@ public class SchemaFormatter {
                 queryNode.set("additional_views", viewsArray);
             }
 
+            if (queryInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", queryInfo.restPath);
+                restNode.put("method", queryInfo.restMethod != null ? queryInfo.restMethod : "GET");
+                queryNode.set("rest", restNode);
+            }
+
             queriesNode.set(queryInfo.name, queryNode);
         }
 
@@ -337,6 +344,13 @@ public class SchemaFormatter {
                     tablesArray.add(table);
                 }
                 mutationNode.set("invalidates_fact_tables", tablesArray);
+            }
+
+            if (mutationInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", mutationInfo.restPath);
+                restNode.put("method", mutationInfo.restMethod != null ? mutationInfo.restMethod : "POST");
+                mutationNode.set("rest", restNode);
             }
 
             mutationsNode.set(mutationInfo.name, mutationNode);
@@ -524,5 +538,161 @@ public class SchemaFormatter {
      */
     public static String toJsonString(ObjectNode schema) throws IOException {
         return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(schema);
+    }
+
+    /**
+     * Format the schema registry and return the result as a JSON string.
+     * Queries and mutations are serialized as arrays to allow index-based access.
+     * Convenience method for tests and programmatic use.
+     *
+     * @param registry the SchemaRegistry to format
+     * @return JSON string representation of the full schema
+     * @throws IOException if serialization fails
+     */
+    public static String toJson(SchemaRegistry registry) throws IOException {
+        ObjectNode root = mapper.createObjectNode();
+        root.put("version", SCHEMA_VERSION);
+        root.set("types", formatTypes(registry.getAllTypes()));
+        root.set("queries", formatQueriesArray(registry.getAllQueries()));
+        root.set("mutations", formatMutationsArray(registry.getAllMutations()));
+        return mapper.writeValueAsString(root);
+    }
+
+    /**
+     * Format all registered queries as an ArrayNode (for {@link #toJson(SchemaRegistry)}).
+     */
+    private static ArrayNode formatQueriesArray(Map<String, SchemaRegistry.QueryInfo> queries) {
+        ArrayNode queriesArray = mapper.createArrayNode();
+
+        for (SchemaRegistry.QueryInfo queryInfo : queries.values()) {
+            ObjectNode queryNode = mapper.createObjectNode();
+
+            queryNode.put("name", queryInfo.name);
+            queryNode.put("returnType", queryInfo.returnType);
+
+            ObjectNode argsNode = mapper.createObjectNode();
+            for (Map.Entry<String, String> arg : queryInfo.arguments.entrySet()) {
+                argsNode.put(arg.getKey(), arg.getValue());
+            }
+            queryNode.set("arguments", argsNode);
+
+            if (!queryInfo.description.isEmpty()) {
+                queryNode.put("description", queryInfo.description);
+            }
+
+            if (queryInfo.relay) {
+                queryNode.put("relay", true);
+            }
+
+            if (queryInfo.sqlSource != null) {
+                queryNode.put("sql_source", queryInfo.sqlSource);
+            }
+
+            if (queryInfo.cacheTtlSeconds != null) {
+                queryNode.put("cache_ttl_seconds", queryInfo.cacheTtlSeconds);
+            }
+
+            if (queryInfo.injectParams != null && !queryInfo.injectParams.isEmpty()) {
+                ObjectNode ipNode = mapper.createObjectNode();
+                for (Map.Entry<String, String> entry : queryInfo.injectParams.entrySet()) {
+                    String[] parts = entry.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(entry.getKey(), sourceNode);
+                }
+                queryNode.set("inject_params", ipNode);
+            }
+
+            if (queryInfo.additionalViews != null && !queryInfo.additionalViews.isEmpty()) {
+                ArrayNode viewsArray = mapper.createArrayNode();
+                for (String view : queryInfo.additionalViews) {
+                    viewsArray.add(view);
+                }
+                queryNode.set("additional_views", viewsArray);
+            }
+
+            if (queryInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", queryInfo.restPath);
+                restNode.put("method", queryInfo.restMethod != null ? queryInfo.restMethod : "GET");
+                queryNode.set("rest", restNode);
+            }
+
+            queriesArray.add(queryNode);
+        }
+
+        return queriesArray;
+    }
+
+    /**
+     * Format all registered mutations as an ArrayNode (for {@link #toJson(SchemaRegistry)}).
+     */
+    private static ArrayNode formatMutationsArray(Map<String, SchemaRegistry.MutationInfo> mutations) {
+        ArrayNode mutationsArray = mapper.createArrayNode();
+
+        for (SchemaRegistry.MutationInfo mutationInfo : mutations.values()) {
+            ObjectNode mutationNode = mapper.createObjectNode();
+
+            mutationNode.put("name", mutationInfo.name);
+            mutationNode.put("returnType", mutationInfo.returnType);
+
+            ObjectNode argsNode = mapper.createObjectNode();
+            for (Map.Entry<String, String> arg : mutationInfo.arguments.entrySet()) {
+                argsNode.put(arg.getKey(), arg.getValue());
+            }
+            mutationNode.set("arguments", argsNode);
+
+            if (!mutationInfo.description.isEmpty()) {
+                mutationNode.put("description", mutationInfo.description);
+            }
+
+            if (mutationInfo.sqlSource != null) {
+                mutationNode.put("sql_source", mutationInfo.sqlSource);
+            }
+
+            if (mutationInfo.operation != null) {
+                mutationNode.put("operation", mutationInfo.operation);
+            }
+
+            if (mutationInfo.injectParams != null && !mutationInfo.injectParams.isEmpty()) {
+                ObjectNode ipNode = mapper.createObjectNode();
+                for (Map.Entry<String, String> entry : mutationInfo.injectParams.entrySet()) {
+                    String[] parts = entry.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(entry.getKey(), sourceNode);
+                }
+                mutationNode.set("inject_params", ipNode);
+            }
+
+            if (mutationInfo.invalidatesViews != null && !mutationInfo.invalidatesViews.isEmpty()) {
+                ArrayNode viewsArray = mapper.createArrayNode();
+                for (String view : mutationInfo.invalidatesViews) {
+                    viewsArray.add(view);
+                }
+                mutationNode.set("invalidates_views", viewsArray);
+            }
+
+            if (mutationInfo.invalidatesFactTables != null && !mutationInfo.invalidatesFactTables.isEmpty()) {
+                ArrayNode tablesArray = mapper.createArrayNode();
+                for (String table : mutationInfo.invalidatesFactTables) {
+                    tablesArray.add(table);
+                }
+                mutationNode.set("invalidates_fact_tables", tablesArray);
+            }
+
+            if (mutationInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", mutationInfo.restPath);
+                restNode.put("method", mutationInfo.restMethod != null ? mutationInfo.restMethod : "POST");
+                mutationNode.set("rest", restNode);
+            }
+
+            mutationsArray.add(mutationNode);
+        }
+
+        return mutationsArray;
     }
 }

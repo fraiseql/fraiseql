@@ -172,6 +172,16 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
+    /** Register a query with all extended fields and optional REST transport metadata. */
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay, String sqlSource, Long cacheTtlSeconds,
+                              Map<String, String> injectParams, List<String> additionalViews,
+                              String restPath, String restMethod) {
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
+            sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod);
+        queries.put(queryName, queryInfo);
+    }
+
     /**
      * Register a mutation in the schema.
      *
@@ -192,6 +202,16 @@ public class SchemaRegistry {
                                  List<String> invalidatesFactTables) {
         MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
             sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
+        mutations.put(mutationName, mutationInfo);
+    }
+
+    /** Register a mutation with all extended fields and optional REST transport metadata. */
+    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments,
+                                 String description, String sqlSource, String operation,
+                                 Map<String, String> injectParams, List<String> invalidatesViews,
+                                 List<String> invalidatesFactTables, String restPath, String restMethod) {
+        MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
+            sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables, restPath, restMethod);
         mutations.put(mutationName, mutationInfo);
     }
 
@@ -463,6 +483,14 @@ public class SchemaRegistry {
     }
 
     /**
+     * Reset the registry to an empty state. Alias for {@link #clear()}.
+     * Useful for test isolation.
+     */
+    public void reset() {
+        clear();
+    }
+
+    /**
      * Information about a registered GraphQL type.
      */
     public static class GraphQLTypeInfo {
@@ -518,18 +546,30 @@ public class SchemaRegistry {
         public final Long cacheTtlSeconds;
         public final Map<String, String> injectParams;
         public final List<String> additionalViews;
+        /** Optional REST path template, e.g. {@code /users/{id}}. {@code null} when not set. */
+        public final String restPath;
+        /** Optional HTTP method for REST transport, e.g. {@code GET}. {@code null} when not set. */
+        public final String restMethod;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, false, null, null, null, null);
+            this(name, returnType, arguments, description, false, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
-            this(name, returnType, arguments, description, relay, null, null, null, null);
+            this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews) {
+            this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
+                injectParams, additionalViews, null, null);
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay, String sqlSource, Long cacheTtlSeconds,
+                         Map<String, String> injectParams, List<String> additionalViews,
+                         String restPath, String restMethod) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -541,6 +581,8 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(injectParams)) : null;
             this.additionalViews = additionalViews != null
                 ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
+            this.restPath = restPath;
+            this.restMethod = restMethod;
         }
 
         @Override
@@ -566,14 +608,26 @@ public class SchemaRegistry {
         public final Map<String, String> injectParams;
         public final List<String> invalidatesViews;
         public final List<String> invalidatesFactTables;
+        /** Optional REST path template, e.g. {@code /users}. {@code null} when not set. */
+        public final String restPath;
+        /** Optional HTTP method for REST transport, e.g. {@code POST}. {@code null} when not set. */
+        public final String restMethod;
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, null, null, null, null, null);
+            this(name, returnType, arguments, description, null, null, null, null, null, null, null);
         }
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
                             String sqlSource, String operation, Map<String, String> injectParams,
                             List<String> invalidatesViews, List<String> invalidatesFactTables) {
+            this(name, returnType, arguments, description, sqlSource, operation, injectParams,
+                invalidatesViews, invalidatesFactTables, null, null);
+        }
+
+        public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
+                            String sqlSource, String operation, Map<String, String> injectParams,
+                            List<String> invalidatesViews, List<String> invalidatesFactTables,
+                            String restPath, String restMethod) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -586,6 +640,8 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableList(new ArrayList<>(invalidatesViews)) : null;
             this.invalidatesFactTables = invalidatesFactTables != null
                 ? Collections.unmodifiableList(new ArrayList<>(invalidatesFactTables)) : null;
+            this.restPath = restPath;
+            this.restMethod = restMethod;
         }
 
         @Override

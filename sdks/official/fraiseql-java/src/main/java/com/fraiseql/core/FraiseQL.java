@@ -184,8 +184,10 @@ public class FraiseQL {
         private Long cacheTtlSeconds = null;
         private Map<String, String> injectParams = null;
         private List<String> additionalViews = null;
+        private String restPath = null;
+        private String restMethod = null;
 
-        private QueryBuilder(String name) {
+        public QueryBuilder(String name) {
             this.name = name;
         }
 
@@ -220,6 +222,16 @@ public class FraiseQL {
         public QueryBuilder returnsArray(boolean returnsArray) {
             this.returnsArray = returnsArray;
             return this;
+        }
+
+        /**
+         * Alias for {@link #returnsArray(boolean)}.
+         *
+         * @param returnsList true if returns a list, false otherwise
+         * @return this builder for chaining
+         */
+        public QueryBuilder returnsList(boolean returnsList) {
+            return returnsArray(returnsList);
         }
 
         /**
@@ -317,6 +329,20 @@ public class FraiseQL {
         }
 
         /**
+         * Set optional REST transport metadata for this query.
+         * When set, the schema JSON will include {@code "rest": {"path": path, "method": method}}.
+         *
+         * @param path   the REST path template, e.g. {@code /users/{id}}
+         * @param method the HTTP method, e.g. {@code GET}
+         * @return this builder for chaining
+         */
+        public QueryBuilder rest(String path, String method) {
+            this.restPath = path;
+            this.restMethod = method;
+            return this;
+        }
+
+        /**
          * Register this query in the schema.
          *
          * @throws IllegalStateException if relay(true) is set without returnsArray(true)
@@ -329,9 +355,10 @@ public class FraiseQL {
                 );
             }
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
-            if (sqlSource != null || cacheTtlSeconds != null || injectParams != null || additionalViews != null) {
+            if (sqlSource != null || cacheTtlSeconds != null || injectParams != null
+                    || additionalViews != null || restPath != null) {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay,
-                    sqlSource, cacheTtlSeconds, injectParams, additionalViews);
+                    sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod);
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }
@@ -352,8 +379,10 @@ public class FraiseQL {
         private Map<String, String> injectParams = null;
         private List<String> invalidatesViews = null;
         private List<String> invalidatesFactTables = null;
+        private String restPath = null;
+        private String restMethod = null;
 
-        private MutationBuilder(String name) {
+        public MutationBuilder(String name) {
             this.name = name;
         }
 
@@ -482,14 +511,29 @@ public class FraiseQL {
         }
 
         /**
+         * Set optional REST transport metadata for this mutation.
+         * When set, the schema JSON will include {@code "rest": {"path": path, "method": method}}.
+         *
+         * @param path   the REST path template, e.g. {@code /users}
+         * @param method the HTTP method, e.g. {@code POST}
+         * @return this builder for chaining
+         */
+        public MutationBuilder rest(String path, String method) {
+            this.restPath = path;
+            this.restMethod = method;
+            return this;
+        }
+
+        /**
          * Register this mutation in the schema.
          */
         public void register() {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
             if (sqlSource != null || operation != null || injectParams != null
-                    || invalidatesViews != null || invalidatesFactTables != null) {
+                    || invalidatesViews != null || invalidatesFactTables != null || restPath != null) {
                 registry.registerMutation(name, finalReturnType, arguments, description,
-                    sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
+                    sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables,
+                    restPath, restMethod);
             } else {
                 registry.registerMutation(name, finalReturnType, arguments, description);
             }

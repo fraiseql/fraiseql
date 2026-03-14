@@ -34,6 +34,13 @@ type TypeDefinition struct {
 	Implements   []string    `json:"implements,omitempty"`
 }
 
+// RESTAnnotation carries the optional REST transport metadata for a query or mutation.
+// When set, the compiler emits {"rest": {"path": "...", "method": "..."}} in the schema JSON.
+type RESTAnnotation struct {
+	Path   string `json:"path"`
+	Method string `json:"method"`
+}
+
 // QueryDefinition represents a GraphQL query
 type QueryDefinition struct {
 	Name              string                 `json:"name"`
@@ -51,6 +58,7 @@ type QueryDefinition struct {
 	AdditionalViews   []string               `json:"additional_views,omitempty"`
 	RequiresRole      string                 `json:"requires_role,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
+	REST              *RESTAnnotation        `json:"rest,omitempty"`
 	Config            map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -68,6 +76,7 @@ type MutationDefinition struct {
 	InvalidatesViews     []string               `json:"invalidates_views,omitempty"`
 	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
 	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
+	REST                 *RESTAnnotation        `json:"rest,omitempty"`
 	Config               map[string]interface{} `json:"config,omitempty"`
 }
 

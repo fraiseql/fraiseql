@@ -22,4 +22,5 @@ public record IntermediateQuery(
     [property: JsonPropertyName("sql_source")]        string SqlSource,
     [property: JsonPropertyName("arguments")]         IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("cache_ttl_seconds")] int? CacheTtlSeconds = null,
-    [property: JsonPropertyName("description")]       string? Description = null);
+    [property: JsonPropertyName("description")]       string? Description = null,
+    [property: JsonPropertyName("rest")]              RestAnnotation? Rest = null);

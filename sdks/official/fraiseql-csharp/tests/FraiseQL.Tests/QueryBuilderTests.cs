@@ -177,4 +177,49 @@ public sealed class QueryBuilderTests : IDisposable
 
         Assert.Equal("List all authors", query.Description);
     }
+
+    [Fact]
+    public void TestQueryBuilderRestAnnotationIsNullByDefault()
+    {
+        var query = QueryBuilder.Query("authors")
+            .ReturnType("Author")
+            .SqlSource("v_author")
+            .Build();
+
+        Assert.Null(query.Rest);
+    }
+
+    [Fact]
+    public void TestQueryBuilderRestAnnotationSet()
+    {
+        var query = QueryBuilder.Query("author")
+            .ReturnType("Author")
+            .SqlSource("v_author")
+            .Rest("/authors/{id}", "GET")
+            .Build();
+
+        Assert.NotNull(query.Rest);
+        Assert.Equal("/authors/{id}", query.Rest.Path);
+        Assert.Equal("GET", query.Rest.Method);
+    }
+
+    [Fact]
+    public void TestQueryBuilderRestAnnotationSerializesToJson()
+    {
+        SchemaRegistry.Instance.Clear();
+        QueryBuilder.Query("author")
+            .ReturnType("Author")
+            .SqlSource("v_author")
+            .Rest("/authors/{id}", "GET")
+            .Register();
+
+        var json = SchemaExporter.Export(pretty: false);
+        var doc = JsonDocument.Parse(json);
+        var queries = doc.RootElement.GetProperty("queries");
+        var query = queries[0];
+
+        Assert.True(query.TryGetProperty("rest", out var restProp));
+        Assert.Equal("/authors/{id}", restProp.GetProperty("path").GetString());
+        Assert.Equal("GET", restProp.GetProperty("method").GetString());
+    }
 }

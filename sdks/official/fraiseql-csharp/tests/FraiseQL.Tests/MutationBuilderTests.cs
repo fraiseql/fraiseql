@@ -188,4 +188,52 @@ public sealed class MutationBuilderTests : IDisposable
                 .Build());
         Assert.Contains("Operation", ex.Message);
     }
+
+    [Fact]
+    public void TestMutationBuilderRestAnnotationIsNullByDefault()
+    {
+        var mutation = MutationBuilder.Mutation("createAuthor")
+            .ReturnType("Author")
+            .SqlSource("fn_create_author")
+            .Operation("CREATE")
+            .Build();
+
+        Assert.Null(mutation.Rest);
+    }
+
+    [Fact]
+    public void TestMutationBuilderRestAnnotationSet()
+    {
+        var mutation = MutationBuilder.Mutation("createAuthor")
+            .ReturnType("Author")
+            .SqlSource("fn_create_author")
+            .Operation("CREATE")
+            .Rest("/authors", "POST")
+            .Build();
+
+        Assert.NotNull(mutation.Rest);
+        Assert.Equal("/authors", mutation.Rest.Path);
+        Assert.Equal("POST", mutation.Rest.Method);
+    }
+
+    [Fact]
+    public void TestMutationBuilderRestAnnotationSerializesToJson()
+    {
+        SchemaRegistry.Instance.Clear();
+        MutationBuilder.Mutation("createAuthor")
+            .ReturnType("Author")
+            .SqlSource("fn_create_author")
+            .Operation("CREATE")
+            .Rest("/authors", "POST")
+            .Register();
+
+        var json = SchemaExporter.Export(pretty: false);
+        var doc = JsonDocument.Parse(json);
+        var mutations = doc.RootElement.GetProperty("mutations");
+        var mutation = mutations[0];
+
+        Assert.True(mutation.TryGetProperty("rest", out var restProp));
+        Assert.Equal("/authors", restProp.GetProperty("path").GetString());
+        Assert.Equal("POST", restProp.GetProperty("method").GetString());
+    }
 }

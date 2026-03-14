@@ -85,6 +85,7 @@ type QueryBuilder struct {
 	additionalViews   []string
 	requiresRole      string
 	deprecation       *DeprecationInfo
+	rest              *RESTAnnotation
 }
 
 // NewQuery creates a new query builder
@@ -196,6 +197,14 @@ func (qb *QueryBuilder) Deprecated(reason string) *QueryBuilder {
 	return qb
 }
 
+// Rest sets optional REST transport metadata for this query.
+// When set, the schema JSON will include {"rest": {"path": path, "method": method}}.
+// Example: Rest("/users/{id}", "GET")
+func (qb *QueryBuilder) Rest(path, method string) *QueryBuilder {
+	qb.rest = &RESTAnnotation{Path: path, Method: method}
+	return qb
+}
+
 // Register registers the query with the global schema registry.
 // Returns an error if a query with the same name is already registered.
 func (qb *QueryBuilder) Register() error {
@@ -229,6 +238,7 @@ func (qb *QueryBuilder) Register() error {
 		AdditionalViews:   qb.additionalViews,
 		RequiresRole:      qb.requiresRole,
 		Deprecation:       qb.deprecation,
+		REST:              qb.rest,
 	}
 
 	if len(qb.config) > 0 {
@@ -258,6 +268,7 @@ type MutationBuilder struct {
 	invalidatesViews      []string
 	invalidatesFactTables []string
 	deprecation           *DeprecationInfo
+	rest                  *RESTAnnotation
 }
 
 // NewMutation creates a new mutation builder
@@ -349,6 +360,14 @@ func (mb *MutationBuilder) Deprecated(reason string) *MutationBuilder {
 	return mb
 }
 
+// Rest sets optional REST transport metadata for this mutation.
+// When set, the schema JSON will include {"rest": {"path": path, "method": method}}.
+// Example: Rest("/users/{id}", "PUT")
+func (mb *MutationBuilder) Rest(path, method string) *MutationBuilder {
+	mb.rest = &RESTAnnotation{Path: path, Method: method}
+	return mb
+}
+
 // Register registers the mutation with the global schema registry.
 // Returns an error if a mutation with the same name is already registered.
 func (mb *MutationBuilder) Register() error {
@@ -363,6 +382,7 @@ func (mb *MutationBuilder) Register() error {
 		InvalidatesViews:     mb.invalidatesViews,
 		InvalidatesFactTables: mb.invalidatesFactTables,
 		Deprecation:          mb.deprecation,
+		REST:                 mb.rest,
 	}
 
 	if len(mb.config) > 0 {

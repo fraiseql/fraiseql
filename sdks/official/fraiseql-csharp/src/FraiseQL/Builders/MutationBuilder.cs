@@ -27,6 +27,7 @@ public sealed class MutationBuilder
     private string _sqlSource = string.Empty;
     private string _operation = string.Empty;
     private string? _description;
+    private RestAnnotation? _rest;
     private readonly List<IntermediateArgument> _arguments = new();
 
     private MutationBuilder(string name) => _name = name;
@@ -67,6 +68,15 @@ public sealed class MutationBuilder
     /// <returns>This builder for chaining.</returns>
     public MutationBuilder Description(string desc) { _description = desc; return this; }
 
+    /// <summary>
+    /// Sets optional REST transport metadata for this mutation.
+    /// When set, the schema JSON will include <c>"rest": {"path": path, "method": method}</c>.
+    /// </summary>
+    /// <param name="path">The REST path template, e.g. <c>/users/{id}</c>.</param>
+    /// <param name="method">The HTTP method, e.g. <c>POST</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder Rest(string path, string method) { _rest = new RestAnnotation(path, method); return this; }
+
     /// <summary>Adds a typed argument to this mutation.</summary>
     /// <param name="name">The argument name.</param>
     /// <param name="type">The GraphQL type name.</param>
@@ -103,7 +113,8 @@ public sealed class MutationBuilder
             SqlSource: _sqlSource,
             Operation: _operation,
             Arguments: _arguments.AsReadOnly(),
-            Description: _description);
+            Description: _description,
+            Rest: _rest);
     }
 
     /// <summary>
