@@ -51,10 +51,10 @@ class TestDatabaseContextParameters:
         assert result == mock_result
 
         # Verify SQL execution
-        assert mock_cursor.execute.call_count == 2  # One for timeout, one for function
+        assert mock_cursor.execute.call_count == 3  # One for timeout, one for started_at, one for function
 
-        # Get the second call (the actual function call)
-        call_args = mock_cursor.execute.call_args_list[1][0]
+        # Get the last call (the actual function call)
+        call_args = mock_cursor.execute.call_args_list[2][0]
 
         # Check SQL statement
         expected_sql = "SELECT * FROM app.create_location(%s, %s, %s::jsonb)"
@@ -142,8 +142,8 @@ class TestDatabaseContextParameters:
         assert result == mock_result
 
         # Verify SQL uses only JSONB parameter
-        # Get the second call (the actual function call)
-        call_args = mock_cursor.execute.call_args_list[1][0]
+        # Get the last call (the actual function call)
+        call_args = mock_cursor.execute.call_args_list[-1][0]
         # When context_args is empty, no leading comma
         expected_sql = "SELECT * FROM app.test_function(%s::jsonb)"
         assert call_args[0] == expected_sql

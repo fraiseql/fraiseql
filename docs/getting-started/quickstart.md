@@ -214,7 +214,8 @@ Visit `http://localhost:8000/graphql` to open the GraphQL Playground!
 
 ## Step 6: Try Your First Queries
 
-### Get all notes:
+### Get all notes
+
 ```graphql
 query {
   notes {
@@ -226,7 +227,8 @@ query {
 }
 ```
 
-### Get a specific note:
+### Get a specific note
+
 ```graphql
 query {
   note(id: "550e8400-e29b-41d4-a716-446655440000") {
@@ -240,7 +242,8 @@ query {
 
 **Note**: Replace the UUID with an actual ID from your database. You can get IDs from the `notes` query above.
 
-### Create a new note:
+### Create a new note
+
 ```graphql
 mutation {
   createNote(input: { title: "My New Note", content: "GraphQL mutations made simple" }) {
@@ -325,6 +328,7 @@ async def users(info) -> list[User]:
 ```
 
 The GraphQL response will automatically use the correct field name:
+
 ```json
 {
   "data": {

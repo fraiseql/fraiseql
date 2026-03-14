@@ -1,18 +1,18 @@
 # FraiseQL
 
-[![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
-[![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
+[![Quality Gate](https://github.com/fraiseql/fraiseql-python/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql-python/actions/workflows/ci.yml)
+[![Documentation](https://github.com/fraiseql/fraiseql-python/actions/workflows/docs.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql-python/actions/workflows/docs.yml)
+[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql-python)](https://github.com/fraiseql/fraiseql-python/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.16** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.17** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
-## GraphQL for the LLM era. Simple. Powerful. Rust-fast.
+## GraphQL for the LLM era. Simple. Powerful. Rust-fast
 
 PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 
@@ -49,6 +49,56 @@ app = create_fraiseql_app(
 
 ---
 
+## 📌 FraiseQL Versions
+
+FraiseQL has two versions with overlapping but complementary strengths:
+
+### v1.9.16 (This Repository: `fraiseql-python`)
+
+**Python framework with integrated Rust pipeline**
+
+- ✅ **Stable, production-ready** (v1.9.16)
+- 🐍 **Python 3.13+ native** - write schema in Python decorators
+- 🚀 **Rust pipeline included** - 7-10x faster JSON transformation
+- 📡 **FastAPI runtime** - immediate deployment, hot reload, development-friendly
+- 🗄️ **PostgreSQL-only** - optimized for PostgreSQL expertise
+- 🔄 **Iterative development** - no build step, rapid feedback loops
+
+**Best for:** Python teams, rapid iteration, existing PostgreSQL codebases, teams that want Rust performance without leaving Python ecosystem
+
+**Repository:** [fraiseql/fraiseql-python](https://github.com/fraiseql/fraiseql-python)
+
+### v2 (Separate Repository: `fraiseql`)
+
+**Compiled Rust engine with polyglot schema authoring**
+
+- 🚀 **Beta stage** (v2.0.0-alpha.2) - feature-complete, actively developed
+- 🔧 **16+ language support** - Python, TypeScript, Go, Java, Rust, etc. (same schema authoring experience)
+- ⚡ **Compile-time optimization** - build-time schema validation, zero-cost abstractions
+- 🛠️ **CLI compiler** - `fraiseql-cli compile schema.json`
+- 🗄️ **Multi-database** - PostgreSQL, MySQL, SQLite, SQL Server
+- 🎯 **Maximum performance** - no runtime interpretation, fully compiled
+
+**Best for:** Teams with multiple language ecosystems, multi-database requirements, compile-time optimization, polyglot teams
+
+**Repository:** [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)
+
+### Comparison
+
+| Aspect | v1.9.16 | v2 |
+|--------|---------|-----|
+| **Schema in Python** | ✅ Native | ✅ Supported (1 of 16+ languages) |
+| **Rust Performance** | ✅ Included | ✅ Full engine in Rust |
+| **PostgreSQL Support** | ✅ Full | ✅ Full + 3 others |
+| **Deployment Model** | Runtime (FastAPI) | Build-time (CLI compile) |
+| **Development Experience** | Hot reload, iterative | Compile step, maximum optimization |
+| **Status** | ✅ Stable | 🚀 Beta |
+| **Best Migration Path** | Native Python → v2 Python | Python → any language |
+
+> **If you're using Python:** Both versions work great! v1 for rapid iteration, v2 for compile-time guarantees and multi-DB future-proofing. Both are actively maintained.
+
+---
+
 ## Why FraiseQL?
 
 - ⚡ **Rust Pipeline** - 7-10x faster JSON transformation, zero Python overhead
@@ -68,6 +118,7 @@ app = create_fraiseql_app(
 ## Is This For You?
 
 **✅ Perfect if you:**
+
 - Build high-performance APIs with PostgreSQL
 - Want 7-10x faster JSON processing
 - Need enterprise security & compliance
@@ -75,6 +126,7 @@ app = create_fraiseql_app(
 - Use LLMs for code generation
 
 **❌ Consider alternatives if:**
+
 - You need multi-database support (PostgreSQL-only)
 - Building your first GraphQL API (use simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
@@ -84,12 +136,14 @@ app = create_fraiseql_app(
 ## How It Works
 
 **Traditional GraphQL** (slow):
+
 ```
 PostgreSQL → Rows → ORM deserialize → Python objects → GraphQL serialize → JSON → Response
             ╰─── Unnecessary roundtrips (2 conversions) ───╯
 ```
 
 **FraiseQL** (fast):
+
 ```
 PostgreSQL → JSONB → Rust field selection → HTTP Response
            ╰─ Zero Python overhead (1 conversion) ─╯
@@ -117,6 +171,7 @@ fraiseql dev
 **Your GraphQL API is live at `http://localhost:8000/graphql`** 🎉
 
 **Next steps:**
+
 - [5-Minute Quickstart](docs/getting-started/quickstart.md)
 - [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
 - [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
@@ -197,6 +252,7 @@ class User:
 ### Trinity Identifiers
 
 Three ID types for different purposes:
+
 - **pk_user** (int): Internal DB key, not exposed
 - **id** (UUID): Public API, stable, never changes
 - **identifier** (str): Human-readable slug, SEO-friendly
@@ -251,17 +307,19 @@ mutation {
 | **Audit Logging** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Middleware implementation needed |
 
 **Legend:**
+
 - ✅ Complete and verified
 - ⚠️ Partial implementation or limited scope
 - ❌ Not implemented or not production ready
 
 **Roadmap:**
+
 - **v1.9.16**: Complete security profile enforcement (Issue #225)
 - **v1.9.16**: Add RBAC enforcement verification tests
 - **v1.9.16**: Unified field filtering for all query types
 - **v1.9.16**: Full security audit and penetration testing
 
-> **Important**: This matrix reflects current implementation status (v1.9.16). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
+> **Important**: This matrix reflects current implementation status (v1.9.16). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql-python/issues/225) for implementation progress.
 
 ---
 
@@ -275,18 +333,21 @@ mutation {
 | **Total** | **$450-4,000/mo** | **PostgreSQL only ($50/mo)** | **$5,400-48,000/yr** |
 
 ### 📋 Software Bill of Materials (SBOM)
+
 - **Automated generation** via `fraiseql sbom generate`
 - **Global compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001
 - **CycloneDX 1.5 format** with cryptographic signing
 - **CI/CD integration** for continuous compliance
 
 ### 🔑 Key Management Service (KMS)
+
 - **HashiCorp Vault**: Production-ready with transit engine
 - **AWS KMS**: Native integration with GenerateDataKey
 - **GCP Cloud KMS**: Envelope encryption support
 - **Local Provider**: Development-only with warnings
 
 ### 🛡️ Security Profiles
+
 - `STANDARD`: Default protections for general applications
 - `REGULATED`: PCI-DSS/HIPAA/SOC 2 compliance
 - `RESTRICTED`: Government, defence, critical infrastructure
@@ -297,11 +358,13 @@ mutation {
   - 🇸🇬 Singapore CII operators
 
 ### 📊 Observability
+
 - OpenTelemetry tracing with sensitive data sanitization
 - Security event logging
 - Audit trail support
 
 ### 🔒 Advanced Security Controls
+
 - **Rate limiting** for API endpoints and GraphQL operations
 - **CSRF protection** for mutations and forms
 - **Security headers** middleware for defense in depth
@@ -309,7 +372,7 @@ mutation {
 - **Field-level authorization** with role inheritance
 - **Row-level security** via PostgreSQL RLS
 
-**[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
+**[📋 KMS Architecture](https://github.com/fraiseql/fraiseql-python/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
 
 ---
 
@@ -360,7 +423,7 @@ class CreateUser:
 
 **New to FraiseQL?** Understanding these core concepts will help you make the most of the framework:
 
-**[📚 Concepts & Glossary](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)** - Essential terminology and mental models:
+**[📚 Concepts & Glossary](https://github.com/fraiseql/fraiseql-python/blob/main/docs/core/concepts-glossary.md)** - Essential terminology and mental models:
 
 - **CQRS Pattern** - Separate read models (views) from write models (functions)
 - **Trinity Identifiers** - Three-tier ID system (`pk_*`, `id`, `identifier`) for performance and UX
@@ -370,10 +433,10 @@ class CreateUser:
 
 **Quick links:**
 
-- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md) - 10-minute architecture overview
-- [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
-- [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
-- [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
+- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql-python/blob/main/docs/guides/understanding-fraiseql.md) - 10-minute architecture overview
+- [Database API](https://github.com/fraiseql/fraiseql-python/blob/main/docs/core/database-api.md) - Connection pooling and query execution
+- [Types and Schema](https://github.com/fraiseql/fraiseql-python/blob/main/docs/core/types-and-schema.md) - Complete type system guide
+- [Filter Operators](https://github.com/fraiseql/fraiseql-python/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
 
 ---
 
@@ -616,11 +679,11 @@ Pre-built dashboards in `grafana/` query PostgreSQL directly:
 │   Request       │    │   JSONB Query    │    │   Transform     │
 │                 │    │                  │    │   (7-10x faster)│
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         ↓
-                                                ┌─────────────────┐
-                                                │   FastAPI       │
-                                                │   HTTP Response │
-                                                └─────────────────┘
+                                                        ↓
+                                               ┌─────────────────┐
+                                               │   FastAPI       │
+                                               │   HTTP Response │
+                                               └─────────────────┘
 ```
 
 **Unified path for all queries:**
@@ -658,7 +721,7 @@ FraiseQL implements Command Query Responsibility Segregation:
 - `fn_*` - Business logic, validation, side effects
 - `tb_*` - Base tables for data storage
 
-**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)**
+**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql-python/blob/main/docs/guides/understanding-fraiseql.md)**
 
 ### Key Innovations
 
@@ -766,7 +829,7 @@ config = FraiseQLConfig(
 3. PostgreSQL → Rust → HTTP (same fast path)
 4. Bandwidth reduction with large queries
 
-**[⚡ APQ Details](https://github.com/fraiseql/fraiseql/blob/main/docs/diagrams/apq-cache-flow.md)**
+**[⚡ APQ Details](https://github.com/fraiseql/fraiseql-python/blob/main/docs/diagrams/apq-cache-flow.md)**
 
 ### Specialized Type System
 
@@ -802,25 +865,30 @@ query {
 **50+ Specialized Scalar Types:**
 
 **Financial & Trading:**
+
 - CUSIP, ISIN, SEDOL, MIC, LEI - Security identifiers
 - Money, Percentage, ExchangeRate - Financial values
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
+
 - IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
 **Geospatial & Location:**
+
 - Coordinate, Latitude, Longitude - Geographic coordinates with distance calculations
 - PostalCode, Timezone - Location data
 
 **Business & Logistics:**
+
 - ContainerNumber, FlightNumber, TrackingNumber, VIN - Asset identifiers
 - IBAN, LicensePlate - Financial & vehicle identifiers
 - PhoneNumber, LocaleCode, LanguageCode - Contact & localization
 
 **Technical & Data:**
+
 - UUID, JSON, Date, DateTime, Time, DateRange - Standard types with validation
 - LTree - Hierarchical data with ancestor/descendant queries
 - SemanticVersion, Color, MIMEType, File, Image - Specialized formats
@@ -876,7 +944,7 @@ query {
 }
 ```
 
-**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/nested-array-filtering.md)**
+**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql-python/blob/main/docs/guides/nested-array-filtering.md)**
 
 ### Enterprise Security
 
@@ -953,10 +1021,10 @@ fraiseql dev
 
 ### Next Steps
 
-- **📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
-- **🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
-- **⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
-- **📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
+- **📚 [First Hour Guide](https://github.com/fraiseql/fraiseql-python/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
+- **🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql-python/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
+- **⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql-python/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
+- **📖 [Full Documentation](https://github.com/fraiseql/fraiseql-python/tree/main/docs)** - Complete guides and references
 
 ### Prerequisites
 
@@ -1009,18 +1077,18 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 
 ## Learn More
 
-- **[Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Comprehensive guides
-- **[Architecture Decisions](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Why we built it this way
-- **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
-- **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications
+- **[Full Documentation](https://github.com/fraiseql/fraiseql-python/tree/main/docs)** - Comprehensive guides
+- **[Architecture Decisions](https://github.com/fraiseql/fraiseql-python/tree/main/docs/architecture)** - Why we built it this way
+- **[Performance Guide](https://github.com/fraiseql/fraiseql-python/blob/main/docs/performance/index.md)** - Optimization strategies
+- **[Examples](https://github.com/fraiseql/fraiseql-python/tree/main/examples)** - Real-world applications
 
 ---
 
 ## Contributing
 
 ```bash
-git clone https://github.com/fraiseql/fraiseql
-cd fraiseql && make setup-dev
+git clone https://github.com/fraiseql/fraiseql-python
+cd fraiseql-python && make setup-dev
 prek install  # 7-10x faster than pre-commit
 ```
 
@@ -1044,31 +1112,44 @@ MIT License - see [LICENSE](LICENSE)
 
 ---
 
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
 ## 📋 Project Navigation
 
-### Version Overview
+### FraiseQL Ecosystem
 
-| Version | Location | Status | Purpose | For Users? |
-|---------|----------|--------|---------|------------|
-| **v1.9.16** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.16+ | ✅ Stable |
+| Project | Version | Repository | Status | Best For |
+|---------|---------|-----------|--------|----------|
+| **fraiseql-python** (v1) | v1.9.16 | [fraiseql/fraiseql-python](https://github.com/fraiseql/fraiseql-python) | ✅ Stable | Python teams, rapid iteration |
+| **fraiseql** (v2) | v2.0.0-alpha.2 | [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql) | 🚀 Beta | Multi-language, multi-database |
 
-**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
+**This Repository:** `fraiseql-python` (v1.9.16 - Python-based with Rust pipeline)
 
-**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)**
+### Quick Navigation
+
+**New to FraiseQL?**
+
+- Start here: **[First Hour Guide](https://github.com/fraiseql/fraiseql-python/blob/main/docs/getting-started/first-hour.md)** (60 min, hands-on)
+- Architecture overview: **[Understanding FraiseQL](https://github.com/fraiseql/fraiseql-python/blob/main/docs/guides/understanding-fraiseql.md)** (10 min read)
+- Project structure: **[Strategic Overview](https://github.com/fraiseql/fraiseql-python/blob/main/docs/strategic/PROJECT_STRUCTURE.md)**
+
+**Exploring v2?**
+
+- v2 Repository: **[fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)**
+- v2 Documentation: **[fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
+
+**Troubleshooting:**
+
+- **[Complete Version Roadmap](https://github.com/fraiseql/fraiseql-python/blob/main/dev/audits/version-status.md)** - Version status and feature matrix
 
 ---
+
+## 🚀 Get Started Now
 
 **Ready to build the most efficient GraphQL API in Python?**
 
 ```bash
 pip install fraiseql && fraiseql init my-api
 ```
+
+📚 Documentation: [github.com/fraiseql/fraiseql-python](https://github.com/fraiseql/fraiseql-python)
 
 🚀 **PostgreSQL → Rust → Production**

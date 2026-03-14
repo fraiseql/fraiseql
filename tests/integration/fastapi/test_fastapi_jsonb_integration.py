@@ -91,7 +91,7 @@ class TestFastAPIJSONBIntegration:
         """Clear registry before class tests."""
         return
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_fastapi_jsonb_test(self, class_db_pool, test_schema) -> None:
         """Create test data and register types for FastAPI testing."""
         # Register type with has_jsonb_data=True

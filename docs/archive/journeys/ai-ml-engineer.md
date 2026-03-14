@@ -9,6 +9,7 @@
 As an AI/ML engineer, you need a reliable tech stack for building RAG systems that combine semantic search with LLMs. FraiseQL integrates natively with PostgreSQL's pgvector extension, providing a unified GraphQL API for both traditional data and vector embeddings.
 
 By the end of this journey, you'll have:
+
 - Working RAG system with semantic search
 - Understanding of vector operators and indexing
 - Production-ready deployment patterns
@@ -24,6 +25,7 @@ By the end of this journey, you'll have:
 **Read:** [AI-Native Features](../features/ai-native/)
 
 **Key Concepts:**
+
 - Zero-copy JSONB includes vector types
 - pgvector operators exposed in GraphQL
 - Automatic embedding column detection
@@ -41,12 +43,14 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 **Follow:** [RAG Tutorial](../ai-ml/rag-tutorial/)
 
 **What You'll Build:**
+
 1. Document storage with automatic embedding generation
 2. Semantic search using cosine similarity
 3. GraphQL API for document retrieval
 4. Integration with LangChain for question answering
 
 **Tutorial Steps:**
+
 ```bash
 # Clone the RAG example
 cd examples/rag-system
@@ -67,6 +71,7 @@ python app.py
 ```
 
 **Expected Outcome:**
+
 - GraphQL API running on http://localhost:8000/graphql
 - Ability to add documents and search semantically
 - Question-answering endpoint returning contextualized answers
@@ -91,12 +96,14 @@ python app.py
 | `<%>` | Jaccard Distance | Set similarity (tags, categories) | `orderBy: { embedding_jaccard: ASC }` |
 
 **Choosing the Right Operator:**
+
 - **Text embeddings (OpenAI, Cohere):** Use cosine distance `<=>`
 - **Image embeddings (CLIP, ResNet):** Use L2 distance `<->`
 - **Normalized embeddings:** Use inner product `<#>` (faster than cosine)
 - **Binary hashes:** Use Hamming distance `<~>`
 
 **GraphQL Query Example:**
+
 ```graphql
 query SearchDocuments($queryEmbedding: [Float!]!) {
   documents(
@@ -150,12 +157,14 @@ print(answer)
 ```
 
 **Advantages Over Traditional Vector DBs:**
+
 - ✅ **Unified data model:** Vectors + metadata in one query
 - ✅ **ACID transactions:** Consistent updates across tables
 - ✅ **SQL join power:** Combine vector search with filters
 - ✅ **No separate service:** Simpler architecture, lower latency
 
 **Example: Filtered Vector Search**
+
 ```graphql
 # Find similar documents by a specific author
 query FilteredSearch($queryEmbedding: [Float!]!, $authorId: UUID!) {
@@ -188,6 +197,7 @@ query FilteredSearch($queryEmbedding: [Float!]!, $authorId: UUID!) {
 **Indexing Strategies:**
 
 **1. HNSW Index (Recommended for Production):**
+
 ```sql
 -- Hierarchical Navigable Small World index
 -- Fast approximate search with 95%+ recall
@@ -197,10 +207,12 @@ WITH (m = 16, ef_construction = 64);
 ```
 
 **Parameters:**
+
 - `m`: Max connections per node (16-64, default 16)
 - `ef_construction`: Build quality (64-200, higher = better recall)
 
 **2. IVFFlat Index (For Very Large Datasets):**
+
 ```sql
 -- Inverted file with flat compression
 -- Memory-efficient, good for 1M+ vectors
@@ -218,6 +230,7 @@ WITH (lists = 1000);  -- sqrt(total_vectors) is good default
 | 10M vectors | IVFFlat | ~50 qps (<100ms) | 85% |
 
 **Optimization Checklist:**
+
 - [ ] Use HNSW index for datasets < 5M vectors
 - [ ] Set `ef_search` parameter at query time (higher = better recall)
 - [ ] Monitor index build time (can take minutes for large datasets)
@@ -225,6 +238,7 @@ WITH (lists = 1000);  -- sqrt(total_vectors) is good default
 - [ ] Consider partitioning for datasets > 10M vectors
 
 **Query-Time Tuning:**
+
 ```sql
 -- Increase recall for critical queries (slower)
 SET hnsw.ef_search = 200;  -- Default: 40
@@ -244,6 +258,7 @@ SET hnsw.ef_search = 20;
 **RAG-Specific Deployment Considerations:**
 
 **1. Embedding Generation Strategy:**
+
 ```python
 # Option A: Synchronous (simple, blocks API)
 async def add_document_with_embedding(content: str):
@@ -268,6 +283,7 @@ async def add_document_async(content: str):
 ```
 
 **2. Embedding Cache Strategy:**
+
 ```python
 # Cache frequent query embeddings
 @cache(ttl=3600)  # 1 hour
@@ -279,6 +295,7 @@ async def get_query_embedding(query_text: str):
 ```
 
 **3. Monitoring RAG Systems:**
+
 ```python
 # Track RAG-specific metrics
 metrics = {
@@ -291,6 +308,7 @@ metrics = {
 ```
 
 **4. Cost Optimization:**
+
 - **Embedding costs:** $0.0001 per 1K tokens (OpenAI ada-002)
   - Cache query embeddings (90% cost reduction)
   - Batch document embedding generation
@@ -299,6 +317,7 @@ metrics = {
   - Use gpt-3.5-turbo for non-critical queries
 
 **5. Scaling Considerations:**
+
 ```yaml
 # Kubernetes deployment
 apiVersion: apps/v1
@@ -337,6 +356,7 @@ spec:
 **Advanced Techniques:**
 
 **1. Hybrid Search (Semantic + Keyword):**
+
 ```sql
 -- Combine pgvector with PostgreSQL full-text search
 CREATE INDEX ON tb_document USING GIN (to_tsvector('english', content));
@@ -355,6 +375,7 @@ LIMIT 10;
 ```
 
 **2. Hierarchical RAG (Parent-Child Documents):**
+
 ```sql
 -- Split documents into chunks for better retrieval
 CREATE TABLE tb_document_chunk (
@@ -370,6 +391,7 @@ CREATE TABLE tb_document_chunk (
 ```
 
 **3. Multi-Vector Search (Multiple Embeddings):**
+
 ```sql
 -- Store multiple embeddings per document (title, summary, content)
 CREATE TABLE tv_document_multi_embedding (
@@ -383,6 +405,7 @@ CREATE TABLE tv_document_multi_embedding (
 ```
 
 **4. Temporal RAG (Time-Aware Retrieval):**
+
 ```graphql
 query TimeAwareSearch($queryEmbedding: [Float!]!, $afterDate: DateTime!) {
   documents(
@@ -419,17 +442,20 @@ query TimeAwareSearch($queryEmbedding: [Float!]!, $afterDate: DateTime!) {
 ## Next Steps
 
 ### Immediate Actions
+
 1. **Run the RAG example:** `examples/rag-system/`
 2. **Experiment with operators:** Try all 6 pgvector operators
 3. **Deploy to staging:** Use production checklist
 
 ### Advanced Topics
+
 - **Multi-modal RAG:** Combine text and image embeddings
 - **Fine-tuning embeddings:** Custom models for domain-specific search
 - **Evaluation frameworks:** Measure retrieval quality (recall@k, MRR)
 - **RAG observability:** Track retrieval relevance and LLM quality
 
 ### Community Resources
+
 - **Discord:** Ask RAG questions in #ai-ml channel
 - **Examples:** `examples/rag-system/` - Complete working implementation
 - **Blog:** Case studies of production RAG deployments
@@ -439,22 +465,26 @@ query TimeAwareSearch($queryEmbedding: [Float!]!, $afterDate: DateTime!) {
 ### Common Issues
 
 **Slow vector search:**
+
 - ✅ Create HNSW index on embedding column
 - ✅ Increase `hnsw.ef_search` for better recall
 - ✅ Check index is being used: `EXPLAIN ANALYZE your_query`
 
 **Poor retrieval quality:**
+
 - ✅ Verify embeddings are normalized (if using inner product)
 - ✅ Try different similarity operators (cosine vs L2)
 - ✅ Tune similarity threshold (0.2-0.4 for cosine)
 - ✅ Check embedding model matches training data distribution
 
 **High embedding costs:**
+
 - ✅ Cache query embeddings (Redis or in-memory)
 - ✅ Batch document embedding generation
 - ✅ Consider local embedding models (sentence-transformers)
 
 **LangChain integration issues:**
+
 - ✅ Ensure FraiseQL GraphQL endpoint is accessible
 - ✅ Check embedding dimensions match (1536 for ada-002)
 - ✅ Verify GraphQL schema includes vector fields
@@ -462,6 +492,7 @@ query TimeAwareSearch($queryEmbedding: [Float!]!, $afterDate: DateTime!) {
 ## Summary
 
 You now have:
+
 - ✅ Production-ready RAG system with semantic search
 - ✅ Understanding of all 6 pgvector operators
 - ✅ LangChain integration patterns

@@ -46,6 +46,7 @@ app = create_fraiseql_app(types=[User, Post], config=config)
 FraiseQL uses psycopg3's `AsyncConnectionPool` for efficient connection management. You can configure the pool using either `FraiseQLConfig` or directly via `create_fraiseql_app()` parameters.
 
 **Method 1: Using FraiseQLConfig**
+
 ```python
 # Standard PostgreSQL URL
 config = FraiseQLConfig(
@@ -68,6 +69,7 @@ config = FraiseQLConfig(
 ```
 
 **Method 2: Using create_fraiseql_app() parameters**
+
 ```python
 # Quick configuration without creating FraiseQLConfig
 app = create_fraiseql_app(
@@ -101,6 +103,7 @@ app = create_fraiseql_app(
 | environment | Literal | "development" | Environment mode (development/production/testing) |
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -130,6 +133,7 @@ config = FraiseQLConfig(
 | IntrospectionPolicy.AUTHENTICATED | Introspection only for authenticated users |
 
 **Examples**:
+
 ```python
 from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -175,6 +179,7 @@ config = FraiseQLConfig(
 | turbo_enable_adaptive_caching | bool | True | Enable complexity-based admission |
 
 **Examples**:
+
 ```python
 # High-performance configuration
 config = FraiseQLConfig(
@@ -210,6 +215,7 @@ config = FraiseQLConfig(
 | jsonb_field_limit_threshold | int | 20 | Field count threshold for full data column |
 
 **Examples**:
+
 ```python
 # JSONB-optimized configuration
 config = FraiseQLConfig(
@@ -226,6 +232,7 @@ config = FraiseQLConfig(
 **v0.11.5 Architectural Change**: FraiseQL now uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic.
 
 **Benefits**:
+
 - ✅ **Single execution path** - PostgreSQL → Rust → HTTP
 - ✅ **7-10x faster JSON transformation** - Zero Python overhead
 - ✅ **Always active** - No configuration needed
@@ -257,6 +264,7 @@ config = FraiseQLConfig(
 | dev_auth_password | str \| None | None | Development mode password |
 
 **Examples**:
+
 ```python
 # Auth0 configuration
 config = FraiseQLConfig(
@@ -288,6 +296,7 @@ config = FraiseQLConfig(
 | cors_headers | list[str] | ["Content-Type", "Authorization"] | Allowed headers |
 
 **Examples**:
+
 ```python
 # Production CORS (specific origins)
 config = FraiseQLConfig(
@@ -323,6 +332,7 @@ config = FraiseQLConfig(
 | rate_limit_blacklist | list[str] | [] | IP addresses to blacklist |
 
 **Examples**:
+
 ```python
 # Strict rate limiting
 config = FraiseQLConfig(
@@ -347,6 +357,7 @@ config = FraiseQLConfig(
 | complexity_field_multipliers | dict[str, int] | {} | Custom field complexity multipliers |
 
 **Examples**:
+
 ```python
 # Complexity limits
 config = FraiseQLConfig(
@@ -375,6 +386,7 @@ config = FraiseQLConfig(
 | apq_backend_config | dict[str, Any] | {} | Backend-specific configuration options |
 
 **Examples**:
+
 ```python
 # APQ with PostgreSQL backend
 config = FraiseQLConfig(
@@ -401,11 +413,13 @@ config = FraiseQLConfig(
 
 FraiseQL uses an exclusive Rust pipeline for all query execution.
 
-### Configuration Options:
+### Configuration Options
+
 - `field_projection: bool = True` - Enable Rust-based field filtering
 - `schema_registry: bool = True` - Enable schema-based transformation
 
-### Example:
+### Example
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -422,6 +436,7 @@ config = FraiseQLConfig(
 | default_query_schema | str | "public" | Default schema for queries |
 
 **Examples**:
+
 ```python
 # Custom schema configuration
 config = FraiseQLConfig(
@@ -438,6 +453,7 @@ config = FraiseQLConfig(
 | entity_routing | EntityRoutingConfig \| dict \| None | None | Entity-aware query routing configuration |
 
 **Examples**:
+
 ```python
 from fraiseql.routing.config import EntityRoutingConfig
 
@@ -590,6 +606,7 @@ app = create_fraiseql_app(types=[User, Post, Comment], config=config)
 | `IDPolicy.OPAQUE` | IDs accept any string | GraphQL spec compliance |
 
 **Examples:**
+
 ```python
 from fraiseql.config.schema_config import SchemaConfig, IDPolicy
 

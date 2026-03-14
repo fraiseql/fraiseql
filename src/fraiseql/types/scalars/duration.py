@@ -1,7 +1,7 @@
 """Duration scalar type for time interval validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -89,7 +89,7 @@ class DurationField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "DurationField":
+    def __new__(cls, value: str) -> Self:
         """Create a new DurationField instance with validation."""
         if not _DURATION_REGEX.match(value):
             raise ValueError(

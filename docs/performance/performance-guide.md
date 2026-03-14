@@ -8,6 +8,7 @@
 FraiseQL delivers **sub-10ms response times** for typical GraphQL queries through an exclusive Rust pipeline that eliminates Python string operations. This guide provides realistic performance expectations, methodology details, and guidance on when performance optimizations matter.
 
 **Key Takeaways:**
+
 - **Typical queries**: 5-25ms response time (including database)
 - **Optimized queries**: 0.5-5ms response time (with all optimizations active)
 - **Cache hit rates**: 85-95% in production applications
@@ -23,6 +24,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 **What this means**: FraiseQL is 2-4x faster than frameworks like Strawberry, Hasura, or PostGraphile for typical workloads, with end-to-end optimizations including APQ caching, field projection, and exclusive Rust pipeline transformation.
 
 **Methodology**:
+
 - **Baseline comparison**: Measured against Strawberry GraphQL (Python ORM) and Hasura (PostgreSQL GraphQL)
 - **Test queries**: Simple user lookup, nested user+posts, filtered searches
 - **Dataset**: 10k-100k records in PostgreSQL 15
@@ -30,6 +32,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - **Measurement**: End-to-end response time including database queries
 
 **Realistic expectations**:
+
 - **Simple queries** (single table): 2-3x faster
 - **Complex queries** (joins, aggregations): 3-4x faster
 - **Cached queries**: 4-10x faster (due to APQ optimization)
@@ -44,17 +47,20 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 **What this means**: Cached GraphQL queries return in 0.5-2ms when all optimization layers are active.
 
 **Methodology**:
+
 - **APQ caching**: SHA-256 hash lookup with PostgreSQL storage backend
 - **Rust pipeline**: Direct database JSONB → Rust transformation → HTTP response (no Python string operations)
 - **Field projection**: Optional filtering of requested GraphQL fields
 - **Measurement**: Time from GraphQL request to HTTP response (excluding network latency)
 
 **Realistic expectations**:
+
 - **Cache hit**: 0.5-2ms (Rust pipeline + APQ)
 - **Cache miss**: 5-25ms (includes database query)
 - **Cache hit rate**: 85-95% in production applications
 
 **Conditions**:
+
 - PostgreSQL 15+ with proper indexing
 - APQ storage backend configured (PostgreSQL recommended)
 - Query complexity score < 100
@@ -68,17 +74,20 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 **What this means**: Well-designed applications achieve 85-95% APQ cache hit rates with the exclusive Rust pipeline.
 
 **Methodology**:
+
 - **Client configuration**: Apollo Client with persisted queries enabled
 - **Query patterns**: Stable query structure (no dynamic field selection)
 - **Cache TTL**: 1-24 hours depending on data freshness requirements
 - **Measurement**: Cache hits / (cache hits + cache misses) over 24-hour period
 
 **Realistic expectations**:
+
 - **Stable APIs**: 95%+ hit rate
 - **Dynamic queries**: 80-90% hit rate
 - **Admin interfaces**: 70-85% hit rate (more unique queries)
 
 **Factors affecting hit rate**:
+
 - Query stability (fewer unique queries = higher hit rate)
 - Client-side query deduplication
 - Cache TTL settings
@@ -92,18 +101,21 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 **What this means**: Table views (`tv_*`) provide instant responses for complex queries, processed through the exclusive Rust pipeline.
 
 **Methodology**:
+
 - **Table views**: Denormalized tables with pre-computed data
 - **Comparison**: Traditional JOIN queries vs table view lookups
 - **Dataset**: 10k users with 50k posts (average 5 posts/user)
 - **Measurement**: Database query time only (EXPLAIN ANALYZE)
 
 **Realistic expectations**:
+
 - **Table view lookup**: 0.05-0.5ms
 - **Traditional JOIN**: 5-50ms (depends on data size)
 - **Speedup**: 10-100x faster for complex nested queries
 - **Rust pipeline**: Automatic camelCase transformation and __typename injection
 
 **When this applies**:
+
 - Read-heavy workloads with stable data relationships
 - Queries with fixed nesting patterns
 - Applications where data freshness is less critical than speed
@@ -115,11 +127,13 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 ### Typical Production Application (85th percentile)
 
 **Response Times**:
+
 - Simple queries: 1-5ms
 - Complex queries: 5-25ms
 - Cached queries: 0.5-2ms
 
 **Configuration**:
+
 ```python
 # Standard production setup
 config = FraiseQLConfig(
@@ -131,6 +145,7 @@ config = FraiseQLConfig(
 ```
 
 **Performance Characteristics**:
+
 - Cache hit rate: 85-95%
 - Database load: Moderate (most queries cached)
 - Memory usage: 200-500MB per instance
@@ -139,11 +154,13 @@ config = FraiseQLConfig(
 ### High-Performance Optimized Application (99th percentile)
 
 **Response Times**:
+
 - Simple queries: 0.5-2ms
 - Complex queries: 2-10ms
 - Cached queries: 0.2-1ms
 
 **Configuration**:
+
 ```python
 # Maximum performance setup
 config = FraiseQLConfig(
@@ -155,6 +172,7 @@ config = FraiseQLConfig(
 ```
 
 **Performance Characteristics**:
+
 - Cache hit rate: 95%+
 - Database load: Low (extensive caching)
 - Memory usage: 500MB-1GB per instance
@@ -193,17 +211,20 @@ field_multipliers = {
 ### Optimization Strategies by Complexity
 
 **Low Complexity (1-50)**:
+
 - Focus on caching (APQ + result caching)
 - Field projection for reduced data transfer
 - Table views for instant responses
 
 **Medium Complexity (51-200)**:
+
 - Table views for nested relationships
 - Database indexing optimization
 - Query result caching
 - Field projection optimization
 
 **High Complexity (201-500)**:
+
 - Materialized views for aggregations
 - Background computation
 - Result caching with short TTL
@@ -283,6 +304,7 @@ field_multipliers = {
 | PostGraphile | 50-100ms | 200-400ms | 2-3 weeks | Medium |
 
 **Test conditions**:
+
 - PostgreSQL 15, 10k records
 - Standard cloud instance (4 CPU, 8GB RAM)
 - Connection pooling enabled
@@ -304,11 +326,13 @@ field_multipliers = {
 ### Recommended Hardware
 
 **Development**:
+
 - 2-4 CPU cores
 - 4-8GB RAM
 - Standard SSD storage
 
 **Production (per instance)**:
+
 - 4-8 CPU cores
 - 8-16GB RAM
 - Fast SSD storage
@@ -351,6 +375,7 @@ config = FraiseQLConfig(
 ### Common Performance Issues
 
 **Slow Queries (50-200ms)**:
+
 ```sql
 -- Check for missing indexes
 SELECT schemaname, tablename, attname, n_distinct, correlation
@@ -359,11 +384,13 @@ WHERE schemaname = 'public' AND tablename LIKE 'v_%';
 ```
 
 **Low Cache Hit Rate (<80%)**:
+
 - Review query patterns for stability
 - Increase cache TTL
 - Implement query deduplication
 
 **High Memory Usage**:
+
 - Reduce complexity limits
 - Implement pagination
 - Monitor for memory leaks

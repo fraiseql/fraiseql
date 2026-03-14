@@ -1,7 +1,7 @@
 """URL scalar type for HTTP/HTTPS validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 from urllib.parse import urlparse
 
 from graphql import GraphQLError, GraphQLScalarType
@@ -112,7 +112,7 @@ class URLField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "URLField":
+    def __new__(cls, value: str) -> Self:
         """Create a new URLField instance with validation."""
         # Use urlparse for proper validation
         try:

@@ -213,11 +213,13 @@ Complete overview of all FraiseQL capabilities.
 ## Feature Request?
 
 Don't see a feature you need? [Open a GitHub issue](https://github.com/fraiseql/fraiseql/issues/new) with:
+
 - **Use case**: What are you trying to achieve?
 - **Current workaround**: How are you solving it today?
 - **Proposed solution**: How should FraiseQL support this?
 
 We prioritize features based on:
+
 1. Number of user requests
 2. Alignment with FraiseQL's philosophy (database-first, performance, security)
 3. Implementation complexity vs. value

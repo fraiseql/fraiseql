@@ -82,7 +82,7 @@ class TestIssue112NestedJSONBTypename:
     The tests validate that nested JSONB objects get the correct __typename and all fields.
     """
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_issue_112_database(self, class_db_pool, test_schema) -> AsyncGenerator[None]:
         """Set up database schema matching issue #112 reproduction case.
 
@@ -183,7 +183,7 @@ class TestIssue112NestedJSONBTypename:
         # Yield control back to pytest - all setup is complete before test methods run
         yield
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     def graphql_app(
         self,
         class_db_pool,

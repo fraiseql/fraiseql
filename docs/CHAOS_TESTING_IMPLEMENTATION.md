@@ -32,12 +32,14 @@ class ChaosTestCase:
 ```
 
 **Why This Works**:
+
 - Makes `ChaosTestCase` concrete instead of abstract
 - Pytest can now discover test subclasses
 - No `abstractmethod` decorators need to be removed (there are none)
 - All existing code remains unchanged
 
 **Verification**:
+
 ```bash
 pytest tests/chaos/ --collect-only
 # Before: collected 0 items
@@ -73,11 +75,13 @@ pytest tests/chaos/ --collect-only
 **File 3**: `tests/chaos/resources/test_phase4_validation.py` (15+ bugs)
 
 Search pattern:
+
 ```bash
 grep -n 'issues.append("..' tests/chaos/resources/test_phase4_validation.py
 ```
 
 **Automated Fix** (for simple cases):
+
 ```bash
 # Find all instances
 grep -rn "append(\"\." tests/chaos/
@@ -152,6 +156,7 @@ print("✅ Baseline metrics created: tests/chaos/baseline_metrics.json")
 ## Testing the Fixes
 
 ### Before Fixes
+
 ```bash
 $ pytest tests/chaos/ --collect-only
 collected 0 items
@@ -160,6 +165,7 @@ collected 0 items
 ```
 
 ### After Fix #1 (Remove ABC)
+
 ```bash
 $ pytest tests/chaos/ --collect-only
 collected 100 items
@@ -171,6 +177,7 @@ tests/chaos/network/test_db_connection_chaos.py::TestDatabaseConnectionChaos::te
 ```
 
 ### After Fix #2 (Format Strings)
+
 ```bash
 $ pytest tests/chaos/phase1_validation.py::test_validation
 # Error messages now include actual metric values
@@ -178,6 +185,7 @@ $ pytest tests/chaos/phase1_validation.py::test_validation
 ```
 
 ### After Fix #3 (Environment)
+
 ```bash
 $ pytest tests/chaos/network/ -v
 # Tests run against real Toxiproxy instance
@@ -189,22 +197,26 @@ $ pytest tests/chaos/network/ -v
 ## Implementation Checklist
 
 ### Phase 1: Fix Blockers (15 minutes)
+
 - [ ] Remove `ABC` from `ChaosTestCase` in `tests/chaos/base.py`
 - [ ] Run `pytest tests/chaos/ --collect-only` to verify discovery
 - [ ] Confirm 100+ tests are collected
 
 ### Phase 2: Fix Format Strings (30 minutes)
+
 - [ ] Fix `phase1_validation.py` (5 locations)
 - [ ] Fix `cache/test_phase3_validation.py` (5 locations)
 - [ ] Fix `resources/test_phase4_validation.py` (15 locations)
 - [ ] Search for any remaining `append(".` patterns
 
 ### Phase 3: Setup Environment (15 minutes)
+
 - [ ] Verify Toxiproxy running: `curl http://localhost:8474/version`
 - [ ] Create baseline metrics file
 - [ ] Verify baseline file exists: `ls -l tests/chaos/baseline_metrics.json`
 
 ### Phase 4: Run Tests (5 minutes)
+
 - [ ] Run Phase 1 tests: `pytest tests/chaos/network/ -v`
 - [ ] Run Phase 2 tests: `pytest tests/chaos/database/ -v`
 - [ ] Run Phase 3 tests: `pytest tests/chaos/cache/ tests/chaos/auth/ -v`
@@ -215,26 +227,32 @@ $ pytest tests/chaos/network/ -v
 ## Expected Results After Fixes
 
 ### Test Discovery
+
 - **Before**: 0 tests
 - **After**: 100+ tests across 4 phases
 
 ### Phase 1 (Network Chaos)
+
 - **Expected**: 15-20 tests
 - **Target Pass Rate**: 90%+ (well-mocked network layer)
 
 ### Phase 2 (Database Chaos)
+
 - **Expected**: 20-25 tests
 - **Target Pass Rate**: 85% (depends on mock quality)
 
 ### Phase 3 (Cache & Auth Chaos)
+
 - **Expected**: 15-20 tests
 - **Target Pass Rate**: 70-75% (auth needs real JWT implementation)
 
 ### Phase 4 (Resource & Concurrency)
+
 - **Expected**: 15-20 tests
 - **Target Pass Rate**: 75-80% (resource simulation needed)
 
 ### Overall
+
 - **Total Tests**: 100+
 - **Expected Pass Rate**: 75-90%
 - **Execution Time**: ~5-10 minutes

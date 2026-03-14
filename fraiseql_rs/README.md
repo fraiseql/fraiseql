@@ -68,6 +68,7 @@ result = fraiseql_rs.transform_with_schema(input_json, "User", schema)
 ### Core Functions
 
 #### `to_camel_case(s: str) -> str`
+
 Convert a single snake_case string to camelCase.
 
 ```python
@@ -75,6 +76,7 @@ fraiseql_rs.to_camel_case("user_name")  # → "userName"
 ```
 
 #### `transform_keys(obj: dict, recursive: bool = False) -> dict`
+
 Transform dictionary keys from snake_case to camelCase.
 
 ```python
@@ -83,6 +85,7 @@ fraiseql_rs.transform_keys(data)  # → {"userId": 1, "userName": "John"}
 ```
 
 #### `transform_json(json_str: str) -> str`
+
 Transform JSON string with camelCase conversion. **Fastest option** when no type information is needed.
 
 ```python
@@ -92,6 +95,7 @@ result = fraiseql_rs.transform_json(input_json)
 ```
 
 #### `transform_json_with_typename(json_str: str, type_info: str | dict | None) -> str`
+
 Transform JSON with `__typename` injection using manual type mapping.
 
 ```python
@@ -108,6 +112,7 @@ result = fraiseql_rs.transform_json_with_typename(input_json, type_map)
 ```
 
 #### `transform_with_schema(json_str: str, root_type: str, schema: dict) -> str`
+
 Transform JSON using a GraphQL-like schema definition. **Best option for complex schemas.**
 
 ```python
@@ -154,12 +159,15 @@ for record in records:
 ### Field Types
 
 **Scalars**: Built-in GraphQL types
+
 - `"Int"`, `"String"`, `"Boolean"`, `"Float"`, `"ID"`
 
 **Objects**: Custom types
+
 - `"User"`, `"Post"`, `"Profile"`
 
 **Arrays**: Array notation with brackets
+
 - `"[Post]"` - Array of Post objects
 - `"[Comment]"` - Array of Comment objects
 
@@ -378,6 +386,7 @@ See LICENSE file for details.
 ## Contributing
 
 Contributions welcome! Please ensure:
+
 - All tests pass (`pytest tests/integration/rust/`)
 - Code is formatted (`cargo fmt`)
 - Linting passes (`cargo clippy`)

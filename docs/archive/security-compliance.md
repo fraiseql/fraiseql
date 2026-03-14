@@ -73,32 +73,38 @@ FraiseQL implements multiple layers of security controls:
 FraiseQL addresses the following NIST 800-53 security control families:
 
 #### SC-2: Application Partitioning
+
 - Separate schemas for read/write operations (CQRS)
 - Microservices architecture with service isolation
 - Database-level access control
 
 #### SC-7: Boundary Protection
+
 - Network segmentation via Kubernetes Network Policies
 - TLS 1.3 for all external communications
 - API Gateway with rate limiting and DDoS protection
 
 #### SC-8: Transmission Confidentiality
+
 - TLS 1.3 minimum for all connections
 - PostgreSQL SSL mode required
 - Certificate pinning for service-to-service communication
 
 #### SC-28: Protection of Information at Rest
+
 - PostgreSQL encryption at rest (LUKS, cloud provider encryption)
 - Encrypted persistent volumes for stateful workloads
 - Encrypted backups with key rotation
 
 #### SI-2: Flaw Remediation
+
 - Weekly automated vulnerability scanning (Trivy)
 - 30-day SLA for MEDIUM severity patches
 - 7-day SLA for HIGH/CRITICAL patches
 - Zero-day response plan documented
 
 #### SI-10: Information Input Validation
+
 - GraphQL query complexity analysis
 - Parameterized queries (SQL injection prevention)
 - Input sanitization at API boundary
@@ -146,11 +152,13 @@ The **Network and Information Security Directive 2** (NIS2) entered into force i
 FraiseQL supports **incident detection and reporting** requirements:
 
 **Timeframes**:
+
 - **Early warning** (within 24 hours): Initial notification of significant incident
 - **Incident notification** (within 72 hours): Detailed assessment
 - **Final report** (within 1 month): Root cause analysis and remediation
 
 **Implementation**:
+
 ```python
 # Built-in incident reporting
 from fraiseql.security.incident import IncidentReporter
@@ -171,6 +179,7 @@ await reporter.report_breach(
 ##### NIS2 Article 24: European Vulnerability Database
 
 FraiseQL integrates with EU vulnerability databases:
+
 - **ENISA Threat Landscape**: Regular threat intelligence updates
 - **EU CVE Database**: Automated CVE monitoring via Trivy
 - **CERT-EU advisories**: Subscribed to security bulletins
@@ -224,6 +233,7 @@ await notifier.notify_breach(
 ##### Article 35: Data Protection Impact Assessment (DPIA)
 
 FraiseQL provides **DPIA templates** for high-risk processing:
+
 - **Template**: `docs/gdpr/DPIA_TEMPLATE.md`
 - **Threshold assessment**: Automated risk scoring
 - **Controller support**: Built-in privacy controls documentation
@@ -231,6 +241,7 @@ FraiseQL provides **DPIA templates** for high-risk processing:
 #### EU Cloud Code of Conduct
 
 FraiseQL aligns with the **EU Cloud Code of Conduct** (approved by EDPB):
+
 - ✅ Transparency in data processing
 - ✅ Data localization options (EU-only regions)
 - ✅ Processor contracts (DPA templates)
@@ -244,6 +255,7 @@ FraiseQL aligns with the **EU Cloud Code of Conduct** (approved by EDPB):
 #### UK GDPR & Data Protection Act 2018
 
 **Post-Brexit compliance** maintained with UK GDPR (substantially mirrors EU GDPR):
+
 - ICO (Information Commissioner's Office) breach reporting
 - UK adequacy decisions for international transfers
 - UK FIPS 140-2 cryptographic modules
@@ -266,6 +278,7 @@ FraiseQL aligns with the **EU Cloud Code of Conduct** (approved by EDPB):
 #### Cyber Essentials Plus
 
 FraiseQL deployment templates include **Cyber Essentials Plus** controls:
+
 - ✅ Boundary firewalls (Network Policies)
 - ✅ Secure configuration (CIS Kubernetes Benchmark)
 - ✅ Access control (MFA, least privilege)
@@ -305,6 +318,7 @@ FraiseQL addresses key ISO 27001 Annex A controls:
 | **Privacy** | GDPR compliance, consent management, data subject rights |
 
 **Audit Support**:
+
 - Control mapping documentation
 - Evidence collection (audit logs, scan results)
 - Quarterly compliance reports
@@ -332,6 +346,7 @@ FraiseQL addresses key ISO 27001 Annex A controls:
 #### Canadian PIPEDA & Provincial Laws
 
 **Personal Information Protection and Electronic Documents Act**:
+
 - ✅ Consent management
 - ✅ Purpose specification
 - ✅ Limited collection
@@ -347,6 +362,7 @@ FraiseQL addresses key ISO 27001 Annex A controls:
 #### Australian IRAP & Essential Eight
 
 **Information Security Registered Assessors Program**:
+
 - Security documentation for Australian government entities
 - Essential Eight Maturity Model alignment:
   1. ✅ Application control (admission controllers)
@@ -367,6 +383,7 @@ FraiseQL addresses key ISO 27001 Annex A controls:
 **Location**: `deploy/docker/Dockerfile.distroless`
 
 **Build Instructions**:
+
 ```bash
 # Production image (minimal attack surface)
 docker build \
@@ -384,6 +401,7 @@ docker build \
 ```
 
 **Security Characteristics**:
+
 - **Base Image**: `gcr.io/distroless/python3-debian12:nonroot`
 - **No Shell**: `/bin/sh` not present (prevents reverse shells)
 - **No Package Manager**: `apt`, `dpkg` not present
@@ -398,6 +416,7 @@ docker build \
 **Use Cases**: Development, CI/CD, local testing
 
 **Security Characteristics**:
+
 - **Base Image**: `python:3.13-slim`
 - **User**: Custom `fraiseql` user (UID 1000+)
 - **Hardened**: Minimal packages, cleaned apt cache
@@ -439,6 +458,7 @@ docker build \
 | LOW | 24 | 📋 Accepted risks (documented) |
 
 **Active Monitoring**:
+
 - **CVE-2025-14104** (util-linux): Monitoring for Debian security update
 - **CVE-2025-9820** (GnuTLS): Low impact, application uses Python ssl module
 - **CVE-2025-6141** (ncurses): Not exploitable (no terminal access in production)
@@ -464,12 +484,14 @@ docker run --rm \
 ```
 
 **SBOM Contents**:
+
 - All Python packages with versions
 - System libraries and dependencies
 - Container base image components
 - Vulnerability mappings
 
 **Use Cases**:
+
 - Government procurement compliance
 - Supply chain risk assessment
 - License compliance audits
@@ -499,6 +521,7 @@ All dependencies are pinned to specific versions:
 ### Kubernetes Security Best Practices
 
 **Pod Security Policy Example**:
+
 ```yaml
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
@@ -523,6 +546,7 @@ spec:
 ```
 
 **Network Policy Example**:
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -563,17 +587,20 @@ spec:
 ### Environment Variables Security
 
 **DO NOT** store secrets in:
+
 - Docker images
 - ConfigMaps
 - Environment variables in Kubernetes manifests
 
 **DO** use:
+
 - Kubernetes Secrets (with encryption at rest)
 - HashiCorp Vault
 - AWS Secrets Manager / Azure Key Vault / GCP Secret Manager
 - External Secrets Operator
 
 **Example with External Secrets**:
+
 ```yaml
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
@@ -612,6 +639,7 @@ FraiseQL implements structured logging with the following event types:
 | System errors | ERROR | 90 days |
 
 **Log Format** (JSON):
+
 ```json
 {
   "timestamp": "2025-12-09T14:32:10.123Z",
@@ -636,6 +664,7 @@ FraiseQL includes built-in OpenTelemetry instrumentation:
 - **Logs**: Structured application logs
 
 **Export to**:
+
 - Jaeger (distributed tracing)
 - Prometheus (metrics)
 - Elasticsearch (log aggregation)
@@ -657,6 +686,7 @@ FraiseQL includes built-in OpenTelemetry instrumentation:
 ### Contact Information
 
 **Security Team**:
+
 - Email: security@fraiseql.org
 - PGP Key: [Link to public key]
 - HackerOne: [If applicable]
@@ -667,6 +697,7 @@ See [SECURITY.md](../SECURITY/) for responsible disclosure process.
 ### Post-Incident Review
 
 All P0/P1 incidents require:
+
 1. Root cause analysis (RCA) within 72 hours
 2. Corrective action plan
 3. Preventative measures implementation
@@ -689,6 +720,7 @@ All P0/P1 incidents require:
 ### Attestations Available
 
 For government procurement:
+
 - Security architecture documentation
 - Vulnerability management process
 - Incident response plan

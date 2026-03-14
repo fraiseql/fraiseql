@@ -1,0 +1,69 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=fraiseql-core"
+        ],
+        "filter": {
+          "name": "fraiseql-core",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "RUST_LOG": "debug"
+      }
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=*"
+        ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "RUST_LOG": "debug",
+        "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/fraiseql_test"
+      }
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug CLI",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=fraiseql-cli",
+          "--package=fraiseql-cli"
+        ],
+        "filter": {
+          "name": "fraiseql-cli",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "RUST_LOG": "debug"
+      }
+    }
+  ]
+}

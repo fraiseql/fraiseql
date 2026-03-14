@@ -3,6 +3,7 @@
 You are a senior software architect conducting a systematic review of the FraiseQL GraphQL framework. Analyze the codebase along 10 critical axes and provide actionable improvement recommendations.
 
 ## Context
+
 - **Project**: FraiseQL - High-performance PostgreSQL-first GraphQL framework
 - **Current Branch**: feature/type-hinting-improvements
 - **Tech Stack**: Python 3.10+, PostgreSQL, Rust pipeline, FastAPI
@@ -14,9 +15,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ## 10 Axes for Improvement Analysis
 
 ### Axis 1: Type Safety & Static Analysis 🔍
+
 **Objective**: Achieve maximum type safety and catch errors at development time
 
 **Explore:**
+
 - Are there remaining `Any` types that could be narrowed?
 - Which functions lack return type annotations?
 - Are generic types used effectively (TypeVar, Generic, Protocol)?
@@ -26,6 +29,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Are there missing @overload declarations for polymorphic functions?
 
 **Success Metrics:**
+
 - ruff type coverage percentage
 - Number of `Any` annotations
 - Type-related bug prevention rate
@@ -33,9 +37,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 2: Code Architecture & Patterns 🏗️
+
 **Objective**: Ensure maintainable, scalable architecture
 
 **Explore:**
+
 - Are SOLID principles followed consistently?
 - Could dependency injection be improved?
 - Are there circular dependencies?
@@ -46,6 +52,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Is there proper separation of concerns (core/integration/system)?
 
 **Success Metrics:**
+
 - Cyclomatic complexity scores
 - Module coupling metrics
 - Code duplication percentage
@@ -53,9 +60,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 3: Test Quality & Coverage 🧪
+
 **Objective**: Comprehensive, fast, maintainable test suite
 
 **Explore:**
+
 - What is the actual test coverage percentage?
 - Are there critical paths without tests?
 - Could integration tests be faster?
@@ -67,6 +76,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Do we need mutation testing for quality validation?
 
 **Success Metrics:**
+
 - Line/branch coverage percentage
 - Test execution time
 - Flaky test count
@@ -74,9 +84,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 4: Performance & Scalability ⚡
+
 **Objective**: Optimize for high-throughput production workloads
 
 **Explore:**
+
 - Are there N+1 query opportunities?
 - Could we improve DataLoader usage?
 - Are database queries optimized (indexes, explain plans)?
@@ -88,6 +100,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Are there opportunities for async optimization?
 
 **Success Metrics:**
+
 - Queries per second throughput
 - P95/P99 latency
 - Memory usage under load
@@ -95,9 +108,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 5: Developer Experience (DX) 👨‍💻
+
 **Objective**: Make FraiseQL delightful to use
 
 **Explore:**
+
 - Are error messages helpful and actionable?
 - Could CLI commands be more intuitive?
 - Is the quickstart truly 5 minutes?
@@ -109,6 +124,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Do we need a development mode with better debugging?
 
 **Success Metrics:**
+
 - Time to first working query
 - Error resolution time
 - Developer satisfaction surveys
@@ -116,9 +132,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 6: Documentation Quality 📚
+
 **Objective**: World-class documentation that reduces support burden
 
 **Explore:**
+
 - Are code examples tested and up-to-date?
 - Could we add more real-world examples?
 - Do we need video tutorials or interactive demos?
@@ -130,6 +148,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Are performance tuning guides sufficient?
 
 **Success Metrics:**
+
 - Documentation completeness score
 - Time to resolve issues via docs
 - Support ticket reduction
@@ -137,9 +156,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 7: Security & Compliance 🔒
+
 **Objective**: Enterprise-grade security posture
 
 **Explore:**
+
 - Are there SQL injection vulnerabilities?
 - Is authentication/authorization comprehensive?
 - Could we add rate limiting improvements?
@@ -151,6 +172,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Do we need compliance certifications (SOC2, HIPAA)?
 
 **Success Metrics:**
+
 - Security scan results (bandit, safety)
 - CVE count
 - Time to patch vulnerabilities
@@ -158,9 +180,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 8: Monitoring & Observability 📊
+
 **Objective**: Production-ready monitoring and debugging
 
 **Explore:**
+
 - Are metrics comprehensive (RED method)?
 - Could we add better tracing (OpenTelemetry)?
 - Is health check endpoint robust?
@@ -172,6 +196,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Should we implement circuit breakers?
 
 **Success Metrics:**
+
 - Mean time to detection (MTTD)
 - Mean time to resolution (MTTR)
 - Alert noise ratio
@@ -179,9 +204,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 9: Deployment & Operations 🚀
+
 **Objective**: Easy, reliable deployments
 
 **Explore:**
+
 - Are Docker images optimized?
 - Could we add Kubernetes best practices?
 - Should we provide Terraform/Helm charts?
@@ -193,6 +220,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Could we improve the CI/CD pipeline?
 
 **Success Metrics:**
+
 - Deployment time
 - Deployment failure rate
 - Rollback time
@@ -200,9 +228,11 @@ You are a senior software architect conducting a systematic review of the Fraise
 ---
 
 ### Axis 10: Ecosystem & Extensibility 🌍
+
 **Objective**: Build a thriving ecosystem
 
 **Explore:**
+
 - Is the plugin system well-designed?
 - Could we add more integrations (Redis, Kafka)?
 - Should we support GraphQL Federation?
@@ -214,6 +244,7 @@ You are a senior software architect conducting a systematic review of the Fraise
 - Do we need language bindings (TypeScript SDK)?
 
 **Success Metrics:**
+
 - Number of community plugins
 - Integration adoption rate
 - Extension API stability
@@ -254,18 +285,22 @@ For each axis, provide:
 ## How to Use This Prompt
 
 ### Option A: Full Comprehensive Analysis
+
 Run through all 10 axes systematically, providing detailed assessments and recommendations for each.
 
 ### Option B: Focused Analysis
+
 Select 2-3 axes that are most critical for the current development phase and deep-dive into those.
 
 ### Option C: Iterative Improvement Cycles
+
 1. Analyze one axis
 2. Implement top recommendations
 3. Validate with tests
 4. Move to next axis
 
 ### Option D: Priority-Based Approach
+
 1. Quick scan all 10 axes
 2. Identify P0/P1 items across all axes
 3. Create prioritized backlog

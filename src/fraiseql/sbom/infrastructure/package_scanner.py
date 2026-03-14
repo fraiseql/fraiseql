@@ -164,7 +164,7 @@ class PythonPackageScanner(PackageMetadataRepository):
         try:
             dist = importlib.metadata.distribution(name)
             summary = dist.metadata.get("Summary")
-            return summary if summary else None
+            return summary or None
         except Exception:
             return None
 

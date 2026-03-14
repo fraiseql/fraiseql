@@ -1,7 +1,7 @@
 """LEI scalar type for Legal Entity Identifier."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -87,7 +87,7 @@ class LEIField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "LEIField":
+    def __new__(cls, value: str) -> Self:
         """Create a new LEIField instance with validation."""
         value_upper = value.upper()
         if not _LEI_REGEX.match(value_upper):

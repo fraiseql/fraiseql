@@ -35,6 +35,7 @@ Complete reference for FraiseQL's Python API, decorators, and core classes.
 Define a GraphQL type mapped to a PostgreSQL view or table.
 
 **Signature:**
+
 ```python
 def type(
     sql_source: str,
@@ -44,11 +45,13 @@ def type(
 ```
 
 **Parameters:**
+
 - `sql_source`: PostgreSQL view or table name (e.g., `"v_user"`)
 - `jsonb_column`: Column containing JSONB data (default: `"data"`)
 - `description`: Optional GraphQL type description
 
 **Example:**
+
 ```python
 from uuid import UUID
 from datetime import datetime
@@ -64,6 +67,7 @@ class User:
 ```
 
 **See Also:**
+
 - [Types & Schema Guide](../core/types-and-schema.md)
 - [Quick Reference](../reference/quick-reference.md)
 
@@ -74,11 +78,13 @@ class User:
 Define a GraphQL query resolver.
 
 **Signature:**
+
 ```python
 def query(func: Callable) -> Callable
 ```
 
 **Example:**
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -94,12 +100,14 @@ async def user(info, id: UUID) -> User | None:
 ```
 
 **Info Object:**
+
 - `info.context["db"]`: Database connection
 - `info.context["user"]`: Authenticated user (if auth enabled)
 - `info.field_name`: GraphQL field name
 - `info.return_type`: Expected return type
 
 **See Also:**
+
 - [Queries Guide](../core/queries-and-mutations.md)
 - [Filtering Guide](../guides/filtering.md)
 
@@ -110,11 +118,13 @@ async def user(info, id: UUID) -> User | None:
 Define a GraphQL mutation resolver.
 
 **Signature:**
+
 ```python
 def mutation(func: Callable) -> Callable
 ```
 
 **Example:**
+
 ```python
 @fraiseql.mutation
 async def create_user(info, name: str, email: str) -> MutationResponse[User]:
@@ -130,6 +140,7 @@ async def create_user(info, name: str, email: str) -> MutationResponse[User]:
 ```
 
 **See Also:**
+
 - [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)
 - [Error Handling Patterns](../guides/error-handling-patterns.md)
 
@@ -140,6 +151,7 @@ async def create_user(info, name: str, email: str) -> MutationResponse[User]:
 Define a GraphQL input type for mutations.
 
 **Example:**
+
 ```python
 @fraiseql.input
 class CreateUserInput:
@@ -154,6 +166,7 @@ class CreateUserInput:
 ### Authorization Decorators
 
 #### `@requires_auth`
+
 Require authentication for a query/mutation.
 
 ```python
@@ -168,6 +181,7 @@ async def current_user(info) -> User:
 ```
 
 #### `@requires_role`
+
 Require specific role(s).
 
 ```python
@@ -181,6 +195,7 @@ async def all_users(info) -> list[User]:
 ```
 
 #### `@requires_permission`
+
 Require specific permission(s).
 
 ```python
@@ -194,6 +209,7 @@ async def delete_user(info, id: UUID) -> bool:
 ```
 
 **See Also:**
+
 - [Authentication Guide](../advanced/authentication.md)
 
 ---
@@ -207,6 +223,7 @@ Main interface for database operations.
 **Methods:**
 
 #### `find(source, field_name, info, **filters)`
+
 Query multiple records.
 
 ```python
@@ -221,6 +238,7 @@ users = await db.find(
 ```
 
 **Parameters:**
+
 - `source`: View/table name
 - `field_name`: GraphQL field name
 - `info`: GraphQL info object
@@ -234,6 +252,7 @@ users = await db.find(
 ---
 
 #### `find_one(source, field_name, info, **filters)`
+
 Query single record.
 
 ```python
@@ -250,6 +269,7 @@ user = await db.find_one(
 ---
 
 #### `execute_function(function_name, params)`
+
 Call PostgreSQL function.
 
 ```python
@@ -281,6 +301,7 @@ async with pool.acquire() as conn:
 ```
 
 **See Also:**
+
 - [Database API Guide](../core/database-api.md)
 
 ---
@@ -292,6 +313,7 @@ async with pool.acquire() as conn:
 Main GraphQL schema class.
 
 **Signature:**
+
 ```python
 class Schema:
     def __init__(
@@ -307,6 +329,7 @@ class Schema:
 ```
 
 **Example:**
+
 ```python
 from fraiseql import Schema
 
@@ -330,6 +353,7 @@ result = await schema.execute("""
 ```
 
 **See Also:**
+
 - [Quick Reference](../reference/quick-reference.md)
 
 ---
@@ -364,6 +388,7 @@ schema = Schema(
 ```
 
 **See Also:**
+
 - [Security Architecture](../features/security-architecture.md)
 - [Production Security](../production/security.md)
 
@@ -376,6 +401,7 @@ schema = Schema(
 All available filter operators for WHERE clauses:
 
 **String Operators:**
+
 ```python
 where={
     "name": {"eq": "Alice"},              # Equals
@@ -388,6 +414,7 @@ where={
 ```
 
 **Numeric Operators:**
+
 ```python
 where={
     "age": {"gte": 18},                    # Greater than or equal
@@ -397,6 +424,7 @@ where={
 ```
 
 **Date Operators:**
+
 ```python
 where={
     "created_at": {"gte": "2024-01-01T00:00:00Z"},
@@ -405,6 +433,7 @@ where={
 ```
 
 **Logical Operators:**
+
 ```python
 where={
     "AND": [
@@ -420,6 +449,7 @@ where={
 ```
 
 **See Also:**
+
 - [Filter Operators Reference](../advanced/filter-operators.md)
 - [Filtering Guide](../guides/filtering.md)
 
@@ -441,6 +471,7 @@ async def create_user(info, ...) -> MutationResponse[User]:
 ```
 
 **Fields:**
+
 - `status`: Status code string (e.g., "created", "validation:error")
 - `message`: Human-readable message
 - `entity`: The created/updated entity (type `T`)
@@ -467,6 +498,7 @@ class UserContext:
 ```
 
 **Methods:**
+
 - `has_role(role: str) -> bool`
 - `has_permission(permission: str) -> bool`
 
@@ -527,6 +559,7 @@ async def create_user(info, name: str) -> MutationResponse[User]:
 ```
 
 **See Also:**
+
 - [Error Handling Patterns](../guides/error-handling-patterns.md)
 
 ---

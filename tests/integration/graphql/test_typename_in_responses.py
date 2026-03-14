@@ -112,7 +112,7 @@ async def posts(info, limit: int = 10) -> list[Post]:
     return posts_list
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def setup_typename_test_data(class_db_pool, test_schema) -> None:
     """Set up real database with JSONB for typename tests following trinity pattern."""
     async with class_db_pool.connection() as conn:

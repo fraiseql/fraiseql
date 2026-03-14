@@ -12,7 +12,10 @@ from fraiseql import _get_fraiseql_rs
 @pytest.fixture
 def fraiseql_rs():
     """Get Rust module."""
-    return _get_fraiseql_rs()
+    rs = _get_fraiseql_rs()
+    if rs is None:
+        pytest.skip("Rust extension not available")
+    return rs
 
 
 def test_named_fragment_support_exists():

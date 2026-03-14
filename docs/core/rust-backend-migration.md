@@ -24,6 +24,7 @@ This guide helps existing users migrate from the legacy psycopg implementation t
 ## What Changed in v1.9
 
 ### Before v1.9: Dual Execution Paths
+
 ```
 GraphQL → Repository → [psycopg pool] → PostgreSQL → JSONB → Python Objects → GraphQL Response
                     ↓
@@ -31,6 +32,7 @@ GraphQL → Repository → [psycopg pool] → PostgreSQL → JSONB → Python Ob
 ```
 
 ### v1.9+: Exclusive Rust Pipeline
+
 ```
 GraphQL → Repository → [Rust DatabasePool] → PostgreSQL → JSONB → Rust Transform → RustResponseBytes → HTTP
 ```
@@ -53,11 +55,13 @@ GraphQL → Repository → [Rust DatabasePool] → PostgreSQL → JSONB → Rust
 The Rust backend provides significant performance improvements:
 
 #### Query Execution Speed
+
 - **2-3x faster** for large result sets (>1000 rows)
 - **Zero Python string operations** - all JSON serialization happens in Rust
 - **Direct HTTP response** - `RustResponseBytes` bypasses GraphQL serialization
 
 #### Memory Efficiency
+
 - **40-60% reduction** in memory usage for large responses
 - **No intermediate Python objects** between database and HTTP
 - **Reduced garbage collection pressure** under high load
@@ -81,16 +85,19 @@ Test Scenario: Complex GraphQL query with 5000 user records
 ### Architecture Benefits
 
 #### Type Safety
+
 - **Compile-time guarantees** prevent data corruption
 - **Memory-safe operations** eliminate null pointer exceptions
 - **Concurrent execution** without GIL limitations
 
 #### Reliability
+
 - **Zero-copy operations** eliminate serialization bugs
 - **Predictable performance** under all load conditions
 - **Automatic optimization** of query execution paths
 
 #### Developer Experience
+
 - **Single execution path** - no mode detection or branching
 - **Consistent API** - same interface across all operations
 - **Better debugging** - clear error messages and stack traces
@@ -175,6 +182,7 @@ Test Scenario: Complex GraphQL query with 5000 user records
 ### Step 1: Update Dependencies
 
 **Before (psycopg-based):**
+
 ```python
 # requirements.txt or pyproject.toml
 psycopg-pool==3.2.0
@@ -182,6 +190,7 @@ psycopg==3.1.0
 ```
 
 **After (Rust-based):**
+
 ```python
 # requirements.txt or pyproject.toml
 fraiseql>=1.9.0
@@ -191,6 +200,7 @@ fraiseql>=1.9.0
 ### Step 2: Update Connection Pool
 
 **Before:**
+
 ```python
 from psycopg_pool import AsyncConnectionPool
 
@@ -206,6 +216,7 @@ db = PsycopgRepository(pool, tenant_id="tenant-123")
 ```
 
 **After:**
+
 ```python
 from fraiseql.core.database import DatabasePool
 from fraiseql.db import FraiseQLRepository
@@ -230,6 +241,7 @@ db = FraiseQLRepository(
 ### Step 3: Migrate Query Methods
 
 **Before (Legacy API):**
+
 ```python
 @fraiseql.query
 async def users(info, where=None, limit=50, offset=0):
@@ -252,6 +264,7 @@ async def users(info, where=None, limit=50, offset=0):
 ```
 
 **After (Rust API):**
+
 ```python
 @fraiseql.query
 async def users(info, where=None, limit=50, offset=0):
@@ -271,6 +284,7 @@ async def users(info, where=None, limit=50, offset=0):
 ### Step 4: Handle Response Types
 
 **Before (Python Objects):**
+
 ```python
 # GraphQL resolver returns Python objects
 # GraphQL-core serializes to JSON → HTTP response
@@ -279,6 +293,7 @@ return results  # Python dict/list → JSON
 ```
 
 **After (RustResponseBytes):**
+
 ```python
 # GraphQL resolver returns RustResponseBytes
 # Bypasses GraphQL serialization - direct to HTTP
@@ -289,6 +304,7 @@ return result  # RustResponseBytes → HTTP (zero-copy)
 ### Step 5: Update Error Handling
 
 **Before:**
+
 ```python
 from psycopg import DatabaseError, OperationalError
 
@@ -303,6 +319,7 @@ except OperationalError as e:
 ```
 
 **After:**
+
 ```python
 # Rust pipeline errors are wrapped in standard Python exceptions
 try:
@@ -317,6 +334,7 @@ except Exception as e:  # Rust errors propagate as standard exceptions
 ### Simple List Query
 
 **Before:**
+
 ```python
 @fraiseql.query
 async def products(info, limit=20, offset=0):
@@ -337,6 +355,7 @@ async def products(info, limit=20, offset=0):
 ```
 
 **After:**
+
 ```python
 @fraiseql.query
 async def products(info, limit=20, offset=0):
@@ -354,6 +373,7 @@ async def products(info, limit=20, offset=0):
 ### Single Record Query
 
 **Before:**
+
 ```python
 @fraiseql.query
 async def user(info, id: str):
@@ -372,6 +392,7 @@ async def user(info, id: str):
 ```
 
 **After:**
+
 ```python
 @fraiseql.query
 async def user(info, id: str):
@@ -390,6 +411,7 @@ async def user(info, id: str):
 ### Complex Filtering Query
 
 **Before:**
+
 ```python
 @fraiseql.query
 async def search_orders(info, customer_id=None, status=None, date_from=None):
@@ -421,6 +443,7 @@ async def search_orders(info, customer_id=None, status=None, date_from=None):
 ```
 
 **After:**
+
 ```python
 @fraiseql.query
 async def search_orders(info, customer_id=None, status=None, date_from=None):
@@ -449,6 +472,7 @@ async def search_orders(info, customer_id=None, status=None, date_from=None):
 ### Database Configuration
 
 **Before:**
+
 ```python
 # config.py
 DATABASE_URL = "postgresql://user:pass@localhost:5432/mydb"
@@ -462,6 +486,7 @@ pool = AsyncConnectionPool(
 ```
 
 **After:**
+
 ```python
 # config.py
 DATABASE_URL = "postgresql://user:pass@localhost:5432/mydb"
@@ -483,12 +508,14 @@ pool = DatabasePool(
 ### Application Context
 
 **Before:**
+
 ```python
 # app.py
 db = PsycopgRepository(pool, tenant_id="default")
 ```
 
 **After:**
+
 ```python
 # app.py
 db = FraiseQLRepository(
@@ -506,6 +533,7 @@ db = FraiseQLRepository(
 ### Unit Test Updates
 
 **Before:**
+
 ```python
 # tests/test_repository.py
 import pytest
@@ -529,6 +557,7 @@ async def test_user_query(db):
 ```
 
 **After:**
+
 ```python
 # tests/test_repository.py
 import pytest
@@ -556,6 +585,7 @@ async def test_user_query(db):
 ### Integration Test Updates
 
 **Before:**
+
 ```python
 # tests/test_graphql.py
 def test_user_query(client):
@@ -577,6 +607,7 @@ def test_user_query(client):
 ```
 
 **After:**
+
 ```python
 # tests/test_graphql.py
 def test_user_query(client):
@@ -609,18 +640,22 @@ def test_user_query(client):
 ### Issue: "Rust extension not available"
 
 **Symptoms:**
+
 ```
 ImportError: fraiseql Rust extension is not available
 ```
 
 **Solutions:**
+
 1. **Reinstall FraiseQL:**
+
    ```bash
    pip uninstall fraiseql
    pip install --force-reinstall fraiseql
    ```
 
 2. **Check system dependencies:**
+
    ```bash
    # Ubuntu/Debian
    sudo apt-get install build-essential
@@ -639,12 +674,15 @@ ImportError: fraiseql Rust extension is not available
 ### Issue: "Connection pool exhausted"
 
 **Symptoms:**
+
 ```
 DatabaseError: Connection pool exhausted
 ```
 
 **Solutions:**
+
 1. **Increase pool size:**
+
    ```python
    pool = DatabasePool(
        database_url=DATABASE_URL,
@@ -665,12 +703,15 @@ DatabaseError: Connection pool exhausted
 ### Issue: "GraphQL type mismatch errors"
 
 **Symptoms:**
+
 ```
 GraphQLError: Expected Iterable but got RustResponseBytes
 ```
 
 **Solutions:**
+
 1. **Check GraphQL resolver return types:**
+
    ```python
    # Correct: Let Rust pipeline handle response
    @fraiseql.query
@@ -695,12 +736,15 @@ GraphQLError: Expected Iterable but got RustResponseBytes
 ### Issue: "Performance regression after migration"
 
 **Symptoms:**
+
 - Queries slower than expected
 - Memory usage increased
 - Higher CPU usage
 
 **Solutions:**
+
 1. **Verify Rust pipeline usage:**
+
    ```python
    # Check that Rust pipeline is active
    response = await client.post("/graphql", json={"query": query})
@@ -713,6 +757,7 @@ GraphQLError: Expected Iterable but got RustResponseBytes
    - Verify connection pool configuration
 
 3. **Profile performance:**
+
    ```python
    import time
    start = time.time()
@@ -724,17 +769,20 @@ GraphQLError: Expected Iterable but got RustResponseBytes
 ### Issue: "Migration tool compatibility"
 
 **Symptoms:**
+
 - Alembic migrations fail
 - Schema changes not applied
 - Database inconsistencies
 
 **Solutions:**
+
 1. **Use compatible migration tools:**
    - Continue using existing migration tools
    - Rust backend works with standard PostgreSQL schemas
    - No changes needed to migration scripts
 
 2. **Verify schema compatibility:**
+
    ```sql
    -- Check that views exist and are accessible
    SELECT table_name FROM information_schema.views
@@ -742,6 +790,7 @@ GraphQLError: Expected Iterable but got RustResponseBytes
    ```
 
 3. **Test migrations:**
+
    ```bash
    # Run migrations before switching to Rust backend
    alembic upgrade head
@@ -770,6 +819,7 @@ A: Custom methods using raw SQL will need to be adapted. The Rust backend provid
 
 **Q: When will I see performance improvements?**
 A: Performance benefits are most noticeable with:
+
 - Large result sets (>1000 rows)
 - Complex GraphQL queries with deep field selection
 - High-concurrency scenarios
@@ -808,18 +858,21 @@ A: Report issues to the FraiseQL repository. Include your before/after code, err
 After successful migration, you should see:
 
 ### Performance Improvements
+
 - ✅ Query response times 2-3x faster for large datasets
 - ✅ Memory usage reduced by 40-60%
 - ✅ CPU usage decreased under load
 - ✅ Higher throughput (requests/second)
 
 ### Operational Improvements
+
 - ✅ Consistent query performance
 - ✅ Reduced garbage collection pressure
 - ✅ Better error messages and debugging
 - ✅ Simplified deployment (fewer dependencies)
 
 ### Developer Experience
+
 - ✅ Single execution path (no mode detection)
 - ✅ Type-safe operations
 - ✅ Better IDE support and autocomplete

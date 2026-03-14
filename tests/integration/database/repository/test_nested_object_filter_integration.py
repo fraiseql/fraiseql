@@ -333,7 +333,7 @@ def _parse_rust_response(result: RustResponseBytes | list[dict] | None) -> list[
     return []
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def setup_test_data(
     class_db_pool: psycopg_pool.AsyncConnectionPool,
 ) -> AsyncGenerator[dict[str, uuid.UUID]]:

@@ -18,11 +18,13 @@ Comprehensive guide to implementing multi-tenant architectures in FraiseQL with 
 Multi-tenancy allows a single application instance to serve multiple organizations (tenants) with complete data isolation and customizable behavior per tenant.
 
 **Prerequisites**: Before implementing multi-tenancy, ensure you understand:
+
 - [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
 - [Security Basics](../production/security.md) - RLS and access control fundamentals
 - [Context Propagation](../advanced/where-input-types.md) - Dynamic filtering patterns
 
 **Key Strategies:**
+
 - Row-level security (RLS) with tenant_id filtering
 - Database per tenant
 - Schema per tenant
@@ -125,6 +127,7 @@ FraiseQL automatically sets these based on your context:
 ```
 
 **Isolation Layers:**
+
 1. **Network**: API Gateway routes by subdomain/header
 2. **Application**: Middleware sets tenant context
 3. **Database**: RLS policies enforce row-level filtering
@@ -179,12 +182,14 @@ CREATE POLICY tenant_isolation_orders ON orders
 ```
 
 **Pros:**
+
 - Simple to implement
 - Cost-effective (single database)
 - Easy cross-tenant analytics (for admins)
 - Straightforward backups
 
 **Cons:**
+
 - Shared database (noisy neighbor risk)
 - RLS overhead on queries
 - Must maintain tenant_id discipline
@@ -219,12 +224,14 @@ class TenantDatabaseManager:
 ```
 
 **Pros:**
+
 - Complete isolation
 - Per-tenant scaling
 - Easy to backup/restore individual tenants
 - No RLS overhead
 
 **Cons:**
+
 - Higher infrastructure cost
 - Connection pool per database
 - Complex cross-tenant queries
@@ -271,12 +278,14 @@ class SchemaPerTenantManager:
 ```
 
 **Pros:**
+
 - Good isolation
 - Single database connection pool
 - Per-tenant schema versioning
 - Lower cost than database-per-tenant
 
 **Cons:**
+
 - Search path management complexity
 - Schema migration overhead
 - PostgreSQL schema limits
@@ -563,6 +572,7 @@ async with pool.connection() as conn:
 ```
 
 **Characteristics:**
+
 - Cost-effective (single pool)
 - Must set session variable for each connection
 - RLS provides safety net
@@ -622,6 +632,7 @@ async def tenant_pool_middleware(request: Request, call_next):
 ```
 
 **Characteristics:**
+
 - Better isolation
 - Higher memory usage (N pools)
 - Good for large tenants with high traffic

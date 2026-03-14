@@ -26,6 +26,7 @@ query {
 ```
 
 **Execution Pattern:**
+
 1. `SELECT * FROM users` (1 query)
 2. `SELECT * FROM posts WHERE user_id = ?` (N queries, one per user)
 3. `SELECT * FROM comments WHERE post_id = ?` (M queries, one per post)
@@ -46,6 +47,7 @@ async def resolve_comments(self, post):
 ```
 
 **Problems:**
+
 - Multiple database round trips
 - Complex batching logic
 - Memory overhead for DataLoader instances
@@ -134,6 +136,7 @@ FraiseQL:
 ```
 
 **Performance Gains:**
+
 - **18x faster response times**
 - **5x less database CPU usage**
 - **Zero N+1 query overhead**
@@ -157,6 +160,7 @@ class PostType(DjangoObjectType):
 ```
 
 **Complexity:**
+
 - Custom DataLoader classes for each relationship
 - Batching logic and cache management
 - Memory overhead for loader instances
@@ -178,6 +182,7 @@ class Post(BaseModel):
 ```
 
 **Benefits:**
+
 - No resolver functions to write
 - No DataLoader configuration
 - No batching logic

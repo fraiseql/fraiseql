@@ -1,7 +1,7 @@
 """Port code scalar type for UN/LOCODE validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -85,7 +85,7 @@ class PortCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "PortCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new PortCodeField instance with validation."""
         value_upper = value.upper()
         if not _PORT_CODE_REGEX.match(value_upper):

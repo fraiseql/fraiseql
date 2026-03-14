@@ -25,6 +25,7 @@ FraiseQL supports two mutation response formats that are automatically detected 
 **Historical Note**: You may see "v2 format" in older code/tests. This refers to "Full format" and should be updated.
 
 **Not to be confused with**:
+
 - ❌ Format versioning (there is no v1, v2, v3)
 - ❌ API versioning (this is format auto-detection, not versions)
 
@@ -53,6 +54,7 @@ See `docs/archive/mutations/status-strings.md` for complete status string docume
 ### Response Building
 
 The Rust pipeline builds GraphQL responses with:
+
 - Proper `__typename` fields
 - CamelCase field transformation
 - Array handling for entity collections
@@ -62,6 +64,7 @@ The Rust pipeline builds GraphQL responses with:
 ## Testing
 
 Comprehensive test coverage includes:
+
 - Format detection edge cases
 - Status parsing and validation
 - Response building for all mutation types

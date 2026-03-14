@@ -15,7 +15,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.enterprise
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def setup_bridge_schema(class_db_pool, test_schema) -> None:
     """Set up bridge schema and tenant.tb_audit_log table for testing."""
     async with class_db_pool.connection() as conn:

@@ -5,6 +5,7 @@ Deploy FraiseQL to production with Docker, monitoring, and security best practic
 ## Overview
 
 Production deployment checklist:
+
 - Docker containerization
 - Database migrations
 - Environment configuration
@@ -320,6 +321,7 @@ CREATE INDEX idx_post_author ON tb_post(fk_author);
 ```
 
 **Migration Script**:
+
 ```bash
 #!/bin/bash
 # scripts/migrate.sh
@@ -554,6 +556,7 @@ config = FraiseQLConfig(
 ## Troubleshooting
 
 ### High Memory Usage
+
 ```bash
 # Check connection pool
 docker exec api python -c "
@@ -566,6 +569,7 @@ MAX_POOL_SIZE=10 docker-compose restart api
 ```
 
 ### Slow Queries
+
 ```bash
 # Enable query logging
 psql $DATABASE_URL -c "ALTER SYSTEM SET log_min_duration_statement = 100;"
@@ -576,6 +580,7 @@ docker-compose logs api | grep "duration:"
 ```
 
 ### Database Connection Errors
+
 ```bash
 # Check database health
 docker-compose exec db pg_isready
@@ -587,6 +592,7 @@ docker-compose exec api env | grep DATABASE_URL
 ## Production Checklist
 
 ### Before Launch
+
 - [ ] Run full test suite
 - [ ] Load test with realistic traffic
 - [ ] Set up monitoring alerts
@@ -597,6 +603,7 @@ docker-compose exec api env | grep DATABASE_URL
 - [ ] Review security settings
 
 ### After Launch
+
 - [ ] Monitor error rates
 - [ ] Check query performance
 - [ ] Verify cache hit rates

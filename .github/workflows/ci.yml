@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Ruff lint
+        run: uv run ruff check src/
+
+      - name: Ruff format
+        run: uv run ruff format src/ --check
+
+  type-check:
+    name: Type Check (ty)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: ty check
+        run: uv run ty check src/
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -q --tb=short
+
+  integration-tests:
+    name: Integration Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Rust (for fraiseql_rs extension)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system maturin
+          uv pip install --system -e ".[dev]"
+          maturin build --manifest-path fraiseql_rs/Cargo.toml --release --manylinux off
+          uv pip install --system fraiseql_rs/target/wheels/*.whl --force-reinstall
+
+      - name: Run integration tests
+        run: uv run pytest tests/integration/ -q --tb=short
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+  build-extension:
+    name: Build Rust Extension (fraiseql_rs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            fraiseql_rs/target
+          key: ${{ runner.os }}-cargo-fraiseql-rs-${{ hashFiles('fraiseql_rs/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path fraiseql_rs/Cargo.toml -- --check
+
+      - name: Clippy
+        run: cargo clippy --manifest-path fraiseql_rs/Cargo.toml --all-features -- -D warnings
+
+      # cargo test cannot run for PyO3 extension-module crates (linking issue).
+      # Rust integration is tested via pytest in the integration-tests job.
+      - name: Build (verify compilation)
+        run: cargo build --manifest-path fraiseql_rs/Cargo.toml --all-features
+
+  ci-success:
+    name: CI Success
+    needs: [lint, type-check, unit-tests, integration-tests, build-extension]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.type-check.result }}" != "success" ]] || \
+             [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.integration-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.build-extension.result }}" != "success" ]]; then
+            echo "❌ CI failed — check individual job logs above"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

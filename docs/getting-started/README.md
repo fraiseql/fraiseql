@@ -23,6 +23,7 @@ Get a working GraphQL API running immediately.
 **You'll build**: A simple note-taking API with queries and mutations
 
 **You'll learn**:
+
 - Installing FraiseQL
 - Creating database views
 - Defining GraphQL types
@@ -39,6 +40,7 @@ Progressive tutorial building on the quickstart.
 **You'll build**: Extended note-taking API with filtering, timestamps, and error handling
 
 **You'll learn**:
+
 - Adding fields and filtering
 - Where input types and operators
 - Mutation error handling patterns
@@ -53,6 +55,7 @@ Progressive tutorial building on the quickstart.
 Platform-specific installation instructions and troubleshooting.
 
 **You'll learn**:
+
 - Python environment setup
 - PostgreSQL installation by OS
 - Dependency management
@@ -67,14 +70,17 @@ Platform-specific installation instructions and troubleshooting.
 Once you've completed these guides, continue your learning journey:
 
 ### Understanding the Architecture
+
 - **[Understanding FraiseQL](../guides/understanding-fraiseql.md)** - 10-minute architecture deep dive
 - **[Core Concepts](../core/concepts-glossary.md)** - CQRS, JSONB views, Trinity identifiers
 
 ### Building Real Applications
+
 - **[Blog API Tutorial](../tutorials/blog-api.md)** - Complete application example
 - **[Beginner Learning Path](../tutorials/beginner-path.md)** - Structured skill progression
 
 ### When Things Go Wrong
+
 - **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
 - **[Troubleshooting Decision Tree](../guides/troubleshooting-decision-tree.md)** - Diagnostic flowchart
 

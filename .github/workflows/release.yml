@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # Create GitHub release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create or update Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRERELEASE=""
+          if echo "$GITHUB_REF" | grep -qE '(alpha|beta|rc)'; then
+            PRERELEASE="--prerelease"
+          fi
+          if gh release view "$GITHUB_REF_NAME" &>/dev/null; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "Release $GITHUB_REF_NAME" \
+              $PRERELEASE
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Release $GITHUB_REF_NAME" \
+              --generate-notes \
+              $PRERELEASE
+          fi
+
+  # Build and publish Python package
+  publish-python:
+    name: Publish Python Package to PyPI
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install maturin twine patchelf
+
+      - name: Build distributions with maturin
+        run: |
+          rm -rf dist/
+          mkdir -p dist/
+          maturin build --release
+          cp fraiseql_rs/target/wheels/*.whl dist/ 2>/dev/null || true
+          maturin sdist
+          cp fraiseql_rs/target/wheels/*.tar.gz dist/ 2>/dev/null || true
+          ls -lh dist/
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/* --skip-existing

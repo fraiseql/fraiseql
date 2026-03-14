@@ -243,7 +243,7 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
 
     # Additional MAC patterns that should be whole words or at start/end
     if (
-        field_lower in ["mac"]
+        field_lower == "mac"
         or field_lower.endswith(("_mac", "mac"))
         or field_lower.startswith(("mac_", "mac"))
     ):
@@ -336,7 +336,7 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
 
     # Additional Date patterns that should be whole words or at start/end
     if (
-        field_lower in ["date"]
+        field_lower == "date"
         or field_lower.endswith(("_date", "date"))
         or field_lower.startswith(("date_", "date"))
     ):
@@ -384,7 +384,7 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
 
     # Additional Email patterns
     if (
-        field_lower in ["email"]
+        field_lower == "email"
         or field_lower.endswith(("_email", "email"))
         or field_lower.startswith(("email_", "email"))
     ):
@@ -407,7 +407,7 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
 
     # Additional Port patterns
     if (
-        field_lower in ["port"]
+        field_lower == "port"
         or field_lower.endswith(("_port", "port"))
         or field_lower.startswith(("port_", "port"))
     ):
@@ -563,7 +563,7 @@ def _is_ltree_value(value: str) -> bool:
     }
 
     # If the last part is a common domain extension, probably not an LTree
-    last_part = value.split(".")[-1].lower()
+    last_part = value.rsplit(".", maxsplit=1)[-1].lower()
     if last_part in domain_extensions:
         return False
 
@@ -622,7 +622,7 @@ def _is_datetime_value(value: str) -> bool:
         return False
 
     # Additional validation: check the date part is reasonable
-    date_part = value.split("T")[0]
+    date_part = value.split("T", maxsplit=1)[0]
     try:
         year, month, day = map(int, date_part.split("-"))
         if not (1 <= month <= 12 and 1 <= day <= 31):

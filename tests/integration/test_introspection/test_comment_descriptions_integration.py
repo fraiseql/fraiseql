@@ -49,7 +49,7 @@ class TestCommentDescriptionsIntegration:
         # Note: Using class_db_pool instead of db_connection to ensure proper transaction handling
         return PostgresIntrospector(class_db_pool)
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def real_database_setup(self, class_db_pool, test_schema):
         """Set up a real PostgreSQL database with test schema and comments."""
         async with class_db_pool.connection() as conn:

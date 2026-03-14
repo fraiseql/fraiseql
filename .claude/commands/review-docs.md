@@ -11,11 +11,13 @@ Perform an independent, critical review of the FraiseQL documentation structure 
 ### 1. Structure Assessment (15 min)
 
 Examine the directory structure:
+
 ```bash
 tree -L 3 -I '__pycache__|*.pyc|node_modules' docs/ dev/ .github/docs/ archive/
 ```
 
 **Evaluate:**
+
 - Is the organization intuitive for the stated audiences?
 - Are directories named clearly?
 - Is the depth appropriate (not too nested, not too flat)?
@@ -48,6 +50,7 @@ Test these critical paths by navigating FROM the root README.md:
    - Is it step-by-step?
 
 **For each journey, report:**
+
 - Time taken
 - Number of clicks
 - Any confusion points
@@ -58,6 +61,7 @@ Test these critical paths by navigating FROM the root README.md:
 ### 3. Link Integrity Check (10 min)
 
 Pick 5-7 random documentation files and verify:
+
 - All internal links work
 - Links point to current locations (not old paths)
 - External links are valid
@@ -70,6 +74,7 @@ Pick 5-7 random documentation files and verify:
 ### 4. Content Quality Spot-Check (15 min)
 
 Read these specific files in full:
+
 - `docs/getting-started/quickstart.md`
 - `docs/guides/troubleshooting.md`
 - `dev/README.md`
@@ -77,6 +82,7 @@ Read these specific files in full:
 - Root `README.md` (just the docs section)
 
 **Evaluate:**
+
 - Is the audience clear?
 - Are examples copy-pasteable?
 - Is formatting consistent?
@@ -88,6 +94,7 @@ Read these specific files in full:
 ### 5. Maintainability Assessment (10 min)
 
 **Ask yourself:**
+
 - If I were a new contributor, where would I put a "Deployment Guide"?
 - If I were documenting a new feature, where would it go?
 - Are naming conventions obvious?
@@ -100,11 +107,13 @@ Read these specific files in full:
 Provide a structured review with:
 
 ### Overall Assessment
+
 - Overall rating (1-5 stars)
 - One-sentence summary
 - Ready to merge? (Yes/No/With changes)
 
 ### Ratings Summary
+
 - Structure & Organization: ⭐⭐⭐⭐⭐
 - Discoverability: ⭐⭐⭐⭐⭐
 - Link Quality: ⭐⭐⭐⭐⭐
@@ -112,21 +121,26 @@ Provide a structured review with:
 - Maintainability: ⭐⭐⭐⭐⭐
 
 ### Critical Issues (must fix before merge)
+
 - List specific problems that break functionality
 - Include file paths and line numbers
 
 ### Medium Priority Issues (should fix soon)
+
 - List issues that hurt usability but aren't blockers
 - Include specific examples
 
 ### Recommendations (nice to have)
+
 - Suggested improvements for the future
 - Best practices from other projects
 
 ### User Journey Results
+
 - Report timing and success for each of the 5 test journeys
 
 ### Specific Findings
+
 - Any broken links (with locations)
 - Any orphaned documents
 - Any unclear navigation points
@@ -135,26 +149,31 @@ Provide a structured review with:
 ## Important Guidelines
 
 **Be critical and honest:**
+
 - Don't be diplomatic if something is confusing
 - Point out real usability issues
 - Don't assume the implementer's intent was good enough
 
 **Be specific:**
+
 - "Navigation is confusing" ❌
 - "Clicking 'Guides' from README.md takes me to guides/ but there's no index file, so I don't know what guides exist" ✅
 
 **Focus on user impact:**
+
 - Will a new user be frustrated?
 - Will a contributor waste time searching?
 - Will docs get out of sync?
 
 **Reference standards:**
+
 - Compare to documentation from Stripe, Vercel, HashiCorp
 - What would those companies do differently?
 
 ## Success Criteria
 
 A successful consolidation should achieve:
+
 - ✅ New user finds quickstart in < 30 seconds
 - ✅ Contributor finds dev docs in < 30 seconds
 - ✅ Zero broken internal links

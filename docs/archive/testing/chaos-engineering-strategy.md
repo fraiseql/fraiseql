@@ -70,6 +70,7 @@ uv run pytest tests/integration/ \
 ```
 
 **What it validates:**
+
 - Unit tests (core functionality)
 - Integration tests (with PostgreSQL)
 - Code quality (ruff lint/format)
@@ -85,6 +86,7 @@ uv run pytest tests/integration/ \
 **File**: `.github/workflows/chaos-engineering-tests.yml`
 
 Runs chaos tests separately via:
+
 1. **Manual Trigger**: `workflow_dispatch` (on-demand)
 2. **Scheduled**: Weekly Sunday 2 AM UTC
 
@@ -96,6 +98,7 @@ on:
 ```
 
 **What it validates:**
+
 - Network chaos (latency, packet loss injection)
 - Database chaos (deadlocks, constraints, connection failures)
 - Cache chaos (invalidation, corruption, stampede prevention)
@@ -121,6 +124,7 @@ All chaos tests are marked with multiple markers for granular control:
 ```
 
 **Available markers**:
+
 - `chaos_network` - Network failure scenarios
 - `chaos_database` - Database failure scenarios
 - `chaos_cache` - Cache failure scenarios
@@ -296,6 +300,7 @@ pytest tests/chaos -m chaos_real_db -v --timeout=120
 **Status**: Blocks merges
 
 **Key steps**:
+
 1. Unit tests (no external deps)
 2. Integration tests (PostgreSQL, exclude chaos & enterprise)
 3. Lint & format checks
@@ -310,6 +315,7 @@ pytest tests/chaos -m chaos_real_db -v --timeout=120
 **Status**: Informational only
 
 **Key steps**:
+
 1. Environment setup (Python, Rust, Docker)
 2. Run 71 chaos tests with real PostgreSQL
 3. Generate test report
@@ -355,6 +361,7 @@ pytest tests/chaos -m chaos_real_db -v --timeout=120
 ### For Developers
 
 1. **Run standard tests locally before pushing**
+
    ```bash
    make test      # Runs unit + integration (excludes chaos)
    make qa        # Runs tests + lint + format

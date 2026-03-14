@@ -16,6 +16,7 @@ from .mutations.error_config import (
     MutationErrorConfig,
 )
 from .mutations.mutation_decorator import mutation
+from .mutations.validation import validate_mutation_return
 from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
@@ -77,7 +78,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.9.17"
+__version__ = "1.10.0"
 
 
 # Lazy Rust extension loading for performance optimization
@@ -173,4 +174,5 @@ __all__ = [
     "subscription",
     "success",
     # "type",  # REMOVED: Shadows builtin - use fraiseql.type or fraise_type
+    "validate_mutation_return",
 ]

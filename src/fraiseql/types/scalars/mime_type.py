@@ -1,7 +1,7 @@
 """Mime type scalar type for media type validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -87,7 +87,7 @@ class MimeTypeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "MimeTypeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new MimeTypeField instance with validation."""
         if not _MIME_TYPE_REGEX.match(value):
             raise ValueError(

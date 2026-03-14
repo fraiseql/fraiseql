@@ -52,7 +52,7 @@ class Allocation:
 class TestHybridTableNestedObjectFiltering:
     """Test that nested object filtering works correctly on hybrid tables."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_hybrid_allocation_table(self, class_db_pool, test_schema) -> dict:
         """Create a hybrid allocation table matching the issue description."""
         async with class_db_pool.connection() as conn:

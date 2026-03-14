@@ -50,12 +50,14 @@ flowchart TD
 ```
 
 **What happens:**
+
 - FastAPI receives the HTTP request
 - APQ (Automatic Persisted Queries) checks cache for known queries
 - Standard queries are parsed directly
 - All paths lead to GraphQL parsing
 
 **Files involved:**
+
 - `src/fraiseql/fastapi/routes.py` - HTTP endpoint
 - `src/fraiseql/middleware/apq.py` - APQ handling
 
@@ -79,12 +81,14 @@ flowchart TD
 ```
 
 **What happens:**
+
 - GraphQL query is parsed into an Abstract Syntax Tree (AST)
 - Validated against the generated schema
 - Complexity analysis prevents DoS attacks
 - Operation details extracted for execution
 
 **Files involved:**
+
 - `graphql-core` library - Parsing and validation
 - `src/fraiseql/gql/complexity.py` - Complexity analysis
 - `src/fraiseql/gql/schema_builder.py` - Schema definition
@@ -119,6 +123,7 @@ flowchart TD
 | **FraiseQL** | PostgreSQL → JSONB → Rust Transform → JSON | ~0.1-1ms overhead |
 
 **What happens:**
+
 - Root field resolver is called
 - SQL query is generated from GraphQL selection
 - PostgreSQL view returns data in JSONB format
@@ -126,6 +131,7 @@ flowchart TD
 - **Zero Python serialization** for optimal performance
 
 **Files involved:**
+
 - `src/fraiseql/core/rust_pipeline.py` - Rust integration
 - `fraiseql_rs/src/lib.rs` - Rust transformation code
 - `src/fraiseql/db.py` - Database query execution
@@ -157,11 +163,13 @@ flowchart TD
 ```
 
 **CQRS Pattern:**
+
 - **Queries** read from optimized views
 - **Mutations** call PostgreSQL functions
 - Clear separation of read/write concerns
 
 **What happens:**
+
 - Mutation input is validated against input types
 - PostgreSQL function is called (CQRS pattern)
 - Function returns success/error as JSONB
@@ -169,6 +177,7 @@ flowchart TD
 - Related caches are invalidated automatically
 
 **Files involved:**
+
 - `src/fraiseql/mutations/mutation_decorator.py` - Mutation decorator
 - `src/fraiseql/mutations/sql_generator.py` - SQL function calls
 - `src/fraiseql/mutations/cascade_detection.py` - Cache invalidation
@@ -196,6 +205,7 @@ flowchart TD
 ```
 
 **GraphQL Response Format:**
+
 ```json
 {
   "data": {
@@ -214,6 +224,7 @@ flowchart TD
 ```
 
 **What happens:**
+
 - Execution results are formatted as GraphQL response
 - Field selection is applied (only requested fields)
 - Nested types are resolved recursively
@@ -239,6 +250,7 @@ flowchart LR
 ```
 
 **Bottlenecks:**
+
 - ❌ ORM deserialization (10-20ms per query)
 - ❌ Python object creation (5-10ms)
 - ❌ GraphQL serialization (10-30ms)
@@ -258,6 +270,7 @@ flowchart LR
 ```
 
 **Advantages:**
+
 - ✅ JSONB from PostgreSQL (native format)
 - ✅ Rust field selection (compiled performance)
 - ✅ Zero Python serialization
@@ -287,6 +300,7 @@ flowchart TD
 ```
 
 **Monitoring files:**
+
 - `src/fraiseql/monitoring/metrics/` - Prometheus metrics
 - `src/fraiseql/tracing/opentelemetry.py` - OpenTelemetry integration
 - `src/fraiseql/analysis/query_analyzer.py` - Query analysis
@@ -322,6 +336,7 @@ flowchart TD
 4. **DataLoader Cache** - Batch/cache repeated queries
 
 **Files involved:**
+
 - `src/fraiseql/middleware/apq.py` - APQ caching
 - `src/fraiseql/cache/view_metadata.py` - Schema caching
 - `src/fraiseql/optimization/decorators.py` - DataLoader
@@ -353,6 +368,7 @@ flowchart TD
 ```
 
 **Error Response Format:**
+
 ```json
 {
   "data": null,
@@ -392,12 +408,14 @@ flowchart LR
 ```
 
 **Pool Configuration:**
+
 - Min connections: 2
 - Max connections: 10 (configurable)
 - Timeout: 30 seconds
 - Recycle: 3600 seconds (1 hour)
 
 **Files involved:**
+
 - `src/fraiseql/db.py` - Connection pool setup
 - `src/fraiseql/fastapi/config.py` - Pool configuration
 

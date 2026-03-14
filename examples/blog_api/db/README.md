@@ -12,11 +12,13 @@ This directory contains the database schema for the Blog API using a CQRS (Comma
 ## Architecture Overview
 
 ### Write Side
+
 - Tables prefixed with `tb_` store normalized data
 - SQL functions handle all write operations (INSERT, UPDATE, DELETE)
 - Functions accept JSON parameters for flexibility
 
 ### Read Side
+
 - Views prefixed with `v_` provide denormalized data
 - Each view has a `data` JSONB column containing all entity fields
 - Views automatically include `__typename` for GraphQL type resolution
@@ -24,6 +26,7 @@ This directory contains the database schema for the Blog API using a CQRS (Comma
 ## Usage
 
 1. Run migrations in order:
+
    ```bash
    psql -d blog_db -f migrations/001_initial_schema.sql
    psql -d blog_db -f migrations/002_functions.sql

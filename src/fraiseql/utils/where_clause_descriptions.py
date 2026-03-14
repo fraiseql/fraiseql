@@ -194,7 +194,7 @@ def apply_filter_descriptions(cls: type) -> None:
     class_name = cls.__name__
 
     # Apply to filter classes, where input classes, and special types
-    if not (class_name.endswith(("Filter", "WhereInput")) or class_name in ["IPRange"]):
+    if not (class_name.endswith(("Filter", "WhereInput")) or class_name == "IPRange"):
         return
 
     # Generate and set the class docstring if it's basic

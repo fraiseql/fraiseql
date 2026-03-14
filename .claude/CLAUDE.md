@@ -1,715 +1,532 @@
-# FraiseQL Development Guide
+# FraiseQL v1 Development Guide
 
-**Last Updated**: December 16, 2025
-**Framework**: Modern 2025 Python GraphQL with Rust pipeline
+## Vision
+
+**FraiseQL v1 is a Python GraphQL framework** that transforms database schema into GraphQL APIs at runtime. Using decorators, developers define types and queries, while FraiseQL automatically generates resolvers and executes queries against PostgreSQL, MySQL, SQLite, or SQL Server.
+
+## Core Architecture Principle
+
+```text
+Developer Code              FraiseQL Runtime          Database
+(Python)                   (Python + Rust)           (PostgreSQL/MySQL/etc)
+    ↓                            ↓                          ↓
+@fraiseql.type        →  GraphQL Schema         →   SQL Query Execution
+@fraiseql.query       →  Query Resolution       →   Result Set Handling
+FastAPI Integration   →  HTTP Server/GraphQL   →   Connection Pooling
+```
+
+**Key Point**: FraiseQL is a **runtime GraphQL framework**—not a compiler. Python code with decorators is executed at runtime to generate and serve GraphQL APIs.
+
+**Architecture**: Layered Python framework with optional Rust extension (`fraiseql_rs`) for performance-critical operations like mutations and field selection optimization.
 
 ---
 
-## 🎯 Quick Overview
+## Project Standards
 
-FraiseQL is a high-performance GraphQL framework with:
-- **Exclusive Rust pipeline** for JSON transformation (7-10x faster)
-- **Type-safe Python API layer** with comprehensive validation
-- **PostgreSQL integration** with native JSONB views
-- **Enterprise features**: Security, monitoring, caching, authentication
+### Technology Stack
 
----
+| Component | Technology | Why |
+|-----------|-----------|-----|
+| **Package** | Python 3.13+ | Developer ergonomics, rapid iteration |
+| **Optional Extension** | Rust (PyO3) | Performance for mutations, complex queries |
+| **Database Support** | PostgreSQL (primary), MySQL, SQLite, SQL Server | Multi-database support |
+| **Testing** | pytest + pytest-asyncio | Comprehensive async test framework |
+| **Linting** | Ruff (astral suite) | Fast, strict code quality |
 
-## 📦 Release & Version Management
+**NOT SUPPORTED**: Oracle (no driver support)
 
-### One-Command Releases
+### Code Quality
 
-FraiseQL uses an **automated 5-phase release workflow** adapted from PrintOptim:
+```toml
+# Python linting with Ruff
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",     # Errors, warnings, Pyflakes
+    "I",               # isort (import sorting)
+    "B",               # flake8-bugbear
+    "UP",              # pyupgrade
+    "SIM", "PERF",     # Code simplification and performance
+    "RUF"              # Ruff-specific rules
+]
+ignore = []            # No exemptions for v1.9.18+
 
-```bash
-# Create feature branch
-git checkout -b chore/prepare-vX.Y.Z-release
-
-# One command does everything (automated!)
-make pr-ship
-
-# Releases automatically when CI passes
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]  # Magic values OK in tests
 ```
-
-### How It Works
-
-**5 Phases** (fully automated):
-1. **Phase 0** - Sync with `origin/dev`
-2. **Phase 1** - Run full test suite (5991+ tests must pass)
-3. **Phase 2** - Bump version (8 files atomically)
-4. **Phase 3** - Create commit and git tag
-5. **Phase 4** - Push to GitHub
-6. **Phase 5** - Create PR with auto-merge enabled
-
-### Version Files Managed
-
-All updates atomic in single commit:
-- `src/fraiseql/__init__.py` - Python package version
-- `pyproject.toml` - Package metadata
-- `Cargo.toml` - Rust workspace
-- `fraiseql_rs/Cargo.toml` - Rust extension
-- `README.md` - Version references
-- `docs/strategic/version-status.md` - Documentation
-- `CHANGELOG.md` - Release notes
-
-### Make Commands
-
-**Version Management:**
-```bash
-make version-show              # Display current version
-make version-patch             # Bump patch (1.8.3 → 1.8.4)
-make version-minor             # Bump minor (1.8.3 → 1.9.0)
-make version-major             # Bump major (1.8.3 → 2.0.0)
-make version-dry-run           # Preview all version bumps
-```
-
-**PR Shipping:**
-```bash
-make pr-ship                   # Default patch release
-make pr-ship-patch             # Explicit patch
-make pr-ship-minor             # Minor version
-make pr-ship-major             # Major version (use with caution!)
-make pr-status                 # Check current PR status
-```
-
-**Release Workflows (test + ship):**
-```bash
-make release-patch             # Full patch release workflow
-make release-minor             # Full minor release workflow
-make release-major             # Full major release workflow
-```
-
-### Documentation
-
-Complete guide: **`docs/RELEASE_WORKFLOW.md`** (350+ lines)
-
-Covers:
-- Quick start
-- Workflow overview
-- Manual commands
-- Safety features
-- Troubleshooting
-- FAQ
-- Performance expectations
-- CI/CD integration
-
----
-
-## 🏗️ Architecture
-
-### Unified Rust Pipeline
-
-All queries execute through the **exclusive Rust pipeline** (`fraiseql_rs/`) for optimal performance:
-
-```
-PostgreSQL
-    ↓
-Rust Pipeline (fraiseql_rs)
-    ↓
-Python Framework (validation, type-safety)
-    ↓
-HTTP Response
-```
-
-**Key Components:**
-- **Rust Pipeline**: Exclusive JSON transformation (7-10x faster than Python)
-- **Python Framework**: Type-safe GraphQL API, validation, caching
-- **PostgreSQL**: Native JSONB views, advanced functions
-- **Enterprise**: Security, monitoring, observability
-
-### Directory Structure
-
-```
-fraiseql/
-├── src/fraiseql/              # Python framework
-│   ├── __init__.py            # Version string
-│   ├── db.py                  # Database connectivity
-│   ├── where_normalization.py # WHERE clause processing
-│   └── gql/                   # GraphQL builders
-├── fraiseql_rs/               # Rust pipeline extension
-│   ├── src/                   # Rust source
-│   └── Cargo.toml             # Rust version
-├── scripts/                   # Development utilities
-│   ├── version_manager.py     # Atomic version bumping
-│   └── pr_ship.py             # Automated release workflow
-├── docs/                      # Documentation
-│   └── RELEASE_WORKFLOW.md    # Complete release guide
-├── tests/                     # Comprehensive test suite (5991+ tests)
-└── Makefile                   # Development commands
-```
-
----
-
-## 🧪 Testing
-
-### Test Suite
-
-**Total**: 5991+ tests
-- **Unit Tests**: Core functionality
-- **Integration Tests**: End-to-end workflows
-- **Regression Tests**: Specific issue fixes
-- **WHERE Clause Tests**: 20+ tests (Issue #124 fix verification)
-
-### Running Tests
-
-```bash
-# Full test suite
-make test
-
-# Fast subset
-make test-fast
-
-# Specific test file
-make test-one TEST=tests/test_where_clause.py
-
-# With verbose output
-make test-verbose
-
-# Show test collection
-make test-collect
-```
-
-### Test Quality
-
-- ✅ 5991+ tests pass (100% success rate)
-- ✅ Zero regressions
-- ✅ Fast execution (~5 minutes)
-- ✅ Comprehensive coverage
-- ✅ Issue #124 specific regression tests
-
----
-
-## 🐛 Bug Fixes & Issue Resolution
-
-### Issue #124: WHERE Clause Filtering on Hybrid Tables
-
-**Status**: ✅ Fixed in v1.8.3
-
-**Problem**: WHERE clause filters silently ignored on hybrid tables (tables with both SQL columns and JSONB data)
-
-**Root Causes**:
-1. Type re-registration cleared `table_columns` metadata
-2. FK detection used truthiness check (failed on empty sets)
-
-**Solution** (3 files, 44 LOC):
-- `src/fraiseql/db.py` - Added metadata fallback
-- `src/fraiseql/gql/builders/registry.py` - Preserve metadata during re-registration
-- `src/fraiseql/where_normalization.py` - Fixed empty set checks
-
-**Testing**:
-- ✅ 4/4 regression tests pass
-- ✅ 20+ WHERE clause tests pass
-- ✅ 5991+ full test suite passes
-- ✅ Zero regressions
-
----
-
-## 🚀 Pre-commit with prek (Rust)
-
-FraiseQL uses **prek** - a Rust-based replacement for pre-commit that's **7-10x faster** with zero Python dependencies.
-
-### Installation
-
-```bash
-# macOS (via Homebrew)
-brew install j178/tap/prek
-
-# Linux/macOS (via Rust)
-cargo install prek
-
-# Verify installation
-prek --version
-```
-
-### Setup
-
-```bash
-# Install git hooks
-prek install
-
-# Run hooks on all files
-prek run --all
-
-# Run hooks on staged files (default)
-prek run
-```
-
-### Why prek?
-
-✅ **7-10x faster** than pre-commit (Rust vs Python)
-✅ **Single binary** - no Python dependencies
-✅ **Drop-in compatible** - same `.pre-commit-config.yaml` format
-✅ **Built-in hooks** in Rust (faster than Python equivalents)
-✅ **Monorepo support** - multiple `.pre-commit-config.yaml` files
-
-### Available Hooks
-
-FraiseQL's prek configuration includes:
-- **File checks**: trailing whitespace, file endings, YAML/JSON/TOML validation
-- **Large files**: prevents committing large binaries
-- **Merge conflicts**: detects unresolved merge conflicts
-- **Debug statements**: finds leftover print() and debugging code
-- **Linting**: ruff check with auto-fix
-- **Formatting**: ruff format for consistent code style
-- **Kubernetes validation**: yamllint for K8s manifests
-- **Custom hooks**: pre-push pytest validation
-
-### Commands
-
-```bash
-# Run all prek hooks
-prek run --all
-
-# Run specific hook
-prek run ruff
-
-# Update hook versions
-prek update
-
-# Get hook list
-prek list
-```
-
-### Integration with Development
-
-```bash
-# Format + lint code
-make format && make lint
-
-# Or use prek directly
-prek run --all
-
-# The Makefile automatically uses prek for all quality checks
-```
-
----
-
-## 📝 Code Standards
-
-### Python
-
-**Version**: Python 3.13+ (required for Rust pipeline and advanced features)
 
 ### Type Annotations
 
-FraiseQL has **different type annotation requirements** for user code vs framework code:
-
-#### User Code (Your GraphQL Types)
-
-**✅ Use Python 3.13 modern syntax:**
+Use modern Python 3.10+ union syntax:
 
 ```python
-@fraiseql.type
+def get_user(user_id: int) -> User | None:     # ✅ Good
+def get_user(user_id: int) -> Optional[User]:   # ❌ Old style
+```
+
+---
+
+## Development Workflow
+
+### Implementation Status
+
+FraiseQL v1 is production-ready with full feature support:
+
+- **Core**: GraphQL schema generation and query execution
+- **Decorators**: `@fraiseql.type`, `@fraiseql.query`, `@fraiseql.mutation`
+- **Database**: Introspection, multi-database support, connection pooling
+- **Extensions**: Optional Rust acceleration via `fraiseql_rs`
+- **Integration**: FastAPI, ASGI, customizable middleware
+
+### Workflow Pattern
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/description
+
+# 2. Implement changes
+# Follow test-driven development (RED → GREEN → REFACTOR → CLEANUP)
+
+# 3. Verify code quality
+uv run ruff check src/
+uv run ruff format src/
+uv run pytest tests/
+
+# 4. Commit with descriptive message
+git commit -m "feat(scope): Clear description of work
+
+## Changes
+
+- Change 1
+- Change 2
+
+## Verification
+✅ ruff checks pass
+✅ pytest passes
+✅ No type errors
+"
+
+# 5. Push and create PR
+git push -u origin feature/description
+```
+
+### Fast Development Cycle
+
+```bash
+# Format and check
+uv run ruff check --fix src/
+uv run ruff format src/
+
+# Run tests
+uv run pytest tests/ -xvs
+uv run pytest tests/unit/  -q  # Unit tests only (fast)
+
+# Type checking
+uv run pytest --co       # Collect tests
+uv run pytest tests/ -x  # Stop on first failure
+```
+
+---
+
+## Architecture Guidelines
+
+### 1. Decorator-Based API Definition
+
+**Type Definition:**
+
+```python
+from fraiseql import fraise_type
+
+@fraise_type
 class User:
-    """A user in the system.
-
-    Fields:
-        id: Unique identifier
-        name: User's full name
-        email: Optional email address
-        roles: List of assigned roles
-    """
-    id: ID
+    """User in the system"""
+    id: int
     name: str
-    email: str | None = None  # ✅ Modern syntax
-    roles: list[str] = []      # ✅ Modern syntax
-    metadata: dict[str, Any] = {}  # ✅ Modern syntax
+    email: str
+    created_at: str
 ```
 
-**Advantages:**
-- ✅ Clean, readable code
-- ✅ Standard Python 3.13 syntax
-- ✅ Less verbose than old-style typing
-
-#### FraiseQL Framework Code (Internal Implementation)
-
-**⚠️ Uses `typing` module for runtime introspection:**
+**Query Definition:**
 
 ```python
-from typing import Optional, List, Dict, Union
+from fraiseql import query
 
-# FraiseQL internal code uses old-style for introspection
-def convert_type(field_type: Optional[type]) -> Union[str, None]:
-    """Framework needs to introspect these at runtime."""
-    ...
+@query(sql_source="v_user")  # Maps to database view/table
+def users(limit: int = 10, offset: int = 0) -> list[User]:
+    """Get all users with pagination"""
+    pass  # Implementation provided by FraiseQL
 ```
 
-**Why the difference?**
-- FraiseQL's core inspects type hints at runtime using `get_origin()` and `get_args()`
-- `Optional[T]` and `Union[T, None]` have predictable runtime representations
-- `T | None` (new-style) uses `types.UnionType` which requires different handling
-- Framework code needs consistent, introspectable types
+**Mutation Definition:**
 
-**Important:** When contributing to FraiseQL itself, use old-style typing in framework code, but user-facing examples should use modern syntax.
+```python
+from fraiseql import mutation, result
 
-#### Quick Reference
+@mutation(sql_source="user", operation="CREATE")
+@result(User)
+def create_user(name: str, email: str) -> dict:
+    """Create a new user"""
+    pass  # FraiseQL handles DB insertion
+```
 
-| Context | Style | Example |
-|---------|-------|---------|
-| **User types** (`@fraiseql.type`) | Modern (3.13+) | `email: str \| None` |
-| **User types** (`@fraiseql.type`) | Modern (3.13+) | `roles: list[str]` |
-| **FraiseQL internals** | `typing` module | `Optional[str]` |
-| **FraiseQL internals** | `typing` module | `List[str]` |
-| **Documentation examples** | Modern (3.13+) | `str \| None` |
+### 2. Runtime Schema Generation
 
-### Tools
+FraiseQL generates GraphQL schema at startup:
 
-- **Package Manager**: `uv` (fast, modern)
-- **Linter**: `ruff` with strict mode
-- **Formatter**: `ruff format`
-- **Type Checking**: Built-in `ruff` checker
+1. **Introspection**: Read database structure (tables, columns, constraints)
+2. **Type Mapping**: Map Python types to GraphQL types
+3. **Resolver Generation**: Create resolvers for each field automatically
+4. **Query Building**: Generate efficient SQL for GraphQL queries
+5. **Execution**: Execute queries with connection pooling and caching
 
-### Quality Checks
+```python
+from fraiseql import build_fraiseql_schema
+
+schema = build_fraiseql_schema(
+    module=my_schema_module,
+    database_url="postgresql://user:pass@localhost/dbname"
+)
+```
+
+### 3. Database Abstraction
+
+FraiseQL abstracts database differences via **SQL generation**:
+
+- **PostgreSQL**: Full feature support (JSONB, custom types, array ops)
+- **MySQL**: Core features (views, joins, filtering)
+- **SQLite**: Local development and testing
+- **SQL Server**: Enterprise support (transactions, CTEs)
+
+**Pattern**: SQL generators per database, unified interface for queries.
+
+### 4. Error Handling
+
+Use `FraiseQLError` hierarchy for all errors:
+
+```python
+from fraiseql.types.errors import Error
+
+# Automatic error handling in mutations
+@result(success_type=User, error_type=Error)
+def create_user(name: str) -> dict:
+    # Errors are caught and formatted as GraphQL errors
+    pass
+```
+
+### 5. Query Optimization
+
+**Performance Features:**
+
+1. **Automatic Caching**: Query result caching with cache invalidation
+2. **Batch Loading**: N+1 prevention via `@dataloader_field`
+3. **Field Selection**: Select only requested fields from DB
+4. **Connection Pooling**: Reuse DB connections
+5. **Rust Acceleration**: Optional PyO3 extension for mutations
+
+```python
+from fraiseql import dataloader_field
+
+@dataloader_field  # Prevents N+1 queries
+def author(post: Post) -> User:
+    # Loaded in batch for multiple posts
+    pass
+```
+
+### 6. Testing Strategy
+
+**Unit Tests** (in `tests/unit/`):
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_query_execution(mock_db):
+    """Test GraphQL query without database"""
+    schema = build_fraiseql_schema(mock_db)
+    result = await schema.execute("{ users { id name } }")
+    assert result.data["users"][0]["name"] == "Alice"
+```
+
+**Integration Tests** (in `tests/integration/`):
+
+```python
+@pytest.mark.asyncio
+async def test_user_creation_full_flow(test_db_connection):
+    """Test end-to-end mutation with real database"""
+    result = await schema.execute(
+        'mutation { createUser(name: "Bob", email: "bob@example.com") { id } }'
+    )
+    assert result.data["createUser"]["id"]
+```
+
+**Fixtures** (in `tests/fixtures/`):
+
+- Database setup/teardown
+- Mock connections
+- Sample data loading
+- Chaos engineering scenarios
+
+### 7. Security Features
+
+**Built-in Security:**
+
+1. **Rate Limiting** - Protect auth endpoints from brute force
+2. **Field Authorization** - `@requires_permission` on fields
+3. **Input Validation** - Type coercion and constraint checking
+4. **Error Sanitization** - Hide internal error details
+5. **SQL Injection Prevention** - Parameterized queries always
+6. **CORS Support** - Configurable CORS headers
+7. **JWT Integration** - Auth0, custom JWT validation
+8. **Audit Logging** - Track sensitive operations
+
+All configurable via `FraiseQLConfig` or environment variables.
+
+---
+
+## Key Files & Directories
+
+```text
+fraiseql_v1/
+├── .claude/
+│   ├── CLAUDE.md              # This file (development guide)
+│   ├── ARCHITECTURE_PRINCIPLES.md  # Detailed architecture
+│   └── README.md              # Overview
+│
+├── src/fraiseql/              # Main Python package
+│   ├── decorators/            # @type, @query, @mutation
+│   ├── gql/                   # GraphQL schema building
+│   ├── mutations/             # Mutation execution
+│   ├── sql/                   # SQL generation
+│   ├── db.py                  # Database abstraction
+│   ├── types/                 # Type system and scalars
+│   └── fastapi/               # FastAPI integration
+│
+├── tests/                     # Test suite
+│   ├── unit/                  # Unit tests (no DB)
+│   ├── integration/           # Integration tests (with DB)
+│   ├── fixtures/              # Test fixtures and conftest
+│   ├── chaos/                 # Chaos engineering tests
+│   └── regression/            # Bug regression tests
+│
+├── fraiseql_rs/               # Optional Rust extension
+│   ├── src/                   # PyO3 bindings
+│   └── Cargo.toml             # Rust package config
+│
+├── examples/                  # Example applications
+│   ├── basic/                 # Simple blog app
+│   ├── fastapi/               # FastAPI integration example
+│   └── federation/            # Multi-database example
+│
+├── Makefile                   # Development commands
+├── pyproject.toml             # Python package config
+├── uv.lock                    # Locked dependencies
+└── Cargo.toml                 # Rust workspace config
+```
+
+---
+
+## Common Tasks
+
+### Add a New GraphQL Type
+
+1. Create Python dataclass with `@fraise_type` decorator
+2. Add fields with type hints
+3. FraiseQL automatically maps to database columns
+4. Use `@query` or `@mutation` to expose operations
+
+### Add a New Query
+
+1. Define resolver function with `@query` decorator
+2. Specify SQL source (table/view name)
+3. Add parameters and type hints
+4. FraiseQL generates SQL and GraphQL automatically
+
+### Add Database Support
+
+1. Implement SQL generation in `src/fraiseql/sql/`
+2. Add connection handler in `src/fraiseql/db.py`
+3. Add tests for new dialect
+4. Document in guides
+
+### Fix a Bug
+
+1. Write failing test first (TDD: RED phase)
+2. Fix the bug (GREEN phase)
+3. Refactor if needed (REFACTOR phase)
+4. Run full test suite, fix linting (CLEANUP phase)
+5. Commit with `fix(scope):` prefix
+
+---
+
+## Performance Guidelines
+
+### Development Build
 
 ```bash
-# Format code
-make format
-
-# Lint checks
-make lint
-
-# Run all checks
-make check
-
-# Full QA pipeline
-make qa
+# Fast iteration (no optimization)
+uv run pytest tests/unit/ -q
+uv sync
 ```
 
-### Git Conventions
-
-**Commit Messages**:
-- `fix: WHERE clause filtering (Issue #124)` - Bug fix
-- `chore(release): bump version to v1.8.3` - Release
-- `feat: add new feature` - New feature
-- `refactor: improve performance` - Code improvement
-
-**Branch Naming**:
-- Feature: `feature/description`
-- Bugfix: `fix/issue-number`
-- Release: `chore/prepare-vX.Y.Z-release`
-
----
-
-## 🚀 Development Workflow
-
-### For Feature Development
-
-1. **Create feature branch**:
-   ```bash
-   git checkout -b feature/your-feature
-   ```
-
-2. **Make changes** with tests
-
-3. **Run quality checks**:
-   ```bash
-   make qa    # Tests + linting + formatting
-   ```
-
-4. **Commit with descriptive message**:
-   ```bash
-   git add .
-   git commit -m "feat: description of feature"
-   ```
-
-5. **Push and create PR**:
-   ```bash
-   git push -u origin feature/your-feature
-   gh pr create --base dev
-   ```
-
-### For Bug Fixes
-
-Same as features, but:
-- Branch name: `fix/issue-number`
-- Commit message: `fix: description (Issue #XXX)`
-- Include regression tests
-
-### For Releases
-
-**One command release** (fully automated):
-```bash
-git checkout -b chore/prepare-vX.Y.Z-release
-make pr-ship    # Everything automated!
-```
-
----
-
-## 🔒 Safety Features
-
-### Protected Branches
-
-✅ **Cannot ship from**: `dev`, `main`, `staging`, `production`
-
-Forces use of feature branches.
-
-### Quality Gates
-
-✅ **Full test suite (5991+)** runs before version bump
-
-Release stops if tests fail.
-
-### Atomic Operations
-
-✅ All version files updated together
-✅ Single commit contains all changes
-✅ Easy rollback: `git revert <commit>`
-
-### Git Tags
-
-✅ Automatic tag creation
-✅ Tags pushed for traceability
-✅ Enables PyPI releases
-
-### Auto-Merge
-
-✅ Requires CI checks to pass
-✅ Prevents premature merge
-✅ Squash merge (single clean commit)
-
----
-
-## 📚 Project-Specific Documentation
-
-### Release Workflow
-See: **`docs/RELEASE_WORKFLOW.md`** (350+ lines)
-
-Comprehensive guide covering:
-- Quick start
-- Complete 5-phase workflow
-- Manual commands
-- Safety features
-- Troubleshooting
-- FAQ
-
-### Version Status
-See: **`docs/strategic/version-status.md`**
-
-Current stable version and roadmap.
-
-### Getting Started
-See: **`docs/getting-started/`**
-
-Installation, quickstart, and tutorials.
-
----
-
-## 🔧 Common Tasks
-
-### Update Code
+### Testing Performance
 
 ```bash
-# Edit files, run tests
-make test
+# Use pytest parallelization
+uv run pytest tests/ -n auto
 
-# Format code
-make format
-
-# Lint checks
-make lint
-
-# Commit
-git add .
-git commit -m "fix: description"
+# Run only unit tests (no DB required)
+uv run pytest tests/unit/ -q
 ```
 
-### Check Versions
+### Release Build
 
 ```bash
-# Show current version
-make version-show
+# Build optimized package
+uv run maturin build --release
 
-# Preview version bump
-make version-dry-run
+# Wheels include native Rust extension
+dist/fraiseql-1.9.18-*.whl
 ```
 
-### Create Release
+---
+
+## Documentation Standards
+
+### Code Documentation
+
+```python
+def get_user(user_id: int) -> User | None:
+    """Get a single user by ID.
+
+    Fetches the user from the database using their primary key.
+    Returns None if the user doesn't exist.
+
+    Args:
+        user_id: The unique user identifier
+
+    Returns:
+        The User object, or None if not found
+
+    Raises:
+        DatabaseError: If database connection fails
+    """
+```
+
+### Commit Messages
+
+```text
+feat(types): Add enum argument coercion support
+
+## Changes
+
+- Add enum type coercion for GraphQL arguments
+- Support Python enum to GraphQL enum conversion
+- Add comprehensive tests for enum coercion
+
+## Verification
+✅ ruff checks pass (no warnings)
+✅ All 2,566 tests pass
+✅ No performance regressions
+```
+
+**Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+---
+
+## Troubleshooting
+
+### Import Errors
 
 ```bash
-# Create feature branch
-git checkout -b chore/prepare-vX.Y.Z-release
-
-# One command (fully automated!)
-make pr-ship
-
-# Or specify version type:
-make pr-ship-minor    # 1.8.3 → 1.9.0
-make pr-ship-major    # 1.8.3 → 2.0.0
+# Reinstall package in development mode
+uv sync
+uv pip install -e .
 ```
 
-### Check PR Status
+### Test Failures
 
 ```bash
-# Current branch's PR
-make pr-status
+# Run single test with output
+uv run pytest tests/unit/test_file.py::test_name -xvs
 
-# Detailed PR info
-gh pr view
+# Run with detailed traceback
+uv run pytest tests/ --tb=long
+
+# Run with logging
+uv run pytest tests/ -o log_cli=true
 ```
 
----
-
-## 📊 Performance
-
-### Test Suite
-- **Total Tests**: 5991+
-- **Execution Time**: ~5 minutes
-- **Success Rate**: 100%
-- **Regressions**: 0
-
-### Release Workflow
-- **Total Time**: ~5 minutes 13 seconds
-  - Phase 0 (Sync): ~5 sec
-  - Phase 1 (Tests): ~5 min
-  - Phases 2-5: ~8 sec
-
-### Development Speed
-- **Build**: < 2 seconds
-- **Format**: < 10 seconds
-- **Lint**: < 10 seconds
-- **Type Check**: < 5 seconds
-
----
-
-## 🎯 Key Files
-
-| File | Purpose | Last Updated |
-|------|---------|--------------|
-| `scripts/version_manager.py` | Atomic version bumping | 2025-12-16 |
-| `scripts/pr_ship.py` | 5-phase release workflow | 2025-12-16 |
-| `Makefile` | Development commands | 2025-12-16 |
-| `docs/RELEASE_WORKFLOW.md` | Complete release guide | 2025-12-16 |
-| `src/fraiseql/__init__.py` | Package version | 2025-12-16 |
-| `pyproject.toml` | Python metadata | 2025-12-16 |
-| `Cargo.toml` | Rust workspace | 2025-12-16 |
-
----
-
-## 🚨 Troubleshooting
-
-### Tests Failing
+### Database Connection Issues
 
 ```bash
-# Run tests with verbose output
-make test-verbose
+# Check connection string
+echo $DATABASE_URL
 
-# Run specific test file
-make test-one TEST=tests/test_file.py
+# Test connection
+python -c "import psycopg2; psycopg2.connect(os.getenv('DATABASE_URL'))"
 
-# Run test suite and see failures
-make test-fast
+# View connection logs
+uv run pytest tests/ -o log_cli_level=DEBUG
 ```
 
-### Cannot Ship from Branch
+---
 
-```
-❌ Cannot ship from protected branch: dev
-💡 Create a feature branch first:
-   git checkout -b chore/prepare-vX.Y.Z-release
-```
+## Release Process
 
-### Merge Conflicts During Release
+### Pre-Release Checks
 
 ```bash
-# Resolve conflicts manually
-git merge origin/dev
+# Verify version consistency
+grep '__version__' src/fraiseql/__init__.py
+grep '^version' pyproject.toml
 
-# Then retry shipping
-make pr-ship
+# Run full checks
+make release-check
+
+# Build distribution
+make release-build
 ```
 
-### Version Bump Preview
+### Publish to PyPI
 
 ```bash
-# See what would change (no changes made)
-make version-dry-run
+# Automated release (recommended)
+make release
+
+# Or step-by-step
+make release-build     # Build wheel + sdist
+make release-publish   # Upload to PyPI
 ```
 
 ---
 
-## 📞 Getting Help
+## Next Steps
 
-### Documentation
-- **Release Guide**: `docs/RELEASE_WORKFLOW.md`
-- **Version Status**: `docs/strategic/version-status.md`
-- **Installation**: `docs/getting-started/installation.md`
+For detailed architecture documentation, see:
 
-### Commands
+- `.claude/ARCHITECTURE_PRINCIPLES.md` - Comprehensive architectural decisions
+- `docs/` - Full documentation suite
+- `examples/` - Working example applications
+- `tests/` - Test patterns and best practices
+
+---
+
+## Quick Reference
+
 ```bash
-# Show all available commands
-make help
+# Formatting and linting
+uv run ruff check --fix src/       # Auto-fix issues
+uv run ruff format src/            # Format code
 
-# Show command groups
-make help | grep -A 5 "VERSION MANAGEMENT"
-```
+# Testing
+uv run pytest tests/unit/ -q       # Unit tests (fast)
+uv run pytest tests/ -x            # All tests, stop on first failure
+uv run pytest --cov=fraiseql       # Coverage report
 
-### GitHub Issues
-Create issues for bugs or feature requests on GitHub.
-
----
-
-## 🔄 Workflow Summary
-
-```
-Feature Branch Created
-         ↓
-make test       (Verify changes)
-         ↓
-make format     (Format code)
-         ↓
-make lint       (Check code)
-         ↓
-git add . && git commit -m "feat: ..."
-         ↓
-git push -u origin feature/...
-         ↓
-gh pr create --base dev
-         ↓
-Code Review & CI Checks
-         ↓
-Merge to dev
-```
-
-**For Releases:**
-```
-git checkout -b chore/prepare-vX.Y.Z-release
-         ↓
-make pr-ship    (Fully Automated!)
-         ↓
-Auto-merge when CI passes
-         ↓
-Version released!
+# Development
+uv sync                            # Install dependencies
+uv pip install -e .               # Install in editable mode
 ```
 
 ---
 
-## 📋 Checklist for New Contributors
-
-- [ ] Read `docs/RELEASE_WORKFLOW.md`
-- [ ] Understand the 5-phase release workflow
-- [ ] Know how to run `make test`
-- [ ] Know how to run `make pr-ship`
-- [ ] Understand the 8 version files
-- [ ] Review this CLAUDE.md file
-- [ ] Set up pre-commit hooks: `pre-commit install`
-
----
-
-## 🎉 Summary
-
-FraiseQL uses a **modern, production-ready development workflow** with:
-
-✅ **Automated releases** (one command: `make pr-ship`)
-✅ **Comprehensive testing** (5991+ tests)
-✅ **Atomic version management** (8 files)
-✅ **GitHub native integration** (auto-merge)
-✅ **Safety features** (protected branches, quality gates)
-✅ **Excellent documentation** (350+ lines)
-
-**Ready to contribute!** Just run `make help` to see all commands.
-
----
-
-*Last Updated: December 16, 2025*
-*Framework: FraiseQL v1.8.3*
-*Release System: Modern 2025 GitHub-native auto-merge*
+**Remember**: FraiseQL v1 is a runtime framework. Schemas are defined with Python decorators and executed dynamically against databases at runtime.

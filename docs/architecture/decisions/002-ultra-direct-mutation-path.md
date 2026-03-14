@@ -19,12 +19,14 @@ PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → C
 **Why not mutations too?**
 
 **Previous mutation path (deprecated):**
+
 ```
 PostgreSQL JSONB → Python dict → parse_mutation_result() →
 Success/Error dataclass → GraphQL serializer → JSON → Client
 ```
 
 **Current ultra-direct mutation path (implemented):**
+
 ```
 PostgreSQL JSONB → Rust Pipeline → GraphQL JSON Response → Client
 ```
@@ -52,6 +54,7 @@ return mutation_result  # Dict with GraphQL structure
 ```
 
 **Problems:**
+
 - ❌ JSONB → Python dict parsing
 - ❌ dict → dataclass parsing (complex recursion)
 - ❌ dataclass → JSON serialization
@@ -77,6 +80,7 @@ return result_json  # FastAPI returns directly, no serialization!
 ```
 
 **Benefits:**
+
 - ✅ NO Python dict parsing
 - ✅ NO dataclass instantiation
 - ✅ NO GraphQL serialization
@@ -205,6 +209,7 @@ async def execute_function_raw_json(
 ```
 
 **Key Points:**
+
 - ✅ Uses `::text` cast to get JSON string (no Python parsing)
 - ✅ Calls Rust transformer (same as queries)
 - ✅ Returns `RawJSONResult` (FastAPI recognizes this)
@@ -300,6 +305,7 @@ def create_resolver(self) -> Callable:
 ```
 
 **Key Changes:**
+
 1. ✅ Try `execute_function_raw_json()` first (ultra-direct)
 2. ✅ Fallback to standard path if unavailable
 3. ✅ Returns `RawJSONResult` (FastAPI handles it)
@@ -552,6 +558,7 @@ For complex mutations with large responses: **10-80x faster** (same as query ben
 ### **Phase 3: Database Functions (Optional Cleanup)**
 
 - [ ] Simplify mutation helper function (optional)
+
   ```sql
   -- Old: Complex CDC-style
   CREATE OR REPLACE FUNCTION app.log_and_return_mutation(...)
@@ -723,6 +730,7 @@ class DeleteCustomer:
 ```
 
 **FraiseQL automatically:**
+
 1. ✅ Detects `execute_function_raw_json` availability
 2. ✅ Uses ultra-direct path if available
 3. ✅ Falls back to standard path if not
@@ -730,6 +738,7 @@ class DeleteCustomer:
 5. ✅ Returns GraphQL-compliant response
 
 **Benefits:**
+
 - ✅ Automatic performance optimization
 - ✅ Backward compatible
 - ✅ No breaking changes
@@ -750,24 +759,28 @@ class DeleteCustomer:
 ## 🚀 Rollout Plan
 
 ### **Week 1: Core Implementation**
+
 - [ ] Implement `execute_function_raw_json()`
 - [ ] Update `mutation_decorator.py`
 - [ ] Add unit tests
 - [ ] Verify Rust transformer works
 
 ### **Week 2: Integration Testing**
+
 - [ ] End-to-end tests
 - [ ] Performance benchmarks
 - [ ] Test with all example mutations
 - [ ] Verify cache compatibility
 
 ### **Week 3: Documentation**
+
 - [ ] Update mutation docs
 - [ ] Add performance guide
 - [ ] Create migration notes (none needed!)
 - [ ] Add troubleshooting
 
 ### **Week 4: Production Release**
+
 - [ ] Beta testing with community
 - [ ] Performance monitoring
 - [ ] Bug fixes
@@ -780,16 +793,19 @@ class DeleteCustomer:
 ### **Why This Is Better Than The Original Plan**
 
 **Original Plan:**
+
 ```
 PostgreSQL → Python → Rust → Python → GraphQL → JSON
 ```
 
 **Ultra-Direct Plan:**
+
 ```
 PostgreSQL → Rust → JSON
 ```
 
 **Differences:**
+
 1. ✅ **No Python parsing** - Original plan still parsed to dict
 2. ✅ **No dataclass instantiation** - Original plan created typed objects
 3. ✅ **No GraphQL serialization** - Original plan serialized back to JSON
@@ -808,6 +824,7 @@ PostgreSQL → Rust → JSON
 > "Do we need Python dataclasses for mutations?"
 
 **Answer:** No! GraphQL clients just need:
+
 - ✅ Valid JSON
 - ✅ `__typename` for cache normalization
 - ✅ Correct field names (camelCase)

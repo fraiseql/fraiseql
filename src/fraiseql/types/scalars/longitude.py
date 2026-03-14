@@ -1,7 +1,7 @@
 """Longitude scalar type for geographic coordinate validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -85,7 +85,7 @@ class LongitudeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "LongitudeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new LongitudeField instance with validation."""
         if not _LONGITUDE_REGEX.match(value):
             raise ValueError(

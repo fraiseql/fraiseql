@@ -113,7 +113,7 @@ async def get_post(info: GraphQLResolveInfo, id: str) -> Optional[Post]:
     return None  # Not needed for cascade tests
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def cascade_db_schema(
     class_db_pool, test_schema, clear_registry_class
 ) -> AsyncGenerator[None]:

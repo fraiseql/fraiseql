@@ -37,6 +37,7 @@ fn test_build_error_response_validation() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -47,14 +48,8 @@ fn test_build_error_response_validation() {
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
     // Should be error type
-    assert_eq!(
-        response["data"]["createUser"]["__typename"],
-        "CreateUserError"
-    );
-    assert_eq!(
-        response["data"]["createUser"]["message"],
-        "Invalid email format"
-    );
+    assert_eq!(response["data"]["createUser"]["__typename"], "CreateUserError");
+    assert_eq!(response["data"]["createUser"]["message"], "Invalid email format");
 }
 
 #[test]
@@ -81,6 +76,7 @@ fn test_build_error_response_conflict() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -89,14 +85,13 @@ fn test_build_error_response_conflict() {
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
     // Should be error type with conflict status
-    assert_eq!(
-        response["data"]["createUser"]["__typename"],
-        "CreateUserError"
+    assert_eq!(response["data"]["createUser"]["__typename"], "CreateUserError");
+    assert!(
+        response["data"]["createUser"]["status"]
+            .as_str()
+            .unwrap()
+            .starts_with("conflict:")
     );
-    assert!(response["data"]["createUser"]["status"]
-        .as_str()
-        .unwrap()
-        .starts_with("conflict:"));
 }
 
 #[test]
@@ -123,6 +118,7 @@ fn test_build_noop_response() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -131,10 +127,7 @@ fn test_build_noop_response() {
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
     // v1.8.0: Noop now returns ERROR type with code 422
-    assert_eq!(
-        response["data"]["createUser"]["__typename"],
-        "CreateUserError"
-    );
+    assert_eq!(response["data"]["createUser"]["__typename"], "CreateUserError");
     assert_eq!(response["data"]["createUser"]["code"], 422);
     assert_eq!(response["data"]["createUser"]["status"], "noop:duplicate");
     assert_eq!(response["data"]["createUser"]["message"], "Already exists");
@@ -164,6 +157,7 @@ fn test_build_success_response() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -172,10 +166,7 @@ fn test_build_success_response() {
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
     // Should be success type
-    assert_eq!(
-        response["data"]["createUser"]["__typename"],
-        "CreateUserSuccess"
-    );
+    assert_eq!(response["data"]["createUser"]["__typename"], "CreateUserSuccess");
     assert!(response["data"]["createUser"]["user"].is_object());
     assert_eq!(response["data"]["createUser"]["user"]["id"], "456");
 }
@@ -204,6 +195,7 @@ fn test_unauthorized_error() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -211,10 +203,7 @@ fn test_unauthorized_error() {
     let response_str = String::from_utf8(response_bytes).unwrap();
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
-    assert_eq!(
-        response["data"]["updateProfile"]["__typename"],
-        "UpdateProfileError"
-    );
+    assert_eq!(response["data"]["updateProfile"]["__typename"], "UpdateProfileError");
 }
 
 #[test]
@@ -241,6 +230,7 @@ fn test_timeout_error() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -248,14 +238,13 @@ fn test_timeout_error() {
     let response_str = String::from_utf8(response_bytes).unwrap();
     let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
-    assert_eq!(
-        response["data"]["processLargeDataset"]["__typename"],
-        "ProcessError"
+    assert_eq!(response["data"]["processLargeDataset"]["__typename"], "ProcessError");
+    assert!(
+        response["data"]["processLargeDataset"]["status"]
+            .as_str()
+            .unwrap()
+            .starts_with("timeout:")
     );
-    assert!(response["data"]["processLargeDataset"]["status"]
-        .as_str()
-        .unwrap()
-        .starts_with("timeout:"));
 }
 
 // ============================================================================
@@ -265,14 +254,14 @@ fn test_timeout_error() {
 #[test]
 fn test_generate_errors_array_auto_generation() {
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Email format invalid".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Email format invalid".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -295,14 +284,14 @@ fn test_generate_errors_array_explicit_errors() {
     ]);
 
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Multiple validation errors".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: Some(json!({"errors": explicit_errors})),
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Multiple validation errors".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         Some(json!({"errors": explicit_errors})),
         is_simple_format: false,
     };
 
@@ -400,6 +389,7 @@ fn test_error_response_includes_errors_array() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -447,6 +437,7 @@ fn test_error_response_with_explicit_errors() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     )

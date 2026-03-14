@@ -7,7 +7,7 @@ events, configurable outputs, and integration with monitoring systems.
 import json
 import logging
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 logger = logging.getLogger("fraiseql.security")
 
 
-class SecurityEventType(str, Enum):
+class SecurityEventType(StrEnum):
     """Types of security events."""
 
     # Authentication events
@@ -58,7 +58,7 @@ class SecurityEventType(str, Enum):
     SYSTEM_VULNERABILITY_SCAN = "system.vulnerability_scan"
 
 
-class SecurityEventSeverity(str, Enum):
+class SecurityEventSeverity(StrEnum):
     """Severity levels for security events."""
 
     INFO = "info"

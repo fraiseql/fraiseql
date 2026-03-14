@@ -7,6 +7,7 @@ FraiseQL supports advanced nested object filtering in dict-based where clauses u
 Dict-based nested filtering allows you to filter records based on properties of related objects stored in JSONB. Unlike GraphQL where inputs, dict-based filters are used programmatically in resolvers and repository methods.
 
 **Key Features:**
+
 - ✅ Filter on nested JSONB object properties
 - ✅ Automatic camelCase → snake_case conversion
 - ✅ Multiple nested fields per filter
@@ -31,6 +32,7 @@ results = await repo.find("assignments", where=where_dict)
 ```
 
 **Generated SQL:**
+
 ```sql
 SELECT * FROM assignments
 WHERE data->'device'->>'is_active' = 'true'
@@ -52,6 +54,7 @@ results = await repo.find("assignments", where=where_dict)
 ```
 
 **Generated SQL:**
+
 ```sql
 SELECT * FROM assignments
 WHERE data->'device'->>'is_active' = 'true'
@@ -74,6 +77,7 @@ results = await repo.find("assignments", where=where_dict)
 ```
 
 **Generated SQL:**
+
 ```sql
 SELECT * FROM assignments
 WHERE data->>'status' = 'active'

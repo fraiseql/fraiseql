@@ -20,6 +20,7 @@ FraiseQL is designed from the ground up for AI and LLM integration. Unlike tradi
 **AI models are trained on SQL and Python code.** FraiseQL leverages this by keeping your business logic in these familiar languages instead of proprietary ORM DSLs.
 
 **❌ Traditional ORM Approach:**
+
 ```python
 # Complex ORM syntax AI models struggle with
 users = session.query(User).join(Order).filter(
@@ -30,6 +31,7 @@ users = session.query(User).join(Order).filter(
 ```
 
 **✅ FraiseQL Approach:**
+
 ```sql
 -- SQL that AI models understand perfectly
 SELECT * FROM user_with_recent_orders
@@ -151,12 +153,14 @@ class ProcessOrder:
 ```
 
 **AI models can:**
+
 - Read and understand the complete business logic flow
 - Modify validation rules without breaking encapsulation
 - Add new features by extending the resolver method
 - Debug issues by tracing through the Python logic
 
 **AI models can:**
+
 - Read and understand the complete business logic flow
 - Modify validation rules without breaking encapsulation
 - Add new features by extending the resolver method
@@ -758,6 +762,7 @@ def simplify_query(query_text: str) -> str:
 **FraiseQL automatically extracts Python docstrings into GraphQL schema descriptions**, making your API self-documenting for LLM consumption.
 
 **How It Works:**
+
 - Type docstrings become GraphQL type descriptions
 - `Fields:` section in docstring defines field descriptions
 - Query/mutation docstrings become operation descriptions

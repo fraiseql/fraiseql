@@ -1,7 +1,7 @@
 """Flight number scalar type for IATA flight number validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -92,7 +92,7 @@ class FlightNumberField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "FlightNumberField":
+    def __new__(cls, value: str) -> Self:
         """Create a new FlightNumberField instance with validation."""
         value_upper = value.upper()
 

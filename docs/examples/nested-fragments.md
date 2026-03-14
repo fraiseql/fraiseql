@@ -23,6 +23,7 @@ query GetPostsWithAuthors {
 ```
 
 **Expected Result:**
+
 ```json
 {
   "data": {
@@ -95,6 +96,7 @@ query GetPostsWithProfiles {
 ```
 
 **Expected Result:**
+
 ```json
 {
   "data": {

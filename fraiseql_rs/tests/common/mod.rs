@@ -6,13 +6,15 @@
 /// - Custom assertions
 /// - Connection helpers
 
+pub mod assertions;
 pub mod database;
 pub mod fixtures;
-pub mod assertions;
 
-pub use database::TestDatabase;
-pub use fixtures::*;
+#[allow(unused_imports)]
 pub use assertions::*;
-
-// Re-export commonly used test items
+#[allow(unused_imports)]
+pub use database::TestDatabase;
+#[allow(unused_imports)]
+pub use fixtures::*;
+#[allow(unused_imports)]
 pub use tokio::test;

@@ -3,6 +3,8 @@
 These tests verify the Rust JWT validation, JWKS caching, and auth providers.
 """
 
+import time
+
 import pytest
 
 # Phase 10 bindings are now exported - tests can run
@@ -155,57 +157,130 @@ class TestCustomJWTProvider:
 class TestJWKSCaching:
     """Test JWKS caching functionality."""
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires a live JWKS endpoint or HTTP mock server. "
+            "The Rust extension caches JWKS internally; verifying cache hits "
+            "needs a request-counting test server (e.g. pytest-localserver)."
+        )
+    )
     def test_jwks_cache_hit(self):
         """Test JWKS cache hit reduces fetch calls."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires time-travel or a controllable clock in the Rust extension "
+            "to advance past the 1-hour JWKS TTL without waiting."
+        )
+    )
     def test_jwks_cache_ttl(self):
         """Test JWKS cache respects 1-hour TTL."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires filling the Rust LRU cache with more entries than its capacity, "
+            "which needs a live JWKS endpoint per unique issuer."
+        )
+    )
     def test_jwks_cache_lru_eviction(self):
         """Test JWKS cache evicts old entries when full."""
-        pass  # TODO: Requires real JWT token or mock
 
 
 class TestUserContextCaching:
     """Test user context caching functionality."""
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires a valid signed JWT and a live JWKS endpoint so the first "
+            "validation populates the user-context cache for the second call."
+        )
+    )
     def test_user_context_cache_hit(self):
         """Test user context cache hit avoids token validation."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires time-travel past the user-context cache TTL, "
+            "which needs a controllable clock inside the Rust extension."
+        )
+    )
     def test_user_context_cache_ttl(self):
         """Test user context cache respects TTL."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires a JWT whose 'exp' claim is in the past and a live JWKS endpoint "
+            "that signed it so the cache can be populated first, then re-queried."
+        )
+    )
     def test_user_context_cache_token_expiration(self):
         """Test user context cache checks token expiration."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires filling the user-context LRU cache to capacity, "
+            "which needs many unique valid JWTs from a live JWKS endpoint."
+        )
+    )
     def test_user_context_cache_lru_eviction(self):
         """Test user context cache evicts old entries when full."""
-        pass  # TODO: Requires real JWT token or mock
 
 
 class TestPerformance:
     """Test authentication performance targets."""
 
+    def test_provider_creation_is_fast(self):
+        """Provider creation (no network I/O) should complete in under 10ms."""
+        start = time.perf_counter()
+        provider = PyAuthProvider.auth0("example.auth0.com", ["https://api.example.com"])
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        assert provider is not None
+        assert elapsed_ms < 10, f"Provider creation took {elapsed_ms:.2f}ms, expected <10ms"
+
+    def test_multiple_provider_creations_are_fast(self):
+        """Creating 10 providers should stay under 100ms total."""
+        start = time.perf_counter()
+        for i in range(10):
+            PyAuthProvider.auth0(f"tenant{i}.auth0.com", [f"https://api{i}.example.com"])
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        assert elapsed_ms < 100, f"10 provider creations took {elapsed_ms:.2f}ms, expected <100ms"
+
+    @pytest.mark.skip(
+        reason=(
+            "Requires a valid signed JWT and live JWKS endpoint to measure real "
+            "validation latency. Without a cache-warm first call this cannot "
+            "distinguish cached from uncached timing."
+        )
+    )
     def test_jwt_validation_cached_performance(self):
         """Test cached JWT validation is <1ms."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires a valid signed JWT and live JWKS endpoint for a cold-cache "
+            "validation call against a real JWKS server."
+        )
+    )
     def test_jwt_validation_uncached_performance(self):
         """Test uncached JWT validation is <10ms."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires a live JWKS endpoint; cached fetch latency can only be "
+            "measured after a successful first fetch warms the cache."
+        )
+    )
     def test_jwks_fetch_cached_performance(self):
         """Test cached JWKS fetch is <50ms."""
-        pass  # TODO: Requires real JWT token or mock
 
+    @pytest.mark.skip(
+        reason=(
+            "Requires many unique valid JWTs and a live JWKS endpoint to compute "
+            "a meaningful cache hit rate across repeated validations."
+        )
+    )
     def test_cache_hit_rate(self):
         """Test cache hit rate is >95% in normal operation."""
-        pass  # TODO: Requires real JWT token or mock
 
 
 class TestSecurity:

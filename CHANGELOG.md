@@ -1,169 +1,186 @@
 # Changelog
 
-All notable changes to FraiseQL will be documented in this file.
+All notable changes to FraiseQL are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [1.9.16] - 2026-01-18
-
-**LTREE Filter Support - User Type Annotation Discovery**
-
-### Fixed
-
-- **LTree scalar type now properly exported from fraiseql package** (GitHub #248)
-  - Users can now import and use `LTree` type annotation: `from fraiseql import LTree`
-  - Fixed `LTreeField.__repr__()` bug that was returning "UUID" instead of "LTree"
-  - Using `LTree` type annotation generates `LTreeFilter` in GraphQL schema with `descendantOf`, `ancestorOf`, and 20+ ltree operators
-  - Previously users had no documented way to enable ltree filtering on string fields mapped to ltree columns
-  - Resolves UX issue where ltree column filtering generated `StringFilter` instead of `LTreeFilter`
-
-**Before (v1.9.11)**:
-```python
-@fraiseql.type(sql_source="tv_allocation")
-class Allocation:
-    location_path: str | None = None  # ❌ Generates StringFilter - no ltree operators
-```
-
-**After (v1.9.12)**:
-```python
-from fraiseql import LTree  # ✅ Now available
-
-@fraiseql.type(sql_source="tv_allocation")
-class Allocation:
-    location_path: LTree | None = None  # ✅ Generates LTreeFilter with descendantOf, ancestorOf, etc.
-```
-
-**Technical Details**:
-- Export added: `LTreeField as LTree` in `src/fraiseql/__init__.py`
-- Updated `__all__` to include `LTree` in public API
-- Fixed copy-paste bug in `LTreeField.__repr__()` method
-- All 24 LTREE integration tests pass
-- All 68 LTREE unit tests pass
-- Zero breaking changes - backward compatible
-
-## [1.9.11] - 2026-01-10
-
-**GraphQL Spec Compliance - __typename Preservation**
-
-### Fixed
-
-- **Mutation entity field filtering now preserves `__typename`** (GitHub #233)
-  - GraphQL introspection field `__typename` is now always included in filtered entities
-  - Matches query behavior and GraphQL spec compliance
-  - Previously filtered out when not explicitly requested in field selections
-  - Now automatically preserved even when not in selection set
-
-**Technical Details**:
-- Updated `fraiseql_rs/src/mutation/entity_filter.rs` to preserve `__typename`
-- Added 2 regression tests for nested and top-level `__typename` preservation
-- Zero breaking changes - backward compatible
-
-## [1.9.7] - 2025-01-10
-
-**Entity Field Selection for Mutations + IDFilter for Where Clauses**
-
-This release adds two major features:
-1. GraphQL field selection support for nested entity objects in mutation responses
-2. IDPolicy-aware ID filtering in where clauses (from v1.9.3-v1.9.6)
-
-Both features improve developer experience and reduce payload sizes.
+## [1.10.0] - 2026-03-14
 
 ### Added
 
-#### Nested Entity Field Filtering
+- **CLI: `validate-mutation-return` command** (#280): New CLI command and library function
+  to validate mutation return values against GraphQL schema types at build time or in CI.
+  Supports recursive type validation (objects, lists, unions, enums, scalars), NonNull vs
+  nullable field handling, union type matching with `__typename` disambiguation, and three
+  output formats: human-readable, JSON, and JUnit XML. Available as both
+  `fraiseql validate-mutation-return` CLI command and `from fraiseql import validate_mutation_return`
+  library function.
 
-Mutations now respect GraphQL field selections for nested entity objects:
+- **DB: `fraiseql.started_at` session variable** (#304): `_set_session_variables` now injects
+  `SET LOCAL fraiseql.started_at = clock_timestamp()::text` before every query and mutation,
+  enabling PostgreSQL functions to compute their own execution duration via
+  `clock_timestamp() - current_setting('fraiseql.started_at', true)::timestamptz`. Uses
+  `clock_timestamp()` (not `NOW()`) for accurate wall-clock timing including lock waits.
 
-**Before (v1.9.6)**: Mutations returned ALL entity fields regardless of query selection
-```graphql
-mutation {
-  createLocation(input: {name: "Warehouse"}) {
-    ... on CreateLocationSuccess {
-      location { id name }  # ❌ Returned ALL 20 fields
-    }
-  }
-}
-```
+### Security
 
-**After (v1.9.7)**: Mutations return ONLY requested fields
-```graphql
-mutation {
-  createLocation(input: {name: "Warehouse"}) {
-    ... on CreateLocationSuccess {
-      location { id name }  # ✅ Returns only id and name
-    }
-  }
-}
-```
+- **CVE-2025-14104 resolved** (#295, #299): Removed util-linux heap buffer overread exception
+  from `.trivyignore` — now fixed in upstream `python:3.13-slim` base image. Updated review
+  dates for remaining monitored CVEs (gnutls28, ncurses, shadow).
 
-#### Implementation Details
+---
 
-**Python Layer** (`mutation_decorator.py`):
-- `_extract_nested_selections()`: Recursively extracts nested field selections from GraphQL AST
-- `_extract_entity_field_selections()`: Parses inline fragments to find entity field selections
-- Automatically passes selections to Rust pipeline as JSON
+## [1.9.20] - 2026-02-25
 
-**Rust Layer** (`fraiseql_rs/src/mutation/entity_filter.rs`):
-- `filter_entity_fields()`: Recursive filtering algorithm for nested objects
-- Handles objects, arrays, primitives, and null values
-- Zero overhead when no selections provided (backward compatible)
+### Fixed
 
-#### IDFilter for Where Clauses (from v1.9.3-v1.9.6)
+- **Scalar fields on `@fraiseql.error` types silently resolve to `None`** (#294): When a
+  SQL mutation function returned scalar values (e.g. `datetime`, `str`, `int`, `UUID`) in
+  its metadata JSONB (via `jsonb_build_object(...)`), those values were never populated into
+  the corresponding fields of an `@fraiseql.error`-decorated class — they always resolved to
+  `None`. The root cause was that `build_error_response_with_code` in the Rust pipeline only
+  extracted fields from `result.entity` (dict-backed entities like `conflict_machine:
+  Machine`), and completely ignored scalar values stored directly in `result.metadata`. Fixed
+  by iterating `result.metadata` after `result.entity` and promoting any non-reserved key
+  (`errors`, `entity_type`, `entity`, `_cascade`) to the root error response object, applying
+  camelCase conversion and field selection filtering consistently with the rest of the pipeline.
 
-New `IDFilter` class for filtering ID fields in where clauses with IDPolicy awareness:
+---
 
-```python
-@fraise_input
-class IDFilter:
-    eq: ID | None = None
-    neq: ID | None = None
-    in_: list[ID] | None = None
-    nin: list[ID] | None = None
-    isnull: bool | None = None
-```
+## [1.9.19] - 2026-02-21
 
-**Key Features:**
-- ID type **always** uses `IDFilter` regardless of IDPolicy configuration
-- GraphQL schema stays consistent (`$id: ID!`)
-- UUID validation (if `IDPolicy.UUID`) happens at runtime, not schema level
-- No frontend query changes needed when switching policies
+### Fixed
 
-```python
-from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+- **Multi-field query with JSONB types returns empty nested fields** (#288): When a GraphQL
+  query had 2+ root-level fields and at least one resolver used a JSONB type
+  (`@fraiseql.type(jsonb_column=...)`), nested JSONB fields in the response were empty —
+  only `__typename` was returned for each nested object. The root cause was that
+  `execute_multi_field_query` only passed top-level field names (e.g. `"nested"`) to
+  `build_multi_field_response`, causing Rust's `transform_with_selections` to filter out
+  all sub-fields (e.g. `"nested.value"`) whose full paths were absent from `selected_paths`.
+  Fixed by replacing the shallow field list with a complete recursive traversal via the new
+  `_build_field_selections_recursive()` helper, which includes every dot-separated path at
+  every nesting depth. Sub-field `@skip`/`@include` directives and aliases at any depth are
+  also preserved correctly. Single-field queries are unaffected.
 
-# Both policies use ID scalar in GraphQL schema
-SchemaConfig.set_config(id_policy=IDPolicy.UUID)  # Validates UUID format at runtime
-SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)  # Accepts any string
-```
+---
 
-### Performance Impact
+## [2.0.0-alpha.2] - 2026-02-06
 
-- **Payload Reduction**: 30-90% smaller responses (depends on entity size)
-- **Filtering Overhead**: <1ms per mutation (negligible)
-- **Network Savings**: Significant for large entities (e.g., Location: 20+ fields)
+### Added
 
-### Testing
+**Audit Backend Test Coverage (Complete):**
 
-- **10 Python unit tests**: Entity field selection extraction
-- **16+ Rust unit tests**: Filtering logic for nested objects, arrays, edge cases
-- **4 integration tests**: End-to-end with PostgreSQL database
-- **Backward compatibility**: All 97 existing mutation tests pass unchanged
+- PostgreSQL audit backend comprehensive tests (27 tests, 804 lines):
+  - Backend creation and schema validation
+  - Event logging with optional fields
+  - Query operations with filters and pagination
+  - JSONB metadata and state snapshots
+  - Multi-tenancy and tenant isolation
+  - Bulk logging and concurrent operations
+  - Schema idempotency verification
+  - Complex multi-filter queries
+  - Error handling and validation scenarios
 
-### Files Modified
+- Syslog audit backend comprehensive tests (27 tests, 574 lines):
+  - RFC 3164 format validation
+  - Facility and severity mapping
+  - Event logging and complex event handling
+  - Query behavior (always returns empty)
+  - Network operations and timeout handling
+  - Concurrent logging with 20+ concurrent tasks
+  - Builder pattern and trait compliance
+  - E2E integration flows for all statuses
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/fraiseql/mutations/mutation_decorator.py` | +95 | Entity field extraction from GraphQL AST |
-| `src/fraiseql/mutations/rust_executor.py` | +3 | Pass entity_selections to Rust |
-| `fraiseql_rs/src/mutation/entity_filter.rs` | +250 | Recursive filtering algorithm (NEW) |
-| `fraiseql_rs/src/mutation/response_builder.rs` | +13 | Apply filtering in response builder |
-| `fraiseql_rs/src/mutation/mod.rs` | +3 | Updated API signature |
-| `fraiseql_rs/src/lib.rs` | +2 | PyO3 binding update |
-| `tests/unit/mutations/test_entity_field_extraction.py` | +430 | Python unit tests (NEW) |
-| `fraiseql_rs/src/mutation/tests/entity_field_filtering.rs` | +450 | Rust unit tests (NEW) |
-| `tests/integration/graphql/mutations/test_entity_field_selection_integration.py` | +490 | Integration tests (NEW) |
+**Arrow Flight Enhancements:**
 
-**Total**: 10 files changed, +1,830 lines added
+- Event storage capabilities
+- Export functionality
+- Subscription support
+- Observer events integration tests
+- Schema refresh tests with streaming updates
+
+**Observer Infrastructure:**
+
+- Storage layer implementation
+- Event-driven observer patterns
+- Automatic observer triggering
+
+### Fixed
+
+- Removed placeholder test stubs for deferred audit backends
+- Enhanced test documentation with clear categories
+- Improved error handling in audit operations
+
+### Test Coverage
+
+- Total comprehensive tests: 54+ (27 PostgreSQL, 27 Syslog)
+- All tests passing with zero warnings
+- Database tests marked for CI integration with proper isolation
+- Syslog tests run without external dependencies
+
+### Already Included (Clarification)
+
+Note: The following features are already available in this release and not deferred:
+
+- OpenTelemetry integration for distributed tracing
+- Advanced analytics with Arrow views (va_*, tv_*, ta_*)
+- Performance metrics collection and monitoring
+- GraphQL subscriptions with streaming support
+- Real-time analytics pipelines
+
+---
+
+## [2.0.0-alpha.1] - 2026-02-05
+
+### Added
+
+**Documentation (Phase 16-18 Complete):**
+
+- Complete SDK reference documentation for all 16 languages
+  - Python, TypeScript, Go, Java, Kotlin, Scala, Clojure, Groovy
+  - Rust, C#, PHP, Ruby, Swift, Dart, Elixir, Node.js
+- 4 full-stack example applications
+- 6 production architecture patterns
+- Complete production deployment guides
+- Performance optimization guide
+- Comprehensive troubleshooting guide
+
+**Documentation Infrastructure:**
+
+- ReadTheDocs configuration and integration
+- Material Design theme with dark mode support
+- Search functionality with 251 indexed pages
+- Zero broken links (validated)
+- 100% code example coverage
+
+**Core Features:**
+
+- GraphQL compilation and execution engine
+- Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
+- Apache Arrow Flight data plane
+- Apollo Federation v2 with SAGA transactions
+- Query result caching with automatic invalidation
+
+**Enterprise Security:**
+
+- Audit logging with multiple backends
+- Rate limiting and field-level authorization
+- Field-level encryption-at-rest
+- Credential rotation automation
+- HashiCorp Vault integration
+
+### Documentation Statistics
+
+- **Total Files:** 251 markdown documents
+- **Total Lines:** 70,000+ lines
+- **Broken Links:** 0
+- **Code Examples:** 100% coverage
+- **Languages:** 16 SDK references
+
+---
+
+## Contributing
+
+See [ARCHITECTURE_PRINCIPLES.md](.claude/ARCHITECTURE_PRINCIPLES.md) for contribution guidelines.

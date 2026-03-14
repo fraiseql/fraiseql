@@ -1,7 +1,7 @@
 """Currency code scalar type for ISO 4217 validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -84,7 +84,7 @@ class CurrencyCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "CurrencyCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new CurrencyCodeField instance with validation."""
         value_upper = value.upper()
         if not _CURRENCY_CODE_REGEX.match(value_upper):

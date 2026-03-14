@@ -5,17 +5,20 @@ This example demonstrates how to use context parameters in FraiseQL mutations to
 ## Problem Statement
 
 Many enterprise applications use PostgreSQL functions that require context parameters for:
+
 - Multi-tenant data isolation
 - Audit trails
 - Row-level security
 - Business logic that depends on the current user/organization
 
 Traditional FraiseQL mutations only support single JSONB parameter functions:
+
 ```sql
 CREATE FUNCTION create_location(input_data JSONB) RETURNS mutation_result
 ```
 
 But many existing enterprise systems use functions with context parameters:
+
 ```sql
 CREATE FUNCTION app.create_location(
     input_pk_organization UUID,  -- Tenant/Organization ID
@@ -179,6 +182,7 @@ mutation CreateLocation($input: CreateLocationInput!) {
 ```
 
 Variables:
+
 ```json
 {
     "input": {
@@ -200,6 +204,7 @@ Variables:
 ## Context Parameter Types
 
 ### Direct Values
+
 ```python
 context_params={
     "tenant_id": "input_pk_organization"  # Pass tenant_id directly
@@ -207,6 +212,7 @@ context_params={
 ```
 
 ### UserContext Objects
+
 ```python
 context_params={
     "user": "input_created_by"  # Extracts user_id from UserContext automatically
@@ -228,6 +234,7 @@ The resolver automatically extracts `user_id` from `UserContext` objects when th
 If you currently use wrapper functions to work around the single-parameter limitation:
 
 **Before (Workaround):**
+
 ```sql
 -- Wrapper function (can be removed)
 CREATE FUNCTION app.create_location(input_data JSONB)
@@ -247,6 +254,7 @@ $$;
 ```
 
 **After (Native Support):**
+
 ```python
 @mutation(
     function="create_location_impl",  # Call the real function directly

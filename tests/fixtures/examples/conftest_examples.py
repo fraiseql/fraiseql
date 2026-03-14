@@ -170,15 +170,7 @@ def smart_dependencies() -> None:
     }
 
 
-@pytest.fixture(scope="session")
-def examples_event_loop() -> None:
-    """Create event loop for examples testing."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_simple_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_simple test database using smart database manager."""
     db_manager = get_database_manager()
@@ -228,7 +220,7 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
     }
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """Create blog_simple app for testing with guaranteed dependencies."""
     import sys
@@ -285,7 +277,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenera
             del sys.modules[mod]
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_simple app with guaranteed dependencies."""
     import asyncio
@@ -316,7 +308,7 @@ async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenera
             logger.debug("Pool close timed out, continuing")
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_simple_graphql_client(blog_simple_client) -> None:
     """GraphQL client for blog_simple. Function-scoped for fresh state."""
 
@@ -334,7 +326,7 @@ async def blog_simple_graphql_client(blog_simple_client) -> None:
     yield GraphQLClient(blog_simple_client)
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_enterprise test database using smart database manager."""
     db_manager = get_database_manager()
@@ -351,7 +343,7 @@ async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None
     # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_enterprise_app(
     smart_dependencies, blog_enterprise_db_url
 ) -> AsyncGenerator[Any, None]:
@@ -412,7 +404,7 @@ async def blog_enterprise_app(
             del sys.modules[mod]
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def blog_enterprise_client(
     blog_enterprise_app, blog_enterprise_db_url
 ) -> AsyncGenerator[Any, None]:

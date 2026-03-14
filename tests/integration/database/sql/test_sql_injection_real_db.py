@@ -36,7 +36,7 @@ class User:
 class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def test_users(self, class_db_pool, test_schema, clear_registry_class):
         """Create users table and test data within committed schema."""
         async with class_db_pool.connection() as conn:

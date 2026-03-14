@@ -23,14 +23,14 @@ use super::*;
 #[test]
 fn test_build_simple_format_response() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "User created".to_string(),
-        entity_id: None,
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "first_name": "John"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "User created".to_string(),
+        entity_id:        None,
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: true,
     };
 
@@ -42,6 +42,7 @@ fn test_build_simple_format_response() {
         Some("user"),
         Some("User"),
         true,
+        None,
         None,
         None,
         None,
@@ -58,14 +59,14 @@ fn test_build_simple_format_response() {
 fn test_build_simple_format_with_status_data_field() {
     // When simple format has "status" in entity, it should be renamed to "statusData"
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Task created".to_string(),
-        entity_id: None,
-        entity_type: Some("Task".to_string()),
-        entity: Some(json!({"id": "1", "status": "pending"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Task created".to_string(),
+        entity_id:        None,
+        entity_type:      Some("Task".to_string()),
+        entity:           Some(json!({"id": "1", "status": "pending"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: true,
     };
 
@@ -80,6 +81,7 @@ fn test_build_simple_format_with_status_data_field() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -90,17 +92,17 @@ fn test_build_simple_format_with_status_data_field() {
 #[test]
 fn test_build_simple_format_array_response() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Users created".to_string(),
-        entity_id: None,
-        entity_type: Some("User".to_string()),
-        entity: Some(json!([
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Users created".to_string(),
+        entity_id:        None,
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!([
             {"id": "1", "name": "Alice"},
             {"id": "2", "name": "Bob"}
         ])),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: true,
     };
 
@@ -115,6 +117,7 @@ fn test_build_simple_format_array_response() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -126,17 +129,17 @@ fn test_build_simple_format_array_response() {
 #[test]
 fn test_build_simple_format_response_with_cascade() {
     let result = MutationResult {
-        status: MutationStatus::Success("updated".to_string()),
-        message: "Post updated".to_string(),
-        entity_id: None,
-        entity_type: Some("Post".to_string()),
-        entity: Some(json!({
+        status:           MutationStatus::Success("updated".to_string()),
+        message:          "Post updated".to_string(),
+        entity_id:        None,
+        entity_type:      Some("Post".to_string()),
+        entity:           Some(json!({
             "id": "post-123",
             "title": "Updated",
             "comments": [{"id": "1", "text": "Nice"}]
         })),
-        updated_fields: Some(vec!["title".to_string()]),
-        cascade: Some(json!({
+        updated_fields:   Some(vec!["title".to_string()]),
+        cascade:          Some(json!({
             "updated": [
                 {"entity_id": "user-1", "entity_type": "User", "fields": ["post_count"]}
             ],
@@ -144,7 +147,7 @@ fn test_build_simple_format_response_with_cascade() {
             "invalidations": ["User:post-123"],
             "metadata": {"operation": "create"}
         })),
-        metadata: None,
+        metadata:         None,
         is_simple_format: true,
     };
 
@@ -159,6 +162,7 @@ fn test_build_simple_format_response_with_cascade() {
         None,                         // success_type_fields
         None,                         // error_type_fields
         Some(r#"{"cascade": true}"#), // cascade_selections
+        None,
     )
     .unwrap();
 
@@ -195,14 +199,14 @@ fn test_build_simple_format_response_with_cascade() {
 #[test]
 fn test_build_full_success_response() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "User created".to_string(),
-        entity_id: Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "first_name": "John"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "User created".to_string(),
+        entity_id:        Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -214,6 +218,7 @@ fn test_build_full_success_response() {
         Some("user"),
         Some("User"),
         true,
+        None,
         None,
         None,
         None,
@@ -230,14 +235,14 @@ fn test_build_full_success_response() {
 #[test]
 fn test_build_full_error_response() {
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Email already exists".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: Some(json!({"errors": [{"field": "email"}]})),
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Email already exists".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         Some(json!({"errors": [{"field": "email"}]})),
         is_simple_format: false,
     };
 
@@ -249,6 +254,7 @@ fn test_build_full_error_response() {
         None,
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -271,14 +277,14 @@ use crate::mutation::response_builder::build_success_response;
 fn test_success_response_has_status_field() {
     // Setup
     let result = MutationResult {
-        status: MutationStatus::Success("success".to_string()),
-        message: "Operation completed".to_string(),
-        entity_id: Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "name": "Test User"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("success".to_string()),
+        message:          "Operation completed".to_string(),
+        entity_id:        Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "name": "Test User"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -290,6 +296,7 @@ fn test_success_response_has_status_field() {
         true, // auto_camel_case
         None, // success_type_fields
         None, // cascade_selections
+        None, // entity_selections
     )
     .expect("Failed to build response");
 
@@ -297,77 +304,63 @@ fn test_success_response_has_status_field() {
     let obj = response.as_object().expect("Response should be object");
 
     // Check status field exists
-    assert!(
-        obj.contains_key("status"),
-        "Response missing 'status' field"
-    );
+    assert!(obj.contains_key("status"), "Response missing 'status' field");
 
     // Check status value
     let status = obj.get("status").expect("status field should exist");
-    assert_eq!(
-        status.as_str(),
-        Some("success"),
-        "status should be 'success'"
-    );
+    assert_eq!(status.as_str(), Some("success"), "status should be 'success'");
 }
 
 #[test]
 fn test_success_response_has_errors_field() {
     // Setup
     let result = MutationResult {
-        status: MutationStatus::Success("success".to_string()),
-        message: "Operation completed".to_string(),
-        entity_id: Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "name": "Test User"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("success".to_string()),
+        message:          "Operation completed".to_string(),
+        entity_id:        Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "name": "Test User"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
     // Execute
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     // Verify
     let obj = response.as_object().expect("Response should be object");
 
     // Check errors field exists
-    assert!(
-        obj.contains_key("errors"),
-        "Response missing 'errors' field"
-    );
+    assert!(obj.contains_key("errors"), "Response missing 'errors' field");
 
     // Check errors is empty array
     let errors = obj.get("errors").expect("errors field should exist");
     let errors_array = errors.as_array().expect("errors should be array");
-    assert_eq!(
-        errors_array.len(),
-        0,
-        "errors array should be empty for success"
-    );
+    assert_eq!(errors_array.len(), 0, "errors array should be empty for success");
 }
 
 #[test]
 fn test_success_response_all_standard_fields() {
     // Setup
     let result = MutationResult {
-        status: MutationStatus::Success("success:created".to_string()),
-        message: "User created successfully".to_string(),
-        entity_id: Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "email": "test@example.com"})),
-        updated_fields: Some(vec!["email".to_string(), "name".to_string()]),
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("success:created".to_string()),
+        message:          "User created successfully".to_string(),
+        entity_id:        Some("123e4567-e89b-12d3-a456-426614174000".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "email": "test@example.com"})),
+        updated_fields:   Some(vec!["email".to_string(), "name".to_string()]),
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
     // Execute
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     // Verify all standard fields present
@@ -382,15 +375,9 @@ fn test_success_response_all_standard_fields() {
     assert!(obj.contains_key("updatedFields"), "Missing updatedFields");
 
     // Verify values
-    assert_eq!(
-        obj.get("__typename").unwrap().as_str(),
-        Some("CreateUserSuccess")
-    );
+    assert_eq!(obj.get("__typename").unwrap().as_str(), Some("CreateUserSuccess"));
     assert_eq!(obj.get("status").unwrap().as_str(), Some("success:created"));
-    assert_eq!(
-        obj.get("message").unwrap().as_str(),
-        Some("User created successfully")
-    );
+    assert_eq!(obj.get("message").unwrap().as_str(), Some("User created successfully"));
 
     let errors = obj.get("errors").unwrap().as_array().unwrap();
     assert_eq!(errors.len(), 0, "Success should have empty errors array");
@@ -400,47 +387,44 @@ fn test_success_response_all_standard_fields() {
 fn test_success_status_preserves_detail() {
     // Test that status detail is preserved (e.g., "success:created")
     let result = MutationResult {
-        status: MutationStatus::Success("success:updated".to_string()),
-        message: "Updated".to_string(),
-        entity_id: Some("abc-123".to_string()),
-        entity_type: Some("Post".to_string()),
-        entity: Some(json!({"id": "abc-123"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("success:updated".to_string()),
+        message:          "Updated".to_string(),
+        entity_id:        Some("abc-123".to_string()),
+        entity_type:      Some("Post".to_string()),
+        entity:           Some(json!({"id": "abc-123"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
     let response =
-        build_success_response(&result, "UpdatePostSuccess", Some("post"), true, None, None)
+        build_success_response(&result, "UpdatePostSuccess", Some("post"), true, None, None, None)
             .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
     let status = obj.get("status").unwrap().as_str().unwrap();
 
-    assert_eq!(
-        status, "success:updated",
-        "Status detail should be preserved"
-    );
+    assert_eq!(status, "success:updated", "Status detail should be preserved");
 }
 
 #[test]
 fn test_success_fields_order() {
     // Verify fields appear in expected order for consistent API
     let result = MutationResult {
-        status: MutationStatus::Success("success".to_string()),
-        message: "OK".to_string(),
-        entity_id: Some("123".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("success".to_string()),
+        message:          "OK".to_string(),
+        entity_id:        Some("123".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
@@ -457,10 +441,7 @@ fn test_success_fields_order() {
     // Verify ordering
     assert!(typename_idx < id_idx, "__typename should come before id");
     assert!(id_idx < message_idx, "id should come before message");
-    assert!(
-        message_idx < status_idx,
-        "message should come before status"
-    );
+    assert!(message_idx < status_idx, "message should come before status");
     assert!(status_idx < errors_idx, "status should come before errors");
     assert!(errors_idx < user_idx, "errors should come before entity");
 }
@@ -507,14 +488,14 @@ fn test_extract_identifier_multiple_colons() {
 fn test_generate_errors_array_auto() {
     // Test auto-generation from status string
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Validation failed".to_string(),
-        entity: None,
-        entity_type: Some("User".to_string()),
-        entity_id: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Validation failed".to_string(),
+        entity:           None,
+        entity_type:      Some("User".to_string()),
+        entity_id:        None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -541,14 +522,14 @@ fn test_generate_errors_array_explicit_override() {
     ]);
 
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Multiple validation errors".to_string(),
-        entity: None,
-        entity_type: Some("User".to_string()),
-        entity_id: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: Some(json!({"errors": explicit_errors})),
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Multiple validation errors".to_string(),
+        entity:           None,
+        entity_type:      Some("User".to_string()),
+        entity_id:        None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         Some(json!({"errors": explicit_errors})),
         is_simple_format: false,
     };
 
@@ -566,14 +547,14 @@ fn test_generate_errors_array_explicit_override() {
 fn test_generate_errors_array_noop_status() {
     // Test error generation from noop status (e.g., not_found)
     let result = MutationResult {
-        status: MutationStatus::Noop("not_found".to_string()),
-        message: "User not found".to_string(),
-        entity: None,
-        entity_type: Some("User".to_string()),
-        entity_id: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Noop("not_found".to_string()),
+        message:          "User not found".to_string(),
+        entity:           None,
+        entity_type:      Some("User".to_string()),
+        entity_id:        None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -593,14 +574,14 @@ fn test_generate_errors_array_noop_status() {
 #[test]
 fn test_noop_returns_error_type_v1_8() {
     let result = MutationResult {
-        status: MutationStatus::Noop("noop:invalid_contract_id".to_string()),
-        message: "Contract not found".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: Some(json!({"status": "noop:invalid_contract_id"})),
-        metadata: None,
+        status:           MutationStatus::Noop("noop:invalid_contract_id".to_string()),
+        message:          "Contract not found".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          Some(json!({"status": "noop:invalid_contract_id"})),
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -615,6 +596,7 @@ fn test_noop_returns_error_type_v1_8() {
         None,
         None,
         Some(r#"{"status": true}"#),
+        None,
     )
     .unwrap();
 
@@ -629,14 +611,14 @@ fn test_noop_returns_error_type_v1_8() {
 #[test]
 fn test_not_found_returns_error_type_with_404() {
     let result = MutationResult {
-        status: MutationStatus::Error("not_found:machine".to_string()),
-        message: "Machine not found".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Error("not_found:machine".to_string()),
+        message:          "Machine not found".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -648,6 +630,7 @@ fn test_not_found_returns_error_type_with_404() {
         None,
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -663,14 +646,14 @@ fn test_not_found_returns_error_type_with_404() {
 #[test]
 fn test_conflict_returns_error_type_with_409() {
     let result = MutationResult {
-        status: MutationStatus::Error("conflict:duplicate_serial".to_string()),
-        message: "Serial number already exists".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Error("conflict:duplicate_serial".to_string()),
+        message:          "Serial number already exists".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -682,6 +665,7 @@ fn test_conflict_returns_error_type_with_409() {
         None,
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -698,14 +682,14 @@ fn test_conflict_returns_error_type_with_409() {
 fn test_success_with_null_entity_returns_error() {
     // v1.8.0: Success type with null entity should return error
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Created".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None, // ❌ Null entity with Success status
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Created".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None, // ❌ Null entity with Success status
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -717,6 +701,7 @@ fn test_success_with_null_entity_returns_error() {
         Some("machine"),
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -730,14 +715,14 @@ fn test_success_with_null_entity_returns_error() {
 #[test]
 fn test_success_always_has_entity() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Machine created".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: Some(json!({"id": "123", "name": "Test"})),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Machine created".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           Some(json!({"id": "123", "name": "Test"})),
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -749,6 +734,7 @@ fn test_success_always_has_entity() {
         Some("machine"),
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -764,14 +750,16 @@ fn test_success_always_has_entity() {
 #[test]
 fn test_error_response_includes_cascade() {
     let result = MutationResult {
-        status: MutationStatus::Noop("noop:validation_failed".to_string()),
-        message: "Validation failed".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: Some(json!({"status": "noop:validation_failed", "reason": "invalid_input"})),
-        metadata: None,
+        status:           MutationStatus::Noop("noop:validation_failed".to_string()),
+        message:          "Validation failed".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          Some(
+            json!({"status": "noop:validation_failed", "reason": "invalid_input"}),
+        ),
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -786,6 +774,7 @@ fn test_error_response_includes_cascade() {
         None,
         None,
         Some(r#"{"status": true, "reason": true}"#),
+        None,
     )
     .unwrap();
     let data = &response["data"]["createMachine"];
@@ -819,6 +808,7 @@ fn test_cascade_never_nested_in_entity() {
         Some("Post"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -898,6 +888,7 @@ fn test_cascade_never_copied_from_entity_wrapper() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -905,14 +896,8 @@ fn test_cascade_never_copied_from_entity_wrapper() {
     let success = &response["data"]["createAllocation"];
 
     // CASCADE must be at success level
-    assert!(
-        success["cascade"].is_object(),
-        "CASCADE missing at success level"
-    );
-    assert!(
-        success["cascade"]["updated"].is_array(),
-        "CASCADE.updated should be array"
-    );
+    assert!(success["cascade"].is_object(), "CASCADE missing at success level");
+    assert!(success["cascade"]["updated"].is_array(), "CASCADE.updated should be array");
 
     // CASCADE must NEVER be in the entity object
     assert!(
@@ -924,10 +909,7 @@ fn test_cascade_never_copied_from_entity_wrapper() {
     assert_eq!(success["message"], "New allocation created");
 
     // Verify entity has correct fields
-    assert_eq!(
-        success["allocation"]["id"],
-        "d8c7c0b3-6b21-44c7-9195-504ca1c63e47"
-    );
+    assert_eq!(success["allocation"]["id"], "d8c7c0b3-6b21-44c7-9195-504ca1c63e47");
     assert_eq!(success["allocation"]["identifier"], "test-allocation");
 }
 
@@ -947,6 +929,7 @@ fn test_typename_always_present() {
         Some("Entity"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -979,16 +962,14 @@ fn test_typename_matches_entity_type() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
     // __typename must match entity_type from JSON
-    assert_eq!(
-        response["data"]["test"]["entity"]["__typename"],
-        "CustomType"
-    );
+    assert_eq!(response["data"]["test"]["entity"]["__typename"], "CustomType");
 }
 
 // ============================================================================
@@ -1008,6 +989,7 @@ fn test_ambiguous_status_treated_as_simple() {
         Some("Entity"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -1043,6 +1025,7 @@ fn test_null_entity() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1073,6 +1056,7 @@ fn test_array_of_entities() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -1114,6 +1098,7 @@ fn test_deeply_nested_objects() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1149,16 +1134,14 @@ fn test_special_characters_in_fields() {
         false,
         None, // No camelCase
         None,
+        None,
     )
     .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
     // Should preserve special characters
-    assert_eq!(
-        response["data"]["test"]["entity"]["field_with_unicode"],
-        "Hello 世界"
-    );
+    assert_eq!(response["data"]["test"]["entity"]["field_with_unicode"], "Hello 世界");
 }
 
 // ============================================================================
@@ -1168,14 +1151,14 @@ fn test_special_characters_in_fields() {
 #[test]
 fn test_success_response_field_filtering_all_fields() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "User created".to_string(),
-        entity_id: Some("123".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "first_name": "John"})),
-        updated_fields: Some(vec!["first_name".to_string()]),
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "User created".to_string(),
+        entity_id:        Some("123".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields:   Some(vec!["first_name".to_string()]),
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -1200,6 +1183,7 @@ fn test_success_response_field_filtering_all_fields() {
         Some(&selected_fields),
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1216,14 +1200,14 @@ fn test_success_response_field_filtering_all_fields() {
 #[test]
 fn test_success_response_field_filtering_partial_fields() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "User created".to_string(),
-        entity_id: Some("123".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "first_name": "John"})),
-        updated_fields: Some(vec!["first_name".to_string()]),
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "User created".to_string(),
+        entity_id:        Some("123".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields:   Some(vec!["first_name".to_string()]),
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -1239,6 +1223,7 @@ fn test_success_response_field_filtering_partial_fields() {
         Some("User"),
         true,
         Some(&selected_fields),
+        None,
         None,
         None,
     )
@@ -1259,14 +1244,14 @@ fn test_success_response_field_filtering_partial_fields() {
 #[test]
 fn test_success_response_field_filtering_no_filtering() {
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "User created".to_string(),
-        entity_id: Some("123".to_string()),
-        entity_type: Some("User".to_string()),
-        entity: Some(json!({"id": "123", "first_name": "John"})),
-        updated_fields: Some(vec!["first_name".to_string()]),
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "User created".to_string(),
+        entity_id:        Some("123".to_string()),
+        entity_type:      Some("User".to_string()),
+        entity:           Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields:   Some(vec!["first_name".to_string()]),
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -1280,6 +1265,7 @@ fn test_success_response_field_filtering_no_filtering() {
         Some("User"),
         true,
         None, // No filtering
+        None,
         None,
         None,
     )
@@ -1299,14 +1285,14 @@ fn test_success_response_field_filtering_no_filtering() {
 #[test]
 fn test_error_response_field_filtering() {
     let result = MutationResult {
-        status: MutationStatus::Error("failed:validation".to_string()),
-        message: "Invalid input".to_string(),
-        entity_id: None,
-        entity_type: None,
-        entity: None,
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        status:           MutationStatus::Error("failed:validation".to_string()),
+        message:          "Invalid input".to_string(),
+        entity_id:        None,
+        entity_type:      None,
+        entity:           None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -1322,6 +1308,7 @@ fn test_error_response_field_filtering() {
         None,
         true,
         Some(&selected_fields),
+        None,
         None,
         None,
     )

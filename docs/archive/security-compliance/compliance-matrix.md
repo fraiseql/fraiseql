@@ -367,6 +367,7 @@ This compliance matrix maps FraiseQL's security features to **international stan
 ## Evidence Links Quick Reference
 
 ### Code Implementation
+
 - **[RBAC Management](../../tests/integration/enterprise/rbac/test_rbac_management_apis.py)** - Role and permission management
 - **[Row-Level Security](../../tests/integration/enterprise/rbac/test_row_level_security.py)** - Multi-tenant isolation tests
 - **[Field-Level Authorization](../../tests/integration/enterprise/rbac/test_field_level_auth.py)** - Fine-grained access control
@@ -374,6 +375,7 @@ This compliance matrix maps FraiseQL's security features to **international stan
 - **[Audit Schema](../../tests/integration/enterprise/audit/test_audit_schema.py)** - Immutable audit table structure
 
 ### Documentation
+
 - **[SLSA Provenance & SBOM](./slsa-provenance/)** - Supply chain security verification
 - **[Security Profiles](./security-profiles/)** - Configuration for different compliance levels
 - **[Production Security](../production/security/)** - SQL injection, rate limiting, CORS, auth
@@ -387,18 +389,21 @@ This compliance matrix maps FraiseQL's security features to **international stan
 ## How to Use This Matrix
 
 ### For Security Officers
+
 1. **Identify your requirements** - Find your compliance framework(s) in the matrix
 2. **Select security profile** - Use the Profile Selection Matrix above
 3. **Review evidence links** - Verify technical implementation matches requirements
 4. **Generate compliance report** - Use `fraiseql compliance report --framework [iso27001|gdpr|pci-dss|...]`
 
 ### For Procurement Officers
+
 1. **Check vendor claims** - Verify FraiseQL's SLSA provenance ([guide](./slsa-provenance/))
 2. **Review SBOM** - Inspect dependencies and vulnerabilities
 3. **Assess compliance posture** - Use this matrix as checklist
 4. **Request evidence** - All test files and documentation linked above
 
 ### For Auditors
+
 1. **Test access controls** - Run RBAC and RLS test suites ([RBAC tests](../../tests/integration/enterprise/rbac/))
 2. **Verify audit trails** - Inspect audit logging implementation ([Audit tests](../../tests/integration/enterprise/audit/))
 3. **Review security architecture** - Check threat model and controls matrix
@@ -474,6 +479,7 @@ A: Use this matrix as checklist, provide evidence links (test results, documenta
 ---
 
 **For Questions or Support:**
+
 - **Email:** security@fraiseql.com
 - **Enterprise Support:** Available for REGULATED/RESTRICTED deployments
 - **GitHub Discussions:** Community support for compliance questions

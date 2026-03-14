@@ -289,6 +289,7 @@ async def create_many_posts(posts: list[dict]) -> list[UUID]:
 ```
 
 **Performance**:
+
 - Individual syncs: 5ms × 100 posts = **500ms**
 - Batch sync: **50ms** (10x faster!)
 
@@ -310,6 +311,7 @@ async def update_post(post_id: ID, data: dict, background_tasks: BackgroundTasks
 ```
 
 **Use cases**:
+
 - Non-critical updates (e.g., view count)
 - Bulk operations
 - Reducing mutation latency
@@ -443,6 +445,7 @@ async def test_create_post():
 ```
 
 **Benefits**:
+
 - Fast tests (no database syncs)
 - Verify sync is called correctly
 - Test business logic independently
@@ -524,6 +527,7 @@ async def sync_post_with_ivm(self, post_ids: list[UUID]):
 ```
 
 **Performance**:
+
 - Manual sync: ~5-10ms per entity
 - IVM sync: ~1-2ms per entity (2-5x faster!)
 

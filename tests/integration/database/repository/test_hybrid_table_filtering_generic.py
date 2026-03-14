@@ -47,7 +47,7 @@ class Product:
 ProductWhere = safe_create_where_type(Product)
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def setup_hybrid_table(class_db_pool, test_schema) -> dict[str, int]:
     """Create a hybrid table with both regular SQL columns and JSONB data column."""
     async with class_db_pool.connection() as conn:

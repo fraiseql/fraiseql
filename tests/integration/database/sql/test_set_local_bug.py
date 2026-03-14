@@ -45,7 +45,7 @@ async def test_set_local_with_timeout_should_not_use_prepared_statement() -> Non
 
     # Check that SET LOCAL was called
     calls = mock_cursor.execute.call_args_list
-    assert len(calls) == 2  # SET LOCAL + actual query
+    assert len(calls) == 3  # SET LOCAL timeout + SET LOCAL started_at + actual query
 
     # First call should be SET LOCAL without prepared statement parameters
     set_local_call = calls[0]
@@ -89,7 +89,7 @@ async def test_execute_function_set_local_bug() -> None:
 
     # Check that SET LOCAL was called with prepared statement (the bug)
     calls = mock_cursor.execute.call_args_list
-    assert len(calls) == 2  # SET LOCAL + function call
+    assert len(calls) == 3  # SET LOCAL timeout + SET LOCAL started_at + function call
 
     # First call should be SET LOCAL without parameters (fixed)
     set_local_call = calls[0]
@@ -130,12 +130,12 @@ async def test_no_timeout_skips_set_local() -> None:
 
     await repo.run(query)
 
-    # Check that only the main query was executed, no SET LOCAL
-    assert mock_cursor.execute.call_count == 1
-    main_call = mock_cursor.execute.call_args_list[0]
+    # Check that only started_at SET LOCAL + main query were executed, no timeout SET LOCAL
+    assert mock_cursor.execute.call_count == 2
+    main_call = mock_cursor.execute.call_args_list[1]
     sql_statement = main_call[0][0]
     assert "SELECT * FROM test_table" in str(sql_statement)
 
-    # Verify no SET LOCAL was called
+    # Verify no SET LOCAL statement_timeout was called (started_at SET LOCAL is expected)
     for call in mock_cursor.execute.call_args_list:
-        assert "SET LOCAL" not in str(call[0][0])
+        assert "statement_timeout" not in str(call[0][0])

@@ -1,7 +1,7 @@
 """VIN scalar type for ISO 3779/3780 vehicle identification number validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -179,7 +179,7 @@ class VINField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "VINField":
+    def __new__(cls, value: str) -> Self:
         """Create a new VINField instance with validation."""
         value_upper = value.upper()
 

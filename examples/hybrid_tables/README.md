@@ -5,6 +5,7 @@ Production-ready pattern demonstrating how to use dedicated SQL columns for effi
 ## What This Example Demonstrates
 
 This example shows the **hybrid filtering pattern** for performance-critical queries where:
+
 - **tv_* tables** contain JSONB data for fast GraphQL queries (0.05-0.5ms response time)
 - **Dedicated SQL columns** provide indexed filtering capabilities
 - **Hybrid filtering**: Filter using SQL columns, return JSONB data
@@ -30,6 +31,7 @@ WHERE data->>'category_id' = '5'
 ```
 
 **Why it's slow:**
+
 - JSONB path operators (`->>`, `->`) can't use standard B-tree indexes efficiently
 - Type casting required for comparisons
 - No foreign key constraints possible
@@ -114,29 +116,34 @@ Execution Time: 487.543 ms
 
 ## When to Use Dedicated Columns vs JSONB
 
-### Use Dedicated SQL Columns For:
+### Use Dedicated SQL Columns For
 
 **✅ Fields you filter on frequently:**
+
 - category_id, status, is_active
 - price, created_at, updated_at
 - user_id, tenant_id, organization_id
 
 **✅ Fields used in WHERE clauses:**
+
 - Equality filters (=, !=)
 - Range filters (>, <, BETWEEN)
 - IN clauses
 - LIKE patterns
 
 **✅ Fields needing database constraints:**
+
 - Foreign keys (REFERENCES)
 - CHECK constraints
 - UNIQUE constraints
 - NOT NULL constraints
 
 **✅ Fields used in ORDER BY:**
+
 - Sortable columns (price, date, priority)
 
 **Example:**
+
 ```sql
 -- Dedicated columns for filtering in tv_* tables
 CREATE TABLE tv_products (
@@ -150,24 +157,28 @@ CREATE TABLE tv_products (
 );
 ```
 
-### Use JSONB For:
+### Use JSONB For
 
 **✅ Complete GraphQL response data:**
+
 - All fields needed by frontend
 - Nested objects and relationships
 - Arrays and complex structures
 
 **✅ Flexible schema data:**
+
 - Product specifications (vary by category)
 - User preferences (custom per user)
 - Dynamic metadata
 
 **✅ Fields not used in filtering:**
+
 - Descriptions, names, titles
 - Nested objects (addresses, specs)
 - Arrays (images, tags, comments)
 
 **Example:**
+
 ```sql
 -- JSONB contains complete data for GraphQL queries
 data JSONB NOT NULL DEFAULT '{
@@ -314,6 +325,7 @@ pip install -r requirements.txt
 ```
 
 Or with uv (faster):
+
 ```bash
 uv pip install -r requirements.txt
 ```
@@ -435,6 +447,7 @@ python main.py
 ```
 
 The API will be available at:
+
 - **GraphQL Playground:** http://localhost:8000/graphql
 - **API Documentation:** http://localhost:8000/docs
 
@@ -674,6 +687,7 @@ WHERE category_id = 5 AND price >= 100;
 ```
 
 Look for:
+
 - ✅ `Index Scan` or `Index Only Scan` (good)
 - ❌ `Seq Scan` (bad - not using index)
 
@@ -725,16 +739,19 @@ CREATE INDEX idx_products_covering
 ### Problem: Queries Still Slow After Adding Indexes
 
 **Check 1:** Is the index being used?
+
 ```sql
 EXPLAIN ANALYZE your_query;
 ```
 
 **Check 2:** Are statistics up to date?
+
 ```sql
 ANALYZE your_table;
 ```
 
 **Check 3:** Is the query returning too many rows?
+
 ```sql
 -- Limit results and use pagination
 SELECT * FROM products
@@ -746,10 +763,12 @@ LIMIT 50;
 ### Problem: Too Many Indexes (Slow Writes)
 
 **Symptoms:**
+
 - INSERT/UPDATE operations slow
 - Disk space usage high
 
 **Solution:** Remove unused indexes
+
 ```sql
 -- Find indexes with zero scans
 SELECT indexname FROM pg_stat_user_indexes
@@ -762,11 +781,13 @@ DROP INDEX IF EXISTS unused_index_name;
 ### Problem: JSONB Queries Still Slow
 
 **Solution 1:** Add GIN index for containment
+
 ```sql
 CREATE INDEX idx_data_gin ON products USING gin (data);
 ```
 
 **Solution 2:** Extract frequently-queried fields to columns
+
 ```sql
 -- Move brand from JSONB to column
 ALTER TABLE products ADD COLUMN brand VARCHAR(100);

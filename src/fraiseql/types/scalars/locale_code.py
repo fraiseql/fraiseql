@@ -1,7 +1,7 @@
 """Locale code scalar type for BCP 47 validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -83,7 +83,7 @@ class LocaleCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "LocaleCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new LocaleCodeField instance with validation."""
         if not _LOCALE_CODE_REGEX.match(value):
             raise ValueError(

@@ -90,6 +90,7 @@ result.status := 'validation:';  -- → identifier: "validation"
 ### Solution
 
 **Validate your status string:**
+
 ```sql
 -- Add assertion in your function
 ASSERT result.status ~ '^(created|updated|deleted|failed|not_found|conflict|noop)(:.+)?$',
@@ -229,6 +230,7 @@ CREATE FUNCTION public.create_user(...) -- ← Created in 'public'
 ```
 
 **Solution:**
+
 ```sql
 -- Option 1: Create in 'app' schema
 CREATE FUNCTION app.create_user(...)
@@ -248,6 +250,7 @@ SELECT create_user('{"test": 1}'::jsonb);  -- ← Fails
 ```
 
 **Solution:** Use `jsonb` consistently:
+
 ```sql
 CREATE FUNCTION create_user(input_payload jsonb)
 ```
@@ -487,6 +490,7 @@ SELECT row_to_json(your_function('{"test": "data"}'::jsonb));
 ```
 
 **What to look for:**
+
 - Does function return a result?
 - Is the result structure correct?
 - Any PostgreSQL errors?
@@ -510,6 +514,7 @@ SELECT validate_mutation_response(your_function(...)::mutation_response);
 ### 3. Check Python Type Definitions
 
 **Error types must have:**
+
 ```python
 @fraiseql.failure
 class YourError:
@@ -520,6 +525,7 @@ class YourError:
 ```
 
 **Success types must have:**
+
 ```python
 @fraiseql.success
 class YourSuccess:
@@ -627,6 +633,7 @@ Still stuck?
 4. **Discussions:** Ask in GitHub Discussions for community help
 
 **Include in bug reports:**
+
 - SQL function code
 - GraphQL query
 - Expected vs actual response

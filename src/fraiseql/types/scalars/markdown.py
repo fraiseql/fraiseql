@@ -1,6 +1,6 @@
 """Markdown scalar type for markdown content validation."""
 
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -67,6 +67,6 @@ class MarkdownField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "MarkdownField":
+    def __new__(cls, value: str) -> Self:
         """Create a new MarkdownField instance."""
         return super().__new__(cls, value)

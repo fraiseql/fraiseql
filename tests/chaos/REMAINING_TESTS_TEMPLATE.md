@@ -94,6 +94,7 @@ For each test function:
    - ✅ `@pytest.mark.asyncio async def test_foo(...):`
 
 2. **Add decorators**
+
    ```python
    @pytest.mark.chaos
    @pytest.mark.chaos_[category]  # chaos_cache, chaos_auth, etc
@@ -102,6 +103,7 @@ For each test function:
    ```
 
 3. **Update function signature**
+
    ```python
    async def test_name(chaos_db_client, chaos_test_schema, baseline_metrics):
    ```
@@ -129,9 +131,11 @@ For each test function:
 ## Files Remaining & Categories
 
 ### Cache Chaos (1 file, 4-6 tests)
+
 **File**: `tests/chaos/cache/test_cache_chaos.py`
 
 Likely tests:
+
 - `test_cache_miss_performance` → Measure degradation with cold cache
 - `test_cache_invalidation_propagation` → Verify cache invalidation
 - `test_cache_eviction_handling` → Handle cache memory limits
@@ -140,9 +144,11 @@ Likely tests:
 **Pattern**: Use chaos_db_client.inject_latency() to simulate slow cache
 
 ### Auth Chaos (1 file, 3-5 tests)
+
 **File**: `tests/chaos/auth/test_auth_chaos.py`
 
 Likely tests:
+
 - `test_auth_token_expiration` → Expired token handling
 - `test_auth_service_unavailability` → Auth service down scenarios
 - `test_permission_denied_scenarios` → Authorization failures
@@ -151,11 +157,14 @@ Likely tests:
 **Pattern**: Simulate auth failures with custom chaos, then verify retry
 
 ### Resource Chaos (2 files, 8-10 tests)
+
 **Files**:
+
 - `tests/chaos/resources/test_resource_chaos.py`
 - `tests/chaos/resources/test_phase4_validation.py`
 
 Likely tests:
+
 - `test_memory_pressure` → High memory usage scenarios
 - `test_cpu_throttling` → CPU-bound query degradation
 - `test_disk_io_bottleneck` → Slow disk I/O
@@ -165,9 +174,11 @@ Likely tests:
 **Pattern**: Inject latency to simulate resource constraints
 
 ### Concurrency Chaos (1 file, 4-6 tests)
+
 **File**: `tests/chaos/concurrency/test_concurrency_chaos.py`
 
 Likely tests:
+
 - `test_concurrent_query_execution` → Multiple simultaneous queries
 - `test_race_condition_prevention` → Data race handling
 - `test_deadlock_under_load` → Deadlocks with high concurrency
@@ -180,6 +191,7 @@ Likely tests:
 To complete remaining 13 files quickly:
 
 ### Option 1: Per-File Template Application (Recommended)
+
 1. Read original test file
 2. For each test function, apply transformation template
 3. Replace MockFraiseQLClient → chaos_db_client fixture
@@ -191,7 +203,9 @@ To complete remaining 13 files quickly:
 **Time estimate**: 15-30 minutes per file
 
 ### Option 2: Batch Transformation with Local Model
+
 Provide this template + example file to local model:
+
 - "Transform all cache/auth/resource/concurrency chaos tests following this pattern"
 - Local model can apply template systematically
 - Human review + manual fixes for any deviations
@@ -199,7 +213,9 @@ Provide this template + example file to local model:
 **Time estimate**: 1-2 hours for all remaining files
 
 ### Option 3: Use opencode (If Available)
+
 Create phase plan:
+
 1. Phase 1: Transform cache tests (30 min)
 2. Phase 2: Transform auth tests (30 min)
 3. Phase 3: Transform resource tests (45 min)
@@ -267,6 +283,7 @@ For complete transformation:
 ## Examples for Each Category
 
 ### Cache Chaos Example
+
 ```python
 @pytest.mark.asyncio
 @pytest.mark.chaos_cache
@@ -302,6 +319,7 @@ async def test_cache_miss_performance(chaos_db_client, chaos_test_schema):
 ```
 
 ### Auth Chaos Example
+
 ```python
 @pytest.mark.asyncio
 @pytest.mark.chaos_auth

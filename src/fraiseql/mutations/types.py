@@ -93,8 +93,8 @@ class MutationResult:
             updated_fields=row.get("updated_fields"),
             status=status,
             message=message,
-            object_data=object_data if object_data else None,
-            extra_metadata=extra_metadata if extra_metadata else None,
+            object_data=object_data or None,
+            extra_metadata=extra_metadata or None,
         )
 
 

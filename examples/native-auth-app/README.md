@@ -144,6 +144,7 @@ const { ... } = useAuth({
 ### useAuth Composable
 
 #### Reactive State
+
 - `user` - Current user object (or null)
 - `tokens` - Current JWT tokens (or null)
 - `isAuthenticated` - Boolean auth status
@@ -151,6 +152,7 @@ const { ... } = useAuth({
 - `error` - Current error message (or null)
 
 #### Authentication Methods
+
 - `login(data)` - Sign in with email/password
 - `register(data)` - Create new account
 - `logout()` - Sign out and clear session
@@ -159,10 +161,12 @@ const { ... } = useAuth({
 - `refreshUser()` - Refresh current user data
 
 #### Session Management
+
 - `getSessions()` - Get all user sessions
 - `revokeSession(id)` - Revoke a specific session
 
 #### Utilities
+
 - `hasRole(role)` - Check if user has role
 - `hasPermission(permission)` - Check if user has permission
 - `hasAnyRole(roles)` - Check if user has any of the roles
@@ -173,6 +177,7 @@ const { ... } = useAuth({
 ### Components
 
 #### LoginForm
+
 ```vue
 <LoginForm
   redirect-to="/dashboard"
@@ -182,6 +187,7 @@ const { ... } = useAuth({
 ```
 
 #### RegisterForm
+
 ```vue
 <RegisterForm
   redirect-to="/welcome"
@@ -193,6 +199,7 @@ const { ... } = useAuth({
 ## Customization
 
 ### Styling
+
 All components use scoped CSS that can be easily overridden:
 
 ```vue
@@ -210,6 +217,7 @@ All components use scoped CSS that can be easily overridden:
 ```
 
 ### Custom Components
+
 Use the auth client directly for custom components:
 
 ```vue

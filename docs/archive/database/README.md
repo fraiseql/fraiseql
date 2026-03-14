@@ -11,6 +11,7 @@ FraiseQL is radically database-first. Everything happens in PostgreSQL: business
 > **"If PostgreSQL can do it, PostgreSQL should do it."**
 
 FraiseQL treats PostgreSQL as:
+
 - ✅ **Application server** - Business logic lives in PL/pgSQL functions
 - ✅ **Data layer** - JSONB views compose database to API
 - ✅ **Security boundary** - Row-Level Security enforces authorization
@@ -18,6 +19,7 @@ FraiseQL treats PostgreSQL as:
 - ✅ **Performance layer** - Materialized views, indexes, and caching
 
 **Why?**
+
 - Single source of truth (no ORM drift)
 - Maximum performance (no network round-trips)
 - Type safety end-to-end (DB → GraphQL → TypeScript)
@@ -59,6 +61,7 @@ fn_*   - Functions (business logic, mutations)
 ```
 
 **Example**:
+
 ```sql
 -- Base table (normalized)
 CREATE TABLE tb_user (
@@ -94,6 +97,7 @@ CREATE FUNCTION fn_create_post(...) RETURNS mutation_response;
 ```
 
 **Why prefixes?**
+
 - ✅ Clear separation of concerns (normalized vs denormalized)
 - ✅ Easier auto-discovery (FraiseQL scans `v_*` and `tv_*` views)
 - ✅ TVIEW-ready (automatic cascade propagation)
@@ -101,6 +105,7 @@ CREATE FUNCTION fn_create_post(...) RETURNS mutation_response;
 - ✅ Better organization at scale
 
 **Documentation**:
+
 - **[Table Naming Conventions](table-naming-conventions/)** - Complete reference
 - **[Trinity Pattern Philosophy](../core/trinity-pattern/)** - Architectural rationale
 
@@ -121,11 +126,13 @@ CREATE TABLE tb_user (
 ```
 
 **When to use each**:
+
 - **`id` (BIGSERIAL)**: Internal references, joins, foreign keys, performance-critical queries
 - **`identifier` (TEXT)**: User-facing identifiers, URLs, API parameters, UX
 - **`uuid` (UUID)**: Cross-database sync, federation, external systems
 
 **Example**:
+
 ```
 Internal query:  SELECT * FROM tb_post WHERE author_id = 12345;
 API endpoint:    GET /posts/my-first-post-abc123
@@ -133,6 +140,7 @@ Federation:      Sync entity with UUID a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 ```
 
 **Documentation**:
+
 - **[Trinity Identifiers](trinity-identifiers/)** - Complete guide with examples
 - **[Database Patterns](../advanced/database-patterns/)** - Advanced ID patterns
 
@@ -147,6 +155,7 @@ FraiseQL uses **two types of views with identical structure** but different stor
 ### The Decision Rule: Do You Have Foreign Keys?
 
 **Simple rule**:
+
 - **No foreign keys** → Use `v_*` (virtual view)
 - **Has foreign keys** → Use `tv_*` (physical table view)
 
@@ -159,6 +168,7 @@ FraiseQL uses **two types of views with identical structure** but different stor
 **When to use**: Standalone entities with no foreign keys.
 
 **Required structure**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -175,6 +185,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Characteristics**:
+
 - ✅ **Virtual** - computed on every query
 - ✅ Always up-to-date (reflects current base table state)
 - ✅ No storage cost
@@ -190,6 +201,7 @@ WHERE deleted_at IS NULL;
 **When to use**: Entities with foreign keys that need denormalized data from joins.
 
 **Required structure** (optimized for TVIEW extension):
+
 ```sql
 CREATE TABLE tv_post (
     pk_post TEXT PRIMARY KEY,      -- External primary key
@@ -231,6 +243,7 @@ $$;
 ```
 
 **Characteristics**:
+
 - ✅ **Physical table** - data stored on disk
 - ✅ **Required structure**: `(pk_{entity}, id, fk_{relation} INT, {relation}_id UUID, data JSONB)`
 - ✅ Updated explicitly in mutation functions
@@ -240,6 +253,7 @@ $$;
 - ⚠️ Must be kept in sync manually (until TVIEW extension)
 
 **Why both `fk_user` (INT) and `user_id` (UUID)?**
+
 1. **`fk_user` (INT)**: Used by TVIEW extension for efficient cascade propagation
    - "Find all posts WHERE fk_user = 123" (integer comparison, fast)
    - Enables automatic update propagation when user changes
@@ -288,6 +302,7 @@ CREATE TABLE tv_post (
 ```
 
 **Documentation**:
+
 - **[View Strategies](view-strategies/)** - Complete guide with performance notes
 - **[Database-Level Caching](database-level-caching/)** - Materialized view patterns
 
@@ -313,6 +328,7 @@ CREATE TYPE mutation_response AS (
 ```
 
 **Example**:
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(input_data JSONB)
 RETURNS mutation_response AS $$
@@ -349,6 +365,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Documentation**:
+
 - **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete reference
 - **[Status Strings](../mutations/status-strings/)** - Status taxonomy
 - **[CASCADE Architecture](../mutations/cascade-architecture/)** - Side effects
@@ -376,6 +393,7 @@ status := 'forbidden:insufficient_role';
 ```
 
 **Automatic transformation**:
+
 ```
 PostgreSQL:  status = "validation:"
              message = "Email format invalid"
@@ -389,6 +407,7 @@ GraphQL:     errors = [{
 ```
 
 **Status prefixes and HTTP codes**:
+
 - `failed:*` → 422 (Unprocessable Entity)
 - `not_found:*` → 404 (Not Found)
 - `conflict:*` → 409 (Conflict)
@@ -398,6 +417,7 @@ GraphQL:     errors = [{
 - `noop:*` → 422 (No changes made)
 
 **Documentation**:
+
 - **[Error Handling Patterns](../guides/error-handling-patterns/)** - Deep dive
 - **[Status Strings Reference](../mutations/status-strings/)** - Complete taxonomy
 
@@ -410,6 +430,7 @@ GraphQL:     errors = [{
 **All validation happens in PostgreSQL functions**, not application code.
 
 **Pattern 1: Simple Validation**
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_post(input_data JSONB)
 RETURNS mutation_response AS $$
@@ -438,6 +459,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Pattern 2: Multi-Field Validation with Explicit Errors**
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_post(input_data JSONB)
 RETURNS mutation_response AS $$
@@ -478,6 +500,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Why database-side validation?**
+
 - ✅ Single source of truth
 - ✅ Can't be bypassed
 - ✅ Enforced across all clients (web, mobile, CLI)
@@ -485,6 +508,7 @@ $$ LANGUAGE plpgsql;
 - ✅ Better error messages (knows data context)
 
 **Documentation**:
+
 - **[Error Handling Patterns](../guides/error-handling-patterns/)** - Validation section
 - **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete examples
 
@@ -497,6 +521,7 @@ $$ LANGUAGE plpgsql;
 **All authorization happens via PostgreSQL RLS**, not application middleware.
 
 **Basic RLS Setup**:
+
 ```sql
 -- Enable RLS on table
 ALTER TABLE tb_post ENABLE ROW LEVEL SECURITY;
@@ -514,6 +539,7 @@ CREATE POLICY update_own_posts ON tb_post
 ```
 
 **Advanced: Multi-Tenant RLS**:
+
 ```sql
 -- Policy: Users can only see data in their tenant
 CREATE POLICY tenant_isolation ON tb_post
@@ -522,6 +548,7 @@ CREATE POLICY tenant_isolation ON tb_post
 ```
 
 **Set user context** (from FraiseQL middleware):
+
 ```python
 # Set user context before query
 await db.execute(
@@ -534,6 +561,7 @@ result = await db.fetch("SELECT * FROM tb_post")
 ```
 
 **Documentation**:
+
 - **[RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment/)** - Complete guide
 - **[Multi-Tenancy](../advanced/multi-tenancy/)** - Tenant isolation patterns
 
@@ -544,6 +572,7 @@ result = await db.fetch("SELECT * FROM tb_post")
 ### Indexing Strategy
 
 **Index trinity identifiers**:
+
 ```sql
 CREATE INDEX idx_user_id ON tb_user(id);              -- Already has (PRIMARY KEY)
 CREATE INDEX idx_user_identifier ON tb_user(identifier);  -- Already has (UNIQUE)
@@ -551,6 +580,7 @@ CREATE INDEX idx_user_uuid ON tb_user(uuid);          -- Already has (UNIQUE)
 ```
 
 **Index foreign keys**:
+
 ```sql
 CREATE INDEX idx_post_author_id ON tb_post(author_id);
 CREATE INDEX idx_comment_post_id ON tb_comment(post_id);
@@ -558,6 +588,7 @@ CREATE INDEX idx_comment_author_id ON tb_comment(author_id);
 ```
 
 **Composite indexes for common queries**:
+
 ```sql
 -- Posts by status and author
 CREATE INDEX idx_post_status_author ON tb_post(status, author_id);
@@ -568,6 +599,7 @@ CREATE INDEX idx_post_active_date ON tb_post(created_at DESC)
 ```
 
 **JSONB indexes**:
+
 ```sql
 -- GIN index for JSONB operators
 CREATE INDEX idx_post_metadata ON tb_post USING GIN(metadata);
@@ -607,6 +639,7 @@ SELECT cron.schedule('refresh-user-stats', '0 * * * *',
 ```
 
 **Documentation**:
+
 - **[Performance Guide](../performance/performance-guide/)** - Complete optimization guide
 - **[Database-Level Caching](database-level-caching/)** - Materialized view patterns
 
@@ -619,6 +652,7 @@ SELECT cron.schedule('refresh-user-stats', '0 * * * *',
 FraiseQL supports **three caching strategies**:
 
 **1. Denormalized Fields** (Best for simple cases):
+
 ```sql
 ALTER TABLE tb_user ADD COLUMN post_count INTEGER DEFAULT 0;
 
@@ -627,6 +661,7 @@ UPDATE tb_user SET post_count = post_count + 1 WHERE id = author_id;
 ```
 
 **2. Materialized Views** (Best for complex aggregations):
+
 ```sql
 CREATE MATERIALIZED VIEW mv_user_stats AS
 SELECT user_id, COUNT(*) as post_count, ...
@@ -635,6 +670,7 @@ GROUP BY user_id;
 ```
 
 **3. Dedicated Cache Tables** (Best for external data):
+
 ```sql
 CREATE TABLE cache_api_responses (
     key TEXT PRIMARY KEY,
@@ -644,6 +680,7 @@ CREATE TABLE cache_api_responses (
 ```
 
 **Documentation**:
+
 - **[Database-Level Caching](database-level-caching/)** - Complete caching guide
 
 ---
@@ -653,12 +690,14 @@ CREATE TABLE cache_api_responses (
 ### Migration Best Practices
 
 **FraiseQL philosophy on migrations**:
+
 - ✅ Sequential only (no down migrations)
 - ✅ Idempotent (can run multiple times)
 - ✅ Versioned (numbered files: 001_, 002_, ...)
 - ✅ Tested in transaction (rollback on error)
 
 **Example migration structure**:
+
 ```
 migrations/
 ├── 001_initial_schema.sql
@@ -669,6 +708,7 @@ migrations/
 ```
 
 **Migration template**:
+
 ```sql
 -- Migration: 003_add_post_tables.sql
 BEGIN;
@@ -706,6 +746,7 @@ COMMIT;
 ```
 
 **Documentation**:
+
 - **[Migrations Guide](migrations/)** - Complete migration patterns
 
 ---
@@ -715,12 +756,14 @@ COMMIT;
 ### ❌ Don't Use Triggers
 
 **Why avoid triggers?**
+
 - Hidden complexity (debugging nightmares)
 - Performance issues (implicit N+1 queries)
 - Breaking RLS (SECURITY DEFINER triggers bypass RLS)
 - Cascade complexity (trigger chains)
 
 **Use explicit logic instead**:
+
 ```sql
 -- ❌ BAD: Trigger updates count
 CREATE TRIGGER update_post_count ...
@@ -741,6 +784,7 @@ $$;
 ```
 
 **Documentation**:
+
 - **[Avoid Triggers](avoid-triggers/)** - Complete rationale
 
 ### ❌ Don't Use ORMs
@@ -748,6 +792,7 @@ $$;
 **FraiseQL is ORM-free by design.**
 
 **Why no ORMs?**
+
 - Impedance mismatch (forcing OOP onto relational)
 - N+1 query problems
 - Loss of PostgreSQL features
@@ -755,6 +800,7 @@ $$;
 - Type drift (DB schema ≠ ORM models)
 
 **Use raw SQL + typed views instead**:
+
 ```python
 # ❌ BAD: ORM query
 users = await User.objects.filter(status="active").prefetch_related("posts")
@@ -855,6 +901,7 @@ CREATE POLICY select_policy ON tb_{entity}
 ## 📖 Complete Documentation Index
 
 ### Core Database Patterns
+
 - [Table Naming Conventions](table-naming-conventions/) - Trinity pattern reference
 - [Trinity Identifiers](trinity-identifiers/) - Three-tier ID system
 - [View Strategies](view-strategies/) - JSONB vs table views
@@ -862,25 +909,30 @@ CREATE POLICY select_policy ON tb_{entity}
 - [PostgreSQL Extensions](../core/postgresql-extensions/) - Required extensions
 
 ### Mutation & Error Handling
+
 - [Mutation SQL Requirements](../guides/mutation-sql-requirements/) - Complete function guide
 - [Error Handling Patterns](../guides/error-handling-patterns/) - Error handling deep dive
 - [Status Strings Reference](../mutations/status-strings/) - Status taxonomy
 - [CASCADE Architecture](../mutations/cascade-architecture/) - Side effects & cache updates
 
 ### Performance & Caching
+
 - [Database-Level Caching](database-level-caching/) - Caching strategies
 - [Performance Guide](../performance/performance-guide/) - Complete optimization guide
 - [Coordinate Performance](../performance/coordinate-performance-guide/) - Geospatial optimization
 
 ### Security
+
 - [RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment/) - Authorization guide
 - [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation
 
 ### Migrations & Operations
+
 - [Migrations Guide](migrations/) - Migration best practices
 - [Avoid Triggers](avoid-triggers/) - Why we don't use triggers
 
 ### Advanced Topics
+
 - [Advanced Database Patterns](../advanced/database-patterns/) - Advanced patterns
 - [Database API Reference](../core/database-api/) - Connection and query APIs
 

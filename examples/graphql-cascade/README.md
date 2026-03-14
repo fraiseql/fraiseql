@@ -184,16 +184,19 @@ if (cascade) {
 ## Running the Example
 
 1. Set up the database:
+
 ```bash
 psql -f schema.sql
 ```
 
 2. Run the application:
+
 ```bash
 python main.py
 ```
 
 3. Test the mutation:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {

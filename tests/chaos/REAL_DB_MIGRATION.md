@@ -137,6 +137,7 @@ def baseline_metrics():
 Example transformation for network/test_db_connection_chaos.py:
 
 **Before (Mock-based):**
+
 ```python
 class TestDatabaseConnectionChaos(ChaosTestCase):
     def test_connection_refused_recovery(self):
@@ -148,6 +149,7 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 ```
 
 **After (Real DB):**
+
 ```python
 @pytest.mark.chaos
 @pytest.mark.chaos_database
@@ -186,22 +188,26 @@ async def test_connection_refused_recovery(
 ### Step 4: Key Changes to Make
 
 #### 4.1 Test Structure
+
 - **Remove**: `class TestXxx(ChaosTestCase):`
 - **Add**: `@pytest.mark.asyncio` decorator on async functions
 - **Remove**: `self.metrics` (create local `ChaosMetrics()` instance)
 - **Remove**: Manual `setup_method()`/`teardown_method()`
 
 #### 4.2 Client Initialization
+
 - **Remove**: `client = MockFraiseQLClient()`
 - **Add**: Accept `chaos_db_client` as parameter
 - **Remove**: Toxiproxy manual setup (use auto-detection)
 
 #### 4.3 Async/Await
+
 - **Add**: `async def` to test functions
 - **Add**: `await` to all `execute_query()` calls
 - **Add**: `asyncio.TimeoutError` handling for timeouts
 
 #### 4.4 Imports
+
 - **Add**: `import asyncio`
 - **Add**: `from chaos.base import ChaosMetrics`
 - **Remove**: `from chaos.base import ChaosTestCase` (unless other tests in file use it)
@@ -209,6 +215,7 @@ async def test_connection_refused_recovery(
 ### Step 5: Migration Patterns
 
 #### Pattern 1: Simple Query Test
+
 ```python
 @pytest.mark.asyncio
 async def test_simple_scenario(chaos_db_client, chaos_test_schema):
@@ -221,6 +228,7 @@ async def test_simple_scenario(chaos_db_client, chaos_test_schema):
 ```
 
 #### Pattern 2: Chaos Injection Test
+
 ```python
 @pytest.mark.asyncio
 async def test_chaos_scenario(chaos_db_client):
@@ -249,6 +257,7 @@ async def test_chaos_scenario(chaos_db_client):
 ```
 
 #### Pattern 3: Concurrent Chaos
+
 ```python
 @pytest.mark.asyncio
 async def test_concurrent_chaos(chaos_db_client):
@@ -293,15 +302,18 @@ async def test_concurrent_chaos(chaos_db_client):
 ### Files to Transform (Still TODO)
 
 #### Network Chaos Tests
+
 - `tests/chaos/network/test_db_connection_chaos.py` - Create `_real` variant
 - `tests/chaos/network/test_network_latency_chaos.py` - Create `_real` variant
 - `tests/chaos/network/test_packet_loss_corruption.py` - Create `_real` variant
 
 #### Database Chaos Tests
+
 - `tests/chaos/database/test_query_execution_chaos.py` - Create `_real` variant
 - `tests/chaos/database/test_data_consistency_chaos.py` - Create `_real` variant
 
 #### Cache, Auth, Resource, Concurrency
+
 - `tests/chaos/cache/test_*_validation.py` - Multiple `_real` variants
 - `tests/chaos/auth/test_*_validation.py` - Multiple `_real` variants
 - `tests/chaos/resources/test_*_validation.py` - Multiple `_real` variants
@@ -330,21 +342,25 @@ For each test file transformation:
 ## Running Tests
 
 ### Collect Tests
+
 ```bash
 pytest tests/chaos/network/test_db_connection_chaos_real.py --collect-only
 ```
 
 ### Run Single Test
+
 ```bash
 pytest tests/chaos/network/test_db_connection_chaos_real.py::test_connection_refused_recovery -xvs
 ```
 
 ### Run All Chaos Real Tests
+
 ```bash
 pytest tests/chaos/ -m chaos_real_db -v
 ```
 
 ### Run with Database Debug
+
 ```bash
 # If tests hang waiting for database:
 pytest tests/chaos/ -m chaos_real_db -v --timeout=30
@@ -359,6 +375,7 @@ pytest tests/chaos/ -m chaos_real_db -v --timeout=30
 **Cause**: PostgreSQL container not starting or conftest fixtures failing
 
 **Solution**:
+
 ```bash
 # Check if Docker is available
 docker ps
@@ -375,6 +392,7 @@ pytest tests/fixtures/database/ -v --tb=short
 **Cause**: pytest_plugins not loading or conftest import issue
 
 **Solution**:
+
 ```python
 # In conftest.py, ensure this exists:
 pytest_plugins = ["chaos.database_fixtures"]
@@ -393,6 +411,7 @@ async def chaos_db_client(...):
 **Cause**: Test function is an instance method instead of standalone function
 
 **Solution**:
+
 ```python
 # Wrong:
 class TestXxx:
@@ -410,6 +429,7 @@ async def test_foo(chaos_db_client):
 **Cause**: Import path issue in new test file
 
 **Solution**:
+
 ```python
 # Tests in tests/chaos/network/ need:
 from chaos.fraiseql_scenarios import GraphQLOperation, FraiseQLTestScenarios

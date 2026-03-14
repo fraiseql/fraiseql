@@ -9,6 +9,7 @@
 As a procurement officer evaluating FraiseQL for enterprise use, you need to verify supply chain security and obtain evidence for procurement documentation. This journey provides step-by-step verification procedures that are **copy-paste ready** and **non-technical**.
 
 By the end of this journey, you'll have:
+
 - Verified SLSA Level 3 provenance with cryptographic signatures
 - Downloaded Software Bill of Materials (SBOM) for audit trail
 - Vulnerability scan results
@@ -22,6 +23,7 @@ By the end of this journey, you'll have:
 **Analogy:** Like a tamper-evident seal on medication - SLSA ensures the software you receive is exactly what the developer built, with no modifications.
 
 **What SLSA Level 3 Guarantees:**
+
 - ✅ Software built by verified GitHub Actions workflow
 - ✅ No human can inject malicious code during build
 - ✅ Complete audit trail of build process
@@ -29,6 +31,7 @@ By the end of this journey, you'll have:
 - ✅ All dependencies documented (SBOM)
 
 **Why This Matters for Procurement:**
+
 - **Risk Reduction:** Prevents supply chain attacks (like SolarWinds)
 - **Compliance:** Meets Executive Order 14028 (US), NIS2 (EU) requirements
 - **Audit Trail:** Complete documentation for security auditors
@@ -41,6 +44,7 @@ By the end of this journey, you'll have:
 **Goal:** Set up the tools needed for verification
 
 **For macOS/Linux:**
+
 ```bash
 # Install GitHub CLI (for attestation verification)
 brew install gh
@@ -53,6 +57,7 @@ gh auth login
 ```
 
 **For Windows:**
+
 ```powershell
 # Install using winget (Windows Package Manager)
 winget install GitHub.cli
@@ -63,6 +68,7 @@ gh auth login
 ```
 
 **For Organizations Without Install Permissions:**
+
 - **Option 1:** Request IT to install `gh` (GitHub CLI) and `cosign`
 - **Option 2:** Use GitHub's web interface for manual verification (slower)
 - **Option 3:** Have security team perform verification and provide report
@@ -86,11 +92,13 @@ ls -lh
 ```
 
 **Expected Output:**
+
 ```
 fraiseql-1.8.0-py3-none-any.whl
 ```
 
 **What You Downloaded:**
+
 - The FraiseQL Python package (`.whl` file)
 - This is the exact package that would be installed in production
 
@@ -101,12 +109,14 @@ fraiseql-1.8.0-py3-none-any.whl
 **Goal:** Cryptographically verify the package was built securely
 
 **Command (Copy-Paste Ready):**
+
 ```bash
 # Verify SLSA provenance using GitHub CLI
 gh attestation verify fraiseql-*.whl --owner fraiseql
 ```
 
 **Expected Output:**
+
 ```
 ✅ Verification succeeded!
 
@@ -118,12 +128,14 @@ Build Date: 2025-12-08T10:30:00Z
 ```
 
 **What This Means:**
+
 - ✅ Package was built by official GitHub Actions (not a human)
 - ✅ Build process is auditable (workflow file is public)
 - ✅ No tampering after build (cryptographic proof)
 - ✅ Build environment is documented (reproducible)
 
 **If Verification Fails:**
+
 - ❌ **DO NOT PROCEED** - Contact FraiseQL security team
 - ❌ **DO NOT INSTALL** - Package may be compromised
 - 📧 Report to: security@fraiseql.com
@@ -135,6 +147,7 @@ Build Date: 2025-12-08T10:30:00Z
 **Goal:** Additional verification using Sigstore (industry standard)
 
 **Command (Copy-Paste Ready):**
+
 ```bash
 # Verify cryptographic signature using cosign
 cosign verify-attestation --type slsaprovenance \
@@ -144,6 +157,7 @@ cosign verify-attestation --type slsaprovenance \
 ```
 
 **Expected Output:**
+
 ```
 Verification for fraiseql-1.8.0-py3-none-any.whl --
 The following checks were performed on each of these signatures:
@@ -154,12 +168,14 @@ The following checks were performed on each of these signatures:
 ```
 
 **What This Verifies:**
+
 - ✅ Signature matches public certificate (keyless signing)
 - ✅ Build identity is correct (official GitHub workflow)
 - ✅ Timestamp is valid (recent build)
 - ✅ Certificate chain is trusted (Sigstore root of trust)
 
 **Why Two Verifications?**
+
 - **Defense in depth:** Multiple verification methods reduce risk
 - **Industry standard:** Both `gh` and `cosign` are widely used
 - **Compliance:** Meets different regulatory requirements
@@ -173,6 +189,7 @@ The following checks were performed on each of these signatures:
 **SBOM (Software Bill of Materials)** is like an ingredients label - it lists all software components and dependencies.
 
 **Download SBOM:**
+
 ```bash
 # Download SBOM from GitHub releases
 curl -L -O https://github.com/fraiseql/fraiseql/releases/latest/download/fraiseql-sbom.json
@@ -191,17 +208,20 @@ cosign verify-blob \
 ```
 
 **Expected Output:**
+
 ```
 ✅ Verified OK
 ```
 
 **What the SBOM Contains:**
+
 - Complete list of dependencies (libraries FraiseQL uses)
 - Version numbers for all components
 - License information
 - Vulnerability status (CVEs if any)
 
 **View SBOM Summary:**
+
 ```bash
 # Count total dependencies
 cat fraiseql-sbom.json | grep '"name"' | wc -l
@@ -258,16 +278,19 @@ RECOMMENDATION: APPROVED for procurement
 ```
 
 **2. SBOM (Software Bill of Materials)**
+
 - File: `fraiseql-sbom.json`
 - Purpose: Complete dependency list for audit trail
 - Retention: Store with procurement records (7+ years typical)
 
 **3. Verification Screenshots**
+
 - Screenshot of `gh attestation verify` output
 - Screenshot of `cosign verify-attestation` output
 - Include in procurement documentation for non-technical stakeholders
 
 **4. Compliance Mapping** (Reference Document)
+
 - Link to [Compliance Matrix](../security-compliance/compliance-matrix/)
 - Highlight relevant frameworks (ISO 27001, FedRAMP, etc.)
 - Include in vendor evaluation matrix
@@ -292,12 +315,14 @@ Use this checklist in your vendor evaluation:
 ### For ISO 27001 (Control 5.21 - Supply Chain Security)
 
 **Evidence:**
+
 - ✅ SLSA Level 3 provenance (cryptographic verification)
 - ✅ Automated SBOM generation (CycloneDX format)
 - ✅ Dependency tracking with vulnerability monitoring
 - ✅ Reproducible builds with integrity checks
 
 **Control Implementation:**
+
 - Verification procedures documented (this guide)
 - Evidence collected and retained (SBOM, verification reports)
 - Regular vulnerability scanning (automated via GitHub)
@@ -305,12 +330,14 @@ Use this checklist in your vendor evaluation:
 ### For Executive Order 14028 (US Federal - Software Supply Chain)
 
 **Requirements:**
+
 - ✅ SBOM provided (CycloneDX and SPDX formats)
 - ✅ Secure software development practices
 - ✅ Cryptographic verification (Sigstore)
 - ✅ Vulnerability disclosure program
 
 **Evidence:**
+
 - SBOM: `fraiseql-sbom.json`
 - Provenance: GitHub Attestations
 - Vulnerability Scan: GitHub Security Advisories
@@ -319,12 +346,14 @@ Use this checklist in your vendor evaluation:
 ### For NIS2 Directive (EU - Cybersecurity Requirements)
 
 **Requirements (Article 21):**
+
 - ✅ Supply chain security measures
 - ✅ Vulnerability handling and disclosure
 - ✅ Security by design practices
 - ✅ Risk assessment procedures
 
 **Evidence:**
+
 - SLSA provenance verification
 - Vulnerability monitoring (automated)
 - Security architecture documentation
@@ -336,16 +365,19 @@ Use this checklist in your vendor evaluation:
 
 **Option 1 - Web-Based Verification:**
 Visit https://github.com/fraiseql/fraiseql/attestations
+
 - View attestations in web browser
 - Download SBOM directly from releases page
 - Provide screenshots for procurement evidence
 
 **Option 2 - Security Team Verification:**
+
 - Request IT security to perform verification
 - They provide signed verification report
 - Include in procurement documentation
 
 **Option 3 - Vendor-Provided Evidence:**
+
 - Request pre-verified evidence package from FraiseQL
 - Email: procurement@fraiseql.com
 - Includes: verification report, SBOM, compliance mappings
@@ -353,12 +385,14 @@ Visit https://github.com/fraiseql/fraiseql/attestations
 ### Q2: How often should we re-verify?
 
 **Recommended Schedule:**
+
 - **Initial procurement:** Full verification (this guide)
 - **Major version updates:** Full verification
 - **Minor/patch updates:** SBOM review + vulnerability scan
 - **Annual audit:** Full verification for compliance documentation
 
 **Automated Monitoring:**
+
 - Subscribe to GitHub Security Advisories
 - Automated vulnerability notifications
 - No re-verification needed unless CVE detected
@@ -366,6 +400,7 @@ Visit https://github.com/fraiseql/fraiseql/attestations
 ### Q3: What if verification fails?
 
 **Immediate Actions:**
+
 1. ❌ **DO NOT INSTALL** the package
 2. ❌ **DO NOT PROCEED** with procurement
 3. 📧 Contact security@fraiseql.com immediately
@@ -373,6 +408,7 @@ Visit https://github.com/fraiseql/fraiseql/attestations
 5. ⏸️ Pause procurement until resolved
 
 **Escalation Path:**
+
 - **Internal:** Notify IT security team
 - **Vendor:** security@fraiseql.com (24-hour response SLA)
 - **Community:** GitHub security advisory if appropriate
@@ -390,6 +426,7 @@ gh attestation verify fraiseql-1.7.0-py3-none-any.whl --owner fraiseql
 ```
 
 **Use Cases:**
+
 - Audit of existing deployments
 - Compliance documentation for older versions
 - Historical evidence for regulatory review
@@ -399,12 +436,14 @@ gh attestation verify fraiseql-1.7.0-py3-none-any.whl --owner fraiseql
 **Verification in Air-Gapped Networks:**
 
 **Preparation (Connected Network):**
+
 1. Download package + attestations
 2. Download SBOM + signatures
 3. Download cosign public keys
 4. Transfer to air-gapped network (secure media)
 
 **Verification (Air-Gapped Network):**
+
 ```bash
 # Verify using offline public keys
 cosign verify-attestation --key cosign.pub \
@@ -413,6 +452,7 @@ cosign verify-attestation --key cosign.pub \
 ```
 
 **Documentation Available:**
+
 - Air-gapped deployment guide (contact support)
 - Offline verification procedures
 - Public key management
@@ -420,11 +460,13 @@ cosign verify-attestation --key cosign.pub \
 ### Q6: How do we verify the verification tools themselves?
 
 **Trust Chain:**
+
 1. **GitHub CLI** - Signed by GitHub (Microsoft-owned)
 2. **Cosign** - Part of Sigstore (Linux Foundation project)
 3. **Package managers** (brew/winget) - OS-level trust
 
 **Verification:**
+
 - Download from official sources only
 - Verify checksums (provided by official sites)
 - Use organizational-approved package repositories
@@ -432,6 +474,7 @@ cosign verify-attestation --key cosign.pub \
 ## Summary
 
 You now have:
+
 - ✅ SLSA Level 3 provenance verified cryptographically
 - ✅ SBOM downloaded for dependency audit
 - ✅ Verification report for procurement documentation
@@ -444,6 +487,7 @@ You now have:
 ## Next Steps
 
 ### For Procurement Approval
+
 1. **Complete verification** - Follow all steps above
 2. **Collect evidence** - SBOM, verification reports, screenshots
 3. **Review checklist** - Ensure all items checked
@@ -451,11 +495,13 @@ You now have:
 5. **Retain documentation** - 7+ years for compliance
 
 ### For Technical Team
+
 1. **Security assessment** - [Security Officer Journey](./security-officer/)
 2. **Technical evaluation** - [Backend Engineer Journey](./backend-engineer/)
 3. **Deployment planning** - [DevOps Engineer Journey](./devops-engineer/)
 
 ### For Ongoing Compliance
+
 - **Quarterly SBOM review** - Check for new vulnerabilities
 - **Annual re-verification** - Full supply chain verification
 - **Version update verification** - Verify major version upgrades
@@ -464,16 +510,19 @@ You now have:
 ## Related Resources
 
 ### Documentation
+
 - [SLSA Provenance Guide](../security-compliance/slsa-provenance/) - Detailed technical guide
 - [Compliance Matrix](../security-compliance/compliance-matrix/) - Regulatory framework mappings
 - [Security & Compliance Hub](../security-compliance/README/) - Overview
 
 ### External Resources
+
 - [SLSA Framework](https://slsa.dev/) - Supply chain security standard
 - [Sigstore](https://www.sigstore.dev/) - Keyless signing infrastructure
 - [SBOM Formats](https://cyclonedx.org/) - CycloneDX specification
 
 ### Support
+
 - **Procurement Questions:** procurement@fraiseql.com
 - **Security Questions:** security@fraiseql.com
 - **Discord Community:** #procurement channel
@@ -483,6 +532,7 @@ You now have:
 ### Verification Tool Errors
 
 **Error: `gh: command not found`**
+
 ```bash
 # Verify installation
 gh --version
@@ -493,6 +543,7 @@ gh --version
 ```
 
 **Error: `Authentication required`**
+
 ```bash
 # Login to GitHub
 gh auth login
@@ -501,6 +552,7 @@ gh auth login
 ```
 
 **Error: `No attestations found`**
+
 - Verify package name is correct (check spelling)
 - Ensure you have the latest version
 - Check GitHub releases page manually
@@ -509,6 +561,7 @@ gh auth login
 ### SBOM Download Errors
 
 **Error: `404 Not Found` when downloading SBOM**
+
 ```bash
 # Check latest release version
 curl -s https://api.github.com/repos/fraiseql/fraiseql/releases/latest | grep "tag_name"
@@ -518,6 +571,7 @@ curl -L -O https://github.com/fraiseql/fraiseql/releases/download/v1.8.0/fraiseq
 ```
 
 **Error: `Signature verification failed`**
+
 - Ensure all three files downloaded (SBOM, sig, cert)
 - Verify no corruption during download (re-download)
 - Check file sizes match expected values

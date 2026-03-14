@@ -9,9 +9,11 @@
 ## 🚀 Current Development Status
 
 ### **Phase 10: Authentication & JWT Validation** ✅ COMPLETE
+
 **Status**: Production-ready
 **Completion Date**: December 21, 2025
 **Components**:
+
 - ✅ Rust auth module with Auth0 and custom JWT support
 - ✅ PyO3 bindings exposing auth providers to Python
 - ✅ Token validation with JWKS caching
@@ -21,6 +23,7 @@
 - ✅ Performance: < 10ms uncached validation, < 1ms cached
 
 **Key Files**:
+
 - `fraiseql_rs/src/auth/` - Rust implementation
 - `fraiseql_rs/src/auth/py_bindings.rs` - Python integration
 - `tests/test_rust_auth.py` - Test suite (26 tests)
@@ -30,13 +33,13 @@
 ---
 
 ### **Chaos Engineering Test Suite** 📊 PLANNING COMPLETE
+
 **Status**: Design complete, Phase 0 ready to start
 **Completion Date**: December 21, 2025
-**Documentation**:
-- `.phases/phase-chaos-engineering-plan.md` - 5-phase implementation plan (500+ lines)
-- `.phases/chaos-engineering-examples.md` - Code examples (400+ lines)
+**Status**: Complete - Development artifacts removed for v1.9.18 release
 
 **5-Phase Roadmap** (4-6 weeks, 100-150 hours):
+
 - Phase 0: Foundation and tool selection (15-20 hours)
 - Phase 1: Network and connectivity chaos (25-30 hours)
 - Phase 2: Database and query chaos (30-40 hours)
@@ -51,6 +54,7 @@
 ## 📋 Summary of Recent Work
 
 ### What Was Completed
+
 1. **Phase 10 - Authentication (Complete)**
    - Rust JWT validation with Auth0 and custom JWT providers
    - Token validation with JWKS caching (1-hour TTL, LRU eviction)
@@ -67,12 +71,14 @@
    - Ready for Phase 0 to begin immediately
 
 ### What Was Reverted
+
 - **Phase 11 RBAC Work**: Started implementation but had compilation errors
   - Lifetime parameter issues in directive parsing
   - Incomplete Python bindings
   - Decision: Revert to focus on higher-priority Chaos Engineering work
 
 ### Current Test Status
+
 - **Full Test Suite**: 6,088/6,088 tests passing ✅
 - **Phase 10 Tests**: 26/26 tests passing ✅
 - **Build Status**: Clean, all checks passing ✅
@@ -82,6 +88,7 @@
 ## 🎯 Recommended Next Steps
 
 ### **Priority 1: Begin Chaos Engineering Phase 0** (Recommended)
+
 - **Timeline**: Start immediately
 - **Effort**: 15-20 hours
 - **Scope**: Tool selection and test infrastructure setup
@@ -93,12 +100,14 @@
   4. Create test fixtures and context managers
 
 ### **Priority 2: Phase 11 RBAC** (Defer)
+
 - **Timeline**: After Chaos Engineering Phase 1
 - **Effort**: 5-10 hours to fix compilation errors
 - **Scope**: Permission resolution with caching and directives
 - **Status**: Design complete, implementation deferred
 
 ### **Priority 3: Full Test Suite** (Maintain)
+
 - Continue monitoring test quality (6,088+ tests)
 - Zero regressions policy maintained
 - Performance benchmarks tracked
@@ -120,6 +129,7 @@ HTTP Response
 ```
 
 ### Current Components
+
 | Component | Status | Purpose |
 |-----------|--------|---------|
 | **Rust Pipeline** | ✅ Core | Exclusive query execution (7-10x faster) |
@@ -133,12 +143,14 @@ HTTP Response
 ## 🔄 Key Metrics
 
 ### Phase 10 Quality
+
 - **Test Coverage**: 26/26 tests passing (100%)
 - **Code Quality**: All security checks passing
 - **Performance**: Auth validation < 10ms uncached, < 1ms cached
 - **Production Readiness**: 100%
 
 ### Full Test Suite Status
+
 - **Total Tests**: 6,088
 - **Pass Rate**: 100%
 - **Regression Fixes**: 0 failures
@@ -153,8 +165,6 @@ HTTP Response
 | `fraiseql_rs/src/auth/` | Rust auth implementation | ✅ Complete |
 | `fraiseql_rs/src/auth/py_bindings.rs` | PyO3 bindings | ✅ Complete |
 | `tests/test_rust_auth.py` | Auth test suite (26 tests) | ✅ Complete |
-| `.phases/phase-chaos-engineering-plan.md` | Chaos plan (5 phases) | ✅ Complete |
-| `.phases/chaos-engineering-examples.md` | Code examples | ✅ Complete |
 
 ---
 

@@ -85,6 +85,7 @@ make version-show
 ```
 
 Output:
+
 ```
 📊 FraiseQL Version Information
 ============================================================
@@ -104,6 +105,7 @@ make version-dry-run
 ```
 
 Preview patch bump:
+
 ```bash
 uv run python scripts/version_manager.py patch --dry-run
 ```
@@ -214,6 +216,7 @@ python scripts/version_manager.py patch --dry-run
 ```
 
 **Features:**
+
 - Parses semantic versioning (major.minor.patch)
 - Updates 8 files consistently
 - Validates patterns exist before updating
@@ -225,30 +228,36 @@ python scripts/version_manager.py patch --dry-run
 Orchestrates the complete release workflow:
 
 **Phase 0: Sync**
+
 - Fetches latest `origin/dev`
 - Merges base branch into current branch
 - Ensures no out-of-date PRs
 
 **Phase 1: Quality Checks**
+
 - Runs full test suite (5991+ tests)
 - Fails if tests don't pass
 - Reports test summary
 
 **Phase 2: Version Bump**
+
 - Calls version_manager for atomic update
 - Updates all 8 version files
 
 **Phase 3: Git Operations**
+
 - Creates atomic commit with version changes
 - Creates git tag for release
 - Pushes branch and tag to GitHub
 
 **Phase 4: PR Creation**
+
 - Creates PR targeting `dev` branch
 - Auto-fills title from branch name
 - Enables auto-merge (squash merge)
 
 **Features:**
+
 - Protected branch checks (prevents shipping from dev/main)
 - Uncommitted changes detection
 - Merge conflict handling
@@ -273,6 +282,7 @@ git checkout -b chore/prepare-v2.0.0-release
 ```
 
 These are automatically converted to PR titles like:
+
 - "Prepare V1.8.4 Release"
 - "Prepare V1.9.0 Release"
 - "Prepare V2.0.0 Release"
@@ -372,6 +382,7 @@ uvx twine upload dist/*
 ```
 
 **Solution:** Use a feature branch:
+
 ```bash
 git checkout -b chore/prepare-v1.8.4-release
 make pr-ship
@@ -388,6 +399,7 @@ The workflow stops at Phase 1 if tests fail:
 ```
 
 **Solution:** Fix test failures:
+
 ```bash
 # Run tests locally to debug
 make test-verbose
@@ -407,6 +419,7 @@ If base branch has diverged:
 ```
 
 **Solution:** Resolve manually:
+
 ```bash
 # Resolve conflicts
 git merge origin/dev
@@ -437,25 +450,30 @@ The workflow will include these in the release commit. If you don't want them, c
 ## Safety Features
 
 ### Protected Branch Check
+
 - Cannot ship from `dev`, `main`, `staging`, `master`, or `production`
 - Forces feature branch usage
 
 ### Quality Gates
+
 - Full test suite runs before version bump
 - All 5991+ tests must pass
 - Pre-merge CI checks required
 
 ### Atomic Operations
+
 - All 8 version files updated together
 - Single commit contains all changes
 - Rollback is as simple as reverting the commit
 
 ### Git Tags
+
 - Automatic git tag creation
 - Tags pushed with PR for traceability
 - Easy rollback via tag revert
 
 ### Auto-Merge
+
 - Requires CI checks to pass
 - Prevents premature merge
 - Squash merge (single commit to dev)

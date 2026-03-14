@@ -1,7 +1,7 @@
 """File scalar type for file path/URL validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -86,7 +86,7 @@ class FileField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "FileField":
+    def __new__(cls, value: str) -> Self:
         """Create a new FileField instance with validation."""
         if not _FILE_REGEX.match(value):
             raise ValueError(f"Invalid file: {value}. Must be valid file path or URL")

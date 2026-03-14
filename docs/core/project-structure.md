@@ -44,6 +44,7 @@ my-project/
 ## Overview
 
 FraiseQL projects follow a database-first architecture with clear separation of concerns. The structure emphasizes:
+
 - **Database-first design**: Schema and views come first
 - **Modular organization**: Separate directories for different concerns
 - **Scalable patterns**: Easy to grow from minimal to enterprise
@@ -53,14 +54,17 @@ FraiseQL projects follow a database-first architecture with clear separation of 
 Choose the right starting template based on your project needs:
 
 ### 🚀 Quickstart (No Template)
+
 **Best for**: Learning FraiseQL, prototypes, experimentation
 **What you get**: Single-file app with basic CRUD operations
 **When to use**: First time with FraiseQL, proof-of-concepts
 **Evolution path**: Migrate to minimal template when growing
 
 ### 📦 Minimal Template
+
 **Best for**: Simple applications, MVPs, small projects
 **Features**:
+
 - Single-file GraphQL schema
 - Basic CRUD operations
 - PostgreSQL integration
@@ -68,8 +72,10 @@ Choose the right starting template based on your project needs:
 **Example**: Todo app, simple blog, basic API
 
 ### 🏗️ Standard Template
+
 **Best for**: Production applications, medium complexity
 **Features**:
+
 - Multi-file organization (types, queries, mutations)
 - User authentication & authorization
 - Query result caching
@@ -78,8 +84,10 @@ Choose the right starting template based on your project needs:
 **Example**: SaaS app, e-commerce platform, content management
 
 ### 🏢 Enterprise Template
+
 **Best for**: Large-scale applications, high traffic
 **Features**:
+
 - Multi-tenant architecture
 - Advanced caching (APQ, result caching)
 - Monitoring & observability
@@ -97,6 +105,7 @@ Prototypes   Apps       Apps      Apps
 ```
 
 **Migration Tips**:
+
 - **Quickstart → Minimal**: Use `fraiseql init` and move code to organized structure
 - **Minimal → Standard**: Split into multiple files, add authentication
 - **Standard → Enterprise**: Add multi-tenancy, advanced caching, monitoring
@@ -104,6 +113,7 @@ Prototypes   Apps       Apps      Apps
 ## Best Practices by Template
 
 ### Quickstart Best Practices
+
 - ✅ Keep it simple - single file for learning
 - ✅ Focus on GraphQL concepts over architecture
 - ✅ Use for experimentation and prototyping
@@ -113,6 +123,7 @@ Prototypes   Apps       Apps      Apps
 **Example Projects**: [Todo App Quickstart](../getting-started/quickstart.md)
 
 ### Minimal Template Best Practices
+
 - ✅ Single-file schema for simple domains
 - ✅ Clear type definitions with descriptions
 - ✅ Basic error handling and validation
@@ -123,6 +134,7 @@ Prototypes   Apps       Apps      Apps
 **Example Projects**: [Simple Blog](../../examples/blog_simple/), [Basic API](../../examples/)
 
 ### Standard Template Best Practices
+
 - ✅ Separate types, queries, and mutations
 - ✅ Comprehensive test coverage
 - ✅ Authentication and authorization
@@ -134,6 +146,7 @@ Prototypes   Apps       Apps      Apps
 **Example Projects**: [Blog with Auth](../../examples/blog_api/), [E-commerce](../../examples/ecommerce/)
 
 ### Enterprise Template Best Practices
+
 - ✅ Multi-tenant data isolation
 - ✅ Advanced performance optimizations
 - ✅ Comprehensive monitoring
@@ -176,6 +189,7 @@ my-project/
 ## Directory Purposes
 
 ### `src/` - Application Code
+
 **Purpose**: Contains all Python application code organized by responsibility.
 
 - **`main.py`**: Entry point with GraphQL schema definition and FastAPI app
@@ -184,6 +198,7 @@ my-project/
 - **`mutations/`**: Mutation handlers for data modification operations
 
 ### `tests/` - Test Suite
+
 **Purpose**: Comprehensive test coverage for reliability.
 
 - Unit tests for individual functions
@@ -192,6 +207,7 @@ my-project/
 - Performance tests for critical paths
 
 ### `migrations/` - Database Evolution
+
 **Purpose**: Version-controlled database schema changes.
 
 - SQL files for schema modifications
@@ -332,14 +348,17 @@ migrations/
 ### Naming Conventions
 
 **Tables**:
+
 - `tb_entity` - Base tables (e.g., `tb_user`, `tb_post`)
 - `tb_entity_history` - Audit/history tables
 
 **Views**:
+
 - `v_entity` - Regular views for queries
 - `tv_entity` - Materialized views for performance
 
 **Functions**:
+
 - `fn_operation_entity` - Mutation functions (e.g., `fn_create_user`)
 
 ## Scaling Patterns
@@ -361,24 +380,28 @@ migrations/
 ## Best Practices
 
 ### Code Organization
+
 - One type per file in `src/types/`
 - Group related operations in query/mutation files
 - Use clear, descriptive names
 - Add docstrings to all public functions
 
 ### Database Design
+
 - Design views for query patterns, not storage
 - Use functions for complex business logic
 - Index columns used in WHERE clauses
 - Plan for growth and partitioning
 
 ### Testing Strategy
+
 - Unit tests for pure functions
 - Integration tests for database operations
 - API tests for GraphQL endpoints
 - Performance tests for critical queries
 
 ### Configuration Management
+
 - Use `.env` for environment-specific settings
 - Never commit secrets to version control
 - Document all configuration options
@@ -387,6 +410,7 @@ migrations/
 ## Tooling Integration
 
 ### Development Tools
+
 ```bash
 # Start development server
 fraiseql dev
@@ -402,6 +426,7 @@ mypy
 ```
 
 ### Production Deployment
+
 - Use environment variables for configuration
 - Set up proper logging and monitoring
 - Configure database connection pooling

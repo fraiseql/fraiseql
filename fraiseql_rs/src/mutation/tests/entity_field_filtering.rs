@@ -1,18 +1,18 @@
 // ! Entity Field Filtering Tests
-//!
 //! Tests for filtering nested entity fields based on GraphQL query selections.
 //! Related to GitHub issue #525 - mutations should respect field selection for nested entities.
 
-use super::*;
 use serde_json::json;
+
+use super::*;
 
 #[test]
 fn test_filter_entity_simple_fields() {
-    /// Test filtering entity with simple field selection
-    ///
-    /// Given: Entity with many fields
-    /// When: Only requesting ["id", "name"]
-    /// Then: Return only id and name
+    // Test filtering entity with simple field selection
+    //
+    // Given: Entity with many fields
+    // When: Only requesting ["id", "name"]
+    // Then: Return only id and name
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -43,11 +43,11 @@ fn test_filter_entity_simple_fields() {
 
 #[test]
 fn test_filter_entity_nested_fields() {
-    /// Test filtering entity with nested field selections
-    ///
-    /// Given: Entity with nested address object
-    /// When: Selecting location.address.id and location.address.city
-    /// Then: Return only selected nested fields
+    // Test filtering entity with nested field selections
+    //
+    // Given: Entity with nested address object
+    // When: Selecting location.address.id and location.address.city
+    // Then: Return only selected nested fields
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -90,9 +90,9 @@ fn test_filter_entity_nested_fields() {
 
 #[test]
 fn test_filter_entity_deeply_nested() {
-    /// Test filtering deeply nested structures (3+ levels)
-    ///
-    /// location -> contract -> customer
+    // Test filtering deeply nested structures (3+ levels)
+    //
+    // location -> contract -> customer
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -141,7 +141,7 @@ fn test_filter_entity_deeply_nested() {
 
 #[test]
 fn test_filter_entity_no_selections_returns_all() {
-    /// Test that None selections returns all fields (backward compat)
+    // Test that None selections returns all fields (backward compat)
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -161,7 +161,7 @@ fn test_filter_entity_no_selections_returns_all() {
 
 #[test]
 fn test_filter_entity_empty_fields_returns_all() {
-    /// Test that empty fields array returns all fields
+    // Test that empty fields array returns all fields
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -180,7 +180,7 @@ fn test_filter_entity_empty_fields_returns_all() {
 
 #[test]
 fn test_filter_entity_missing_field_ignored() {
-    /// Test that requested fields not in entity are silently ignored
+    // Test that requested fields not in entity are silently ignored
     let entity = json!({
         "id": "loc-123",
         "name": "Warehouse A",
@@ -202,10 +202,10 @@ fn test_filter_entity_missing_field_ignored() {
 
 #[test]
 fn test_filter_entity_array_entities() {
-    /// Test filtering when entity is an array
-    ///
-    /// Arrays should be passed through without field filtering
-    /// (individual items filtering handled separately if needed)
+    // Test filtering when entity is an array
+    //
+    // Arrays should be passed through without field filtering
+    // (individual items filtering handled separately if needed)
     let entity = json!([
         {"id": "1", "name": "Item A", "description": "Desc A"},
         {"id": "2", "name": "Item B", "description": "Desc B"},
@@ -225,7 +225,7 @@ fn test_filter_entity_array_entities() {
 
 #[test]
 fn test_filter_entity_null_entity() {
-    /// Test filtering when entity is null
+    // Test filtering when entity is null
     let entity = serde_json::Value::Null;
     let selections = json!({"fields": ["id"]});
 
@@ -237,7 +237,7 @@ fn test_filter_entity_null_entity() {
 
 #[test]
 fn test_filter_entity_preserves_types() {
-    /// Test that field filtering preserves value types
+    // Test that field filtering preserves value types
     let entity = json!({
         "id": "loc-123",
         "count": 42,
@@ -266,7 +266,7 @@ fn test_filter_entity_preserves_types() {
 
 #[test]
 fn test_filter_entity_multiple_nested_objects() {
-    /// Test filtering with multiple nested objects at same level
+    // Test filtering with multiple nested objects at same level
     let entity = json!({
         "id": "machine-123",
         "name": "Machine X",
@@ -317,15 +317,15 @@ fn test_filter_entity_multiple_nested_objects() {
 
 #[test]
 fn test_build_response_with_entity_field_filtering() {
-    /// Test that build_graphql_response applies entity field filtering
-    ///
-    /// This is the end-to-end integration test
+    // Test that build_graphql_response applies entity field filtering
+    //
+    // This is the end-to-end integration test
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Location created".to_string(),
-        entity_id: Some("loc-123".to_string()),
-        entity_type: Some("Location".to_string()),
-        entity: Some(json!({
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Location created".to_string(),
+        entity_id:        Some("loc-123".to_string()),
+        entity_type:      Some("Location".to_string()),
+        entity:           Some(json!({
             "id": "loc-123",
             "name": "Warehouse A",
             "level": "floor-1",
@@ -333,9 +333,9 @@ fn test_build_response_with_entity_field_filtering() {
             "lat": 48.8606,
             "lng": 2.3376,
         })),
-        updated_fields: Some(vec!["name".to_string()]),
-        cascade: None,
-        metadata: None,
+        updated_fields:   Some(vec!["name".to_string()]),
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 
@@ -373,20 +373,20 @@ fn test_build_response_with_entity_field_filtering() {
 
 #[test]
 fn test_build_response_without_entity_filtering_backward_compat() {
-    /// Test that None entity_selections preserves all fields (backward compat)
+    // Test that None entity_selections preserves all fields (backward compat)
     let result = MutationResult {
-        status: MutationStatus::Success("created".to_string()),
-        message: "Location created".to_string(),
-        entity_id: Some("loc-123".to_string()),
-        entity_type: Some("Location".to_string()),
-        entity: Some(json!({
+        status:           MutationStatus::Success("created".to_string()),
+        message:          "Location created".to_string(),
+        entity_id:        Some("loc-123".to_string()),
+        entity_type:      Some("Location".to_string()),
+        entity:           Some(json!({
             "id": "loc-123",
             "name": "Warehouse A",
             "level": "floor-1",
         })),
-        updated_fields: None,
-        cascade: None,
-        metadata: None,
+        updated_fields:   None,
+        cascade:          None,
+        metadata:         None,
         is_simple_format: false,
     };
 

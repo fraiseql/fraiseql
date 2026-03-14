@@ -228,8 +228,8 @@ class FraiseQLRepository:
     async def _set_session_variables(self, cursor_or_conn: Any) -> None:
         """Set PostgreSQL session variables from context.
 
-        Sets app.tenant_id, app.contact_id, app.user_id, and app.is_super_admin
-        session variables if present in context.
+        Sets app.tenant_id, app.contact_id, app.user_id, app.is_super_admin,
+        and fraiseql.started_at session variables if present in context.
         Uses SET LOCAL to scope variables to the current transaction.
 
         Args:
@@ -335,6 +335,15 @@ class FraiseQLRepository:
                     )
                 else:
                     await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", False)
+
+        # Inject wall-clock timestamp for DB-side execution duration measurement.
+        # SQL functions can compute elapsed time via:
+        #   clock_timestamp() - current_setting('fraiseql.started_at', true)::timestamptz
+        # Use set_config() via SELECT instead of SET LOCAL to avoid psycopg
+        # extended query protocol issues with function calls in SET statements.
+        await cursor_or_conn.execute(
+            "SELECT set_config('fraiseql.started_at', clock_timestamp()::text, true)"
+        )
 
     async def run(self, query: DatabaseQuery) -> list[dict[str, object]]:
         """Execute a SQL query using a connection from the pool.
@@ -471,7 +480,7 @@ class FraiseQLRepository:
                     (json.dumps(input_data),),
                 )
                 result = await cursor.fetchone()
-                return result if result else {}
+                return result or {}
         else:
             # asyncpg pool
             async with self._pool.acquire() as conn:
@@ -549,7 +558,7 @@ class FraiseQLRepository:
                     tuple(params),
                 )
                 result = await cursor.fetchone()
-                return result if result else {}
+                return result or {}
         else:
             # asyncpg pool
             if context_args:

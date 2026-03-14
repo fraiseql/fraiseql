@@ -33,6 +33,7 @@ Quality Gate CI/CD (quality-gate.yml)       Enterprise CI/CD (enterprise-tests.y
 ### Test Categories
 
 The main pipeline runs tests marked with:
+
 - `@pytest.mark.requires_postgres` - Tests needing PostgreSQL
 - Excludes `@pytest.mark.requires_vault` - Vault KMS tests
 - Excludes `@pytest.mark.requires_auth0` - Auth0 tests
@@ -40,6 +41,7 @@ The main pipeline runs tests marked with:
 ### Quality Gate
 
 The `quality-gate` job ensures:
+
 - All required jobs passed
 - No critical security issues
 - Code coverage meets minimum thresholds
@@ -64,12 +66,14 @@ The `quality-gate` job ensures:
 ### Reliability Features
 
 **Vault Startup Handling:**
+
 - Exponential backoff (2^attempt seconds wait)
 - 10 retry attempts (up to ~17 minutes total)
 - 20-second grace period before health checks
 - Explicit error messages for debugging
 
 **Failure Handling:**
+
 - `continue-on-error: true` - Individual job failures don't stop the workflow
 - Summary job always succeeds (logs results)
 - Test artifacts uploaded for analysis
@@ -348,6 +352,7 @@ pytest -m 'chaos_network' -v -s \
 ```
 
 **⚠️ Chaos Test Prerequisites:**
+
 - Docker daemon running
 - Sufficient system resources (4GB+ RAM recommended)
 - Network access for container downloads
@@ -360,14 +365,17 @@ pytest -m 'chaos_network' -v -s \
 ### Quick Reference
 
 **Main CI Issues:**
+
 - PostgreSQL tests failing → Check database connection and `FRAISEQL_ENVIRONMENT=testing`
 - Quality gate blocked → Check logs for failed jobs (unit-tests, lint, security, integration)
 
 **Enterprise CI Issues:**
+
 - Vault not starting → Wait for exponential backoff (up to 17 min), check Docker resources
 - Auth0 tests failing → Verify mocks configured, check JWT validation
 
 **Chaos Engineering CI Issues:**
+
 - Docker containers failing to start → Check Docker daemon, system resources, and network connectivity
 - Chaos injection not working → Verify testcontainers version, check system permissions for network manipulation
 - Tests timing out → Increase `--chaos-timeout` parameter or reduce `--chaos-intensity`
@@ -375,6 +383,7 @@ pytest -m 'chaos_network' -v -s \
 - Network chaos tests failing → Check if running in restricted environment (corporate firewalls, VPN issues)
 
 **Local Development:**
+
 - Tests can't connect → Run `pg_isready -h localhost -p 5432`, restart PostgreSQL if needed
 - Markers not working → Run `pytest --markers` to list available markers
 - Chaos tests can't run → Ensure Docker is running, check `docker ps` and `docker logs`
@@ -397,6 +406,7 @@ When developing chaos tests:
 1. **Use appropriate chaos markers** (`@pytest.mark.chaos`, `@pytest.mark.chaos_real_db`, `@pytest.mark.chaos_<category>`)
 
 **Example Chaos Test Structure:**
+
 ```python
 @pytest.mark.chaos
 @pytest.mark.chaos_real_db
@@ -437,12 +447,14 @@ def new_service_config(postgres_url: str):
 The CI pipeline is optimized for speed and resource efficiency:
 
 ### Standard CI Optimizations
+
 - **Parallel jobs**: Unit tests, lint, security run in parallel
 - **Selective testing**: Only PostgreSQL tests in main CI (chaos tests run in separate workflow)
 - **Schema isolation**: Each test class gets its own PostgreSQL schema
 - **Connection pooling**: Reused connections within test classes
 
 ### Chaos Engineering Optimizations
+
 - **Container reuse**: Docker containers cached between test runs where possible
 - **Parallel execution**: Chaos test categories run in parallel when safe to do so
 - **Intensity scaling**: Adjustable chaos injection levels (minimal/low/medium/high)
@@ -458,6 +470,7 @@ The CI pipeline is optimized for speed and resource efficiency:
 | **Combined Runtime** | All pipelines | 68-100 min | On-demand only | ⚠️ NO |
 
 **Strategy Benefits:**
+
 - **Fast Feedback**: Developers get correctness results in <20 minutes
 - **Comprehensive Coverage**: Enterprise and chaos testing run separately
 - **Resource Efficiency**: Heavy chaos tests don't slow down development
@@ -473,12 +486,14 @@ The CI pipeline is optimized for speed and resource efficiency:
 ## Future Improvements
 
 ### Standard CI Improvements
+
 - **Test parallelization**: Split large test suites across multiple runners
 - **Performance regression detection**: Automated benchmarking
 - **Environment parity**: Closer alignment between CI and production
 - **Test result analysis**: Better failure pattern recognition
 
 ### Chaos Engineering Improvements
+
 - **Chaos automation**: AI-driven chaos scenario generation
 - **Performance under chaos**: Benchmarking system performance during failures
 - **Chaos in production**: Safe chaos testing in production environments (feature flags)

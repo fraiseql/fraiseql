@@ -35,6 +35,7 @@ psql -d your_db -f 00_schema/schema.sql
 ## When to Upgrade to S
 
 When you have:
+
 - More than 3-4 tables
 - Need better organization
 - Multiple developers

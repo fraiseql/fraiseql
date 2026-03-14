@@ -35,6 +35,7 @@ class RealFraiseQLClient:
 ```
 
 **Benefits**:
+
 - Real database connections actually affected by chaos injection
 - Accurate execution time measurement
 - Genuine error conditions
@@ -70,6 +71,7 @@ def baseline_metrics():
 ### 3. Converted Test Suite to Pytest-Based Async Functions
 
 Old approach:
+
 ```python
 class TestDatabaseConnectionChaos(ChaosTestCase):
     def test_connection_refused_recovery(self):
@@ -78,6 +80,7 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 ```
 
 New approach:
+
 ```python
 @pytest.mark.asyncio
 @pytest.mark.chaos_real_db
@@ -87,6 +90,7 @@ async def test_connection_refused_recovery(chaos_db_client, chaos_test_schema):
 ```
 
 **Key Changes**:
+
 - ✅ Async/await pattern
 - ✅ Pytest fixtures instead of manual setup
 - ✅ No unittest.TestCase inheritance
@@ -121,6 +125,7 @@ File: `tests/chaos/network/test_db_connection_chaos_real.py`
    - Reasonable success rates despite failures
 
 Each test:
+
 - ✅ Uses real database connections
 - ✅ Measures actual execution time
 - ✅ Properly handles async/await
@@ -133,6 +138,7 @@ Each test:
 File: `tests/chaos/conftest.py`
 
 Added:
+
 ```python
 # Load chaos database fixtures
 pytest_plugins = ["chaos.database_fixtures"]
@@ -145,6 +151,7 @@ This automatically loads all fixtures defined in `database_fixtures.py`
 File: `tests/chaos/REAL_DB_MIGRATION.md`
 
 350+ line guide covering:
+
 - Architecture overview
 - Implementation patterns
 - Step-by-step transformation guide
@@ -174,11 +181,13 @@ All 4 tests discovered successfully.
 ### ⏳ Execution (Requires PostgreSQL Container)
 
 Test execution requires:
+
 1. Docker/Podman available for PostgreSQL container
 2. testcontainers library (already installed)
 3. ~30 seconds for database startup + test execution
 
 Tests will:
+
 - Start PostgreSQL container automatically
 - Create isolated test schema
 - Execute real database queries
@@ -189,12 +198,14 @@ Tests will:
 ## Files Created
 
 ### New Core Files
+
 1. **`tests/chaos/database_fixtures.py`** - Real client + fixtures (280 lines)
 2. **`tests/chaos/network/test_db_connection_chaos_real.py`** - Example test suite (365 lines)
 3. **`tests/chaos/REAL_DB_MIGRATION.md`** - Migration guide (350+ lines)
 4. **`tests/chaos/TRANSFORMATION_SUMMARY.md`** - This file
 
 ### Modified Files
+
 1. **`tests/chaos/conftest.py`** - Added pytest_plugins import
 
 ---
@@ -202,6 +213,7 @@ Tests will:
 ## Architecture Comparison
 
 ### Before (Mock-Based)
+
 ```
 MockFraiseQLClient (in-memory simulation)
 ├─ No real database
@@ -217,6 +229,7 @@ unittest.TestCase
 ```
 
 ### After (Real Database)
+
 ```
 PostgreSQL Container (real database)
 ├─ Per-class schema isolation
@@ -241,22 +254,27 @@ pytest async functions
 ## Key Design Decisions
 
 ### 1. Async/Await Pattern
+
 **Why**: Allows concurrent query execution and proper async handling with asyncio
 **Impact**: Enables testing of concurrent chaos scenarios
 
 ### 2. Pytest Functions (Not Classes)
+
 **Why**: Pytest fixtures don't work with unittest.TestCase
 **Impact**: Cleaner test code, better fixture support, no class overhead
 
 ### 3. Real Database Fallback to Mock
+
 **Why**: Tests can run without Docker (for CI/CD flexibility)
 **Implementation**: ToxiproxyManager auto-detects availability, falls back to mock mode
 
 ### 4. Per-Class Schema Isolation
+
 **Why**: Test isolation without database recreation
 **Impact**: Fast test execution (~100ms cleanup instead of 5+ seconds)
 
 ### 5. Separate `_real` Test Files
+
 **Why**: Preserve existing mock tests while adding real variants
 **Impact**: Gradual migration possible, no all-or-nothing refactor
 
@@ -265,13 +283,16 @@ pytest async functions
 ## Migration Roadmap
 
 ### Phase 1: Foundation (✅ COMPLETE)
+
 - [x] Create RealFraiseQLClient
 - [x] Create chaos-specific fixtures
 - [x] Create example test suite
 - [x] Document migration patterns
 
 ### Phase 2: Network Chaos Tests (⏳ PENDING)
+
 Requires transforming 3 files using documented patterns:
+
 - `test_db_connection_chaos.py` → `test_db_connection_chaos_real.py`
 - `test_network_latency_chaos.py` → `test_network_latency_chaos_real.py`
 - `test_packet_loss_corruption.py` → `test_packet_loss_corruption_real.py`
@@ -279,18 +300,22 @@ Requires transforming 3 files using documented patterns:
 **Estimate**: 60-90 minutes with local model or developer
 
 ### Phase 3: Database Chaos Tests (⏳ PENDING)
+
 2 files:
+
 - `test_query_execution_chaos.py` → `test_query_execution_chaos_real.py`
 - `test_data_consistency_chaos.py` → `test_data_consistency_chaos_real.py`
 
 **Estimate**: 45-60 minutes
 
 ### Phase 4: Cache/Auth/Resource/Concurrency Tests (⏳ PENDING)
+
 8-12 files across multiple validation test suites
 
 **Estimate**: 2-3 hours
 
 ### Phase 5: Verification & Optimization (⏳ PENDING)
+
 - Run full test suite
 - Profile performance
 - Optimize slow tests
@@ -303,18 +328,21 @@ Requires transforming 3 files using documented patterns:
 ## What's Ready to Use
 
 ### For Developers
+
 1. Copy pattern from `test_db_connection_chaos_real.py`
 2. Follow migration guide in `REAL_DB_MIGRATION.md`
 3. Create new `test_*_real.py` file
 4. Transform test functions using patterns
 
 ### For CI/CD
+
 1. Tests automatically detect Docker availability
 2. Mock mode fallback for CI without Docker
 3. Auto-discovery via pytest markers: `@pytest.mark.chaos_real_db`
 4. Run with: `pytest tests/chaos -m chaos_real_db`
 
 ### For Debugging
+
 1. Baseline metrics auto-loaded from `baseline_metrics.json`
 2. Execution times tracked in ChaosMetrics
 3. All results include `_execution_time_ms` metadata
@@ -327,17 +355,20 @@ Requires transforming 3 files using documented patterns:
 To continue the transformation:
 
 ### Option 1: Manual Transformation
+
 1. Read `REAL_DB_MIGRATION.md` sections 3-4
 2. Use `test_db_connection_chaos_real.py` as template
 3. Transform each test file sequentially
 4. Verify with `pytest --collect-only` then single test run
 
 ### Option 2: Automated via Local Model
+
 1. Provide `REAL_DB_MIGRATION.md` patterns to local model
 2. Task: "Transform test_db_connection_chaos.py using provided patterns"
 3. Review changes, test, repeat for other files
 
 ### Option 3: Use `opencode` (If Available)
+
 1. Create phase plan from migration guide
 2. Run with local model
 3. User verification between phases
@@ -347,17 +378,20 @@ To continue the transformation:
 ## Success Criteria
 
 ✅ **Completed**:
+
 - Real client created and functional
 - Fixtures properly integrated
 - Example test suite compilable
 - Migration patterns documented
 
 ⏳ **In Progress**:
+
 - Real database tests discoverable
 - Chaos injection verified working
 - Performance benchmarking underway
 
 ⏳ **Remaining**:
+
 - All ~20 test files transformed
 - Full test suite passes with real database
 - Performance acceptable (<30 min total)
@@ -368,22 +402,27 @@ To continue the transformation:
 ## Technical Debt / Considerations
 
 ### 1. Connection Pool Size
+
 Current: `min=1, max=5` per test class
 Consider: Adjust based on actual load testing results
 
 ### 2. Timeout Values
+
 Tests hardcode 2-10 second timeouts
 Consider: Load from baseline_metrics for parameterization
 
 ### 3. Query Complexity
+
 Example tests use simple `SELECT 1` queries
 Consider: Add real GraphQL execution against full schema
 
 ### 4. Toxiproxy Integration
+
 Currently not used in new tests (just client-side latency)
 Consider: Enable when Toxiproxy available for true network chaos
 
 ### 5. Performance Optimization
+
 Tests may run slower than mock-based
 Consider: Parallel execution, caching, schema reuse
 
@@ -423,6 +462,7 @@ The groundwork is complete. Remaining work is systematic test transformation fol
 ---
 
 **Ready to proceed with**:
+
 1. Transforming remaining network chaos tests
 2. Testing with real PostgreSQL container
 3. Verifying performance characteristics

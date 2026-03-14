@@ -23,12 +23,14 @@ FraiseQL provides two repository classes for database operations, each designed 
 **Location**: `fraiseql.db.FraiseQLRepository`
 
 **When to Use**:
+
 - ✅ GraphQL query resolvers
 - ✅ GraphQL mutation resolvers
 - ✅ Any resolver returning data to GraphQL clients
 - ✅ Performance-critical operations
 
 **Key Characteristics**:
+
 - Returns `RustResponseBytes` ready for HTTP response
 - Zero string operations in Python
 - Field projection done in Rust
@@ -38,6 +40,7 @@ FraiseQL provides two repository classes for database operations, each designed 
 ### Methods
 
 #### find()
+
 ```python
 async def find(
     self,
@@ -51,6 +54,7 @@ async def find(
 **Returns**: `RustResponseBytes` - Optimized GraphQL response ready for HTTP
 
 **Example**:
+
 ```python
 @fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
@@ -60,6 +64,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ```
 
 #### find_one()
+
 ```python
 async def find_one(
     self,
@@ -73,6 +78,7 @@ async def find_one(
 **Returns**: `RustResponseBytes | None` - Single object or null
 
 **Example**:
+
 ```python
 from fraiseql.types import ID
 
@@ -83,6 +89,7 @@ async def user(info, id: ID) -> User | None:
 ```
 
 #### count()
+
 ```python
 async def count(
     self,
@@ -94,6 +101,7 @@ async def count(
 **Returns**: `int` - Plain integer count
 
 **Example**:
+
 ```python
 @fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
@@ -116,6 +124,7 @@ PostgreSQL → Rust transformation → HTTP bytes (zero Python overhead)
 ```
 
 **Performance Benefits**:
+
 - ⚡ Zero Python string operations
 - ⚡ Zero dict allocations for field data
 - ⚡ Parallel transformation in Rust
@@ -128,6 +137,7 @@ PostgreSQL → Rust transformation → HTTP bytes (zero Python overhead)
 **Location**: `fraiseql.cqrs.repository.CQRSRepository`
 
 **When to Use**:
+
 - ⚠️ Legacy code (migrate to `FraiseQLRepository` when possible)
 - ✅ Python business logic (not GraphQL)
 - ✅ Background jobs that need to manipulate data
@@ -135,6 +145,7 @@ PostgreSQL → Rust transformation → HTTP bytes (zero Python overhead)
 - ✅ Data migrations
 
 **Key Characteristics**:
+
 - Returns Python objects (`dict`, `list`)
 - Can manipulate data in Python before returning
 - Entity-class based API
@@ -143,6 +154,7 @@ PostgreSQL → Rust transformation → HTTP bytes (zero Python overhead)
 ### Methods
 
 #### count()
+
 ```python
 async def count(
     self,
@@ -153,6 +165,7 @@ async def count(
 ```
 
 **Example**:
+
 ```python
 import fraiseql
 from fraiseql import CQRSRepository
@@ -164,6 +177,7 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 ```
 
 #### find_by_id()
+
 ```python
 from fraiseql.types import ID
 
@@ -175,6 +189,7 @@ async def find_by_id(
 ```
 
 #### list_entities()
+
 ```python
 async def list_entities(
     self,
@@ -191,6 +206,7 @@ async def list_entities(
 ### From CQRSRepository to FraiseQLRepository
 
 **Before (Legacy)**:
+
 ```python
 import fraiseql
 from fraiseql import CQRSRepository
@@ -207,6 +223,7 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 ```
 
 **After (Modern)**:
+
 ```python
 @fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
@@ -220,6 +237,7 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 ```
 
 **Key Changes**:
+
 1. Use `info.context["db"]` instead of creating `CQRSRepository`
 2. Pass view names (`"v_users"`) instead of entity classes (`User`)
 3. Let the framework handle `RustResponseBytes` → GraphQL conversion
@@ -230,6 +248,7 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 ### Use FraiseQLRepository ✅
 
 **GraphQL Resolvers**:
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -238,6 +257,7 @@ async def users(info) -> list[User]:
 ```
 
 **Count Queries**:
+
 ```python
 @fraiseql.query
 async def total_users(info) -> int:
@@ -248,6 +268,7 @@ async def total_users(info) -> int:
 ### Use CQRSRepository ⚠️
 
 **Background Jobs** (non-GraphQL):
+
 ```python
 async def cleanup_old_records():
     async with get_db_connection() as conn:
@@ -263,6 +284,7 @@ async def cleanup_old_records():
 ```
 
 **CLI Utilities**:
+
 ```python
 # scripts/export_users.py
 async def export_users_to_csv():
@@ -277,6 +299,7 @@ async def export_users_to_csv():
 ## Performance Considerations
 
 ### FraiseQLRepository Performance
+
 ```
 PostgreSQL → Rust → HTTP bytes
 ~10-50x faster than traditional Python approach
@@ -285,6 +308,7 @@ Minimal memory allocations
 ```
 
 ### CQRSRepository Performance
+
 ```
 PostgreSQL → Python dicts → JSON → GraphQL
 Traditional performance

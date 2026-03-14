@@ -1,6 +1,7 @@
 # Performance Testing
 
 **Quick Start:**
+
 ```bash
 pytest tests/performance/test_performance.py -v -s
 ```
@@ -17,6 +18,7 @@ pytest tests/performance/test_performance.py -v -s
 ## Component Breakdown
 
 Each test measures time spent in:
+
 - **PostgreSQL**: Query execution (typically 35-89%)
 - **Rust Pipeline**: JSON transformation (3-40%, scales with data size)
 - **Driver Overhead**: psycopg3 connection pool + result fetching (5-41%)
@@ -31,6 +33,7 @@ Each test measures time spent in:
 ## Details
 
 See [`MEDIUM_VPS_BENCHMARKS.md`](MEDIUM_VPS_BENCHMARKS/) for:
+
 - Complete benchmark results
 - Hardware profile specification
 - Optimization recommendations
@@ -52,6 +55,7 @@ pytest tests/performance/test_performance.py -v -s --tb=short
 ## Test Coverage
 
 The test suite includes:
+
 - **Single row lookup** - Basic query performance
 - **List queries** - Multiple rows (10, 100, 500, 1000)
 - **Nested data** - Complex JSONB structures

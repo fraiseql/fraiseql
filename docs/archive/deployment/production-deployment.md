@@ -9,12 +9,14 @@ This guide covers the complete production deployment process for FraiseQL, inclu
 ### Infrastructure Requirements
 
 #### Minimum Hardware Specifications
+
 - **CPU**: 4 cores (8 recommended for high traffic)
 - **RAM**: 8GB minimum (16GB recommended)
 - **Storage**: 50GB SSD minimum
 - **Network**: 1Gbps connection
 
 #### Supported Platforms
+
 - **Container Orchestration**: Kubernetes 1.24+, Docker Compose
 - **Cloud Providers**: AWS, GCP, Azure, DigitalOcean
 - **Operating Systems**: Ubuntu 20.04+, CentOS 8+, RHEL 8+
@@ -22,6 +24,7 @@ This guide covers the complete production deployment process for FraiseQL, inclu
 ### Software Dependencies
 
 #### Required Software
+
 - Docker 24.0+
 - Docker Compose 2.0+
 - PostgreSQL 16+ with pgvector extension
@@ -29,6 +32,7 @@ This guide covers the complete production deployment process for FraiseQL, inclu
 - Nginx 1.20+
 
 #### Optional but Recommended
+
 - certbot (for SSL certificates)
 - Prometheus (monitoring)
 - Grafana (dashboards)
@@ -37,6 +41,7 @@ This guide covers the complete production deployment process for FraiseQL, inclu
 ### Network Configuration
 
 #### Required Ports
+
 ```
 80/tcp   - HTTP (redirect to HTTPS)
 443/tcp  - HTTPS
@@ -47,6 +52,7 @@ This guide covers the complete production deployment process for FraiseQL, inclu
 ```
 
 #### DNS Requirements
+
 - Valid domain name with SSL certificate
 - DNS A/AAAA records pointing to load balancer
 - Reverse DNS for email deliverability (if applicable)
@@ -123,6 +129,7 @@ sudo certbot certonly --nginx -d yourdomain.com
 #### Using Custom Certificates
 
 Place certificates in the appropriate directory:
+
 ```bash
 deploy/ssl/
 ├── fullchain.pem
@@ -368,6 +375,7 @@ scrape_configs:
 ### 2. Grafana Dashboards
 
 Import the provided dashboards:
+
 - `grafana/performance_metrics.json`
 - `grafana/cache_hit_rate.json`
 - `grafana/database_pool.json`
@@ -375,6 +383,7 @@ Import the provided dashboards:
 ### 3. Alerting Rules
 
 Configure alerts for:
+
 - High error rates (>5%)
 - Database connection pool exhaustion
 - High memory usage (>90%)
@@ -445,6 +454,7 @@ sudo ufw --force reload
 ### 2. SSL/TLS Configuration
 
 Ensure nginx configuration includes:
+
 ```nginx
 # SSL Configuration
 ssl_protocols TLSv1.2 TLSv1.3;
@@ -474,6 +484,7 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; prelo
 ### Common Issues
 
 #### Application Won't Start
+
 ```bash
 # Check logs
 docker-compose logs fraiseql
@@ -486,6 +497,7 @@ docker-compose exec fraiseql python -c "import psycopg; psycopg.connect(os.envir
 ```
 
 #### Database Connection Issues
+
 ```bash
 # Check database logs
 docker-compose logs db
@@ -498,6 +510,7 @@ docker-compose exec db psql -U fraiseql -d fraiseql_prod -c "SELECT version();"
 ```
 
 #### High Memory Usage
+
 ```bash
 # Check application memory usage
 docker stats
@@ -527,18 +540,21 @@ docker-compose logs fraiseql | grep ERROR
 ### Regular Maintenance Tasks
 
 #### Weekly
+
 - Review error logs
 - Check disk space usage
 - Verify backup integrity
 - Update SSL certificates
 
 #### Monthly
+
 - Security patching
 - Performance optimization
 - Log rotation
 - Dependency updates
 
 #### Quarterly
+
 - Full security audit
 - Performance benchmarking
 - Disaster recovery testing
@@ -561,6 +577,7 @@ curl https://yourdomain.com/health
 ## Support and Contact
 
 For production support and issues:
+
 - Check the troubleshooting guide
 - Review application logs
 - Contact the DevOps team

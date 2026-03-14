@@ -62,7 +62,7 @@ class Allocation:
 class TestNestedJSONBFieldSelection:
     """Test class for nested JSONB field selection with composed views."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_jsonb_views(self, class_db_pool, test_schema):
         """Create tables and composed JSONB views for testing."""
         async with class_db_pool.connection() as conn:
@@ -159,7 +159,7 @@ class TestNestedJSONBFieldSelection:
 
         yield
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     def graphql_app(
         self,
         class_db_pool,

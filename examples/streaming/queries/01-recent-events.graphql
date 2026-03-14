@@ -1,0 +1,11 @@
+# Streaming Example: Recent Events
+# Get the latest events from the system
+
+query RecentEvents($limit: Int) {
+  events(limit: $limit) {
+    id
+    type
+    timestamp
+    data
+  }
+}

@@ -12,6 +12,7 @@
 This guide helps you verify FraiseQL's supply chain security claims by checking **SLSA provenance** - cryptographic proof that the software you're evaluating was built from trusted source code without tampering.
 
 **What you'll learn:**
+
 - ✅ What SLSA is and why it matters for procurement
 - ✅ How to verify FraiseQL releases in 3 simple steps
 - ✅ What to include in procurement documentation
@@ -32,11 +33,13 @@ Software supply chain attacks (like SolarWinds, Log4j) can compromise thousands 
 
 **The Solution:**
 SLSA provides **cryptographic proof** that:
+
 1. Software was built from specific source code (not tampered with)
 2. The build process used known, auditable systems
 3. No unauthorized changes occurred between source and distribution
 
 **For Procurement Officers:**
+
 - ✅ **Verify vendor claims** - Don't just trust "we're secure," verify cryptographically
 - ✅ **Meet compliance requirements** - Executive Order 14028, NIST 800-161, FedRAMP
 - ✅ **Reduce risk** - Detect compromised packages before deployment
@@ -55,6 +58,7 @@ SLSA defines 4 levels of supply chain security (Build L1-L3, higher = more secur
 **FraiseQL is SLSA Build Level 3** - the highest practical level for most organizations.
 
 **What this means:**
+
 - Builds run on hardened GitHub-hosted runners (not maintainer laptops)
 - All build steps are auditable and tamper-resistant
 - Provenance is signed with Sigstore (keyless cryptographic signing)
@@ -89,6 +93,7 @@ You can verify FraiseQL releases using **three methods** (choose based on your t
 #### Step 3: Verify Details
 
 Click on any attestation to see:
+
 - **Source repository**: `github.com/fraiseql/fraiseql`
 - **Build workflow**: `.github/workflows/publish.yml`
 - **Build commit**: Exact Git commit SHA used for build
@@ -96,6 +101,7 @@ Click on any attestation to see:
 - **Signature**: Sigstore certificate chain
 
 **What to look for:**
+
 - ✅ Attestation status: **Verified**
 - ✅ Issuer: `https://token.actions.githubusercontent.com`
 - ✅ Workflow: `fraiseql/fraiseql/.github/workflows/publish.yml`
@@ -104,6 +110,7 @@ Click on any attestation to see:
 #### Step 4: Document for Procurement
 
 **Screenshot the attestation page** and include in procurement documentation with:
+
 - Release version verified (e.g., `v0.1.0`)
 - Verification date
 - Attestation status (Verified ✅)
@@ -152,6 +159,7 @@ gh release download --repo fraiseql/fraiseql --pattern "*.whl"
 ```
 
 **Expected output:**
+
 ```
 Downloading fraiseql-0.1.0-py3-none-any.whl
 ✓ Downloaded fraiseql-0.1.0-py3-none-any.whl
@@ -165,6 +173,7 @@ gh attestation verify fraiseql-*.whl --owner fraiseql --repo fraiseql
 ```
 
 **Expected output:**
+
 ```
 Loaded digest sha256:abc123... for file://fraiseql-0.1.0-py3-none-any.whl
 Loaded 1 attestation from GitHub API
@@ -176,6 +185,7 @@ fraiseql/fraiseql  https://slsa.dev/provenance/v1  .github/workflows/publish.yml
 ```
 
 **What this means:**
+
 - ✅ The wheel was built by the official FraiseQL repository
 - ✅ Using the published build workflow (auditable on GitHub)
 - ✅ From a tagged release (not a random commit)
@@ -192,6 +202,7 @@ cat provenance.json | jq '.verificationResult'
 ```
 
 **Key fields to check:**
+
 - `buildType`: Should be `"https://slsa.dev/provenance/v1"`
 - `builder.id`: Should reference GitHub Actions
 - `invocation.configSource.uri`: Should be `"git+https://github.com/fraiseql/fraiseql@refs/tags/v*"`
@@ -209,6 +220,7 @@ cat provenance.json | jq '.verificationResult'
 FraiseQL publishes attestations to PyPI using **PEP 740** (PyPI attestations), but pip doesn't support verification yet.
 
 **When pip 25.0 releases:**
+
 ```bash
 # Install with automatic attestation verification
 pip install fraiseql==0.1.0 --verify-attestations
@@ -219,6 +231,7 @@ pip install fraiseql==0.1.0 --verify-attestations
 ```
 
 **Manual verification (advanced users):**
+
 ```bash
 # Download attestation bundle
 pip download fraiseql==0.1.0 --no-deps
@@ -264,6 +277,7 @@ FraiseQL's SLSA provenance includes:
 ### How to Read Provenance JSON
 
 **Example provenance snippet:**
+
 ```json
 {
   "_type": "https://in-toto.io/Statement/v1",
@@ -291,6 +305,7 @@ FraiseQL's SLSA provenance includes:
 ```
 
 **Key fields explained:**
+
 - `subject.name`: The artifact being attested (wheel filename)
 - `subject.digest.sha256`: Cryptographic hash of the artifact
 - `predicateType`: SLSA provenance v1 format
@@ -325,15 +340,18 @@ sha256sum -c fraiseql-*.whl.sha256
 ```
 
 **Expected output:**
+
 ```
 fraiseql-0.1.0-py3-none-any.whl: OK
 ```
 
 **If checksum doesn't match:**
+
 ```
 fraiseql-0.1.0-py3-none-any.whl: FAILED
 sha256sum: WARNING: 1 computed checksum did NOT match
 ```
+
 ❌ **Do NOT use the artifact** - it may be compromised or corrupted.
 
 ---
@@ -345,6 +363,7 @@ FraiseQL provides SBOMs in **CycloneDX** and **SPDX** formats for dependency tra
 ### Why SBOM Matters
 
 An SBOM (Software Bill of Materials) lists all software components, libraries, and dependencies - like an ingredient list for software. This helps:
+
 - ✅ **Identify vulnerabilities** - Check if any dependencies have known security issues
 - ✅ **License compliance** - Verify all licenses are acceptable for your organization
 - ✅ **Supply chain visibility** - Track transitive dependencies (dependencies of dependencies)
@@ -352,11 +371,13 @@ An SBOM (Software Bill of Materials) lists all software components, libraries, a
 ### How to Access FraiseQL's SBOM
 
 **Option 1: GitHub Releases**
+
 1. Go to release page: https://github.com/fraiseql/fraiseql/releases
 2. Download `fraiseql-0.1.0-sbom.json` (CycloneDX format)
 3. Or download `fraiseql-0.1.0-sbom.spdx.json` (SPDX format)
 
 **Option 2: Generate from Installed Package**
+
 ```bash
 # Install fraiseql
 pip install fraiseql
@@ -368,11 +389,13 @@ fraiseql sbom generate --format cyclonedx --output sbom.json
 ### Analyzing the SBOM
 
 **Web-Based SBOM Viewer:**
+
 1. Go to: https://sbom.cybellum.com/viewer
 2. Upload `fraiseql-*-sbom.json`
 3. View components, licenses, vulnerabilities
 
 **Command-Line SBOM Analysis:**
+
 ```bash
 # Install cyclonedx-cli (one-time setup)
 npm install -g @cyclonedx/cyclonedx-cli
@@ -385,6 +408,7 @@ cyclonedx-cli convert --input-file fraiseql-0.1.0-sbom.json --output-format spdx
 ```
 
 **What to check in SBOM:**
+
 - ✅ **Total components**: FraiseQL has ~50-70 direct/transitive dependencies
 - ✅ **Known vulnerabilities**: Should be 0 critical/high (check with `pip-audit`)
 - ✅ **License compliance**: All dependencies use permissive licenses (MIT, Apache-2.0, BSD)
@@ -399,6 +423,7 @@ cyclonedx-cli convert --input-file fraiseql-0.1.0-sbom.json --output-format spdx
 When documenting FraiseQL's supply chain security for procurement:
 
 **1. Verification Summary**
+
 ```
 Vendor: FraiseQL
 Product Version: v0.1.0
@@ -420,12 +445,14 @@ Compliance Alignment:
 ```
 
 **2. Screenshots/Evidence**
+
 - GitHub attestation page (showing "Verified ✅")
 - `gh attestation verify` command output
 - SBOM vulnerability scan results
 - Checksum verification results
 
 **3. Verification Commands Used**
+
 ```bash
 # Commands executed for verification
 gh release download --repo fraiseql/fraiseql --pattern "*.whl"
@@ -434,6 +461,7 @@ sha256sum -c fraiseql-*.whl.sha256
 ```
 
 **4. Risk Assessment**
+
 - **Supply Chain Risk**: Low (SLSA L3, automated builds, no human in the loop)
 - **Dependency Risk**: Low (50-70 dependencies, all from PyPI, no known vulnerabilities)
 - **Build Security**: High (GitHub-hosted runners, auditable workflow, Sigstore signing)
@@ -441,16 +469,19 @@ sha256sum -c fraiseql-*.whl.sha256
 ### Demonstrating Compliance to Auditors
 
 **For Executive Order 14028 (Federal Procurement):**
+
 - ✅ Provide SBOM in CycloneDX/SPDX format
 - ✅ Show SLSA provenance verification results
 - ✅ Document cryptographic signing (Sigstore)
 
 **For NIST SP 800-161 (Supply Chain Risk Management):**
+
 - ✅ SBOM provides complete dependency visibility
 - ✅ Provenance shows controlled build environment
 - ✅ Continuous monitoring via GitHub Security Advisories
 
 **For NIST SP 800-218 (Secure Software Development Framework):**
+
 - ✅ Protect the Software (PS): SLSA provenance, signing, SBOM
 - ✅ Produce Well-Secured Software (PW): Automated testing, linting, security scans
 - ✅ Respond to Vulnerabilities (RV): Dependabot, security advisories, patch releases
@@ -464,12 +495,14 @@ sha256sum -c fraiseql-*.whl.sha256
 #### Issue 1: GitHub CLI Not Installed
 
 **Error:**
+
 ```
 bash: gh: command not found
 ```
 
 **Solution:**
 Install GitHub CLI:
+
 ```bash
 # macOS
 brew install gh
@@ -484,12 +517,14 @@ sudo apt install gh
 #### Issue 2: GitHub CLI Not Authenticated
 
 **Error:**
+
 ```
 error: HTTP 401: Bad credentials (https://api.github.com/repos/fraiseql/fraiseql/attestations)
 ```
 
 **Solution:**
 Authenticate GitHub CLI:
+
 ```bash
 gh auth login
 # Follow prompts to authenticate
@@ -498,16 +533,19 @@ gh auth login
 #### Issue 3: Attestation Not Found
 
 **Error:**
+
 ```
 error: no attestations found for fraiseql-0.1.0-py3-none-any.whl
 ```
 
 **Possible causes:**
+
 1. **Wrong owner/repo**: Make sure you're using `--owner fraiseql --repo fraiseql`
 2. **Pre-attestation release**: Releases before v0.1.0 may not have attestations
 3. **File name mismatch**: Ensure filename matches exactly (check with `ls`)
 
 **Solution:**
+
 ```bash
 # List available releases
 gh release list --repo fraiseql/fraiseql
@@ -519,16 +557,19 @@ gh release download v0.1.0 --repo fraiseql/fraiseql --pattern "*.whl"
 #### Issue 4: Checksum Mismatch
 
 **Error:**
+
 ```
 fraiseql-0.1.0-py3-none-any.whl: FAILED
 ```
 
 **Possible causes:**
+
 1. **Partial download**: Network interruption during download
 2. **Corrupted file**: Disk error or transmission error
 3. **Tampering**: File modified after download (rare)
 
 **Solution:**
+
 ```bash
 # Re-download the file
 rm fraiseql-*.whl*
@@ -539,18 +580,21 @@ sha256sum -c fraiseql-*.whl.sha256
 ```
 
 If checksum still fails after re-download:
+
 1. **Report to FraiseQL security team**: security@fraiseql.com
 2. **Do NOT use the artifact** until resolved
 
 #### Issue 5: SBOM Not Available
 
 **Error:**
+
 ```
 error: release asset not found: fraiseql-0.1.0-sbom.json
 ```
 
 **Solution:**
 SBOM may be generated separately from release artifacts:
+
 ```bash
 # Generate SBOM from installed package
 pip install fraiseql
@@ -558,6 +602,7 @@ fraiseql sbom generate --format cyclonedx --output sbom.json
 ```
 
 Or check the SBOM workflow artifacts:
+
 ```bash
 gh run list --workflow=sbom.yml --repo fraiseql/fraiseql
 ```
@@ -575,6 +620,7 @@ A: **Best practice**: Verify the first time you evaluate FraiseQL, then verify m
 **Q: How long does verification take?**
 
 A:
+
 - Web-based verification: 5 minutes
 - GitHub CLI verification: 10 minutes (first time, including setup)
 - Subsequent verifications: 2-3 minutes
@@ -582,6 +628,7 @@ A:
 **Q: Can I automate verification in CI/CD?**
 
 A: Yes. Use GitHub CLI in your deployment pipeline:
+
 ```bash
 # In CI/CD pipeline
 gh attestation verify fraiseql-*.whl --owner fraiseql --repo fraiseql || exit 1
@@ -592,12 +639,14 @@ gh attestation verify fraiseql-*.whl --owner fraiseql --repo fraiseql || exit 1
 **Q: What is Sigstore and why does FraiseQL use it?**
 
 A: Sigstore is an open-source project (backed by Linux Foundation) that provides **keyless signing** for software artifacts. Benefits:
+
 - No private keys to manage or leak
 - Uses OpenID Connect (OIDC) for identity verification
 - Public transparency log (Rekor) prevents backdating
 - Certificate-based trust (Fulcio)
 
 FraiseQL uses Sigstore because it's:
+
 - ✅ **Free and open-source**
 - ✅ **Widely adopted** (npm, Maven Central, Homebrew)
 - ✅ **Compliant** with Executive Order 14028
@@ -605,6 +654,7 @@ FraiseQL uses Sigstore because it's:
 **Q: What's the difference between SLSA provenance and SBOM?**
 
 A:
+
 - **SLSA Provenance**: Proves *how* the software was built (build process, source commit, builder identity)
 - **SBOM**: Lists *what's in* the software (dependencies, components, licenses)
 
@@ -613,12 +663,14 @@ Both are complementary - you need both for complete supply chain security.
 **Q: Can provenance attestations be forged?**
 
 A: **No**, if verified correctly. Attestations are:
+
 1. Signed with Sigstore (keyless signing via OIDC)
 2. Recorded in public transparency log (Rekor)
 3. Bound to GitHub Actions identity (can't be created outside official workflow)
 4. Timestamped and immutable
 
 Attempting to forge would require:
+
 - Compromising GitHub's OIDC provider
 - Compromising Sigstore's Fulcio certificate authority
 - Tampering with Rekor transparency log (publicly auditable)
@@ -630,6 +682,7 @@ All of these are infeasible for practical attackers.
 **Q: Is SLSA verification required for FedRAMP?**
 
 A: FedRAMP doesn't specifically mandate SLSA, but requires **software supply chain risk management**. SLSA provenance satisfies:
+
 - **SC-28**: Protection of Information at Rest (integrity verification)
 - **SA-10**: Developer Configuration Management (build provenance)
 - **SA-15**: Development Process and Criteria (secure development practices)
@@ -641,6 +694,7 @@ A: GitHub attestations are retained **indefinitely** (part of public transparenc
 **Q: Can I verify FraiseQL installed via pip?**
 
 A: Currently, pip doesn't preserve attestations after installation. Options:
+
 1. Verify wheel *before* installation (recommended)
 2. Use `pip download` to get wheel, verify, then install
 3. Wait for pip 25.0+ which will support `--verify-attestations`
@@ -650,23 +704,27 @@ A: Currently, pip doesn't preserve attestations after installation. Options:
 ## Additional Resources
 
 ### Official Documentation
+
 - **SLSA Framework**: https://slsa.dev/
 - **Sigstore Documentation**: https://docs.sigstore.dev/
 - **PEP 740 (PyPI Attestations)**: https://peps.python.org/pep-0740/
 - **GitHub Attestations**: https://docs.github.com/en/actions/security-guides/using-artifact-attestations
 
 ### FraiseQL Resources
+
 - **GitHub Repository**: https://github.com/fraiseql/fraiseql
 - **Release Notes**: https://github.com/fraiseql/fraiseql/releases
 - **Security Policy**: https://github.com/fraiseql/fraiseql/security/policy
 - **Supply Chain Security Workflow**: `.github/workflows/publish.yml`
 
 ### Compliance Frameworks
+
 - **Executive Order 14028**: [White House Cybersecurity EO](https://www.whitehouse.gov/briefing-room/presidential-actions/2021/05/12/executive-order-on-improving-the-nations-cybersecurity/)
 - **NIST SP 800-161 Rev. 1**: [Cybersecurity Supply Chain Risk Management](https://csrc.nist.gov/publications/detail/sp/800-161/rev-1/final)
 - **NIST SP 800-218**: [Secure Software Development Framework](https://csrc.nist.gov/publications/detail/sp/800-218/final)
 
 ### Tools
+
 - **GitHub CLI**: https://cli.github.com/
 - **Cosign** (Sigstore CLI): https://docs.sigstore.dev/cosign/installation/
 - **CycloneDX CLI**: https://github.com/CycloneDX/cyclonedx-cli
@@ -679,14 +737,17 @@ A: Currently, pip doesn't preserve attestations after installation. Options:
 ### Need Help?
 
 **For Procurement Officers:**
+
 - Questions about verification: procurement@fraiseql.com
 - Compliance documentation requests: compliance@fraiseql.com
 
 **For Security Teams:**
+
 - Technical verification issues: security@fraiseql.com
 - Vulnerability reports: https://github.com/fraiseql/fraiseql/security/advisories/new
 
 **For General Support:**
+
 - GitHub Discussions: https://github.com/fraiseql/fraiseql/discussions
 - Documentation: https://fraiseql.com/docs
 
@@ -700,6 +761,7 @@ A: Currently, pip doesn't preserve attestations after installation. Options:
 ---
 
 ## Related Guides
+
 - **[Security & Compliance Hub](./README/)** - Overview of all security features
 - **[Compliance Matrix](./compliance-matrix/)** - Regulatory controls mapping *(coming in WP-012)*
 - **[Security Profiles](./security-profiles/)** - Configuration for regulated industries *(coming in WP-013)*

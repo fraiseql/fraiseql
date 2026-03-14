@@ -1,7 +1,7 @@
 """Color scalar type for hex color code validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -84,7 +84,7 @@ class ColorField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ColorField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ColorField instance with validation."""
         if not _COLOR_REGEX.match(value):
             raise ValueError(

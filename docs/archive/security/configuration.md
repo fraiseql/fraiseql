@@ -51,6 +51,7 @@ security = setup_security(
 ```
 
 **Environment Variables:**
+
 - `VAULT_ADDR`: Vault server URL
 - `VAULT_TOKEN`: Authentication token
 - `VAULT_CACERT`: CA certificate path (optional)
@@ -77,6 +78,7 @@ security = setup_security(
 ```
 
 **Environment Variables:**
+
 - `AWS_REGION`: AWS region
 - `AWS_PROFILE`: AWS profile (optional)
 - `AWS_ACCESS_KEY_ID`: Access key (optional)
@@ -106,6 +108,7 @@ security = setup_security(
 ```
 
 **Setup:**
+
 1. Enable Cloud KMS API
 2. Create key ring and asymmetric encryption key
 3. Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
@@ -149,6 +152,7 @@ security = setup_security(
 ```
 
 **Features:**
+
 - Input validation enabled
 - Basic rate limiting (100 req/min)
 - CSRF protection for mutations
@@ -171,6 +175,7 @@ security = setup_security(
 ```
 
 **Features:**
+
 - All STANDARD features
 - **Required KMS encryption** for sensitive data
 - Strict rate limiting (10 req/min)
@@ -195,6 +200,7 @@ security = setup_security(
 ```
 
 **Features:**
+
 - All REGULATED features
 - **External calls blocked** (whitelist only)
 - **Strict CSP headers**
@@ -325,6 +331,7 @@ security = setup_development_security(app)
 ### KMS Connection Issues
 
 **Vault Connection Failed:**
+
 ```bash
 # Check Vault status
 curl -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/sys/health
@@ -334,6 +341,7 @@ curl -H "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/transit/keys
 ```
 
 **AWS KMS Access Denied:**
+
 ```bash
 # Check IAM permissions
 aws iam simulate-principal-policy \

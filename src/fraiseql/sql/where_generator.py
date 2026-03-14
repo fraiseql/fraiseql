@@ -228,7 +228,7 @@ def _build_where_to_sql(
                                         if enhanced_type_hints
                                         else None
                                     )
-                                    json_path = parent_path if parent_path else "data"
+                                    json_path = parent_path or "data"
                                     cond = _make_filter_field_composed(
                                         field_name,
                                         cast("dict[str, object]", field_val),
@@ -265,7 +265,7 @@ def _build_where_to_sql(
                                         if enhanced_type_hints
                                         else None
                                     )
-                                    json_path = parent_path if parent_path else "data"
+                                    json_path = parent_path or "data"
                                     cond = _make_filter_field_composed(
                                         field_name,
                                         cast("dict[str, object]", field_val),
@@ -300,7 +300,7 @@ def _build_where_to_sql(
             elif isinstance(val, dict):
                 field_type = enhanced_type_hints.get(name) if enhanced_type_hints else None
                 # Use parent_path if provided, otherwise default to "data"
-                json_path = parent_path if parent_path else "data"
+                json_path = parent_path or "data"
                 cond = _make_filter_field_composed(
                     name,
                     cast("dict[str, object]", val),

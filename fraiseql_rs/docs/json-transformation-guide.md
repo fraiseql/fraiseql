@@ -181,11 +181,13 @@ pub fn transform_json(json_str: &str) -> PyResult<String> {
 ```
 
 **Memory Pattern**:
+
 - Parses JSON into `serde_json::Value` (heap-allocated tree)
 - Transforms tree in-place using move semantics (no clones for values)
 - Re-serializes tree to JSON string
 
 **Use When**:
+
 - ✅ Called from Python (PyO3 boundary)
 - ✅ Need schema-aware transformation
 - ✅ Working with JSON strings (`String` → `String`)
@@ -193,6 +195,7 @@ pub fn transform_json(json_str: &str) -> PyResult<String> {
 - ✅ Moderate volume (< 1000 req/sec)
 
 **Avoid When**:
+
 - ❌ Hot path query pipeline (use core::transform instead)
 - ❌ Need streaming/zero-copy (use core::transform instead)
 - ❌ Ultra-high performance required (use core::transform instead)
@@ -343,11 +346,13 @@ pub fn build_graphql_response(
 ### Zero-Copy Strategy
 
 **Key Insight**: Never parse JSON into `serde_json::Value`
+
 - Read bytes directly from PostgreSQL result
 - Write bytes directly to HTTP response
 - No intermediate Value tree allocation
 
 **Transformation Steps**:
+
 1. **Scan** input JSON bytes (single pass)
 2. **Transform** keys using `core::camel::snake_to_camel()` (SIMD, arena)
 3. **Write** output bytes (pre-sized buffer, no realloc)
@@ -355,6 +360,7 @@ pub fn build_graphql_response(
 5. **Add** `__typename` if requested
 
 **Memory Efficiency**:
+
 - Arena allocator: O(1) bump allocation, bulk deallocation
 - No heap allocations for transformed keys (arena-based)
 - No JSON tree (avoids 10-20x memory overhead)
@@ -363,16 +369,19 @@ pub fn build_graphql_response(
 ### Performance Characteristics
 
 **Typical Performance**:
+
 - Simple query (10 rows × 10 fields): ~0.5ms
 - Complex query (100 rows × 50 fields): ~3-5ms
 - Nested query (50 rows × 20 fields + cascade): ~2-4ms
 
 **Compared to json_transform.rs**:
+
 - **3-5x faster** for typical queries
 - **10-15x faster** for large result sets (1000+ rows)
 - **60-80% less memory** (no Value tree)
 
 **Use When**:
+
 - ✅ GraphQL query pipeline (hot path)
 - ✅ High volume (> 1000 req/sec)
 - ✅ Need streaming transformation
@@ -381,6 +390,7 @@ pub fn build_graphql_response(
 - ✅ Field projection required
 
 **Avoid When**:
+
 - ❌ Need schema-aware transformation (use json_transform.rs)
 - ❌ Called from Python directly (use json_transform.rs)
 - ❌ Need serde_json Value compatibility (use json_transform.rs)
@@ -407,9 +417,10 @@ pub fn build_graphql_response(
 
 ## When to Use Which?
 
-### Use `json_transform.rs` When:
+### Use `json_transform.rs` When
 
 1. **Called from Python**
+
    ```python
    # From Python code
    from fraiseql_rs import transform_json
@@ -417,12 +428,14 @@ pub fn build_graphql_response(
    ```
 
 2. **Need schema-aware transformation**
+
    ```rust
    // Handles nested object types via SchemaRegistry
    let transformed = transform_with_schema(&value, "User", &registry);
    ```
 
 3. **Working with serde_json Values**
+
    ```rust
    use serde_json::Value;
    let value: Value = serde_json::from_str(json_str)?;
@@ -434,9 +447,10 @@ pub fn build_graphql_response(
    - Response times 1-5ms acceptable
    - Schema awareness more important than raw speed
 
-### Use `core::transform.rs` When:
+### Use `core::transform.rs` When
 
 1. **GraphQL query pipeline (hot path)**
+
    ```rust
    // From pipeline/builder.rs
    let transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set);
@@ -449,6 +463,7 @@ pub fn build_graphql_response(
    - Every microsecond counts
 
 3. **Streaming transformation**
+
    ```rust
    // No JSON parsing, direct byte transformation
    for row in rows {
@@ -457,6 +472,7 @@ pub fn build_graphql_response(
    ```
 
 4. **Field projection**
+
    ```rust
    // Only include selected fields in output
    let field_set = FieldSet::from_paths(&selected_fields, &arena);
@@ -470,6 +486,7 @@ pub fn build_graphql_response(
 ### Why Two Implementations?
 
 **Historical Context**:
+
 1. **Phase 1**: `json_transform.rs` created for PyO3 integration
    - Python-first API design
    - Schema-aware for type resolution
@@ -492,6 +509,7 @@ pub fn build_graphql_response(
 ### Why Not Consolidate?
 
 **Option 1**: Make `json_transform.rs` call `core::transform.rs`
+
 ```rust
 pub fn transform_json_string(json_str: &str) -> PyResult<String> {
     let arena = Arena::with_capacity(json_str.len());
@@ -501,12 +519,15 @@ pub fn transform_json_string(json_str: &str) -> PyResult<String> {
     String::from_utf8(output.into_vec()).unwrap()
 }
 ```
+
 **Problem**: Loses schema-aware transformation capability
 
 **Option 2**: Add schema support to `core::transform.rs`
+
 ```rust
 pub fn transform_bytes_with_schema(&self, input: &[u8], output: &mut ByteBuf, registry: &SchemaRegistry) { ... }
 ```
+
 **Problem**: Complicates zero-copy API, requires parsing for type lookups
 
 **Decision**: Keep both implementations, document when to use each

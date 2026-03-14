@@ -28,11 +28,13 @@ New to FraiseQL? Start here:
 ## 🔍 Filtering & Querying
 
 ### Basic Filtering
+
 - **[Filtering Guide](../guides/filtering.md)** - Complete filtering reference with runnable example
 - **[Where Input Types](../advanced/where-input-types.md)** - Type-safe filtering
 - **[Filter Operators](../advanced/filter-operators.md)** - All available operators
 
 ### Advanced Filtering
+
 - **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world recipes:
   - E-commerce product search (full-text, price ranges, tags)
   - CMS content filtering (status, dates, categories)
@@ -41,6 +43,7 @@ New to FraiseQL? Start here:
   - Multi-tenant SaaS (tenant isolation, cross-tenant queries)
 
 ### Nested & Array Filtering
+
 - **[Nested Array Filtering](../guides/nested-array-filtering.md)** - Filter array elements
 - **[Nested Filters Guide](../filtering/nested-filters.md)** - Complex nested objects
 
@@ -107,21 +110,25 @@ New to FraiseQL? Start here:
 ## 📚 By Use Case
 
 ### Building a Blog/CMS
+
 1. [Blog API Tutorial](../tutorials/blog-api.md) - Complete blog with posts, comments, tags
 2. [Authentication](../advanced/authentication.md) - User auth and permissions
 3. [Cascade Best Practices](../guides/cascade-best-practices.md) - Auto cache invalidation
 
 ### E-commerce Platform
+
 1. [Advanced Filtering](../examples/advanced-filtering.md#e-commerce-product-catalog) - Product search
 2. [Multi-Tenancy](../advanced/multi-tenancy.md) - Vendor isolation
 3. [Performance Guide](../performance/index.md) - Handle high traffic
 
 ### SaaS Application
+
 1. [Multi-Tenancy](../advanced/multi-tenancy.md) - Customer data isolation
 2. [Authentication](../advanced/authentication.md) - JWT + roles
 3. [Bounded Contexts](../advanced/bounded-contexts.md) - Domain separation
 
 ### AI/ML Application
+
 1. [RAG Tutorial](../ai-ml/rag-tutorial.md) - Retrieval augmented generation
 2. [pgvector](../features/pgvector.md) - Similarity search
 3. [LangChain Integration](../guides/langchain-integration.md) - Document processing
@@ -131,6 +138,7 @@ New to FraiseQL? Start here:
 ## 🎯 Quick Lookups
 
 **Need to:**
+
 - **Filter data?** → [Filtering Guide](../guides/filtering.md)
 - **Create/update data?** → [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)
 - **Add authentication?** → [Authentication Guide](../advanced/authentication.md)
@@ -149,6 +157,7 @@ Have a useful recipe to share? We'd love to include it!
 3. Submit a PR to the [FraiseQL repository](https://github.com/fraiseql/fraiseql)
 
 **Recipe Template:**
+
 ```markdown
 ## Recipe: [Short Title]
 
@@ -169,6 +178,7 @@ Result here
 ---
 
 **Can't find what you need?**
+
 - Search the docs (top right)
 - Check [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - [Open an issue](https://github.com/fraiseql/fraiseql/issues)

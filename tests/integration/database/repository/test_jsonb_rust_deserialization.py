@@ -34,7 +34,7 @@ class Product:
 class TestJSONBRustDeserialization:
     """Test that Rust execution correctly deserializes JSONB entities."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_test_data(self, class_db_pool, test_schema) -> None:
         """Create test table with JSONB data and register type."""
         # Register type with has_jsonb_data=True

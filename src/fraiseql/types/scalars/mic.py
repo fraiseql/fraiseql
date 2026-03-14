@@ -1,7 +1,7 @@
 """MIC scalar type for Market Identifier Code (ISO 10383)."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -85,7 +85,7 @@ class MICField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "MICField":
+    def __new__(cls, value: str) -> Self:
         """Create a new MICField instance with validation."""
         value_upper = value.upper()
         if not _MIC_REGEX.match(value_upper):

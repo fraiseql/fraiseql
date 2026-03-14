@@ -16,6 +16,7 @@ JSON Response → Parse → Classify → Build Response → GraphQL Response
 ```
 
 ### Stage 1: Parsing (`parsing.rs` - 11 tests)
+
 **JSON → MutationResult**: Parse database responses into structured MutationResult objects.
 
 - **Simple format parsing**: Entity JSONB only, no status wrapper
@@ -26,6 +27,7 @@ JSON Response → Parse → Classify → Build Response → GraphQL Response
 - **PostgreSQL composite types**: 8-field mutation_response parsing
 
 ### Stage 2: Classification (`classification.rs` - 15 tests)
+
 **Status Taxonomy**: Classify mutation results by status and determine response types.
 
 - **Status string parsing**: `new`, `updated`, `deleted`, `noop`, `failed:*`
@@ -35,6 +37,7 @@ JSON Response → Parse → Classify → Build Response → GraphQL Response
 - **Edge cases**: Multiple colons, empty status, unknown statuses
 
 ### Stage 3: Response Building (`response_building.rs` - 33 tests)
+
 **MutationResult → JSON**: Build GraphQL responses from classified mutation results.
 
 - **Simple format responses**: Direct entity JSON without wrapper
@@ -49,6 +52,7 @@ JSON Response → Parse → Classify → Build Response → GraphQL Response
 - **Special characters**: Unicode and escaped content handling
 
 ### Stage 4: Integration (`integration.rs` - 13 tests)
+
 **End-to-End**: Complete mutation flows from database to GraphQL response.
 
 - **Full pipeline validation**: Parse → Classify → Build → Response
@@ -61,6 +65,7 @@ JSON Response → Parse → Classify → Build Response → GraphQL Response
 - **Special characters**: Unicode, quotes, and formatting
 
 ### Property-Based Tests (`properties.rs` - 3 tests)
+
 **Invariant Testing**: Proptest-based validation of system invariants.
 
 - **CASCADE invariants**: Relationship data never incorrectly placed
@@ -91,6 +96,7 @@ cargo test test_build_error_response_validation --lib
 ## Adding New Tests
 
 ### 1. Identify the Pipeline Stage
+
 - **Parsing**: Raw JSON → MutationResult conversion
 - **Classification**: Status parsing and type determination
 - **Response Building**: GraphQL response construction
@@ -98,6 +104,7 @@ cargo test test_build_error_response_validation --lib
 - **Properties**: System invariant testing
 
 ### 2. Add to Appropriate File
+
 ```rust
 // parsing.rs - for JSON parsing tests
 #[test]
@@ -113,11 +120,13 @@ fn test_your_new_response_feature() {
 ```
 
 ### 3. Follow Naming Conventions
+
 - `test_<action>_<subject>_<condition>`: `test_parse_simple_format_with_cascade`
 - `test_<feature>_<scenario>`: `test_cascade_never_nested_in_entity`
 - Descriptive and specific names
 
 ### 4. Include Documentation
+
 ```rust
 /// Test that CASCADE data is correctly extracted during parsing
 /// when using PostgreSQL composite type responses.
@@ -128,6 +137,7 @@ fn test_cascade_extraction_from_composite_type() {
 ```
 
 ### 5. Verify Tests Pass
+
 ```bash
 cargo test mutation --lib
 ```
@@ -143,18 +153,23 @@ cargo test mutation --lib
 ## Architecture Benefits
 
 ### ✅ Clear Responsibility Boundaries
+
 Each test file corresponds to exactly one pipeline stage, making it obvious where to add new tests and find existing ones.
 
 ### ✅ Reduced Cognitive Load
+
 No more mixed concerns - parsing tests are separate from response building tests, eliminating confusion about test placement.
 
 ### ✅ Improved Maintainability
+
 Changes to one pipeline stage don't affect tests for other stages, reducing merge conflicts and test maintenance overhead.
 
 ### ✅ Enhanced Developer Experience
+
 New developers can quickly understand the mutation system by following the test organization, which mirrors the actual code architecture.
 
 ### ✅ Future-Proof Structure
+
 As new mutation features are added, they naturally fit into the existing pipeline stages, maintaining consistent organization.
 
 ---

@@ -114,6 +114,7 @@ FROM tb_user;
 ```
 
 **Why two columns?**
+
 - The `id` column enables efficient filtering: `SELECT data FROM v_user WHERE id = $1`
 - The `data` column contains the complete JSONB object returned to GraphQL
 - This pattern allows PostgreSQL to use indexes on the `id` column for fast lookups

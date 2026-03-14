@@ -77,6 +77,7 @@ CREATE TABLE documents (
 ```
 
 Vector dimensions must be consistent within a column. Common dimensions:
+
 - OpenAI `text-embedding-ada-002`: 1536 dimensions
 - OpenAI `text-embedding-3-small`: 1536 dimensions
 - Cohere `embed-english-v3.0`: 1024 dimensions
@@ -118,6 +119,7 @@ class Document:
 ### Field Name Patterns
 
 FraiseQL automatically detects vector fields using these patterns:
+
 - `embedding`
 - `vector`
 - `_embedding`
@@ -162,6 +164,7 @@ input VectorOrderBy {
 FraiseQL exposes PostgreSQL pgvector's six native distance operators:
 
 #### Cosine Distance (`cosine_distance`)
+
 - **Operator**: `<=>` (cosine distance)
 - **Range**: 0.0 (identical) to 2.0 (opposite)
 - **Use case**: Text similarity, semantic search
@@ -180,6 +183,7 @@ query {
 ```
 
 #### L2 Distance (`l2_distance`)
+
 - **Operator**: `<->` (Euclidean distance)
 - **Range**: 0.0 (identical) to ∞ (very different)
 - **Use case**: Spatial similarity, exact matches
@@ -198,6 +202,7 @@ query {
 ```
 
 #### Inner Product (`inner_product`)
+
 - **Operator**: `<#>` (negative inner product)
 - **Range**: More negative = more similar
 - **Use case**: Learned similarity metrics
@@ -216,6 +221,7 @@ query {
 ```
 
 #### L1 Distance (`l1_distance`)
+
 - **Operator**: `<+>` (Manhattan/Taxicab distance)
 - **Range**: 0.0 (identical) to ∞ (very different)
 - **Use case**: Sparse vectors, grid-based distances
@@ -234,6 +240,7 @@ query {
 ```
 
 #### Hamming Distance (`hamming_distance`)
+
 - **Operator**: `<~>` (binary Hamming distance)
 - **Range**: 0 (identical) to dimension size (completely different)
 - **Use case**: Binary vectors, hash-based similarity
@@ -252,6 +259,7 @@ query {
 ```
 
 #### Jaccard Distance (`jaccard_distance`)
+
 - **Operator**: `<%>` (binary Jaccard distance)
 - **Range**: 0.0 (identical) to 1.0 (no overlap)
 - **Use case**: Set-based similarity, sparse binary features
@@ -317,31 +325,37 @@ query {
 ### Understanding Distance Values
 
 **Cosine Distance**:
+
 - 0.0 = identical vectors (perfect similarity)
 - 1.0 = orthogonal vectors (no similarity)
 - 2.0 = opposite vectors (maximum dissimilarity)
 
 **L2 Distance**:
+
 - 0.0 = identical vectors
 - Higher values = more dissimilar
 - No upper bound (can be very large)
 
 **Inner Product**:
+
 - More negative = more similar
 - 0 = orthogonal
 - More positive = more dissimilar
 
 **L1 Distance**:
+
 - 0.0 = identical vectors
 - Higher values = more dissimilar
 - No upper bound (can be very large)
 
 **Hamming Distance**:
+
 - 0 = identical binary vectors
 - Higher values = more bits differ
 - Maximum = vector dimension
 
 **Jaccard Distance**:
+
 - 0.0 = identical sets (perfect overlap)
 - 0.5 = 50% overlap
 - 1.0 = no overlap (completely different sets)
@@ -365,6 +379,7 @@ This follows FraiseQL's philosophy of minimal abstraction.
 ### Index Selection
 
 **HNSW (Hierarchical Navigable Small World)**:
+
 - Best for high-dimensional vectors
 - Approximate nearest neighbor search
 - Fast queries, slower index build
@@ -380,6 +395,7 @@ WITH (
 ```
 
 **IVFFlat (Inverted File Flat)**:
+
 - Better for lower dimensions
 - Exact search within clusters
 - Faster index build, slower queries
@@ -537,19 +553,23 @@ CREATE INDEX CONCURRENTLY ON documents USING hnsw (embedding vector_cosine_ops);
 ### Common Issues
 
 **"extension 'vector' does not exist"**
+
 - Install pgvector on your PostgreSQL server
 - For Docker: Use `pgvector/pgvector:pg16` image
 
 **"different vector dimensions"**
+
 - Ensure query vectors match column dimensions
 - Check your embedding model output dimensions
 
 **Slow queries**
+
 - Verify indexes are created and being used
 - Use `EXPLAIN` to check query plans
 - Consider HNSW vs IVFFlat index types
 
 **Memory issues**
+
 - Large result sets can consume memory
 - Use `limit` to control result size
 - Consider pagination for large datasets
@@ -601,6 +621,7 @@ WHERE indexname LIKE '%embedding%';
 ### Query Optimization Tips
 
 1. **Use appropriate limits** for pagination:
+
    ```sql
    -- Good: Limited result set
    SELECT * FROM documents ORDER BY embedding <=> $1 LIMIT 50;
@@ -610,6 +631,7 @@ WHERE indexname LIKE '%embedding%';
    ```
 
 2. **Combine with pre-filters** to reduce search space:
+
    ```sql
    -- Filter by category first, then vector similarity
    SELECT * FROM documents
@@ -619,6 +641,7 @@ WHERE indexname LIKE '%embedding%';
    ```
 
 3. **Use connection pooling** for concurrent queries:
+
    ```python
    # FraiseQL handles this automatically
    results = await repo.find("documents", where={...}, limit=10)
@@ -629,6 +652,7 @@ WHERE indexname LIKE '%embedding%';
 ### Common Issues
 
 **"extension 'vector' does not exist"**
+
 ```bash
 # Install pgvector on your system
 sudo apt-get install postgresql-16-pgvector  # Ubuntu/Debian
@@ -639,6 +663,7 @@ docker run -e POSTGRES_PASSWORD=password pgvector/pgvector:pg16
 ```
 
 **"different vector dimensions 384 and 1536"**
+
 ```sql
 -- Check dimensions of all vectors in your table
 SELECT id, vector_dims(embedding) as dims FROM documents LIMIT 5;
@@ -648,6 +673,7 @@ SELECT id, vector_dims(embedding) as dims FROM documents LIMIT 5;
 ```
 
 **Slow queries without index usage**
+
 ```sql
 -- Verify index is being used
 EXPLAIN SELECT * FROM documents
@@ -658,6 +684,7 @@ ORDER BY embedding <=> '[0.1,0.2,...]'::vector LIMIT 10;
 ```
 
 **Memory issues with large datasets**
+
 ```sql
 -- For large datasets, increase work_mem for complex queries
 SET work_mem = '256MB';
@@ -669,6 +696,7 @@ maintenance_work_mem = 1GB
 ```
 
 **Index build fails with "out of memory"**
+
 ```sql
 -- Build index with smaller maintenance_work_mem
 SET maintenance_work_mem = '2GB';
@@ -697,11 +725,13 @@ WHERE query LIKE '%embedding%';
 ### Migration Issues
 
 **From other vector databases:**
+
 - **Pinecone/Weaviate:** Export embeddings as JSON, import to PostgreSQL
 - **Qdrant:** Use their export tools, then bulk insert to pgvector
 - **Milvus:** Export collections, transform to pgvector format
 
 **Schema migration:**
+
 ```sql
 -- Add vector column to existing table
 ALTER TABLE documents ADD COLUMN embedding vector(1536);

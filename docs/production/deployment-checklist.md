@@ -12,6 +12,7 @@
 This comprehensive checklist ensures your FraiseQL application is production-ready before launch. Complete all relevant items for your security profile (STANDARD, REGULATED, or RESTRICTED) before deploying.
 
 **Checklist Sections:**
+
 1. [Pre-Deployment Planning](#1-pre-deployment-planning)
 2. [Security & Compliance](#2-security--compliance)
 3. [Database Configuration](#3-database-configuration)
@@ -24,6 +25,7 @@ This comprehensive checklist ensures your FraiseQL application is production-rea
 10. [Final Go/No-Go Decision](#10-final-gono-go-decision)
 
 **Profile-Specific Requirements:**
+
 - 🟢 **STANDARD**: Basic production requirements
 - 🟡 **REGULATED**: + Compliance and audit requirements
 - 🔴 **RESTRICTED**: + High-security and cryptographic requirements
@@ -51,6 +53,7 @@ This comprehensive checklist ensures your FraiseQL application is production-rea
   - Decision documented with justification
 
 **Verification:**
+
 ```bash
 # Document answers to these questions
 echo "Expected peak traffic: ______ requests/second"
@@ -67,6 +70,7 @@ echo "Security Profile: ______ (STANDARD/REGULATED/RESTRICTED)"
 ### 2.1 Security Profile Configuration
 
 - [ ] 🟢 **Security Profile Configured**
+
   ```python
   # Verify in application code
   from fraiseql.security.profiles import SecurityProfile
@@ -88,6 +92,7 @@ echo "Security Profile: ______ (STANDARD/REGULATED/RESTRICTED)"
   - Certificate validation tested
 
 **Verification:**
+
 ```bash
 # Check security profile
 fraiseql security audit
@@ -120,6 +125,7 @@ curl --cert client.crt --key client.key --cacert ca.crt \
   - Max-age set to 2 years (63072000 seconds)
 
 **Verification:**
+
 ```bash
 # Test HTTPS enforcement
 curl -I http://api.yourapp.com
@@ -154,6 +160,7 @@ curl -I https://api.yourapp.com | grep -i strict-transport-security
   - Authorization resolver tests passing
 
 **Verification:**
+
 ```bash
 # Check JWT secret is not hardcoded
 grep -r "jwt_secret" app/ --exclude-dir=.git
@@ -185,6 +192,7 @@ curl -X POST https://api.yourapp.com/graphql \
   - PKCS#11 integration tested
 
 **Verification:**
+
 ```bash
 # Test KMS connectivity (AWS example)
 aws kms describe-key --key-id arn:aws:kms:region:account:key/key-id
@@ -210,6 +218,7 @@ aws kms get-key-rotation-status --key-id key-id
   - Tamper-proof audit log tested
 
 **Verification:**
+
 ```bash
 # Check audit table exists
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM audit_events;"
@@ -243,6 +252,7 @@ fraiseql audit verify-chain --from "2025-12-01" --to "2025-12-08"
   - Provenance cryptographically signed
 
 **Verification:**
+
 ```bash
 # Generate compliance report
 fraiseql compliance report --framework [iso27001|gdpr|hipaa|pci-dss|soc2]
@@ -269,6 +279,7 @@ gh attestation verify fraiseql-*.whl --owner fraiseql
   - No credentials in code or config files
 
 **Verification:**
+
 ```bash
 # Check connection pool settings (if using pgBouncer)
 psql -h pgbouncer-host -p 6432 -c "SHOW CONFIG;"
@@ -300,6 +311,7 @@ psql "$DATABASE_URL?sslmode=require" -c "SELECT version();"
   - Vector indexes created (if using pgvector)
 
 **Verification:**
+
 ```bash
 # Check migrations
 psql $DATABASE_URL -c "SELECT * FROM alembic_version;" # or your migration tool
@@ -346,6 +358,7 @@ psql $DATABASE_URL -c "
   - PITR tested successfully
 
 **Verification:**
+
 ```bash
 # Check backup schedule (AWS RDS example)
 aws rds describe-db-instances --db-instance-identifier mydb \
@@ -375,6 +388,7 @@ aws rds restore-db-instance-from-db-snapshot \
   - Disk usage monitored
 
 **Verification:**
+
 ```bash
 # Check slow queries
 psql $DATABASE_URL -c "
@@ -413,6 +427,7 @@ psql $DATABASE_URL -c "
   - Profile-specific variables (KMS keys, audit settings, etc.)
 
 **Verification:**
+
 ```bash
 # Check environment variables (in pod/container)
 kubectl exec -it fraiseql-pod -- env | grep -E "DATABASE_URL|JWT_SECRET|FRAISEQL"
@@ -430,6 +445,7 @@ docker history fraiseql:latest | grep -i secret
   - Credentials allowed only for trusted origins
 
 **Verification:**
+
 ```bash
 # Test CORS headers
 curl -I https://api.yourapp.com/graphql \
@@ -454,6 +470,7 @@ curl -I https://api.yourapp.com/graphql \
   - Rate limit keys expiring correctly
 
 **Verification:**
+
 ```bash
 # Test rate limiting
 for i in {1..101}; do
@@ -475,6 +492,7 @@ done
   - Max size: 1 MB (STANDARD/REGULATED), 512 KB (RESTRICTED)
 
 **Verification:**
+
 ```bash
 # Test query depth limit
 curl -X POST https://api.yourapp.com/graphql \
@@ -504,6 +522,7 @@ dd if=/dev/zero bs=2M count=1 | curl -X POST https://api.yourapp.com/graphql \
   - Health check interval: 30 seconds
 
 **Verification:**
+
 ```bash
 # Test liveness probe
 curl http://api.yourapp.com/health
@@ -531,6 +550,7 @@ curl http://api.yourapp.com/ready
   - Log retention policy set (365 days REGULATED+)
 
 **Verification:**
+
 ```bash
 # Check log format
 kubectl logs fraiseql-pod | head -1 | jq .
@@ -563,6 +583,7 @@ kubectl logs fraiseql-pod | grep -E "ssn|credit_card|password"
   - Disk space alert (<20% free)
 
 **Verification:**
+
 ```bash
 # Check Prometheus metrics
 curl http://api.yourapp.com/metrics | grep -E "http_requests_total|http_request_duration"
@@ -579,6 +600,7 @@ curl http://alertmanager:9093/api/v1/alerts | jq '.data[] | select(.state == "fi
   - End-to-end traces visible (API → Database)
 
 **Verification:**
+
 ```bash
 # Check tracing endpoint configured
 kubectl describe pod fraiseql-pod | grep -i OTEL_EXPORTER
@@ -603,6 +625,7 @@ curl "http://jaeger:16686/api/traces?service=fraiseql&limit=10"
   - Cache hit rate monitored
 
 **Verification:**
+
 ```bash
 # Test APQ
 curl -X POST https://api.yourapp.com/graphql \
@@ -621,6 +644,7 @@ redis-cli INFO stats | grep keyspace_hits
   - 7-10x JSON serialization performance verified
 
 **Verification:**
+
 ```bash
 # Check Rust pipeline status
 curl http://api.yourapp.com/health | jq '.rust_pipeline_enabled'
@@ -636,6 +660,7 @@ curl http://api.yourapp.com/health | jq '.rust_pipeline_enabled'
   - Resource utilization acceptable (CPU <70%, Memory <80%)
 
 **Verification:**
+
 ```bash
 # Run load test
 ab -n 10000 -c 100 https://api.yourapp.com/graphql
@@ -670,6 +695,7 @@ k6 run --vus 100 --duration 5m load-test.js
   - Writable volumes for tmp/cache only
 
 **Verification:**
+
 ```bash
 # Scan container image
 trivy image fraiseql:latest --severity CRITICAL,HIGH
@@ -706,6 +732,7 @@ kubectl exec fraiseql-pod -- touch /test-write
   - Max replicas: 10 (or based on capacity)
 
 **Verification:**
+
 ```bash
 # Check resource limits
 kubectl describe pod fraiseql-pod | grep -A 5 "Limits:"
@@ -739,6 +766,7 @@ kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin
   - Firewall rules tested
 
 **Verification:**
+
 ```bash
 # Check load balancer health
 kubectl get svc fraiseql-service
@@ -766,6 +794,7 @@ curl https://api.yourapp.com/health
   - No data loss during rollback
 
 **Verification:**
+
 ```bash
 # Test rollback (in staging)
 kubectl rollout history deployment/fraiseql
@@ -788,6 +817,7 @@ kubectl get pods -l app=fraiseql -o jsonpath='{.items[0].spec.containers[0].imag
   - Contact information current
 
 **Runbook Template:**
+
 ```markdown
 # FraiseQL Incident Runbook
 
@@ -841,6 +871,7 @@ kubectl get pods -l app=fraiseql -o jsonpath='{.items[0].spec.containers[0].imag
 ### 9.1 Smoke Tests
 
 - [ ] 🟢 **Core Functionality Tested**
+
   ```bash
   # Test health endpoint
   curl https://api.yourapp.com/health
@@ -893,6 +924,7 @@ kubectl get pods -l app=fraiseql -o jsonpath='{.items[0].spec.containers[0].imag
   - Database connections: _____ / _____ (target: <80% of pool)
 
 **Verification:**
+
 ```bash
 # Check metrics
 curl http://prometheus:9090/api/v1/query?query=http_request_duration_seconds{quantile="0.95"}
@@ -933,6 +965,7 @@ kubectl top nodes
 **Sign-off:** _____
 
 **If NO-GO, blockers to resolve:**
+
 1. _____
 2. _____
 3. _____
@@ -944,6 +977,7 @@ kubectl top nodes
 ### STANDARD Profile Summary
 
 **Minimum Requirements:**
+
 - [x] HTTPS configured
 - [x] Basic authentication
 - [x] Health checks
@@ -951,6 +985,7 @@ kubectl top nodes
 - [x] Basic monitoring
 
 **Optional:**
+
 - [ ] MFA
 - [ ] Audit logging
 - [ ] Advanced monitoring
@@ -962,6 +997,7 @@ kubectl top nodes
 ### REGULATED Profile Summary
 
 **All STANDARD Requirements Plus:**
+
 - [x] MFA enforced
 - [x] KMS integration
 - [x] Comprehensive audit logging
@@ -977,6 +1013,7 @@ kubectl top nodes
 ### RESTRICTED Profile Summary
 
 **All REGULATED Requirements Plus:**
+
 - [x] mTLS configured
 - [x] HSM-backed KMS
 - [x] Cryptographic audit chain
@@ -997,6 +1034,7 @@ kubectl top nodes
 **Cause:** Application not fully started or database unreachable
 
 **Solution:**
+
 ```bash
 # Check pod logs
 kubectl logs fraiseql-pod
@@ -1014,6 +1052,7 @@ kubectl edit deployment fraiseql
 **Cause:** Connection pool too large or memory leak
 
 **Solution:**
+
 ```bash
 # Check connection pool size
 kubectl describe deployment fraiseql | grep DATABASE_URL
@@ -1030,6 +1069,7 @@ kubectl exec fraiseql-pod -- python -m memory_profiler app.py
 **Cause:** New pods failing readiness check
 
 **Solution:**
+
 ```bash
 # Check rollout status
 kubectl rollout status deployment/fraiseql
@@ -1067,6 +1107,7 @@ pandoc deployment-checklist.md -o deployment-checklist.pdf
 ---
 
 **For Questions or Support:**
+
 - **Email:** support@fraiseql.com
 - **Enterprise Support:** Available for REGULATED/RESTRICTED deployments
 - **GitHub Discussions:** Community support for deployment questions

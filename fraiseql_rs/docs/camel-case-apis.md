@@ -96,12 +96,14 @@ use crate::camel_case::to_camel_case;
 ```
 
 **Strategy**:
+
 - String-based API: `&str` → `String`
 - Allocates new String for output
 - Single-pass character iteration
 - Optimized for GraphQL field names (< 50 chars)
 
 **Use When**:
+
 - ✅ Working with `String` or `&str` types
 - ✅ Transforming JSON `Value` objects (serde_json)
 - ✅ Called from Python via PyO3
@@ -109,6 +111,7 @@ use crate::camel_case::to_camel_case;
 - ✅ Integration with Python GIL-bound code
 
 **Avoid When**:
+
 - ❌ Hot path streaming transformation (use core::camel instead)
 - ❌ Need zero-copy performance (use core::camel with Arena)
 - ❌ Processing large batches of field names
@@ -199,6 +202,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 ### Performance Characteristics
 
 **SIMD Strategy (x86_64 AVX2)**:
+
 ```rust
 // From src/core/camel.rs:70-82
 /// x86_64 AVX2-optimized snake_case to camelCase conversion
@@ -215,6 +219,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 ```
 
 **Scalar Fallback Strategy**:
+
 ```rust
 // From src/core/camel.rs:186-200
 /// Pure Rust scalar snake_case to camelCase conversion (no SIMD)
@@ -230,6 +235,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 ```
 
 **Use When**:
+
 - ✅ Hot path streaming transformation (core pipeline)
 - ✅ Zero-copy performance required
 - ✅ Arena allocator available
@@ -237,6 +243,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 - ✅ Need SIMD acceleration (x86_64 with AVX2)
 
 **Avoid When**:
+
 - ❌ Need String output (use camel_case.rs instead)
 - ❌ PyO3 integration (use camel_case.rs instead)
 - ❌ No arena allocator available
@@ -259,9 +266,10 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 
 ## When to Use Which?
 
-### Use `camel_case.rs` When:
+### Use `camel_case.rs` When
 
 1. **Called from Python**
+
    ```python
    # From Python code
    from fraiseql_rs import to_camel_case
@@ -269,6 +277,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
    ```
 
 2. **Working with serde_json Values**
+
    ```rust
    use serde_json::Value;
    use crate::camel_case::to_camel_case;
@@ -278,14 +287,16 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
    ```
 
 3. **Recursive dictionary transformation**
+
    ```rust
    // Handles nested dicts and lists automatically
    let transformed = transform_dict_keys(py, dict, recursive=true)?;
    ```
 
-### Use `core::camel.rs` When:
+### Use `core::camel.rs` When
 
 1. **Zero-copy streaming transformation**
+
    ```rust
    use crate::core::camel::snake_to_camel;
    use crate::core::Arena;
@@ -296,6 +307,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
    ```
 
 2. **High-performance hot path**
+
    ```rust
    // Core pipeline processing thousands of field names
    let transformer = ZeroCopyTransformer::new(&arena, config, None, None);
@@ -303,6 +315,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
    ```
 
 3. **Batch processing field names**
+
    ```rust
    let arena = Arena::with_capacity(64 * 1024);  // 64KB arena
    for field_name in field_names {
@@ -318,6 +331,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 ### Why Two Implementations?
 
 **Historical Context**:
+
 1. **Phase 1**: `camel_case.rs` created for PyO3 integration
    - Python-first API design
    - String-based for Python compatibility
@@ -335,6 +349,7 @@ let camel_field = snake_to_camel(b"user_name", &arena);  // ← Zero-copy with a
 ### Why Not Consolidate?
 
 **Option 1**: Make `camel_case.rs` call `core::camel.rs`
+
 ```rust
 pub fn to_camel_case(s: &str) -> String {
     let arena = Arena::with_capacity(s.len());
@@ -342,14 +357,17 @@ pub fn to_camel_case(s: &str) -> String {
     String::from_utf8(result.to_vec()).unwrap()
 }
 ```
+
 **Problem**: Extra allocation + copy defeats zero-copy optimization
 
 **Option 2**: Make `core::camel.rs` return String
+
 ```rust
 pub fn snake_to_camel(input: &[u8]) -> String {
     // Loses arena allocation benefits
 }
 ```
+
 **Problem**: Core pipeline would allocate thousands of Strings, major regression
 
 **Decision**: Keep both implementations, document when to use each

@@ -12,6 +12,7 @@
 Migrate FraiseQL from psycopg3 (Python) to tokio-postgres (Rust) for a **fully Rust-powered database core**, delivering 20-30% faster queries and positioning FraiseQL as the highest-performance GraphQL framework.
 
 **Key Benefits**:
+
 - ✅ 20-30% faster query execution
 - ✅ Zero-copy result streaming
 - ✅ 2-3x higher sustained throughput
@@ -20,6 +21,7 @@ Migrate FraiseQL from psycopg3 (Python) to tokio-postgres (Rust) for a **fully R
 - ✅ Marketing differentiator: "Full Rust Core"
 
 **Current State**:
+
 - Feature branch has **66,992 lines** of code/docs/tests
 - Complete 9-phase implementation plan
 - Comprehensive chaos engineering tests
@@ -30,6 +32,7 @@ Migrate FraiseQL from psycopg3 (Python) to tokio-postgres (Rust) for a **fully R
 ## Current Architecture vs Target
 
 ### Before (Current dev branch)
+
 ```
 HTTP → FastAPI (Python)
     → GraphQL Parser (Python)
@@ -42,6 +45,7 @@ HTTP → FastAPI (Python)
 **Bottleneck**: Python psycopg3 adds 15-20% overhead
 
 ### After (feature/rust-postgres-driver)
+
 ```
 HTTP → FastAPI (Python)
     → GraphQL Parser (Python)
@@ -69,6 +73,7 @@ HTTP → FastAPI (Python)
 **User Impact**: None (gradual rollout)
 
 #### Week 1: Merge with Feature Flag (Disabled by Default)
+
 1. Rebase `feature/rust-postgres-driver` onto current `dev`
 2. Add environment variable: `FRAISEQL_USE_RUST_BACKEND=false` (default)
 3. Merge to `dev` with Rust backend **disabled**
@@ -76,6 +81,7 @@ HTTP → FastAPI (Python)
 5. Release as v1.10.0 (no behavior change)
 
 #### Week 2: Beta Testing
+
 1. Enable `FRAISEQL_USE_RUST_BACKEND=true` on staging environments
 2. Run production-like workloads
 3. Monitor performance metrics
@@ -83,23 +89,27 @@ HTTP → FastAPI (Python)
 5. Release v1.10.1 with fixes (still default to psycopg3)
 
 #### Week 3: Production Rollout
+
 1. Change default: `FRAISEQL_USE_RUST_BACKEND=true`
 2. Release v1.11.0 or v2.0.0 (Rust backend enabled by default)
 3. Users can still fallback with env var if issues
 4. Monitor for 2-4 weeks
 
 #### Week 4-6: Deprecation
+
 1. Remove psycopg3 code paths
 2. Release v2.0.0 (breaking: psycopg3 removed)
 3. Update docs to reflect "Full Rust Core"
 
 **Pros**:
+
 - ✅ Safe gradual rollout
 - ✅ Easy rollback
 - ✅ No "big bang" release
 - ✅ User confidence via opt-in beta
 
 **Cons**:
+
 - ⚠️ Maintains two code paths temporarily
 - ⚠️ Slightly more complex during transition
 
@@ -112,6 +122,7 @@ HTTP → FastAPI (Python)
 **User Impact**: Immediate
 
 #### Week 1: Rebase and Merge
+
 1. Rebase `feature/rust-postgres-driver` onto current `dev`
 2. Resolve conflicts
 3. Run full test suite (5991+ tests)
@@ -119,11 +130,13 @@ HTTP → FastAPI (Python)
 5. Release as v2.0.0 (breaking: Rust backend only)
 
 **Pros**:
+
 - ✅ Fastest time to production
 - ✅ No maintenance of dual code paths
 - ✅ Clean codebase immediately
 
 **Cons**:
+
 - ❌ Higher risk (no gradual rollout)
 - ❌ Harder rollback if issues found
 - ❌ Users forced to new backend immediately
@@ -136,20 +149,24 @@ HTTP → FastAPI (Python)
 
 **Goal**: Understand current state and conflicts
 
-#### Tasks:
+#### Tasks
+
 1. **Checkout feature branch locally**
+
    ```bash
    git fetch origin
    git checkout feature/rust-postgres-driver
    ```
 
 2. **Run test suite on feature branch**
+
    ```bash
    make test
    # Verify all tests pass
    ```
 
 3. **Analyze conflicts with dev**
+
    ```bash
    git fetch origin dev
    git merge-base feature/rust-postgres-driver origin/dev
@@ -162,6 +179,7 @@ HTTP → FastAPI (Python)
    - List deprecated functions
 
 5. **Create feature flag infrastructure**
+
    ```python
    # src/fraiseql/config.py
    import os
@@ -177,8 +195,10 @@ HTTP → FastAPI (Python)
 
 **Goal**: Merge branches with Rust backend disabled by default
 
-#### Tasks:
+#### Tasks
+
 1. **Create integration branch**
+
    ```bash
    git checkout -b integrate/rust-postgres-with-feature-flag
    git rebase origin/dev
@@ -186,6 +206,7 @@ HTTP → FastAPI (Python)
    ```
 
 2. **Add feature flag to all Rust backend calls**
+
    ```python
    # src/fraiseql/core/database.py
    from fraiseql.config import USE_RUST_BACKEND
@@ -198,6 +219,7 @@ HTTP → FastAPI (Python)
    ```
 
 3. **Update tests with feature flag**
+
    ```python
    # tests/conftest.py
    @pytest.fixture(params=["psycopg", "rust"])
@@ -219,6 +241,7 @@ HTTP → FastAPI (Python)
    ```
 
 4. **Run tests with both backends**
+
    ```bash
    # Test psycopg (current)
    FRAISEQL_USE_RUST_BACKEND=false make test
@@ -240,8 +263,10 @@ HTTP → FastAPI (Python)
 
 **Goal**: Verify both backends work correctly
 
-#### Tasks:
+#### Tasks
+
 1. **Run full test suite (both backends)**
+
    ```bash
    # Run with psycopg (default)
    make test
@@ -251,6 +276,7 @@ HTTP → FastAPI (Python)
    ```
 
 2. **Performance benchmarking**
+
    ```bash
    # Benchmark psycopg
    FRAISEQL_USE_RUST_BACKEND=false make benchmark
@@ -263,11 +289,13 @@ HTTP → FastAPI (Python)
    ```
 
 3. **Chaos engineering tests** (already in feature branch)
+
    ```bash
    FRAISEQL_USE_RUST_BACKEND=true pytest tests/chaos/
    ```
 
 4. **Memory profiling**
+
    ```bash
    # Profile both backends
    make profile-psycopg
@@ -275,6 +303,7 @@ HTTP → FastAPI (Python)
    ```
 
 5. **Load testing** (if available)
+
    ```bash
    # Stress test both backends
    make load-test
@@ -288,14 +317,17 @@ HTTP → FastAPI (Python)
 
 **Goal**: Merge with Rust backend disabled by default
 
-#### Tasks:
+#### Tasks
+
 1. **Create PR to dev**
+
    ```bash
    git push -u origin integrate/rust-postgres-with-feature-flag
    gh pr create --base dev --title "feat: Add Rust PostgreSQL backend (disabled by default)"
    ```
 
 2. **PR Description Template**:
+
    ```markdown
    ## Summary
    Adds Rust PostgreSQL backend (`tokio-postgres` + `deadpool-postgres`) as an
@@ -335,6 +367,7 @@ HTTP → FastAPI (Python)
    - Update based on feedback
 
 4. **Merge to dev**
+
    ```bash
    gh pr merge --squash
    ```
@@ -347,14 +380,17 @@ HTTP → FastAPI (Python)
 
 **Goal**: Test Rust backend in production-like environments
 
-#### Tasks:
+#### Tasks
+
 1. **Release v1.10.0** (Rust backend disabled by default)
+
    ```bash
    git checkout dev
    make pr-ship-minor  # 1.9.0 → 1.10.0
    ```
 
 2. **Enable on staging/test environments**
+
    ```bash
    # Staging environment
    export FRAISEQL_USE_RUST_BACKEND=true
@@ -374,6 +410,7 @@ HTTP → FastAPI (Python)
    - GitHub discussions
 
 5. **Fix issues discovered**
+
    ```bash
    git checkout -b fix/rust-backend-issue-X
    # Fix issue
@@ -391,8 +428,10 @@ HTTP → FastAPI (Python)
 
 **Goal**: Enable Rust backend by default
 
-#### Tasks:
+#### Tasks
+
 1. **Change default in code**
+
    ```python
    # src/fraiseql/config.py
    USE_RUST_BACKEND = os.getenv("FRAISEQL_USE_RUST_BACKEND", "true").lower() == "true"
@@ -405,6 +444,7 @@ HTTP → FastAPI (Python)
    - Performance benchmarks
 
 3. **Create PR**
+
    ```bash
    git checkout -b chore/enable-rust-backend-by-default
    # Make changes
@@ -418,6 +458,7 @@ HTTP → FastAPI (Python)
    **Recommendation**: v2.0.0 to signal major architectural improvement
 
 5. **Release v2.0.0**
+
    ```bash
    git checkout -b chore/prepare-v2.0.0-release
    make pr-ship-major  # 1.10.x → 2.0.0
@@ -431,13 +472,15 @@ HTTP → FastAPI (Python)
 
 **Goal**: Remove psycopg3 code paths
 
-#### Tasks:
+#### Tasks
+
 1. **Monitor v2.0.0 adoption** (2-4 weeks)
    - Watch for issues
    - Collect user feedback
    - Ensure no critical bugs
 
 2. **Deprecation warnings** (v2.1.0)
+
    ```python
    # src/fraiseql/config.py
    import warnings
@@ -452,6 +495,7 @@ HTTP → FastAPI (Python)
    ```
 
 3. **Remove psycopg code** (v2.2.0)
+
    ```bash
    git checkout -b chore/remove-psycopg-backend
    # Remove all psycopg code paths
@@ -461,6 +505,7 @@ HTTP → FastAPI (Python)
    ```
 
 4. **Release v2.2.0**
+
    ```bash
    make pr-ship-minor  # 2.1.0 → 2.2.0
    ```
@@ -517,6 +562,7 @@ async def test_query_parity(backend, sample_queries):
 ### Rollback Strategy
 
 **Immediate Rollback** (if critical issues in production):
+
 ```bash
 # Option 1: Environment variable (instant)
 export FRAISEQL_USE_RUST_BACKEND=false
@@ -534,6 +580,7 @@ pip install fraiseql==1.9.0
 ## Success Metrics
 
 ### Exit Criteria (Must Achieve)
+
 - ✅ All 5991+ tests pass (both backends)
 - ✅ Zero regressions vs psycopg backend
 - ✅ 100% backward-compatible API
@@ -541,12 +588,14 @@ pip install fraiseql==1.9.0
 - ✅ No critical bugs reported for 2 weeks
 
 ### Performance Targets
+
 - ✅ Query execution: 20-30% faster
 - ✅ Response time: 15-25% faster
 - ✅ Memory usage: 10-15% lower
 - ✅ Throughput: 2-3x higher sustained
 
 ### Code Quality
+
 - ✅ Type hints complete
 - ✅ Doc comments on all public APIs
 - ✅ Test coverage ≥ 85%
@@ -557,6 +606,7 @@ pip install fraiseql==1.9.0
 ## Communication Plan
 
 ### Internal Team
+
 - **Day 1**: Kick-off meeting (review plan)
 - **Day 5**: Progress check (Phase 2 complete)
 - **Day 10**: Beta testing starts (v1.10.0 released)
@@ -564,6 +614,7 @@ pip install fraiseql==1.9.0
 - **Day 25**: Retrospective
 
 ### Users/Community
+
 - **Day 8**: Blog post: "Rust PostgreSQL Backend (Beta)"
 - **Day 10**: Release notes: v1.10.0 with opt-in Rust backend
 - **Day 17**: Blog post: "Full Rust Core (Production Ready)"
@@ -571,6 +622,7 @@ pip install fraiseql==1.9.0
 - **Day 25**: Blog post: "Performance Benchmarks: 30% Faster"
 
 ### Documentation Updates
+
 - **Day 8**: Add "Migration to Rust Backend" guide
 - **Day 10**: Update README with feature flag usage
 - **Day 17**: Update architecture docs (Full Rust Core)
@@ -603,16 +655,20 @@ pip install fraiseql==1.9.0
 2. **Decide on timeline** (start date)
 3. **Assign owner** for each phase
 4. **Checkout feature branch** and run tests locally
+
    ```bash
    git fetch origin
    git checkout feature/rust-postgres-driver
    make test
    ```
+
 5. **Analyze merge conflicts**
+
    ```bash
    git fetch origin dev
    git diff origin/dev...feature/rust-postgres-driver --stat
    ```
+
 6. **Schedule kick-off meeting** (Day 1)
 
 ---
@@ -620,6 +676,7 @@ pip install fraiseql==1.9.0
 ## Questions to Answer
 
 Before starting:
+
 1. **Target release version**: v1.10.0 or v2.0.0?
 2. **Release timeline**: Next month? Next quarter?
 3. **Beta testing**: Internal only or public beta?
@@ -631,6 +688,7 @@ Before starting:
 ## Appendix: Feature Branch Status
 
 ### What's Already Done
+
 - ✅ Complete Rust PostgreSQL implementation (tokio-postgres + deadpool)
 - ✅ 9-phase implementation plan (66,992 LOC)
 - ✅ Chaos engineering tests (34/57 passing)
@@ -639,6 +697,7 @@ Before starting:
 - ✅ Build system integration (PyO3/Maturin)
 
 ### What Needs Work
+
 - ⏳ Rebase onto current dev branch
 - ⏳ Add feature flag infrastructure
 - ⏳ Complete chaos test fixes (23 remaining)

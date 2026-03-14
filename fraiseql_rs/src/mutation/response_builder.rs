@@ -2,11 +2,12 @@
 //!
 //! Builds GraphQL-compliant Success and Error responses from mutation results.
 
-#![allow(clippy::excessive_nesting)] // TODO Phase 4.1: Refactor nested blocks
+#![allow(clippy::excessive_nesting)]
 
-use super::{filter_entity_fields, MutationResult, MutationStatus};
+use serde_json::{Map, Value, json};
+
+use super::{MutationResult, MutationStatus, filter_entity_fields};
 use crate::camel_case::to_camel_case;
-use serde_json::{json, Map, Value};
 
 /// Build GraphQL response from mutation result
 ///
@@ -312,25 +313,6 @@ pub fn build_error_response_with_code(
     cascade_selections: Option<&str>,
     entity_selections: Option<&str>,
 ) -> Result<Value, String> {
-    // DEBUG: Log function call and parameters
-    eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
-    eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
-    eprintln!("╠══════════════════════════════════════════════════════════════╣");
-    eprintln!("  error_type: {}", error_type);
-    eprintln!("  auto_camel_case: {}", auto_camel_case);
-    eprintln!("  error_type_fields: {:?}", error_type_fields);
-    eprintln!("  result.status: {}", result.status);
-    eprintln!("  result.message: {:?}", result.message);
-    eprintln!(
-        "  result.entity: {}",
-        if result.entity.is_some() {
-            "Some(...)"
-        } else {
-            "None"
-        }
-    );
-    eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
-
     let mut obj = Map::new();
 
     // Add __typename (always included, special GraphQL field)
@@ -341,14 +323,9 @@ pub fn build_error_response_with_code(
     let empty_vec = Vec::new();
     let selected_fields = error_type_fields.unwrap_or(&empty_vec);
 
-    eprintln!("  ├─ should_filter: {}", should_filter);
-    eprintln!("  └─ selected_fields: {:?}", selected_fields);
-
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
-        let result = !should_filter || selected_fields.contains(&field_name.to_string());
-        eprintln!("    is_selected(\"{}\"): {}", field_name, result);
-        result
+        !should_filter || selected_fields.contains(&field_name.to_string())
     };
 
     // Add REST-like code field (always included for compatibility)
@@ -356,22 +333,15 @@ pub fn build_error_response_with_code(
     // Even if not explicitly selected in GraphQL query, we must include it
     let code = result.status.application_code();
     obj.insert("code".to_string(), json!(code));
-    eprintln!("    ✓ Added 'code': {}", code);
 
     // Add status if selected
     if is_selected("status") {
         obj.insert("status".to_string(), json!(result.status.to_string()));
-        eprintln!("    ✓ Added 'status': {}", result.status);
-    } else {
-        eprintln!("    ✗ Skipped 'status' (not selected)");
     }
 
     // Add message if selected
     if is_selected("message") {
         obj.insert("message".to_string(), json!(result.message));
-        eprintln!("    ✓ Added 'message': {:?}", result.message);
-    } else {
-        eprintln!("    ✗ Skipped 'message' (not selected)");
     }
 
     // Add errors array if selected
@@ -423,6 +393,26 @@ pub fn build_error_response_with_code(
         }
     }
 
+    // Extract scalar and complex fields from mutation metadata (GitHub issue #294)
+    // Populates @fraiseql.error fields with scalar types (datetime, str, int, UUID)
+    // that the SQL function returns in the metadata JSONB.
+    // Reserved keys handled elsewhere: "errors" (errors array), "entity_type", "entity", "_cascade"
+    const RESERVED_METADATA_KEYS: &[&str] = &["errors", "entity_type", "entity", "_cascade"];
+    if let Some(Value::Object(metadata_map)) = &result.metadata {
+        for (key, value) in metadata_map {
+            if !RESERVED_METADATA_KEYS.contains(&key.as_str()) {
+                let field_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
+                if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                    obj.insert(field_key, transform_value(value, auto_camel_case));
+                }
+            }
+        }
+    }
+
     // Add cascade if present AND requested in selection
     add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 
@@ -469,7 +459,7 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
             } else {
                 "general_error".to_string()
             }
-        }
+        },
         MutationStatus::Error(reason) => {
             // Extract part after colon: "validation:invalid_input" -> "invalid_input"
             if let Some((_prefix, identifier)) = reason.split_once(':') {
@@ -477,11 +467,11 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
             } else {
                 "general_error".to_string()
             }
-        }
+        },
         MutationStatus::Success(_) => {
             // Should never reach here (only errors call this function)
             "unexpected_success".to_string()
-        }
+        },
     }
 }
 
@@ -505,11 +495,9 @@ fn transform_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) ->
             }
 
             Value::Object(result)
-        }
+        },
         Value::Array(arr) => Value::Array(
-            arr.iter()
-                .map(|v| transform_entity(v, entity_type, auto_camel_case))
-                .collect(),
+            arr.iter().map(|v| transform_entity(v, entity_type, auto_camel_case)).collect(),
         ),
         other => other.clone(),
     }
@@ -529,12 +517,10 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
                 result.insert(transformed_key, transform_value(val, auto_camel_case));
             }
             Value::Object(result)
-        }
-        Value::Array(arr) => Value::Array(
-            arr.iter()
-                .map(|v| transform_value(v, auto_camel_case))
-                .collect(),
-        ),
+        },
+        Value::Array(arr) => {
+            Value::Array(arr.iter().map(|v| transform_value(v, auto_camel_case)).collect())
+        },
         other => other.clone(),
     }
 }
@@ -547,20 +533,27 @@ mod tests {
     #[test]
     fn test_build_success_simple() {
         let result = MutationResult {
-            status: MutationStatus::Success("success".to_string()),
-            message: "Success".to_string(),
-            entity_id: Some("123".to_string()),
-            entity_type: Some("User".to_string()),
-            entity: Some(json!({"id": "123", "name": "John"})),
-            updated_fields: None,
-            cascade: None,
-            metadata: None,
+            status:           MutationStatus::Success("success".to_string()),
+            message:          "Success".to_string(),
+            entity_id:        Some("123".to_string()),
+            entity_type:      Some("User".to_string()),
+            entity:           Some(json!({"id": "123", "name": "John"})),
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         None,
             is_simple_format: false,
         };
 
-        let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
-                .unwrap();
+        let response = build_success_response(
+            &result,
+            "CreateUserSuccess",
+            Some("user"),
+            true,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserSuccess");
@@ -575,20 +568,27 @@ mod tests {
     #[test]
     fn test_build_success_with_cascade() {
         let result = MutationResult {
-            status: MutationStatus::Success("created".to_string()),
-            message: "User created".to_string(),
-            entity_id: None,
-            entity_type: Some("User".to_string()),
-            entity: Some(json!({"id": "123", "name": "John"})),
-            updated_fields: None,
-            cascade: Some(json!({"updated": []})),
-            metadata: None,
+            status:           MutationStatus::Success("created".to_string()),
+            message:          "User created".to_string(),
+            entity_id:        None,
+            entity_type:      Some("User".to_string()),
+            entity:           Some(json!({"id": "123", "name": "John"})),
+            updated_fields:   None,
+            cascade:          Some(json!({"updated": []})),
+            metadata:         None,
             is_simple_format: false,
         };
 
-        let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
-                .unwrap();
+        let response = build_success_response(
+            &result,
+            "CreateUserSuccess",
+            Some("user"),
+            true,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         let obj = response.as_object().unwrap();
 
         // CASCADE at success level
@@ -603,20 +603,29 @@ mod tests {
     #[test]
     fn test_wrapper_fields_promoted() {
         let result = MutationResult {
-            status: MutationStatus::Success("success".to_string()),
-            message: "Success".to_string(),
-            entity_id: None,
-            entity_type: Some("Post".to_string()),
-            entity: Some(json!({"post": {"id": "456", "title": "Hello"}, "message": "Created"})),
-            updated_fields: None,
-            cascade: None,
-            metadata: None,
+            status:           MutationStatus::Success("success".to_string()),
+            message:          "Success".to_string(),
+            entity_id:        None,
+            entity_type:      Some("Post".to_string()),
+            entity:           Some(
+                json!({"post": {"id": "456", "title": "Hello"}, "message": "Created"}),
+            ),
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         None,
             is_simple_format: false,
         };
 
-        let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
-                .unwrap();
+        let response = build_success_response(
+            &result,
+            "CreateUserSuccess",
+            Some("user"),
+            true,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         let obj = response.as_object().unwrap();
 
         // Entity extracted and has __typename
@@ -631,21 +640,22 @@ mod tests {
     #[test]
     fn test_build_error() {
         let result = MutationResult {
-            status: MutationStatus::Error("validation:invalid_email".to_string()),
-            message: "Validation failed".to_string(),
-            entity_id: None,
-            entity_type: None,
-            entity: None,
-            updated_fields: None,
-            cascade: None,
-            metadata: Some(
+            status:           MutationStatus::Error("validation:invalid_email".to_string()),
+            message:          "Validation failed".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         Some(
                 json!({"errors": [{"field": "email", "code": "invalid", "message": "Invalid email"}]}),
             ),
             is_simple_format: false,
         };
 
         let response =
-            build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
+            build_error_response_with_code(&result, "CreateUserError", true, None, None, None)
+                .unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserError");
@@ -662,19 +672,20 @@ mod tests {
     #[test]
     fn test_error_code_extraction() {
         let result = MutationResult {
-            status: MutationStatus::Error("validation:invalid_input".to_string()),
-            message: "Validation failed".to_string(),
-            entity_id: None,
-            entity_type: None,
-            entity: None,
-            updated_fields: None,
-            cascade: None,
-            metadata: None, // No errors in metadata
+            status:           MutationStatus::Error("validation:invalid_input".to_string()),
+            message:          "Validation failed".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         None, // No errors in metadata
             is_simple_format: false,
         };
 
         let response =
-            build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
+            build_error_response_with_code(&result, "CreateUserError", true, None, None, None)
+                .unwrap();
         let obj = response.as_object().unwrap();
 
         // Auto-generated error with extracted code
@@ -699,19 +710,20 @@ mod tests {
 
         for (status_str, expected_code) in test_cases {
             let result = MutationResult {
-                status: MutationStatus::Error(status_str.to_string()),
-                message: "Error".to_string(),
-                entity_id: None,
-                entity_type: None,
-                entity: None,
-                updated_fields: None,
-                cascade: None,
-                metadata: None,
+                status:           MutationStatus::Error(status_str.to_string()),
+                message:          "Error".to_string(),
+                entity_id:        None,
+                entity_type:      None,
+                entity:           None,
+                updated_fields:   None,
+                cascade:          None,
+                metadata:         None,
                 is_simple_format: false,
             };
 
             let response =
-                build_error_response_with_code(&result, "TestError", true, None, None).unwrap();
+                build_error_response_with_code(&result, "TestError", true, None, None, None)
+                    .unwrap();
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,
@@ -725,14 +737,14 @@ mod tests {
     fn test_error_response_with_code_field_injection() {
         // Test that code field is correctly injected into error responses
         let result = MutationResult {
-            status: MutationStatus::Error("validation:invalid_input".to_string()),
-            message: "Validation failed".to_string(),
-            entity_id: None,
-            entity_type: None,
-            entity: None,
-            updated_fields: None,
-            cascade: None,
-            metadata: None,
+            status:           MutationStatus::Error("validation:invalid_input".to_string()),
+            message:          "Validation failed".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         None,
             is_simple_format: false,
         };
 
@@ -743,16 +755,14 @@ mod tests {
             true,
             Some(&vec!["code".to_string(), "message".to_string()]),
             None,
+            None,
         )
         .unwrap();
 
         let obj = response.as_object().unwrap();
 
         // Verify code field is present and correct
-        assert!(
-            obj.contains_key("code"),
-            "Error response must have 'code' field"
-        );
+        assert!(obj.contains_key("code"), "Error response must have 'code' field");
         assert_eq!(obj["code"], 422, "Validation error should map to 422");
         assert_eq!(obj["message"], "Validation failed");
         assert_eq!(obj["__typename"], "CreatePostError");
@@ -762,14 +772,14 @@ mod tests {
     fn test_not_found_maps_to_404() {
         // Specific test for not_found: semantic prefix
         let result = MutationResult {
-            status: MutationStatus::Error("not_found:author_missing".to_string()),
-            message: "Author not found".to_string(),
-            entity_id: None,
-            entity_type: None,
-            entity: None,
-            updated_fields: None,
-            cascade: None,
-            metadata: None,
+            status:           MutationStatus::Error("not_found:author_missing".to_string()),
+            message:          "Author not found".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         None,
             is_simple_format: false,
         };
 
@@ -779,11 +789,97 @@ mod tests {
             true,
             Some(&vec!["code".to_string(), "message".to_string()]),
             None,
+            None,
         )
         .unwrap();
 
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["code"], 404, "not_found: should map to 404");
+    }
+
+    #[test]
+    fn test_error_scalar_fields_populated_from_metadata() {
+        // GitHub issue #294: scalar fields on @fraiseql.error types (datetime, str, int, UUID)
+        // must be populated from mutation metadata, not silently resolved to None.
+        let result = MutationResult {
+            status:           MutationStatus::Noop("noop:future_usage_exists".to_string()),
+            message:          "Cannot decommission: active readings exist".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         Some(json!({
+                "has_readings_after": true,
+                "last_activity_date": "2024-11-15T10:23:00Z",
+                "reading_count": 42
+            })),
+            is_simple_format: false,
+        };
+
+        let response = build_error_response_with_code(
+            &result,
+            "DecommissionMachineError",
+            true,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let obj = response.as_object().unwrap();
+
+        assert_eq!(obj["__typename"], "DecommissionMachineError");
+        assert_eq!(obj["code"], 422);
+
+        // Scalar fields from metadata must be present
+        assert_eq!(obj["hasReadingsAfter"], true, "bool scalar from metadata should be populated");
+        assert_eq!(
+            obj["lastActivityDate"], "2024-11-15T10:23:00Z",
+            "datetime scalar from metadata should be populated"
+        );
+        assert_eq!(obj["readingCount"], 42, "int scalar from metadata should be populated");
+
+        // Reserved key "errors" must not be treated as a custom field
+        assert!(!obj.contains_key("errors_raw"), "raw errors key must not leak");
+    }
+
+    #[test]
+    fn test_error_metadata_reserved_keys_not_leaked() {
+        // Reserved metadata keys (errors, entity_type, entity, _cascade) must not appear
+        // as top-level fields in the error response.
+        let result = MutationResult {
+            status:           MutationStatus::Error("validation:invalid_input".to_string()),
+            message:          "Validation failed".to_string(),
+            entity_id:        None,
+            entity_type:      None,
+            entity:           None,
+            updated_fields:   None,
+            cascade:          None,
+            metadata:         Some(json!({
+                "errors": [{"code": "invalid", "message": "Bad input"}],
+                "entity_type": "Machine",
+                "entity": {"id": "1"},
+                "_cascade": {},
+                "display_name": "some value"
+            })),
+            is_simple_format: false,
+        };
+
+        let response =
+            build_error_response_with_code(&result, "TestError", true, None, None, None).unwrap();
+        let obj = response.as_object().unwrap();
+
+        // Reserved keys must not appear at root level as raw fields
+        assert!(!obj.contains_key("entityType"), "entity_type must not leak from metadata");
+        assert!(!obj.contains_key("cascade"), "cascade must not leak from metadata raw");
+
+        // Non-reserved scalar must be present
+        assert_eq!(obj["displayName"], "some value");
+
+        // errors key is consumed as the errors array, not as a raw field
+        assert!(obj.contains_key("errors"), "errors array should be present");
+        let errors = obj["errors"].as_array().unwrap();
+        assert_eq!(errors[0]["code"], "invalid");
     }
 }

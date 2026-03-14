@@ -51,21 +51,25 @@ class User:
 ### Implementation Plan
 
 **Phase 1: Add docstring support to schema builders** (1 day)
+
 - [ ] Update `src/fraiseql/core/graphql_type.py` to extract field docstrings
 - [ ] Modify field processing to use docstrings as descriptions
 - [ ] Fallback to `description` parameter for backward compatibility
 - [ ] Add tests for docstring extraction
 
 **Phase 2: Update documentation examples** (1 day)
+
 - [ ] Update all docs to show docstring pattern
 - [ ] Keep `description` parameter as "legacy but supported"
 - [ ] Add migration guide
 
 **Phase 3: Update CLI templates** (0.5 days)
+
 - [ ] Update `fraiseql init` templates to use docstrings
 - [ ] Update `fraiseql generate` templates to use docstrings
 
 **Files to modify**:
+
 - `src/fraiseql/core/graphql_type.py` - Field docstring extraction
 - `src/fraiseql/cli/commands/init.py` - Template updates
 - `src/fraiseql/cli/commands/generate.py` - Template updates
@@ -82,6 +86,7 @@ class User:
 ### Current State
 
 Code examples in docs are not automatically tested:
+
 - Examples may become outdated
 - Breaking changes don't update docs
 - Users copy broken code
@@ -107,12 +112,14 @@ class User:
 ### Implementation Plan
 
 **Option A: pytest-markdown**
+
 ```bash
 pip install pytest-markdown
 pytest --markdown docs/
 ```
 
 **Option B: doctest**
+
 ```python
 # In conftest.py
 def pytest_collect_file(parent, path):
@@ -121,6 +128,7 @@ def pytest_collect_file(parent, path):
 ```
 
 **Option C: Custom script**
+
 ```bash
 # scripts/test_docs.py
 # Extract code blocks, run them, verify output
@@ -129,6 +137,7 @@ def pytest_collect_file(parent, path):
 **Recommended**: Option B (doctest) - most Pythonic
 
 **Files to create**:
+
 - `scripts/test_docs_examples.py` - Test runner
 - `tests/docs/conftest.py` - pytest integration
 - `.github/workflows/docs-tests.yml` - CI integration
@@ -144,22 +153,26 @@ def pytest_collect_file(parent, path):
 ### Missing Diagrams
 
 1. **Request Flow Diagram**
+
    ```
    HTTP Request → FastAPI → GraphQL Parser → FraiseQL Schema →
    Rust Pipeline → PostgreSQL → JSONB Transform → Response
    ```
 
 2. **Type System Diagram**
+
    ```
    Python Types → ScalarMarker → GraphQL Scalars → PostgreSQL Types
    ```
 
 3. **Trinity Pattern Diagram**
+
    ```
    pk_user (int, internal) → id (ID, public) → identifier (str, slug)
    ```
 
 4. **CQRS Architecture Diagram**
+
    ```
    Query Schema → Views → Read-optimized queries
    Mutation Schema → Functions → Write operations
@@ -182,6 +195,7 @@ flowchart LR
     F --> G[JSONB Transform]
     G --> H[HTTP Response]
 ```
+
 ```
 
 **Files to create**:
@@ -220,6 +234,7 @@ fraiseql playground
 **Recommended**: Option B (more controlled, offline)
 
 **Files to create**:
+
 - `src/fraiseql/cli/commands/playground.py`
 - `src/fraiseql/playground/` - REPL implementation
 - `src/fraiseql/playground/examples/` - Pre-loaded examples
@@ -252,6 +267,7 @@ fraiseql playground
 ### Implementation
 
 **Template**:
+
 ```markdown
 # Migrating from UUID to ID
 
@@ -270,17 +286,21 @@ from uuid import UUID
 ```
 
 After:
+
 ```python
 from fraiseql.types import ID
 ```
 
 ### Step 2: Update Type Annotations
+
 Before:
+
 ```python
 id: UUID
 ```
 
 After:
+
 ```python
 id: ID
 ```
@@ -294,6 +314,7 @@ Solution: Continue using `uuid.uuid4()` - ID is for type annotations only
 
 Q: Do I need to change my database?
 A: No, ID maps to UUID in PostgreSQL.
+
 ```
 
 **Files to create**:
@@ -328,6 +349,7 @@ A: No, ID maps to UUID in PostgreSQL.
 ### Implementation
 
 **Files to create**:
+
 - `docs/troubleshooting/query-debugging.md`
 - `docs/troubleshooting/schema-issues.md`
 - `docs/troubleshooting/database-connections.md`
@@ -363,6 +385,7 @@ A: No, ID maps to UUID in PostgreSQL.
    - Bottleneck identification
 
 **Files to create**:
+
 - `docs/performance/database-optimization.md`
 - `docs/performance/rust-pipeline.md`
 - `docs/performance/caching.md`
@@ -400,6 +423,7 @@ A: No, ID maps to UUID in PostgreSQL.
    - WebSocket integration
 
 **Files to create**:
+
 - `examples/ecommerce/` - Complete working example
 - `examples/blog-advanced/` - Enhanced blog
 - `examples/multi-tenant/` - SaaS pattern
@@ -424,12 +448,14 @@ Auto-generated from docstrings using **Sphinx** or **mkdocstrings**.
 ### Implementation
 
 **Option A: Sphinx**
+
 ```bash
 pip install sphinx sphinx-autodoc-typehints
 sphinx-apidoc -o docs/api src/fraiseql
 ```
 
 **Option B: mkdocstrings**
+
 ```yaml
 # mkdocs.yml
 plugins:
@@ -443,6 +469,7 @@ plugins:
 **Recommended**: Option B (mkdocstrings) - better integration with mkdocs
 
 **Files to create**:
+
 - `mkdocs.yml` - Documentation config
 - `docs/api/` - Auto-generated API reference
 
@@ -468,17 +495,20 @@ plugins:
 ## Implementation Priority
 
 ### Phase 1: Essential (Next Sprint)
+
 1. ✅ **ID Migration** - DONE
 2. 🔄 **Docstring Auto-Documentation** - USER REQUEST (2-3 days)
 3. 📊 **Architecture Diagrams** (3-4 days)
 4. 📖 **Migration Guides** (2 days)
 
 ### Phase 2: Important (Following Sprint)
+
 5. ✅ **Code Example Testing** (1-2 weeks)
 6. 🔍 **Troubleshooting Flowcharts** (2 days)
 7. ⚡ **Performance Tuning Guide** (3-4 days)
 
 ### Phase 3: Nice to Have (Future)
+
 8. 🌍 **Real-World Examples** (1 week)
 9. 📚 **API Reference Auto-Generation** (3-5 days)
 10. 🎥 **Video Tutorials** (2-3 weeks)
@@ -498,12 +528,14 @@ plugins:
 ## Next Steps
 
 **Immediate actions**:
+
 1. Get approval for docstring auto-documentation approach
 2. Create GitHub issues for each category
 3. Assign priorities and timeline
 4. Start with Phase 1 items
 
 **Questions for user**:
+
 - Which improvements are highest priority for you?
 - Any other documentation pain points?
 - Timeline constraints for these improvements?

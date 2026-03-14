@@ -15,12 +15,12 @@ Ubiquitous Language:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Optional
 from uuid import uuid4
 
 
-class HashAlgorithm(str, Enum):
+class HashAlgorithm(StrEnum):
     """Supported cryptographic hash algorithms for component integrity."""
 
     SHA256 = "SHA-256"
@@ -31,7 +31,7 @@ class HashAlgorithm(str, Enum):
     SHA3_512 = "SHA3-512"
 
 
-class ComponentType(str, Enum):
+class ComponentType(StrEnum):
     """Types of software components in the supply chain."""
 
     APPLICATION = "application"  # Main application
