@@ -336,27 +336,22 @@ impl QueryParam {
     /// Validate that the parameter value is reasonable
     pub fn validate(&self) -> DatabaseResult<()> {
         match self {
-            QueryParam::Text(s) => {
-                if s.len() > 1_000_000 {
-                    // 1MB limit for text fields
-                    return Err(DatabaseError::Config(
-                        "Text parameter exceeds maximum length of 1MB".to_string(),
-                    ));
-                }
+            QueryParam::Text(s) if s.len() > 1_000_000 => {
+                // 1MB limit for text fields
+                return Err(DatabaseError::Config(
+                    "Text parameter exceeds maximum length of 1MB".to_string(),
+                ));
             },
-            QueryParam::Json(val) => {
-                // Basic JSON validation - ensure it's not too large
+            QueryParam::Json(val)
                 if serde_json::to_string(val)
-                    .map_err(|e| DatabaseError::Config(format!("Invalid JSON parameter: {}", e)))?
+                    .map_err(|e| DatabaseError::Config(format!("Invalid JSON parameter: {e}")))?
                     .len()
-                    > 1_000_000
-                {
-                    return Err(DatabaseError::Config(
-                        "JSON parameter exceeds maximum size of 1MB".to_string(),
-                    ));
-                }
+                    > 1_000_000 =>
+            {
+                return Err(DatabaseError::Config(
+                    "JSON parameter exceeds maximum size of 1MB".to_string(),
+                ));
             },
-            // Add more validations as needed
             _ => {}, // Other types have reasonable size limits by their nature
         }
         Ok(())
