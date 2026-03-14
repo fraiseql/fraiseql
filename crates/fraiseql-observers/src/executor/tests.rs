@@ -41,15 +41,15 @@ fn test_backoff_exponential() {
 
     // Jitter: ±25% of base delay — check inclusive range.
     let d = executor.calculate_backoff(1, &config).as_millis();
-    assert!(d >= 75 && d <= 125, "attempt 1: expected ~100 ms (±25%), got {d}");
+    assert!((75..=125).contains(&d), "attempt 1: expected ~100 ms (±25%), got {d}");
     let d = executor.calculate_backoff(2, &config).as_millis();
-    assert!(d >= 150 && d <= 250, "attempt 2: expected ~200 ms (±25%), got {d}");
+    assert!((150..=250).contains(&d), "attempt 2: expected ~200 ms (±25%), got {d}");
     let d = executor.calculate_backoff(3, &config).as_millis();
-    assert!(d >= 300 && d <= 500, "attempt 3: expected ~400 ms (±25%), got {d}");
+    assert!((300..=500).contains(&d), "attempt 3: expected ~400 ms (±25%), got {d}");
     let d = executor.calculate_backoff(4, &config).as_millis();
-    assert!(d >= 600 && d <= 1000, "attempt 4: expected ~800 ms (±25%), got {d}");
+    assert!((600..=1000).contains(&d), "attempt 4: expected ~800 ms (±25%), got {d}");
     let d = executor.calculate_backoff(5, &config).as_millis();
-    assert!(d >= 1200 && d <= 2000, "attempt 5: expected ~1600 ms (±25%), got {d}");
+    assert!((1200..=2000).contains(&d), "attempt 5: expected ~1600 ms (±25%), got {d}");
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn test_backoff_exponential_cap() {
 
     // Cap is at 1000; jitter ±25% gives [750, 1250]
     let d = executor.calculate_backoff(10, &config).as_millis();
-    assert!(d >= 750 && d <= 1250, "capped attempt: expected ~1000 ms (±25%), got {d}");
+    assert!((750..=1250).contains(&d), "capped attempt: expected ~1000 ms (±25%), got {d}");
 }
 
 #[test]

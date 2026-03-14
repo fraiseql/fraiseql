@@ -386,8 +386,8 @@ mod tests {
     }
 
     fn within_jitter(actual_ms: u128, base_ms: u64) -> bool {
-        let lo = base_ms.saturating_sub(base_ms / 4) as u128;
-        let hi = base_ms.saturating_add(base_ms / 4) as u128;
+        let lo = u128::from(base_ms.saturating_sub(base_ms / 4));
+        let hi = u128::from(base_ms.saturating_add(base_ms / 4));
         actual_ms >= lo && actual_ms <= hi
     }
 
