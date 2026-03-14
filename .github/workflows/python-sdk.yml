@@ -46,7 +46,7 @@ jobs:
         run: uv run ty check src || true
 
       - name: Run tests
-        run: uv run pytest tests -v
+        run: PYTHONPATH=src uv run pytest -q
 
   publish:
     name: Publish to PyPI
