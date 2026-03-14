@@ -47,6 +47,7 @@ let private singleQuery: QueryDefinition =
         arguments = []
         cache_ttl_seconds = None
         description = None
+        rest = None
     }
 
 let private singleMutation: MutationDefinition =
@@ -57,6 +58,7 @@ let private singleMutation: MutationDefinition =
         operation = "insert"
         arguments = []
         description = None
+        rest = None
     }
 
 let private parseJson (json: string) =
@@ -334,3 +336,97 @@ let ``export from registry after reset produces empty schema`` () =
     let json = SchemaExporter.export ()
     let root = parseJson json
     root.GetProperty("types").GetArrayLength() |> should equal 0
+
+// ---------------------------------------------------------------------------
+// REST annotation tests
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``export query with rest config emits rest block`` () =
+    let queryWithRest =
+        { singleQuery with
+            rest = Some { path = "/api/authors"; method = "GET" } }
+
+    let schema = { emptySchema with queries = [ queryWithRest ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let restEl = root.GetProperty("queries").[0].GetProperty("rest")
+    restEl.GetProperty("path").GetString() |> should equal "/api/authors"
+    restEl.GetProperty("method").GetString() |> should equal "GET"
+
+[<Fact>]
+let ``export query without rest omits rest block`` () =
+    let schema = { emptySchema with queries = [ singleQuery ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    root.GetProperty("queries").[0].TryGetProperty("rest") |> fst |> should equal false
+
+[<Fact>]
+let ``export mutation with rest config emits rest block`` () =
+    let mutationWithRest =
+        { singleMutation with
+            rest = Some { path = "/api/authors"; method = "POST" } }
+
+    let schema = { emptySchema with mutations = [ mutationWithRest ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    let restEl = root.GetProperty("mutations").[0].GetProperty("rest")
+    restEl.GetProperty("path").GetString() |> should equal "/api/authors"
+    restEl.GetProperty("method").GetString() |> should equal "POST"
+
+[<Fact>]
+let ``export mutation without rest omits rest block`` () =
+    let schema = { emptySchema with mutations = [ singleMutation ] }
+    let json = SchemaExporter.exportSchema schema
+    let root = parseJson json
+    root.GetProperty("mutations").[0].TryGetProperty("rest") |> fst |> should equal false
+
+[<Fact>]
+let ``QueryBuilder with restPath produces rest config`` () =
+    let qd =
+        QueryBuilder.query "users"
+        |> QueryBuilder.returnType "User"
+        |> QueryBuilder.sqlSource "v_user"
+        |> QueryBuilder.restPath "/api/users"
+        |> QueryBuilder.restMethod "GET"
+        |> QueryBuilder.toDefinition
+
+    qd.rest |> Option.isSome |> should equal true
+    qd.rest.Value.path |> should equal "/api/users"
+    qd.rest.Value.method |> should equal "GET"
+
+[<Fact>]
+let ``QueryBuilder restPath defaults method to GET`` () =
+    let qd =
+        QueryBuilder.query "users"
+        |> QueryBuilder.returnType "User"
+        |> QueryBuilder.sqlSource "v_user"
+        |> QueryBuilder.restPath "/api/users"
+        |> QueryBuilder.toDefinition
+
+    qd.rest.Value.method |> should equal "GET"
+
+[<Fact>]
+let ``MutationBuilder with restPath produces rest config`` () =
+    let md =
+        MutationBuilder.mutation "createUser"
+        |> MutationBuilder.returnType "User"
+        |> MutationBuilder.sqlSource "fn_create_user"
+        |> MutationBuilder.restPath "/api/users"
+        |> MutationBuilder.restMethod "POST"
+        |> MutationBuilder.toDefinition
+
+    md.rest |> Option.isSome |> should equal true
+    md.rest.Value.path |> should equal "/api/users"
+    md.rest.Value.method |> should equal "POST"
+
+[<Fact>]
+let ``MutationBuilder restPath defaults method to POST`` () =
+    let md =
+        MutationBuilder.mutation "createUser"
+        |> MutationBuilder.returnType "User"
+        |> MutationBuilder.sqlSource "fn_create_user"
+        |> MutationBuilder.restPath "/api/users"
+        |> MutationBuilder.toDefinition
+
+    md.rest.Value.method |> should equal "POST"

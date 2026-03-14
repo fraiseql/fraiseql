@@ -155,6 +155,7 @@ let ``reset clears all queries`` () =
             arguments = []
             cache_ttl_seconds = None
             description = None
+            rest = None
         }
 
     SchemaRegistry.registerQuery q
@@ -173,6 +174,7 @@ let ``reset clears all mutations`` () =
             operation = "insert"
             arguments = []
             description = None
+            rest = None
         }
 
     SchemaRegistry.registerMutation m
@@ -212,6 +214,7 @@ let ``registerQuery adds to getAllQueries`` () =
             arguments = []
             cache_ttl_seconds = None
             description = None
+            rest = None
         }
 
     SchemaRegistry.registerQuery q
@@ -231,6 +234,7 @@ let ``registerMutation adds to getAllMutations`` () =
             operation = "delete"
             arguments = []
             description = None
+            rest = None
         }
 
     SchemaRegistry.registerMutation m
@@ -253,6 +257,7 @@ let ``toIntermediateSchema includes all registered items`` () =
             arguments = []
             cache_ttl_seconds = None
             description = None
+            rest = None
         }
 
     SchemaRegistry.registerQuery q

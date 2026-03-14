@@ -167,6 +167,8 @@ module Dsl =
             arguments: ArgumentDefinition list
             cacheTtlSeconds: int option
             description: string option
+            restPath: string option
+            restMethod: string option
         }
 
     /// Computation expression builder for a <see cref="QueryDefinition"/>.
@@ -191,6 +193,8 @@ module Dsl =
                 arguments = []
                 cacheTtlSeconds = None
                 description = None
+                restPath = None
+                restMethod = None
             }
 
         member this.Zero() : QueryCEAccState = this.Yield(())
@@ -207,6 +211,10 @@ module Dsl =
                 arguments = s.arguments
                 cache_ttl_seconds = s.cacheTtlSeconds
                 description = s.description
+                rest =
+                    s.restPath
+                    |> Option.map (fun p ->
+                        { path = p; method = s.restMethod |> Option.defaultValue "GET" })
             }
 
         /// Sets the GraphQL return type.
@@ -235,6 +243,14 @@ module Dsl =
         member _.Description(s: QueryCEAccState, v: string) =
             { s with description = Some v }
 
+        /// Sets the REST path for this query.
+        [<CustomOperation("restPath")>]
+        member _.RestPath(s: QueryCEAccState, v: string) = { s with restPath = Some v }
+
+        /// Sets the REST HTTP method for this query.
+        [<CustomOperation("restMethod")>]
+        member _.RestMethod(s: QueryCEAccState, v: string) = { s with restMethod = Some v }
+
         /// Adds an argument to this query.
         [<CustomOperation("arg")>]
         member _.Arg(s: QueryCEAccState, name: string, type_: string, isNullable: bool) =
@@ -254,6 +270,8 @@ module Dsl =
             operation: string
             arguments: ArgumentDefinition list
             description: string option
+            restPath: string option
+            restMethod: string option
         }
 
     /// Computation expression builder for a <see cref="MutationDefinition"/>.
@@ -276,6 +294,8 @@ module Dsl =
                 operation = "custom"
                 arguments = []
                 description = None
+                restPath = None
+                restMethod = None
             }
 
         member this.Zero() : MutationCEAccState = this.Yield(())
@@ -290,6 +310,10 @@ module Dsl =
                 operation = s.operation
                 arguments = s.arguments
                 description = s.description
+                rest =
+                    s.restPath
+                    |> Option.map (fun p ->
+                        { path = p; method = s.restMethod |> Option.defaultValue "POST" })
             }
 
         /// Sets the GraphQL return type.
@@ -308,6 +332,14 @@ module Dsl =
         [<CustomOperation("description")>]
         member _.Description(s: MutationCEAccState, v: string) =
             { s with description = Some v }
+
+        /// Sets the REST path for this mutation.
+        [<CustomOperation("restPath")>]
+        member _.RestPath(s: MutationCEAccState, v: string) = { s with restPath = Some v }
+
+        /// Sets the REST HTTP method for this mutation.
+        [<CustomOperation("restMethod")>]
+        member _.RestMethod(s: MutationCEAccState, v: string) = { s with restMethod = Some v }
 
         /// Adds an argument to this mutation.
         [<CustomOperation("arg")>]

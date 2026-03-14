@@ -52,6 +52,16 @@ type TypeDefinition =
         is_error: bool
     }
 
+/// Optional REST endpoint configuration for a query or mutation.
+[<CLIMutable>]
+type RestConfig =
+    {
+        /// The REST path, e.g. "/api/users" or "/api/users/{id}".
+        path: string
+        /// The HTTP method: GET, POST, PUT, PATCH, or DELETE.
+        method: string
+    }
+
 /// Represents a GraphQL query (read operation).
 [<CLIMutable>]
 type QueryDefinition =
@@ -72,6 +82,8 @@ type QueryDefinition =
         cache_ttl_seconds: int option
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint configuration.
+        rest: RestConfig option
     }
 
 /// Represents a GraphQL mutation (write operation).
@@ -90,6 +102,8 @@ type MutationDefinition =
         arguments: ArgumentDefinition list
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint configuration.
+        rest: RestConfig option
     }
 
 /// The root schema record serialized to schema.json.

@@ -23,6 +23,8 @@ module QueryBuilder =
             arguments: ArgumentDefinition list
             cacheTtlSeconds: int option
             description: string option
+            restPath: string option
+            restMethod: string option
         }
 
     /// Creates a new <see cref="QueryState"/> for the given query name.
@@ -36,6 +38,8 @@ module QueryBuilder =
             arguments = []
             cacheTtlSeconds = None
             description = None
+            restPath = None
+            restMethod = None
         }
 
     /// Sets the GraphQL return type for this query.
@@ -56,6 +60,12 @@ module QueryBuilder =
 
     /// Sets the optional human-readable description.
     let description (d: string) (s: QueryState) : QueryState = { s with description = Some d }
+
+    /// Sets the REST path for this query.
+    let restPath (p: string) (s: QueryState) : QueryState = { s with restPath = Some p }
+
+    /// Sets the REST HTTP method for this query.
+    let restMethod (m: string) (s: QueryState) : QueryState = { s with restMethod = Some m }
 
     /// Adds an argument to this query.
     let withArgument (name: string) (type_: string) (isNullable: bool) (s: QueryState) : QueryState =
@@ -80,6 +90,10 @@ module QueryBuilder =
             arguments = s.arguments
             cache_ttl_seconds = s.cacheTtlSeconds
             description = s.description
+            rest =
+                s.restPath
+                |> Option.map (fun p ->
+                    { path = p; method = s.restMethod |> Option.defaultValue "GET" })
         }
 
     /// Converts the state to a <see cref="QueryDefinition"/> and registers it in <see cref="SchemaRegistry"/>.
