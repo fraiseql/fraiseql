@@ -40,7 +40,7 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server-full"
-            build-args: "CARGO_FEATURES=grpc-transport,rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
             optional: true
 
           - name: tutorial
@@ -104,7 +104,7 @@ jobs:
             build-args: ""
           - name: fraiseql-server-full
             dockerfile: Dockerfile
-            build-args: "CARGO_FEATURES=grpc-transport,rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
           - name: tutorial
             dockerfile: tutorial/Dockerfile
             build-args: ""
@@ -159,7 +159,7 @@ jobs:
             build-context: .
             image-suffix: "server-full"
             docker-hub-image: fraiseql/server-full
-            build-args: "CARGO_FEATURES=grpc-transport,rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest-transport,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -262,7 +262,7 @@ jobs:
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/server\` (default features)" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (grpc + rest + arrow)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest + arrow)" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
