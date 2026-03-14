@@ -18,10 +18,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         match schema.security.as_ref() {
             None => Ok(None),
             Some(s) => {
-                let s_val = serde_json::to_value(s)
-                    .map_err(|e| ServerError::ConfigError(
-                        format!("Failed to serialize security config: {e}")
-                    ))?;
+                let s_val = serde_json::to_value(s).map_err(|e| {
+                    ServerError::ConfigError(format!("Failed to serialize security config: {e}"))
+                })?;
                 crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(&s_val)
                     .map_err(|e| ServerError::ConfigError(e.to_string()))
             },
@@ -44,18 +43,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct PkceCfgMinimal {
             #[serde(default)]
-            enabled:        bool,
+            enabled:               bool,
             #[serde(default = "default_ttl")]
-            state_ttl_secs: u64,
+            state_ttl_secs:        u64,
             #[serde(default = "default_method")]
             code_challenge_method: String,
-            redis_url: Option<String>,
+            redis_url:             Option<String>,
         }
-        const fn default_ttl()    -> u64    { 600 }
-        fn default_method() -> String { "S256".into() }
+        const fn default_ttl() -> u64 {
+            600
+        }
+        fn default_method() -> String {
+            "S256".into()
+        }
 
         let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone())
-            .inspect_err(|e| warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE"))
+            .inspect_err(
+                |e| warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE"),
+            )
             .ok()?;
         if !cfg.enabled {
             return None;
@@ -81,20 +86,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Prefer the Redis backend when redis_url is configured and the feature is compiled in.
         #[cfg(feature = "redis-pkce")]
         if let Some(ref url) = cfg.redis_url {
-            match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone())
-                .await
+            match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone()).await
             {
                 Ok(store) => {
                     info!(redis_url = %url, "PKCE state store: Redis backend");
                     return Some(Arc::new(store));
-                }
+                },
                 Err(e) => {
                     error!(
                         error = %e,
                         redis_url = %url,
                         "Failed to connect to Redis PKCE store — falling back to in-memory"
                     );
-                }
+                },
             }
         }
 
@@ -174,7 +178,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// initialises a Redis-backed distributed limiter; otherwise falls back to the
     /// in-memory backend (with a warning when `redis_url` is set but the feature is
     /// absent).
-    pub(super) async fn rate_limiter_from_schema(schema: &CompiledSchema) -> Option<Arc<RateLimiter>> {
+    pub(super) async fn rate_limiter_from_schema(
+        schema: &CompiledSchema,
+    ) -> Option<Arc<RateLimiter>> {
         let sec: crate::middleware::RateLimitingSecurityConfig = schema
             .security
             .as_ref()
@@ -273,14 +279,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct TdCfgMinimal {
             #[serde(default)]
-            enabled: bool,
+            enabled:              bool,
             #[serde(default)]
-            mode: String,
-            manifest_path: Option<String>,
+            mode:                 String,
+            manifest_path:        Option<String>,
             // Reason: serde deserialization target — `manifest_url` is a valid config field
             // used for hot-reload path detection; this minimal struct only reads `manifest_path`.
             #[allow(dead_code)]
-            manifest_url: Option<String>,
+            manifest_url:         Option<String>,
             #[serde(default)]
             reload_interval_secs: u64,
         }
@@ -326,11 +332,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "Trusted documents loaded"
                     );
                     Some(store)
-                }
+                },
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to load trusted documents manifest");
                     None
-                }
+                },
             }
         } else {
             warn!("trusted_documents.enabled = true but no manifest_path or manifest_url set");
@@ -357,8 +363,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         tokio::spawn(async move {
-            let mut ticker =
-                tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 ticker.tick().await;
@@ -393,20 +398,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                             Ok(manifest) => {
                                                 let count = manifest.documents.len();
                                                 store.replace_documents(manifest.documents).await;
-                                                info!(
-                                                    count,
-                                                    "Trusted documents manifest reloaded"
-                                                );
-                                            }
+                                                info!(count, "Trusted documents manifest reloaded");
+                                            },
                                             Err(e) => {
                                                 warn!(error = %e, "Failed to parse trusted documents manifest");
-                                            }
+                                            },
                                         }
                                     }
-                                }
+                                },
                                 Err(e) => {
                                     warn!(error = %e, "Failed to read trusted documents manifest response");
-                                }
+                                },
                             }
                         } else {
                             warn!(
@@ -418,7 +420,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     },
                     Err(e) => {
                         warn!(error = %e, "Failed to fetch trusted documents manifest");
-                    }
+                    },
                 }
             }
         });
@@ -481,9 +483,7 @@ mod tests {
 
     #[test]
     fn ssrf_blocks_ipv4_private_192_168() {
-        assert!(is_manifest_url_ssrf_blocked(
-            "http://192.168.1.100/manifest.json"
-        ));
+        assert!(is_manifest_url_ssrf_blocked("http://192.168.1.100/manifest.json"));
     }
 
     #[test]
@@ -493,16 +493,12 @@ mod tests {
 
     #[test]
     fn ssrf_blocks_ipv4_private_172_16() {
-        assert!(is_manifest_url_ssrf_blocked(
-            "http://172.16.0.1/manifest.json"
-        ));
+        assert!(is_manifest_url_ssrf_blocked("http://172.16.0.1/manifest.json"));
     }
 
     #[test]
     fn ssrf_blocks_ipv4_link_local() {
-        assert!(is_manifest_url_ssrf_blocked(
-            "http://169.254.1.1/manifest.json"
-        ));
+        assert!(is_manifest_url_ssrf_blocked("http://169.254.1.1/manifest.json"));
     }
 
     #[test]
@@ -518,9 +514,7 @@ mod tests {
     #[test]
     fn ssrf_blocks_ipv6_ula() {
         // fc00::/7 range
-        assert!(is_manifest_url_ssrf_blocked(
-            "http://[fd00::1]/manifest.json"
-        ));
+        assert!(is_manifest_url_ssrf_blocked("http://[fd00::1]/manifest.json"));
     }
 
     #[test]
@@ -530,24 +524,18 @@ mod tests {
 
     #[test]
     fn ssrf_allows_public_https() {
-        assert!(!is_manifest_url_ssrf_blocked(
-            "https://cdn.example.com/manifest.json"
-        ));
+        assert!(!is_manifest_url_ssrf_blocked("https://cdn.example.com/manifest.json"));
     }
 
     #[test]
     fn ssrf_allows_public_ipv4() {
         // 93.184.216.34 is example.com — a real public address
-        assert!(!is_manifest_url_ssrf_blocked(
-            "http://93.184.216.34/manifest.json"
-        ));
+        assert!(!is_manifest_url_ssrf_blocked("http://93.184.216.34/manifest.json"));
     }
 
     #[test]
     fn ssrf_allows_public_ipv6_global() {
         // 2001:db8:: is documentation range — treated as public by is_manifest_url_ssrf_blocked
-        assert!(!is_manifest_url_ssrf_blocked(
-            "http://[2001:db8::1]/manifest.json"
-        ));
+        assert!(!is_manifest_url_ssrf_blocked("http://[2001:db8::1]/manifest.json"));
     }
 }

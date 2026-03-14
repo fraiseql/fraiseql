@@ -275,10 +275,7 @@ impl fmt::Display for SecurityError {
                 alias_count,
                 max_aliases,
             } => {
-                write!(
-                    f,
-                    "Query contains too many aliases: {alias_count} > {max_aliases}"
-                )
+                write!(f, "Query contains too many aliases: {alias_count} > {max_aliases}")
             },
             Self::MalformedQuery(msg) => {
                 write!(f, "Malformed GraphQL query: {msg}")

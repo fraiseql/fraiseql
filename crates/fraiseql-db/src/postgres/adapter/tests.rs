@@ -2,8 +2,9 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::{build_where_select_sql, escape_jsonb_key, PostgresAdapter};
 use fraiseql_error::FraiseQLError;
+
+use super::{PostgresAdapter, build_where_select_sql, escape_jsonb_key};
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
 

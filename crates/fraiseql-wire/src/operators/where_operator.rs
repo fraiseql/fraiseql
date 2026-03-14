@@ -541,12 +541,24 @@ impl WhereOperator {
             | WhereOperator::IsNull(f, _)
             | WhereOperator::StrictlyContains(f, _) => f.validate(),
 
-            WhereOperator::L2Distance { field, threshold, .. }
-            | WhereOperator::CosineDistance { field, threshold, .. }
-            | WhereOperator::InnerProduct { field, threshold, .. }
-            | WhereOperator::L1Distance { field, threshold, .. }
-            | WhereOperator::HammingDistance { field, threshold, .. }
-            | WhereOperator::JaccardDistance { field, threshold, .. } => {
+            WhereOperator::L2Distance {
+                field, threshold, ..
+            }
+            | WhereOperator::CosineDistance {
+                field, threshold, ..
+            }
+            | WhereOperator::InnerProduct {
+                field, threshold, ..
+            }
+            | WhereOperator::L1Distance {
+                field, threshold, ..
+            }
+            | WhereOperator::HammingDistance {
+                field, threshold, ..
+            }
+            | WhereOperator::JaccardDistance {
+                field, threshold, ..
+            } => {
                 if !threshold.is_finite() {
                     return Err(format!(
                         "Vector distance threshold must be a finite number, got {}",

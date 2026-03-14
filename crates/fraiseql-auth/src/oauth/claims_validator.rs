@@ -53,8 +53,8 @@ pub fn validate_nonce_claim(claims: &IdTokenClaims, expected_nonce: &str) -> Res
 /// # Errors
 ///
 /// - [`AuthError::MissingAuthTime`] — the token carries no `auth_time` claim.
-/// - [`AuthError::SessionTooOld`] — the session was authenticated more than
-///   `max_age_secs + CLOCK_SKEW_SECS` seconds ago.
+/// - [`AuthError::SessionTooOld`] — the session was authenticated more than `max_age_secs +
+///   CLOCK_SKEW_SECS` seconds ago.
 pub fn validate_auth_time_claim(
     claims: &IdTokenClaims,
     max_age_secs: u64,
@@ -74,7 +74,8 @@ pub fn validate_auth_time_claim(
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn make_claims(nonce: Option<&str>, auth_time: Option<i64>) -> IdTokenClaims {
@@ -116,9 +117,9 @@ mod tests {
     fn test_callback_nonce_is_one_shot() {
         // Simulates one-shot nonce consumption:
         // 1. First validation against the stored nonce succeeds.
-        // 2. After the callback handler consumes (deletes) the nonce from the session
-        //    store, subsequent re-use attempts fail with MissingNonce because the
-        //    session no longer carries a nonce to compare against.
+        // 2. After the callback handler consumes (deletes) the nonce from the session store,
+        //    subsequent re-use attempts fail with MissingNonce because the session no longer
+        //    carries a nonce to compare against.
         //
         // In production the callback handler is responsible for deleting the nonce from
         // the session store before calling this validator, making the check one-shot.
@@ -152,7 +153,13 @@ mod tests {
         let claims = make_claims(None, Some(NOW - 200));
         let result = validate_auth_time_claim(&claims, 60, NOW);
         assert!(
-            matches!(result, Err(AuthError::SessionTooOld { age: 200, max_age_secs: 60 })),
+            matches!(
+                result,
+                Err(AuthError::SessionTooOld {
+                    age:          200,
+                    max_age_secs: 60,
+                })
+            ),
             "expected SessionTooOld, got: {result:?}"
         );
     }

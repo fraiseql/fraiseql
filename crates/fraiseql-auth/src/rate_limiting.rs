@@ -3,7 +3,6 @@
 //! Provides [`KeyedRateLimiter`] — a per-key sliding-window counter backed by
 //! a `Mutex<HashMap>` — and [`RateLimiters`], a pre-built set of limiters for
 //! each authentication endpoint.
-//
 // # Threading Model
 //
 // All rate limiting operations are **atomic** with respect to concurrent access:
@@ -132,8 +131,8 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 /// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
 pub struct KeyedRateLimiter {
-    records:    Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config:     AuthRateLimitConfig,
+    records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
+    config:      AuthRateLimitConfig,
     max_entries: usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
     check_count: AtomicU64,
@@ -171,11 +170,11 @@ impl KeyedRateLimiter {
     /// Create a new keyed rate limiter using wall-clock time.
     pub fn new(config: AuthRateLimitConfig) -> Self {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             max_entries: DEFAULT_MAX_ENTRIES,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(system_clock),
+            clock: Box::new(system_clock),
         }
     }
 
@@ -186,11 +185,11 @@ impl KeyedRateLimiter {
     /// (unbounded — not recommended in production).
     pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             max_entries,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(system_clock),
+            clock: Box::new(system_clock),
         }
     }
 
@@ -203,11 +202,11 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             max_entries: DEFAULT_MAX_ENTRIES,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(clock),
+            clock: Box::new(clock),
         }
     }
 
@@ -224,11 +223,11 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records:     Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             config,
             max_entries,
             check_count: AtomicU64::new(0),
-            clock:       Box::new(clock),
+            clock: Box::new(clock),
         }
     }
 
@@ -286,14 +285,9 @@ impl KeyedRateLimiter {
         // A cap of 0 disables the limit (opt-in unbounded mode).
         // When at capacity, evict the entry with the oldest window_start (LRU by activity)
         // so new sources can always be tracked without permanently blocking new IPs.
-        if self.max_entries > 0
-            && !records.contains_key(key)
-            && records.len() >= self.max_entries
-        {
-            if let Some(oldest_key) = records
-                .iter()
-                .min_by_key(|(_, r)| r.window_start)
-                .map(|(k, _)| k.clone())
+        if self.max_entries > 0 && !records.contains_key(key) && records.len() >= self.max_entries {
+            if let Some(oldest_key) =
+                records.iter().min_by_key(|(_, r)| r.window_start).map(|(k, _)| k.clone())
             {
                 records.remove(&oldest_key);
                 tracing::debug!(
@@ -428,10 +422,11 @@ impl Default for RateLimiters {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]
@@ -888,7 +883,11 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_evicts_lru_entry_when_at_capacity() {
-        let config = AuthRateLimitConfig { enabled: true, max_requests: 10, window_secs: 3600 };
+        let config = AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 10,
+            window_secs:  3600,
+        };
         let limiter = KeyedRateLimiter::with_max_entries(config, 3);
 
         // Fill to capacity.
@@ -909,7 +908,11 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_capacity_configurable() {
-        let config = AuthRateLimitConfig { enabled: true, max_requests: 10, window_secs: 3600 };
+        let config = AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 10,
+            window_secs:  3600,
+        };
         let limiter = KeyedRateLimiter::with_max_entries(config, 5);
 
         for i in 0..5 {
@@ -919,11 +922,7 @@ mod tests {
 
         // 6th key triggers eviction; count must stay at 5.
         limiter.check("key_overflow").unwrap();
-        assert_eq!(
-            limiter.active_limiters(),
-            5,
-            "capacity must not exceed configured maximum"
-        );
+        assert_eq!(limiter.active_limiters(), 5, "capacity must not exceed configured maximum");
     }
 
     #[test]
@@ -936,12 +935,14 @@ mod tests {
         // Use an injectable clock so window_start values are deterministic.
         let now = Arc::new(AtomicU64::new(1_000));
         let clock_ref = Arc::clone(&now);
-        let config = AuthRateLimitConfig { enabled: true, max_requests: 1, window_secs: 3600 };
-        let limiter = KeyedRateLimiter::with_clock_and_max_entries(
-            config,
-            2,
-            move || clock_ref.load(Ordering::Relaxed),
-        );
+        let config = AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 1,
+            window_secs:  3600,
+        };
+        let limiter = KeyedRateLimiter::with_clock_and_max_entries(config, 2, move || {
+            clock_ref.load(Ordering::Relaxed)
+        });
 
         // key_a at t=1000 — uses its 1 allowed request.
         now.store(1_000, Ordering::Relaxed);

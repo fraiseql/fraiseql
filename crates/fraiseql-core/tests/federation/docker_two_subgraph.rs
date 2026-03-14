@@ -43,11 +43,9 @@ async fn test_gateway_two_subgraph_federation() {
     assert!(!users.is_empty(), "Should have at least one user");
 
     // At least some users should have orders
-    let has_orders = users.iter().any(|u| {
-        u.get("orders")
-            .and_then(|o| o.as_array())
-            .is_some_and(|arr| !arr.is_empty())
-    });
+    let has_orders = users
+        .iter()
+        .any(|u| u.get("orders").and_then(|o| o.as_array()).is_some_and(|arr| !arr.is_empty()));
 
     assert!(has_orders, "Some users should have orders in federated query");
     println!("✓ Gateway 2-subgraph federation query succeeded");
@@ -192,11 +190,7 @@ async fn test_two_subgraph_federation_through_gateway() {
     // Check if we got orders (federated data)
     let users_with_orders = users
         .iter()
-        .filter(|u| {
-            u.get("orders")
-                .and_then(|o| o.as_array())
-                .is_some_and(|arr| !arr.is_empty())
-        })
+        .filter(|u| u.get("orders").and_then(|o| o.as_array()).is_some_and(|arr| !arr.is_empty()))
         .count();
 
     println!("✓ {} users have orders (federated data)", users_with_orders);

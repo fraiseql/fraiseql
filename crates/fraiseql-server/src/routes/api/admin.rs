@@ -175,7 +175,8 @@ pub struct CacheStatsResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with an internal error if the cache feature is not enabled.
-/// Returns `ApiError` with a validation error if required parameters are missing or scope is invalid.
+/// Returns `ApiError` with a validation error if required parameters are missing or scope is
+/// invalid.
 ///
 /// Requires admin token authentication.
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
@@ -224,10 +225,11 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let entity_type = req.entity_type.as_ref()
-                    .ok_or_else(|| ApiError::internal_error(
+                let entity_type = req.entity_type.as_ref().ok_or_else(|| {
+                    ApiError::internal_error(
                         "entity_type was None after validation — this is a bug",
-                    ))?;
+                    )
+                })?;
                 // Convert entity type to view name pattern (e.g., User → v_user)
                 let view_name = format!("v_{}", entity_type.to_lowercase());
                 let entries_cleared = cache.invalidate_views(&[&view_name]);
@@ -263,10 +265,9 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             }
 
             if let Some(cache) = state.cache() {
-                let pattern = req.pattern.as_ref()
-                    .ok_or_else(|| ApiError::internal_error(
-                        "pattern was None after validation — this is a bug",
-                    ))?;
+                let pattern = req.pattern.as_ref().ok_or_else(|| {
+                    ApiError::internal_error("pattern was None after validation — this is a bug")
+                })?;
                 let entries_cleared = cache.invalidate_pattern(pattern);
                 info!(
                     operation = "admin.cache_clear",
@@ -471,12 +472,7 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
 
     state
         .executor
-        .explain(
-            &req.query,
-            req.variables.as_ref(),
-            req.limit,
-            req.offset,
-        )
+        .explain(&req.query, req.variables.as_ref(), req.limit, req.offset)
         .await
         .map(ApiResponse::success)
         .map_err(|e| match e {
@@ -724,7 +720,10 @@ mod tests {
             entity_type: Some("Order".to_string()),
             pattern:     None,
         };
-        assert!(entity_req.entity_type.is_some(), "entity scope must carry entity_type for audit");
+        assert!(
+            entity_req.entity_type.is_some(),
+            "entity scope must carry entity_type for audit"
+        );
 
         let pattern_req = CacheClearRequest {
             scope:       "pattern".to_string(),

@@ -173,8 +173,5 @@ fn test_apq_cache_key_changes_on_schema_version() {
     let key_v1 = generate_cache_key(query, &vars, Some(&rls), "schema_v1");
     let key_v2 = generate_cache_key(query, &vars, Some(&rls), "schema_v2");
 
-    assert_ne!(
-        key_v1, key_v2,
-        "Schema version change must invalidate all cached entries"
-    );
+    assert_ne!(key_v1, key_v2, "Schema version change must invalidate all cached entries");
 }

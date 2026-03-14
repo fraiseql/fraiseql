@@ -94,13 +94,7 @@ async fn test_execute_all_steps_sequentially() {
     // Execute multiple steps
     for step_num in 1..=3 {
         let result = executor
-            .execute_step(
-                saga_id,
-                step_num,
-                "testMutation",
-                &serde_json::json!({}),
-                "test-service",
-            )
+            .execute_step(saga_id, step_num, "testMutation", &serde_json::json!({}), "test-service")
             .await;
 
         assert!(result.is_ok());

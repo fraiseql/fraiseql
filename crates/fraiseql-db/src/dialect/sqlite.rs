@@ -45,8 +45,6 @@ impl SqlDialect for SqliteDialect {
 
     fn array_contains_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
         // SQLite has no native @>; use EXISTS + json_each()
-        Ok(format!(
-            "EXISTS (SELECT 1 FROM json_each({lhs}) WHERE value = json({rhs}))"
-        ))
+        Ok(format!("EXISTS (SELECT 1 FROM json_each({lhs}) WHERE value = json({rhs}))"))
     }
 }

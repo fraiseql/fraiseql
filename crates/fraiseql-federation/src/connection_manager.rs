@@ -31,9 +31,9 @@ pub struct RemoteDatabaseConfig {
     /// Connection string (e.g., "postgresql://user:pass@host:5432/dbname").
     ///
     /// Not included in `Debug` output to prevent credential leakage in logs.
-    connection_string: String,
+    connection_string:   String,
     /// Optional pool size (default: 5)
-    pub pool_size:     Option<u32>,
+    pub pool_size:       Option<u32>,
     /// Optional connection timeout in seconds (default: 5)
     pub timeout_seconds: Option<u32>,
 }
@@ -103,7 +103,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "pool_size {size} is out of range [{MIN_POOL_SIZE}, {MAX_POOL_SIZE}]"
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -113,7 +113,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "timeout_seconds {secs} is out of range [{MIN_TIMEOUT_SECS}, {MAX_TIMEOUT_SECS}]"
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -164,8 +164,7 @@ impl ConnectionManager {
     ) -> Result<ArcDatabaseAdapter> {
         // Check cache first
         {
-            let adapters =
-                self.adapters.lock().unwrap_or_else(|e| e.into_inner());
+            let adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
 
             if let Some(adapter) = adapters.get(config.connection_string()) {
                 return Ok(Arc::clone(adapter));

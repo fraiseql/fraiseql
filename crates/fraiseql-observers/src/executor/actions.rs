@@ -4,14 +4,13 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 use tracing::{error, info, warn};
 
+use super::{ExecutionSummary, ObserverExecutor};
 use crate::{
     config::{ActionConfig, FailurePolicy},
     error::{ObserverError, Result},
     event::EntityEvent,
     traits::ActionResult,
 };
-
-use super::{ExecutionSummary, ObserverExecutor};
 
 impl ObserverExecutor {
     /// Execute action and return result

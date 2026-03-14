@@ -28,7 +28,9 @@ impl DiscordVerifier {
     /// Create a verifier with the default 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
-        Self { tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS }
+        Self {
+            tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS,
+        }
     }
 
     /// Set a custom timestamp tolerance (in seconds).
@@ -68,9 +70,7 @@ impl SignatureVerifier for DiscordVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
-                "Discord public key must not be empty".to_string(),
-            ));
+            return Err(SignatureError::Crypto("Discord public key must not be empty".to_string()));
         }
 
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
@@ -116,9 +116,9 @@ mod tests {
 
     /// Deterministic test seed — avoids `OsRng` in unit tests for reproducibility.
     const TEST_KEY_SEED: [u8; 32] = [
-        0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec,
-        0x2c, 0x44, 0xda, 0x08, 0x64, 0x1e, 0xea, 0x2a, 0x4f, 0xc5, 0x38, 0xe0, 0x17, 0xd5,
-        0x86, 0x64, 0x6e, 0xa6,
+        0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c,
+        0x44, 0xda, 0x08, 0x64, 0x1e, 0xea, 0x2a, 0x4f, 0xc5, 0x38, 0xe0, 0x17, 0xd5, 0x86, 0x64,
+        0x6e, 0xa6,
     ];
 
     fn fresh_timestamp() -> String {
@@ -139,10 +139,7 @@ mod tests {
         message.extend_from_slice(payload);
 
         let signature = signing_key.sign(&message);
-        (
-            hex::encode(verifying_key.as_bytes()),
-            hex::encode(signature.to_bytes()),
-        )
+        (hex::encode(verifying_key.as_bytes()), hex::encode(signature.to_bytes()))
     }
 
     #[test]
@@ -163,8 +160,7 @@ mod tests {
     fn test_tampered_payload_rejected() {
         let verifier = DiscordVerifier::new();
         let ts = fresh_timestamp();
-        let (public_key_hex, sig_hex) =
-            make_valid_discord_signature(&ts, br#"{"type":1}"#);
+        let (public_key_hex, sig_hex) = make_valid_discord_signature(&ts, br#"{"type":1}"#);
 
         // Different payload — signature is no longer valid.
         let result = verifier.verify(b"tampered", &sig_hex, &public_key_hex, Some(&ts), None);

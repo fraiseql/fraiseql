@@ -3,15 +3,15 @@
 //! These tests verify security-critical invariants that must hold for **all** inputs,
 //! not just the representative samples in unit tests:
 //!
-//! 1. **Delimiter isolation** — after quoting, the raw (unescaped) delimiter never
-//!    appears inside the quoted output.
-//! 2. **Wrapping shape** — the output always starts and ends with the dialect's
-//!    appropriate delimiters.
-//! 3. **Quote-count conservation** — path escape functions double every single quote,
-//!    so the escaped output contains exactly twice as many `'` as the input.
+//! 1. **Delimiter isolation** — after quoting, the raw (unescaped) delimiter never appears inside
+//!    the quoted output.
+//! 2. **Wrapping shape** — the output always starts and ends with the dialect's appropriate
+//!    delimiters.
+//! 3. **Quote-count conservation** — path escape functions double every single quote, so the
+//!    escaped output contains exactly twice as many `'` as the input.
 //! 4. **Path prefix** — MySQL/SQLite/SQL Server path functions always prefix with `$.`.
-//! 5. **Cross-dialect consistency** — MySQL, SQLite, and SQL Server produce identical
-//!    path bodies for the same input (all use the same escaping strategy).
+//! 5. **Cross-dialect consistency** — MySQL, SQLite, and SQL Server produce identical path bodies
+//!    for the same input (all use the same escaping strategy).
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test helpers imported via glob

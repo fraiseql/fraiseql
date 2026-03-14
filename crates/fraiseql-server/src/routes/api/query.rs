@@ -6,8 +6,7 @@
 //! - Retrieving query statistics and performance data
 
 use axum::{Json, extract::State};
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::graphql::DEFAULT_MAX_ALIASES;
+use fraiseql_core::{db::traits::DatabaseAdapter, graphql::DEFAULT_MAX_ALIASES};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -115,9 +114,9 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // Compute AST-based complexity metrics.
     let validator = RequestValidator::default();
-    let metrics = validator.analyze(&req.query).map_err(|e| {
-        ApiError::validation_error(format!("Query parse error: {e}"))
-    })?;
+    let metrics = validator
+        .analyze(&req.query)
+        .map_err(|e| ApiError::validation_error(format!("Query parse error: {e}")))?;
 
     let complexity = ComplexityInfo {
         depth:       metrics.depth,
@@ -133,22 +132,25 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         match state.executor.plan_query(&req.query, req.variables.as_ref()) {
             Ok(plan) => {
                 // Optionally run DB-level EXPLAIN when debug.database_explain is enabled
-                let db_plan = if is_db_explain_enabled(state.debug_config.as_ref())
-                    && !plan.sql.is_empty()
-                {
-                    state
-                        .executor
-                        .adapter()
-                        .explain_query(&plan.sql, &[])
-                        .await
-                        .inspect_err(|e| tracing::warn!(error = %e, "EXPLAIN query failed"))
-                        .ok()
-                } else {
-                    None
-                };
+                let db_plan =
+                    if is_db_explain_enabled(state.debug_config.as_ref()) && !plan.sql.is_empty() {
+                        state
+                            .executor
+                            .adapter()
+                            .explain_query(&plan.sql, &[])
+                            .await
+                            .inspect_err(|e| tracing::warn!(error = %e, "EXPLAIN query failed"))
+                            .ok()
+                    } else {
+                        None
+                    };
 
                 (
-                    if plan.sql.is_empty() { None } else { Some(plan.sql) },
+                    if plan.sql.is_empty() {
+                        None
+                    } else {
+                        Some(plan.sql)
+                    },
                     plan.estimated_cost,
                     plan.views_accessed,
                     plan.query_type,
@@ -247,9 +249,9 @@ pub async fn stats_handler<A: DatabaseAdapter>(
     };
 
     let response = StatsResponse {
-        total_queries:      total_queries as usize,
+        total_queries: total_queries as usize,
         successful_queries: successful_queries as usize,
-        failed_queries:     failed_queries as usize,
+        failed_queries: failed_queries as usize,
         average_latency_ms,
     };
 
@@ -413,7 +415,11 @@ mod tests {
 
         assert!(!is_db_explain_enabled(None));
 
-        let config = DebugConfig { enabled: true, database_explain: false, ..Default::default() };
+        let config = DebugConfig {
+            enabled: true,
+            database_explain: false,
+            ..Default::default()
+        };
         assert!(!is_db_explain_enabled(Some(&config)));
     }
 
@@ -421,7 +427,11 @@ mod tests {
     fn test_debug_enabled_db_explain() {
         use fraiseql_core::schema::DebugConfig;
 
-        let config = DebugConfig { enabled: true, database_explain: true, ..Default::default() };
+        let config = DebugConfig {
+            enabled: true,
+            database_explain: true,
+            ..Default::default()
+        };
         assert!(is_db_explain_enabled(Some(&config)));
     }
 
@@ -429,7 +439,11 @@ mod tests {
     fn test_debug_master_switch_required() {
         use fraiseql_core::schema::DebugConfig;
 
-        let config = DebugConfig { enabled: false, database_explain: true, ..Default::default() };
+        let config = DebugConfig {
+            enabled: false,
+            database_explain: true,
+            ..Default::default()
+        };
         assert!(!is_db_explain_enabled(Some(&config)));
     }
 }

@@ -2,8 +2,8 @@
 //! provider discovery, and automatic user provisioning.
 
 pub mod audit;
-pub mod client;
 pub(crate) mod claims_validator;
+pub mod client;
 pub mod failover;
 pub mod pkce;
 pub mod provider;

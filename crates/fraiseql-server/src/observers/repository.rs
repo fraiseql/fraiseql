@@ -330,9 +330,8 @@ impl ObserverRepository {
     ///
     /// Returns `ServerError::Database` on query failure.
     pub async fn delete(&self, id: Uuid, customer_org: Option<i64>) -> Result<bool, ServerError> {
-        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-            "UPDATE tb_observer SET deleted_at = NOW() WHERE id = ",
-        );
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("UPDATE tb_observer SET deleted_at = NOW() WHERE id = ");
         qb.push_bind(id).push(" AND deleted_at IS NULL");
 
         if let Some(org_id) = customer_org {

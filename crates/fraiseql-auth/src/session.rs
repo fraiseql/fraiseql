@@ -104,8 +104,8 @@ pub struct TokenPair {
 ///     }
 /// }
 /// ```
-// Reason: used as dyn Trait (Arc<dyn SessionStore>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn SessionStore>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait SessionStore: Send + Sync {
     /// Create a new session and return token pair
@@ -279,10 +279,11 @@ impl SessionStore for InMemorySessionStore {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

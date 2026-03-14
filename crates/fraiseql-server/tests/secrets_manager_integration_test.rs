@@ -67,8 +67,8 @@ async fn test_vault_backend_token_initialization() {
     let _secret = manager.get_secret("secret/data/test").await;
 }
 
-/// Test vault backend initialization with `AppRole` auth (marked as ignore since it requires running
-/// Vault)
+/// Test vault backend initialization with `AppRole` auth (marked as ignore since it requires
+/// running Vault)
 #[tokio::test]
 #[ignore = "requires vault"]
 async fn test_vault_backend_approle_initialization() {

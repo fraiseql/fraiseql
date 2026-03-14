@@ -8,8 +8,7 @@ use serde_json::json;
 use super::CachedDatabaseAdapter;
 use crate::{
     cache::key::generate_cache_key,
-    db::{DatabaseAdapter, WhereClause},
-    db::types::JsonbValue,
+    db::{DatabaseAdapter, WhereClause, types::JsonbValue},
     error::Result,
     schema::SqlProjectionHint,
 };

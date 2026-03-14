@@ -19,15 +19,12 @@ impl SchemaConverter {
             .context(format!("Failed to convert mutation '{}'", intermediate.name))?;
 
         let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
-        let inject_params = Self::convert_inject_params(
-            &intermediate.name,
-            &arg_names,
-            intermediate.inject,
-        )
-        .context(format!(
-            "Failed to convert inject params for mutation '{}'",
-            intermediate.name
-        ))?;
+        let inject_params =
+            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject)
+                .context(format!(
+                    "Failed to convert inject params for mutation '{}'",
+                    intermediate.name
+                ))?;
 
         let operation = Self::parse_mutation_operation(
             intermediate.operation.as_deref(),
@@ -65,16 +62,16 @@ impl SchemaConverter {
         }
 
         Ok(MutationDefinition {
-            name:                    intermediate.name,
-            return_type:             intermediate.return_type,
+            name: intermediate.name,
+            return_type: intermediate.return_type,
             arguments,
-            description:             intermediate.description,
+            description: intermediate.description,
             operation,
             deprecation,
-            sql_source:              intermediate.sql_source,
+            sql_source: intermediate.sql_source,
             inject_params,
             invalidates_fact_tables: intermediate.invalidates_fact_tables,
-            invalidates_views:       intermediate.invalidates_views,
+            invalidates_views: intermediate.invalidates_views,
         })
     }
 

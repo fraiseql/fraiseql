@@ -8,8 +8,8 @@
 //! # Security
 //!
 //! - Keys are **never** stored or compared in plaintext — only SHA-256 hashes.
-//! - Comparison uses constant-time equality (`subtle::ConstantTimeEq`) to
-//!   prevent timing side-channels.
+//! - Comparison uses constant-time equality (`subtle::ConstantTimeEq`) to prevent timing
+//!   side-channels.
 //! - Revoked keys (with `revoked_at` set) are rejected.
 
 use std::sync::Arc;
@@ -50,9 +50,15 @@ pub struct ApiKeyConfig {
     pub static_keys: Vec<StaticApiKeyConfig>,
 }
 
-fn default_header()    -> String { "x-api-key".into() }
-fn default_algorithm() -> String { "sha256".into() }
-fn default_storage()   -> String { "env".into() }
+fn default_header() -> String {
+    "x-api-key".into()
+}
+fn default_algorithm() -> String {
+    "sha256".into()
+}
+fn default_storage() -> String {
+    "env".into()
+}
 
 /// A single static API key entry from configuration.
 #[derive(Debug, Clone, Deserialize)]
@@ -61,9 +67,9 @@ pub struct StaticApiKeyConfig {
     pub key_hash: String,
     /// OAuth-style scopes granted by this key.
     #[serde(default)]
-    pub scopes: Vec<String>,
+    pub scopes:   Vec<String>,
     /// Human-readable key name (for audit logging).
-    pub name: String,
+    pub name:     String,
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -124,10 +130,7 @@ impl ApiKeyAuthenticator {
 
         let mut static_keys = Vec::new();
         for entry in &config.static_keys {
-            let hex_str = entry
-                .key_hash
-                .strip_prefix("sha256:")
-                .unwrap_or(&entry.key_hash);
+            let hex_str = entry.key_hash.strip_prefix("sha256:").unwrap_or(&entry.key_hash);
             match hex::decode(hex_str) {
                 Ok(bytes) if bytes.len() == 32 => {
                     let mut hash = [0u8; 32];
@@ -135,23 +138,23 @@ impl ApiKeyAuthenticator {
                     static_keys.push(ResolvedStaticKey {
                         hash,
                         scopes: entry.scopes.clone(),
-                        name:   entry.name.clone(),
+                        name: entry.name.clone(),
                     });
-                }
+                },
                 Ok(bytes) => {
                     warn!(
                         name = %entry.name,
                         len = bytes.len(),
                         "API key hash has wrong length (expected 32 bytes)"
                     );
-                }
+                },
                 Err(e) => {
                     warn!(
                         name = %entry.name,
                         error = %e,
                         "API key hash is not valid hex"
                     );
-                }
+                },
             }
         }
 
@@ -280,7 +283,7 @@ mod tests {
             ApiKeyResult::Authenticated(ctx) => {
                 assert_eq!(ctx.user_id, "apikey:test-key");
                 assert_eq!(ctx.scopes, vec!["read:*".to_string()]);
-            }
+            },
             ref other => panic!("expected Authenticated, got {other:?}"),
         }
     }

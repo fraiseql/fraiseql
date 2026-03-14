@@ -42,10 +42,8 @@ impl ProviderRegistry {
 
         // Popular providers
         providers.insert("gitlab".into(), Arc::new(GitLabVerifier));
-        providers.insert(
-            "slack".into(),
-            Arc::new(SlackVerifier::new().with_tolerance(tolerance_secs)),
-        );
+        providers
+            .insert("slack".into(), Arc::new(SlackVerifier::new().with_tolerance(tolerance_secs)));
         providers.insert("twilio".into(), Arc::new(TwilioVerifier));
         providers.insert(
             "sendgrid".into(),
@@ -101,7 +99,7 @@ impl Default for ProviderRegistry {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

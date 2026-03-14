@@ -98,8 +98,10 @@ impl EventTransport for InMemoryTransport {
     }
 
     async fn publish(&self, event: EntityEvent) -> Result<()> {
-        self.sender.send(event.clone()).await.map_err(|e| ObserverError::TransportPublishFailed {
-            reason: format!("Failed to send event to in-memory channel: {e}"),
+        self.sender.send(event.clone()).await.map_err(|e| {
+            ObserverError::TransportPublishFailed {
+                reason: format!("Failed to send event to in-memory channel: {e}"),
+            }
         })?;
 
         debug!("InMemoryTransport: published event {}", event.id);
@@ -119,7 +121,7 @@ impl EventTransport for InMemoryTransport {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;

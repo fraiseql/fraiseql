@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn test_manual_rotation_response_success() {
         let response = ManualRotationResponse::success(1, 2, 100);
-        assert_eq!(response.status, "success");
+        assert_eq!(response.status, ManualRotationStatus::Success);
         assert_eq!(response.old_version, 1);
         assert_eq!(response.new_version, 2);
         assert!(response.error.is_none());
@@ -669,7 +669,7 @@ mod tests {
     #[test]
     fn test_manual_rotation_response_failure() {
         let response = ManualRotationResponse::failure(1, "Vault error");
-        assert_eq!(response.status, "failed");
+        assert_eq!(response.status, ManualRotationStatus::Failed);
         assert!(response.error.is_some());
     }
 

@@ -13,12 +13,12 @@ use async_trait::async_trait;
 ///
 /// # Fail-closed vs fire-and-forget
 ///
-/// - `on_connect` / `on_subscribe` are **fail-closed**: returning `Err(reason)`
-///   rejects the connection or subscription.
-/// - `on_disconnect` / `on_unsubscribe` are **fire-and-forget**: the connection
-///   is already closing and there is nothing to reject.
-// Reason: used as dyn Trait (Arc<dyn SubscriptionLifecycle>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+/// - `on_connect` / `on_subscribe` are **fail-closed**: returning `Err(reason)` rejects the
+///   connection or subscription.
+/// - `on_disconnect` / `on_unsubscribe` are **fire-and-forget**: the connection is already closing
+///   and there is nothing to reject.
+// Reason: used as dyn Trait (Arc<dyn SubscriptionLifecycle>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait SubscriptionLifecycle: Send + Sync + 'static {
     /// Called after `connection_init` is received, before `connection_ack`.
@@ -67,18 +67,14 @@ mod tests {
     #[tokio::test]
     async fn noop_lifecycle_accepts_connect() {
         let lifecycle = NoopLifecycle;
-        let result = lifecycle
-            .on_connect(&serde_json::json!({}), "conn-1")
-            .await;
+        let result = lifecycle.on_connect(&serde_json::json!({}), "conn-1").await;
         assert!(result.is_ok(), "noop lifecycle should accept any connection");
     }
 
     #[tokio::test]
     async fn noop_lifecycle_accepts_subscribe() {
         let lifecycle = NoopLifecycle;
-        let result = lifecycle
-            .on_subscribe("orderCreated", &serde_json::json!({}), "conn-1")
-            .await;
+        let result = lifecycle.on_subscribe("orderCreated", &serde_json::json!({}), "conn-1").await;
         assert!(result.is_ok(), "noop lifecycle should accept any subscription");
     }
 }

@@ -3,7 +3,6 @@
 //! Creates a new FraiseQL project with the correct directory structure,
 //! configuration files, and authoring skeleton in the chosen language.
 
-
 mod skeletons;
 mod sql_templates;
 
@@ -461,7 +460,8 @@ fn create_db_s(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let entities = ["author", "post", "comment", "tag"];
     for (i, entity) in entities.iter().enumerate() {
         let n = i + 1;
-        let (table_sql, view_sql, fn_sql) = sql_templates::generate_blog_entity_sql(config.database, entity);
+        let (table_sql, view_sql, fn_sql) =
+            sql_templates::generate_blog_entity_sql(config.database, entity);
         fs::write(write_dir.join(format!("01{n}_tb_{entity}.sql")), table_sql)
             .context(format!("Failed to create tb_{entity}.sql"))?;
         if !view_sql.is_empty() {
@@ -492,7 +492,8 @@ fn create_db_m(project_dir: &Path, config: &InitConfig) -> Result<()> {
         fs::create_dir_all(&functions_dir)
             .context(format!("Failed to create 03_functions/{entity}"))?;
 
-        let (table_sql, view_sql, fn_sql) = sql_templates::generate_blog_entity_sql(config.database, entity);
+        let (table_sql, view_sql, fn_sql) =
+            sql_templates::generate_blog_entity_sql(config.database, entity);
         fs::write(write_dir.join(format!("tb_{entity}.sql")), table_sql)
             .context(format!("Failed to create tb_{entity}.sql"))?;
         if !view_sql.is_empty() {
@@ -508,7 +509,6 @@ fn create_db_m(project_dir: &Path, config: &InitConfig) -> Result<()> {
     info!("Created db/0_schema/ (m layout)");
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests;

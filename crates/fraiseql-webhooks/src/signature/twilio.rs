@@ -40,6 +40,8 @@ fn percent_decode(s: &str) -> String {
             let hi = (bytes[i + 1] as char).to_digit(16);
             let lo = (bytes[i + 2] as char).to_digit(16);
             if let (Some(h), Some(l)) = (hi, lo) {
+                // Reason: h and l are hex digits (0–15), so (h << 4) | l is always 0–255.
+                #[allow(clippy::cast_possible_truncation)]
                 result.push(char::from(((h << 4) | l) as u8));
                 i += 3;
                 continue;
@@ -119,9 +121,7 @@ impl SignatureVerifier for TwilioVerifier {
         })?;
 
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
-                "Twilio auth token must not be empty".to_string(),
-            ));
+            return Err(SignatureError::Crypto("Twilio auth token must not be empty".to_string()));
         }
 
         let signing_string = build_signing_string(url, payload);

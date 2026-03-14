@@ -148,8 +148,8 @@ mod tests {
             types:   vec![FederatedType {
                 name:             "User".to_string(),
                 keys:             vec![KeyDirective {
-                    fields:      vec!["id".to_string()],
-                    resolvable:  true,
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
                 }],
                 is_extends:       false,
                 external_fields:  Vec::new(),
@@ -158,7 +158,8 @@ mod tests {
             }],
         };
 
-        let base_schema = "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}";
+        let base_schema =
+            "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}";
         let sdl = generate_service_sdl(base_schema, &metadata);
 
         assert!(sdl.contains("type User @key(fields: \"id\") {"), "SDL: {}", sdl);

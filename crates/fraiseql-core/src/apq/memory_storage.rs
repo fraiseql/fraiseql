@@ -1,9 +1,11 @@
 //! In-memory APQ storage backend with LRU eviction and TTL support.
 
-use async_trait::async_trait;
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
+use async_trait::async_trait;
 use serde_json::json;
 
 use super::storage::{ApqError, ApqStats, ApqStorage};
@@ -16,9 +18,9 @@ const DEFAULT_MAX_ENTRIES: usize = 1000;
 
 /// A stored query with metadata for TTL and LRU tracking.
 struct StoredQuery {
-    body: String,
-    stored_at: Instant,
-    ttl: Duration,
+    body:          String,
+    stored_at:     Instant,
+    ttl:           Duration,
     last_accessed: Instant,
 }
 
@@ -34,9 +36,9 @@ impl StoredQuery {
 /// and time-to-live. When capacity is reached, expired entries are
 /// purged first, then the least-recently-accessed entry is evicted.
 pub struct InMemoryApqStorage {
-    entries: tokio::sync::Mutex<HashMap<String, StoredQuery>>,
+    entries:     tokio::sync::Mutex<HashMap<String, StoredQuery>>,
     max_entries: usize,
-    ttl: Duration,
+    ttl:         Duration,
 }
 
 impl InMemoryApqStorage {
@@ -98,10 +100,8 @@ impl ApqStorage for InMemoryApqStorage {
 
         // If still at capacity, evict the least-recently-accessed entry.
         if map.len() >= self.max_entries && !map.contains_key(&hash) {
-            if let Some(lru_key) = map
-                .iter()
-                .min_by_key(|(_, v)| v.last_accessed)
-                .map(|(k, _)| k.clone())
+            if let Some(lru_key) =
+                map.iter().min_by_key(|(_, v)| v.last_accessed).map(|(k, _)| k.clone())
             {
                 map.remove(&lru_key);
             }
@@ -110,9 +110,9 @@ impl ApqStorage for InMemoryApqStorage {
         map.insert(
             hash,
             StoredQuery {
-                body: query,
-                stored_at: now,
-                ttl: self.ttl,
+                body:          query,
+                stored_at:     now,
+                ttl:           self.ttl,
                 last_accessed: now,
             },
         );
@@ -173,10 +173,7 @@ mod tests {
     #[tokio::test]
     async fn set_and_get() {
         let store = InMemoryApqStorage::default();
-        store
-            .set("abc123".to_string(), "{ users { id } }".to_string())
-            .await
-            .unwrap();
+        store.set("abc123".to_string(), "{ users { id } }".to_string()).await.unwrap();
 
         let result = store.get("abc123").await.unwrap();
         assert_eq!(result, Some("{ users { id } }".to_string()));
@@ -192,10 +189,7 @@ mod tests {
     #[tokio::test]
     async fn ttl_expiry() {
         let store = InMemoryApqStorage::with_ttl(100, Duration::from_millis(50));
-        store
-            .set("h1".to_string(), "query1".to_string())
-            .await
-            .unwrap();
+        store.set("h1".to_string(), "query1".to_string()).await.unwrap();
 
         // Should be present immediately.
         assert!(store.get("h1").await.unwrap().is_some());
@@ -211,25 +205,16 @@ mod tests {
     async fn max_entries_evicts_lru() {
         let store = InMemoryApqStorage::new(2);
 
-        store
-            .set("h1".to_string(), "q1".to_string())
-            .await
-            .unwrap();
+        store.set("h1".to_string(), "q1".to_string()).await.unwrap();
         // Touch h1 first, then add h2 — h1 is older in access time.
         tokio::time::sleep(Duration::from_millis(5)).await;
-        store
-            .set("h2".to_string(), "q2".to_string())
-            .await
-            .unwrap();
+        store.set("h2".to_string(), "q2".to_string()).await.unwrap();
 
         // Access h1 to make it more recently used.
         store.get("h1").await.unwrap();
 
         // Adding h3 should evict h2 (least recently accessed).
-        store
-            .set("h3".to_string(), "q3".to_string())
-            .await
-            .unwrap();
+        store.set("h3".to_string(), "q3".to_string()).await.unwrap();
 
         assert!(store.get("h1").await.unwrap().is_some());
         assert!(store.get("h2").await.unwrap().is_none());
@@ -239,14 +224,8 @@ mod tests {
     #[tokio::test]
     async fn stats() {
         let store = InMemoryApqStorage::new(10);
-        store
-            .set("h1".to_string(), "q1".to_string())
-            .await
-            .unwrap();
-        store
-            .set("h2".to_string(), "q2".to_string())
-            .await
-            .unwrap();
+        store.set("h1".to_string(), "q1".to_string()).await.unwrap();
+        store.set("h2".to_string(), "q2".to_string()).await.unwrap();
 
         let stats = store.stats().await.unwrap();
         assert_eq!(stats.total_queries, 2);
@@ -257,10 +236,7 @@ mod tests {
     #[tokio::test]
     async fn exists_and_remove() {
         let store = InMemoryApqStorage::default();
-        store
-            .set("h1".to_string(), "q1".to_string())
-            .await
-            .unwrap();
+        store.set("h1".to_string(), "q1".to_string()).await.unwrap();
 
         assert!(store.exists("h1").await.unwrap());
         assert!(!store.exists("h2").await.unwrap());
@@ -272,14 +248,8 @@ mod tests {
     #[tokio::test]
     async fn clear() {
         let store = InMemoryApqStorage::default();
-        store
-            .set("h1".to_string(), "q1".to_string())
-            .await
-            .unwrap();
-        store
-            .set("h2".to_string(), "q2".to_string())
-            .await
-            .unwrap();
+        store.set("h1".to_string(), "q1".to_string()).await.unwrap();
+        store.set("h2".to_string(), "q2".to_string()).await.unwrap();
 
         assert_eq!(store.stats().await.unwrap().total_queries, 2);
 

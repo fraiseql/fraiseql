@@ -59,8 +59,7 @@ fn required_oidc_state() -> OidcAuthState {
     };
     // with_jwks_uri bypasses async OIDC discovery; 401 is returned before
     // any real JWKS request is made.
-    let validator =
-        OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     OidcAuthState::new(Arc::new(validator))
 }
 
@@ -77,8 +76,7 @@ fn optional_oidc_state() -> OidcAuthState {
         jwks_uri:             None,
         scope_claim:          "scope".to_string(),
     };
-    let validator =
-        OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     OidcAuthState::new(Arc::new(validator))
 }
 
@@ -92,20 +90,14 @@ fn graphql_router_with_required_auth() -> Router {
     let oidc_state = required_oidc_state();
     Router::new()
         .route("/graphql", get(dummy_graphql_handler))
-        .route_layer(middleware::from_fn_with_state(
-            oidc_state,
-            oidc_auth_middleware,
-        ))
+        .route_layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware))
 }
 
 fn graphql_router_with_optional_auth() -> Router {
     let oidc_state = optional_oidc_state();
     Router::new()
         .route("/graphql", get(dummy_graphql_handler))
-        .route_layer(middleware::from_fn_with_state(
-            oidc_state,
-            oidc_auth_middleware,
-        ))
+        .route_layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware))
 }
 
 // ---------------------------------------------------------------------------

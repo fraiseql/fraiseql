@@ -31,14 +31,11 @@ use std::fmt;
 
 use serde_json::Value;
 
-use crate::{
-    error::Result,
-    event::EntityEvent,
-};
+use crate::{error::Result, event::EntityEvent};
 
+mod evaluator;
 mod lexer;
 mod parser;
-mod evaluator;
 
 #[cfg(test)]
 mod tests;

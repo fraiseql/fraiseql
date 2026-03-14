@@ -149,9 +149,8 @@ pub fn generate_cache_key(
     // Using serde_json serialization (not Debug) for a stable, refactor-proof
     // representation: renaming fields or changing #[derive] attributes cannot
     // silently shift the key and cause a stale-cache window on deploy.
-    let where_structure = where_clause
-        .and_then(|w| serde_json::to_string(w).ok())
-        .unwrap_or_default();
+    let where_structure =
+        where_clause.and_then(|w| serde_json::to_string(w).ok()).unwrap_or_default();
 
     // Step 3: Combine with schema version
     // Schema changes invalidate all cached queries automatically
@@ -488,28 +487,28 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams {
                 has_where:    true,
                 has_order_by: false,
                 has_limit:    true,
                 has_offset:   false,
             },
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-        inject_params:     Default::default(),
-        cache_ttl_seconds:   None,
-        additional_views: vec![],
-        requires_role:       None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -521,28 +520,28 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:         "customQuery".to_string(),
-            return_type:  "Custom".to_string(),
-            returns_list: false,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   None, // No SQL source (custom resolver)
-            description:  None,
-            auto_params:  AutoParams {
+            name:                "customQuery".to_string(),
+            return_type:         "Custom".to_string(),
+            returns_list:        false,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          None, // No SQL source (custom resolver)
+            description:         None,
+            auto_params:         AutoParams {
                 has_where:    false,
                 has_order_by: false,
                 has_limit:    false,
                 has_offset:   false,
             },
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-        inject_params:     Default::default(),
-        cache_ttl_seconds:   None,
-        additional_views: vec![],
-        requires_role:       None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -554,22 +553,22 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:             "usersWithPosts".to_string(),
-            return_type:      "UserWithPosts".to_string(),
-            returns_list:     true,
-            nullable:         false,
-            arguments:        vec![],
-            sql_source:       Some("v_user_with_posts".to_string()),
-            description:      None,
-            auto_params:      AutoParams::default(),
-            deprecation:      None,
-            jsonb_column:     "data".to_string(),
-            relay:            false,
+            name:                "usersWithPosts".to_string(),
+            return_type:         "UserWithPosts".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          Some("v_user_with_posts".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
-            inject_params:    Default::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec!["v_post".to_string(), "v_tag".to_string()],
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
             requires_role:       None,
         };
 

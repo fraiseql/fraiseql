@@ -150,7 +150,7 @@ pub enum ObserverError {
     #[error("OB020: Event deserialization failed: {reason}")]
     DeserializationError {
         /// Raw bytes of the unparseable message
-        raw: Vec<u8>,
+        raw:    Vec<u8>,
         /// Human-readable reason (e.g. the serde_json error message)
         reason: String,
     },
@@ -252,7 +252,12 @@ impl From<sqlx::Error> for ObserverError {
     }
 }
 
-#[cfg(any(feature = "dedup", feature = "caching", feature = "queue", feature = "redis-lease"))]
+#[cfg(any(
+    feature = "dedup",
+    feature = "caching",
+    feature = "queue",
+    feature = "redis-lease"
+))]
 impl From<redis::RedisError> for ObserverError {
     fn from(err: redis::RedisError) -> Self {
         Self::DatabaseError {

@@ -84,7 +84,7 @@ impl EntityKey {
                     "entity_type {entity_type:?} must not contain a colon character; \
                      colons are used as the cache-key separator"
                 ),
-                path: None,
+                path:    None,
             });
         }
 

@@ -49,10 +49,7 @@ fn check_type_circularity(schema: &Value, audit: &mut DesignAudit) {
 
                         // Skip scalar types
                         if !is_scalar_type(&inner_type) {
-                            type_refs
-                                .entry(type_name.clone())
-                                .or_default()
-                                .push(inner_type);
+                            type_refs.entry(type_name.clone()).or_default().push(inner_type);
                         }
                     }
                 }

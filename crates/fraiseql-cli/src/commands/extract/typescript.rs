@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
 use super::{ExtractedSchema, Result, SchemaExtractor};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
+};
 
 pub(super) struct TypeScriptExtractor;
 
@@ -21,7 +22,8 @@ impl SchemaExtractor for TypeScriptExtractor {
 
         for cap in type_start_re.captures_iter(source) {
             let name = cap[1].to_string();
-            let after_match = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
+            let after_match =
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let fields = extract_ts_fields(&body);
                 types.push(IntermediateType {
@@ -38,7 +40,8 @@ impl SchemaExtractor for TypeScriptExtractor {
 
         for cap in query_start_re.captures_iter(source) {
             let name = cap[1].to_string();
-            let after_match = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
+            let after_match =
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let params = parse_ts_query_params(&body);
                 let return_type = params.get("returnType").cloned().unwrap_or_default();
@@ -58,7 +61,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     deprecated: None,
                     jsonb_column: None,
                     relay: false,
-                     inject: IndexMap::default(),
+                    inject: IndexMap::default(),
                     cache_ttl_seconds: None,
                     additional_views: vec![],
                     requires_role: None,

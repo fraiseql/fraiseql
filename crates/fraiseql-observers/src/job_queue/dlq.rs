@@ -8,11 +8,11 @@
 //! Multi-step Redis operations use Lua scripts executed via `redis::Script`,
 //! which provides EVALSHA + NOSCRIPT fallback automatically:
 //!
-//! - **`remove`**: `LREM` + `DEL` + `HDEL` (status hash) in a single script —
-//!   no orphaned list entries and the status hash stays in sync.
-//! - **`clear`**: `LRANGE` + N×(`DEL` + `HDEL`) + `DEL list` in a single script —
-//!   consistent snapshot; jobs added concurrently are either fully included or fully
-//!   excluded, and the status hash is kept in sync throughout.
+//! - **`remove`**: `LREM` + `DEL` + `HDEL` (status hash) in a single script — no orphaned list
+//!   entries and the status hash stays in sync.
+//! - **`clear`**: `LRANGE` + N×(`DEL` + `HDEL`) + `DEL list` in a single script — consistent
+//!   snapshot; jobs added concurrently are either fully included or fully excluded, and the status
+//!   hash is kept in sync throughout.
 
 use redis::aio::ConnectionManager;
 use uuid::Uuid;
@@ -183,11 +183,11 @@ impl DeadLetterQueueManager {
     /// Returns error if Redis operation fails.
     pub async fn remove(&self, job_id: Uuid) -> Result<()> {
         redis::Script::new(DLQ_REMOVE_SCRIPT)
-            .key(Self::dlq_key())          // KEYS[1]
-            .key(Self::job_key(job_id))    // KEYS[2]
-            .key(Self::status_key())       // KEYS[3]
+            .key(Self::dlq_key()) // KEYS[1]
+            .key(Self::job_key(job_id)) // KEYS[2]
+            .key(Self::status_key()) // KEYS[3]
             .arg(Self::dlq_member(job_id)) // ARGV[1]
-            .arg(job_id.to_string())       // ARGV[2]
+            .arg(job_id.to_string()) // ARGV[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
         Ok(())
@@ -204,7 +204,7 @@ impl DeadLetterQueueManager {
     /// Returns error if Redis operation fails.
     pub async fn clear(&self) -> Result<()> {
         redis::Script::new(DLQ_CLEAR_SCRIPT)
-            .key(Self::dlq_key())  // KEYS[1]
+            .key(Self::dlq_key()) // KEYS[1]
             .key(Self::status_key()) // KEYS[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;

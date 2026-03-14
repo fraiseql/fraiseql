@@ -14,7 +14,10 @@ use std::{
 
 use lru::LruCache;
 
-use crate::{error::FraiseQLError, utils::clock::{Clock, SystemClock}};
+use crate::{
+    error::FraiseQLError,
+    utils::clock::{Clock, SystemClock},
+};
 
 /// Maximum number of distinct keys (IPs, user IDs) tracked per rate-limiter
 /// dimension. Prevents unbounded memory growth from IP rotation attacks.
@@ -108,7 +111,7 @@ impl DimensionRateLimiter {
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
             .expect("MAX_RATE_LIMITER_ENTRIES must be > 0");
         Self {
-            records:   Arc::new(Mutex::new(LruCache::new(cap))),
+            records: Arc::new(Mutex::new(LruCache::new(cap))),
             dimension: RateLimitDimension {
                 max_requests,
                 window_secs,

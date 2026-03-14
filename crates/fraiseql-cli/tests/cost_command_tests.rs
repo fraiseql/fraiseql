@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Tests for cost command - shows query complexity scores only
 
 use serde_json::json;

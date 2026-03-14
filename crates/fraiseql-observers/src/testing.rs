@@ -1,10 +1,13 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Mock implementations of traits for testing without external dependencies.
 
 #[cfg(any(test, feature = "testing"))]
 pub mod mocks {
     //! Mock implementations of traits for use in tests.
-    use std::{collections::HashMap, collections::VecDeque, sync::Mutex};
+    use std::{
+        collections::{HashMap, VecDeque},
+        sync::Mutex,
+    };
 
     #[cfg(feature = "checkpoint")]
     use async_trait::async_trait;
@@ -33,7 +36,7 @@ pub mod mocks {
         /// Canned responses keyed by `action_type` string (e.g. `"webhook"`)
         pub responses: Mutex<HashMap<String, std::result::Result<ActionResult, ObserverError>>>,
         /// Ordered log of every `action_type` that `dispatch` was called with
-        pub call_log: Mutex<Vec<String>>,
+        pub call_log:  Mutex<Vec<String>>,
     }
 
     impl MockActionDispatcher {
@@ -50,22 +53,16 @@ pub mod mocks {
         pub fn expect_ok(&self, action_type: &str, duration_ms: f64) {
             let result = ActionResult {
                 action_type: action_type.to_string(),
-                success:     true,
-                message:     "mock success".to_string(),
+                success: true,
+                message: "mock success".to_string(),
                 duration_ms,
             };
-            self.responses
-                .lock()
-                .unwrap()
-                .insert(action_type.to_string(), Ok(result));
+            self.responses.lock().unwrap().insert(action_type.to_string(), Ok(result));
         }
 
         /// Register an error response for the given action type.
         pub fn expect_err(&self, action_type: &str, err: ObserverError) {
-            self.responses
-                .lock()
-                .unwrap()
-                .insert(action_type.to_string(), Err(err));
+            self.responses.lock().unwrap().insert(action_type.to_string(), Err(err));
         }
 
         /// Return the ordered list of action types that were dispatched.
@@ -90,9 +87,8 @@ pub mod mocks {
             &'a self,
             action: &'a ActionConfig,
             _event: &'a EntityEvent,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>
+        {
             let action_type = action.action_type().to_string();
             Box::pin(async move {
                 self.call_log.lock().unwrap().push(action_type.clone());

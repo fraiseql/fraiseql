@@ -5,9 +5,11 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use tracing::debug;
 
-use super::config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
-use super::key::{PathRateLimit, path_matches_rule};
-use super::token_bucket::TokenBucket;
+use super::{
+    config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig},
+    key::{PathRateLimit, path_matches_rule},
+    token_bucket::TokenBucket,
+};
 
 /// In-memory token-bucket rate limiter.
 pub struct InMemoryRateLimiter {
@@ -27,9 +29,9 @@ impl InMemoryRateLimiter {
     pub(super) fn new(config: RateLimitConfig) -> Self {
         Self {
             config,
-            ip_buckets:      Arc::new(RwLock::new(HashMap::new())),
-            user_buckets:    Arc::new(RwLock::new(HashMap::new())),
-            path_rules:      Vec::new(),
+            ip_buckets: Arc::new(RwLock::new(HashMap::new())),
+            user_buckets: Arc::new(RwLock::new(HashMap::new())),
+            path_rules: Vec::new(),
             path_ip_buckets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -38,7 +40,10 @@ impl InMemoryRateLimiter {
     ///
     /// Converts max-requests-per-window into token-per-second refill rates.
     #[must_use]
-    pub(super) fn with_path_rules_from_security(mut self, sec: &RateLimitingSecurityConfig) -> Self {
+    pub(super) fn with_path_rules_from_security(
+        mut self,
+        sec: &RateLimitingSecurityConfig,
+    ) -> Self {
         let mut rules = Vec::new();
 
         if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
@@ -90,9 +95,7 @@ impl InMemoryRateLimiter {
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
 
         let mut buckets = self.path_ip_buckets.write().await;
-        let bucket = buckets
-            .entry(key)
-            .or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
+        let bucket = buckets.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
         let allowed = bucket.try_consume(1.0);
         let remaining = bucket.token_count();
@@ -136,7 +139,11 @@ impl InMemoryRateLimiter {
         } else {
             debug!(ip = ip, "Rate limit exceeded for IP");
             let rps = self.config.rps_per_ip;
-            let retry = if rps == 0 { 1 } else { ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1) };
+            let retry = if rps == 0 {
+                1
+            } else {
+                ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
+            };
             CheckResult::deny(retry)
         }
     }
@@ -149,10 +156,7 @@ impl InMemoryRateLimiter {
 
         let mut buckets = self.user_buckets.write().await;
         let bucket = buckets.entry(user_id.to_string()).or_insert_with(|| {
-            TokenBucket::new(
-                f64::from(self.config.burst_size),
-                f64::from(self.config.rps_per_user),
-            )
+            TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_user))
         });
 
         let allowed = bucket.try_consume(1.0);
@@ -164,8 +168,11 @@ impl InMemoryRateLimiter {
         } else {
             debug!(user_id = user_id, "Rate limit exceeded for user");
             let rps = self.config.rps_per_user;
-            let retry =
-                if rps == 0 { 1 } else { ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1) };
+            let retry = if rps == 0 {
+                1
+            } else {
+                ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
+            };
             CheckResult::deny(retry)
         }
     }
@@ -226,8 +233,7 @@ impl InMemoryRateLimiter {
     /// matches (which shouldn't happen in practice — callers only invoke this after a
     /// rejection).
     pub(super) fn retry_after_for_path(&self, path: &str) -> u32 {
-        if let Some(rule) =
-            self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
+        if let Some(rule) = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
         {
             if rule.tokens_per_sec > 0.0 {
                 return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);

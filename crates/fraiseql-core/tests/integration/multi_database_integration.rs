@@ -1,6 +1,5 @@
 //! Multi-database integration tests for FraiseQL adapters.
 #![allow(clippy::unwrap_used)]
-//!
 //! These tests validate that each database adapter works correctly against
 //! real database instances. Tests are gated by feature flags and require
 //! Docker containers to be running.
@@ -588,10 +587,14 @@ mod sqlserver_tests {
 
 #[cfg(feature = "test-sqlserver")]
 mod sqlserver_relay_tests {
-    use fraiseql_core::db::sqlserver::SqlServerAdapter;
-    use fraiseql_core::db::traits::{CursorValue, RelayDatabaseAdapter};
-    use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
-    use fraiseql_core::error::FraiseQLError;
+    use fraiseql_core::{
+        db::{
+            sqlserver::SqlServerAdapter,
+            traits::{CursorValue, RelayDatabaseAdapter},
+            where_clause::{WhereClause, WhereOperator},
+        },
+        error::FraiseQLError,
+    };
 
     const TEST_DB_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
@@ -599,13 +602,15 @@ mod sqlserver_relay_tests {
     // These UUIDs are of the form 00000000-0000-0000-0000-00000000000N where N is 1–a.
     // SQL Server compares bytes 10–15 first; for these UUIDs those bytes are
     // 000000000001 … 00000000000a, giving standard ascending order.
-    const UUID_3:  &str = "00000000-0000-0000-0000-000000000003";
-    const UUID_5:  &str = "00000000-0000-0000-0000-000000000005";
-    const UUID_8:  &str = "00000000-0000-0000-0000-000000000008";
+    const UUID_3: &str = "00000000-0000-0000-0000-000000000003";
+    const UUID_5: &str = "00000000-0000-0000-0000-000000000005";
+    const UUID_8: &str = "00000000-0000-0000-0000-000000000008";
     const UUID_10: &str = "00000000-0000-0000-0000-00000000000a";
 
     async fn adapter() -> SqlServerAdapter {
-        SqlServerAdapter::new(TEST_DB_URL).await.expect("Failed to connect to SQL Server")
+        SqlServerAdapter::new(TEST_DB_URL)
+            .await
+            .expect("Failed to connect to SQL Server")
     }
 
     fn extract_label(row: &fraiseql_core::db::types::JsonbValue) -> String {
@@ -788,9 +793,10 @@ mod sqlserver_relay_tests {
         use fraiseql_core::compiler::aggregation::{OrderByClause, OrderDirection};
 
         let a = adapter().await;
-        let order_by = vec![
-            OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc },
-        ];
+        let order_by = vec![OrderByClause {
+            field:     "score".to_string(),
+            direction: OrderDirection::Asc,
+        }];
 
         // before = UUID-5 (score=90), limit=3, forward=false, order_by score ASC.
         // Rows with UUID < UUID-5: item-1(50), item-2(30), item-3(70), item-4(10).
@@ -877,7 +883,6 @@ mod sqlserver_relay_tests {
             "Expected Validation error, got {err:?}"
         );
     }
-
 }
 
 // ============================================================================

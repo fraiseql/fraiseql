@@ -333,22 +333,19 @@ impl FederationResolver {
     pub fn get_or_determine_strategy(&self, typename: &str) -> Result<ResolutionStrategy> {
         // Check cache
         {
-            let cache =
-                self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(strategy) = cache.get(typename) {
                 return Ok(strategy.clone());
             }
         }
 
         // Find type metadata
-        let fed_type = self
-            .metadata
-            .types
-            .iter()
-            .find(|t| t.name == typename)
-            .ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Type {typename} not found in federation metadata"),
-                path:    None,
+        let fed_type =
+            self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: format!("Type {typename} not found in federation metadata"),
+                    path:    None,
+                }
             })?;
 
         // Determine strategy
@@ -370,8 +367,7 @@ impl FederationResolver {
 
         // Cache the strategy
         {
-            let mut cache =
-                self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let mut cache = self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
             cache.insert(typename.to_string(), strategy.clone());
         }
 

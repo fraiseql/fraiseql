@@ -63,7 +63,7 @@ pub enum CompositionError {
     /// Only one subgraph can own each @external field.
     ExternalFieldMultipleOwners {
         /// Fully-qualified field name.
-        field: String,
+        field:  String,
         /// Subgraphs that each claim ownership.
         owners: Vec<String>,
     },
@@ -103,7 +103,7 @@ pub enum CompositionError {
         /// Name of the conflicting type.
         typename: String,
         /// Human-readable description of the conflict.
-        reason: String,
+        reason:   String,
     },
 }
 
@@ -300,10 +300,7 @@ impl CrossSubgraphValidator {
                 if !ftype.is_extends {
                     for field in ftype.field_directives.keys() {
                         let field_key = format!("{}.{}", ftype.name, field);
-                        field_owners
-                            .entry(field_key)
-                            .or_default()
-                            .push(sg_name.clone());
+                        field_owners.entry(field_key).or_default().push(sg_name.clone());
                     }
                 }
             }

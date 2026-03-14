@@ -153,17 +153,19 @@ pub struct AuditLogger {
 }
 
 impl AuditLogger {
+    /// Maximum byte length for the `query` and `variables` fields in an audit log entry.
+    ///
+    /// Limits audit table bloat and prevents excess allocation during serialization.
+    /// Queries that bypass `QueryValidator` (e.g. on error paths) may be arbitrarily large.
+    const MAX_AUDIT_FIELD_BYTES: usize = 64 * 1024;
+
     /// Create a new audit logger
     #[must_use]
     pub const fn new(pool: Arc<Pool>) -> Self {
         Self { pool }
     }
 
-    /// Maximum byte length for the `query` and `variables` fields in an audit log entry.
-    ///
-    /// Limits audit table bloat and prevents excess allocation during serialization.
-    /// Queries that bypass `QueryValidator` (e.g. on error paths) may be arbitrarily large.
-    const MAX_AUDIT_FIELD_BYTES: usize = 64 * 1024; // 64 KiB
+    // 64 KiB
 
     /// Log an audit entry.
     ///

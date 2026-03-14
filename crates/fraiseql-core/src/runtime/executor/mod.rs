@@ -161,32 +161,33 @@ pub mod pipeline;
 
 mod relay;
 
+#[cfg(test)]
+use std::{sync::Arc, time::Duration};
+
+#[cfg(test)]
+use crate::db::traits::DatabaseAdapter;
+#[cfg(test)]
+use crate::db::types::{DatabaseType, PoolMetrics};
+#[cfg(test)]
+use crate::runtime::{ExecutionContext, RuntimeConfig};
 use crate::{
     error::{FraiseQLError, Result},
     schema::InjectedParamSource,
     security::SecurityContext,
 };
-#[cfg(test)]
-use std::{sync::Arc, time::Duration};
-#[cfg(test)]
-use crate::db::types::{DatabaseType, PoolMetrics};
-#[cfg(test)]
-use crate::db::traits::DatabaseAdapter;
-#[cfg(test)]
-use crate::runtime::{ExecutionContext, RuntimeConfig};
 
 mod core;
 pub use core::Executor;
 
+mod aggregate;
 mod classify;
 mod execution;
 mod explain;
-mod planning;
-mod security;
-mod query;
-mod mutation;
-mod aggregate;
 mod federation;
+mod mutation;
+mod planning;
+mod query;
+mod security;
 
 #[cfg(test)]
 mod tests;
@@ -237,13 +238,13 @@ fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
                     map.insert(field_name.clone(), serde_json::Value::Null);
                 }
             }
-        }
+        },
         serde_json::Value::Array(items) => {
             for item in items {
                 null_masked_fields(item, masked);
             }
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -328,7 +329,7 @@ fn resolve_inject_value(
                 message: format!(
                     "Inject param '{param_name}': JWT claim '{claim}' not present in token"
                 ),
-                path: None,
+                path:    None,
             })
         },
     }

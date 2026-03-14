@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Integration tests for `fraiseql extract` command.
 //!
 //! Round-trip: run `fraiseql init` to generate a skeleton, then `fraiseql extract`

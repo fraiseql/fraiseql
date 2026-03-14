@@ -5,8 +5,10 @@ use std::collections::HashSet;
 use anyhow::Result;
 use tracing::{debug, info};
 
-use super::sql_identifier::validate_sql_identifier;
-use super::types::{ErrorSeverity, ValidationError, ValidationReport};
+use super::{
+    sql_identifier::validate_sql_identifier,
+    types::{ErrorSeverity, ValidationError, ValidationReport},
+};
 use crate::schema::intermediate::IntermediateSchema;
 
 /// Enhanced schema validator
@@ -178,12 +180,8 @@ impl SchemaValidator {
 
             // Warn about inject_params ordering contract
             if !mutation.inject.is_empty() {
-                let inject_names: Vec<&str> =
-                    mutation.inject.keys().map(String::as_str).collect();
-                let fn_name = mutation
-                    .sql_source
-                    .as_deref()
-                    .unwrap_or("<unknown>");
+                let inject_names: Vec<&str> = mutation.inject.keys().map(String::as_str).collect();
+                let fn_name = mutation.sql_source.as_deref().unwrap_or("<unknown>");
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Mutation '{}' has inject params {:?}. \

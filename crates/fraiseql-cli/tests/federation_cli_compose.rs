@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! CLI composition functionality tests
 //! - Compose multiple subgraph schemas into supergraph
 //! - CLI argument parsing (--subgraph, --output)

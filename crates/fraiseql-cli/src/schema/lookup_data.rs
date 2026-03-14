@@ -628,7 +628,7 @@ fn build_languages_lookup() -> HashMap<String, Value> {
     languages
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

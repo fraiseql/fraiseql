@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Rate limiter contention stress tests.
 //!
 //! Verifies exact limit enforcement under high thread contention. Uses

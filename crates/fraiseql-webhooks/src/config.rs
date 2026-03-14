@@ -52,9 +52,7 @@ impl WebhookConfig {
     pub fn validate_secret_env(&self) -> Result<(), WebhookError> {
         let name = &self.secret_env;
         if name.is_empty() {
-            return Err(WebhookError::Configuration(
-                "secret_env cannot be empty".to_string(),
-            ));
+            return Err(WebhookError::Configuration("secret_env cannot be empty".to_string()));
         }
         let mut chars = name.chars();
         let first = chars.next().expect("non-empty; checked above");
@@ -96,7 +94,7 @@ pub struct WebhookEventConfig {
     pub condition: Option<String>,
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

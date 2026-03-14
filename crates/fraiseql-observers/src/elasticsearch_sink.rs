@@ -154,10 +154,7 @@ impl ElasticsearchSink {
             "Creating Elasticsearch sink"
         );
 
-        let client = Client::builder()
-            .timeout(ES_SINK_REQUEST_TIMEOUT)
-            .build()
-            .unwrap_or_default();
+        let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
         Ok(Self {
             client: Arc::new(client),
             config,
@@ -167,10 +164,7 @@ impl ElasticsearchSink {
     /// Create a sink without SSRF validation — for use in tests only.
     #[cfg(test)]
     pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(ES_SINK_REQUEST_TIMEOUT)
-            .build()
-            .unwrap_or_default();
+        let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
         Ok(Self {
             client: Arc::new(client),
             config,
@@ -382,7 +376,7 @@ impl ElasticsearchSink {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,10 +495,7 @@ mod tests {
             ..ElasticsearchSinkConfig::default()
         };
         let after = base.with_env_overrides();
-        assert!(
-            after.validate().is_ok(),
-            "config after with_env_overrides must still be valid"
-        );
+        assert!(after.validate().is_ok(), "config after with_env_overrides must still be valid");
     }
 
     #[test]
@@ -535,7 +526,10 @@ mod tests {
 
     #[tokio::test]
     async fn es_sink_oversized_bulk_response_is_rejected() {
-        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
         let mock = MockServer::start().await;
         let oversized = vec![b'x'; MAX_ES_BULK_RESPONSE_BYTES + 1];

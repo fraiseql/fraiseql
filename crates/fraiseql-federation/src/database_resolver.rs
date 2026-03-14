@@ -5,11 +5,10 @@
 
 use std::sync::Arc;
 
-use serde_json::Value;
 use ::tracing::warn;
-
 use fraiseql_db::traits::DatabaseAdapter;
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 use crate::{
     metadata_helpers::find_federation_type,

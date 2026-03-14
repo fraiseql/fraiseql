@@ -5,8 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::super::error::AuthError;
-use super::client::OIDCProviderConfig;
+use super::{super::error::AuthError, client::OIDCProviderConfig};
 
 /// External authentication provider type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

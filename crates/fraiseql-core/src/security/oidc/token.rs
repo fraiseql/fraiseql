@@ -72,10 +72,8 @@ impl OidcValidator {
             uri.clone()
         } else {
             // Perform OIDC discovery
-            let discovery_url = format!(
-                "{}/.well-known/openid-configuration",
-                config.issuer.trim_end_matches('/')
-            );
+            let discovery_url =
+                format!("{}/.well-known/openid-configuration", config.issuer.trim_end_matches('/'));
 
             tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
 

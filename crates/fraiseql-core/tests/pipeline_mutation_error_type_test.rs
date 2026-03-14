@@ -11,8 +11,8 @@
 
 #![allow(clippy::literal_string_with_formatting_args)] // Reason: test expected strings contain format-like patterns that are literal data, not format args
 use std::{collections::HashMap, sync::Arc};
-use async_trait::async_trait;
 
+use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -39,9 +39,9 @@ impl ErrorMockAdapter {
     }
 }
 
-    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-    // its transformed method signatures to satisfy the trait contract
-    #[async_trait]
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+#[async_trait]
 impl DatabaseAdapter for ErrorMockAdapter {
     async fn execute_with_projection(
         &self,
@@ -73,10 +73,10 @@ impl DatabaseAdapter for ErrorMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -141,12 +141,7 @@ async fn mutation_error_status_produces_graphql_level_response() {
     let executor = Executor::new(schema, mock);
     let vars = json!({"email": "dup@example.com", "name": "Alice"});
 
-    let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     // The executor must return Ok with a JSON response (not Err)
     assert!(
@@ -179,21 +174,13 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
     row.insert("entity".to_string(), serde_json::Value::Null);
     row.insert("entity_type".to_string(), json!("DuplicateEmailError"));
     row.insert("cascade".to_string(), serde_json::Value::Null);
-    row.insert(
-        "metadata".to_string(),
-        json!({"message": "Already taken", "code": 409}),
-    );
+    row.insert("metadata".to_string(), json!({"message": "Already taken", "code": 409}));
 
     let mock = Arc::new(ErrorMockAdapter::with_row(row));
     let executor = Executor::new(schema, mock);
     let vars = json!({"email": "dup@example.com", "name": "Alice"});
 
-    let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     assert!(result.is_ok(), "executor must return Ok: {result:?}");
     let body_str = result.unwrap();
@@ -201,10 +188,7 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
 
     let body: serde_json::Value =
         serde_json::from_str(&body_str).expect("must be valid JSON: {body_str}");
-    assert!(
-        body != serde_json::Value::Null,
-        "response must not be null"
-    );
+    assert!(body != serde_json::Value::Null, "response must not be null");
 }
 
 /// Pipeline 3 (error path): `"error"` generic status is also treated as failure.
@@ -231,12 +215,7 @@ async fn mutation_generic_error_status_produces_valid_response() {
     let executor = Executor::new(schema, mock);
     let vars = json!({"email": "a@b.com", "name": "Alice"});
 
-    let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
-        .await;
+    let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     assert!(
         result.is_ok(),
@@ -264,10 +243,7 @@ async fn mutation_success_status_includes_entity_in_data() {
     let mut row = HashMap::new();
     row.insert("status".to_string(), json!("success"));
     row.insert("message".to_string(), json!("created"));
-    row.insert(
-        "entity".to_string(),
-        json!({"id": entity_id, "email": "new@example.com"}),
-    );
+    row.insert("entity".to_string(), json!({"id": entity_id, "email": "new@example.com"}));
     row.insert("entity_type".to_string(), json!("CreateUserSuccess"));
     row.insert("cascade".to_string(), serde_json::Value::Null);
     row.insert("metadata".to_string(), serde_json::Value::Null);
@@ -277,19 +253,12 @@ async fn mutation_success_status_includes_entity_in_data() {
     let vars = json!({"email": "new@example.com", "name": "New User"});
 
     let result = executor
-        .execute(
-            r"mutation { createUser { id } }",
-            Some(&vars),
-        )
+        .execute(r"mutation { createUser { id } }", Some(&vars))
         .await
         .expect("success mutation must succeed");
 
-    let body: serde_json::Value =
-        serde_json::from_str(&result).expect("must be valid JSON");
+    let body: serde_json::Value = serde_json::from_str(&result).expect("must be valid JSON");
 
     assert!(body.get("data").is_some(), "success response must have 'data': {body}");
-    assert!(
-        body.get("errors").is_none(),
-        "success response must not have 'errors': {body}"
-    );
+    assert!(body.get("errors").is_none(), "success response must not have 'errors': {body}");
 }

@@ -283,10 +283,7 @@ mod tests {
         let result = ExchangeMessage::from_json_bytes(&bytes);
         assert!(result.is_err());
         let msg = result.unwrap_err();
-        assert!(
-            !msg.contains("too large"),
-            "Should fail JSON parsing, not size limit: {msg}"
-        );
+        assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
     }
 
     #[test]
@@ -295,9 +292,6 @@ mod tests {
         let result = ExchangeMessage::from_json_bytes(&oversized);
         assert!(result.is_err());
         let msg = result.unwrap_err();
-        assert!(
-            msg.contains("too large"),
-            "Expected size-limit error, got: {msg}"
-        );
+        assert!(msg.contains("too large"), "Expected size-limit error, got: {msg}");
     }
 }

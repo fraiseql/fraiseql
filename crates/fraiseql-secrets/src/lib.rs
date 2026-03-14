@@ -10,8 +10,8 @@
 //!
 //! - [`secrets_manager`] — Vault, environment, and file backends; lease renewal;
 //!   `create_secrets_manager` factory
-//! - [`encryption`] — `FieldEncryption` (AES-256-GCM) and `VersionedFieldEncryption`
-//!   for encrypted database column storage
+//! - [`encryption`] — `FieldEncryption` (AES-256-GCM) and `VersionedFieldEncryption` for encrypted
+//!   database column storage
 //!
 //! # Integration with `fraiseql-server`
 //!

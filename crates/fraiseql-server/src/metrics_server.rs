@@ -215,16 +215,7 @@ impl Default for MetricsCollector {
 /// Histogram bucket upper bounds in microseconds.
 /// Corresponds to: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
 const HISTOGRAM_BUCKET_BOUNDS_US: [u64; 11] = [
-    1_000,
-    5_000,
-    10_000,
-    25_000,
-    50_000,
-    100_000,
-    250_000,
-    500_000,
-    1_000_000,
-    2_500_000,
+    1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000,
     5_000_000,
 ];
 
@@ -294,7 +285,11 @@ impl OperationMetricsRegistry {
 
     /// Record a query execution for the given operation name.
     pub fn record(&self, name: &str, duration_us: u64, is_error: bool) {
-        let canonical = if name.is_empty() { "__anonymous__" } else { name };
+        let canonical = if name.is_empty() {
+            "__anonymous__"
+        } else {
+            name
+        };
 
         // Check if already tracked
         if let Some(entry) = self.operations.get(canonical) {
@@ -395,10 +390,8 @@ impl OperationMetricsRegistry {
              # TYPE fraiseql_query_errors_total counter\n",
         );
         for (name, _, _, error_count, _) in &entries {
-            let _ = writeln!(
-                out,
-                "fraiseql_query_errors_total{{operation=\"{name}\"}} {error_count}",
-            );
+            let _ =
+                writeln!(out, "fraiseql_query_errors_total{{operation=\"{name}\"}} {error_count}",);
         }
 
         out
@@ -712,7 +705,9 @@ mod tests {
 
         let output = registry.to_prometheus_format();
         assert!(output.contains("operation=\"__overflow__\""));
-        assert!(output.contains("fraiseql_query_duration_seconds_count{operation=\"__overflow__\"} 1"));
+        assert!(
+            output.contains("fraiseql_query_duration_seconds_count{operation=\"__overflow__\"} 1")
+        );
     }
 
     #[test]
@@ -731,8 +726,10 @@ mod tests {
             "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.05\"} 1"
         ));
         // le=0.1 (100ms) should be 1 (cumulative)
-        assert!(output.contains(
-            "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.1\"} 1"
-        ));
+        assert!(
+            output.contains(
+                "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.1\"} 1"
+            )
+        );
     }
 }

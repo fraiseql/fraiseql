@@ -285,9 +285,9 @@ impl QueryResultCache {
     /// * `result` - Query result to cache
     /// * `accessed_views` - List of views accessed by this query
     /// * `ttl_override` - Per-entry TTL in seconds; `None` uses `CacheConfig::ttl_seconds`
-    /// * `entity_type` - Optional GraphQL type name (e.g. `"User"`) for entity-ID indexing.
-    ///   When provided, each row's `"id"` field is extracted and stored in `entity_ids` so
-    ///   that `invalidate_by_entity()` can perform selective eviction.
+    /// * `entity_type` - Optional GraphQL type name (e.g. `"User"`) for entity-ID indexing. When
+    ///   provided, each row's `"id"` field is extracted and stored in `entity_ids` so that
+    ///   `invalidate_by_entity()` can perform selective eviction.
     ///
     /// # Errors
     ///
@@ -481,10 +481,7 @@ impl QueryResultCache {
         let keys_to_remove: Vec<String> = cache
             .iter()
             .filter(|(_, cached)| {
-                cached
-                    .entity_ids
-                    .get(entity_type)
-                    .is_some_and(|ids| ids.contains(entity_id))
+                cached.entity_ids.get(entity_type).is_some_and(|ids| ids.contains(entity_id))
             })
             .map(|(k, _)| k.clone())
             .collect();
@@ -610,8 +607,11 @@ impl CacheMetrics {
             return 0.0;
         }
         #[allow(clippy::cast_precision_loss)]
-        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable here.
-        { self.hits as f64 / total as f64 }
+        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
+        // here.
+        {
+            self.hits as f64 / total as f64
+        }
     }
 
     /// Check if cache is performing well.
@@ -1073,7 +1073,9 @@ mod tests {
     // ========================================================================
 
     fn entity_result(id: &str) -> Vec<JsonbValue> {
-        vec![JsonbValue::new(serde_json::json!({"id": id, "name": "test"}))]
+        vec![JsonbValue::new(
+            serde_json::json!({"id": id, "name": "test"}),
+        )]
     }
 
     #[test]
@@ -1123,7 +1125,10 @@ mod tests {
         // Invalidate by User A — the list entry contains A, so it must be evicted
         let evicted = cache.invalidate_by_entity("User", "uuid-a").unwrap();
         assert_eq!(evicted, 1);
-        assert!(cache.get("users-list").unwrap().is_none(), "List containing A should be evicted");
+        assert!(
+            cache.get("users-list").unwrap().is_none(),
+            "List containing A should be evicted"
+        );
     }
 
     #[test]

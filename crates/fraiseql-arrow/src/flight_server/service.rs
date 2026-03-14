@@ -1,23 +1,23 @@
 //! `FraiseQLFlightService` construction and state management methods.
 
 use std::sync::Arc;
-use tokio::sync::Semaphore;
 
 use arrow::array::RecordBatch;
 use arrow_flight::{FlightData, flight_service_server::FlightServiceServer};
 use chrono::Utc;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream;
+use tokio::sync::Semaphore;
 use tonic::{Response, Status};
 use tracing::{debug, info, warn};
 
+#[cfg(any(test, feature = "testing"))]
+use super::execute_placeholder_query;
 use super::{
     ActionResultStream, FlightDataStream, FraiseQLFlightService, QueryExecutor, SecurityContext,
     build_optimized_sql, encode_json_to_arrow_batch, record_batch_to_flight_data,
     schema_to_flight_data,
 };
-#[cfg(any(test, feature = "testing"))]
-use super::execute_placeholder_query;
 use crate::{
     cache::QueryCache,
     convert::{ConvertConfig, RowToArrowConverter},
@@ -570,7 +570,10 @@ impl FraiseQLFlightService {
         let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
             .map_err(|e| format!("Row conversion failed: {e}"))?;
 
-        let config = ConvertConfig { batch_size: 10_000, max_rows: None };
+        let config = ConvertConfig {
+            batch_size: 10_000,
+            max_rows:   None,
+        };
         let converter = RowToArrowConverter::new(schema, config);
         arrow_rows
             .chunks(config.batch_size)

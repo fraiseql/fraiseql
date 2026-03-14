@@ -1,12 +1,11 @@
 //! EXPLAIN ANALYZE execution for admin diagnostics.
 
+use super::Executor;
 use crate::{
     db::{WhereClause, WhereOperator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     runtime::explain::ExplainResult,
 };
-
-use super::Executor;
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for a named query.
@@ -47,22 +46,19 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // Look up the query definition by name.
-        let query_def = self
-            .schema
-            .queries
-            .iter()
-            .find(|q| q.name == query_name)
-            .ok_or_else(|| {
+        let query_def =
+            self.schema.queries.iter().find(|q| q.name == query_name).ok_or_else(|| {
                 let candidates: Vec<&str> =
                     self.schema.queries.iter().map(|q| q.name.as_str()).collect();
                 let suggestion = crate::runtime::suggest_similar(query_name, &candidates);
                 let message = match suggestion.as_slice() {
-                    [s] => format!(
-                        "Query '{query_name}' not found in schema. Did you mean '{s}'?"
-                    ),
+                    [s] => format!("Query '{query_name}' not found in schema. Did you mean '{s}'?"),
                     _ => format!("Query '{query_name}' not found in schema"),
                 };
-                FraiseQLError::Validation { message, path: None }
+                FraiseQLError::Validation {
+                    message,
+                    path: None,
+                }
             })?;
 
         // Get the view name.
@@ -137,9 +133,8 @@ fn build_display_sql(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> String {
-    let mut sql = format!(
-        "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT data FROM \"{sql_source}\""
-    );
+    let mut sql =
+        format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT data FROM \"{sql_source}\"");
 
     if let Some(map) = variables.and_then(|v| v.as_object()) {
         if !map.is_empty() {
@@ -153,9 +148,7 @@ fn build_display_sql(
         }
     }
 
-    let param_offset = variables
-        .and_then(|v| v.as_object())
-        .map_or(0, |m| m.len());
+    let param_offset = variables.and_then(|v| v.as_object()).map_or(0, |m| m.len());
 
     if let Some(lim) = limit {
         sql.push_str(&format!(" LIMIT ${}", param_offset + 1));
@@ -306,10 +299,7 @@ mod tests {
     #[test]
     fn test_build_display_sql_no_clause() {
         let sql = super::build_display_sql("v_user", None, None, None);
-        assert_eq!(
-            sql,
-            "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT data FROM \"v_user\""
-        );
+        assert_eq!(sql, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT data FROM \"v_user\"");
     }
 
     #[test]

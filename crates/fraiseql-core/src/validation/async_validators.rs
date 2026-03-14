@@ -12,8 +12,10 @@ use std::{sync::LazyLock, time::Duration};
 use async_trait::async_trait;
 use regex::Regex;
 
-use crate::error::{FraiseQLError, Result};
-use crate::validation::patterns;
+use crate::{
+    error::{FraiseQLError, Result},
+    validation::patterns,
+};
 
 /// Async validator result type.
 pub type AsyncValidatorResult = Result<()>;
@@ -26,9 +28,8 @@ static EMAIL_REGEX: LazyLock<Regex> =
 ///
 /// Accepts `+` followed by a non-zero leading digit and 6–14 more digits
 /// (7–15 total digits after the `+`), covering all valid ITU-T E.164 numbers.
-static PHONE_E164_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\+[1-9]\d{6,14}$").expect("E.164 phone regex is valid")
-});
+static PHONE_E164_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+[1-9]\d{6,14}$").expect("E.164 phone regex is valid"));
 
 /// Provider types for async validators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -101,8 +102,8 @@ impl AsyncValidatorConfig {
 /// Trait for async validators.
 ///
 /// Implementers should handle timeout and error cases gracefully.
-// Reason: used as dyn Trait (Arc<dyn AsyncValidator>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn AsyncValidator>); async_trait ensures Send bounds and
+// dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait AsyncValidator: Send + Sync {
     /// Validate a value asynchronously.
@@ -276,7 +277,10 @@ impl ChecksumAsyncValidator {
     pub fn new(algorithm: impl Into<String>) -> Self {
         let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::ChecksumValidation, 0);
         config.timeout = Duration::MAX;
-        Self { config, algorithm: algorithm.into() }
+        Self {
+            config,
+            algorithm: algorithm.into(),
+        }
     }
 }
 
@@ -293,9 +297,10 @@ impl AsyncValidator for ChecksumAsyncValidator {
             other => {
                 return Err(crate::error::FraiseQLError::Validation {
                     message: format!(
-                        "Unknown checksum algorithm '{}' for field '{}'", other, field
+                        "Unknown checksum algorithm '{}' for field '{}'",
+                        other, field
                     ),
-                    path: Some(field.to_string()),
+                    path:    Some(field.to_string()),
                 });
             },
         };
@@ -304,9 +309,10 @@ impl AsyncValidator for ChecksumAsyncValidator {
         } else {
             Err(crate::error::FraiseQLError::Validation {
                 message: format!(
-                    "Checksum validation ({}) failed for field '{}'", self.algorithm, field
+                    "Checksum validation ({}) failed for field '{}'",
+                    self.algorithm, field
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -452,14 +458,8 @@ mod tests {
 
     #[test]
     fn test_provider_display() {
-        assert_eq!(
-            AsyncValidatorProvider::EmailFormatCheck.to_string(),
-            "email_format_check"
-        );
-        assert_eq!(
-            AsyncValidatorProvider::PhoneE164Check.to_string(),
-            "phone_e164_check"
-        );
+        assert_eq!(AsyncValidatorProvider::EmailFormatCheck.to_string(), "email_format_check");
+        assert_eq!(AsyncValidatorProvider::PhoneE164Check.to_string(), "phone_e164_check");
     }
 
     #[test]

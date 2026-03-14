@@ -22,10 +22,8 @@ async fn test_saga_executes_all_steps_in_order() {
 
     let mut step_numbers = Vec::new();
     for n in 1u32..=5 {
-        let res: StepExecutionResult = executor
-            .execute_step(saga_id, n, "doThing", &json!({}), "svc")
-            .await
-            .unwrap();
+        let res: StepExecutionResult =
+            executor.execute_step(saga_id, n, "doThing", &json!({}), "svc").await.unwrap();
 
         assert!(res.success, "step {n} should succeed");
         step_numbers.push(res.step_number);

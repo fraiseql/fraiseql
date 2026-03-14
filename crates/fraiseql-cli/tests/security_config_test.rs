@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Unit tests for the four [security.*] TOML subsection structs,
 //! and the `[auth]` `OidcClientConfig`.
 
@@ -121,10 +121,7 @@ fn test_state_encryption_valid_algorithms() {
              [security.state_encryption]\nenabled=true\nalgorithm=\"{algo}\""
         );
         let schema: TomlSchema = toml::from_str(&toml).unwrap();
-        assert_eq!(
-            schema.security.state_encryption.unwrap().algorithm.to_string(),
-            algo
-        );
+        assert_eq!(schema.security.state_encryption.unwrap().algorithm.to_string(), algo);
     }
 }
 
@@ -173,10 +170,7 @@ fn test_pkce_plain_method_allowed_in_config() {
         state_ttl_secs        = 300
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
-    assert_eq!(
-        schema.security.pkce.unwrap().code_challenge_method,
-        CodeChallengeMethod::Plain
-    );
+    assert_eq!(schema.security.pkce.unwrap().code_challenge_method, CodeChallengeMethod::Plain);
 }
 
 // ---------------------------------------------------------------------------
@@ -212,10 +206,7 @@ fn test_all_security_subsections_parse_together() {
     let schema: TomlSchema = toml::from_str(toml).unwrap();
     assert!(schema.security.error_sanitization.unwrap().enabled);
     assert_eq!(schema.security.rate_limiting.unwrap().requests_per_second, 50);
-    assert_eq!(
-        schema.security.state_encryption.unwrap().algorithm.to_string(),
-        "aes-256-gcm"
-    );
+    assert_eq!(schema.security.state_encryption.unwrap().algorithm.to_string(), "aes-256-gcm");
     assert_eq!(schema.security.pkce.unwrap().state_ttl_secs, 300);
 }
 

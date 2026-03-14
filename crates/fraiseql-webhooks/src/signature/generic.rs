@@ -56,9 +56,7 @@ impl SignatureVerifier for HmacSha256Verifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
-                "HMAC-SHA256 secret must not be empty".to_string(),
-            ));
+            return Err(SignatureError::Crypto("HMAC-SHA256 secret must not be empty".to_string()));
         }
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -112,9 +110,7 @@ impl SignatureVerifier for HmacSha1Verifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
-                "HMAC-SHA1 secret must not be empty".to_string(),
-            ));
+            return Err(SignatureError::Crypto("HMAC-SHA1 secret must not be empty".to_string()));
         }
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -126,7 +122,7 @@ impl SignatureVerifier for HmacSha1Verifier {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

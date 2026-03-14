@@ -37,8 +37,9 @@ pub struct TokenResponse {
 /// OAuth 2.0 / OIDC provider trait
 ///
 /// Implement this trait to add support for custom OAuth providers.
-// Reason: used as dyn Trait (Arc<dyn OAuthProvider>, Box<dyn OAuthProvider>); async_trait ensures Send bounds and dyn-compatibility
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// Reason: used as dyn Trait (Arc<dyn OAuthProvider>, Box<dyn OAuthProvider>); async_trait ensures
+// Send bounds and dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is
+// stable (RFC 3425)
 #[async_trait]
 pub trait OAuthProvider: Send + Sync + fmt::Debug {
     /// Provider name for logging/debugging
@@ -217,10 +218,11 @@ fn base64_url_encode(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     #[test]

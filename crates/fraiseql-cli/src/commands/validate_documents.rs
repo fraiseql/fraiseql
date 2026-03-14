@@ -5,8 +5,7 @@
 //! 2. Each key is a valid SHA-256 hex string matching its query body
 //! 3. Exits 0 on success, 2 on validation failure
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -40,8 +39,8 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
 
     // Reject oversized files before reading into memory.
-    let metadata = std::fs::metadata(path)
-        .context(format!("Failed to read manifest: {manifest_path}"))?;
+    let metadata =
+        std::fs::metadata(path).context(format!("Failed to read manifest: {manifest_path}"))?;
     if metadata.len() > MAX_MANIFEST_BYTES {
         anyhow::bail!(
             "Manifest file {manifest_path} is too large ({} bytes); \
@@ -162,7 +161,10 @@ mod tests {
         let result = run(path.to_str().unwrap(), &formatter);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("Unsupported manifest version"), "expected version error, got: {msg}");
+        assert!(
+            msg.contains("Unsupported manifest version"),
+            "expected version error, got: {msg}"
+        );
     }
 
     #[test]

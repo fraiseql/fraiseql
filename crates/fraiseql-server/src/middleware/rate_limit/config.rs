@@ -129,14 +129,14 @@ impl RateLimitConfig {
             .collect();
 
         Self {
-            enabled:               sec.enabled,
-            rps_per_ip:            sec.requests_per_second,
-            rps_per_user:          sec
+            enabled: sec.enabled,
+            rps_per_ip: sec.requests_per_second,
+            rps_per_user: sec
                 .requests_per_second_per_user
                 .unwrap_or_else(|| sec.requests_per_second.saturating_mul(10)),
-            burst_size:            sec.burst_size,
+            burst_size: sec.burst_size,
             cleanup_interval_secs: 300,
-            trust_proxy_headers:   sec.trust_proxy_headers,
+            trust_proxy_headers: sec.trust_proxy_headers,
             trusted_proxy_cidrs,
         }
     }
@@ -151,19 +151,27 @@ impl RateLimitConfig {
 #[derive(Debug, Clone)]
 pub struct CheckResult {
     /// Whether the request should be allowed.
-    pub allowed:           bool,
+    pub allowed:          bool,
     /// Tokens remaining in the bucket after this request (≥ 0).
-    pub remaining:         f64,
+    pub remaining:        f64,
     /// Seconds the client should wait before retrying (0 when allowed).
     pub retry_after_secs: u32,
 }
 
 impl CheckResult {
     pub(super) const fn allow(remaining: f64) -> Self {
-        Self { allowed: true, remaining, retry_after_secs: 0 }
+        Self {
+            allowed: true,
+            remaining,
+            retry_after_secs: 0,
+        }
     }
 
     pub(super) const fn deny(retry_after_secs: u32) -> Self {
-        Self { allowed: false, remaining: 0.0, retry_after_secs }
+        Self {
+            allowed: false,
+            remaining: 0.0,
+            retry_after_secs,
+        }
     }
 }

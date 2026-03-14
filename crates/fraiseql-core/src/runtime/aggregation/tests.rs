@@ -80,10 +80,7 @@ fn test_mysql_sql_generation() {
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let sql = generator.generate_parameterized(&plan).unwrap();
 
-    assert!(
-        sql.sql
-            .contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))")
-    );
+    assert!(sql.sql.contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))"));
     assert!(sql.sql.contains("DATE_FORMAT(occurred_at"));
     assert!(sql.sql.contains("COUNT(*)"));
     assert!(sql.sql.contains("SUM(revenue)"));
@@ -546,13 +543,11 @@ fn test_generate_parameterized_where_string_becomes_placeholder() {
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let result = gen.generate_parameterized(&plan).unwrap();
 
-    assert!(
-        result.sql.contains("$1"),
-        "PostgreSQL placeholder must be $1: {}", result.sql
-    );
+    assert!(result.sql.contains("$1"), "PostgreSQL placeholder must be $1: {}", result.sql);
     assert!(
         !result.sql.contains("'test_value'"),
-        "String value must not appear as literal: {}", result.sql
+        "String value must not appear as literal: {}",
+        result.sql
     );
     assert_eq!(result.params.len(), 1);
     assert_eq!(result.params[0], serde_json::json!("test_value"));
@@ -579,14 +574,16 @@ fn test_generate_parameterized_having_string_becomes_placeholder() {
 
     assert!(
         result.sql.contains("HAVING SUM(revenue) = ?"),
-        "SQL must use ? placeholder: {}", result.sql
+        "SQL must use ? placeholder: {}",
+        result.sql
     );
     assert_eq!(result.params.len(), 1);
     assert_eq!(result.params[0], serde_json::json!(injection));
     // injection string must NOT appear verbatim in the SQL
     assert!(
         !result.sql.contains("injection"),
-        "Injection string must not appear in SQL: {}", result.sql
+        "Injection string must not appear in SQL: {}",
+        result.sql
     );
 }
 
@@ -696,7 +693,10 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     let metadata = FactTableMetadata {
         table_name:           "tf_sales".to_string(),
         measures:             vec![],
-        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
         denormalized_filters: vec![FilterColumn {
             name:     "status".to_string(),
             sql_type: SqlType::Timestamp,
@@ -712,7 +712,9 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
             value:    serde_json::json!(["a", "b", "c"]),
         }),
         group_by:     vec![],
-        aggregates:   vec![AggregateSelection::Count { alias: "count".to_string() }],
+        aggregates:   vec![AggregateSelection::Count {
+            alias: "count".to_string(),
+        }],
         having:       vec![],
         order_by:     vec![],
         limit:        None,
@@ -724,7 +726,8 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
 
     assert!(
         result.sql.contains("status IN ($1, $2, $3)"),
-        "IN clause must expand to 3 placeholders: {}", result.sql
+        "IN clause must expand to 3 placeholders: {}",
+        result.sql
     );
     assert_eq!(result.params.len(), 3);
     assert_eq!(result.params[0], serde_json::json!("a"));

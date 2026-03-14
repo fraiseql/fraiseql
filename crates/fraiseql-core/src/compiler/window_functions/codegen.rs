@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    FactTableMetadata, FraiseQLError, OrderByClause, PartitionByColumn, Result, SelectColumn,
+    WindowExecutionPlan, WindowFunction, WindowFunctionRequest, WindowFunctionSpec,
+    WindowFunctionType, WindowOrderBy, WindowRequest, WindowSelectColumn,
+};
 
 // =============================================================================
 // WindowPlanner - Converts high-level WindowRequest to WindowExecutionPlan
@@ -314,9 +318,9 @@ impl WindowPlanner {
     /// Priority:
     /// 1. Check if it's a measure (direct column)
     /// 2. Check if it's a filter column (direct column)
-    /// 3. Treat as a dimension path (JSONB extraction) — only if the name is a valid
-    ///    GraphQL identifier (`[_A-Za-z][_0-9A-Za-z]*`), to prevent SQL injection via
-    ///    the single-quoted key in `data->>'field'` expressions.
+    /// 3. Treat as a dimension path (JSONB extraction) — only if the name is a valid GraphQL
+    ///    identifier (`[_A-Za-z][_0-9A-Za-z]*`), to prevent SQL injection via the single-quoted key
+    ///    in `data->>'field'` expressions.
     fn resolve_field_to_sql(field: &str, metadata: &FactTableMetadata) -> Result<String> {
         // Check if it's a measure
         if metadata.measures.iter().any(|m| m.name == field) {
@@ -343,8 +347,7 @@ impl WindowPlanner {
     /// expressions (`data->>'field'`). Any character outside this set must be rejected.
     fn validate_field_identifier(field: &str) -> Result<()> {
         let mut chars = field.chars();
-        let first_ok =
-            chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+        let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
         let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
         if first_ok && rest_ok {
             Ok(())

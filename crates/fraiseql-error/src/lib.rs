@@ -36,9 +36,9 @@
 //! provider endpoints) return **generic** descriptions in the HTTP response body.
 //! Raw error details are available only in structured server logs.
 
-pub mod core_error;
 mod auth;
 mod config;
+pub mod core_error;
 mod file;
 #[cfg(feature = "axum-compat")]
 mod http;
@@ -48,8 +48,8 @@ mod observer;
 mod webhook;
 
 pub use auth::AuthError;
-pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
 pub use config::ConfigError;
+pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
 pub use file::FileError;
 // Re-export for convenience — only available with the `axum-compat` feature
 #[cfg(feature = "axum-compat")]

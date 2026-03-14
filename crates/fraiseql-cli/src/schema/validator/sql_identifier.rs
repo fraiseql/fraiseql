@@ -65,9 +65,7 @@ pub fn validate_sql_identifier(
                 ),
                 path:       path.to_string(),
                 severity:   ErrorSeverity::Error,
-                suggestion: Some(
-                    "Shorten the identifier to 63 characters or fewer.".to_string(),
-                ),
+                suggestion: Some("Shorten the identifier to 63 characters or fewer.".to_string()),
             });
         }
     }
@@ -147,12 +145,8 @@ mod tests {
 
     #[test]
     fn test_injection_attempt_rejected() {
-        let err = validate_sql_identifier(
-            "v_user; DROP TABLE users",
-            "sql_source",
-            "Query.users",
-        )
-        .unwrap_err();
+        let err = validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
+            .unwrap_err();
         assert!(err.message.contains("is not a valid SQL identifier"));
     }
 }

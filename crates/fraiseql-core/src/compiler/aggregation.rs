@@ -52,7 +52,6 @@
 use serde::{Deserialize, Serialize};
 
 pub use crate::types::{OrderByClause, OrderDirection};
-
 use crate::{
     compiler::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
@@ -348,9 +347,7 @@ impl AggregationPlanner {
                     // after SQL-level escaping (defence in depth). If no paths are declared,
                     // all paths are accepted — escaping in the runtime layer still applies.
                     let known_paths = &metadata.dimensions.paths;
-                    if !known_paths.is_empty()
-                        && !known_paths.iter().any(|p| p.name == *path)
-                    {
+                    if !known_paths.is_empty() && !known_paths.iter().any(|p| p.name == *path) {
                         return Err(FraiseQLError::Validation {
                             message: format!(
                                 "Dimension '{}' not found in fact table '{}'",
@@ -856,13 +853,11 @@ mod tests {
     fn create_metadata_with_paths() -> FactTableMetadata {
         use crate::compiler::fact_table::DimensionPath;
         let mut meta = create_test_metadata();
-        meta.dimensions.paths = vec![
-            DimensionPath {
-                name:      "category".to_string(),
-                json_path: "dimensions->>'category'".to_string(),
-                data_type: "text".to_string(),
-            },
-        ];
+        meta.dimensions.paths = vec![DimensionPath {
+            name:      "category".to_string(),
+            json_path: "dimensions->>'category'".to_string(),
+            data_type: "text".to_string(),
+        }];
         meta
     }
 

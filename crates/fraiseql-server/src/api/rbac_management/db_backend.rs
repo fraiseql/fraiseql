@@ -395,8 +395,8 @@ impl RbacDbBackend {
     ///
     /// # Errors
     ///
-    /// Returns `RbacDbError::PermissionDuplicate` if a permission with the same resource and action already exists.
-    /// Returns `RbacDbError::QueryError` if the database insert fails.
+    /// Returns `RbacDbError::PermissionDuplicate` if a permission with the same resource and action
+    /// already exists. Returns `RbacDbError::QueryError` if the database insert fails.
     pub async fn create_permission(
         &self,
         resource: &str,

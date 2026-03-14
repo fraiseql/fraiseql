@@ -91,11 +91,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let types: Vec<TypeInfo> = schema
         .types
         .iter()
-        .filter(|t| {
-            t.requires_role
-                .as_ref()
-                .is_none_or(|role| user_roles.contains(&role.as_str()))
-        })
+        .filter(|t| t.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|t| TypeInfo {
             name:        t.name.to_string(),
             description: t.description.clone(),
@@ -106,11 +102,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let queries: Vec<QueryInfo> = schema
         .queries
         .iter()
-        .filter(|q| {
-            q.requires_role
-                .as_ref()
-                .is_none_or(|role| user_roles.contains(&role.as_str()))
-        })
+        .filter(|q| q.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|q| QueryInfo {
             name:         q.name.clone(),
             return_type:  q.return_type.clone(),

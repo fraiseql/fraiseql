@@ -367,7 +367,7 @@ pub struct SubscriptionsConfig {
     pub max_subscriptions_per_connection: Option<u32>,
     /// Webhook lifecycle hooks.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hooks:                            Option<SubscriptionHooksConfig>,
+    pub hooks: Option<SubscriptionHooksConfig>,
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.
@@ -376,28 +376,28 @@ pub struct SubscriptionsConfig {
 pub struct SubscriptionHooksConfig {
     /// URL to POST on WebSocket `connection_init` (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_connect:    Option<String>,
+    pub on_connect:     Option<String>,
     /// URL to POST on WebSocket disconnect (fire-and-forget).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_disconnect: Option<String>,
+    pub on_disconnect:  Option<String>,
     /// URL to POST before a subscription is registered (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_subscribe:    Option<String>,
+    pub on_subscribe:   Option<String>,
     /// URL to POST when a subscription is removed (fire-and-forget).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_unsubscribe:  Option<String>,
+    pub on_unsubscribe: Option<String>,
     /// Timeout in milliseconds for fail-closed hooks (default: 500).
-    pub timeout_ms:      u64,
+    pub timeout_ms:     u64,
 }
 
 impl Default for SubscriptionHooksConfig {
     fn default() -> Self {
         Self {
-            on_connect:    None,
-            on_disconnect: None,
-            on_subscribe:  None,
+            on_connect:     None,
+            on_disconnect:  None,
+            on_subscribe:   None,
             on_unsubscribe: None,
-            timeout_ms:    500,
+            timeout_ms:     500,
         }
     }
 }
@@ -489,11 +489,11 @@ mod tests {
     #[test]
     fn test_roundtrip_serialization() {
         let config = FederationConfig {
-            enabled:      true,
-            version:      Some("v2".to_string()),
-            service_name: Some("my-service".to_string()),
-            schema_url:   None,
-            entities:     vec![FederationEntity {
+            enabled:         true,
+            version:         Some("v2".to_string()),
+            service_name:    Some("my-service".to_string()),
+            schema_url:      None,
+            entities:        vec![FederationEntity {
                 name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],

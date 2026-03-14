@@ -1,7 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::*;
 use async_trait::async_trait;
+
+use super::*;
 use crate::{
     db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
@@ -16,7 +17,7 @@ use crate::{
 /// (`with_view()` builder) so tests can verify correct query routing.
 struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    mock_results: Vec<JsonbValue>,
+    mock_results:   Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
     view_responses: std::collections::HashMap<String, Vec<JsonbValue>>,
@@ -38,10 +39,10 @@ impl MockAdapter {
     }
 }
 
-    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-    // its transformed method signatures to satisfy the trait contract
-    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-    #[async_trait]
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl DatabaseAdapter for MockAdapter {
     async fn execute_with_projection(
         &self,
@@ -115,10 +116,10 @@ impl MutationCapable for MockAdapter {}
 /// used to test the runtime mutation guard in execute_mutation_query.
 struct ReadOnlyMockAdapter;
 
-    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-    // its transformed method signatures to satisfy the trait contract
-    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-    #[async_trait]
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
 impl DatabaseAdapter for ReadOnlyMockAdapter {
     async fn execute_with_projection(
         &self,
@@ -180,22 +181,22 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
-        name:         "users".to_string(),
-        return_type:  "User".to_string(),
-        returns_list: true,
-        nullable:     false,
-        arguments:    Vec::new(),
-        sql_source:   Some("v_user".to_string()),
-        description:  None,
-        auto_params:  AutoParams::default(),
-        deprecation:  None,
-        jsonb_column: "data".to_string(),
-        relay: false,
+        name:                "users".to_string(),
+        return_type:         "User".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           Vec::new(),
+        sql_source:          Some("v_user".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               false,
         relay_cursor_column: None,
-        relay_cursor_type: Default::default(),
-        inject_params:     Default::default(),
+        relay_cursor_type:   Default::default(),
+        inject_params:       Default::default(),
         cache_ttl_seconds:   None,
-        additional_views: vec![],
+        additional_views:    vec![],
         requires_role:       None,
     });
     schema
@@ -673,11 +674,8 @@ mod inject {
 
     #[test]
     fn test_resolve_inject_custom_attribute() {
-        let ctx = make_security_ctx(
-            "user-1",
-            None,
-            &[("department", serde_json::json!("engineering"))],
-        );
+        let ctx =
+            make_security_ctx("user-1", None, &[("department", serde_json::json!("engineering"))]);
         let source = InjectedParamSource::Jwt("department".to_string());
         let result = resolve_inject_value("dept", &source, &ctx).unwrap();
         assert_eq!(result, serde_json::Value::String("engineering".to_string()));
@@ -707,28 +705,25 @@ mod inject {
 
         let mut schema = test_schema();
         let mut inject_params = IndexMap::new();
-        inject_params.insert(
-            "org_id".to_string(),
-            InjectedParamSource::Jwt("org_id".to_string()),
-        );
+        inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
         schema.queries.push(QueryDefinition {
-            name:                "org_items".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           Vec::new(),
-            sql_source:          Some("v_org_items".to_string()),
-            description:         None,
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            name: "org_items".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_org_items".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
+            relay_cursor_type: Default::default(),
             inject_params,
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -805,9 +800,7 @@ mod planning {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let plan = executor
-            .plan_query("{ __schema { types { name } } }", None)
-            .unwrap();
+        let plan = executor.plan_query("{ __schema { types { name } } }", None).unwrap();
         assert_eq!(plan.query_type, "introspection");
         assert!(plan.sql.is_empty());
         assert!(plan.views_accessed.is_empty());
@@ -847,7 +840,7 @@ mod mutation {
 
         let mut schema = CompiledSchema::new();
         schema.mutations.push(MutationDefinition {
-            name:       "createUser".to_string(),
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
             // sql_source deliberately absent — simulates codegen path before the fix.
             sql_source: None,
@@ -860,10 +853,7 @@ mod mutation {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let err = executor
-            .execute("mutation { createUser { id } }", None)
-            .await
-            .unwrap_err();
+        let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
         let msg = err.to_string();
         assert!(
@@ -891,20 +881,14 @@ mod mutation {
         let adapter = Arc::new(ReadOnlyMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        let err = executor
-            .execute("mutation { createUser { id } }", None)
-            .await
-            .unwrap_err();
+        let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
         let msg = err.to_string();
         assert!(
             msg.contains("does not support mutations"),
             "expected 'does not support mutations' diagnostic, got: {msg}"
         );
-        assert!(
-            msg.contains("createUser"),
-            "error message should name the mutation, got: {msg}"
-        );
+        assert!(msg.contains("createUser"), "error message should name the mutation, got: {msg}");
     }
 
     /// When both sql_source and operation.table are absent the executor must still
@@ -915,7 +899,7 @@ mod mutation {
 
         let mut schema = CompiledSchema::new();
         schema.mutations.push(MutationDefinition {
-            name:       "deleteUser".to_string(),
+            name: "deleteUser".to_string(),
             return_type: "User".to_string(),
             sql_source: None,
             // Custom operation has no table — no fallback available.
@@ -926,10 +910,7 @@ mod mutation {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let err = executor
-            .execute("mutation { deleteUser { id } }", None)
-            .await
-            .unwrap_err();
+        let err = executor.execute("mutation { deleteUser { id } }", None).await.unwrap_err();
 
         assert!(
             err.to_string().contains("has no sql_source configured"),
@@ -955,10 +936,7 @@ mod mutation {
         let adapter = Arc::new(ReadOnlyMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        let err = executor
-            .execute("mutation { createUser { id } }", None)
-            .await
-            .unwrap_err();
+        let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
         // Must be Validation — not Internal, Database, or any other variant.
         assert!(
@@ -982,10 +960,7 @@ mod mutation {
         let adapter = Arc::new(ReadOnlyMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        let err = executor
-            .execute("mutation { deleteAccount { id } }", None)
-            .await
-            .unwrap_err();
+        let err = executor.execute("mutation { deleteAccount { id } }", None).await.unwrap_err();
 
         let msg = err.to_string();
         assert!(
@@ -1028,7 +1003,10 @@ mod security {
         assert!(
             matches!(
                 result.unwrap_err(),
-                ValidationError::TooManyAliases { actual_aliases: 3, .. }
+                ValidationError::TooManyAliases {
+                    actual_aliases: 3,
+                    ..
+                }
             ),
             "error must be TooManyAliases with actual_aliases = 3"
         );
@@ -1068,16 +1046,16 @@ mod routing {
     async fn test_per_view_mock_returns_distinct_results() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
-            returns_list: true,
-            nullable:     false,
-            arguments:    Vec::new(),
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
             relay_cursor_type:   Default::default(),
@@ -1088,10 +1066,7 @@ mod routing {
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
-        let adapter = Arc::new(
-            MockAdapter::new(vec![])
-                .with_view("v_user", vec![user_row]),
-        );
+        let adapter = Arc::new(MockAdapter::new(vec![]).with_view("v_user", vec![user_row]));
 
         let executor = Executor::new(schema, adapter);
         let result = executor.execute("{ users { id type } }", None).await.unwrap();

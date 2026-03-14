@@ -77,7 +77,11 @@ impl IntoResponse for RuntimeError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 // SECURITY: Config errors may contain connection strings or secrets.
                 // Return a generic message; details are in server logs only.
-                ErrorResponse::new("configuration_error", "A configuration error occurred", error_code),
+                ErrorResponse::new(
+                    "configuration_error",
+                    "A configuration error occurred",
+                    error_code,
+                ),
             ),
 
             RuntimeError::Auth(e) => {
@@ -85,9 +89,7 @@ impl IntoResponse for RuntimeError {
                     AuthError::InsufficientPermissions { .. } => {
                         (StatusCode::FORBIDDEN, "Insufficient permissions")
                     },
-                    AuthError::AccountLocked { .. } => {
-                        (StatusCode::FORBIDDEN, "Account locked")
-                    },
+                    AuthError::AccountLocked { .. } => (StatusCode::FORBIDDEN, "Account locked"),
                     AuthError::InvalidCredentials => {
                         (StatusCode::UNAUTHORIZED, "Invalid credentials")
                     },
@@ -97,10 +99,10 @@ impl IntoResponse for RuntimeError {
                     AuthError::InvalidToken { .. } | AuthError::ProviderError { .. } => {
                         (StatusCode::UNAUTHORIZED, "Authentication failed")
                     },
-                    AuthError::InvalidState => {
-                        (StatusCode::UNAUTHORIZED, "Invalid OAuth state")
+                    AuthError::InvalidState => (StatusCode::UNAUTHORIZED, "Invalid OAuth state"),
+                    AuthError::UserDenied => {
+                        (StatusCode::UNAUTHORIZED, "User denied authorization")
                     },
-                    AuthError::UserDenied => (StatusCode::UNAUTHORIZED, "User denied authorization"),
                     AuthError::SessionNotFound | AuthError::SessionExpired => {
                         (StatusCode::UNAUTHORIZED, "Session not found or expired")
                     },
@@ -148,10 +150,9 @@ impl IntoResponse for RuntimeError {
                         // Safe to expose size info — helps client fix the request.
                         format!("File too large: {} bytes exceeds maximum {}", size, max),
                     ),
-                    FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => (
-                        StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                        "Unsupported file type".to_string(),
-                    ),
+                    FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
+                        (StatusCode::UNSUPPORTED_MEDIA_TYPE, "Unsupported file type".to_string())
+                    },
                     FileError::NotFound { .. } => {
                         // SECURITY: Do not expose internal file paths.
                         (StatusCode::NOT_FOUND, "File not found".to_string())

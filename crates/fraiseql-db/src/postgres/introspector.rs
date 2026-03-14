@@ -1,10 +1,9 @@
 /// ! PostgreSQL database introspection for fact tables.
 use deadpool_postgres::Pool;
+use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use fraiseql_error::{FraiseQLError, Result};
-
-use crate::{introspector::DatabaseIntrospector, DatabaseType};
+use crate::{DatabaseType, introspector::DatabaseIntrospector};
 
 /// PostgreSQL introspector for fact table metadata.
 pub struct PostgresIntrospector {

@@ -2,8 +2,7 @@
 //!
 //! Converts FraiseQL `QueryDefinition` and `MutationDefinition` into MCP `Tool` objects.
 
-use std::borrow::Cow;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition, QueryDefinition,
@@ -44,21 +43,18 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 
 /// Convert a query definition into an MCP tool.
 fn query_to_tool(query: &QueryDefinition) -> Tool {
-    let description = query
-        .description
-        .clone()
-        .unwrap_or_else(|| format!("Query: {}", query.name));
+    let description = query.description.clone().unwrap_or_else(|| format!("Query: {}", query.name));
 
     Tool {
-        name: Cow::Owned(query.name.clone()),
-        title: None,
-        description: Some(Cow::Owned(description)),
-        input_schema: Arc::new(arguments_to_json_schema(&query.arguments)),
-        annotations: None,
+        name:          Cow::Owned(query.name.clone()),
+        title:         None,
+        description:   Some(Cow::Owned(description)),
+        input_schema:  Arc::new(arguments_to_json_schema(&query.arguments)),
+        annotations:   None,
         output_schema: None,
-        execution: None,
-        icons: None,
-        meta: None,
+        execution:     None,
+        icons:         None,
+        meta:          None,
     }
 }
 
@@ -70,15 +66,15 @@ fn mutation_to_tool(mutation: &MutationDefinition) -> Tool {
         .unwrap_or_else(|| format!("Mutation: {}", mutation.name));
 
     Tool {
-        name: Cow::Owned(mutation.name.clone()),
-        title: None,
-        description: Some(Cow::Owned(description)),
-        input_schema: Arc::new(arguments_to_json_schema(&mutation.arguments)),
-        annotations: None,
+        name:          Cow::Owned(mutation.name.clone()),
+        title:         None,
+        description:   Some(Cow::Owned(description)),
+        input_schema:  Arc::new(arguments_to_json_schema(&mutation.arguments)),
+        annotations:   None,
         output_schema: None,
-        execution: None,
-        icons: None,
-        meta: None,
+        execution:     None,
+        icons:         None,
+        meta:          None,
     }
 }
 
@@ -96,10 +92,7 @@ fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
         }
 
         if let Some(ref desc) = arg.description {
-            prop.insert(
-                "description".to_string(),
-                serde_json::Value::String(desc.clone()),
-            );
+            prop.insert("description".to_string(), serde_json::Value::String(desc.clone()));
         }
 
         properties.insert(arg.name.clone(), serde_json::Value::Object(prop));
@@ -110,14 +103,8 @@ fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
     }
 
     let mut schema = serde_json::Map::new();
-    schema.insert(
-        "type".to_string(),
-        serde_json::Value::String("object".to_string()),
-    );
-    schema.insert(
-        "properties".to_string(),
-        serde_json::Value::Object(properties),
-    );
+    schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
+    schema.insert("properties".to_string(), serde_json::Value::Object(properties));
     if !required.is_empty() {
         schema.insert("required".to_string(), serde_json::Value::Array(required));
     }
@@ -129,19 +116,19 @@ fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
     match field_type {
         FieldType::String | FieldType::Id | FieldType::Uuid | FieldType::Decimal => {
             serde_json::json!({ "type": "string" })
-        }
+        },
         FieldType::Int => serde_json::json!({ "type": "integer" }),
         FieldType::Float => serde_json::json!({ "type": "number" }),
         FieldType::Boolean => serde_json::json!({ "type": "boolean" }),
         FieldType::DateTime | FieldType::Date | FieldType::Time => {
             serde_json::json!({ "type": "string" })
-        }
+        },
         FieldType::Json => serde_json::json!({ "type": "object" }),
         FieldType::Vector => serde_json::json!({ "type": "array", "items": { "type": "number" } }),
         FieldType::Scalar(_) => serde_json::json!({ "type": "string" }),
         FieldType::List(inner) => {
             serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) })
-        }
+        },
         FieldType::Object(_)
         | FieldType::Enum(_)
         | FieldType::Input(_)
@@ -199,10 +186,7 @@ mod tests {
         assert_eq!(schema, serde_json::json!({ "type": "boolean" }));
 
         let schema = field_type_to_json_schema(&FieldType::List(Box::new(FieldType::Int)));
-        assert_eq!(
-            schema,
-            serde_json::json!({ "type": "array", "items": { "type": "integer" } })
-        );
+        assert_eq!(schema, serde_json::json!({ "type": "array", "items": { "type": "integer" } }));
     }
 
     #[test]

@@ -272,7 +272,10 @@ impl fmt::Debug for StateEncryptionService {
 impl StateEncryptionService {
     /// Construct from a raw 32-byte key slice.
     pub fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
-        Self { algorithm, key: *key }
+        Self {
+            algorithm,
+            key: *key,
+        }
     }
 
     /// Construct from a 64-character hex string (= 32 bytes).
@@ -303,8 +306,7 @@ impl StateEncryptionService {
         var: &str,
         algorithm: EncryptionAlgorithm,
     ) -> std::result::Result<Self, anyhow::Error> {
-        let hex = std::env::var(var)
-            .map_err(|_| anyhow::anyhow!("env var {var} not set"))?;
+        let hex = std::env::var(var).map_err(|_| anyhow::anyhow!("env var {var} not set"))?;
         Ok(Self::from_hex_key(&hex, algorithm)?)
     }
 
@@ -332,9 +334,12 @@ impl StateEncryptionService {
         let key_env = cfg.key_env.as_deref().unwrap_or("STATE_ENCRYPTION_KEY");
         Self::new_from_env(key_env, cfg.algorithm)
             .map(|svc| Some(Arc::new(svc)))
-            .map_err(|e| anyhow::anyhow!(
-                "state_encryption enabled but key env var '{}' failed: {e}", key_env
-            ))
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "state_encryption enabled but key env var '{}' failed: {e}",
+                    key_env
+                )
+            })
     }
 
     /// Encrypt `plaintext` to a URL-safe base64 string.
@@ -344,10 +349,7 @@ impl StateEncryptionService {
     /// # Errors
     ///
     /// Returns an error only on internal cipher failure (essentially never).
-    pub fn encrypt(
-        &self,
-        plaintext: &[u8],
-    ) -> std::result::Result<String, anyhow::Error> {
+    pub fn encrypt(&self, plaintext: &[u8]) -> std::result::Result<String, anyhow::Error> {
         let combined = match self.algorithm {
             EncryptionAlgorithm::Chacha20Poly1305 => {
                 let cipher = ChaCha20Poly1305::new_from_slice(&self.key)
@@ -359,7 +361,7 @@ impl StateEncryptionService {
                 let mut out = nonce.to_vec();
                 out.extend_from_slice(&ct);
                 out
-            }
+            },
             EncryptionAlgorithm::Aes256Gcm => {
                 let cipher = Aes256Gcm::new_from_slice(&self.key)
                     .map_err(|_| anyhow::anyhow!("invalid key for AES-256-GCM"))?;
@@ -370,7 +372,7 @@ impl StateEncryptionService {
                 let mut out = nonce.to_vec();
                 out.extend_from_slice(&ct);
                 out
-            }
+            },
         };
         Ok(URL_SAFE_NO_PAD.encode(&combined))
     }
@@ -404,21 +406,22 @@ impl StateEncryptionService {
                     .map_err(|_| DecryptionError::InvalidInput("invalid key".into()))?;
                 let nonce = chacha20poly1305::Nonce::from_slice(nonce_bytes);
                 cipher.decrypt(nonce, ct).map_err(|_| DecryptionError::AuthenticationFailed)
-            }
+            },
             EncryptionAlgorithm::Aes256Gcm => {
                 let cipher = Aes256Gcm::new_from_slice(&self.key)
                     .map_err(|_| DecryptionError::InvalidInput("invalid key".into()))?;
                 let nonce = aes_gcm::Nonce::from_slice(nonce_bytes);
                 cipher.decrypt(nonce, ct).map_err(|_| DecryptionError::AuthenticationFailed)
-            }
+            },
         }
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod service_tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn chacha_svc() -> StateEncryptionService {
@@ -453,8 +456,10 @@ mod service_tests {
 
     #[test]
     fn test_chacha_wrong_key_fails() {
-        let a = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
-        let b = StateEncryptionService::from_raw_key(&[1u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let a =
+            StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let b =
+            StateEncryptionService::from_raw_key(&[1u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
         let ct = a.encrypt(b"secret").unwrap();
         assert!(matches!(b.decrypt(&ct), Err(DecryptionError::AuthenticationFailed)));
     }
@@ -580,31 +585,37 @@ mod service_tests {
     #[test]
     fn test_from_compiled_schema_disabled() {
         let json = serde_json::json!({"state_encryption": {"enabled": false}});
-        assert!(StateEncryptionService::from_compiled_schema(&json)
-            .expect("disabled should be ok")
-            .is_none());
+        assert!(
+            StateEncryptionService::from_compiled_schema(&json)
+                .expect("disabled should be ok")
+                .is_none()
+        );
     }
 
     #[test]
     fn test_from_compiled_schema_missing() {
-        assert!(StateEncryptionService::from_compiled_schema(&serde_json::json!({}))
-            .expect("missing should be ok")
-            .is_none());
+        assert!(
+            StateEncryptionService::from_compiled_schema(&serde_json::json!({}))
+                .expect("missing should be ok")
+                .is_none()
+        );
     }
 
     #[test]
     fn test_cross_algorithm_fails() {
-        let chacha = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let chacha =
+            StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
         let aes = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Aes256Gcm);
         let ct = chacha.encrypt(b"cross").unwrap();
         assert!(matches!(aes.decrypt(&ct), Err(DecryptionError::AuthenticationFailed)));
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn test_key() -> [u8; 32] {

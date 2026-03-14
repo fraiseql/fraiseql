@@ -278,14 +278,12 @@ impl WindowQueryParser {
             "rank" => Ok(WindowFunctionSpec::Rank),
             "dense_rank" => Ok(WindowFunctionSpec::DenseRank),
             "ntile" => {
-                let n = u32::try_from(
-                    func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
-                        FraiseQLError::Validation {
-                            message: "Missing 'n' in NTILE function".to_string(),
-                            path:    None,
-                        }
-                    })?,
-                )
+                let n = u32::try_from(func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    FraiseQLError::Validation {
+                        message: "Missing 'n' in NTILE function".to_string(),
+                        path:    None,
+                    }
+                })?)
                 .unwrap_or(u32::MAX);
                 Ok(WindowFunctionSpec::Ntile { n })
             },
@@ -295,10 +293,9 @@ impl WindowQueryParser {
             // Value functions
             "lag" => {
                 let field = Self::extract_string_field(func, "field")?;
-                let offset = i32::try_from(
-                    func.get("offset").and_then(|v| v.as_i64()).unwrap_or(1),
-                )
-                .unwrap_or(1);
+                let offset =
+                    i32::try_from(func.get("offset").and_then(|v| v.as_i64()).unwrap_or(1))
+                        .unwrap_or(1);
                 let default = func.get("default").cloned();
                 Ok(WindowFunctionSpec::Lag {
                     field,
@@ -308,10 +305,9 @@ impl WindowQueryParser {
             },
             "lead" => {
                 let field = Self::extract_string_field(func, "field")?;
-                let offset = i32::try_from(
-                    func.get("offset").and_then(|v| v.as_i64()).unwrap_or(1),
-                )
-                .unwrap_or(1);
+                let offset =
+                    i32::try_from(func.get("offset").and_then(|v| v.as_i64()).unwrap_or(1))
+                        .unwrap_or(1);
                 let default = func.get("default").cloned();
                 Ok(WindowFunctionSpec::Lead {
                     field,
@@ -329,14 +325,12 @@ impl WindowQueryParser {
             },
             "nth_value" => {
                 let field = Self::extract_string_field(func, "field")?;
-                let n = u32::try_from(
-                    func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
-                        FraiseQLError::Validation {
-                            message: "Missing 'n' in NTH_VALUE function".to_string(),
-                            path:    None,
-                        }
-                    })?,
-                )
+                let n = u32::try_from(func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    FraiseQLError::Validation {
+                        message: "Missing 'n' in NTH_VALUE function".to_string(),
+                        path:    None,
+                    }
+                })?)
                 .unwrap_or(u32::MAX);
                 Ok(WindowFunctionSpec::NthValue { field, n })
             },
@@ -575,28 +569,26 @@ impl WindowQueryParser {
         match boundary_type {
             "unbounded_preceding" => Ok(FrameBoundary::UnboundedPreceding),
             "n_preceding" => {
-                let n = u32::try_from(
-                    boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
+                let n =
+                    u32::try_from(boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                         FraiseQLError::Validation {
                             message: "Missing 'n' in N PRECEDING boundary".to_string(),
                             path:    None,
                         }
-                    })?,
-                )
-                .unwrap_or(u32::MAX);
+                    })?)
+                    .unwrap_or(u32::MAX);
                 Ok(FrameBoundary::NPreceding { n })
             },
             "current_row" => Ok(FrameBoundary::CurrentRow),
             "n_following" => {
-                let n = u32::try_from(
-                    boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
+                let n =
+                    u32::try_from(boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                         FraiseQLError::Validation {
                             message: "Missing 'n' in N FOLLOWING boundary".to_string(),
                             path:    None,
                         }
-                    })?,
-                )
-                .unwrap_or(u32::MAX);
+                    })?)
+                    .unwrap_or(u32::MAX);
                 Ok(FrameBoundary::NFollowing { n })
             },
             "unbounded_following" => Ok(FrameBoundary::UnboundedFollowing),

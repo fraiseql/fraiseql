@@ -5,7 +5,9 @@ use std::{env, process, str::FromStr};
 use clap::{CommandFactory, Parser};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::cli::{Cli, Commands, FederationCommands, IntrospectCommands, MigrateCommands, ValidateCommands};
+use crate::cli::{
+    Cli, Commands, FederationCommands, IntrospectCommands, MigrateCommands, ValidateCommands,
+};
 
 /// Run the FraiseQL CLI. Called from both the `fraiseql-cli` and `fraiseql` binary entry points.
 pub async fn run() {
@@ -184,7 +186,8 @@ pub async fn run() {
         } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
                 let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
-                commands::validate_facts::run(std::path::Path::new(&schema), &database, &formatter).await
+                commands::validate_facts::run(std::path::Path::new(&schema), &database, &formatter)
+                    .await
             },
             None => match input {
                 Some(input) => {
@@ -331,9 +334,7 @@ pub async fn run() {
             bind,
             watch,
             introspection,
-        } => {
-            commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await
-        },
+        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
 
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
@@ -399,10 +400,8 @@ fn handle_introspection_flags() -> Option<i32> {
         let cmd = Cli::command();
         let version = env!("CARGO_PKG_VERSION");
         let help = crate::introspection::extract_cli_help(&cmd, version);
-        let result = crate::output::CommandResult::success(
-            "help",
-            serialize_or_exit(&help, "help output"),
-        );
+        let result =
+            crate::output::CommandResult::success("help", serialize_or_exit(&help, "help output"));
         println!("{}", pretty_or_exit(&result, "command result"));
         return Some(0);
     }

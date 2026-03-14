@@ -14,12 +14,11 @@ pub mod operators;
 pub mod validators;
 
 pub use default_rules::get_default_rules;
+use fraiseql_error::Result;
 pub use operator_mapping::{OperatorInfo, ParameterType, get_operators_for_type};
 pub use operators::ExtendedOperator;
 use serde_json::Value;
 pub use validators::{ChecksumType, ValidationRule};
-
-use fraiseql_error::Result;
 
 /// Handler for extended operator SQL generation.
 ///

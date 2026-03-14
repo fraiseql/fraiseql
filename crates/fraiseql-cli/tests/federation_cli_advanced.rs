@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Advanced CLI feature tests
 //! - YAML configuration file parsing
 //! - Output format options (JSON, GraphQL SDL)

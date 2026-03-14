@@ -1,6 +1,5 @@
 //! PostgreSQL integration tests.
 #![allow(clippy::unwrap_used)]
-//!
 //! These tests require a running PostgreSQL database with test data.
 //!
 //! ## Running the tests
@@ -19,13 +18,11 @@
 //! docker compose -f docker-compose.test.yml down
 //! ```
 
+use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
 use super::*;
-use crate::traits::DatabaseAdapter;
-use crate::{WhereClause, WhereOperator};
-use crate::types::DatabaseType;
-use fraiseql_error::FraiseQLError;
+use crate::{WhereClause, WhereOperator, traits::DatabaseAdapter, types::DatabaseType};
 
 const TEST_DB_URL: &str =
     "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
@@ -74,10 +71,7 @@ async fn test_pool_metrics() {
 
     assert!(metrics.total_connections > 0);
     assert!(metrics.idle_connections <= metrics.total_connections);
-    assert_eq!(
-        metrics.active_connections,
-        metrics.total_connections - metrics.idle_connections
-    );
+    assert_eq!(metrics.active_connections, metrics.total_connections - metrics.idle_connections);
 }
 
 // ========================================================================
@@ -550,12 +544,7 @@ async fn test_parameterized_limit_and_offset() {
         .await
         .expect("Failed to execute query");
 
-    assert_eq!(
-        results.len(),
-        limit_val as usize,
-        "Should return exactly {} results",
-        limit_val
-    );
+    assert_eq!(results.len(), limit_val as usize, "Should return exactly {} results", limit_val);
 }
 
 #[tokio::test]

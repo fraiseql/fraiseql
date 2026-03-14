@@ -1,11 +1,12 @@
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
 use super::{
     ExtractedSchema, Language, Result, SchemaExtractor, map_primitive_type, map_type,
     parse_annotation_params,
+};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
 };
 
 pub(super) struct PythonExtractor;
@@ -28,7 +29,8 @@ impl SchemaExtractor for PythonExtractor {
 
             // Find class body: lines after "class Name:" that are indented
             // Match ends after "class Name", skip to next line for body
-            let match_end = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
+            let match_end =
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             let body_start_line = source[..match_end].lines().count();
             let mut fields = Vec::new();
             for line in lines.iter().skip(body_start_line) {
@@ -56,7 +58,7 @@ impl SchemaExtractor for PythonExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
-                        on_deny:        None,
+                        on_deny: None,
                     });
                 }
             }
@@ -83,7 +85,10 @@ impl SchemaExtractor for PythonExtractor {
             let sql_source = params.get("sql_source").cloned();
 
             // Parse function arguments (skip self, *, etc.)
-            let arguments = extract_python_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
+            let arguments = extract_python_query_args(
+                source,
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end(),
+            );
 
             queries.push(IntermediateQuery {
                 name,
@@ -97,7 +102,7 @@ impl SchemaExtractor for PythonExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
-                 inject: IndexMap::default(),
+                inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
@@ -109,7 +114,10 @@ impl SchemaExtractor for PythonExtractor {
     }
 }
 
-pub(super) fn extract_python_query_args(source: &str, fn_start: usize) -> Vec<IntermediateArgument> {
+pub(super) fn extract_python_query_args(
+    source: &str,
+    fn_start: usize,
+) -> Vec<IntermediateArgument> {
     let mut args = Vec::new();
     // Find the function signature between parens
     let rest = &source[fn_start..];

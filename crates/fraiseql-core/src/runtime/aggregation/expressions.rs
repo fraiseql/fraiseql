@@ -1,6 +1,9 @@
 //! SELECT, GROUP BY, and aggregate expression SQL generation.
 
-use super::*;
+use super::{
+    AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
+    GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
+};
 
 impl AggregationSqlGenerator {
     /// Build SELECT clause
@@ -39,10 +42,7 @@ impl AggregationSqlGenerator {
     }
 
     /// Convert GROUP BY expression to SQL
-    pub(super) fn group_by_expression_to_sql(
-        &self,
-        expr: &GroupByExpression,
-    ) -> Result<String> {
+    pub(super) fn group_by_expression_to_sql(&self, expr: &GroupByExpression) -> Result<String> {
         match expr {
             GroupByExpression::JsonbPath {
                 jsonb_column, path, ..
@@ -120,10 +120,7 @@ impl AggregationSqlGenerator {
     }
 
     /// Convert aggregate expression to SQL
-    pub(super) fn aggregate_expression_to_sql(
-        &self,
-        expr: &AggregateExpression,
-    ) -> Result<String> {
+    pub(super) fn aggregate_expression_to_sql(&self, expr: &AggregateExpression) -> Result<String> {
         match expr {
             AggregateExpression::Count { .. } => Ok("COUNT(*)".to_string()),
             AggregateExpression::CountDistinct { column, .. } => {
@@ -133,7 +130,8 @@ impl AggregationSqlGenerator {
                 column, function, ..
             } => {
                 // Handle statistical functions with database-specific SQL
-                #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
+                #[allow(clippy::enum_glob_use)]
+                // Reason: glob import reduces noise in exhaustive match arms
                 use AggregateFunction::*;
                 match function {
                     Stddev => Ok(self.generate_stddev_sql(column)),
@@ -167,7 +165,8 @@ impl AggregationSqlGenerator {
         delimiter: Option<&str>,
         order_by: Option<&Vec<OrderByClause>>,
     ) -> Result<String> {
-        #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
+        #[allow(clippy::enum_glob_use)]
+        // Reason: glob import reduces noise in exhaustive match arms
         use AggregateFunction::*;
 
         match function {
@@ -297,10 +296,8 @@ impl AggregationSqlGenerator {
                 format!("GROUP_CONCAT({}, '{}')", column, safe_delimiter)
             },
             DatabaseType::SQLServer => {
-                let mut sql = format!(
-                    "STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')",
-                    column, safe_delimiter
-                );
+                let mut sql =
+                    format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, safe_delimiter);
                 if let Some(order) = order_by {
                     sql.push_str(&format!(
                         " WITHIN GROUP (ORDER BY {})",
@@ -413,10 +410,7 @@ impl AggregationSqlGenerator {
     }
 
     /// Build ORDER BY clause
-    pub(super) fn build_order_by_clause(
-        &self,
-        order_by: &[OrderByClause],
-    ) -> Result<String> {
+    pub(super) fn build_order_by_clause(&self, order_by: &[OrderByClause]) -> Result<String> {
         let clauses: Vec<String> = order_by
             .iter()
             .map(|clause| {

@@ -4,14 +4,10 @@
 
 use tracing::{debug, warn};
 
-use crate::{
-    cache::CachedActionResult,
-    config::ActionConfig,
-    event::EntityEvent,
-    traits::ActionResult,
-};
-
 use super::ObserverExecutor;
+use crate::{
+    cache::CachedActionResult, config::ActionConfig, event::EntityEvent, traits::ActionResult,
+};
 
 impl ObserverExecutor {
     /// Generate a cache key for action result caching.

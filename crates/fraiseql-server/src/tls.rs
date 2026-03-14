@@ -457,7 +457,10 @@ mod tests {
         assert!(setup.clickhouse_https_enabled());
         assert!(setup.elasticsearch_https_enabled());
         assert!(setup.verify_certificates());
-        assert!(setup.ca_bundle_path().is_some(), "ca_bundle_path should be propagated from DatabaseTlsConfig");
+        assert!(
+            setup.ca_bundle_path().is_some(),
+            "ca_bundle_path should be propagated from DatabaseTlsConfig"
+        );
     }
 
     #[test]
@@ -495,7 +498,10 @@ mod tests {
         let setup = TlsSetup::new(None, Some(db_config))
             .expect("TlsSetup::new is infallible when cert and db_config are None");
 
-        assert!(setup.db_config().is_some(), "db_config should be present when constructed with a DatabaseTlsConfig");
+        assert!(
+            setup.db_config().is_some(),
+            "db_config should be present when constructed with a DatabaseTlsConfig"
+        );
         assert_eq!(setup.postgres_ssl_mode(), "verify-full");
         assert!(setup.redis_ssl_enabled());
         assert!(setup.clickhouse_https_enabled());

@@ -42,7 +42,7 @@ struct Manifest {
     // Reason: serde deserialization target — `version` is present in the manifest JSON
     // for forward-compatibility but is not consumed by the current lookup logic.
     #[allow(dead_code)]
-    version: u32,
+    version:   u32,
     documents: HashMap<String, String>,
 }
 
@@ -50,7 +50,7 @@ struct Manifest {
 pub struct TrustedDocumentStore {
     /// hash → query body (keys stored WITHOUT "sha256:" prefix).
     documents: Arc<RwLock<HashMap<String, String>>>,
-    mode: TrustedDocumentMode,
+    mode:      TrustedDocumentMode,
 }
 
 impl TrustedDocumentStore {
@@ -99,10 +99,7 @@ impl TrustedDocumentStore {
     }
 
     /// Create an in-memory store from a pre-built document map (for testing).
-    pub fn from_documents(
-        documents: HashMap<String, String>,
-        mode: TrustedDocumentMode,
-    ) -> Self {
+    pub fn from_documents(documents: HashMap<String, String>, mode: TrustedDocumentMode) -> Self {
         let documents = normalize_keys(documents);
         Self {
             documents: Arc::new(RwLock::new(documents)),
@@ -114,7 +111,7 @@ impl TrustedDocumentStore {
     pub fn disabled() -> Self {
         Self {
             documents: Arc::new(RwLock::new(HashMap::new())),
-            mode: TrustedDocumentMode::Permissive,
+            mode:      TrustedDocumentMode::Permissive,
         }
     }
 
@@ -143,8 +140,9 @@ impl TrustedDocumentStore {
     ///
     /// # Errors
     ///
-    /// Returns `TrustedDocumentError::DocumentNotFound` if a `document_id` is given but not in the store.
-    /// Returns `TrustedDocumentError::ForbiddenRawQuery` if no `document_id` is provided in strict mode, or if `raw_query` is also absent in permissive mode.
+    /// Returns `TrustedDocumentError::DocumentNotFound` if a `document_id` is given but not in the
+    /// store. Returns `TrustedDocumentError::ForbiddenRawQuery` if no `document_id` is provided
+    /// in strict mode, or if `raw_query` is also absent in permissive mode.
     pub async fn resolve(
         &self,
         document_id: Option<&str>,
@@ -153,18 +151,15 @@ impl TrustedDocumentStore {
         if let Some(doc_id) = document_id {
             let hash = doc_id.strip_prefix("sha256:").unwrap_or(doc_id);
             let docs = self.documents.read().await;
-            return docs
-                .get(hash)
-                .cloned()
-                .ok_or_else(|| TrustedDocumentError::DocumentNotFound {
-                    id: doc_id.to_string(),
-                });
+            return docs.get(hash).cloned().ok_or_else(|| TrustedDocumentError::DocumentNotFound {
+                id: doc_id.to_string(),
+            });
         }
         match self.mode {
             TrustedDocumentMode::Strict => Err(TrustedDocumentError::ForbiddenRawQuery),
-            TrustedDocumentMode::Permissive => raw_query
-                .map(|s| s.to_string())
-                .ok_or(TrustedDocumentError::ForbiddenRawQuery),
+            TrustedDocumentMode::Permissive => {
+                raw_query.map(|s| s.to_string()).ok_or(TrustedDocumentError::ForbiddenRawQuery)
+            },
         }
     }
 }
@@ -251,76 +246,55 @@ mod tests {
 
     fn test_documents() -> HashMap<String, String> {
         let mut docs = HashMap::new();
-        docs.insert(
-            "sha256:abc123".to_string(),
-            "{ users { id } }".to_string(),
-        );
-        docs.insert(
-            "sha256:def456".to_string(),
-            "mutation { createUser { id } }".to_string(),
-        );
+        docs.insert("sha256:abc123".to_string(), "{ users { id } }".to_string());
+        docs.insert("sha256:def456".to_string(), "mutation { createUser { id } }".to_string());
         docs
     }
 
     #[tokio::test]
     async fn strict_mode_rejects_raw_query() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Strict,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
         let result = store.resolve(None, Some("{ users { id } }")).await;
         assert!(matches!(result, Err(TrustedDocumentError::ForbiddenRawQuery)));
     }
 
     #[tokio::test]
     async fn strict_mode_accepts_valid_document_id() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Strict,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
         let result = store.resolve(Some("sha256:abc123"), None).await;
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 
     #[tokio::test]
     async fn strict_mode_rejects_unknown_document_id() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Strict,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
         let result = store.resolve(Some("sha256:unknown"), None).await;
-        assert!(matches!(
-            result,
-            Err(TrustedDocumentError::DocumentNotFound { .. })
-        ));
+        assert!(matches!(result, Err(TrustedDocumentError::DocumentNotFound { .. })));
     }
 
     #[tokio::test]
     async fn permissive_mode_allows_raw_queries() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Permissive,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Permissive);
         let result = store.resolve(None, Some("{ arbitrary { query } }")).await;
         assert_eq!(result.unwrap(), "{ arbitrary { query } }");
     }
 
     #[tokio::test]
     async fn permissive_mode_uses_manifest_for_document_id() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Permissive,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Permissive);
         let result = store.resolve(Some("sha256:abc123"), None).await;
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 
     #[tokio::test]
     async fn document_id_without_prefix_is_resolved() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Strict,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
         // Document ID without "sha256:" prefix should still resolve
         let result = store.resolve(Some("abc123"), None).await;
         assert_eq!(result.unwrap(), "{ users { id } }");
@@ -335,10 +309,8 @@ mod tests {
 
     #[tokio::test]
     async fn hot_reload_replaces_documents() {
-        let store = TrustedDocumentStore::from_documents(
-            test_documents(),
-            TrustedDocumentMode::Strict,
-        );
+        let store =
+            TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
         assert_eq!(store.document_count().await, 2);
 
         let mut new_docs = HashMap::new();
@@ -367,11 +339,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let store = TrustedDocumentStore::from_manifest_file(
-            &path,
-            TrustedDocumentMode::Strict,
-        )
-        .unwrap();
+        let store =
+            TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Strict).unwrap();
         assert_eq!(store.document_count().await, 2);
         let result = store.resolve(Some("sha256:aaa"), None).await;
         assert_eq!(result.unwrap(), "{ users { id } }");
@@ -394,8 +363,7 @@ mod tests {
         f.write_all(&padding).unwrap();
         drop(f);
 
-        let result =
-            TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Strict);
+        let result = TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Strict);
         assert!(result.is_err(), "oversized manifest must be rejected");
         let msg = result.err().unwrap().to_string();
         assert!(

@@ -189,8 +189,7 @@ fn resolve_entity_sql_source(schema: &CompiledSchema, entity: &str) -> Result<St
     if let Some(type_def) = schema.types.iter().find(|t| t.name == entity) {
         Ok(type_def.sql_source.as_str().to_string())
     } else {
-        let available =
-            schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
+        let available = schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
         anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
     }
 }
@@ -350,7 +349,7 @@ fn generate_monitoring_functions(sql: &mut String, view_name: &str) {
     sql.push_str("$$ LANGUAGE plpgsql IMMUTABLE;\n");
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,7 +405,10 @@ mod tests {
         assert!(sql.contains("Entity: User"));
         assert!(sql.contains("Vector Arrow (va_)"));
         assert!(sql.contains("trigger-based"));
-        assert!(sql.contains("FROM v_user"), "must use entity sql_source, not schema_placeholder");
+        assert!(
+            sql.contains("FROM v_user"),
+            "must use entity sql_source, not schema_placeholder"
+        );
         assert!(!sql.contains("schema_placeholder"));
     }
 
@@ -425,7 +427,10 @@ mod tests {
         assert!(sql.contains("CREATE MATERIALIZED VIEW tv_order_summary"));
         assert!(sql.contains("Entity: Order"));
         assert!(sql.contains("scheduled"));
-        assert!(sql.contains("FROM v_order"), "must use entity sql_source, not schema_placeholder");
+        assert!(
+            sql.contains("FROM v_order"),
+            "must use entity sql_source, not schema_placeholder"
+        );
         assert!(!sql.contains("schema_placeholder"));
     }
 

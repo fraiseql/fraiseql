@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Integration tests for TOML-based workflow with all 16 language SDKs
 //!
 //! This test suite verifies end-to-end compilation for each language:
@@ -504,7 +504,9 @@ audit_logging_enabled = false
     assert_eq!(q.inject_params.len(), 1, "inject_params must have one entry");
 
     // Mutation field survival
-    let m = schema.find_mutation("createOrder").expect("'createOrder' mutation must be present");
+    let m = schema
+        .find_mutation("createOrder")
+        .expect("'createOrder' mutation must be present");
     assert_eq!(
         m.sql_source.as_deref(),
         Some("fn_create_order"),

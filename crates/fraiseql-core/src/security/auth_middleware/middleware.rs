@@ -3,11 +3,12 @@
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Validation, decode};
 
+use super::{
+    config::AuthConfig,
+    signing_key::SigningKey,
+    types::{AuthRequest, AuthenticatedUser, JwtClaims, TokenClaims},
+};
 use crate::security::errors::{Result, SecurityError};
-
-use super::config::AuthConfig;
-use super::signing_key::SigningKey;
-use super::types::{AuthRequest, AuthenticatedUser, JwtClaims, TokenClaims};
 
 /// Authentication Middleware
 ///
@@ -331,12 +332,15 @@ mod tests {
     use jsonwebtoken::Algorithm;
     use zeroize::Zeroizing;
 
+    use super::{
+        super::{
+            config::AuthConfig,
+            signing_key::SigningKey,
+            types::{AuthRequest, AuthenticatedUser},
+        },
+        *,
+    };
     use crate::security::errors::SecurityError;
-
-    use super::*;
-    use super::super::config::AuthConfig;
-    use super::super::signing_key::SigningKey;
-    use super::super::types::{AuthRequest, AuthenticatedUser};
 
     // ============================================================================
     // Helper Functions

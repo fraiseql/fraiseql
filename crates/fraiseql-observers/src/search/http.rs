@@ -9,8 +9,10 @@ use reqwest::Client;
 use serde_json::{Value, json};
 
 use super::{IndexedEvent, SearchBackend};
-use crate::error::{ObserverError, Result};
-use crate::ssrf::validate_outbound_url;
+use crate::{
+    error::{ObserverError, Result},
+    ssrf::validate_outbound_url,
+};
 
 /// Default timeout for all Elasticsearch HTTP requests.
 const ES_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -47,22 +49,18 @@ impl HttpSearchBackend {
     /// initialisation failure).
     pub fn new(es_url: String) -> Result<Self> {
         validate_outbound_url(&es_url)?;
-        let client = Client::builder()
-            .timeout(ES_REQUEST_TIMEOUT)
-            .build()
-            .map_err(|e| ObserverError::InvalidConfig {
+        let client = Client::builder().timeout(ES_REQUEST_TIMEOUT).build().map_err(|e| {
+            ObserverError::InvalidConfig {
                 message: format!("Failed to build HTTP client: {e}"),
-            })?;
+            }
+        })?;
         Ok(Self { client, es_url })
     }
 
     /// Create a backend without SSRF validation — for use in tests only.
     #[cfg(test)]
     fn new_unchecked(es_url: String) -> Self {
-        let client = Client::builder()
-            .timeout(ES_REQUEST_TIMEOUT)
-            .build()
-            .unwrap_or_default();
+        let client = Client::builder().timeout(ES_REQUEST_TIMEOUT).build().unwrap_or_default();
         Self { client, es_url }
     }
 
@@ -169,9 +167,12 @@ impl SearchBackend for HttpSearchBackend {
                 }
             });
 
-            bulk_body.push_str(&serde_json::to_string(&meta).expect("meta is always JSON-serializable"));
+            bulk_body
+                .push_str(&serde_json::to_string(&meta).expect("meta is always JSON-serializable"));
             bulk_body.push('\n');
-            bulk_body.push_str(&serde_json::to_string(event).expect("event is always JSON-serializable"));
+            bulk_body.push_str(
+                &serde_json::to_string(event).expect("event is always JSON-serializable"),
+            );
             bulk_body.push('\n');
         }
 
@@ -424,7 +425,11 @@ mod tests {
 
     // --- S11-3: wiremock integration tests ---
 
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
     use super::super::SearchBackend as _;
 
     #[tokio::test]
@@ -467,6 +472,7 @@ mod tests {
     #[tokio::test]
     async fn test_search_parses_hits_from_response() {
         use uuid::Uuid;
+
         use super::super::IndexedEvent;
 
         let mock = MockServer::start().await;
@@ -541,10 +547,7 @@ mod tests {
             ObserverError::DatabaseError { reason } => reason,
             e => panic!("expected DatabaseError, got {e:?}"),
         };
-        assert!(
-            reason.contains("too large"),
-            "error must mention size limit: {reason}"
-        );
+        assert!(reason.contains("too large"), "error must mention size limit: {reason}");
     }
 
     #[tokio::test]

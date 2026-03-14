@@ -77,12 +77,7 @@ impl SecretCache {
     ///
     /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
     /// overwritten when the entry is evicted or the cache is dropped.
-    pub(super) async fn set(
-        &self,
-        key: String,
-        secret: String,
-        expires_at: chrono::DateTime<Utc>,
-    ) {
+    pub(super) async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
         // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.
@@ -100,7 +95,7 @@ impl SecretCache {
         entries.insert(
             key,
             CachedSecret {
-                value:         Zeroizing::new(secret),
+                value: Zeroizing::new(secret),
                 expires_at,
                 last_accessed: now,
             },

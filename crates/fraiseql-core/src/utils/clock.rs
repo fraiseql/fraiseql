@@ -100,8 +100,7 @@ impl ManualClock {
     pub fn new() -> Self {
         Self {
             current: std::sync::Arc::new(std::sync::Mutex::new(
-                SystemTime::UNIX_EPOCH
-                    + std::time::Duration::from_secs(1_000_000),
+                SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000),
             )),
         }
     }

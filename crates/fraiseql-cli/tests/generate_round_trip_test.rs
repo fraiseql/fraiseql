@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Round-trip integration tests for `fraiseql generate` → `fraiseql extract`.
 //!
 //! For each language: generate source from a known schema.json, then extract

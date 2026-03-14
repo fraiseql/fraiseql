@@ -11,14 +11,14 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
-use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::{
     runtime::{can_access_field, filter_fields},
     schema::{
-        CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,
+        CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition,
+        SecurityConfig, TypeDefinition,
     },
     security::SecurityContext,
 };
@@ -42,7 +42,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -55,7 +55,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -68,7 +68,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -81,7 +81,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.phone".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -94,7 +94,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -107,7 +107,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -118,7 +118,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         implements:          vec![],
         requires_role:       None,
         is_error:            false,
-        relay:            false,
+        relay:               false,
     };
 
     let mut security_config = SecurityConfig::new();
@@ -136,26 +136,26 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
     security_config.default_role = Some("viewer".to_string());
 
     CompiledSchema {
-        types:          vec![user_type],
-        queries:        vec![],
-        mutations:      vec![],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        subscriptions:  vec![],
-        directives:     vec![],
-        observers:      vec![],
-        fact_tables:    HashMap::default(),
-        federation:     None,
-        security:       Some(security_config),
+        types: vec![user_type],
+        queries: vec![],
+        mutations: vec![],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        subscriptions: vec![],
+        directives: vec![],
+        observers: vec![],
+        fact_tables: HashMap::default(),
+        federation: None,
+        security: Some(security_config),
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: Default::default(),
         ..CompiledSchema::default()
     }
@@ -187,8 +187,7 @@ fn test_field_filtering_partial_access() {
     // GIVEN: User requests all fields but can only access some
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -217,8 +216,7 @@ fn test_field_filtering_all_fields_denied() {
     // GIVEN: Restricted user (no scopes)
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -240,8 +238,7 @@ fn test_field_filtering_all_fields_denied() {
 fn test_field_filtering_empty_request() {
     // GIVEN: Empty field request
     let schema = create_schema_with_mixed_fields();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
     let empty_fields = vec![];
@@ -258,8 +255,7 @@ fn test_field_filtering_respects_field_order() {
     // GIVEN: Specific field order requested
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -285,8 +281,7 @@ fn test_field_filtering_duplicate_requests() {
     // GIVEN: Duplicate fields in request
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -311,8 +306,7 @@ fn test_field_filtering_duplicate_requests() {
 fn test_field_access_denied_for_single_field() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -332,8 +326,7 @@ fn test_field_access_denied_for_single_field() {
 fn test_field_access_public_fields_always_allowed() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -354,8 +347,7 @@ fn test_field_access_public_fields_always_allowed() {
 fn test_field_filtering_with_null_fields() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -375,8 +367,7 @@ fn test_field_filtering_with_null_fields() {
 fn test_field_filtering_consistency_across_calls() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -401,8 +392,7 @@ fn test_field_filtering_consistency_across_calls() {
 fn test_field_filtering_mixed_nullability() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -451,8 +441,7 @@ fn test_field_filtering_empty_security_config() {
 fn test_field_filtering_preserves_metadata_on_filtered() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 

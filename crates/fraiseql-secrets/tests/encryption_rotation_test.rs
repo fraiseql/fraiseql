@@ -14,11 +14,12 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+use std::sync::Arc;
+
 use fraiseql_secrets::{
     EnvBackend, FieldEncryption, SecretsBackend, SecretsError, SecretsManager,
     VersionedFieldEncryption,
 };
-use std::sync::Arc;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,10 +87,7 @@ fn versioned_encryption_unknown_version_returns_error() {
         .unwrap();
 
     let result = keyring.decrypt(&ciphertext);
-    assert!(
-        result.is_err(),
-        "decrypting with an unknown key version must return an error"
-    );
+    assert!(result.is_err(), "decrypting with an unknown key version must return an error");
     let err = result.unwrap_err().to_string();
     assert!(
         err.contains("Unknown key version"),
@@ -138,10 +136,7 @@ fn versioned_ciphertext_embeds_key_version() {
     // First two bytes are the version in LE byte order.
     let version_bytes = [ciphertext[0], ciphertext[1]];
     let version = u16::from_le_bytes(version_bytes);
-    assert_eq!(
-        version, 7,
-        "first two bytes of ciphertext must encode key version 7"
-    );
+    assert_eq!(version, 7, "first two bytes of ciphertext must encode key version 7");
 }
 
 /// `extract_version` convenience method returns the embedded version.
@@ -234,10 +229,7 @@ fn after_migration_removing_fallback_blocks_old_ciphertext() {
     let new_cipher = VersionedFieldEncryption::new(2, &new_key).unwrap();
 
     let result = new_cipher.decrypt(&old_ct);
-    assert!(
-        result.is_err(),
-        "removing the fallback must block decryption of v1 ciphertexts"
-    );
+    assert!(result.is_err(), "removing the fallback must block decryption of v1 ciphertexts");
 }
 
 // ── Cycle 8.4: Vault unavailability ─────────────────────────────────────────
@@ -273,10 +265,7 @@ async fn secrets_manager_propagates_connection_error_when_vault_unreachable() {
 
     let result = manager.get_secret("db-password").await;
 
-    assert!(
-        result.is_err(),
-        "unavailable backend must return Err, not Ok"
-    );
+    assert!(result.is_err(), "unavailable backend must return Err, not Ok");
     assert!(
         matches!(result.unwrap_err(), SecretsError::ConnectionError(_)),
         "unavailable backend must return ConnectionError variant"

@@ -78,9 +78,7 @@ fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
 /// Validate Vault secret name format.
 pub(super) fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
-        return Err(SecretsError::ValidationError(
-            "Vault secret name cannot be empty".to_string(),
-        ));
+        return Err(SecretsError::ValidationError("Vault secret name cannot be empty".to_string()));
     }
 
     if name.len() > MAX_VAULT_SECRET_NAME_BYTES {

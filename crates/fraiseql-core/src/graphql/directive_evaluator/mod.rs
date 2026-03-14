@@ -23,9 +23,8 @@ mod tests {
 
     use serde_json::Value as JsonValue;
 
-    use crate::graphql::types::{Directive, FieldSelection, GraphQLArgument};
-
     use super::*;
+    use crate::graphql::types::{Directive, FieldSelection, GraphQLArgument};
 
     fn make_field(name: &str, directives: Vec<Directive>) -> FieldSelection {
         FieldSelection {

@@ -201,7 +201,12 @@ impl DatabaseFieldAdapter {
 
         // Cache for future use
         let mut cache = self.ciphers.write().await;
-        cache.insert(field_name.to_string(), CachedEncryption { cipher: Arc::clone(&cipher) });
+        cache.insert(
+            field_name.to_string(),
+            CachedEncryption {
+                cipher: Arc::clone(&cipher),
+            },
+        );
 
         Ok(cipher)
     }

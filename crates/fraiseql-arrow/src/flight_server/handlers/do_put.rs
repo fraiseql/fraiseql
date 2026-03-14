@@ -10,11 +10,13 @@ use arrow_flight::{FlightData, PutResult};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
-use super::super::{
-    FraiseQLFlightService, PutResultStream, build_insert_query, decode_flight_data_to_batch,
-    extract_session_token, validate_session_token,
+use super::{
+    super::{
+        FraiseQLFlightService, PutResultStream, build_insert_query, decode_flight_data_to_batch,
+        extract_session_token, validate_session_token,
+    },
+    send_helpers::{send_err, send_ok},
 };
-use super::send_helpers::{send_err, send_ok};
 
 /// `do_put` handler: receive a client data stream and INSERT batches into the target table.
 pub(super) async fn handle(
@@ -122,8 +124,7 @@ pub(super) async fn handle(
                                             }
                                         },
                                         Err(e) => {
-                                            let err_msg =
-                                                format!("Database insert failed: {}", e);
+                                            let err_msg = format!("Database insert failed: {}", e);
                                             warn!("{}", err_msg);
                                             send_err(&tx, Status::internal(err_msg)).await;
                                             break;
@@ -155,8 +156,7 @@ pub(super) async fn handle(
                 );
 
                 // Send final success result
-                let metadata =
-                    format!("Upload complete: {} total rows", total_rows).into_bytes();
+                let metadata = format!("Upload complete: {} total rows", total_rows).into_bytes();
                 send_ok(
                     &tx,
                     PutResult {

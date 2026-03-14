@@ -159,8 +159,7 @@ fn test_detect_calendar_dimensions() {
     ];
 
     let indexed = std::collections::HashSet::new();
-    let calendar_dims =
-        FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
+    let calendar_dims = FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
 
     assert_eq!(calendar_dims.len(), 1);
     assert_eq!(calendar_dims[0].source_column, "occurred_at");
@@ -241,8 +240,7 @@ fn test_no_calendar_columns() {
     ];
 
     let indexed = std::collections::HashSet::new();
-    let calendar_dims =
-        FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
+    let calendar_dims = FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
 
     assert_eq!(calendar_dims.len(), 0); // No calendar columns detected
 }
@@ -257,8 +255,7 @@ fn test_calendar_detection_json_type() {
     ];
 
     let indexed = std::collections::HashSet::new();
-    let calendar_dims =
-        FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
+    let calendar_dims = FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
 
     assert_eq!(calendar_dims.len(), 1);
     assert_eq!(calendar_dims[0].granularities.len(), 1); // date_info
@@ -276,8 +273,7 @@ fn test_single_date_info_column() {
     ];
 
     let indexed = std::collections::HashSet::new();
-    let calendar_dims =
-        FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
+    let calendar_dims = FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
 
     assert_eq!(calendar_dims.len(), 1);
     assert_eq!(calendar_dims[0].source_column, "occurred_at");
@@ -317,11 +313,8 @@ fn test_extract_dimension_paths_simple() {
         "priority": 1
     });
 
-    let paths = FactTableDetector::extract_dimension_paths(
-        &sample,
-        "dimensions",
-        DatabaseType::PostgreSQL,
-    );
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
 
     assert_eq!(paths.len(), 3);
 
@@ -377,11 +370,8 @@ fn test_extract_dimension_paths_various_types() {
         "metadata": {}
     });
 
-    let paths = FactTableDetector::extract_dimension_paths(
-        &sample,
-        "dimensions",
-        DatabaseType::PostgreSQL,
-    );
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
 
     // Check type inference
     let name = paths.iter().find(|p| p.name == "name").unwrap();
@@ -407,21 +397,13 @@ fn test_extract_dimension_paths_various_types() {
 fn test_generate_json_path_postgres() {
     // Top-level
     assert_eq!(
-        FactTableDetector::generate_json_path(
-            "dimensions",
-            "category",
-            DatabaseType::PostgreSQL
-        ),
+        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::PostgreSQL),
         "dimensions->>'category'"
     );
 
     // Nested
     assert_eq!(
-        FactTableDetector::generate_json_path(
-            "data",
-            "customer.region",
-            DatabaseType::PostgreSQL
-        ),
+        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::PostgreSQL),
         "data->'customer'->>'region'"
     );
 
@@ -461,20 +443,12 @@ fn test_generate_json_path_sqlite() {
 #[test]
 fn test_generate_json_path_sqlserver() {
     assert_eq!(
-        FactTableDetector::generate_json_path(
-            "dimensions",
-            "category",
-            DatabaseType::SQLServer
-        ),
+        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLServer),
         "JSON_VALUE(dimensions, '$.category')"
     );
 
     assert_eq!(
-        FactTableDetector::generate_json_path(
-            "data",
-            "customer.region",
-            DatabaseType::SQLServer
-        ),
+        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLServer),
         "JSON_VALUE(data, '$.customer.region')"
     );
 }
@@ -520,11 +494,8 @@ fn test_extract_paths_depth_limit() {
 #[test]
 fn test_extract_paths_empty_object() {
     let sample = serde_json::json!({});
-    let paths = FactTableDetector::extract_dimension_paths(
-        &sample,
-        "dimensions",
-        DatabaseType::PostgreSQL,
-    );
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
     assert!(paths.is_empty());
 }
 
@@ -532,20 +503,14 @@ fn test_extract_paths_empty_object() {
 fn test_extract_paths_non_object() {
     // Array at root level
     let sample = serde_json::json!([1, 2, 3]);
-    let paths = FactTableDetector::extract_dimension_paths(
-        &sample,
-        "dimensions",
-        DatabaseType::PostgreSQL,
-    );
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
     assert!(paths.is_empty());
 
     // Scalar at root level
     let sample = serde_json::json!("just a string");
-    let paths = FactTableDetector::extract_dimension_paths(
-        &sample,
-        "dimensions",
-        DatabaseType::PostgreSQL,
-    );
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
     assert!(paths.is_empty());
 }
 

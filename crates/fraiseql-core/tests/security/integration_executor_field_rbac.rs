@@ -9,14 +9,14 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
-use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::{
     runtime::{JsonbOptimizationOptions, RuntimeConfig, can_access_field, filter_fields},
     schema::{
-        CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,
+        CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition,
+        SecurityConfig, TypeDefinition,
     },
     security::SecurityContext,
 };
@@ -41,7 +41,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -54,7 +54,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Protected fields
@@ -68,7 +68,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:Post.content".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -81,7 +81,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("write:Post.draft".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Admin-only fields
@@ -95,7 +95,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
-                on_deny: FieldDenyPolicy::default(),
+                on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -106,7 +106,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         implements:          vec![],
         requires_role:       None,
         is_error:            false,
-        relay:            false,
+        relay:               false,
     }
 }
 
@@ -129,26 +129,26 @@ fn create_executor_test_schema() -> CompiledSchema {
     security_config.default_role = Some("reader".to_string());
 
     CompiledSchema {
-        types:          vec![post_type],
-        queries:        vec![],
-        mutations:      vec![],
-        enums:          vec![],
-        input_types:    vec![],
-        interfaces:     vec![],
-        unions:         vec![],
-        subscriptions:  vec![],
-        directives:     vec![],
-        observers:      vec![],
-        fact_tables:    HashMap::default(),
-        federation:     None,
-        security:       Some(security_config),
+        types: vec![post_type],
+        queries: vec![],
+        mutations: vec![],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
+        subscriptions: vec![],
+        directives: vec![],
+        observers: vec![],
+        fact_tables: HashMap::default(),
+        federation: None,
+        security: Some(security_config),
         observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config:      None,
-            mcp_config:        None,
+        subscriptions_config: None,
+        validation_config: None,
+        debug_config: None,
+        mcp_config: None,
         schema_format_version: None,
-        schema_sdl:     None,
+        schema_sdl: None,
         custom_scalars: Default::default(),
         ..CompiledSchema::default()
     }
@@ -180,8 +180,7 @@ fn test_executor_reader_sees_only_readable_fields() {
     // GIVEN: Post type and reader context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -206,8 +205,7 @@ fn test_executor_editor_sees_read_and_write_fields() {
     // GIVEN: Post type and editor context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let editor_context = create_executor_context("editor");
 
@@ -229,8 +227,7 @@ fn test_executor_admin_sees_all_fields() {
     // GIVEN: Post type and admin context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let admin_context = create_executor_context("admin");
 
@@ -246,8 +243,7 @@ fn test_executor_field_filtering_preserves_field_metadata() {
     // GIVEN: Post type and security context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -273,10 +269,10 @@ fn test_executor_projection_fields_filtered_by_scope() {
     // GIVEN: All fields available (what a query might request)
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let all_field_names: Vec<String> = post_type.fields.iter().map(|f| f.name.to_string()).collect();
+    let all_field_names: Vec<String> =
+        post_type.fields.iter().map(|f| f.name.to_string()).collect();
 
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -317,8 +313,7 @@ fn test_executor_multiple_roles_scope_union() {
     // GIVEN: User with both reader and editor roles
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let mut multi_role_context = create_executor_context("reader");
     multi_role_context.roles.push("editor".to_string());
@@ -337,8 +332,7 @@ fn test_executor_public_fields_in_all_scopes() {
     // GIVEN: Any user context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     // Test with minimal reader role
     let reader_context = create_executor_context("reader");
@@ -367,8 +361,7 @@ fn test_executor_security_context_with_config() {
 fn test_executor_field_access_check_pattern() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let content_field = post_type.fields.iter().find(|f| f.name == "content").unwrap();
     let analytics_field = post_type.fields.iter().find(|f| f.name == "analytics").unwrap();
@@ -398,8 +391,7 @@ fn test_executor_default_role_applied() {
 fn test_executor_field_filtering_idempotent() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let security_config =
-        schema.security.as_ref().expect("security config present").clone();
+    let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 

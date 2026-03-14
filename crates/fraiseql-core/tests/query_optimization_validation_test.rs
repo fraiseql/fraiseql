@@ -154,9 +154,18 @@ mod query_optimization_tests {
         assert!(sqlite_sql.is_ok(), "SQLite should generate projection SQL");
 
         // All should be reasonably fast (50ms allows for debug builds and CI load)
-        assert!(elapsed_pg.as_millis() < 50, "PostgreSQL generation should be fast (actual: {elapsed_pg:?})");
-        assert!(elapsed_mysql.as_millis() < 50, "MySQL generation should be fast (actual: {elapsed_mysql:?})");
-        assert!(elapsed_sqlite.as_millis() < 50, "SQLite generation should be fast (actual: {elapsed_sqlite:?})");
+        assert!(
+            elapsed_pg.as_millis() < 50,
+            "PostgreSQL generation should be fast (actual: {elapsed_pg:?})"
+        );
+        assert!(
+            elapsed_mysql.as_millis() < 50,
+            "MySQL generation should be fast (actual: {elapsed_mysql:?})"
+        );
+        assert!(
+            elapsed_sqlite.as_millis() < 50,
+            "SQLite generation should be fast (actual: {elapsed_sqlite:?})"
+        );
     }
 
     // ============================================================================

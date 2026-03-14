@@ -1,8 +1,7 @@
 //! Lexer for the condition DSL — tokenises a condition string into `Token` values.
 
-use crate::error::{ObserverError, Result};
-
 use super::ConditionParser;
+use crate::error::{ObserverError, Result};
 
 /// Maximum byte length of a condition expression.
 ///

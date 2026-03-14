@@ -335,7 +335,7 @@ mod tests {
         };
 
         let value = serde_json::json!("LIB-1234");
-        let result = validate_custom_scalar_from_schema(&value,"LibraryCode", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "LibraryCode", &schema);
         assert!(result.is_ok());
     }
 
@@ -363,7 +363,7 @@ mod tests {
         };
 
         let value = serde_json::json!("INVALID");
-        let result = validate_custom_scalar_from_schema(&value,"LibraryCode", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "LibraryCode", &schema);
         assert!(result.is_err());
     }
 
@@ -398,12 +398,12 @@ mod tests {
 
         // Valid: matches pattern and length
         let value = serde_json::json!("STU-2024-001");
-        let result = validate_custom_scalar_from_schema(&value,"StudentID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
         assert!(result.is_ok());
 
         // Invalid: wrong pattern
         let value = serde_json::json!("STUDENT-2024");
-        let result = validate_custom_scalar_from_schema(&value,"StudentID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
         assert!(result.is_err());
     }
 
@@ -415,7 +415,7 @@ mod tests {
 
         // Unknown scalar types should pass through (they're built-in types)
         let value = serde_json::json!("any value");
-        let result = validate_custom_scalar_from_schema(&value,"UnknownType", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "UnknownType", &schema);
         assert!(result.is_ok());
     }
 
@@ -427,7 +427,7 @@ mod tests {
         let schema = CompiledSchema::new();
 
         let value = serde_json::json!("PAT-123456");
-        let result = validate_custom_scalar_from_schema(&value,"PatientID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
         // Should pass through (not registered as custom scalar)
         assert!(result.is_ok());
     }
@@ -454,12 +454,12 @@ mod tests {
 
         // Valid: matches ELO expression
         let value = serde_json::json!("STU-2024-001");
-        let result = validate_custom_scalar_from_schema(&value,"StudentID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
         assert!(result.is_ok());
 
         // Invalid: doesn't match ELO expression
         let value = serde_json::json!("INVALID");
-        let result = validate_custom_scalar_from_schema(&value,"StudentID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
         assert!(result.is_err());
     }
 
@@ -489,17 +489,17 @@ mod tests {
 
         // Valid: passes both length rule and ELO expression
         let value = serde_json::json!("PAT-123456");
-        let result = validate_custom_scalar_from_schema(&value,"PatientID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
         assert!(result.is_ok());
 
         // Invalid: passes length but fails ELO expression
         let value = serde_json::json!("NOTVALID!");
-        let result = validate_custom_scalar_from_schema(&value,"PatientID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
         assert!(result.is_err());
 
         // Invalid: fails length rule
         let value = serde_json::json!("PAT-12345");
-        let result = validate_custom_scalar_from_schema(&value,"PatientID", &schema);
+        let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
         assert!(result.is_err());
     }
 }

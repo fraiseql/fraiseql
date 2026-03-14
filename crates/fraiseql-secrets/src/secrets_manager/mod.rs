@@ -211,9 +211,7 @@ impl LeaseRenewalTask {
                     let remaining = expiry - Utc::now();
                     // Refresh if less than one full check interval remains,
                     // ensuring renewal completes before the next poll would be too late.
-                    if remaining
-                        < chrono::Duration::seconds(self.check_interval.as_secs() as i64)
-                    {
+                    if remaining < chrono::Duration::seconds(self.check_interval.as_secs() as i64) {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),
                             Err(e) => warn!(key = %key, error = %e, "Lease renewal failed"),
@@ -266,8 +264,10 @@ impl std::error::Error for SecretsError {}
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
 
     use chrono::Utc;
 
@@ -280,9 +280,9 @@ mod tests {
     /// A mock backend that returns a fixed secret with configurable expiry.
     /// Rotation calls are counted so tests can assert how many renewals occurred.
     struct MockBackend {
-        secret:        String,
-        expiry:        DateTime<Utc>,
-        rotate_count:  Arc<AtomicUsize>,
+        secret:       String,
+        expiry:       DateTime<Utc>,
+        rotate_count: Arc<AtomicUsize>,
     }
 
     #[async_trait::async_trait]
@@ -317,8 +317,7 @@ mod tests {
             expiry:       Utc::now() + chrono::Duration::hours(1),
             rotate_count: Arc::clone(&rotate_count),
         };
-        let manager =
-            Arc::new(SecretsManager::new(Arc::new(backend)));
+        let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
 
         let (task, cancel_tx) =
             LeaseRenewalTask::new(manager, vec!["db/creds".to_string()], Duration::from_secs(60));
@@ -337,12 +336,12 @@ mod tests {
     async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
         let rotate_count = Arc::new(AtomicUsize::new(0));
         let backend = MockBackend {
-            secret: "s3cret".to_string(),
+            secret:       "s3cret".to_string(),
             // Already-expired credential: remaining is negative, which is always
             // less than the check_interval threshold, so renewal fires on every tick.
             // This works with any sub-second check_interval (where as_secs() == 0)
             // because negative < zero is true for chrono::Duration.
-            expiry: Utc::now() - chrono::Duration::seconds(1),
+            expiry:       Utc::now() - chrono::Duration::seconds(1),
             rotate_count: Arc::clone(&rotate_count),
         };
         let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
@@ -373,18 +372,15 @@ mod tests {
     async fn test_lease_renewal_skips_non_expiring_keys() {
         let rotate_count = Arc::new(AtomicUsize::new(0));
         let backend = MockBackend {
-            secret: "s3cret".to_string(),
+            secret:       "s3cret".to_string(),
             // Expiry 1 hour away — much longer than the check interval (50 ms).
-            expiry: Utc::now() + chrono::Duration::hours(1),
+            expiry:       Utc::now() + chrono::Duration::hours(1),
             rotate_count: Arc::clone(&rotate_count),
         };
         let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
 
-        let (task, cancel_tx) = LeaseRenewalTask::new(
-            manager,
-            vec!["db/creds".to_string()],
-            Duration::from_millis(50),
-        );
+        let (task, cancel_tx) =
+            LeaseRenewalTask::new(manager, vec!["db/creds".to_string()], Duration::from_millis(50));
 
         let handle = tokio::spawn(task.run());
         tokio::time::sleep(Duration::from_millis(200)).await;

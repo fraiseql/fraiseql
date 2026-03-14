@@ -123,8 +123,8 @@ pub use cache::redis::RedisCacheBackend;
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
 #[cfg(feature = "checkpoint")]
 pub use checkpoint::{
-    CheckpointMode, CheckpointState, CheckpointStore, CheckpointStrategy,
-    InMemoryCheckpointStore, PostgresCheckpointStore, check_checkpoint_requirement,
+    CheckpointMode, CheckpointState, CheckpointStore, CheckpointStrategy, InMemoryCheckpointStore,
+    PostgresCheckpointStore, check_checkpoint_requirement,
 };
 pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};

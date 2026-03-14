@@ -750,7 +750,10 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let schemes = &parsed["components"]["securitySchemes"];
-        assert!(schemes.get("BearerAuth").is_some(), "security schemes must include 'BearerAuth'");
+        assert!(
+            schemes.get("BearerAuth").is_some(),
+            "security schemes must include 'BearerAuth'"
+        );
     }
 
     #[test]
@@ -759,8 +762,17 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let schemas = &parsed["components"]["schemas"];
-        assert!(schemas.get("ExplainRequest").is_some(), "component schemas must include 'ExplainRequest'");
-        assert!(schemas.get("ExplainResponse").is_some(), "component schemas must include 'ExplainResponse'");
-        assert!(schemas.get("ReloadSchemaRequest").is_some(), "component schemas must include 'ReloadSchemaRequest'");
+        assert!(
+            schemas.get("ExplainRequest").is_some(),
+            "component schemas must include 'ExplainRequest'"
+        );
+        assert!(
+            schemas.get("ExplainResponse").is_some(),
+            "component schemas must include 'ExplainResponse'"
+        );
+        assert!(
+            schemas.get("ReloadSchemaRequest").is_some(),
+            "component schemas must include 'ReloadSchemaRequest'"
+        );
     }
 }

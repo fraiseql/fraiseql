@@ -4,8 +4,10 @@ use std::{
 };
 
 use super::config::{CustomTypeDef, CustomTypeRegistryConfig};
-use crate::validation::{ValidationRule, elo_expressions::EloExpressionEvaluator};
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    error::{FraiseQLError, Result},
+    validation::{ValidationRule, elo_expressions::EloExpressionEvaluator},
+};
 
 /// Thread-safe registry for custom scalar type definitions.
 ///
@@ -178,9 +180,7 @@ impl CustomTypeRegistry {
         self.types
             .read()
             .unwrap_or_else(|e| {
-                tracing::error!(
-                    "CustomTypeRegistry RwLock poisoned during count(); recovering."
-                );
+                tracing::error!("CustomTypeRegistry RwLock poisoned during count(); recovering.");
                 e.into_inner()
             })
             .len()

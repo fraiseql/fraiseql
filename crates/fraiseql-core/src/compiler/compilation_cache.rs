@@ -250,7 +250,8 @@ impl CompilationCache {
             return Ok(0.0);
         }
         #[allow(clippy::cast_precision_loss)]
-        // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is acceptable here.
+        // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
+        // acceptable here.
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
     }
 }

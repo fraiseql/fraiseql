@@ -17,12 +17,13 @@
 use std::collections::HashMap;
 
 use fraiseql_federation::{
-    EntityRepresentation, HttpClientConfig, HttpEntityResolver,
-    selection_parser::FieldSelection,
+    EntityRepresentation, HttpClientConfig, HttpEntityResolver, selection_parser::FieldSelection,
 };
 use serde_json::json;
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
+};
 
 fn make_repr(typename: &str, id: &str) -> EntityRepresentation {
     let mut key_fields = HashMap::new();
@@ -38,7 +39,9 @@ fn make_repr(typename: &str, id: &str) -> EntityRepresentation {
 }
 
 fn field_selection(fields: &[&str]) -> FieldSelection {
-    FieldSelection { fields: fields.iter().map(|s| s.to_string()).collect() }
+    FieldSelection {
+        fields: fields.iter().map(|s| s.to_string()).collect(),
+    }
 }
 
 /// Test resolver that skips SSRF validation (for contacting local mock servers).
@@ -114,7 +117,11 @@ async fn test_entity_resolution_http_error_bubbles() {
     let url = format!("{}/graphql", server.uri());
 
     // Use a fast-retry config to keep tests quick.
-    let config = HttpClientConfig { timeout_ms: 5000, max_retries: 2, retry_delay_ms: 1 };
+    let config = HttpClientConfig {
+        timeout_ms:     5000,
+        max_retries:    2,
+        retry_delay_ms: 1,
+    };
     let result = HttpEntityResolver::new_for_test(config)
         .unwrap()
         .resolve_entities(&url, &[make_repr("User", "u1")], &field_selection(&["id"]))
@@ -144,8 +151,11 @@ async fn test_entity_batch_respects_representation_count() {
         .await;
 
     let url = format!("{}/graphql", server.uri());
-    let reps =
-        vec![make_repr("User", "u1"), make_repr("User", "u2"), make_repr("User", "u3")];
+    let reps = vec![
+        make_repr("User", "u1"),
+        make_repr("User", "u2"),
+        make_repr("User", "u3"),
+    ];
     let results = test_resolver()
         .resolve_entities(&url, &reps, &field_selection(&["id"]))
         .await
@@ -164,8 +174,12 @@ fn test_entity_resolution_ssrf_blocked_loopback_ip() {
     let sel = field_selection(&["id"]);
 
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let result =
-        rt.block_on(async { HttpEntityResolver::new(HttpClientConfig::default()).unwrap().resolve_entities(blocked_url, &reps, &sel).await });
+    let result = rt.block_on(async {
+        HttpEntityResolver::new(HttpClientConfig::default())
+            .unwrap()
+            .resolve_entities(blocked_url, &reps, &sel)
+            .await
+    });
 
     assert!(result.is_err(), "loopback IP must be rejected by SSRF guard");
 }

@@ -228,7 +228,8 @@ impl TenantContext {
 /// Production code should use the parameterized WHERE clause helpers instead.
 fn validate_tenant_id_for_interpolation(tenant_id: &str) {
     assert!(
-        !tenant_id.is_empty() && tenant_id.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')),
+        !tenant_id.is_empty()
+            && tenant_id.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')),
         "SECURITY: tenant_id '{tenant_id}' contains characters that are unsafe for SQL interpolation. \
          Use where_clause_postgresql() or where_clause_parameterized() instead."
     );

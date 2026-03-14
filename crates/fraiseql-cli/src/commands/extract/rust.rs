@@ -1,11 +1,12 @@
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::schema::intermediate::{IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType};
-
 use super::{
     ExtractedSchema, Language, Result, SchemaExtractor, map_primitive_type, map_type,
     parse_annotation_params,
+};
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateField, IntermediateQuery, IntermediateType,
 };
 
 pub(super) struct RustExtractor;
@@ -27,7 +28,10 @@ impl SchemaExtractor for RustExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").start()].lines().count();
+            let struct_line = source
+                [..cap.get(0).expect("regex group 0 is always Some on a successful match").start()]
+                .lines()
+                .count();
             let mut fields = Vec::new();
             for line in lines.iter().skip(struct_line + 1) {
                 let trimmed = line.trim();
@@ -45,7 +49,7 @@ impl SchemaExtractor for RustExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
-                        on_deny:        None,
+                        on_deny: None,
                     });
                 }
             }
@@ -69,7 +73,10 @@ impl SchemaExtractor for RustExtractor {
             let returns_list = params.get("return_array").is_some_and(|v| v == "true");
             let sql_source = params.get("sql_source").cloned();
 
-            let arguments = extract_rust_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
+            let arguments = extract_rust_query_args(
+                source,
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end(),
+            );
 
             queries.push(IntermediateQuery {
                 name,
@@ -83,7 +90,7 @@ impl SchemaExtractor for RustExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
-                 inject: IndexMap::default(),
+                inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,

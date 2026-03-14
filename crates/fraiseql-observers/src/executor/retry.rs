@@ -6,13 +6,12 @@ use rand::{Rng, rngs::OsRng};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
+use super::{ExecutionSummary, ObserverExecutor};
 use crate::{
     config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig},
     error::{ObserverError, Result},
     event::EntityEvent,
 };
-
-use super::{ExecutionSummary, ObserverExecutor};
 
 impl ObserverExecutor {
     /// Execute a single action with retry logic
@@ -189,7 +188,10 @@ impl ObserverExecutor {
                     // Note: Transport ACKs message internally after we return from process_event()
                     // This ensures at-least-once delivery semantics
                 },
-                Err(ObserverError::DeserializationError { ref raw, ref reason }) => {
+                Err(ObserverError::DeserializationError {
+                    ref raw,
+                    ref reason,
+                }) => {
                     // Unparseable payload: preserve raw bytes in DLQ and bump counter.
                     // The message was already ACKed by the transport to prevent infinite
                     // redelivery of permanently broken payloads.
@@ -358,7 +360,7 @@ impl ObserverExecutor {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(missing_docs)]        // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test helpers
 
     use super::*;
     use crate::config::{BackoffStrategy, RetryConfig};
@@ -378,13 +380,14 @@ mod tests {
 
     fn make_executor() -> ObserverExecutor {
         use std::sync::Arc;
+
         use crate::{EventMatcher, testing::mocks::MockDeadLetterQueue};
         ObserverExecutor::new(EventMatcher::new(), Arc::new(MockDeadLetterQueue::new()))
     }
 
     fn within_jitter(actual_ms: u128, base_ms: u64) -> bool {
-        let lo = base_ms.saturating_sub(base_ms / 4) as u128;
-        let hi = base_ms.saturating_add(base_ms / 4) as u128;
+        let lo = u128::from(base_ms.saturating_sub(base_ms / 4));
+        let hi = u128::from(base_ms.saturating_add(base_ms / 4));
         actual_ms >= lo && actual_ms <= hi
     }
 

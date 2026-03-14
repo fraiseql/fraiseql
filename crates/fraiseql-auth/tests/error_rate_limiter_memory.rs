@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Rate limiter memory and boundary tests.
 //!
 //! Tests `KeyedRateLimiter` behavior under high key cardinality and verifies

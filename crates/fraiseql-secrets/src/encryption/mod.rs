@@ -184,14 +184,14 @@ impl FieldEncryption {
         let (nonce_bytes, ciphertext) = Self::extract_nonce_and_ciphertext(encrypted)?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
-        let plaintext_bytes = self
-            .cipher
-            .decrypt(nonce, ciphertext)
-            .map_err(|_| SecretsError::EncryptionError(
+        let plaintext_bytes = self.cipher.decrypt(nonce, ciphertext).map_err(|_| {
+            SecretsError::EncryptionError(
                 "Decryption failed: authentication tag mismatch. \
                  Possible causes: wrong key, corrupted data, or data was encrypted \
-                 with context (use decrypt_with_context instead).".to_string()
-            ))?;
+                 with context (use decrypt_with_context instead)."
+                    .to_string(),
+            )
+        })?;
 
         Self::bytes_to_utf8(plaintext_bytes, "decrypted data")
     }
@@ -260,7 +260,8 @@ impl FieldEncryption {
                 "Decryption with context failed: authentication tag mismatch. \
                  Ensure the context string supplied here exactly matches the one \
                  used during encryption. This can also indicate key mismatch \
-                 or data corruption.".to_string()
+                 or data corruption."
+                    .to_string(),
             )
         })?;
 
@@ -283,10 +284,8 @@ const VERSION_PREFIX_SIZE: usize = 2;
 /// 1. Promote the new key: `VersionedFieldEncryption::new(new_version, new_key_bytes)`
 /// 2. Register the old key as a fallback: `.with_fallback(old_version, old_key_bytes)`
 /// 3. All new records are encrypted with the primary (new) key.
-/// 4. Existing records encrypted with the old key are decrypted successfully
-///    via the fallback.
-/// 5. Migrate old records by reading → decrypting → re-encrypting (see
-///    `reencrypt_from_fallback`).
+/// 4. Existing records encrypted with the old key are decrypted successfully via the fallback.
+/// 5. Migrate old records by reading → decrypting → re-encrypting (see `reencrypt_from_fallback`).
 /// 6. Once migration is complete, remove the fallback.
 pub struct VersionedFieldEncryption {
     primary_version: KeyVersion,
@@ -313,11 +312,7 @@ impl VersionedFieldEncryption {
     /// # Errors
     ///
     /// Returns `SecretsError::ValidationError` if `key` is not 32 bytes.
-    pub fn with_fallback(
-        mut self,
-        version: KeyVersion,
-        key: &[u8],
-    ) -> Result<Self, SecretsError> {
+    pub fn with_fallback(mut self, version: KeyVersion, key: &[u8]) -> Result<Self, SecretsError> {
         self.fallbacks.push((version, FieldEncryption::new(key)?));
         Ok(self)
     }
@@ -369,7 +364,7 @@ impl VersionedFieldEncryption {
         for (fb_version, fb_cipher) in &self.fallbacks {
             if *fb_version == version {
                 return fb_cipher.decrypt(inner);
-        }
+            }
         }
 
         Err(SecretsError::EncryptionError(format!(
@@ -393,7 +388,7 @@ impl VersionedFieldEncryption {
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -588,8 +583,10 @@ mod tests {
         let old_ct = ve_old.encrypt("legacy data").unwrap();
 
         // Now switch primary to v2, keep v1 as fallback
-        let ve_new =
-            VersionedFieldEncryption::new(2, &key_v2).unwrap().with_fallback(1, &key_v1).unwrap();
+        let ve_new = VersionedFieldEncryption::new(2, &key_v2)
+            .unwrap()
+            .with_fallback(1, &key_v1)
+            .unwrap();
 
         // Can decrypt old ciphertext via fallback
         let decrypted = ve_new.decrypt(&old_ct).unwrap();
@@ -631,8 +628,10 @@ mod tests {
         let ve_old = VersionedFieldEncryption::new(1, &key_v1).unwrap();
         let old_ct = ve_old.encrypt("migrate me").unwrap();
 
-        let ve_new =
-            VersionedFieldEncryption::new(2, &key_v2).unwrap().with_fallback(1, &key_v1).unwrap();
+        let ve_new = VersionedFieldEncryption::new(2, &key_v2)
+            .unwrap()
+            .with_fallback(1, &key_v1)
+            .unwrap();
 
         let new_ct = ve_new.reencrypt_from_fallback(&old_ct).unwrap();
 

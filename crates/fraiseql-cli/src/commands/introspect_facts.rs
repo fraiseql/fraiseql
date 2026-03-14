@@ -76,7 +76,11 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql introspect facts --database postgresql://localhost/mydb --format python
 /// ```
-pub async fn run(database_url: &str, format: OutputFormat, formatter: &OutputFormatter) -> Result<()> {
+pub async fn run(
+    database_url: &str,
+    format: OutputFormat,
+    formatter: &OutputFormatter,
+) -> Result<()> {
     formatter.progress("Introspecting database for fact tables...");
     formatter.progress(&format!("   Database: {database_url}"));
 
