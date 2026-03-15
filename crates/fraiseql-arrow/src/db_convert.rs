@@ -327,8 +327,10 @@ mod tests {
         row.insert("val".to_string(), json!(i64::MAX));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for Int32 overflow, got: {result:?}"
+        );
     }
 
     #[test]
@@ -338,8 +340,10 @@ mod tests {
         row.insert("val".to_string(), json!("not-a-number"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for non-number Int32, got: {result:?}"
+        );
     }
 
     // --- Int64 conversion ---
@@ -351,8 +355,10 @@ mod tests {
         row.insert("val".to_string(), json!(true));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for non-number Int64, got: {result:?}"
+        );
     }
 
     // --- Float64 conversion ---
@@ -364,8 +370,10 @@ mod tests {
         row.insert("val".to_string(), json!("three-point-one-four"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for non-number Float64, got: {result:?}"
+        );
     }
 
     // --- Boolean conversion ---
@@ -390,8 +398,10 @@ mod tests {
         row.insert("flag".to_string(), json!("true"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for string in Boolean column, got: {result:?}"
+        );
     }
 
     #[test]
@@ -401,8 +411,10 @@ mod tests {
         row.insert("flag".to_string(), json!(1));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for number in Boolean column, got: {result:?}"
+        );
     }
 
     // --- Utf8 coercions ---
@@ -498,8 +510,10 @@ mod tests {
         row.insert("ts".to_string(), json!("not-a-timestamp"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for invalid timestamp string, got: {result:?}"
+        );
     }
 
     #[test]
@@ -513,8 +527,10 @@ mod tests {
         row.insert("ts".to_string(), json!(true));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for boolean in Timestamp column, got: {result:?}"
+        );
     }
 
     // --- Date32 conversion ---
@@ -553,8 +569,10 @@ mod tests {
         row.insert("d".to_string(), json!("not-a-date"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for invalid date string, got: {result:?}"
+        );
     }
 
     #[test]
@@ -564,8 +582,10 @@ mod tests {
         row.insert("d".to_string(), json!(true));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for boolean in Date32 column, got: {result:?}"
+        );
     }
 
     // --- Unsupported types ---
@@ -577,8 +597,10 @@ mod tests {
         row.insert("val".to_string(), json!("hello"));
         let rows = vec![row];
         let result = convert_db_rows_to_arrow(&rows, &schema);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for unsupported data type, got: {result:?}"
+        );
     }
 
     // --- Empty rows ---

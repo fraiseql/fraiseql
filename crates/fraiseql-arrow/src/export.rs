@@ -228,7 +228,10 @@ mod tests {
         assert_eq!(ExportFormat::from_str("PARQUET").unwrap(), ExportFormat::Parquet);
 
         // Invalid format
-        assert!(ExportFormat::from_str("invalid").is_err());
+        assert!(
+            ExportFormat::from_str("invalid").is_err(),
+            "expected Err for unrecognised format string"
+        );
     }
 
     #[test]
@@ -250,8 +253,7 @@ mod tests {
         let batch = create_test_batch();
         let exported = BulkExporter::export_batch(&batch, ExportFormat::Csv);
 
-        assert!(exported.is_ok());
-        let bytes = exported.unwrap();
+        let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for CSV export: {e}"));
         assert!(!bytes.is_empty());
 
         // CSV should contain headers
@@ -267,8 +269,7 @@ mod tests {
         let batch = create_test_batch();
         let exported = BulkExporter::export_batch(&batch, ExportFormat::Json);
 
-        assert!(exported.is_ok());
-        let bytes = exported.unwrap();
+        let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for JSON export: {e}"));
         assert!(!bytes.is_empty());
 
         // JSON Lines should contain JSON objects
@@ -283,8 +284,7 @@ mod tests {
         let batch = create_test_batch();
         let exported = BulkExporter::export_batch(&batch, ExportFormat::Parquet);
 
-        assert!(exported.is_ok());
-        let bytes = exported.unwrap();
+        let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for Parquet export: {e}"));
         assert!(!bytes.is_empty());
 
         // Parquet files start with "PAR1" magic bytes
@@ -319,9 +319,9 @@ mod tests {
         let json = BulkExporter::export_batch(&batch, ExportFormat::Json);
         let parquet = BulkExporter::export_batch(&batch, ExportFormat::Parquet);
 
-        assert!(csv.is_ok());
-        assert!(json.is_ok());
-        assert!(parquet.is_ok());
+        csv.unwrap_or_else(|e| panic!("expected Ok for empty-batch CSV export: {e}"));
+        json.unwrap_or_else(|e| panic!("expected Ok for empty-batch JSON export: {e}"));
+        parquet.unwrap_or_else(|e| panic!("expected Ok for empty-batch Parquet export: {e}"));
     }
 
     // --- Additional export format tests ---
@@ -347,8 +347,8 @@ mod tests {
     #[test]
     fn test_export_format_parse_unknown_returns_err() {
         let result: Result<ExportFormat, _> = "avro".parse();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Unsupported export format"));
+        let err = result.expect_err("expected Err for unknown format 'avro'");
+        assert!(err.contains("Unsupported export format"), "unexpected error message: {err}");
     }
 
     #[test]

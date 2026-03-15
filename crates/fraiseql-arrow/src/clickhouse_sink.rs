@@ -550,7 +550,11 @@ mod tests {
             url: String::new(),
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for empty URL, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -560,7 +564,11 @@ mod tests {
             database: String::new(),
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for empty database, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -570,24 +578,36 @@ mod tests {
             table: String::new(),
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for empty table, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
     fn test_config_validate_invalid_batch_size() {
-        let config = ClickHouseSinkConfig {
+        let config_zero = ClickHouseSinkConfig {
             url: TEST_URL.to_string(),
             batch_size: 0,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config_zero.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for batch_size=0, got: {:?}",
+            config_zero.validate()
+        );
 
-        let config = ClickHouseSinkConfig {
+        let config_large = ClickHouseSinkConfig {
             url: TEST_URL.to_string(),
             batch_size: 200_000,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config_large.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for batch_size=200_000, got: {:?}",
+            config_large.validate()
+        );
     }
 
     #[test]
@@ -597,7 +617,11 @@ mod tests {
             batch_timeout_secs: 0,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ArrowFlightError::Configuration(_))),
+            "expected Configuration error for batch_timeout_secs=0, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -606,7 +630,7 @@ mod tests {
             url: TEST_URL.to_string(),
             ..Default::default()
         };
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 
     #[test]

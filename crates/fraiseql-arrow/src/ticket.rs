@@ -291,8 +291,10 @@ mod tests {
         let invalid_json = b"not valid json";
         let result = FlightTicket::decode(invalid_json);
 
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for invalid JSON, got: {result:?}"
+        );
     }
 
     #[test]
@@ -403,8 +405,10 @@ mod tests {
         // Valid UTF-8, but not valid JSON
         let bad_bytes = b"{ not valid JSON at all }";
         let result = FlightTicket::decode(bad_bytes);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for invalid JSON with valid UTF-8, got: {result:?}"
+        );
     }
 
     #[test]
@@ -412,8 +416,10 @@ mod tests {
         // JSON with an unknown "type" tag
         let bytes = br#"{"type": "UnknownVariant", "data": 42}"#;
         let result = FlightTicket::decode(bytes);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+            "expected InvalidTicket error for unknown type tag, got: {result:?}"
+        );
     }
 
     #[test]
@@ -466,10 +472,12 @@ mod tests {
         let bytes = vec![b'{'; MAX_FLIGHT_TICKET_BYTES];
         // This will fail JSON parsing but NOT the size check.
         let result = FlightTicket::decode(&bytes);
-        assert!(result.is_err());
         // The error must be an InvalidTicket (parse error), not a size error.
-        if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
-            assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
+        match result {
+            Err(ArrowFlightError::InvalidTicket(ref msg)) => {
+                assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
+            },
+            other => panic!("expected InvalidTicket parse error, got: {other:?}"),
         }
     }
 
@@ -477,11 +485,11 @@ mod tests {
     fn test_ticket_exceeding_size_limit_is_rejected() {
         let oversized = vec![b'x'; MAX_FLIGHT_TICKET_BYTES + 1];
         let result = FlightTicket::decode(&oversized);
-        assert!(result.is_err());
-        if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
-            assert!(msg.contains("too large"), "Expected size-limit error, got: {msg}");
-        } else {
-            panic!("Expected InvalidTicket error");
+        match result {
+            Err(ArrowFlightError::InvalidTicket(ref msg)) => {
+                assert!(msg.contains("too large"), "Expected size-limit error, got: {msg}");
+            },
+            other => panic!("expected InvalidTicket size-limit error, got: {other:?}"),
         }
     }
 }
