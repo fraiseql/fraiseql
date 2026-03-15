@@ -205,23 +205,66 @@ impl DatabaseAdapter for PostgresAdapter {
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
 
-        let client = self.acquire_connection_with_retry().await?;
+        let mut client = self.acquire_connection_with_retry().await?;
 
         // Bind each JSON argument as a text parameter (PostgreSQL can cast text→jsonb)
         let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
             args.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
 
-        let rows: Vec<Row> = client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   format!("Function call {function_name} failed: {e}"),
+        if self.mutation_timing_enabled {
+            // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
+            // `set_config(name, value, is_local)` with is_local=true is equivalent to
+            // SET LOCAL and is parameterized to avoid SQL injection.
+            let txn = client
+                .build_transaction()
+                .start()
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to start mutation timing transaction: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+
+            txn.execute(
+                "SELECT set_config($1, clock_timestamp()::text, true)",
+                &[&self.timing_variable_name],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to set mutation timing variable: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+            })?;
 
-        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-            rows.iter().map(row_to_map).collect();
+            let rows: Vec<Row> =
+                txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                    FraiseQLError::Database {
+                        message:   format!("Function call {function_name} failed: {e}"),
+                        sql_state: e.code().map(|c| c.code().to_string()),
+                    }
+                })?;
 
-        Ok(results)
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to commit mutation timing transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                rows.iter().map(row_to_map).collect();
+
+            Ok(results)
+        } else {
+            let rows: Vec<Row> =
+                client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                    FraiseQLError::Database {
+                        message:   format!("Function call {function_name} failed: {e}"),
+                        sql_state: e.code().map(|c| c.code().to_string()),
+                    }
+                })?;
+
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                rows.iter().map(row_to_map).collect();
+
+            Ok(results)
+        }
     }
 
     async fn explain_query(

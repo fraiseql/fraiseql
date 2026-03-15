@@ -590,3 +590,53 @@ async fn test_parameterized_limit_and_offset_with_where_clause() {
         assert_eq!(result.as_value()["active"], true);
     }
 }
+
+// ========================================================================
+// Mutation Timing Tests
+// ========================================================================
+
+#[tokio::test]
+async fn test_mutation_timing_disabled_by_default() {
+    let adapter = create_test_adapter().await;
+    assert!(!adapter.mutation_timing_enabled());
+}
+
+#[tokio::test]
+async fn test_mutation_timing_with_builder() {
+    let adapter = create_test_adapter().await.with_mutation_timing("fraiseql.started_at");
+    assert!(adapter.mutation_timing_enabled());
+}
+
+#[tokio::test]
+async fn test_mutation_timing_custom_variable() {
+    let adapter = create_test_adapter().await.with_mutation_timing("app.custom_timer");
+    assert!(adapter.mutation_timing_enabled());
+}
+
+#[tokio::test]
+async fn test_execute_function_call_with_timing_disabled() {
+    let adapter = create_test_adapter().await;
+
+    // Calling a nonexistent function should produce a Database error,
+    // not a timing-related error — verifying the non-timing path is taken.
+    let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
+    assert!(result.is_err());
+    match result {
+        Err(FraiseQLError::Database { .. }) => (),
+        other => panic!("Expected Database error, got: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_execute_function_call_with_timing_enabled() {
+    let adapter = create_test_adapter().await.with_mutation_timing("fraiseql.started_at");
+
+    // Calling a nonexistent function should still produce a Database error,
+    // but the timing transaction wrapping should not cause a different error type.
+    let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
+    assert!(result.is_err());
+    match result {
+        Err(FraiseQLError::Database { .. }) => (),
+        other => panic!("Expected Database error with timing enabled, got: {other:?}"),
+    }
+}

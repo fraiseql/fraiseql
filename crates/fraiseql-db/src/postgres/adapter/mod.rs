@@ -76,6 +76,10 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 #[derive(Clone)]
 pub struct PostgresAdapter {
     pub(super) pool: Pool,
+    /// Whether mutation timing injection is enabled.
+    mutation_timing_enabled: bool,
+    /// The PostgreSQL session variable name for timing.
+    timing_variable_name: String,
 }
 
 impl PostgresAdapter {
@@ -160,7 +164,11 @@ impl PostgresAdapter {
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            mutation_timing_enabled: false,
+            timing_variable_name: "fraiseql.started_at".to_string(),
+        })
     }
 
     /// Get a reference to the internal connection pool.
@@ -169,6 +177,28 @@ impl PostgresAdapter {
     #[must_use]
     pub const fn pool(&self) -> &Pool {
         &self.pool
+    }
+
+    /// Enable mutation timing injection.
+    ///
+    /// When enabled, `execute_function_call` wraps each mutation in a transaction
+    /// and sets a session variable to `clock_timestamp()::text` before execution,
+    /// allowing SQL functions to compute their own duration.
+    ///
+    /// # Arguments
+    ///
+    /// * `variable_name` - The PostgreSQL session variable name (e.g., `"fraiseql.started_at"`)
+    #[must_use]
+    pub fn with_mutation_timing(mut self, variable_name: &str) -> Self {
+        self.mutation_timing_enabled = true;
+        self.timing_variable_name = variable_name.to_string();
+        self
+    }
+
+    /// Returns whether mutation timing injection is enabled.
+    #[must_use]
+    pub const fn mutation_timing_enabled(&self) -> bool {
+        self.mutation_timing_enabled
     }
 
     /// Execute raw SQL query and return JSONB rows.
