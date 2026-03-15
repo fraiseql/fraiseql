@@ -182,7 +182,7 @@ proptest! {
         schema.types.push(TypeDefinition::new(name.clone(), "v_b".to_string()));
 
         let result = schema.validate();
-        prop_assert!(result.is_err());
+        prop_assert!(result.is_err(), "schema with duplicate type '{}' should fail validation", name);
         let errors = result.unwrap_err();
         prop_assert!(
             errors.iter().any(|e| e.contains(&name)),

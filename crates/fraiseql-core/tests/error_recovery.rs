@@ -15,17 +15,16 @@ async fn test_recovery_after_transient_database_failure() {
 
     // Succeed first
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok on first query: {e}"));
 
     // Inject failure
     adapter.set_fail_on_query(adapter.query_count());
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err after injected failure, got: {result:?}");
 
     // Reset and recover
     adapter.reset();
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 1);
 }
 
@@ -37,16 +36,15 @@ async fn test_recovery_after_timeout() {
     // Inject timeout
     adapter.set_fail_with_timeout(5000);
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        fraiseql_core::error::FraiseQLError::Timeout { .. }
-    ));
+    assert!(
+        matches!(result, Err(fraiseql_core::error::FraiseQLError::Timeout { .. })),
+        "expected Timeout error, got: {result:?}"
+    );
 
     // Reset and recover
     adapter.reset();
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok after recovery from timeout: {e}"));
 }
 
 #[tokio::test]
@@ -54,13 +52,14 @@ async fn test_recovery_health_check_after_failure() {
     let adapter = FailingAdapter::new().fail_health_check();
 
     // Health check fails
-    assert!(adapter.health_check().await.is_err());
+    let hc = adapter.health_check().await;
+    assert!(hc.is_err(), "expected health check to fail, got: {hc:?}");
 
     // Reset clears health check failure
     adapter.reset();
 
     // Health check succeeds
-    assert!(adapter.health_check().await.is_ok());
+    adapter.health_check().await.unwrap_or_else(|e| panic!("expected health check to succeed after reset: {e}"));
 }
 
 #[tokio::test]
@@ -73,12 +72,12 @@ async fn test_adapter_state_independent_between_queries() {
 
     // First query fails (query 0)
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err on query 0, got: {result:?}");
 
     // Second query succeeds (query 1 != fail_on_query(0))
     let result = adapter.execute_where_query("v_post", None, None, None).await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 1);
+    let rows = result.unwrap_or_else(|e| panic!("expected Ok on query 1 (v_post): {e}"));
+    assert_eq!(rows.len(), 1);
 }
 
 #[tokio::test]

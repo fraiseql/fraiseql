@@ -151,7 +151,7 @@ fn test_schema_with_fact_tables_validation() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected schema with fact tables to pass validation: {e}"));
 }
 
 /// Test that validator rejects fact table without tf_ prefix
@@ -180,7 +180,7 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for fact table without tf_ prefix, got: {result:?}");
     if let Err(e) = result {
         let error_msg = format!("{}", e);
         assert!(error_msg.contains("must start with 'tf_' prefix"));
@@ -209,7 +209,7 @@ fn test_validator_rejects_fact_table_without_measures() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for fact table without measures, got: {result:?}");
     if let Err(e) = result {
         let error_msg = format!("{}", e);
         assert!(error_msg.contains("must have at least one measure"));
@@ -237,7 +237,7 @@ fn test_validator_rejects_aggregate_type_without_count() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for aggregate type without count field, got: {result:?}");
     if let Err(e) = result {
         let error_msg = format!("{}", e);
         assert!(error_msg.contains("must have a 'count' field"));
@@ -274,7 +274,7 @@ fn test_validator_accepts_valid_aggregate_type() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected valid aggregate type to pass validation: {e}"));
 }
 
 /// Test schema compilation with fact tables
@@ -327,7 +327,7 @@ async fn test_executor_classifies_regular_query() {
     let result = executor.execute(query, None).await;
 
     // Should succeed as regular query
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected regular query to succeed: {e}"));
 }
 
 /// Test executor query classification for aggregate queries

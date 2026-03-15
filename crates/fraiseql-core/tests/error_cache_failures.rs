@@ -79,13 +79,13 @@ async fn test_database_error_not_cached() {
 
     // First call fails
     let result = cached.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err from adapter failure on first call, got: {result:?}");
 
     // Reset the failure — next call should hit the adapter again (error was NOT cached)
     cached.inner().reset();
 
     let result = cached.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok after reset (error should not have been cached): {e}"));
     // query_count is 1 because reset() zeroed it, then we made 1 successful call
     assert_eq!(cached.inner().query_count(), 1);
 }

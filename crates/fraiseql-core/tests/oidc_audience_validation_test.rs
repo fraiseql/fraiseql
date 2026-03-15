@@ -83,7 +83,7 @@ fn test_oidc_config_auth0_pattern() {
         ..Default::default()
     };
 
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("Auth0 config should pass validation: {e}"));
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_oidc_config_keycloak_pattern() {
         ..Default::default()
     };
 
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("Keycloak config should pass validation: {e}"));
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn test_oidc_config_okta_pattern() {
         ..Default::default()
     };
 
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("Okta config should pass validation: {e}"));
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn test_oidc_config_multiple_audiences() {
         ..Default::default()
     };
 
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("multiple audiences config should pass validation: {e}"));
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn test_oidc_config_issuer_validation_still_required() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for missing issuer, got: {result:?}");
     assert!(format!("{:?}", result.unwrap_err()).contains("issuer"));
 }
 
@@ -150,7 +150,7 @@ fn test_oidc_config_https_requirement_still_enforced() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for non-HTTPS issuer, got: {result:?}");
     assert!(format!("{:?}", result.unwrap_err()).contains("HTTPS"));
 }
 
@@ -163,5 +163,5 @@ fn test_oidc_config_localhost_exception_still_works() {
         ..Default::default()
     };
 
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("localhost OIDC config should pass validation: {e}"));
 }

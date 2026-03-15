@@ -52,8 +52,8 @@ async fn test_cache_stampede_limited_database_hits() {
 
     for handle in handles {
         let result = handle.await.unwrap();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let rows = result.unwrap_or_else(|e| panic!("expected Ok from stampede test: {e}"));
+        assert_eq!(rows.len(), 2);
     }
 
     // Cache should absorb most requests — far fewer than 50 DB hits
@@ -81,7 +81,7 @@ async fn test_concurrent_reads_and_invalidation_no_deadlock() {
         handles.push(tokio::spawn(async move {
             for _ in 0..100 {
                 let result = cached.execute_where_query("v_user", None, None, None).await;
-                assert!(result.is_ok());
+                result.unwrap_or_else(|e| panic!("expected Ok from concurrent reader: {e}"));
             }
         }));
     }
@@ -139,7 +139,7 @@ async fn test_concurrent_queries_different_views_independent() {
     }
 
     for handle in handles {
-        assert!(handle.await.unwrap().is_ok());
+        handle.await.unwrap().unwrap_or_else(|e| panic!("expected Ok from concurrent view query: {e}"));
     }
 
     // Invalidate v_user only

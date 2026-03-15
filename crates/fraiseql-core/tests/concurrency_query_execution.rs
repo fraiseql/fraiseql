@@ -38,8 +38,8 @@ async fn test_100_concurrent_reads_all_succeed() {
 
     for handle in handles {
         let result = handle.await.unwrap();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let rows = result.unwrap_or_else(|e| panic!("expected Ok from concurrent read: {e}"));
+        assert_eq!(rows.len(), 2);
     }
 
     assert_eq!(adapter.query_count(), 100);
@@ -65,7 +65,7 @@ async fn test_concurrent_reads_to_different_views() {
 
     for handle in handles {
         let result = handle.await.unwrap();
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from concurrent view read: {e}"));
     }
 
     assert_eq!(adapter.query_count(), 100);
@@ -124,7 +124,7 @@ async fn test_barrier_synchronized_concurrent_queries() {
 
     for handle in handles {
         let result = handle.await.unwrap();
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from barrier-synchronized query: {e}"));
     }
 
     assert_eq!(adapter.query_count(), 50);
@@ -142,6 +142,6 @@ async fn test_concurrent_health_checks() {
 
     for handle in handles {
         let result = handle.await.unwrap();
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from concurrent health check: {e}"));
     }
 }

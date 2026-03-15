@@ -39,7 +39,7 @@ fn parse_query_anonymous_has_no_operation_name() {
 #[test]
 fn parse_query_rejects_malformed_input() {
     let result = parse_query("{ users { id");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err parsing malformed query, got: {result:?}");
 }
 
 #[test]

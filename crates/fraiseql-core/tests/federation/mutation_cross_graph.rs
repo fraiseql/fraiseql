@@ -48,9 +48,8 @@ fn test_mutation_coordinate_two_subgraph_updates() {
     // Update order (subgraph 1)
     let order_vars = json!({"order_id": "order123", "status": "confirmed"});
     let executor1 = FederationMutationExecutor::new(mock_adapter.clone(), metadata.clone());
-    let result1 =
-        runtime.block_on(executor1.execute_local_mutation("Order", "updateOrder", &order_vars));
-    assert!(result1.is_ok());
+    let result1 = runtime.block_on(executor1.execute_local_mutation("Order", "updateOrder", &order_vars));
+    result1.unwrap_or_else(|e| panic!("execute_local_mutation(Order/updateOrder) failed: {e}"));
 
     // Update order items (subgraph 2)
     let item_vars = json!({"item_id": "item1", "quantity": 2});
@@ -60,7 +59,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
         "updateQuantity",
         &item_vars,
     ));
-    assert!(result2.is_ok());
+    result2.unwrap_or_else(|e| panic!("execute_extended_mutation(OrderItem/updateQuantity) failed: {e}"));
 }
 
 #[test]
@@ -114,13 +113,13 @@ fn test_mutation_coordinate_three_subgraph_updates() {
     // Update user in subgraph 1
     let user_vars = json!({"id": "user123", "status": "verified"});
     let r1 = runtime.block_on(executor.execute_local_mutation("User", "verifyUser", &user_vars));
-    assert!(r1.is_ok());
+    r1.unwrap_or_else(|e| panic!("execute_local_mutation(User/verifyUser) failed: {e}"));
 
     // Update order in subgraph 2
     let order_vars = json!({"order_id": "order123", "status": "processing"});
     let r2 =
         runtime.block_on(executor.execute_extended_mutation("Order", "updateOrder", &order_vars));
-    assert!(r2.is_ok());
+    r2.unwrap_or_else(|e| panic!("execute_extended_mutation(Order/updateOrder) failed: {e}"));
 
     // Update payment in subgraph 3
     let payment_vars = json!({"payment_id": "pay123", "status": "processed"});
@@ -129,7 +128,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
         "processPayment",
         &payment_vars,
     ));
-    assert!(r3.is_ok());
+    r3.unwrap_or_else(|e| panic!("execute_extended_mutation(Payment/processPayment) failed: {e}"));
 }
 
 #[test]
@@ -147,9 +146,8 @@ fn test_mutation_reference_update_propagation() {
         "rating": 5
     });
 
-    let result =
-        runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables));
-    assert!(result.is_ok());
+    runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables))
+        .unwrap_or_else(|e| panic!("execute_extended_mutation(Review/updateReview) failed: {e}"));
 }
 
 #[test]
@@ -193,14 +191,14 @@ fn test_mutation_circular_reference_handling() {
     let executor = FederationMutationExecutor::new(mock_adapter.clone(), metadata.clone());
     let r1 =
         runtime.block_on(executor.execute_local_mutation("Author", "updateAuthor", &author_vars));
-    assert!(r1.is_ok());
+    r1.unwrap_or_else(|e| panic!("execute_local_mutation(Author/updateAuthor) failed: {e}"));
 
     // Update book referencing author (circular)
     let book_vars = json!({"book_id": "book1", "author_id": "author1", "title": "Updated Book"});
     let executor2 = FederationMutationExecutor::new(mock_adapter, metadata);
     let r2 =
         runtime.block_on(executor2.execute_extended_mutation("Book", "updateBook", &book_vars));
-    assert!(r2.is_ok());
+    r2.unwrap_or_else(|e| panic!("execute_extended_mutation(Book/updateBook) failed: {e}"));
 }
 
 #[test]
@@ -217,9 +215,8 @@ fn test_mutation_multi_subgraph_transaction() {
         "balance": 1000.00
     });
 
-    let result =
-        runtime.block_on(executor.execute_local_mutation("Account", "updateAccount", &variables));
-    assert!(result.is_ok());
+    runtime.block_on(executor.execute_local_mutation("Account", "updateAccount", &variables))
+        .unwrap_or_else(|e| panic!("execute_local_mutation(Account/updateAccount) failed: {e}"));
 }
 
 #[test]
@@ -236,12 +233,11 @@ fn test_mutation_subgraph_failure_rollback() {
         "amount": 100.00
     });
 
-    let result = runtime.block_on(executor.execute_local_mutation(
+    runtime.block_on(executor.execute_local_mutation(
         "Transaction",
         "executeTransaction",
         &variables,
-    ));
-    assert!(result.is_ok());
+    )).unwrap_or_else(|e| panic!("execute_local_mutation(Transaction/executeTransaction) failed: {e}"));
 }
 
 #[test]
@@ -258,9 +254,8 @@ fn test_mutation_subgraph_timeout_handling() {
         "status": "processing"
     });
 
-    let result =
-        runtime.block_on(executor.execute_extended_mutation("AsyncJob", "updateJob", &variables));
-    assert!(result.is_ok());
+    runtime.block_on(executor.execute_extended_mutation("AsyncJob", "updateJob", &variables))
+        .unwrap_or_else(|e| panic!("execute_extended_mutation(AsyncJob/updateJob) failed: {e}"));
 }
 
 #[test]
@@ -291,8 +286,7 @@ fn test_mutation_concurrent_request_handling() {
 
     // All mutations should complete successfully
     for handle in handles {
-        let result = handle.join();
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_ok());
+        let thread_result = handle.join().unwrap_or_else(|e| panic!("thread panicked: {e:?}"));
+        thread_result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) failed: {e}"));
     }
 }

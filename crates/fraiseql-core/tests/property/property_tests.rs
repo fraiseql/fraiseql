@@ -388,7 +388,7 @@ proptest! {
         }
 
         let result = schema.to_json();
-        prop_assert!(result.is_ok());
+        prop_assert!(result.is_ok(), "large schema serialization should succeed, got: {:?}", result);
     }
 
     /// Property: Empty collections should be handled
@@ -401,7 +401,7 @@ proptest! {
         prop_assert_eq!(schema.queries.len(), 0);
 
         let json_result = schema.to_json();
-        prop_assert!(json_result.is_ok());
+        prop_assert!(json_result.is_ok(), "empty schema serialization should succeed, got: {:?}", json_result);
     }
 
     /// Property: UUID-like identifiers should be handled in schema

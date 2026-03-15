@@ -32,7 +32,7 @@ async fn connection_with_wrong_credentials_returns_error() {
     let container = common::testcontainer::get_test_container().await;
     let bad_url = format!("postgres://wrong_user:wrong_pass@127.0.0.1:{}/testdb", container.port);
     let result = PostgresAdapter::new(&bad_url).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for wrong credentials");
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ async fn connection_with_wrong_credentials_returns_error() {
 async fn raw_query_with_syntax_error_returns_database_error() {
     let adapter = common::testcontainer::get_test_adapter().await;
     let result = adapter.execute_raw_query("SELCT * FORM nonexistent").await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for syntax error query, got: {result:?}");
     let err = result.unwrap_err();
     assert!(
         matches!(err, FraiseQLError::Database { .. }),
@@ -58,7 +58,7 @@ async fn raw_query_with_syntax_error_returns_database_error() {
 async fn query_on_nonexistent_view_returns_database_error() {
     let adapter = common::testcontainer::get_test_adapter().await;
     let result = adapter.execute_where_query("v_does_not_exist", None, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err querying nonexistent view, got: {result:?}");
     let err = result.unwrap_err();
     assert!(
         matches!(err, FraiseQLError::Database { .. }),
@@ -73,7 +73,7 @@ async fn query_timeout_via_statement_timeout() {
     // Set a tight statement_timeout then run a slow query
     let _ = adapter.execute_raw_query("SET statement_timeout = '10ms'").await;
     let result = adapter.execute_raw_query("SELECT pg_sleep(5)").await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err due to statement_timeout, got: {result:?}");
     let err = result.unwrap_err();
 
     // PostgreSQL cancellation due to statement_timeout: SQL state "57014"
@@ -105,7 +105,7 @@ async fn duplicate_primary_key_returns_sql_state_23505() {
 
     // Second insert with the same PK must fail
     let result = adapter.execute_raw_query(&insert).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for duplicate primary key insert, got: {result:?}");
 
     let err = result.unwrap_err();
     if let FraiseQLError::Database { sql_state, .. } = &err {
@@ -147,7 +147,7 @@ async fn pool_size_one_with_concurrent_queries_does_not_hang() {
 #[tokio::test]
 async fn health_check_succeeds_with_running_database() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    assert!(adapter.health_check().await.is_ok());
+    adapter.health_check().await.unwrap_or_else(|e| panic!("expected health check to succeed: {e}"));
 }
 
 #[tokio::test]

@@ -14,9 +14,9 @@ async fn test_query_returns_database_error_on_injected_failure() {
 
     let result = adapter.execute_where_query("v_user", None, None, None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err from injected failure, got: {result:?}");
     let err = result.unwrap_err();
-    assert!(matches!(err, FraiseQLError::Database { .. }));
+    assert!(matches!(err, FraiseQLError::Database { .. }), "expected Database error, got: {err:?}");
     assert!(err.is_server_error());
 }
 
@@ -28,12 +28,12 @@ async fn test_second_query_fails_while_first_succeeds() {
 
     // First query succeeds
     let result1 = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result1.is_ok());
-    assert_eq!(result1.unwrap().len(), 1);
+    let rows = result1.unwrap_or_else(|e| panic!("expected Ok on first query: {e}"));
+    assert_eq!(rows.len(), 1);
 
     // Second query fails
     let result2 = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result2.is_err());
+    assert!(result2.is_err(), "expected Err on second query (fail_on_query(1)), got: {result2:?}");
 }
 
 #[tokio::test]
@@ -69,8 +69,11 @@ async fn test_health_check_failure() {
     let adapter = FailingAdapter::new().fail_health_check();
 
     let result = adapter.health_check().await;
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), FraiseQLError::Database { .. }));
+    assert!(result.is_err(), "expected Err from failed health check, got: {result:?}");
+    assert!(
+        matches!(result.unwrap_err(), FraiseQLError::Database { .. }),
+        "expected Database error from health check failure"
+    );
 }
 
 #[tokio::test]
@@ -135,12 +138,12 @@ async fn test_multiple_failures_then_recovery() {
 
     // Fails
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err from injected database failure, got: {result:?}");
 
     // Reset clears failure
     adapter.reset();
 
     // Succeeds after reset
     let result = adapter.execute_where_query("v_user", None, None, None).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok after reset: {e}"));
 }
