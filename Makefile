@@ -346,6 +346,22 @@ doc:
 bench:
 	cargo bench
 
+## bench-baseline: save current benchmark results as the local 'dev' baseline
+bench-baseline:
+	cargo bench --workspace -- --save-baseline dev
+	@echo "Baseline saved as 'dev'. Run 'make bench-compare' after future changes."
+
+## bench-compare: run benchmarks and compare against the saved 'dev' baseline
+bench-compare:
+	@command -v critcmp >/dev/null 2>&1 || cargo install critcmp --locked
+	cargo bench --workspace -- --save-baseline current
+	critcmp dev current --threshold 10 || true
+
+## bench-critical: run only the latency-sensitive hot-path benchmarks
+bench-critical:
+	cargo bench -p fraiseql-core -- query_execution cache_lookup rls_injection
+	cargo bench -p fraiseql-server -- graphql_handler
+
 # Watch for changes and run tests
 watch:
 	cargo watch -x 'test --all-features'
