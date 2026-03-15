@@ -175,8 +175,7 @@ mod tests {
         let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
         let result = enforcer.enforce_tenant_scope(None);
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope: {e}"));
         assert!(enforced.is_some());
 
         // Check that it created an org_id = 'org-123' filter
@@ -206,8 +205,7 @@ mod tests {
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope with clause: {e}"));
         assert!(enforced.is_some());
 
         // Check that it created an AND clause combining both filters
@@ -224,8 +222,7 @@ mod tests {
         let sql = "SELECT * FROM users";
         let result = enforcer.enforce_tenant_scope_sql(sql);
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL without WHERE: {e}"));
         assert!(enforced.contains("WHERE org_id = 'org-123'"));
     }
 
@@ -235,8 +232,7 @@ mod tests {
         let sql = "SELECT * FROM users WHERE status = 'active'";
         let result = enforcer.enforce_tenant_scope_sql(sql);
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL with WHERE: {e}"));
         assert!(enforced.contains("WHERE status = 'active'"));
         assert!(enforced.contains("AND org_id = 'org-123'"));
     }
@@ -247,8 +243,7 @@ mod tests {
         let sql = "SELECT status, COUNT(*) as count FROM users GROUP BY status";
         let result = enforcer.enforce_tenant_scope_sql(sql);
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL with GROUP BY: {e}"));
         assert!(enforced.contains("WHERE org_id = 'org-123'"));
         assert!(enforced.contains("GROUP BY"));
     }
@@ -263,10 +258,9 @@ mod tests {
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
-        assert!(result.is_ok());
 
         // Should return original clause unchanged
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope without org_id: {e}"));
         assert!(matches!(enforced, Some(WhereClause::Field { .. })));
     }
 
@@ -277,8 +271,7 @@ mod tests {
         let sql = "SELECT * FROM users";
         let result = enforcer.enforce_tenant_scope_sql(sql);
 
-        assert!(result.is_ok());
-        let enforced = result.unwrap();
+        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL injection test: {e}"));
         // The malicious single quote must be escaped (doubled) so it stays inside the string
         // Expected: ... WHERE org_id = '''; DROP TABLE users; --'
         // The '' keeps the quote inside the SQL string literal
@@ -295,8 +288,8 @@ mod tests {
         let enforcer = TenantEnforcer::with_requirement(None, true);
         let result = enforcer.enforce_tenant_scope(None);
 
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Request must be tenant-scoped (missing org_id)");
+        let err = result.expect_err("expected Err when tenant required but org_id absent");
+        assert_eq!(err, "Request must be tenant-scoped (missing org_id)");
     }
 
     #[test]
@@ -304,6 +297,6 @@ mod tests {
         let enforcer = TenantEnforcer::with_requirement(Some("org-123".to_string()), true);
         let result = enforcer.enforce_tenant_scope(None);
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope with org_id present: {e}"));
     }
 }

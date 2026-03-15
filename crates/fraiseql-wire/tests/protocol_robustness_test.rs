@@ -23,7 +23,6 @@ use std::io;
 fn test_decode_malformed_message_tag() {
     let mut buf = BytesMut::from(&[b'!', 0, 0, 0, 4][..]);
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
 
@@ -32,7 +31,6 @@ fn test_decode_truncated_message() {
     // Only 3 bytes when minimum is 5
     let mut buf = BytesMut::from(&[b'Z', 0, 0][..]);
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
 }
 
@@ -41,7 +39,6 @@ fn test_decode_length_field_overflow() {
     // Length field claims ~4GB but only 10 bytes present
     let mut buf = BytesMut::from(&[b'T', 0x7F, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0][..]);
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
 }
 
@@ -50,7 +47,6 @@ fn test_decode_length_too_small() {
     // Length < 4 is invalid (length includes itself but not the tag)
     let mut buf = BytesMut::from(&[b'Z', 0, 0, 0, 3, b'I'][..]);
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
 
@@ -59,14 +55,13 @@ fn test_decode_zero_length_message() {
     // Length = 0 is invalid
     let mut buf = BytesMut::from(&[b'Z', 0, 0, 0, 0][..]);
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for zero-length message, got: {result:?}");
 }
 
 #[test]
 fn test_decode_empty_buffer() {
     let mut buf = BytesMut::new();
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
 }
 
@@ -86,8 +81,8 @@ fn test_decode_invalid_utf8_in_error_response() {
 
     let result = decode_message(&mut buf);
     // Should succeed with lossy UTF-8 conversion (not panic)
-    assert!(result.is_ok());
-    if let Ok((BackendMessage::ErrorResponse(fields), _)) = result {
+    let (msg, _) = result.unwrap_or_else(|e| panic!("expected Ok for lossy UTF-8 error response: {e}"));
+    if let BackendMessage::ErrorResponse(fields) = msg {
         assert!(fields.severity.is_some());
         assert_eq!(fields.message.as_deref(), Some("test"));
     } else {
@@ -104,13 +99,12 @@ fn test_partial_message_buffering() {
     // Header present but body incomplete: ReadyForQuery needs 1 byte of body
     let mut buf = BytesMut::from(&[b'Z', 0, 0, 0, 5][..]); // says 5 bytes but no status byte
     let result = decode_message(&mut buf);
-    assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
 
     // Now append the status byte — should succeed
     buf.put_u8(b'I');
     let result = decode_message(&mut buf);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok after appending status byte: {e}"));
 }
 
 #[test]
@@ -127,9 +121,9 @@ fn test_large_data_row() {
     buf.put_i32(field_size as i32); // field length
     buf.extend_from_slice(&vec![b'x'; field_size]); // field data
 
-    let result = decode_message(&mut buf);
-    assert!(result.is_ok());
-    if let Ok((BackendMessage::DataRow(fields), consumed)) = result {
+    let (msg, consumed) = decode_message(&mut buf)
+        .unwrap_or_else(|e| panic!("expected Ok for 1MB DataRow: {e}"));
+    if let BackendMessage::DataRow(fields) = msg {
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].as_ref().unwrap().len(), field_size);
         assert_eq!(consumed, 1 + 4 + body_len);

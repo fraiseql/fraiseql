@@ -254,10 +254,13 @@ mod tests {
     fn test_validate_required_field() {
         let rule = ValidationRule::Required;
         let result = validate_string_field("value", "field", &rule);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for non-empty value: {e}"));
 
         let result = validate_string_field("", "field", &rule);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty required field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -268,10 +271,13 @@ mod tests {
         };
 
         let result = validate_string_field("hello", "field", &rule);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for matching pattern: {e}"));
 
         let result = validate_string_field("Hello", "field", &rule);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for non-matching pattern, got: {result:?}"
+        );
     }
 
     #[test]
@@ -282,13 +288,19 @@ mod tests {
         };
 
         let result = validate_string_field("hello", "field", &rule);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for in-range length: {e}"));
 
         let result = validate_string_field("hi", "field", &rule);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for too-short string, got: {result:?}"
+        );
 
         let result = validate_string_field("this is too long", "field", &rule);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for too-long string, got: {result:?}"
+        );
     }
 
     #[test]
@@ -298,17 +310,23 @@ mod tests {
         };
 
         let result = validate_string_field("active", "field", &rule);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for valid enum value: {e}"));
 
         let result = validate_string_field("unknown", "field", &rule);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for invalid enum value, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_validate_null_field() {
         let rule = ValidationRule::Required;
         let result = validate_input(&Value::Null, "field", &[rule]);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for null required field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -336,7 +354,7 @@ mod tests {
 
         let value = serde_json::json!("LIB-1234");
         let result = validate_custom_scalar_from_schema(&value, "LibraryCode", &schema);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for valid LibraryCode: {e}"));
     }
 
     #[test]
@@ -364,7 +382,10 @@ mod tests {
 
         let value = serde_json::json!("INVALID");
         let result = validate_custom_scalar_from_schema(&value, "LibraryCode", &schema);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for invalid LibraryCode, got: {result:?}"
+        );
     }
 
     #[test]
@@ -399,12 +420,15 @@ mod tests {
         // Valid: matches pattern and length
         let value = serde_json::json!("STU-2024-001");
         let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for valid StudentID: {e}"));
 
         // Invalid: wrong pattern
         let value = serde_json::json!("STUDENT-2024");
         let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for invalid StudentID, got: {result:?}"
+        );
     }
 
     #[test]
@@ -416,7 +440,7 @@ mod tests {
         // Unknown scalar types should pass through (they're built-in types)
         let value = serde_json::json!("any value");
         let result = validate_custom_scalar_from_schema(&value, "UnknownType", &schema);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for unknown scalar passthrough: {e}"));
     }
 
     #[test]
@@ -429,7 +453,7 @@ mod tests {
         let value = serde_json::json!("PAT-123456");
         let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
         // Should pass through (not registered as custom scalar)
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for unregistered PatientID passthrough: {e}"));
     }
 
     #[test]
@@ -455,12 +479,15 @@ mod tests {
         // Valid: matches ELO expression
         let value = serde_json::json!("STU-2024-001");
         let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for StudentID matching ELO expression: {e}"));
 
         // Invalid: doesn't match ELO expression
         let value = serde_json::json!("INVALID");
         let result = validate_custom_scalar_from_schema(&value, "StudentID", &schema);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for StudentID not matching ELO expression, got: {result:?}"
+        );
     }
 
     #[test]
@@ -490,16 +517,22 @@ mod tests {
         // Valid: passes both length rule and ELO expression
         let value = serde_json::json!("PAT-123456");
         let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for valid PatientID: {e}"));
 
         // Invalid: passes length but fails ELO expression
         let value = serde_json::json!("NOTVALID!");
         let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for PatientID failing ELO expression, got: {result:?}"
+        );
 
         // Invalid: fails length rule
         let value = serde_json::json!("PAT-12345");
         let result = validate_custom_scalar_from_schema(&value, "PatientID", &schema);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for PatientID failing length rule, got: {result:?}"
+        );
     }
 }

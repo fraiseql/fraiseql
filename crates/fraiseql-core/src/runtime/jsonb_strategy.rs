@@ -109,8 +109,8 @@ mod tests {
     #[test]
     fn test_jsonb_strategy_from_str_invalid() {
         let result = "invalid".parse::<JsonbStrategy>();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid JSONB strategy"));
+        let err = result.expect_err("expected Err for invalid JSONB strategy string");
+        assert!(err.contains("Invalid JSONB strategy"), "unexpected error message: {err}");
     }
 
     #[test]

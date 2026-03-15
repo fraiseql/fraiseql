@@ -493,8 +493,8 @@ mod context {
         let query = r"{ __schema { queryType { name } } }";
 
         let result = executor.execute_with_context(query, None, &ctx).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().contains("__schema"));
+        let output = result.unwrap_or_else(|e| panic!("expected Ok for execute_with_context: {e}"));
+        assert!(output.contains("__schema"));
     }
 
     #[tokio::test]
@@ -512,8 +512,8 @@ mod context {
         let query = r"{ __schema { queryType { name } } }";
         let result = executor.execute_with_context(query, None, &ctx).await;
 
-        assert!(result.is_err());
-        match result.unwrap_err() {
+        let err = result.expect_err("expected Err for already-cancelled context");
+        match err {
             FraiseQLError::Cancelled { query_id, reason } => {
                 assert_eq!(query_id, "test-query-2");
                 assert!(reason.contains("before execution"));
@@ -730,8 +730,7 @@ mod inject {
 
         // Execute without security context — should fail with Validation error
         let result = executor.execute("{ org_items { id } }", None).await;
-        assert!(result.is_err(), "Expected Err for unauthenticated inject query");
-        let err = result.unwrap_err();
+        let err = result.expect_err("Expected Err for unauthenticated inject query");
         assert!(
             matches!(err, FraiseQLError::Validation { .. }),
             "Expected Validation error, got: {err:?}"
@@ -813,7 +812,7 @@ mod planning {
         let executor = Executor::new(schema, adapter);
 
         let result = executor.plan_query("", None);
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for empty query, got: {result:?}");
     }
 }
 
@@ -996,19 +995,16 @@ mod security {
         let query = "query { a: users { id } b: users { id } c: users { id } }";
         let result = validator.validate_query(query);
 
-        assert!(
-            result.is_err(),
-            "alias limit must be enforced even when depth and complexity are disabled"
-        );
+        let err = result.expect_err("alias limit must be enforced even when depth and complexity are disabled");
         assert!(
             matches!(
-                result.unwrap_err(),
+                err,
                 ValidationError::TooManyAliases {
                     actual_aliases: 3,
                     ..
                 }
             ),
-            "error must be TooManyAliases with actual_aliases = 3"
+            "error must be TooManyAliases with actual_aliases = 3, got: {err:?}"
         );
     }
 
@@ -1025,10 +1021,9 @@ mod security {
 
         // 2 aliases — within limit of 5.
         let query = "query { a: users { id } b: users { id } }";
-        assert!(
-            validator.validate_query(query).is_ok(),
-            "query within alias limit must pass when depth and complexity are disabled"
-        );
+        validator
+            .validate_query(query)
+            .unwrap_or_else(|e| panic!("query within alias limit must pass when depth and complexity are disabled: {e:?}"));
     }
 }
 

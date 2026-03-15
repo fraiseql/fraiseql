@@ -911,8 +911,8 @@ mod tests {
         });
 
         let result = WindowQueryParser::parse(&query, &metadata);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("table"));
+        let err = result.expect_err("expected Err for missing table field");
+        assert!(err.to_string().contains("table"), "unexpected error message: {err}");
     }
 
     #[test]
@@ -929,7 +929,7 @@ mod tests {
         });
 
         let result = WindowQueryParser::parse(&query, &metadata);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unknown"));
+        let err = result.expect_err("expected Err for invalid window function type");
+        assert!(err.to_string().contains("Unknown"), "unexpected error message: {err}");
     }
 }

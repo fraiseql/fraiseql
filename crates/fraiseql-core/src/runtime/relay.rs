@@ -210,12 +210,12 @@ mod tests {
     fn test_edge_cursor_is_base64() {
         let cursor = encode_edge_cursor(42);
         // Verify it's valid base64 by decoding.
-        assert!(BASE64.decode(&cursor).is_ok());
+        BASE64.decode(&cursor).unwrap_or_else(|e| panic!("expected valid base64 edge cursor: {e}"));
     }
 
     #[test]
     fn test_node_id_is_base64() {
         let id = encode_node_id("User", "some-uuid");
-        assert!(BASE64.decode(&id).is_ok());
+        BASE64.decode(&id).unwrap_or_else(|e| panic!("expected valid base64 node ID: {e}"));
     }
 }

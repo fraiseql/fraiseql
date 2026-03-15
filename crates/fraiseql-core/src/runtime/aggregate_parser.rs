@@ -955,13 +955,12 @@ mod tests {
 
         let result = AggregateQueryParser::parse(&query, &metadata);
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("expected Err for invalid count_distinct field");
         match err {
             FraiseQLError::Validation { message, .. } => {
-                assert!(message.contains("COUNT DISTINCT field 'nonexistent' not found"));
+                assert!(message.contains("COUNT DISTINCT field 'nonexistent' not found"), "unexpected message: {message}");
             },
-            _ => panic!("Expected Validation error"),
+            other => panic!("expected Validation error, got: {other:?}"),
         }
     }
 

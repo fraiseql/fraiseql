@@ -59,8 +59,7 @@ proptest! {
         buf.extend_from_slice(b"GARBAGE");
 
         let result = decode_message(&mut buf);
-        prop_assert!(result.is_ok());
-        let (_, consumed) = result.unwrap();
+        let (_, consumed) = result.map_err(|e| TestCaseError::fail(format!("expected Ok for ReadyForQuery exact-bytes: {e}")))?;
         prop_assert_eq!(consumed, 6, "ReadyForQuery should consume exactly 6 bytes");
     }
 
@@ -167,8 +166,8 @@ proptest! {
         buf.put_u8(0);
 
         let result = decode_message(&mut buf);
-        prop_assert!(result.is_ok());
-        match result.unwrap().0 {
+        let decoded = result.map_err(|e| TestCaseError::fail(format!("expected Ok for empty CommandComplete tag: {e}")))?;
+        match decoded.0 {
             fraiseql_wire::protocol::message::BackendMessage::CommandComplete(t) => {
                 prop_assert!(t.is_empty(), "Empty tag should decode as empty string");
             }

@@ -373,7 +373,10 @@ mod tests {
         let query = "{ unknown { id } }";
         let result = matcher.match_query(query, None);
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for unknown query, got: {result:?}"
+        );
     }
 
     #[test]
@@ -478,8 +481,8 @@ mod tests {
 
         // "userr" is one edit away from "users" — should suggest it.
         let result = matcher.match_query("{ userr { id } }", None);
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let err = result.expect_err("expected Err for typo'd query name");
+        let msg = err.to_string();
         assert!(msg.contains("Did you mean 'users'?"), "expected suggestion in: {msg}");
     }
 }

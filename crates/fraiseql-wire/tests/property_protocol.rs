@@ -41,7 +41,6 @@ proptest! {
         let data = vec![b'Z'; len];
         let mut buf = BytesMut::from(&data[..]);
         let result = decode_message(&mut buf);
-        prop_assert!(result.is_err());
         prop_assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::UnexpectedEof);
     }
 
@@ -53,8 +52,7 @@ proptest! {
         buf.put_i32(5); // 4 (length) + 1 (status)
         buf.put_u8(status);
         let result = decode_message(&mut buf);
-        prop_assert!(result.is_ok());
-        let (msg, consumed) = result.unwrap();
+        let (msg, consumed) = result.map_err(|e| TestCaseError::fail(format!("expected Ok for ReadyForQuery roundtrip: {e}")))?;
         prop_assert_eq!(consumed, 6);
         match msg {
             fraiseql_wire::protocol::message::BackendMessage::ReadyForQuery { status: s } => {
@@ -135,7 +133,6 @@ proptest! {
         buf.put_u8(tag);
         buf.put_i32(4); // minimum valid length
         let result = decode_message(&mut buf);
-        prop_assert!(result.is_err());
         prop_assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::InvalidData);
     }
 }
