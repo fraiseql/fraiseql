@@ -141,7 +141,11 @@ mod tests {
     fn test_parse_value_invalid_email_no_at() {
         let scalar = EmailScalar;
         let v = json!("notanemail");
-        assert!(scalar.parse_value(&v).is_err());
+        assert!(
+            matches!(scalar.parse_value(&v), Err(crate::error::FraiseQLError::Validation { .. })),
+            "email without '@' should fail with Validation error, got: {:?}",
+            scalar.parse_value(&v)
+        );
     }
 
     #[test]
@@ -163,6 +167,6 @@ mod tests {
     #[test]
     fn test_custom_scalar_result_type_alias_is_result_value() {
         let result: super::CustomScalarResult = Ok(json!("ok"));
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("CustomScalarResult should hold Ok value: {e}"));
     }
 }

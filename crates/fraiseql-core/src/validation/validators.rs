@@ -292,8 +292,12 @@ mod tests {
     #[test]
     fn test_pattern_validator_validation() {
         let validator = PatternValidator::new_default_message("^[a-z]+$").unwrap();
-        assert!(validator.validate("hello", "name").is_ok());
-        assert!(validator.validate("Hello", "name").is_err());
+        validator.validate("hello", "name")
+            .unwrap_or_else(|e| panic!("lowercase-only string should pass pattern: {e}"));
+        assert!(
+            matches!(validator.validate("Hello", "name"), Err(FraiseQLError::Validation { .. })),
+            "mixed-case string should fail pattern with Validation error"
+        );
     }
 
     #[test]
@@ -334,8 +338,12 @@ mod tests {
     #[test]
     fn test_required_validator() {
         let validator = RequiredValidator;
-        assert!(validator.validate("hello", "name").is_ok());
-        assert!(validator.validate("", "name").is_err());
+        validator.validate("hello", "name")
+            .unwrap_or_else(|e| panic!("non-empty string should pass required validator: {e}"));
+        assert!(
+            matches!(validator.validate("", "name"), Err(FraiseQLError::Validation { .. })),
+            "empty string should fail required validator with Validation error"
+        );
     }
 
     #[test]

@@ -752,7 +752,10 @@ mod tests {
         let eval = EloExpressionEvaluator::new("unknown_func(email)".to_string());
         let user = create_test_user();
         let result = eval.evaluate(&user);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "unknown function should return Validation error, got: {result:?}"
+        );
     }
 
     #[test]
@@ -760,7 +763,10 @@ mod tests {
         let eval = EloExpressionEvaluator::new("matches(email, \"[\")".to_string());
         let user = create_test_user();
         let result = eval.evaluate(&user);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "invalid regex in matches() should return Validation error, got: {result:?}"
+        );
     }
 
     #[test]
@@ -768,7 +774,10 @@ mod tests {
         let eval = EloExpressionEvaluator::new("matches(email)".to_string());
         let user = create_test_user();
         let result = eval.evaluate(&user);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "wrong argument count for matches() should return Validation error, got: {result:?}"
+        );
     }
 
     // ========== EDGE CASES ==========

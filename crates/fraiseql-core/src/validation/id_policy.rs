@@ -501,7 +501,10 @@ mod tests {
     #[test]
     fn test_validate_uuid_wrong_length() {
         let result = validate_id("550e8400-e29b-41d4-a716", IDPolicy::UUID);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            "short UUID string should fail with Validation error, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.policy, IDPolicy::UUID);
         assert!(err.message.contains("36 characters"));
@@ -520,7 +523,10 @@ mod tests {
     fn test_validate_uuid_missing_hyphens() {
         // 36 chars without hyphens - all hex digits, same length as UUID but no separators
         let result = validate_id("550e8400e29b41d4a716446655440000", IDPolicy::UUID);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            "UUID without hyphens should fail, got: {result:?}"
+        );
         let err = result.unwrap_err();
         // Fails length check since 32 chars != 36
         assert!(err.message.contains("36 characters"));
@@ -531,7 +537,10 @@ mod tests {
         // First segment too short (7 chars instead of 8)
         // Need 36 chars total, so pad the last segment: 550e840-e29b-41d4-a716-4466554400001
         let result = validate_id("550e840-e29b-41d4-a716-4466554400001", IDPolicy::UUID);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            "UUID with wrong segment lengths should fail, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert!(err.message.contains("segment"));
     }
@@ -539,7 +548,10 @@ mod tests {
     #[test]
     fn test_validate_uuid_non_hex_chars() {
         let result = validate_id("550e8400-e29b-41d4-a716-44665544000g", IDPolicy::UUID);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            "UUID with non-hex chars should fail, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert!(err.message.contains("non-hexadecimal"));
     }
@@ -755,7 +767,10 @@ mod tests {
     fn test_numeric_validator_invalid_float() {
         let validator = NumericIdValidator;
         let result = validator.validate("123.45");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { .. })),
+            "float string should fail NumericIdValidator, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.value, "123.45");
     }
@@ -830,7 +845,10 @@ mod tests {
     fn test_ulid_validator_invalid_length_short() {
         let validator = UlidIdValidator;
         let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5F");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { .. })),
+            "short ULID should fail UlidIdValidator, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert!(err.message.contains("26 characters"));
     }
@@ -839,7 +857,10 @@ mod tests {
     fn test_ulid_validator_invalid_length_long() {
         let validator = UlidIdValidator;
         let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAVA");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { .. })),
+            "long ULID should fail UlidIdValidator, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert!(err.message.contains("26 characters"));
     }
@@ -858,7 +879,10 @@ mod tests {
     fn test_ulid_validator_invalid_char_i() {
         let validator = UlidIdValidator;
         let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAI");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(IDValidationError { .. })),
+            "char 'I' should fail UlidIdValidator, got: {result:?}"
+        );
         let err = result.unwrap_err();
         assert!(err.message.contains("Crockford base32"));
     }

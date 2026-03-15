@@ -394,14 +394,14 @@ mod tests {
         registry.register_type("UserInput", parent_rules);
 
         let result = validate_inheritance("AdminUserInput", "UserInput", &registry);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("inheritance from registered parent should succeed: {e}"));
     }
 
     #[test]
     fn test_validate_inheritance_parent_not_found() {
         let registry = ValidationRuleRegistry::new();
         let result = validate_inheritance("AdminUserInput", "NonExistent", &registry);
-        assert!(result.is_err());
+        assert!(result.is_err(), "inheritance from unknown parent should fail, got: {result:?}");
         assert!(result.unwrap_err().contains("not found"));
     }
 
@@ -422,7 +422,7 @@ mod tests {
         registry.set_parent("AdminUserInput", "UserInput");
 
         let result = validate_inheritance("UserInput", "AdminUserInput", &registry);
-        assert!(result.is_err());
+        assert!(result.is_err(), "circular inheritance should fail, got: {result:?}");
         assert!(result.unwrap_err().contains("Circular"));
     }
 

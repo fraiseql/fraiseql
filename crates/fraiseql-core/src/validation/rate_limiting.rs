@@ -260,34 +260,42 @@ mod tests {
     #[test]
     fn test_dimension_rate_limiter_allows_within_limit() {
         let limiter = DimensionRateLimiter::new(3, 60);
-        assert!(limiter.check("key").is_ok());
-        assert!(limiter.check("key").is_ok());
-        assert!(limiter.check("key").is_ok());
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 1: {e}"));
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 2: {e}"));
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 3: {e}"));
     }
 
     #[test]
     fn test_dimension_rate_limiter_rejects_over_limit() {
         let limiter = DimensionRateLimiter::new(2, 60);
-        assert!(limiter.check("key").is_ok());
-        assert!(limiter.check("key").is_ok());
-        assert!(limiter.check("key").is_err());
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 1: {e}"));
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 2: {e}"));
+        assert!(
+            matches!(limiter.check("key"), Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited error on request 3, got: {:?}",
+            limiter.check("key")
+        );
     }
 
     #[test]
     fn test_dimension_rate_limiter_per_key() {
         let limiter = DimensionRateLimiter::new(2, 60);
-        assert!(limiter.check("key1").is_ok());
-        assert!(limiter.check("key1").is_ok());
-        assert!(limiter.check("key2").is_ok());
+        limiter.check("key1").unwrap_or_else(|e| panic!("expected Ok for key1 request 1: {e}"));
+        limiter.check("key1").unwrap_or_else(|e| panic!("expected Ok for key1 request 2: {e}"));
+        limiter.check("key2").unwrap_or_else(|e| panic!("expected Ok for key2 request 1 (independent key): {e}"));
     }
 
     #[test]
     fn test_dimension_rate_limiter_clear() {
         let limiter = DimensionRateLimiter::new(1, 60);
-        assert!(limiter.check("key").is_ok());
-        assert!(limiter.check("key").is_err());
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok before limit: {e}"));
+        assert!(
+            matches!(limiter.check("key"), Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited error at limit, got: {:?}",
+            limiter.check("key")
+        );
         limiter.clear();
-        assert!(limiter.check("key").is_ok());
+        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok after clear: {e}"));
     }
 
     #[test]
@@ -313,13 +321,16 @@ mod tests {
         }
 
         // Validation errors should be limited
-        assert!(limiter.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited after exhausting validation_errors quota"
+        );
 
         // But other dimensions should still work
-        assert!(limiter.check_depth_errors(key).is_ok());
-        assert!(limiter.check_complexity_errors(key).is_ok());
-        assert!(limiter.check_malformed_errors(key).is_ok());
-        assert!(limiter.check_async_validation_errors(key).is_ok());
+        limiter.check_depth_errors(key).unwrap_or_else(|e| panic!("depth_errors should still allow: {e}"));
+        limiter.check_complexity_errors(key).unwrap_or_else(|e| panic!("complexity_errors should still allow: {e}"));
+        limiter.check_malformed_errors(key).unwrap_or_else(|e| panic!("malformed_errors should still allow: {e}"));
+        limiter.check_async_validation_errors(key).unwrap_or_else(|e| panic!("async_validation_errors should still allow: {e}"));
     }
 
     #[test]
@@ -335,7 +346,10 @@ mod tests {
         }
 
         // limiter2 should see the same limit
-        assert!(limiter2.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter2.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "cloned limiter should share rate limit state"
+        );
     }
 
     #[test]
@@ -354,12 +368,15 @@ mod tests {
         };
         let limiter = ValidationRateLimiter::new_with_clock(config, clock_arc);
 
-        assert!(limiter.check_validation_errors("u1").is_ok()); // 1st
-        assert!(limiter.check_validation_errors("u1").is_ok()); // 2nd
-        assert!(limiter.check_validation_errors("u1").is_err()); // over limit
+        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 1st request: {e}")); // 1st
+        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 2nd request: {e}")); // 2nd
+        assert!(
+            matches!(limiter.check_validation_errors("u1"), Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited on 3rd request (over limit)"
+        ); // over limit
 
         clock.advance(Duration::from_secs(61)); // cross the window boundary
 
-        assert!(limiter.check_validation_errors("u1").is_ok()); // new window, limit reset
+        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok after window rollover: {e}")); // new window, limit reset
     }
 }
