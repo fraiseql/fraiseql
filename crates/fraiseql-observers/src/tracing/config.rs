@@ -118,7 +118,11 @@ mod tests {
             sample_rate: 1.0,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "empty service_name must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -130,7 +134,11 @@ mod tests {
             sample_rate: 1.5,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "sample_rate=1.5 must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -142,7 +150,11 @@ mod tests {
             sample_rate: 1.0,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "non-http endpoint must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -154,6 +166,6 @@ mod tests {
             sample_rate: 0.5,
         };
 
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 }

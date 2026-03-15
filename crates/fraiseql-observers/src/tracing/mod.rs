@@ -102,7 +102,7 @@ mod tests {
 
         // Should not panic or error
         let result = init_tracing(config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok when tracing is disabled: {e}"));
     }
 
     #[test]

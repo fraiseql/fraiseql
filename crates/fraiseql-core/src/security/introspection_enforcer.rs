@@ -313,8 +313,9 @@ mod tests {
     #[test]
     fn test_internal_only_allows_authenticated_user() {
         let enforcer = IntrospectionEnforcer::internal_only();
-        let result = enforcer.validate_query(introspection_schema_query(), Some("user123"));
-        assert!(result.is_ok());
+        enforcer
+            .validate_query(introspection_schema_query(), Some("user123"))
+            .unwrap_or_else(|e| panic!("expected authenticated user to be allowed: {e}"));
     }
 
     #[test]
@@ -331,15 +332,17 @@ mod tests {
     #[test]
     fn test_allowed_policy_permits_introspection() {
         let enforcer = IntrospectionEnforcer::allowed();
-        let result = enforcer.validate_query(introspection_schema_query(), None);
-        assert!(result.is_ok());
+        enforcer
+            .validate_query(introspection_schema_query(), None)
+            .unwrap_or_else(|e| panic!("expected Allowed policy to permit introspection: {e}"));
     }
 
     #[test]
     fn test_allowed_policy_permits_anonymous_introspection() {
         let enforcer = IntrospectionEnforcer::allowed();
-        let result = enforcer.validate_query(introspection_schema_query(), None);
-        assert!(result.is_ok());
+        enforcer
+            .validate_query(introspection_schema_query(), None)
+            .unwrap_or_else(|e| panic!("expected Allowed policy to permit anonymous introspection: {e}"));
     }
 
     #[test]
@@ -359,8 +362,9 @@ mod tests {
     #[test]
     fn test_policy_allows_normal_queries_always() {
         let disabled_enforcer = IntrospectionEnforcer::disabled();
-        let result = disabled_enforcer.validate_query(normal_query(), None);
-        assert!(result.is_ok());
+        disabled_enforcer
+            .validate_query(normal_query(), None)
+            .unwrap_or_else(|e| panic!("expected normal queries to pass even with Disabled policy: {e}"));
     }
 
     // ============================================================================
@@ -428,7 +432,9 @@ mod tests {
 
         // __type should NOT be detected (allowed through)
         let type_query = "{ __type(name: \"User\") { name } }";
-        assert!(enforcer.validate_query(type_query, None).is_ok());
+        enforcer
+            .validate_query(type_query, None)
+            .unwrap_or_else(|e| panic!("expected __type to pass through when detect_type=false: {e}"));
     }
 
     // ============================================================================
@@ -451,8 +457,9 @@ mod tests {
     #[test]
     fn test_empty_query_not_introspection() {
         let enforcer = IntrospectionEnforcer::disabled();
-        let result = enforcer.validate_query("", None);
-        assert!(result.is_ok());
+        enforcer
+            .validate_query("", None)
+            .unwrap_or_else(|e| panic!("expected empty query to be allowed (not introspection): {e}"));
     }
 
     #[test]

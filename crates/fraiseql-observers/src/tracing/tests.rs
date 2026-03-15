@@ -20,8 +20,9 @@ mod tracing_e2e_tests {
         };
 
         let result = init_tracing(config);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_some(), "Expected Some(JaegerExporter) when tracing is enabled");
+        let exporter = result
+            .unwrap_or_else(|e| panic!("expected Ok for valid enabled tracing config: {e}"));
+        assert!(exporter.is_some(), "Expected Some(JaegerExporter) when tracing is enabled");
     }
 
     #[test]
@@ -308,8 +309,9 @@ mod tracing_e2e_tests {
         assert_eq!(jaeger_config.sample_rate, 0.5);
         assert_eq!(jaeger_config.max_batch_size, 512);
 
-        let validation = jaeger_config.validate();
-        assert!(validation.is_ok());
+        jaeger_config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid jaeger config: {e}"));
     }
 
     #[test]

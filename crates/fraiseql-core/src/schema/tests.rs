@@ -235,7 +235,6 @@ fn test_schema_validation_duplicate_types() {
     };
 
     let result = schema.validate();
-    assert!(result.is_err());
     let errors = result.unwrap_err();
     assert!(errors.iter().any(|e| e.contains("Duplicate type name: User")));
 }
@@ -249,7 +248,6 @@ fn test_schema_validation_undefined_type_reference() {
     };
 
     let result = schema.validate();
-    assert!(result.is_err());
     let errors = result.unwrap_err();
     assert!(errors.iter().any(|e| e.contains("undefined type 'Post'")));
 }
@@ -262,7 +260,7 @@ fn test_schema_validation_success() {
         ..Default::default()
     };
 
-    assert!(schema.validate().is_ok());
+    schema.validate().unwrap_or_else(|e| panic!("expected valid schema: {e:?}"));
 }
 
 #[test]
@@ -278,7 +276,7 @@ fn test_schema_validation_builtin_types_ok() {
         ..Default::default()
     };
 
-    assert!(schema.validate().is_ok());
+    schema.validate().unwrap_or_else(|e| panic!("expected built-in types to pass validation: {e:?}"));
 }
 
 #[test]
@@ -544,7 +542,7 @@ fn test_python_generated_json_compat() {
     assert!(schema.subscriptions.is_empty());
 
     // Verify validation passes
-    assert!(schema.validate().is_ok());
+    schema.validate().unwrap_or_else(|e| panic!("expected Python-generated schema to pass validation: {e:?}"));
 }
 
 // ============================================================================
@@ -862,7 +860,7 @@ fn test_python_generated_vector_schema_compat() {
     assert_eq!(config.distance_metric, DistanceMetric::Cosine);
 
     // Verify validation passes
-    assert!(schema.validate().is_ok());
+    schema.validate().unwrap_or_else(|e| panic!("expected Python-generated vector schema to pass validation: {e:?}"));
 }
 
 #[test]
@@ -874,7 +872,9 @@ fn test_compiled_schema_has_version_after_stamp() {
     let json = serde_json::to_string(&schema).unwrap();
     let reloaded: CompiledSchema = serde_json::from_str(&json).unwrap();
     assert_eq!(reloaded.schema_format_version, Some(CURRENT_SCHEMA_FORMAT_VERSION));
-    assert!(reloaded.validate_format_version().is_ok());
+    reloaded
+        .validate_format_version()
+        .unwrap_or_else(|e| panic!("expected current version to pass format validation: {e:?}"));
 }
 
 #[test]
@@ -883,7 +883,8 @@ fn test_future_schema_version_is_rejected() {
         schema_format_version: Some(999),
         ..Default::default()
     };
-    assert!(schema.validate_format_version().is_err());
+    let result = schema.validate_format_version();
+    assert!(result.is_err(), "expected future version 999 to be rejected, got: {result:?}");
 }
 
 #[test]
@@ -891,5 +892,7 @@ fn test_legacy_schema_without_version_warns_but_loads() {
     // schema_format_version = None simulates a pre-v2.1 compiled schema
     let schema = CompiledSchema::default();
     // Should return Ok (callers log a warning, but do not reject)
-    assert!(schema.validate_format_version().is_ok());
+    schema
+        .validate_format_version()
+        .unwrap_or_else(|e| panic!("expected legacy schema (no version) to be accepted: {e:?}"));
 }

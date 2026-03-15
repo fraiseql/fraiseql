@@ -371,7 +371,7 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 
     #[test]
@@ -384,7 +384,11 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "empty endpoint must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -397,7 +401,11 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "empty service name must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -410,7 +418,11 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "sample_rate > 1.0 must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -423,7 +435,11 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "sample_rate < 0.0 must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -436,7 +452,11 @@ mod tests {
             export_timeout_ms: 30000,
         };
 
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(crate::error::Error::Tracing(_))),
+            "max_batch_size=0 must return Tracing error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -449,7 +469,7 @@ mod tests {
         };
 
         let result = init_jaeger_exporter(&config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for valid enabled config: {e}"));
     }
 
     #[test]
@@ -463,7 +483,7 @@ mod tests {
 
         let result = init_jaeger_exporter(&config);
         // Should succeed because validate() passes even if disabled
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok even when disabled: {e}"));
     }
 
     #[test]
@@ -476,7 +496,10 @@ mod tests {
         };
 
         let result = init_jaeger_exporter(&config);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::error::Error::Tracing(_))),
+            "empty service_name must return Tracing error, got: {result:?}"
+        );
     }
 
     #[test]

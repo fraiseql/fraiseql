@@ -566,7 +566,9 @@ fn test_deeply_nested_not_operators_limited() {
 fn condition_input_at_limit_is_accepted() {
     // A short well-formed condition must still parse (size cap not triggered).
     let parser = ConditionParser::new();
-    assert!(parser.parse("total == 100").is_ok());
+    parser
+        .parse("total == 100")
+        .unwrap_or_else(|e| panic!("expected Ok for short valid condition: {e}"));
 }
 
 #[test]

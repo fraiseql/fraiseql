@@ -241,8 +241,9 @@ mod tests {
     #[test]
     fn test_query_size_within_limit() {
         let validator = QueryValidator::standard();
-        let result = validator.validate("{ user { id name } }");
-        assert!(result.is_ok());
+        validator
+            .validate("{ user { id name } }")
+            .unwrap_or_else(|e| panic!("expected Ok for small query: {e}"));
     }
 
     #[test]
@@ -274,9 +275,9 @@ mod tests {
     #[test]
     fn test_valid_query_depth() {
         let validator = QueryValidator::standard();
-        let result = validator.validate("{ user { id name } }");
-        assert!(result.is_ok());
-        let metrics = result.unwrap();
+        let metrics = validator
+            .validate("{ user { id name } }")
+            .unwrap_or_else(|e| panic!("expected Ok for shallow query: {e}"));
         assert!(metrics.depth <= validator.config().max_depth);
     }
 
@@ -311,9 +312,9 @@ mod tests {
     #[test]
     fn test_valid_query_complexity() {
         let validator = QueryValidator::standard();
-        let result = validator.validate("{ user { id name } }");
-        assert!(result.is_ok());
-        let metrics = result.unwrap();
+        let metrics = validator
+            .validate("{ user { id name } }")
+            .unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
         assert!(metrics.complexity <= validator.config().max_complexity);
     }
 

@@ -532,14 +532,20 @@ mod tests {
     #[test]
     fn test_depth_validation_pass() {
         let validator = RequestValidator::default().with_max_depth(5);
-        assert!(validator.validate_query("{ user { id } }").is_ok());
+        validator
+            .validate_query("{ user { id } }")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_depth_validation_fail() {
         let validator = RequestValidator::default().with_max_depth(3);
         let deep = "{ user { profile { settings { theme } } } }";
-        assert!(validator.validate_query(deep).is_err());
+        let result = validator.validate_query(deep);
+        assert!(
+            matches!(result, Err(ValidationError::QueryTooDeep { .. })),
+            "expected QueryTooDeep, got: {result:?}"
+        );
     }
 
     // ── Fragment depth bypass ──
@@ -564,7 +570,9 @@ mod tests {
             fragment UserFields on User { id name email }
             query { user { ...UserFields } }
         ";
-        assert!(validator.validate_query(query).is_ok());
+        validator
+            .validate_query(query)
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     // ── Complexity ──
@@ -572,7 +580,9 @@ mod tests {
     #[test]
     fn test_complexity_validation_pass() {
         let validator = RequestValidator::default().with_max_complexity(20);
-        assert!(validator.validate_query("query { user { id name email } }").is_ok());
+        validator
+            .validate_query("query { user { id name email } }")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
@@ -601,7 +611,9 @@ mod tests {
     fn test_alias_count_within_limit() {
         let validator = RequestValidator::new().with_max_aliases(5);
         let query = "query { a: user { id } b: user { id } c: user { id } }";
-        assert!(validator.validate_query(query).is_ok());
+        validator
+            .validate_query(query)
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
@@ -628,14 +640,20 @@ mod tests {
             let _ = write!(s, "f{i}: user {{ id }} ");
             s
         });
-        assert!(validator.validate_query(&format!("query {{ {fields_30} }}")).is_ok());
+        validator
+            .validate_query(&format!("query {{ {fields_30} }}"))
+            .unwrap_or_else(|e| panic!("expected Ok for 30 aliases: {e}"));
 
         let fields_31: String = (0..31).fold(String::new(), |mut s, i| {
             use std::fmt::Write;
             let _ = write!(s, "f{i}: user {{ id }} ");
             s
         });
-        assert!(validator.validate_query(&format!("query {{ {fields_31} }}")).is_err());
+        let result_31 = validator.validate_query(&format!("query {{ {fields_31} }}"));
+        assert!(
+            matches!(result_31, Err(ValidationError::TooManyAliases { .. })),
+            "expected TooManyAliases for 31 aliases, got: {result_31:?}"
+        );
     }
 
     // ── Parse errors ──
@@ -643,14 +661,26 @@ mod tests {
     #[test]
     fn test_empty_query_rejected() {
         let validator = RequestValidator::new();
-        assert!(validator.validate_query("").is_err());
-        assert!(validator.validate_query("   ").is_err());
+        let r1 = validator.validate_query("");
+        assert!(
+            matches!(r1, Err(ValidationError::MalformedQuery(_))),
+            "expected MalformedQuery for empty string, got: {r1:?}"
+        );
+        let r2 = validator.validate_query("   ");
+        assert!(
+            matches!(r2, Err(ValidationError::MalformedQuery(_))),
+            "expected MalformedQuery for whitespace, got: {r2:?}"
+        );
     }
 
     #[test]
     fn test_malformed_query_rejected() {
         let validator = RequestValidator::new();
-        assert!(validator.validate_query("{ invalid query {{}}").is_err());
+        let result = validator.validate_query("{ invalid query {{}}");
+        assert!(
+            matches!(result, Err(ValidationError::MalformedQuery(_))),
+            "expected MalformedQuery, got: {result:?}"
+        );
     }
 
     // ── Variables ──
@@ -659,14 +689,20 @@ mod tests {
     fn test_valid_variables() {
         let validator = RequestValidator::new();
         let vars = serde_json::json!({"id": "123"});
-        assert!(validator.validate_variables(Some(&vars)).is_ok());
+        validator
+            .validate_variables(Some(&vars))
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_invalid_variables_not_object() {
         let validator = RequestValidator::new();
         let vars = serde_json::json!([1, 2, 3]);
-        assert!(validator.validate_variables(Some(&vars)).is_err());
+        let result = validator.validate_variables(Some(&vars));
+        assert!(
+            matches!(result, Err(ValidationError::InvalidVariables(_))),
+            "expected InvalidVariables, got: {result:?}"
+        );
     }
 
     // ── Disabled validation ──
@@ -679,7 +715,9 @@ mod tests {
             .with_max_depth(1)
             .with_max_complexity(1);
         let deep = "{ a { b { c { d { e { f } } } } } }";
-        assert!(validator.validate_query(deep).is_ok());
+        validator
+            .validate_query(deep)
+            .unwrap_or_else(|e| panic!("expected Ok when depth/complexity disabled: {e}"));
     }
 
     // ── from_config ──
@@ -693,6 +731,10 @@ mod tests {
         };
         let validator = RequestValidator::from_config(config);
         // Depth-6 query should fail
-        assert!(validator.validate_query("{ a { b { c { d { e { f } } } } } }").is_err());
+        let result = validator.validate_query("{ a { b { c { d { e { f } } } } } }");
+        assert!(
+            matches!(result, Err(ValidationError::QueryTooDeep { .. })),
+            "expected QueryTooDeep for depth-6 query with max 5, got: {result:?}"
+        );
     }
 }

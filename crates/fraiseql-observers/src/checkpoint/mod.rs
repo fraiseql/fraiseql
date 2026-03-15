@@ -739,13 +739,15 @@ mod tests {
     fn test_require_persistent_not_set_allows_dev() {
         // Env var absent → DevOnly is fine.
         std::env::remove_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT");
-        assert!(check_checkpoint_requirement(CheckpointMode::DevOnly).is_ok());
+        check_checkpoint_requirement(CheckpointMode::DevOnly)
+            .unwrap_or_else(|e| panic!("expected Ok when env var absent (DevOnly): {e}"));
     }
 
     #[test]
     fn test_require_persistent_not_set_allows_persistent() {
         std::env::remove_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT");
-        assert!(check_checkpoint_requirement(CheckpointMode::Persistent).is_ok());
+        check_checkpoint_requirement(CheckpointMode::Persistent)
+            .unwrap_or_else(|e| panic!("expected Ok when env var absent (Persistent): {e}"));
     }
 
     #[test]
@@ -766,6 +768,7 @@ mod tests {
     fn test_require_persistent_set_allows_persistent_regardless() {
         // Even with FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT=true, Persistent mode is fine.
         // Test the logic: Persistent mode always returns Ok regardless of env var.
-        assert!(check_checkpoint_requirement(CheckpointMode::Persistent).is_ok());
+        check_checkpoint_requirement(CheckpointMode::Persistent)
+            .unwrap_or_else(|e| panic!("Persistent mode must always be Ok: {e}"));
     }
 }

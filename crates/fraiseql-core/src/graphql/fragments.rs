@@ -176,7 +176,7 @@ mod tests {
                 ("FragC".to_string(), HashSet::new()),
             ]),
         };
-        assert!(graph.detect_cycles().is_ok());
+        graph.detect_cycles().unwrap_or_else(|c| panic!("expected no cycles, got: {c:?}"));
     }
 
     #[test]
@@ -187,11 +187,9 @@ mod tests {
                 ("FragB".to_string(), HashSet::from(["FragA".to_string()])),
             ]),
         };
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
-        let cycle = result.unwrap_err();
+        let cycle = graph.detect_cycles().expect_err("expected cycle to be detected");
         // Cycle can start from either FragA or FragB depending on iteration order
-        assert!(cycle.len() >= 2);
+        assert!(cycle.len() >= 2, "cycle must contain at least 2 fragments, got: {cycle:?}");
     }
 
     #[test]
@@ -206,7 +204,7 @@ mod tests {
             ]),
         };
         let result = graph.detect_cycles();
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected A→B→C→A cycle to be detected, got: {result:?}");
     }
 
     #[test]
@@ -219,11 +217,9 @@ mod tests {
                 ("FragD".to_string(), HashSet::from(["FragC".to_string()])),
             ]),
         };
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
+        let cycle = graph.detect_cycles().expect_err("expected at least one cycle to be detected");
         // Should detect one of the cycles (DFS order dependent)
-        let cycle = result.unwrap_err();
-        assert!(cycle.len() >= 2); // At least A->B or C->D
+        assert!(cycle.len() >= 2, "cycle must contain at least 2 fragments (A→B or C→D), got: {cycle:?}");
     }
 
     #[test]
@@ -235,6 +231,6 @@ mod tests {
             )]),
         };
         let result = graph.detect_cycles();
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected self-reference FragA→FragA to be detected as cycle, got: {result:?}");
     }
 }

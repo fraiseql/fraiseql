@@ -418,7 +418,7 @@ mod tests {
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
         let result = ExecutorFactory::build_postgres_only(&config, dlq).await;
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok for postgres-only topology: {e}"));
     }
 
     #[tokio::test]
@@ -446,14 +446,17 @@ mod tests {
         #[cfg(all(feature = "dedup", feature = "caching"))]
         {
             let result = ExecutorFactory::build(&config, dlq).await;
-            assert!(result.is_err());
+            assert!(
+                matches!(result, Err(ObserverError::InvalidConfig { .. })),
+                "dedup without redis must return InvalidConfig, got: {result:?}"
+            );
         }
 
         #[cfg(not(all(feature = "dedup", feature = "caching")))]
         {
             // Without features, should succeed (ignores config)
             let result = ExecutorFactory::build(&config, dlq).await;
-            assert!(result.is_ok());
+            result.unwrap_or_else(|e| panic!("expected Ok when dedup/caching features absent: {e}"));
         }
     }
 
@@ -503,7 +506,10 @@ mod tests {
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
         let result = ExecutorFactory::build_with_queue(&config, dlq).await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ObserverError::InvalidConfig { .. })),
+            "missing job_queue config must return InvalidConfig, got: {result:?}"
+        );
     }
 
     #[cfg(feature = "queue")]
@@ -513,28 +519,40 @@ mod tests {
 
         // Valid config
         let config = JobQueueConfig::default();
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         // Invalid: empty URL
         let config = JobQueueConfig {
             url: String::new(),
             ..JobQueueConfig::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "empty url must return error, got: {:?}",
+            config.validate()
+        );
 
         // Invalid: zero batch size
         let config = JobQueueConfig {
             batch_size: 0,
             ..JobQueueConfig::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "batch_size=0 must return error, got: {:?}",
+            config.validate()
+        );
 
         // Invalid: zero concurrency
         let config = JobQueueConfig {
             worker_concurrency: 0,
             ..JobQueueConfig::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "worker_concurrency=0 must return error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[cfg(feature = "queue")]

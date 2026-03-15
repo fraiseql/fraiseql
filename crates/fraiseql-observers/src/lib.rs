@@ -230,7 +230,11 @@ mod integration_tests {
             body_template: None,
         };
 
-        assert!(invalid.validate().is_err());
+        assert!(
+            invalid.validate().is_err(),
+            "webhook with no url must return error, got: {:?}",
+            invalid.validate()
+        );
 
         let valid = ActionConfig::Webhook {
             url:           Some("https://example.com".to_string()),
@@ -239,7 +243,7 @@ mod integration_tests {
             body_template: Some("{}".to_string()),
         };
 
-        assert!(valid.validate().is_ok());
+        valid.validate().unwrap_or_else(|e| panic!("expected Ok for valid webhook config: {e}"));
     }
 
     #[test]
@@ -544,6 +548,9 @@ mod e2e_tests {
         };
 
         let result = entry.to_entity_event();
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "invalid UUID in object_id must return error, got: {result:?}"
+        );
     }
 }

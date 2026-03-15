@@ -395,7 +395,11 @@ mod tests {
             url: String::new(),
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
+            "empty url must return InvalidConfig, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -404,7 +408,11 @@ mod tests {
             index_prefix: String::new(),
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "empty index_prefix must return error, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -413,13 +421,21 @@ mod tests {
             bulk_size: 0,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
+            "bulk_size=0 must return InvalidConfig, got: {:?}",
+            config.validate()
+        );
 
         let config = ElasticsearchSinkConfig {
             bulk_size: 200_000,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
+            "bulk_size=200_000 must return InvalidConfig, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -428,7 +444,11 @@ mod tests {
             flush_interval_secs: 0,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
+            "flush_interval_secs=0 must return InvalidConfig, got: {:?}",
+            config.validate()
+        );
     }
 
     #[test]
@@ -437,7 +457,7 @@ mod tests {
             url: "https://es.example.com:9200".to_string(),
             ..ElasticsearchSinkConfig::default()
         };
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 
     #[test]
@@ -469,12 +489,16 @@ mod tests {
 
     #[test]
     fn test_config_max_bulk_size_boundary() {
-        // 100_000 is invalid (upper bound exclusive)
+        // 100_001 exceeds the upper bound
         let config = ElasticsearchSinkConfig {
             bulk_size: 100_001,
             ..Default::default()
         };
-        assert!(config.validate().is_err());
+        assert!(
+            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
+            "bulk_size=100_001 must return InvalidConfig, got: {:?}",
+            config.validate()
+        );
 
         // 100_000 is the maximum valid value
         let config = ElasticsearchSinkConfig {
@@ -482,7 +506,7 @@ mod tests {
             bulk_size: 100_000,
             ..Default::default()
         };
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for bulk_size=100_000: {e}"));
     }
 
     #[test]
@@ -495,7 +519,9 @@ mod tests {
             ..ElasticsearchSinkConfig::default()
         };
         let after = base.with_env_overrides();
-        assert!(after.validate().is_ok(), "config after with_env_overrides must still be valid");
+        after.validate().unwrap_or_else(|e| {
+            panic!("config after with_env_overrides must still be valid: {e}")
+        });
     }
 
     #[test]
@@ -507,7 +533,7 @@ mod tests {
             flush_interval_secs: 30,
             max_retries:         5,
         };
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for custom valid config: {e}"));
     }
 
     // ── S23-H4: Elasticsearch sink timeout + bulk response cap ────────────────

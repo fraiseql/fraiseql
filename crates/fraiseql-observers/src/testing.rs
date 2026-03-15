@@ -518,7 +518,7 @@ pub mod mocks {
             };
 
             let result = executor.execute(&event, &action).await;
-            assert!(result.is_ok());
+            result.unwrap_or_else(|e| panic!("expected Ok from mock executor: {e}"));
             assert_eq!(executor.execution_count(), 1);
         }
 
@@ -544,7 +544,10 @@ pub mod mocks {
             };
 
             let result = executor.execute(&event, &action).await;
-            assert!(result.is_err());
+            assert!(
+                matches!(result, Err(ObserverError::ActionExecutionFailed { .. })),
+                "should_fail executor must return ActionExecutionFailed, got: {result:?}"
+            );
         }
 
         #[tokio::test]

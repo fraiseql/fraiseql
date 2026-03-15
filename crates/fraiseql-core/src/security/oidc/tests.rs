@@ -80,8 +80,10 @@ fn test_oidc_config_google() {
 fn test_oidc_config_validate_empty_issuer() {
     let config = OidcConfig::default();
     let result = config.validate();
-    assert!(result.is_err());
-    assert!(matches!(result, Err(SecurityError::SecurityConfigError(_))));
+    assert!(
+        matches!(result, Err(SecurityError::SecurityConfigError(_))),
+        "expected SecurityConfigError for empty issuer, got: {result:?}"
+    );
 }
 
 #[test]
@@ -91,7 +93,7 @@ fn test_oidc_config_validate_http_issuer() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected http:// issuer to be rejected, got: {result:?}");
 }
 
 #[test]
@@ -101,8 +103,7 @@ fn test_oidc_config_validate_localhost_allowed() {
         audience: Some("my-api".to_string()),
         ..Default::default()
     };
-    let result = config.validate();
-    assert!(result.is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected localhost to be allowed: {e}"));
 }
 
 #[test]
@@ -112,8 +113,7 @@ fn test_oidc_config_validate_https_required() {
         audience: Some("https://api.example.com".to_string()),
         ..Default::default()
     };
-    let result = config.validate();
-    assert!(result.is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected https:// issuer to be valid: {e}"));
 }
 
 #[test]
@@ -309,7 +309,7 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
     };
     let result = OidcValidator::new(config).await;
     // Must fail with a JSON parse error, NOT a size error
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected JSON parse failure for 'not json' body");
     let msg = result.err().unwrap().to_string();
     assert!(
         !msg.contains("too large"),

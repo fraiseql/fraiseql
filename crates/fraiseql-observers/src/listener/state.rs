@@ -183,19 +183,31 @@ mod tests {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         // Valid transition: Initializing → Connecting
-        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
+        state_machine
+            .transition(ListenerState::Connecting)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Initializing→Connecting: {e}"));
         assert_eq!(state_machine.get_state().await, ListenerState::Connecting);
 
         // Valid transition: Connecting → Running
-        assert!(state_machine.transition(ListenerState::Running).await.is_ok());
+        state_machine
+            .transition(ListenerState::Running)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Connecting→Running: {e}"));
         assert_eq!(state_machine.get_state().await, ListenerState::Running);
 
         // Valid transition: Running → Recovering
-        assert!(state_machine.transition(ListenerState::Recovering).await.is_ok());
+        state_machine
+            .transition(ListenerState::Recovering)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Running→Recovering: {e}"));
         assert_eq!(state_machine.get_state().await, ListenerState::Recovering);
 
         // Valid transition: Recovering → Running
-        assert!(state_machine.transition(ListenerState::Running).await.is_ok());
+        state_machine
+            .transition(ListenerState::Running)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Recovering→Running: {e}"));
         assert_eq!(state_machine.get_state().await, ListenerState::Running);
     }
 
@@ -204,16 +216,24 @@ mod tests {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         // Initializing → Connecting
-        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
+        state_machine
+            .transition(ListenerState::Connecting)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Initializing→Connecting: {e}"));
         // Connecting → Recovering (connection failure at startup — must not require restart)
-        assert!(
-            state_machine.transition(ListenerState::Recovering).await.is_ok(),
-            "Connecting → Recovering must be a valid transition"
-        );
+        state_machine
+            .transition(ListenerState::Recovering)
+            .await
+            .unwrap_or_else(|e| {
+                panic!("Connecting → Recovering must be a valid transition, got: {e}")
+            });
         assert_eq!(state_machine.get_state().await, ListenerState::Recovering);
 
         // Recovering → Connecting (retry connection)
-        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
+        state_machine
+            .transition(ListenerState::Connecting)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for Recovering→Connecting: {e}"));
     }
 
     #[tokio::test]
@@ -221,10 +241,22 @@ mod tests {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         // Invalid transition: Initializing → Running (skip Connecting)
-        assert!(state_machine.transition(ListenerState::Running).await.is_err());
+        assert!(
+            matches!(
+                state_machine.transition(ListenerState::Running).await,
+                Err(ObserverError::InvalidConfig { .. })
+            ),
+            "Initializing→Running must be rejected with InvalidConfig"
+        );
 
         // Invalid transition: Initializing → Recovering
-        assert!(state_machine.transition(ListenerState::Recovering).await.is_err());
+        assert!(
+            matches!(
+                state_machine.transition(ListenerState::Recovering).await,
+                Err(ObserverError::InvalidConfig { .. })
+            ),
+            "Initializing→Recovering must be rejected with InvalidConfig"
+        );
     }
 
     #[tokio::test]

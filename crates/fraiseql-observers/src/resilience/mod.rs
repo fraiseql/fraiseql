@@ -283,8 +283,8 @@ mod tests {
         // Call should succeed in closed state
         let result = breaker.call(|| Box::pin(async { Ok::<i32, ObserverError>(42) })).await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        let val = result.unwrap_or_else(|e| panic!("expected Ok in closed state: {e}"));
+        assert_eq!(val, 42);
     }
 
     #[tokio::test]
@@ -339,7 +339,10 @@ mod tests {
         // Should fail fast in open state
         let result = breaker.call(|| Box::pin(async { Ok::<i32, _>(42) })).await;
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ObserverError::CircuitBreakerOpen { .. })),
+            "open circuit must fail with CircuitBreakerOpen, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -368,14 +371,17 @@ mod tests {
 
         // Should allow limited requests in half-open
         let result1 = breaker.call(|| Box::pin(async { Ok::<i32, _>(1) })).await;
-        assert!(result1.is_ok());
+        result1.unwrap_or_else(|e| panic!("expected Ok for first half-open request: {e}"));
 
         let result2 = breaker.call(|| Box::pin(async { Ok::<i32, _>(2) })).await;
-        assert!(result2.is_ok());
+        result2.unwrap_or_else(|e| panic!("expected Ok for second half-open request: {e}"));
 
-        // Third request should fail
+        // Third request should fail (half_open_max_requests=2 exceeded)
         let result3 = breaker.call(|| Box::pin(async { Ok::<i32, _>(3) })).await;
-        assert!(result3.is_err());
+        assert!(
+            matches!(result3, Err(ObserverError::CircuitBreakerOpen { .. })),
+            "third half-open request must fail with CircuitBreakerOpen, got: {result3:?}"
+        );
     }
 
     #[test]

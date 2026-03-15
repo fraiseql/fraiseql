@@ -699,7 +699,10 @@ mod tests {
         };
 
         let result = entry.to_entity_event();
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ObserverError::InvalidConfig { .. })),
+            "unknown modification_type must return InvalidConfig, got: {result:?}"
+        );
     }
 
     #[test]
