@@ -83,7 +83,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         // Try cache first
         if let Some(cached_result) = self.cache.get(&cache_key)? {
-            return Ok((*cached_result).clone());
+            return Ok(std::sync::Arc::unwrap_or_clone(cached_result));
         }
 
         // Cache miss - execute via underlying adapter
@@ -135,8 +135,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         // Try cache first
         if let Some(cached_result) = self.cache.get(&cache_key)? {
-            // Cache hit - return cached result
-            return Ok((*cached_result).clone());
+            return Ok(std::sync::Arc::unwrap_or_clone(cached_result));
         }
 
         // Cache miss - execute query

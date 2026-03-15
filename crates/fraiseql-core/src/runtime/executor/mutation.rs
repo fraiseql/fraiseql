@@ -205,21 +205,19 @@ impl<A: DatabaseAdapter> Executor<A> {
         let vars_obj = variables.and_then(|v| v.as_object());
 
         let mut missing_required: Vec<&str> = Vec::new();
-        let mut args: Vec<serde_json::Value> = mutation_def
-            .arguments
-            .iter()
-            .map(|arg| {
-                let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-                if let Some(v) = value {
-                    v
-                } else {
-                    if !arg.nullable && arg.default_value.is_none() {
-                        missing_required.push(&arg.name);
-                    }
-                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+        let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
+        let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
+        args.extend(mutation_def.arguments.iter().map(|arg| {
+            let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
+            if let Some(v) = value {
+                v
+            } else {
+                if !arg.nullable && arg.default_value.is_none() {
+                    missing_required.push(&arg.name);
                 }
-            })
-            .collect();
+                arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+            }
+        }));
 
         if !missing_required.is_empty() {
             return Err(FraiseQLError::Validation {
