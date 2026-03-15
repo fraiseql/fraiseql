@@ -103,7 +103,7 @@ fn test_cross_tenant_data_access_via_id_guessing() {
 
     let validator = RequestValidator::new();
     // Query is structurally valid
-    assert!(validator.validate_query(query).is_ok());
+    validator.validate_query(query).unwrap_or_else(|e| panic!("expected Ok for valid query: {e}"));
 
     // But at runtime, database-level access control (RLS) must prevent
     // returning data from another tenant
@@ -145,7 +145,8 @@ fn test_role_field_not_exposed_in_mutation_arguments() {
 
     // Query should be structurally valid (for validation purposes)
     let validator = RequestValidator::new();
-    assert!(validator.validate_query(update_user_mutation).is_ok());
+    validator.validate_query(update_user_mutation)
+        .unwrap_or_else(|e| panic!("expected Ok for structurally valid mutation: {e}"));
 
     // But the server must reject at execution time:
     // - role parameter is not defined in schema updateUser mutation
@@ -190,7 +191,8 @@ fn test_introspection_to_discover_admin_fields() {
 
     let validator = RequestValidator::new();
     // Query is structurally valid
-    assert!(validator.validate_query(introspection_query).is_ok());
+    validator.validate_query(introspection_query)
+        .unwrap_or_else(|e| panic!("expected Ok for structurally valid introspection query: {e}"));
 
     // But if introspection is disabled (REGULATED/RESTRICTED profiles),
     // server must reject at execution time
@@ -209,7 +211,8 @@ fn test_batched_mutation_attack() {
 
     let validator = RequestValidator::new();
     // Batch query is structurally valid
-    assert!(validator.validate_query(batch_mutations).is_ok());
+    validator.validate_query(batch_mutations)
+        .unwrap_or_else(|e| panic!("expected Ok for structurally valid batch mutation: {e}"));
 
     // Server must either:
     // 1. Reject the query (no such mutation exists)
@@ -229,7 +232,8 @@ fn test_alias_based_privilege_escalation() {
 
     let validator = RequestValidator::new();
     // Aliased query is structurally valid
-    assert!(validator.validate_query(aliased_mutation).is_ok());
+    validator.validate_query(aliased_mutation)
+        .unwrap_or_else(|e| panic!("expected Ok for structurally valid aliased mutation: {e}"));
 
     // But aliases don't change the underlying security model
     // The updateUser mutation still needs role parameter (which shouldn't exist)
@@ -326,11 +330,13 @@ fn test_no_role_modification_through_any_vector() {
     let validator = RequestValidator::new();
 
     // mutation_vector: structurally valid, but runtime rejection
-    assert!(validator.validate_query(mutation_vector).is_ok());
+    validator.validate_query(mutation_vector)
+        .unwrap_or_else(|e| panic!("expected Ok for structurally valid mutation vector: {e}"));
 
     // variable_vector: attempting to use variable as field - AST parser
     // correctly rejects this as invalid GraphQL syntax
-    assert!(validator.validate_query(variable_vector).is_err());
+    assert!(validator.validate_query(variable_vector).is_err(),
+        "expected Err for variable-as-field usage, got Ok");
 
     // assignment_vector: invalid GraphQL syntax
     assert!(
@@ -347,7 +353,8 @@ fn test_privilege_escalation_with_malformed_token() {
 
     let validator = RequestValidator::new();
     // Query is valid
-    assert!(validator.validate_query(suspicious_query).is_ok());
+    validator.validate_query(suspicious_query)
+        .unwrap_or_else(|e| panic!("expected Ok for valid query: {e}"));
 
     // But token validation happens before query execution
     // (verified at auth middleware level)

@@ -283,7 +283,7 @@ mod tests {
         let executor = FakeGraphQLExecutor::new();
         let query = "{ users { id name } }";
         let result = executor.execute(query);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok executing users query: {e}"));
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
         let executor = FakeGraphQLExecutor::new();
         let query = "{ posts { id title } }";
         let result = executor.execute(query);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok executing posts query: {e}"));
     }
 
     #[test]
@@ -299,6 +299,6 @@ mod tests {
         let executor = FakeGraphQLExecutor::new();
         let query = "{ comments { id } }";
         let result = executor.execute(query);
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for unsupported query, got: {result:?}");
     }
 }

@@ -567,10 +567,8 @@ async fn test_saga_forward_phase_execution() {
         .with_compensation("release_inventory"),
     ];
 
-    let result = executor.execute_saga("saga-123", steps.clone()).await;
-    assert!(result.is_ok(), "Saga execution should succeed");
-
-    let results = result.unwrap();
+    let results = executor.execute_saga("saga-123", steps.clone()).await
+        .unwrap_or_else(|e| panic!("Saga execution should succeed: {e}"));
     assert_eq!(results.len(), 2, "Should have executed 2 steps");
     assert!(results[0].success, "First step should succeed");
     assert!(results[1].success, "Second step should succeed");
@@ -627,10 +625,8 @@ async fn test_multi_step_saga_execution() {
         SagaStepDef::new(3, "payment-service", "payments", serde_json::json!({"amount": 100.00})),
     ];
 
-    let result = executor.execute_saga("multi-saga", steps).await;
-    assert!(result.is_ok());
-
-    let results = result.unwrap();
+    let results = executor.execute_saga("multi-saga", steps).await
+        .unwrap_or_else(|e| panic!("expected Ok executing multi-step saga: {e}"));
     assert_eq!(results.len(), 3);
 
     // Verify each step has correct metadata

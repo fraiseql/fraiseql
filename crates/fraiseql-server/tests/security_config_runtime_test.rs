@@ -76,8 +76,7 @@ mod tests {
         let security_section = schema_json.get("security").unwrap();
         let config = fraiseql_server::auth::SecurityConfigFromSchema::from_json(security_section);
 
-        assert!(config.is_ok(), "Failed to parse security config from schema JSON");
-        let cfg = config.unwrap();
+        let cfg = config.unwrap_or_else(|e| panic!("Failed to parse security config from schema JSON: {e}"));
 
         // Verify audit logging settings
         assert!(cfg.audit_logging.enabled);
@@ -130,9 +129,7 @@ mod tests {
         }"#;
 
         let config = fraiseql_server::auth::init_security_config(schema_json_str);
-        assert!(config.is_ok(), "Failed to initialize security config from schema");
-
-        let cfg = config.unwrap();
+        let cfg = config.unwrap_or_else(|e| panic!("Failed to initialize security config from schema: {e}"));
         // Verify custom values were loaded
         assert_eq!(cfg.audit_logging.log_level, "debug");
         assert_eq!(cfg.rate_limiting.auth_start_max_requests, 200);
@@ -150,7 +147,8 @@ mod tests {
         let mut config = fraiseql_server::auth::SecurityConfigFromSchema::default();
 
         // Should be valid by default
-        assert!(fraiseql_server::auth::validate_security_config(&config).is_ok());
+        fraiseql_server::auth::validate_security_config(&config)
+            .unwrap_or_else(|e| panic!("expected Ok for default security config: {e}"));
 
         // Enable sensitive data leaking - should fail
         config.error_sanitization.leak_sensitive_details = true;
@@ -230,8 +228,7 @@ mod tests {
         let security_value = full_schema.get("security").unwrap();
         let config = fraiseql_server::auth::SecurityConfigFromSchema::from_json(security_value);
 
-        assert!(config.is_ok());
-        let cfg = config.unwrap();
+        let cfg = config.unwrap_or_else(|e| panic!("expected Ok parsing complete schema security config: {e}"));
 
         // Verify custom config values from security section
         assert_eq!(cfg.audit_logging.log_level, "warn");
@@ -252,8 +249,7 @@ mod tests {
         let security_value = minimal_schema.get("security").unwrap();
         let config = fraiseql_server::auth::SecurityConfigFromSchema::from_json(security_value);
 
-        assert!(config.is_ok());
-        let cfg = config.unwrap();
+        let cfg = config.unwrap_or_else(|e| panic!("expected Ok parsing minimal schema security config: {e}"));
 
         // Explicit setting is used
         assert!(!cfg.audit_logging.enabled);
@@ -290,8 +286,7 @@ mod tests {
         let security_value = schema_json.get("security").unwrap();
         let config = fraiseql_server::auth::SecurityConfigFromSchema::from_json(security_value);
 
-        assert!(config.is_ok());
-        let cfg = config.unwrap();
+        let cfg = config.unwrap_or_else(|e| panic!("expected Ok parsing rate limit window config: {e}"));
 
         // Verify rate limit configuration
         assert_eq!(cfg.rate_limiting.auth_start_max_requests, 50);

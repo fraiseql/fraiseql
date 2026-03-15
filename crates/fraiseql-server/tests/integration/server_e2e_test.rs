@@ -25,10 +25,10 @@ fn test_empty_query_validation() {
     let validator = RequestValidator::new();
 
     let result = validator.validate_query("");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for empty query, got: {result:?}");
 
     let result = validator.validate_query("   ");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for whitespace-only query, got: {result:?}");
 }
 
 /// Test that depth validation correctly identifies deeply nested queries
@@ -38,15 +38,15 @@ fn test_depth_validation() {
 
     // Shallow query should pass
     let shallow = "{ user { id } }";
-    assert!(validator.validate_query(shallow).is_ok());
+    validator.validate_query(shallow).unwrap_or_else(|e| panic!("expected Ok for shallow query: {e}"));
 
     // Medium query should pass
     let medium = "{ user { profile { settings } } }";
-    assert!(validator.validate_query(medium).is_ok());
+    validator.validate_query(medium).unwrap_or_else(|e| panic!("expected Ok for medium query: {e}"));
 
     // Deep query should fail
     let deep = "{ user { profile { settings { theme { dark } } } } }";
-    assert!(validator.validate_query(deep).is_err());
+    assert!(validator.validate_query(deep).is_err(), "expected Err for deep query, got Ok");
 }
 
 /// Test that complexity validation prevents overly complex queries
@@ -56,11 +56,11 @@ fn test_complexity_validation() {
 
     // Simple query should pass
     let simple = "{ user { id name } }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator.validate_query(simple).unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
 
     // Complex query with many brackets should fail
     let complex = "{ users [ posts [ comments [ author [ name ] ] ] ] }";
-    assert!(validator.validate_query(complex).is_err());
+    assert!(validator.validate_query(complex).is_err(), "expected Err for complex query, got Ok");
 }
 
 /// Test that variables validation works correctly
@@ -73,14 +73,14 @@ fn test_variables_validation() {
         "id": "123",
         "name": "John"
     });
-    assert!(validator.validate_variables(Some(&valid)).is_ok());
+    validator.validate_variables(Some(&valid)).unwrap_or_else(|e| panic!("expected Ok for valid variables: {e}"));
 
     // No variables is valid
-    assert!(validator.validate_variables(None).is_ok());
+    validator.validate_variables(None).unwrap_or_else(|e| panic!("expected Ok for None variables: {e}"));
 
     // Variables as array is invalid
     let invalid = json!([1, 2, 3]);
-    assert!(validator.validate_variables(Some(&invalid)).is_err());
+    assert!(validator.validate_variables(Some(&invalid)).is_err(), "expected Err for array variables, got Ok");
 }
 
 /// Test that validation can be disabled
@@ -94,7 +94,7 @@ fn test_disable_validation() {
 
     // Very deep and complex query should pass when validation disabled
     let deep = "{ a { b { c { d { e { f } } } } } }";
-    assert!(validator.validate_query(deep).is_ok());
+    validator.validate_query(deep).unwrap_or_else(|e| panic!("expected Ok when validation disabled: {e}"));
 }
 
 /// Test `GraphQLError` serialization
@@ -181,8 +181,10 @@ fn test_request_validation_integration() {
         document_id:    None,
     };
 
-    assert!(validator.validate_query(valid_request.query.as_deref().unwrap()).is_ok());
-    assert!(validator.validate_variables(valid_request.variables.as_ref()).is_ok());
+    validator.validate_query(valid_request.query.as_deref().unwrap())
+        .unwrap_or_else(|e| panic!("expected Ok for valid request query: {e}"));
+    validator.validate_variables(valid_request.variables.as_ref())
+        .unwrap_or_else(|e| panic!("expected Ok for valid request variables: {e}"));
 
     // Test with invalid depth
     let deep_request = GraphQLRequest {
@@ -194,7 +196,8 @@ fn test_request_validation_integration() {
     };
 
     let validator = validator.with_max_depth(2);
-    assert!(validator.validate_query(deep_request.query.as_deref().unwrap()).is_err());
+    assert!(validator.validate_query(deep_request.query.as_deref().unwrap()).is_err(),
+        "expected Err for query exceeding max depth 2, got Ok");
 }
 
 /// Test error response with multiple errors
@@ -246,16 +249,16 @@ fn test_validator_builder_pattern() {
 
     // Verify settings are applied through builder chain
     let deep = "{ a { b { c { d { e { f } } } } } }";
-    assert!(validator.validate_query(deep).is_err()); // Depth check still works
+    assert!(validator.validate_query(deep).is_err(), "expected Err for deep query exceeding depth limit"); // Depth check still works
 
     // AST parser correctly rejects invalid syntax (square brackets) regardless
     // of complexity validation setting
     let invalid_syntax = "{ a [ b [ c [ d [ e ] ] ] ] }";
-    assert!(validator.validate_query(invalid_syntax).is_err());
+    assert!(validator.validate_query(invalid_syntax).is_err(), "expected Err for invalid syntax, got Ok");
 
     // A valid complex query should pass when complexity validation is disabled
     let complex = "{ a { b { c { d { e } } } } }";
-    assert!(validator.validate_query(complex).is_ok());
+    validator.validate_query(complex).unwrap_or_else(|e| panic!("expected Ok when complexity validation disabled: {e}"));
 }
 
 /// Test GraphQL error code to HTTP status mapping completeness
@@ -326,10 +329,8 @@ fn test_string_literal_handling() {
 
     // Valid: query with string argument
     let valid_query = r#"query { user(name: "John") { id name } }"#;
-    assert!(
-        validator.validate_query(valid_query).is_ok(),
-        "String arguments in field invocations should be valid"
-    );
+    validator.validate_query(valid_query)
+        .unwrap_or_else(|e| panic!("String arguments in field invocations should be valid: {e}"));
 }
 
 /// Test validator with minimal configuration
@@ -339,7 +340,7 @@ fn test_minimal_validator() {
 
     // Default validator should accept basic queries
     let simple = "{ user }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator.validate_query(simple).unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
 }
 
 /// Test error from validation error variant

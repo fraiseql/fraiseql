@@ -78,9 +78,9 @@ async fn test_schema_loader_missing_file() {
     let loader = CompiledSchemaLoader::new("/nonexistent/schema.json");
     let result = loader.load().await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err loading nonexistent schema, got Ok");
     let err_msg = result.unwrap_err().to_string();
-    assert!(err_msg.contains("not found"));
+    assert!(err_msg.contains("not found"), "expected 'not found' in error, got: {err_msg}");
 }
 
 /// Test schema loader with invalid JSON
@@ -92,9 +92,12 @@ async fn test_schema_loader_invalid_json() {
     let loader = CompiledSchemaLoader::new(temp_file.path());
     let result = loader.load().await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err loading invalid JSON schema, got Ok");
     let err_msg = result.unwrap_err().to_string();
-    assert!(err_msg.to_lowercase().contains("parse") || err_msg.to_lowercase().contains("json"));
+    assert!(
+        err_msg.to_lowercase().contains("parse") || err_msg.to_lowercase().contains("json"),
+        "expected 'parse' or 'json' in error, got: {err_msg}"
+    );
 }
 
 /// Test schema loader path getter

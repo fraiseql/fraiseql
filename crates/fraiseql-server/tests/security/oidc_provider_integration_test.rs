@@ -127,8 +127,7 @@ async fn test_oidc_provider_discovery() {
     )
     .await;
 
-    assert!(provider.is_ok(), "Provider should be created successfully");
-    let provider = provider.unwrap();
+    let provider = provider.unwrap_or_else(|e| panic!("Provider should be created successfully: {e}"));
     assert_eq!(provider.name(), "test-provider");
 }
 
@@ -152,7 +151,7 @@ async fn test_oidc_discovery_document_structure() {
     )
     .await;
 
-    assert!(provider.is_ok());
+    provider.unwrap_or_else(|e| panic!("expected Ok creating provider: {e}"));
 
     // Verify discovery document contains required fields
     let doc = discovery;
@@ -286,7 +285,7 @@ async fn test_jwks_retrieval() {
     )
     .await;
 
-    assert!(provider.is_ok());
+    provider.unwrap_or_else(|e| panic!("expected Ok creating provider with JWKS endpoint: {e}"));
 }
 
 #[tokio::test]
@@ -362,8 +361,7 @@ async fn test_auth0_provider_discovery() {
     )
     .await;
 
-    assert!(provider.is_ok());
-    let provider = provider.unwrap();
+    let provider = provider.unwrap_or_else(|e| panic!("expected Ok creating auth0 provider: {e}"));
     assert_eq!(provider.name(), "auth0");
 }
 
@@ -397,7 +395,7 @@ async fn test_google_provider_discovery() {
     )
     .await;
 
-    assert!(provider.is_ok());
+    provider.unwrap_or_else(|e| panic!("expected Ok creating google provider: {e}"));
 }
 
 #[tokio::test]
@@ -431,7 +429,7 @@ async fn test_microsoft_provider_discovery() {
     )
     .await;
 
-    assert!(provider.is_ok());
+    provider.unwrap_or_else(|e| panic!("expected Ok creating microsoft provider: {e}"));
 }
 
 #[tokio::test]
@@ -464,7 +462,7 @@ async fn test_okta_provider_discovery() {
     )
     .await;
 
-    assert!(provider.is_ok());
+    provider.unwrap_or_else(|e| panic!("expected Ok creating okta provider: {e}"));
 }
 
 #[tokio::test]
@@ -562,11 +560,8 @@ async fn test_multiple_provider_instances() {
     )
     .await;
 
-    assert!(provider1.is_ok());
-    assert!(provider2.is_ok());
-
-    let p1 = provider1.unwrap();
-    let p2 = provider2.unwrap();
+    let p1 = provider1.unwrap_or_else(|e| panic!("expected Ok creating provider-1: {e}"));
+    let p2 = provider2.unwrap_or_else(|e| panic!("expected Ok creating provider-2: {e}"));
 
     // Each should have distinct names
     assert_eq!(p1.name(), "provider-1");

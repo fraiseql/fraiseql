@@ -83,7 +83,7 @@ fn test_subscribe_to_subscription_type() {
     let result = manager.subscribe("OrderCreated", json!({}), json!({}), "conn_123");
 
     // Should fail: subscription not found
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for unknown subscription type, got: {result:?}");
 }
 
 /// Test 4: Get subscription returns None for non-existent subscription
@@ -114,7 +114,7 @@ fn test_unsubscribe_removes_subscription() {
     let result = manager.unsubscribe(sub_id);
 
     // Should fail: subscription not found
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err when unsubscribing non-existent id, got: {result:?}");
 }
 
 /// Test 6: Unsubscribe connection removes all subscriptions
@@ -192,7 +192,7 @@ async fn test_event_receiver_gets_messages() {
     tokio::select! {
         msg = receiver.recv() => {
             // Should not receive anything since no subscriptions matched
-            assert!(msg.is_err());
+            assert!(msg.is_err(), "expected Err (no payload sent), got: {msg:?}");
         }
         () = timeout => {
             // Expected: timeout since no subscriptions
@@ -226,7 +226,7 @@ fn test_event_bridge_initialization() {
 
     // Verify bridge is created and sender is available
     let sender = bridge.get_sender();
-    assert!(sender.try_reserve().is_ok());
+    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 12: Entity event conversion
@@ -269,7 +269,7 @@ async fn test_event_routing_to_manager() {
     let result = sender.try_send(entity_event);
 
     // Should succeed in sending
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
 }
 
 /// Test 14: Multiple subscriptions fanout
@@ -287,7 +287,7 @@ async fn test_multiple_subscriptions_fanout() {
 
     // Verify sender is created
     let sender = bridge.get_sender();
-    assert!(sender.try_reserve().is_ok());
+    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 15: Filtering by entity type
@@ -307,8 +307,8 @@ fn test_filtering_by_entity_type() {
     let user_event = EntityEvent::new("User", "user_123", "INSERT", json!({"id": "user_123"}));
 
     // Both should send successfully through the bridge
-    assert!(sender.try_send(order_event).is_ok());
-    assert!(sender.try_send(user_event).is_ok());
+    sender.try_send(order_event).unwrap_or_else(|e| panic!("expected Ok sending order event: {e}"));
+    sender.try_send(user_event).unwrap_or_else(|e| panic!("expected Ok sending user event: {e}"));
 }
 
 // ============================================================================
@@ -329,7 +329,7 @@ fn test_listener_error_handling() {
     let sender = bridge.get_sender();
 
     // Verify sender is created
-    assert!(sender.try_reserve().is_ok());
+    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 17: Handle subscription manager errors
@@ -341,7 +341,7 @@ fn test_subscription_manager_errors() {
     // Subscribe to non-existent subscription
     let result = manager.subscribe("NonExistent", json!({}), json!({}), "conn_1");
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for non-existent subscription, got: {result:?}");
 }
 
 // ============================================================================
@@ -416,7 +416,7 @@ async fn test_websocket_end_to_end_delivery() {
     let entity_event = EntityEvent::new("Order", "order_123", "INSERT", json!({"id": "order_123"}));
 
     let result = sender.try_send(entity_event);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
 }
 
 /// Test 22: Listener recovery after restart
@@ -467,7 +467,7 @@ fn test_subscription_projection_filters() {
         }),
     );
 
-    assert!(sender.try_send(event).is_ok());
+    sender.try_send(event).unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
 }
 
 /// Test 24: Concurrent client subscriptions

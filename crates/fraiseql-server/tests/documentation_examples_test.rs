@@ -127,7 +127,7 @@ result = fraiseql.execute(query)
     .add_prerequisite("Schema defined and compiled");
 
     // Validate example structure
-    assert!(example.validate_structure().is_ok(), "Example structure validation failed");
+    example.validate_structure().unwrap_or_else(|e| panic!("Example structure validation failed: {e}"));
 
     // Verify example has all required components
     assert!(example.code.contains("@fraiseql.type"));
@@ -154,7 +154,7 @@ query {
     .add_prerequisite("User table exists")
     .add_prerequisite("User type defined in schema");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify query syntax
     assert!(example.code.contains("users"));
@@ -182,7 +182,7 @@ mutation {
     .add_prerequisite("User table exists with id, name, email columns")
     .add_prerequisite("Create mutation defined in schema");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify mutation syntax
     assert!(example.code.contains("mutation"));
@@ -215,7 +215,7 @@ subscription {
     .add_prerequisite("WebSocket connection established")
     .add_prerequisite("Subscription types defined");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify subscription syntax
     assert!(example.code.contains("subscription"));
@@ -246,7 +246,7 @@ fn test_filtering_guide_example() {
     .with_outcome("Returns only active admin users")
     .add_prerequisite("Users have status and role fields");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify complex filtering syntax
     assert!(example.code.contains("where"));
@@ -273,7 +273,7 @@ fn test_aggregation_guide_example() {
     .with_outcome("Returns orders grouped by status with counts and totals")
     .add_prerequisite("Order type has status and amount fields");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify aggregation syntax
     assert!(example.code.contains("groupBy"));
@@ -304,7 +304,7 @@ Content-Type: application/json
     .add_prerequisite("Server running and accessible")
     .add_prerequisite("GraphQL endpoint at /graphql");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify HTTP request structure
     assert!(example.code.contains("POST /graphql"));
@@ -332,7 +332,7 @@ try {
     .add_prerequisite("GraphQL client installed")
     .add_prerequisite("Error handling library available");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify error handling pattern
     assert!(example.code.contains("try"));
@@ -378,7 +378,7 @@ mutation CreateOrderWorkflow {
     .add_prerequisite("Order service available")
     .add_prerequisite("Inventory service available");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify multi-step workflow
     assert!(example.code.contains("createOrder"));
@@ -414,7 +414,7 @@ subscription OrderInventorySync {
     .add_prerequisite("WebSocket connection to order service")
     .add_prerequisite("Inventory database writable");
 
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 
     // Verify real-time sync pattern
     assert!(example.code.contains("subscription"));
@@ -555,7 +555,7 @@ fn test_example_with_prerequisites() {
 
     assert_eq!(example.prerequisites.len(), 2);
     assert!(example.prerequisites.contains(&"Order service available".to_string()));
-    assert!(example.validate_structure().is_ok());
+    example.validate_structure().unwrap_or_else(|e| panic!("validate_structure failed: {e}"));
 }
 
 /// Example validation and execution reporting

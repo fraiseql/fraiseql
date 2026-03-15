@@ -253,7 +253,8 @@ fn test_graphql_request_minimal() {
     };
 
     let validator = RequestValidator::new();
-    assert!(validator.validate_query(request.query.as_deref().unwrap()).is_ok());
+    validator.validate_query(request.query.as_deref().unwrap())
+        .unwrap_or_else(|e| panic!("expected Ok validating minimal request query: {e}"));
 }
 
 // =============================================================================
