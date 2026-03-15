@@ -114,9 +114,7 @@ fn test_dependency_graph_run_success() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Json);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for Json format: {e}"));
     assert_eq!(cmd_result.status, "success");
 
     // Should have warnings about unused type
@@ -133,9 +131,7 @@ fn test_dependency_graph_detects_cycles() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Json);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for cyclic schema: {e}"));
     assert_eq!(cmd_result.status, "validation-failed");
     assert!(cmd_result.errors.iter().any(|e| e.contains("Circular dependency")));
 }
@@ -149,9 +145,7 @@ fn test_dependency_graph_dot_format() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Dot);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for Dot format: {e}"));
     let data = cmd_result.data.unwrap();
     let dot_output = data.as_str().unwrap();
 
@@ -169,9 +163,7 @@ fn test_dependency_graph_mermaid_format() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Mermaid);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for Mermaid format: {e}"));
     let data = cmd_result.data.unwrap();
     let mermaid_output = data.as_str().unwrap();
 
@@ -188,9 +180,7 @@ fn test_dependency_graph_d2_format() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::D2);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for D2 format: {e}"));
     let data = cmd_result.data.unwrap();
     let d2_output = data.as_str().unwrap();
 
@@ -209,9 +199,7 @@ fn test_dependency_graph_console_format() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Console);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for Console format: {e}"));
     let data = cmd_result.data.unwrap();
     let console_output = data.as_str().unwrap();
 
@@ -229,9 +217,7 @@ fn test_dependency_graph_json_structure() {
     temp_file.write_all(schema_json.as_bytes()).unwrap();
 
     let result = run(temp_file.path().to_str().unwrap(), GraphFormat::Json);
-    assert!(result.is_ok());
-
-    let cmd_result = result.unwrap();
+    let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for Json structure test: {e}"));
     let data = cmd_result.data.unwrap();
 
     // Verify JSON structure
@@ -254,5 +240,5 @@ fn test_dependency_graph_file_not_found() {
     use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let result = run("/nonexistent/path/schema.json", GraphFormat::Json);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for nonexistent path, got: {result:?}");
 }

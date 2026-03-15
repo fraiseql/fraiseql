@@ -320,5 +320,5 @@ fn test_extract_empty_file() {
 fn test_extract_nonexistent_path() {
     let result =
         extract::run(&["/nonexistent/path/schema.py".to_string()], None, false, "/tmp/out.json");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for nonexistent path, got: {result:?}");
 }

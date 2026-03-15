@@ -30,7 +30,7 @@ fn test_key_consistency_single_owner() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users_subgraph, orders_subgraph]);
-    assert!(result.is_ok(), "Should allow @key in owning subgraph, got error: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should allow @key in owning subgraph: {e}"));
 }
 
 #[test]
@@ -92,11 +92,7 @@ fn test_external_field_has_owner() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users_subgraph, orders_subgraph]);
-    assert!(
-        result.is_ok(),
-        "Should allow @external when owner exists: {}",
-        result.unwrap_err()
-    );
+    result.unwrap_or_else(|e| panic!("Should allow @external when owner exists: {e}"));
 }
 
 #[test]
@@ -193,11 +189,7 @@ fn test_type_not_redefined_in_owning_subgraph() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users_subgraph, orders_subgraph]);
-    assert!(
-        result.is_ok(),
-        "Should allow type extended in non-owning subgraph, got error: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should allow type extended in non-owning subgraph: {e}"));
 }
 
 // ============================================================================

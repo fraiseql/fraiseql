@@ -50,11 +50,7 @@ fn test_four_subgraph_federation_consistency() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users, orders, products, payments]);
-    assert!(
-        result.is_ok(),
-        "Should validate 4-subgraph hierarchy with proper ownership: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should validate 4-subgraph hierarchy with proper ownership: {e}"));
 }
 
 #[test]
@@ -78,11 +74,7 @@ fn test_multiple_external_fields_same_type() {
         create_subgraph_metadata("orders", vec![create_federated_type_extends("User", true)]);
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
-    assert!(
-        result.is_ok(),
-        "Should validate multiple @external fields from single owner: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should validate multiple @external fields from single owner: {e}"));
 }
 
 #[test]
@@ -123,11 +115,7 @@ fn test_external_fields_from_different_owners_error() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users, products, orders]);
-    assert!(
-        result.is_ok(),
-        "Should validate @external fields from different owners: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should validate @external fields from different owners: {e}"));
 }
 
 // ============================================================================
@@ -150,7 +138,7 @@ fn test_shareable_field_consistency_all_marked() {
     auth_metadata.types[0].shareable_fields.push("email".to_string());
 
     let result = validate_cross_subgraph_consistency(&[users_metadata, auth_metadata]);
-    assert!(result.is_ok(), "Should validate consistent @shareable marking: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate consistent @shareable marking: {e}"));
 }
 
 #[test]
@@ -194,7 +182,7 @@ fn test_federation_version_consistency() {
     orders.version = "v2".to_string();
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
-    assert!(result.is_ok(), "Should validate same federation version: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate same federation version: {e}"));
 }
 
 #[test]
@@ -243,11 +231,7 @@ fn test_field_presence_consistency() {
         create_subgraph_metadata("orders", vec![create_federated_type_extends("User", true)]);
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
-    assert!(
-        result.is_ok(),
-        "Should validate field presence in owning subgraph: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should validate field presence in owning subgraph: {e}"));
 }
 
 #[test]
@@ -271,7 +255,7 @@ fn test_key_field_presence_in_all_definitions() {
         create_subgraph_metadata("orders", vec![create_federated_type_extends("User", true)]);
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
-    assert!(result.is_ok(), "Should validate @key field presence: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate @key field presence: {e}"));
 }
 
 // ============================================================================
@@ -295,11 +279,7 @@ fn test_no_type_redefinition_in_non_owning_subgraph() {
         create_subgraph_metadata("payments", vec![create_federated_type_extends("User", true)]);
 
     let result = validate_cross_subgraph_consistency(&[users, orders, payments]);
-    assert!(
-        result.is_ok(),
-        "Should validate single owner with multiple extensions: {:?}",
-        result
-    );
+    result.unwrap_or_else(|e| panic!("Should validate single owner with multiple extensions: {e}"));
 }
 
 #[test]
@@ -356,7 +336,7 @@ fn test_large_subgraph_count_consistency() {
     }
 
     let result = validate_cross_subgraph_consistency(&subgraphs);
-    assert!(result.is_ok(), "Should validate consistency with 8 subgraphs: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate consistency with 8 subgraphs: {e}"));
 }
 
 #[test]
@@ -386,7 +366,7 @@ fn test_diamond_dependency_pattern() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users, orders, payments]);
-    assert!(result.is_ok(), "Should validate diamond dependency pattern: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate diamond dependency pattern: {e}"));
 }
 
 #[test]
@@ -405,7 +385,7 @@ fn test_many_types_single_subgraph() {
 
     let subgraph = create_subgraph_metadata("monolith", types);
     let result = validate_cross_subgraph_consistency(&[subgraph]);
-    assert!(result.is_ok(), "Should validate 50+ types in single subgraph: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should validate 50+ types in single subgraph: {e}"));
 }
 
 // ============================================================================

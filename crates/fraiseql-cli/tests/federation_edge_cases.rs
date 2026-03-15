@@ -20,7 +20,7 @@ fn test_requires_on_external_field_conflict() {
     // THEN: Should detect directive conflict
 
     let result = validate_directive_conflict("Order", "user_id", &["external", "requires"]);
-    assert!(result.is_err(), "Should detect @external and @requires conflict");
+    assert!(result.is_err(), "Should detect @external and @requires conflict, got: {result:?}");
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn test_provides_on_external_field_conflict() {
     // THEN: Should detect contradiction (can't provide what you don't own)
 
     let result = validate_directive_conflict("Order", "user", &["external", "provides"]);
-    assert!(result.is_err(), "Should detect @external and @provides contradiction");
+    assert!(result.is_err(), "Should detect @external and @provides contradiction, got: {result:?}");
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn test_requires_circular_dependency() {
     ];
 
     let result = detect_circular_requires(&deps);
-    assert!(result.is_err(), "Should detect circular @requires");
+    assert!(result.is_err(), "Should detect circular @requires, got: {result:?}");
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn test_owner_has_key_extension_has_different_key() {
     let extension_key = vec!["email"];
 
     let result = validate_key_consistency("User", &owner_key, &extension_key);
-    assert!(result.is_err(), "Should detect different @key in owner vs extension");
+    assert!(result.is_err(), "Should detect different @key in owner vs extension, got: {result:?}");
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn test_multiple_extensions_different_keys() {
     ];
 
     let result = validate_extension_key_consistency(&keys);
-    assert!(result.is_err(), "Should detect inconsistent @key in extensions");
+    assert!(result.is_err(), "Should detect inconsistent @key in extensions, got: {result:?}");
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn test_key_field_missing_in_extension() {
 
     let result = validate_key_presence_in_extension(&owner_key, &extension_fields);
     // Extension doesn't need to redefine @key, so this should be OK
-    assert!(result.is_ok(), "Extension doesn't need to redefine @key");
+    result.unwrap_or_else(|e| panic!("Extension doesn't need to redefine @key: {e}"));
 }
 
 // ============================================================================
@@ -141,7 +141,7 @@ fn test_ten_level_deep_extension_chain() {
 
     let depth = 10;
     let result = validate_deep_extension_chain(depth);
-    assert!(result.is_ok(), "Should handle 10-level extension chain: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should handle 10-level extension chain: {e}"));
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn test_directives_preserved_through_deep_chain() {
 
     let depth = 10;
     let result = validate_directive_preservation_in_chain(depth);
-    assert!(result.is_ok(), "Should preserve @key through deep chain: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should preserve @key through deep chain: {e}"));
 }
 
 // ============================================================================
@@ -169,7 +169,7 @@ fn test_circular_external_field_reference() {
     // THEN: Should detect circular @external references
 
     let result = detect_circular_external_refs(&[("Order", "user"), ("User", "orders")]);
-    assert!(result.is_err(), "Should detect circular @external refs");
+    assert!(result.is_err(), "Should detect circular @external refs, got: {result:?}");
 }
 
 #[test]
@@ -180,7 +180,7 @@ fn test_self_referencing_type() {
     // THEN: Should handle self-references (they're valid in graphs)
 
     let result = validate_self_referencing_type("Comment", "parent_comment");
-    assert!(result.is_ok(), "Should allow self-referencing types: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should allow self-referencing types: {e}"));
 }
 
 // ============================================================================
@@ -201,7 +201,7 @@ composition
 ";
 
     let result = parse_federation_config(yaml_content);
-    assert!(result.is_err(), "Should reject malformed YAML with missing colons");
+    assert!(result.is_err(), "Should reject malformed YAML with missing colons, got: {result:?}");
 }
 
 #[test]
@@ -219,7 +219,7 @@ conflict_resolution: first_wins
 ";
 
     let result = parse_federation_config(yaml_content);
-    assert!(result.is_err(), "Should reject YAML with bad indentation");
+    assert!(result.is_err(), "Should reject YAML with bad indentation, got: {result:?}");
 }
 
 #[test]
@@ -239,7 +239,7 @@ composition:
 ";
 
     let result = parse_federation_config(yaml_content);
-    assert!(result.is_ok(), "Should handle unicode in configuration: {:?}", result);
+    result.unwrap_or_else(|e| panic!("Should handle unicode in configuration: {e}"));
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn test_yaml_config_file_not_found() {
     // THEN: Should error with helpful message about missing file
 
     let result = load_config_file("/nonexistent/path/fraiseql.yml");
-    assert!(result.is_err(), "Should error when config file not found");
+    assert!(result.is_err(), "Should error when config file not found, got: {result:?}");
 
     let err = result.unwrap_err();
     assert!(
@@ -272,7 +272,7 @@ fn test_version_mismatch_v1_v2() {
     // THEN: Should warn or error about version mismatch
 
     let result = validate_version_compatibility(&["v1", "v2"]);
-    assert!(result.is_err(), "Should reject v1/v2 mix: {:?}", result);
+    assert!(result.is_err(), "Should reject v1/v2 mix: {result:?}");
 }
 
 #[test]
