@@ -5,9 +5,11 @@
 use fraiseql_core::apq::ApqMetrics;
 
 use super::{
-    handler::{extract_apq_hash, extract_ip_from_headers, resolve_apq},
+    handler::{extract_apq_hash, resolve_apq},
     request::{GraphQLGetParams, GraphQLRequest},
 };
+#[cfg(feature = "auth")]
+use super::handler::extract_ip_from_headers;
 #[cfg(feature = "auth")]
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 
@@ -221,6 +223,7 @@ fn test_schema_access_for_api_endpoints() {
 }
 
 // SECURITY: IP extraction no longer trusts spoofable headers
+#[cfg(feature = "auth")]
 #[test]
 fn test_extract_ip_ignores_x_forwarded_for() {
     let mut headers = axum::http::HeaderMap::new();
@@ -230,6 +233,7 @@ fn test_extract_ip_ignores_x_forwarded_for() {
     assert_eq!(ip, "unknown", "Must not trust X-Forwarded-For header");
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn test_extract_ip_ignores_x_real_ip() {
     let mut headers = axum::http::HeaderMap::new();
@@ -239,6 +243,7 @@ fn test_extract_ip_ignores_x_real_ip() {
     assert_eq!(ip, "unknown", "Must not trust X-Real-IP header");
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn test_extract_ip_from_headers_missing() {
     let headers = axum::http::HeaderMap::new();
@@ -246,6 +251,7 @@ fn test_extract_ip_from_headers_missing() {
     assert_eq!(ip, "unknown");
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn test_extract_ip_ignores_all_spoofable_headers() {
     let mut headers = axum::http::HeaderMap::new();

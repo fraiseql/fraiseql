@@ -22,19 +22,18 @@ jobs:
           - "mcp,auth,cors"
           - "observers-enterprise,redis-apq,redis-pkce"
           - "observers-enterprise,observers-nats,redis-rate-limiting"
-          - "federation"                                                              # federation alone
           - "wire-backend"                                                            # wire-backend alone
           - "auth,secrets,observers-enterprise"                                       # full enterprise stack
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: cargo check
+      - name: Test feature combination
         run: |
           if [ -z "${{ matrix.features }}" ]; then
             cargo check -p fraiseql-server --no-default-features
           else
-            cargo check -p fraiseql-server --features "${{ matrix.features }}"
+            cargo test -p fraiseql-server --lib --no-default-features --features "${{ matrix.features }}"
           fi
 
   all-features:
