@@ -98,7 +98,7 @@ impl RemoteDatabaseConfig {
     #[cfg(feature = "unstable")]
     pub fn validate(&self) -> fraiseql_error::Result<()> {
         if let Some(size) = self.pool_size {
-            if size < MIN_POOL_SIZE || size > MAX_POOL_SIZE {
+            if !(MIN_POOL_SIZE..=MAX_POOL_SIZE).contains(&size) {
                 return Err(fraiseql_error::FraiseQLError::Validation {
                     message: format!(
                         "pool_size {size} is out of range [{MIN_POOL_SIZE}, {MAX_POOL_SIZE}]"
@@ -108,7 +108,7 @@ impl RemoteDatabaseConfig {
             }
         }
         if let Some(secs) = self.timeout_seconds {
-            if secs < MIN_TIMEOUT_SECS || secs > MAX_TIMEOUT_SECS {
+            if !(MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&secs) {
                 return Err(fraiseql_error::FraiseQLError::Validation {
                     message: format!(
                         "timeout_seconds {secs} is out of range [{MIN_TIMEOUT_SECS}, {MAX_TIMEOUT_SECS}]"
