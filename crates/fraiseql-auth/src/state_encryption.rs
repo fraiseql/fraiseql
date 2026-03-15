@@ -517,10 +517,8 @@ mod service_tests {
     #[test]
     fn test_from_hex_key_valid() {
         let hex = "00".repeat(32);
-        assert!(
-            StateEncryptionService::from_hex_key(&hex, EncryptionAlgorithm::Chacha20Poly1305)
-                .is_ok()
-        );
+        StateEncryptionService::from_hex_key(&hex, EncryptionAlgorithm::Chacha20Poly1305)
+            .unwrap_or_else(|e| panic!("expected Ok for valid 64-char hex key: {e}"));
     }
 
     #[test]
@@ -670,7 +668,10 @@ mod tests {
         let result = encryption2.decrypt(&encrypted);
 
         // Different key should fail due to authentication tag mismatch
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::InvalidState)),
+            "expected InvalidState for wrong-key decryption, got: {result:?}"
+        );
     }
 
     #[test]
@@ -687,7 +688,10 @@ mod tests {
 
         // Should fail due to authentication tag verification
         let result = encryption.decrypt(&encrypted);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::InvalidState)),
+            "expected InvalidState for tampered ciphertext, got: {result:?}"
+        );
     }
 
     #[test]
@@ -702,7 +706,10 @@ mod tests {
 
         // Should fail due to authentication tag verification
         let result = encryption.decrypt(&encrypted);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::InvalidState)),
+            "expected InvalidState for tampered nonce, got: {result:?}"
+        );
     }
 
     #[test]
@@ -719,7 +726,10 @@ mod tests {
 
         // Should fail
         let result = encryption.decrypt(&encrypted);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::InvalidState)),
+            "expected InvalidState for truncated ciphertext, got: {result:?}"
+        );
     }
 
     #[test]

@@ -110,7 +110,8 @@ mod tests {
     #[test]
     fn test_callback_accepts_correct_nonce() {
         let claims = make_claims(Some("correct-nonce"), None);
-        assert!(validate_nonce_claim(&claims, "correct-nonce").is_ok());
+        validate_nonce_claim(&claims, "correct-nonce")
+            .unwrap_or_else(|e| panic!("expected Ok for correct nonce: {e}"));
     }
 
     #[test]
@@ -124,7 +125,8 @@ mod tests {
         // In production the callback handler is responsible for deleting the nonce from
         // the session store before calling this validator, making the check one-shot.
         let claims = make_claims(Some("once-nonce"), None);
-        assert!(validate_nonce_claim(&claims, "once-nonce").is_ok()); // first use OK
+        validate_nonce_claim(&claims, "once-nonce")
+            .unwrap_or_else(|e| panic!("expected Ok on first nonce use: {e}")); // first use OK
 
         // Simulate session nonce consumed: token re-use attempt where the session's
         // stored nonce has been cleared but the attacker replays the same ID token.
@@ -144,7 +146,8 @@ mod tests {
     fn test_auth_time_within_max_age_accepted() {
         // auth_time = now - 30s, max_age = 60s → age(30) ≤ max_age(60) + skew(60) = 120 → Ok
         let claims = make_claims(None, Some(NOW - 30));
-        assert!(validate_auth_time_claim(&claims, 60, NOW).is_ok());
+        validate_auth_time_claim(&claims, 60, NOW)
+            .unwrap_or_else(|e| panic!("expected Ok for auth_time within max_age: {e}"));
     }
 
     #[test]
@@ -178,6 +181,7 @@ mod tests {
         // Callers are responsible for not invoking this function when max_age was absent
         // from the authorization request — this test documents the boundary condition.
         let claims = make_claims(None, Some(NOW - 59));
-        assert!(validate_auth_time_claim(&claims, 0, NOW).is_ok());
+        validate_auth_time_claim(&claims, 0, NOW)
+            .unwrap_or_else(|e| panic!("expected Ok for age(59) within skew window: {e}"));
     }
 }

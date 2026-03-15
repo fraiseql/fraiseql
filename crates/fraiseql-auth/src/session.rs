@@ -355,9 +355,7 @@ mod tests {
             .as_secs();
 
         let result = store.create_session("user123", now + 3600).await;
-        assert!(result.is_ok());
-
-        let tokens = result.unwrap();
+        let tokens = result.unwrap_or_else(|e| panic!("expected Ok from create_session: {e}"));
         assert!(!tokens.access_token.is_empty());
         assert!(!tokens.refresh_token.is_empty());
         assert!(tokens.expires_in > 0);
@@ -374,9 +372,11 @@ mod tests {
         let tokens = store.create_session("user123", now + 3600).await.unwrap();
         let refresh_token_hash = hash_token(&tokens.refresh_token);
 
-        let session = store.get_session(&refresh_token_hash).await;
-        assert!(session.is_ok());
-        assert_eq!(session.unwrap().user_id, "user123");
+        let session = store
+            .get_session(&refresh_token_hash)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from get_session: {e}"));
+        assert_eq!(session.user_id, "user123");
     }
 
     #[tokio::test]
@@ -390,10 +390,16 @@ mod tests {
         let tokens = store.create_session("user123", now + 3600).await.unwrap();
         let refresh_token_hash = hash_token(&tokens.refresh_token);
 
-        assert!(store.revoke_session(&refresh_token_hash).await.is_ok());
+        store
+            .revoke_session(&refresh_token_hash)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from revoke_session: {e}"));
 
         let session = store.get_session(&refresh_token_hash).await;
-        assert!(session.is_err());
+        assert!(
+            matches!(session, Err(AuthError::TokenNotFound)),
+            "expected TokenNotFound after revocation, got: {session:?}"
+        );
     }
 
     #[tokio::test]
@@ -414,16 +420,28 @@ mod tests {
         assert_eq!(store.len(), 3);
 
         // Revoke all for user123
-        assert!(store.revoke_all_sessions("user123").await.is_ok());
+        store
+            .revoke_all_sessions("user123")
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from revoke_all_sessions: {e}"));
 
         // user456 session should still exist
         let hash3 = hash_token(&tokens3.refresh_token);
-        assert!(store.get_session(&hash3).await.is_ok());
+        store
+            .get_session(&hash3)
+            .await
+            .unwrap_or_else(|e| panic!("expected user456 session to still exist: {e}"));
 
         // user123 sessions should be gone
         let hash1 = hash_token(&tokens1.refresh_token);
         let hash2 = hash_token(&tokens2.refresh_token);
-        assert!(store.get_session(&hash1).await.is_err());
-        assert!(store.get_session(&hash2).await.is_err());
+        assert!(
+            matches!(store.get_session(&hash1).await, Err(AuthError::TokenNotFound)),
+            "expected user123 session 1 to be revoked"
+        );
+        assert!(
+            matches!(store.get_session(&hash2).await, Err(AuthError::TokenNotFound)),
+            "expected user123 session 2 to be revoked"
+        );
     }
 }

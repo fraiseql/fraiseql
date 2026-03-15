@@ -454,7 +454,7 @@ mod tests {
         .await;
 
         // Should fail at JSON parse (missing fields), not at the size gate
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err when discovery doc has missing fields, got: {result:?}");
         let msg = result.err().unwrap().to_string();
         assert!(
             !msg.contains("too large"),
@@ -587,7 +587,9 @@ mod tests {
             client:        reqwest::Client::new(),
         };
 
-        let result = provider.revoke_token("some_token").await;
-        assert!(result.is_ok(), "200 revocation response must return Ok: {result:?}");
+        provider
+            .revoke_token("some_token")
+            .await
+            .unwrap_or_else(|e| panic!("200 revocation response must return Ok: {e}"));
     }
 }

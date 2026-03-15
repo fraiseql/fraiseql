@@ -268,14 +268,19 @@ mod tests {
     #[test]
     fn test_validate_security_config_success() {
         let config = SecurityConfigFromSchema::default();
-        assert!(validate_security_config(&config).is_ok());
+        validate_security_config(&config)
+            .unwrap_or_else(|e| panic!("expected Ok for default security config: {e}"));
     }
 
     #[test]
     fn test_validate_security_config_leak_sensitive_fails() {
         let mut config = SecurityConfigFromSchema::default();
         config.error_sanitization.leak_sensitive_details = true;
-        assert!(validate_security_config(&config).is_err());
+        let result = validate_security_config(&config);
+        assert!(
+            matches!(result, Err(AuthError::ConfigError { .. })),
+            "expected ConfigError when leak_sensitive_details=true, got: {result:?}"
+        );
     }
 
     #[test]
@@ -303,9 +308,8 @@ mod tests {
             }
         });
 
-        let config = init_security_config_from_value(&json);
-        assert!(config.is_ok());
-        let cfg = config.unwrap();
+        let cfg = init_security_config_from_value(&json)
+            .unwrap_or_else(|e| panic!("expected Ok for valid security JSON: {e}"));
         assert_eq!(cfg.audit_logging.log_level, "debug");
         assert_eq!(cfg.rate_limiting.auth_start_max_requests, 200);
     }
@@ -325,9 +329,8 @@ mod tests {
             }
         }"#;
 
-        let config = init_security_config(json_str);
-        assert!(config.is_ok());
-        let cfg = config.unwrap();
+        let cfg = init_security_config(json_str)
+            .unwrap_or_else(|e| panic!("expected Ok for valid security JSON string: {e}"));
         assert_eq!(cfg.audit_logging.log_level, "info");
         assert!(cfg.error_sanitization.generic_messages);
     }
@@ -337,6 +340,9 @@ mod tests {
         let json = serde_json::json!({});
         let config = init_security_config_from_value(&json);
         // Should return error because security section is required
-        assert!(config.is_err());
+        assert!(
+            matches!(config, Err(AuthError::ConfigError { .. })),
+            "expected ConfigError when security section is missing, got: {config:?}"
+        );
     }
 }

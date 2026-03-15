@@ -550,7 +550,7 @@ mod tests {
         let client = OIDCClient::new(config, "client_id", "secret");
 
         let result = client.get_userinfo("dummy_token").await;
-        assert!(result.is_err(), "oversized userinfo response must be rejected");
+        assert!(result.is_err(), "oversized userinfo response must be rejected, got: {result:?}");
         let msg = result.unwrap_err();
         assert!(msg.contains("too large"), "error must mention size limit: {msg}");
     }
@@ -584,7 +584,7 @@ mod tests {
 
         let result = client.get_userinfo("dummy_token").await;
         // Must fail at JSON parse (missing required fields), not at size gate
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err when userinfo JSON is missing required fields, got: {result:?}");
         let msg = result.unwrap_err();
         assert!(
             !msg.contains("too large"),

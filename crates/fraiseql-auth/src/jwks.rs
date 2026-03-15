@@ -288,7 +288,7 @@ mod tests {
     async fn test_jwks_cache_network_error() {
         let cache = JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600));
         let result = cache.get_key("any-kid").await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for network error (connection refused)");
     }
 
     // ── S23-H2: JWKS response size cap ────────────────────────────────────────
@@ -332,8 +332,10 @@ mod tests {
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
         );
-        let result = cache.get_key("test-key-1").await;
-        assert!(result.is_ok(), "normal JWKS response must be accepted");
-        assert!(result.unwrap().is_some());
+        let key = cache
+            .get_key("test-key-1")
+            .await
+            .unwrap_or_else(|e| panic!("normal JWKS response must be accepted, got: {e}"));
+        assert!(key.is_some(), "expected key 'test-key-1' to be present in JWKS response");
     }
 }

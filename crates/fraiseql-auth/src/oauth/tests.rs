@@ -345,7 +345,7 @@ async fn test_exchange_code_handles_error_response() {
 
     let client = mock_oauth2_client(&format!("{}/token", mock_server.uri()));
     let result = client.exchange_code("expired_code", "http://localhost/callback").await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for 400 error response, got: {result:?}");
     assert!(result.unwrap_err().contains("error"));
 }
 
@@ -425,7 +425,7 @@ async fn test_get_userinfo_no_endpoint() {
 
     let client = OIDCClient::new(config, "client_id", "secret");
     let result = client.get_userinfo("token").await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err when no userinfo endpoint configured, got: {result:?}");
     assert!(result.unwrap_err().contains("No userinfo endpoint"));
 }
 
@@ -444,7 +444,7 @@ async fn test_get_userinfo_server_error() {
 
     let client = OIDCClient::new(config, "client_id", "secret");
     let result = client.get_userinfo("token").await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for 500 server error, got: {result:?}");
     assert!(result.unwrap_err().contains("500"));
 }
 
@@ -470,7 +470,7 @@ async fn test_verify_id_token_rejects_missing_kid() {
     .unwrap();
 
     let result = client.verify_id_token(&token, None, None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for token without kid header, got: {result:?}");
     assert!(result.unwrap_err().contains("kid"));
 }
 

@@ -282,8 +282,8 @@ mod tests {
 
     #[test]
     fn test_jwt_validator_creation() {
-        let validator = JwtValidator::new("https://example.com", Algorithm::HS256);
-        assert!(validator.is_ok());
+        JwtValidator::new("https://example.com", Algorithm::HS256)
+            .unwrap_or_else(|e| panic!("expected Ok for valid issuer: {e}"));
     }
 
     #[test]

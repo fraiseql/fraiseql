@@ -24,13 +24,15 @@ mod integration_security {
         let scenario = OAuthFlowScenario::new();
 
         // Step 1: User initiates OAuth
-        let result = scenario.auth_start("192.168.1.1", "user@example.com");
-        assert!(result.is_ok(), "auth/start should succeed");
+        scenario
+            .auth_start("192.168.1.1", "user@example.com")
+            .unwrap_or_else(|e| panic!("auth/start should succeed, got: {e}"));
 
         // Step 2: Authorization granted, callback received
         let state = scenario.get_encrypted_state();
-        let result = scenario.auth_callback("192.168.1.1", &state);
-        assert!(result.is_ok(), "auth/callback should succeed");
+        scenario
+            .auth_callback("192.168.1.1", &state)
+            .unwrap_or_else(|e| panic!("auth/callback should succeed, got: {e}"));
 
         // Step 3: Session created and audit logged
         assert!(scenario.audit_log_contains("AuthSuccess"), "Should log successful auth");

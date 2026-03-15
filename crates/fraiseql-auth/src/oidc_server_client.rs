@@ -348,7 +348,7 @@ mod tests {
         let http = reqwest::Client::new();
         let result = client.exchange_code("code", "verifier", &http).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "oversized success response must be rejected, got: {result:?}");
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("too large"), "error must mention size limit, got: {msg}");
     }

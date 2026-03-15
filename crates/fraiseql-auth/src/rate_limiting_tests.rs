@@ -174,7 +174,10 @@ fn test_clear_limiters() {
 
     limiter.check("key").ok();
     let result = limiter.check("key");
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(crate::error::AuthError::RateLimited { .. })),
+        "expected RateLimited error when limit exceeded, got: {result:?}"
+    );
 
     limiter.clear();
 

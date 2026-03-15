@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(state1.len(), 64);
         assert_eq!(state2.len(), 64);
         // Should be valid hex
-        assert!(hex::decode(&state1).is_ok());
-        assert!(hex::decode(&state2).is_ok());
+        hex::decode(&state1).unwrap_or_else(|e| panic!("state1 should be valid hex: {e}"));
+        hex::decode(&state2).unwrap_or_else(|e| panic!("state2 should be valid hex: {e}"));
     }
 }
