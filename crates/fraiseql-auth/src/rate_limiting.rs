@@ -457,7 +457,10 @@ mod tests {
 
         // Third should fail
         let result = limiter.check("key");
-        assert!(result.is_err(), "Request over limit should fail");
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited error, got: {result:?}"
+        );
     }
 
     #[test]
@@ -519,11 +522,11 @@ mod tests {
 
         // auth/start should allow requests
         let result = limiters.auth_start.check("ip_1");
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth/start should allow first request: {result:?}");
 
         // auth/refresh should track per-user
         let result = limiters.auth_refresh.check("user_1");
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth/refresh should allow first request: {result:?}");
     }
 
     #[test]
@@ -552,12 +555,15 @@ mod tests {
         // Should allow up to 100 requests
         for _ in 0..100 {
             let result = limiter.check(ip);
-            assert!(result.is_ok());
+            assert!(result.is_ok(), "request within limit should be allowed: {result:?}");
         }
 
         // 101st should fail
         let result = limiter.check(ip);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited after exceeding IP limit, got: {result:?}"
+        );
     }
 
     #[test]
@@ -569,12 +575,15 @@ mod tests {
         // Should allow 5 failed attempts
         for _ in 0..5 {
             let result = limiter.check(user);
-            assert!(result.is_ok());
+            assert!(result.is_ok(), "failed login attempt within limit should be allowed: {result:?}");
         }
 
         // 6th should fail
         let result = limiter.check(user);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited after exceeding failed login limit, got: {result:?}"
+        );
     }
 
     #[test]
@@ -588,11 +597,14 @@ mod tests {
 
         // User 1 blocked
         let result = limiter.check("user1");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited for user1, got: {result:?}"
+        );
 
         // User 2 should have fresh attempts
         let result = limiter.check("user2");
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "user2 should have independent fresh limit: {result:?}");
     }
 
     #[test]
@@ -605,13 +617,16 @@ mod tests {
 
         limiter.check("key").ok();
         let result = limiter.check("key");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited before clear, got: {result:?}"
+        );
 
         limiter.clear();
 
         // After clear, should allow again
         let result = limiter.check("key");
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "should allow requests after clear: {result:?}");
     }
 
     #[test]
@@ -642,7 +657,10 @@ mod tests {
 
         // After 100 concurrent requests, next should fail
         let result = limiter.check("concurrent");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited after concurrent exhaustion, got: {result:?}"
+        );
     }
 
     #[test]
@@ -657,7 +675,7 @@ mod tests {
         for i in 0..1000 {
             let key = format!("192.168.{}.{}", i / 256, i % 256);
             let result = limiter.check(&key);
-            assert!(result.is_ok());
+            assert!(result.is_ok(), "first request for {key} should be allowed: {result:?}");
         }
 
         assert_eq!(limiter.active_limiters(), 1000);
@@ -672,19 +690,19 @@ mod tests {
 
         // Complete flow
         let result = limiters.auth_start.check(ip);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth_start should allow: {result:?}");
 
         let result = limiters.auth_callback.check(ip);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth_callback should allow: {result:?}");
 
         let result = limiters.auth_refresh.check(user);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth_refresh should allow: {result:?}");
 
         let result = limiters.auth_logout.check(user);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "auth_logout should allow: {result:?}");
 
         let result = limiters.failed_logins.check(user);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "failed_logins should allow: {result:?}");
     }
 
     #[test]
@@ -704,7 +722,10 @@ mod tests {
 
         // 11th blocked
         let result = limiter.check(target);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "expected RateLimited after attack scenario, got: {result:?}"
+        );
     }
 
     #[test]
@@ -834,18 +855,23 @@ mod tests {
         let key = "test_key";
 
         // Make 3 allowed requests
-        assert!(limiter.check(key).is_ok());
-        assert!(limiter.check(key).is_ok());
-        assert!(limiter.check(key).is_ok());
+        let r = limiter.check(key);
+        assert!(r.is_ok(), "request 1 should be allowed: {r:?}");
+        let r = limiter.check(key);
+        assert!(r.is_ok(), "request 2 should be allowed: {r:?}");
+        let r = limiter.check(key);
+        assert!(r.is_ok(), "request 3 should be allowed: {r:?}");
 
         // Verify counter is at 3 (not less, not more)
         assert_eq!(limiter.active_limiters(), 1);
 
         // 4th request should be rejected
-        assert!(limiter.check(key).is_err());
+        let r = limiter.check(key);
+        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "request 4 should be rate-limited: {r:?}");
 
         // 5th request should also be rejected (counter didn't change)
-        assert!(limiter.check(key).is_err());
+        let r = limiter.check(key);
+        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "request 5 should be rate-limited: {r:?}");
 
         // Counter should still be at 3 (not decremented on rejection)
         // This verifies that rejected requests didn't partially update state
@@ -868,15 +894,18 @@ mod tests {
         limiter.check(key).ok();
 
         // Further requests should fail
-        assert!(limiter.check(key).is_err());
-        assert!(limiter.check(key).is_err());
+        let r = limiter.check(key);
+        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "should be rate-limited: {r:?}");
+        let r = limiter.check(key);
+        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "should still be rate-limited: {r:?}");
 
         // Verify state is consistent by clearing and re-checking
         limiter.clear();
         assert_eq!(limiter.active_limiters(), 0);
 
         // After clear, new requests should be allowed
-        assert!(limiter.check(key).is_ok());
+        let r = limiter.check(key);
+        assert!(r.is_ok(), "should allow after clear: {r:?}");
     }
 
     // ── LRU eviction tests (13-3) ─────────────────────────────────────────────
@@ -959,8 +988,8 @@ mod tests {
         // key_b (window_start=2000) was NOT evicted; its rate limit is still active.
         let result = limiter.check("key_b");
         assert!(
-            result.is_err(),
-            "key_b must remain rate-limited after eviction of the older key_a entry"
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "key_b must remain rate-limited after eviction of the older key_a entry, got: {result:?}"
         );
     }
 
@@ -986,7 +1015,8 @@ mod tests {
         let key = "single_key";
 
         // First request is allowed
-        assert!(limiter.check(key).is_ok());
+        let r = limiter.check(key);
+        assert!(r.is_ok(), "first request should be allowed: {r:?}");
 
         // Due to atomic check-and-update, the second request must fail
         // There's no window where both can check and both succeed

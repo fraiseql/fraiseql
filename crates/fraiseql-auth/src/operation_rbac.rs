@@ -382,10 +382,14 @@ mod tests {
         let policy = RBACPolicy::new();
         let user = create_test_user("admin");
 
-        assert!(policy.authorize(&user, OperationPermission::CreateRule).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::DeleteRule).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ManageUsers).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ManageTenants).is_ok());
+        let r = policy.authorize(&user, OperationPermission::CreateRule);
+        assert!(r.is_ok(), "admin should have CreateRule: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::DeleteRule);
+        assert!(r.is_ok(), "admin should have DeleteRule: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageUsers);
+        assert!(r.is_ok(), "admin should have ManageUsers: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageTenants);
+        assert!(r.is_ok(), "admin should have ManageTenants: {r:?}");
     }
 
     #[test]
@@ -393,10 +397,14 @@ mod tests {
         let policy = RBACPolicy::new();
         let user = create_test_user("operator");
 
-        assert!(policy.authorize(&user, OperationPermission::CreateRule).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ManageWebhooks).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ManageUsers).is_err());
-        assert!(policy.authorize(&user, OperationPermission::ManageTenants).is_err());
+        let r = policy.authorize(&user, OperationPermission::CreateRule);
+        assert!(r.is_ok(), "operator should have CreateRule: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageWebhooks);
+        assert!(r.is_ok(), "operator should have ManageWebhooks: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageUsers);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator should not have ManageUsers: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageTenants);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator should not have ManageTenants: {r:?}");
     }
 
     #[test]
@@ -404,10 +412,14 @@ mod tests {
         let policy = RBACPolicy::new();
         let user = create_test_user("viewer");
 
-        assert!(policy.authorize(&user, OperationPermission::ExportData).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ViewAuditLogs).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::CreateRule).is_err());
-        assert!(policy.authorize(&user, OperationPermission::ManageWebhooks).is_err());
+        let r = policy.authorize(&user, OperationPermission::ExportData);
+        assert!(r.is_ok(), "viewer should have ExportData: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ViewAuditLogs);
+        assert!(r.is_ok(), "viewer should have ViewAuditLogs: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::CreateRule);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer should not have CreateRule: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ManageWebhooks);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer should not have ManageWebhooks: {r:?}");
     }
 
     #[test]
@@ -416,11 +428,14 @@ mod tests {
         let user = create_test_user_with_roles(vec!["viewer", "operator"]);
 
         // Should have operator's permissions
-        assert!(policy.authorize(&user, OperationPermission::CreateRule).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::ExportData).is_ok());
+        let r = policy.authorize(&user, OperationPermission::CreateRule);
+        assert!(r.is_ok(), "viewer+operator should have CreateRule: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::ExportData);
+        assert!(r.is_ok(), "viewer+operator should have ExportData: {r:?}");
 
         // Should not have admin permissions
-        assert!(policy.authorize(&user, OperationPermission::ManageTenants).is_err());
+        let r = policy.authorize(&user, OperationPermission::ManageTenants);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer+operator should not have ManageTenants: {r:?}");
     }
 
     #[test]
@@ -433,7 +448,8 @@ mod tests {
             OperationPermission::ExportData,
         ];
 
-        assert!(policy.authorize_any(&user, &permissions).is_ok());
+        let r = policy.authorize_any(&user, &permissions);
+        assert!(r.is_ok(), "viewer should have at least one of the permissions: {r:?}");
     }
 
     #[test]
@@ -446,7 +462,8 @@ mod tests {
             OperationPermission::UpdateRule,
         ];
 
-        assert!(policy.authorize_all(&user, &permissions).is_ok());
+        let r = policy.authorize_all(&user, &permissions);
+        assert!(r.is_ok(), "operator should have all rule permissions: {r:?}");
     }
 
     #[test]
@@ -459,7 +476,8 @@ mod tests {
             OperationPermission::ManageTenants, // operator doesn't have this
         ];
 
-        assert!(policy.authorize_all(&user, &permissions).is_err());
+        let r = policy.authorize_all(&user, &permissions);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator missing ManageTenants should fail authorize_all: {r:?}");
     }
 
     #[test]
@@ -488,8 +506,10 @@ mod tests {
         policy.register_role(custom_role);
         let user = create_test_user("auditor");
 
-        assert!(policy.authorize(&user, OperationPermission::ViewAuditLogs).is_ok());
-        assert!(policy.authorize(&user, OperationPermission::CreateRule).is_err());
+        let r = policy.authorize(&user, OperationPermission::ViewAuditLogs);
+        assert!(r.is_ok(), "auditor should have ViewAuditLogs: {r:?}");
+        let r = policy.authorize(&user, OperationPermission::CreateRule);
+        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "auditor should not have CreateRule: {r:?}");
     }
 
     #[test]

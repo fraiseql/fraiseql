@@ -286,14 +286,20 @@ mod tests {
 
         // Should be gone now (consumed)
         let result = store.retrieve("state123").await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::error::AuthError::InvalidState)),
+            "expected InvalidState for consumed state, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_state_not_found() {
         let store = InMemoryStateStore::new();
         let result = store.retrieve("nonexistent").await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::error::AuthError::InvalidState)),
+            "expected InvalidState for nonexistent state, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -309,11 +315,14 @@ mod tests {
 
         // First retrieval succeeds
         let result1 = store.retrieve("state_abc").await;
-        assert!(result1.is_ok());
+        assert!(result1.is_ok(), "first retrieval should succeed: {result1:?}");
 
         // Replay attempt fails
         let result2 = store.retrieve("state_abc").await;
-        assert!(result2.is_err());
+        assert!(
+            matches!(result2, Err(crate::error::AuthError::InvalidState)),
+            "replay attempt should return InvalidState, got: {result2:?}"
+        );
     }
 
     #[tokio::test]
@@ -377,7 +386,10 @@ mod tests {
 
         // 6th state should be rejected when store is at capacity
         let result = store.store("state_5".to_string(), "google".to_string(), expiry).await;
-        assert!(result.is_err(), "Should reject insertion when at capacity");
+        assert!(
+            matches!(result, Err(crate::error::AuthError::ConfigError { .. })),
+            "expected ConfigError when store at capacity, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -413,7 +425,10 @@ mod tests {
 
         // Now at capacity with valid states
         let result = store.store("valid_state_4".to_string(), "auth0".to_string(), expiry).await;
-        assert!(result.is_err(), "Should be at capacity now");
+        assert!(
+            matches!(result, Err(crate::error::AuthError::ConfigError { .. })),
+            "expected ConfigError when at capacity with valid states, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -431,7 +446,10 @@ mod tests {
         // Small store should reject after 1 state
         store_small.store("s1".to_string(), "p1".to_string(), expiry).await.unwrap();
         let result = store_small.store("s2".to_string(), "p2".to_string(), expiry).await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::error::AuthError::ConfigError { .. })),
+            "expected ConfigError when small store at capacity, got: {result:?}"
+        );
 
         // Large store should allow more states
         for i in 0..50 {
@@ -483,7 +501,10 @@ mod tests {
 
                 // Should not be retrievable again (consumed)
                 let result = store.retrieve("redis_state_1").await;
-                assert!(result.is_err());
+                assert!(
+                    matches!(result, Err(crate::error::AuthError::InvalidState)),
+                    "expected InvalidState for consumed redis state, got: {result:?}"
+                );
             },
             Err(_) => {
                 // Skip test if Redis is unavailable
@@ -511,11 +532,14 @@ mod tests {
 
             // First retrieval succeeds
             let result1 = store.retrieve("redis_replay_test").await;
-            assert!(result1.is_ok());
+            assert!(result1.is_ok(), "first redis retrieval should succeed: {result1:?}");
 
             // Replay attempt fails
             let result2 = store.retrieve("redis_replay_test").await;
-            assert!(result2.is_err());
+            assert!(
+                matches!(result2, Err(crate::error::AuthError::InvalidState)),
+                "redis replay attempt should return InvalidState, got: {result2:?}"
+            );
         }
     }
 
