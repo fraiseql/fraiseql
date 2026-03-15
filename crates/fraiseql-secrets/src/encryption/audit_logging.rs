@@ -372,7 +372,7 @@ mod tests {
         let entry =
             AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
         let result = logger.log_entry(entry);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from log_entry: {e}"));
         assert_eq!(logger.entry_count(), 1);
     }
 

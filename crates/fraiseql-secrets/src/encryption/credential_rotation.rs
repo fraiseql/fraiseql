@@ -699,8 +699,9 @@ mod tests {
         let storage = VersionedKeyStorage::new();
         let metadata = KeyVersionMetadata::new(1, 365);
         let result = storage.add_version(metadata);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 1);
+        let returned_version =
+            result.unwrap_or_else(|e| panic!("expected Ok from add_version: {e}"));
+        assert_eq!(returned_version, 1);
     }
 
     #[test]
@@ -766,7 +767,7 @@ mod tests {
         manager.initialize_key().unwrap();
         let version = manager.get_current_version().unwrap();
         let result = manager.mark_version_compromised(version, "Test compromise");
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from mark_version_compromised: {e}"));
     }
 
     #[test]

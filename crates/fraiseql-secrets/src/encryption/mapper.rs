@@ -298,15 +298,18 @@ mod tests {
     fn test_field_mapping_to_string() {
         let mapping = FieldMapping::new("email", true, "user@example.com".as_bytes().to_vec());
         let result = mapping.to_string();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "user@example.com");
+        let value = result.unwrap_or_else(|e| panic!("expected Ok from to_string: {e}"));
+        assert_eq!(value, "user@example.com");
     }
 
     #[test]
     fn test_field_mapping_to_string_invalid_utf8() {
         let mapping = FieldMapping::new("email", true, vec![0xFF, 0xFE]);
         let result = mapping.to_string();
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::EncryptionError(_))),
+            "expected EncryptionError for invalid UTF-8, got: {result:?}"
+        );
     }
 
     #[test]

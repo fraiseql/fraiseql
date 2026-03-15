@@ -454,8 +454,8 @@ mod tests {
         let txn_id = ctx.transaction_id.clone();
 
         let result = manager.begin(ctx);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), txn_id);
+        let returned_id = result.unwrap_or_else(|e| panic!("expected Ok from begin: {e}"));
+        assert_eq!(returned_id, txn_id);
         assert_eq!(manager.active_count(), 1);
     }
 
@@ -481,7 +481,7 @@ mod tests {
         manager.begin(ctx).unwrap();
         let result = manager.commit(&txn_id);
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from commit: {e}"));
         let txn = manager.get_transaction(&txn_id);
         assert_eq!(txn.unwrap().state, TransactionState::Committed);
     }
@@ -495,7 +495,7 @@ mod tests {
         manager.begin(ctx).unwrap();
         let result = manager.rollback(&txn_id);
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from rollback: {e}"));
         let txn = manager.get_transaction(&txn_id);
         assert_eq!(txn.unwrap().state, TransactionState::RolledBack);
     }
@@ -509,7 +509,7 @@ mod tests {
         manager.begin(ctx).unwrap();
         let result = manager.savepoint(&txn_id, "sp1");
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from savepoint: {e}"));
     }
 
     #[test]
@@ -528,7 +528,7 @@ mod tests {
         }
 
         let result = manager.rollback_to_savepoint(&txn_id, "sp1");
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from rollback_to_savepoint: {e}"));
 
         let txn = manager.get_transaction(&txn_id).unwrap();
         assert_eq!(txn.operation_count(), 1);

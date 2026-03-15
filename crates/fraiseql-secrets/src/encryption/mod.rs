@@ -461,7 +461,10 @@ mod tests {
 
         // Decryption with wrong context should fail
         let result = cipher.decrypt_with_context(&encrypted, wrong_context);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::EncryptionError(_))),
+            "expected EncryptionError for wrong context, got: {result:?}"
+        );
     }
 
     /// Test various data types
@@ -494,7 +497,10 @@ mod tests {
     fn test_field_encryption_invalid_key_size_returns_err() {
         let invalid_key = [0u8; 16]; // Too short
         let result = FieldEncryption::new(&invalid_key);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "expected ValidationError for invalid key size, got: {result:?}"
+        );
     }
 
     /// Test corrupted ciphertext fails to decrypt
@@ -512,7 +518,10 @@ mod tests {
         }
 
         let result = cipher.decrypt(&encrypted);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::EncryptionError(_))),
+            "expected EncryptionError for corrupted data, got: {result:?}"
+        );
     }
 
     /// Test short ciphertext fails gracefully
@@ -523,7 +532,10 @@ mod tests {
 
         let short_data = vec![0u8; 5]; // Too short for nonce
         let result = cipher.decrypt(&short_data);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::EncryptionError(_))),
+            "expected EncryptionError for short data, got: {result:?}"
+        );
     }
 
     // =========================================================================

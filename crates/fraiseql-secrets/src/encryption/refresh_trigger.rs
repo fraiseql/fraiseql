@@ -801,11 +801,13 @@ mod tests {
         assert!(manager.refresh_pending());
 
         // Start the job
-        assert!(manager.start_job().is_ok());
+        manager.start_job().unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
         assert!(manager.job_running());
 
         // Complete successfully: clears pending and transitions job to Success state
-        assert!(manager.complete_job_success().is_ok());
+        manager
+            .complete_job_success()
+            .unwrap_or_else(|e| panic!("expected Ok from complete_job_success: {e}"));
         assert!(!manager.job_running());
         assert!(!manager.refresh_pending()); // pending cleared by complete_job_success
 
@@ -822,9 +824,11 @@ mod tests {
         let manager = RefreshManager::new(RefreshConfig::default());
 
         assert!(manager.check_and_trigger(85));
-        assert!(manager.start_job().is_ok());
+        manager.start_job().unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
         // complete_job_failure keeps pending so the coordinator can retry
-        assert!(manager.complete_job_failure("vault timeout").is_ok());
+        manager
+            .complete_job_failure("vault timeout")
+            .unwrap_or_else(|e| panic!("expected Ok from complete_job_failure: {e}"));
         assert!(!manager.job_running());
         // pending is NOT cleared on failure (allows retry)
         assert!(manager.refresh_pending());

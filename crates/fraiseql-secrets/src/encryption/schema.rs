@@ -429,14 +429,17 @@ mod tests {
         let mut schema = StructSchema::new("User");
         let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
         schema.add_field(email);
-        assert!(schema.validate().is_ok());
+        schema.validate().unwrap_or_else(|e| panic!("expected Ok from validate: {e}"));
     }
 
     #[test]
     fn test_struct_schema_validate_empty_type_name() {
         let schema = StructSchema::new("");
         let result = schema.validate();
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "expected ValidationError for empty type name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -445,7 +448,10 @@ mod tests {
         let email = SchemaFieldInfo::new("email", "String", true, "");
         schema.add_field(email);
         let result = schema.validate();
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "expected ValidationError for missing key reference, got: {result:?}"
+        );
     }
 
     #[test]
@@ -466,7 +472,7 @@ mod tests {
         let mut schema = StructSchema::new("User");
         let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
         schema.add_field(email);
-        assert!(registry.register(schema).is_ok());
+        registry.register(schema).unwrap_or_else(|e| panic!("expected Ok from register: {e}"));
         assert_eq!(registry.count(), 1);
     }
 
@@ -633,7 +639,7 @@ mod tests {
         let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
         schema.add_field(email);
         registry.register(schema).unwrap();
-        assert!(registry.validate_all().is_ok());
+        registry.validate_all().unwrap_or_else(|e| panic!("expected Ok from validate_all: {e}"));
     }
 
     #[test]
