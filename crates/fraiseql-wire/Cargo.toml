@@ -42,7 +42,7 @@ subtle = "2"  # Constant-time comparison for SCRAM
 # Error handling
 thiserror = "2"
 # Async runtime
-tokio = {version = "1", features = ["full"]}
+tokio = {workspace = true}
 tokio-rustls = "0.26"
 # Tracing
 tracing = "0.1"

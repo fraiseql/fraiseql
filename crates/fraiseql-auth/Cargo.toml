@@ -20,7 +20,7 @@ sha2 = "0.10"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 subtle = "2.5"
 thiserror = "2.0"
-tokio = {version = "1.45", features = ["full"]}
+tokio = {workspace = true}
 tower = {version = "0.5"}
 tracing = "0.1"
 urlencoding = "2.1"

@@ -77,7 +77,7 @@ sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chron
 subtle = "2.5"
 thiserror = "2.0"
 # Async runtime
-tokio = {version = "1.45", features = ["full", "signal"]}
+tokio = {workspace = true}
 tokio-rustls = "0.25"
 # Config and paths
 toml = "0.8"

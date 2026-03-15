@@ -113,7 +113,7 @@ tempfile = "3.25"
 # Unification blocked on sqlx 0.9 (which will upgrade to tokio-rustls 0.26 / rustls 0.23).
 thiserror = "2.0"
 # Async runtime
-tokio = {version = "1.0", features = ["full"]}
+tokio = {version = "1.0", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "io-std", "sync", "signal", "fs"]}
 # Database drivers
 # PostgreSQL
 tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"]}
