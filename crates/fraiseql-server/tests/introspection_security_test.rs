@@ -107,10 +107,12 @@ fn test_introspection_independent_from_admin() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
-    assert!(config.introspection_enabled);
-    assert!(!config.introspection_require_auth);
-    assert!(config.admin_api_enabled);
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with introspection and admin enabled should validate: {e}"));
+    assert!(config.introspection_enabled, "introspection_enabled should be true");
+    assert!(!config.introspection_require_auth, "introspection_require_auth should be false");
+    assert!(config.admin_api_enabled, "admin_api_enabled should be true");
 }
 
 // =============================================================================
@@ -129,7 +131,9 @@ fn test_introspection_dev_config() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Dev config with introspection enabled should validate: {e}"));
 }
 
 #[test]
@@ -143,7 +147,9 @@ fn test_introspection_production_config() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Production config with introspection disabled should validate: {e}"));
 }
 
 // =============================================================================
@@ -160,7 +166,9 @@ fn test_schema_export_follows_introspection_setting() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with introspection enabled for schema export should validate: {e}"));
     // Both introspection and schema export endpoints would be available
 }
 
@@ -173,7 +181,9 @@ fn test_schema_export_disabled_when_introspection_disabled() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with introspection disabled should validate: {e}"));
     // Both introspection and schema export endpoints would be disabled
 }
 
@@ -187,7 +197,9 @@ fn test_schema_export_protected_with_auth() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with auth-protected schema export should validate: {e}"));
     // Schema export endpoints would require OIDC authentication
 }
 
@@ -206,7 +218,9 @@ fn test_all_debug_endpoints_can_be_disabled() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with all debug endpoints disabled should validate: {e}"));
 }
 
 #[test]
@@ -227,8 +241,12 @@ fn test_introspection_and_playground_independence() {
         ..ServerConfig::default()
     };
 
-    assert!(config_a.validate().is_ok());
-    assert!(config_b.validate().is_ok());
+    config_a
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with introspection=true, playground=false should validate: {e}"));
+    config_b
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with introspection=false, playground=false should validate: {e}"));
 }
 
 #[test]
@@ -242,6 +260,8 @@ fn test_introspection_path_customization() {
         ..ServerConfig::default()
     };
 
-    assert!(config.validate().is_ok());
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Config with custom introspection path should validate: {e}"));
     assert_eq!(config.introspection_path, "/api/introspection");
 }

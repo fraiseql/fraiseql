@@ -94,7 +94,9 @@ fn test_multi_field_query_validation() {
         }
     }";
 
-    assert!(validator.validate_query(multi_field).is_ok());
+    validator
+        .validate_query(multi_field)
+        .unwrap_or_else(|e| panic!("Multi-field query should pass validation: {e}"));
 }
 
 /// Test nested query validation
@@ -114,7 +116,9 @@ fn test_nested_query_validation() {
         }
     }";
 
-    assert!(validator.validate_query(nested).is_ok());
+    validator
+        .validate_query(nested)
+        .unwrap_or_else(|e| panic!("Nested query should pass validation: {e}"));
 }
 
 /// Test query depth validation with max depth setting
@@ -124,15 +128,22 @@ fn test_query_depth_limit() {
 
     // Shallow (2 levels) should pass
     let shallow = "{ user { profile { name } } }";
-    assert!(validator.validate_query(shallow).is_ok());
+    validator
+        .validate_query(shallow)
+        .unwrap_or_else(|e| panic!("Shallow query (2 levels) should pass depth limit of 4: {e}"));
 
     // At limit (3 levels) should pass
     let at_limit = "{ user { profile { settings { theme } } } }";
-    assert!(validator.validate_query(at_limit).is_ok());
+    validator
+        .validate_query(at_limit)
+        .unwrap_or_else(|e| panic!("Query at depth limit (3 levels) should pass: {e}"));
 
     // Over limit (5 levels) should fail
     let over_limit = "{ user { profile { settings { theme { dark { mode } } } } } }";
-    assert!(validator.validate_query(over_limit).is_err());
+    assert!(
+        validator.validate_query(over_limit).is_err(),
+        "Query exceeding depth limit (5 levels, max 4) should be rejected"
+    );
 }
 
 /// Test query complexity validation
@@ -142,11 +153,15 @@ fn test_query_complexity_limit() {
 
     // Simple (low complexity) should pass
     let simple = "{ user { id } }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator
+        .validate_query(simple)
+        .unwrap_or_else(|e| panic!("Simple query should pass complexity limit: {e}"));
 
     // Moderate (within limit) should pass
     let moderate = "{ users { id name email posts { id title } } }";
-    assert!(validator.validate_query(moderate).is_ok());
+    validator
+        .validate_query(moderate)
+        .unwrap_or_else(|e| panic!("Moderate query should pass complexity limit of 10: {e}"));
 }
 
 /// Test variables validation
@@ -160,22 +175,34 @@ fn test_variables_validation() {
         "name": "John",
         "limit": 10
     });
-    assert!(validator.validate_variables(Some(&valid_vars)).is_ok());
+    validator
+        .validate_variables(Some(&valid_vars))
+        .unwrap_or_else(|e| panic!("Valid variables object should pass validation: {e}"));
 
     // Empty variables
     let empty_vars = json!({});
-    assert!(validator.validate_variables(Some(&empty_vars)).is_ok());
+    validator
+        .validate_variables(Some(&empty_vars))
+        .unwrap_or_else(|e| panic!("Empty variables object should pass validation: {e}"));
 
     // No variables
-    assert!(validator.validate_variables(None).is_ok());
+    validator
+        .validate_variables(None)
+        .unwrap_or_else(|e| panic!("No variables (None) should pass validation: {e}"));
 
     // Invalid: variables as array instead of object
     let invalid_array = json!([1, 2, 3]);
-    assert!(validator.validate_variables(Some(&invalid_array)).is_err());
+    assert!(
+        validator.validate_variables(Some(&invalid_array)).is_err(),
+        "Variables as array should be rejected"
+    );
 
     // Invalid: variables as string
     let invalid_string = json!("some string");
-    assert!(validator.validate_variables(Some(&invalid_string)).is_err());
+    assert!(
+        validator.validate_variables(Some(&invalid_string)).is_err(),
+        "Variables as string should be rejected"
+    );
 }
 
 /// Test pagination arguments validation
@@ -189,7 +216,9 @@ fn test_pagination_query_validation() {
         }
     }";
 
-    assert!(validator.validate_query(with_pagination).is_ok());
+    validator
+        .validate_query(with_pagination)
+        .unwrap_or_else(|e| panic!("Pagination query should pass validation: {e}"));
 }
 
 /// Test empty query rejection
@@ -303,10 +332,14 @@ fn test_validation_pipeline() {
     };
 
     // Step 2: Validate query structure
-    assert!(validator.validate_query(request.query.as_deref().unwrap()).is_ok());
+    validator
+        .validate_query(request.query.as_deref().unwrap())
+        .unwrap_or_else(|e| panic!("Query structure validation should pass: {e}"));
 
     // Step 3: Validate variables format
-    assert!(validator.validate_variables(request.variables.as_ref()).is_ok());
+    validator
+        .validate_variables(request.variables.as_ref())
+        .unwrap_or_else(|e| panic!("Variables format validation should pass: {e}"));
 }
 
 /// Test performance: multiple simple queries
