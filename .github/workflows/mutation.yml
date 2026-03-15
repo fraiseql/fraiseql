@@ -1,32 +1,127 @@
 name: Mutation Testing
 
 on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'crates/fraiseql-core/src/security/**'
+      - 'crates/fraiseql-core/src/runtime/executor/security.rs'
+      - 'crates/fraiseql-auth/src/jwt.rs'
+      - 'crates/fraiseql-auth/src/rate_limiting.rs'
+      - 'crates/fraiseql-auth/src/state_encryption.rs'
+      - 'crates/fraiseql-secrets/src/encryption/**'
   schedule:
-    - cron: '0 2 * * 1'  # Weekly, Monday 02:00 UTC
+    - cron: '0 2 * * 1'  # Weekly Monday 02:00 UTC
   workflow_dispatch:
 
 jobs:
-  mutants:
-    name: cargo-mutants (fraiseql-core priority files)
+  mutate-tier1-security:
+    name: "Mutation — Tier 1 Security (${{ matrix.file }})"
     runs-on: ubuntu-latest
-    continue-on-error: true  # Non-blocking until baseline survival rate is established
+    continue-on-error: false   # BLOCKING
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - crates/fraiseql-core/src/security/rls_policy.rs
+          - crates/fraiseql-core/src/runtime/executor/security.rs
+          - crates/fraiseql-auth/src/jwt.rs
+          - crates/fraiseql-auth/src/rate_limiting.rs
+          - crates/fraiseql-auth/src/state_encryption.rs
+          - crates/fraiseql-core/src/security/introspection_enforcer.rs
+          - crates/fraiseql-core/src/security/query_validator.rs
+          - crates/fraiseql-secrets/src/encryption/mod.rs
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
-      - name: Run mutation tests
+
+      - name: Run mutations on ${{ matrix.file }}
         run: |
-          cargo mutants --package fraiseql-core \
-            --file src/cache/key.rs \
-            --file src/runtime/executor/query.rs \
-            --file src/compiler/aggregation.rs \
-            --file src/cache/adapter/query.rs \
+          cargo mutants \
+            --file "${{ matrix.file }}" \
             --timeout 60 \
-            --output mutants-report/
+            --output mutants-out/ \
+            --jobs 4
+
+      - name: Check survival rate ≤ 10%
+        run: |
+          TOTAL=$(jq '.total_mutants' mutants-out/outcomes.json)
+          UNVIABLE=$(jq '.unviable' mutants-out/outcomes.json)
+          MISSED=$(jq '.missed' mutants-out/outcomes.json)
+          EFFECTIVE=$(( TOTAL - UNVIABLE ))
+          if [ "$EFFECTIVE" -eq 0 ]; then
+            echo "No viable mutants generated — check file path"
+            exit 1
+          fi
+          RATE=$(echo "scale=2; $MISSED * 100 / $EFFECTIVE" | bc)
+          echo "Missed (survived): $MISSED / $EFFECTIVE viable = $RATE%"
+          if [ "$(echo "$RATE > 10" | bc)" = "1" ]; then
+            echo "FAIL: Mutation survival $RATE% exceeds 10% threshold for security-critical file"
+            cat mutants-out/missed.txt
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mutants-report
-          path: mutants-report/
+          name: mutants-tier1-${{ strategy.job-index }}
+          path: mutants-out/
+
+  mutate-tier2-correctness:
+    name: "Mutation — Tier 2 Correctness (${{ matrix.file }})"
+    runs-on: ubuntu-latest
+    continue-on-error: true    # Non-blocking — surfaced as annotation
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - crates/fraiseql-core/src/compiler/sql_generator.rs
+          - crates/fraiseql-core/src/runtime/executor/query.rs
+          - crates/fraiseql-core/src/cache/key.rs
+          - crates/fraiseql-core/src/cache/adapter/query.rs
+          - crates/fraiseql-core/src/compiler/aggregation.rs
+          - crates/fraiseql-federation/src/representation.rs
+          - crates/fraiseql-federation/src/saga_compensator.rs
+          - crates/fraiseql-wire/src/json/validate.rs
+          - crates/fraiseql-db/src/filters/validators.rs
+          - crates/fraiseql-core/src/graphql/complexity.rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Run mutations on ${{ matrix.file }}
+        run: |
+          cargo mutants \
+            --file "${{ matrix.file }}" \
+            --timeout 60 \
+            --output mutants-out/ \
+            --jobs 4
+
+      - name: Report survival rate (threshold ≤ 15%)
+        run: |
+          TOTAL=$(jq '.total_mutants' mutants-out/outcomes.json)
+          UNVIABLE=$(jq '.unviable' mutants-out/outcomes.json)
+          MISSED=$(jq '.missed' mutants-out/outcomes.json)
+          EFFECTIVE=$(( TOTAL - UNVIABLE ))
+          if [ "$EFFECTIVE" -eq 0 ]; then
+            echo "::notice::No viable mutants generated"
+            exit 0
+          fi
+          RATE=$(echo "scale=2; $MISSED * 100 / $EFFECTIVE" | bc)
+          echo "::notice::Missed: $MISSED / $EFFECTIVE viable = $RATE% (threshold 15%)"
+          if [ "$(echo "$RATE > 15" | bc)" = "1" ]; then
+            echo "::warning::Mutation survival $RATE% exceeds 15% — add tests for survived mutants"
+            cat mutants-out/missed.txt
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-tier2-${{ strategy.job-index }}
+          path: mutants-out/
