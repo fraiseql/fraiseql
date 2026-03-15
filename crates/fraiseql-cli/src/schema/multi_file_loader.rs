@@ -417,7 +417,7 @@ mod tests {
 
         let result = MultiFileLoader::load_from_directory(temp_dir.path().to_str().unwrap());
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err, got: {result:?}");
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Duplicate type 'User'"));
         assert!(err_msg.contains("file1.json"));
@@ -446,7 +446,7 @@ mod tests {
 
         let result = MultiFileLoader::load_from_directory(temp_dir.path().to_str().unwrap());
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err, got: {result:?}");
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Duplicate query 'getUser'"));
 
@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn test_nonexistent_directory() {
         let result = MultiFileLoader::load_from_directory("/nonexistent/path/to/schema");
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for nonexistent directory, got: {result:?}");
     }
 
     #[test]

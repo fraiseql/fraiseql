@@ -129,11 +129,10 @@ mod tests {
         let backend = EnvBackend::new();
         let result = backend.get_secret("NONEXISTENT_VAR_XYZ").await;
 
-        assert!(result.is_err());
-        match result {
-            Err(SecretsError::NotFound(_)) => {},
-            _ => panic!("Expected NotFound error"),
-        }
+        assert!(
+            matches!(result, Err(SecretsError::NotFound(_))),
+            "expected NotFound error, got: {result:?}"
+        );
     }
 
     /// Test EnvBackend with_expiry returns future date
@@ -155,11 +154,10 @@ mod tests {
         let backend = EnvBackend::new();
         let result = backend.rotate_secret("ANY_KEY").await;
 
-        assert!(result.is_err());
-        match result {
-            Err(SecretsError::RotationError(_)) => {},
-            _ => panic!("Expected RotationError"),
-        }
+        assert!(
+            matches!(result, Err(SecretsError::RotationError(_))),
+            "expected RotationError, got: {result:?}"
+        );
     }
 
     /// Test empty environment variable

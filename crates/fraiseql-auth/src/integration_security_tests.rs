@@ -375,7 +375,9 @@ mod integration_security {
 
         // 1. Rate limiter tracks request
         let ip = "192.168.1.1";
-        assert!(scenario.auth_start(ip, "user@example.com").is_ok());
+        scenario
+            .auth_start(ip, "user@example.com")
+            .unwrap_or_else(|e| panic!("expected Ok from auth_start: {e:?}"));
         assert_eq!(scenario.get_rate_limit_status(ip, "auth_start"), "allowed");
 
         // 2. State encrypted and CSRF protected
@@ -384,7 +386,9 @@ mod integration_security {
         assert_ne!(state, scenario.get_original_state());
 
         // 3. Auth callback validates everything
-        assert!(scenario.auth_callback(ip, &state).is_ok());
+        scenario
+            .auth_callback(ip, &state)
+            .unwrap_or_else(|e| panic!("expected Ok from auth_callback: {e:?}"));
 
         // 4. Audit log captures all events
         assert!(scenario.audit_log_contains("AuthSuccess"));

@@ -278,9 +278,7 @@ fn test_incremental_composition_preserves_state() {
     let new_types = vec!["Order".to_string()];
 
     let result = incremental_compose(&existing, &new_types);
-    assert!(result.is_ok());
-
-    let updated = result.unwrap();
+    let updated = result.unwrap_or_else(|e| panic!("expected Ok from incremental_compose: {e:?}"));
     assert_eq!(updated.version, "v2", "Should preserve version");
     assert!(
         updated.types.contains(&"User".to_string()),

@@ -292,7 +292,7 @@ mod tests {
         assert_eq!(SbomFormat::from_str("cyclonedx").unwrap(), SbomFormat::CycloneDx);
         assert_eq!(SbomFormat::from_str("cdx").unwrap(), SbomFormat::CycloneDx);
         assert_eq!(SbomFormat::from_str("spdx").unwrap(), SbomFormat::Spdx);
-        assert!(SbomFormat::from_str("csv").is_err());
+        assert!(SbomFormat::from_str("csv").is_err(), "expected Err for unknown format 'csv'");
     }
 
     #[test]

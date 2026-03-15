@@ -100,8 +100,9 @@ fn test_batch_100_entities_resolution_latency() {
     let result = runtime.block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
     let duration = start.elapsed();
 
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 100);
+    let entities =
+        result.unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
+    assert_eq!(entities.len(), 100);
 
     assert!(duration.as_millis() < 100, "Batch resolution took {:?}", duration);
 }
@@ -148,8 +149,8 @@ fn test_concurrent_entity_resolution() {
             &selection,
         ));
 
-        assert!(result.is_ok());
-        let entities = result.unwrap();
+        let entities = result
+            .unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }

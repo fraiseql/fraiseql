@@ -134,7 +134,10 @@ mod tests {
         let metadata = FederationMetadata::default();
         let result = parse_representations(&input, &metadata);
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for non-array input, got: {result:?}"
+        );
     }
 
     #[test]
@@ -146,7 +149,10 @@ mod tests {
         let metadata = FederationMetadata::default();
         let result = parse_representations(&input, &metadata);
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing __typename, got: {result:?}"
+        );
     }
 
     // ── Batch-size guard tests ─────────────────────────────────────────────────

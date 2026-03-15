@@ -31,8 +31,8 @@ async fn test_subscribe_and_broadcast() {
     // Subscriber should receive the event
     let received = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv()).await;
 
-    assert!(received.is_ok());
-    assert!(received.unwrap().is_some());
+    let recv_inner = received.unwrap_or_else(|_| panic!("expected Ok: timeout elapsed waiting for event"));
+    assert!(recv_inner.is_some());
 }
 
 #[tokio::test]

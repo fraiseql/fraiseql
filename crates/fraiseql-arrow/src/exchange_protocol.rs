@@ -281,7 +281,7 @@ mod tests {
         // Exactly at MAX_EXCHANGE_MESSAGE_BYTES: size check passes, JSON parse fails.
         let bytes = vec![b'{'; MAX_EXCHANGE_MESSAGE_BYTES];
         let result = ExchangeMessage::from_json_bytes(&bytes);
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err, got: {result:?}");
         let msg = result.unwrap_err();
         assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
     }
@@ -290,7 +290,7 @@ mod tests {
     fn test_exchange_message_exceeding_size_limit_is_rejected() {
         let oversized = vec![b'x'; MAX_EXCHANGE_MESSAGE_BYTES + 1];
         let result = ExchangeMessage::from_json_bytes(&oversized);
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err, got: {result:?}");
         let msg = result.unwrap_err();
         assert!(msg.contains("too large"), "Expected size-limit error, got: {msg}");
     }

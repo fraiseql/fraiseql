@@ -155,7 +155,10 @@ mod tests {
     #[test]
     fn test_value_to_sql_literal_array_error() {
         let result = value_to_sql_literal(&Value::Array(vec![]));
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for Array input, got: {result:?}"
+        );
     }
 
     #[test]

@@ -497,7 +497,7 @@ mod tests {
         let registry = SchemaRegistry::new();
 
         let result = registry.get("nonexistent");
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err, got: {result:?}");
         assert!(result.unwrap_err().to_string().contains("No schema registered"));
     }
 
@@ -673,7 +673,10 @@ mod tests {
 
         let row = HashMap::new();
         let result = infer_schema_from_row("test_view", &row);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowFlightError::SchemaNotFound(_))),
+            "expected SchemaNotFound error, got: {result:?}"
+        );
     }
 
     #[test]
@@ -774,8 +777,10 @@ mod tests {
     fn test_get_version_info_nonexistent_returns_error() {
         let registry = SchemaRegistry::new();
         let result = registry.get_version_info("va_does_not_exist");
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ArrowFlightError::SchemaNotFound(_)));
+        assert!(
+            matches!(result, Err(ArrowFlightError::SchemaNotFound(_))),
+            "expected SchemaNotFound error, got: {result:?}"
+        );
     }
 
     #[test]

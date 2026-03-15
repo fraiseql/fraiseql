@@ -302,7 +302,11 @@ mod tests {
     #[test]
     fn test_parse_server_first_invalid() {
         let server_first = "r=nonce,s=salt"; // missing iterations
-        assert!(parse_server_first(server_first).is_err());
+        let result = parse_server_first(server_first);
+        assert!(
+            matches!(result, Err(ScramError::InvalidServerMessage(_))),
+            "expected InvalidServerMessage error, got: {result:?}"
+        );
     }
 
     #[test]

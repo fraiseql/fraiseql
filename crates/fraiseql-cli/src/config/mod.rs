@@ -155,7 +155,9 @@ mod tests {
     #[test]
     fn test_validation() {
         let config = TomlProjectConfig::default();
-        assert!(config.validate().is_ok());
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
     }
 
     #[test]

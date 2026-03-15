@@ -256,7 +256,10 @@ mod tests {
         queue.enqueue(job).await.expect("enqueue failed");
 
         assert_eq!(queue.queue_depth().await.expect("depth failed"), 1);
-        assert!(queue.get_status(job_id).await.is_ok());
+        queue
+            .get_status(job_id)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from get_status: {e:?}"));
     }
 
     #[tokio::test]

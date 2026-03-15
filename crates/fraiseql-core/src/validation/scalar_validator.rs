@@ -335,6 +335,10 @@ mod tests {
     #[test]
     fn test_convenience_fn_failure() {
         let scalar = FailScalar;
-        assert!(validate_custom_scalar_parse_value(&scalar, &json!("x")).is_err());
+        let result = validate_custom_scalar_parse_value(&scalar, &json!("x"));
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error, got: {result:?}"
+        );
     }
 }

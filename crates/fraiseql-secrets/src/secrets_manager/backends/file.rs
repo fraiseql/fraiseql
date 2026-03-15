@@ -122,7 +122,10 @@ mod tests {
         let backend = FileBackend::new(dir.path());
         let result = backend.get_secret("nonexistent.txt").await;
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::ConnectionError(_))),
+            "expected ConnectionError for missing file, got: {result:?}"
+        );
     }
 
     /// Test FileBackend trims whitespace
@@ -165,7 +168,10 @@ mod tests {
         let backend = FileBackend::new(dir.path());
         let result = backend.rotate_secret("any_file").await;
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(SecretsError::RotationError(_))),
+            "expected RotationError, got: {result:?}"
+        );
     }
 
     /// Test FileBackend with multiple files

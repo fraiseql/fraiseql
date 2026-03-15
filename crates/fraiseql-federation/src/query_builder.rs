@@ -209,6 +209,9 @@ mod tests {
         let reps = vec![];
 
         let result = construct_where_in_clause("NotFound", &reps, &metadata);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for unknown type, got: {result:?}"
+        );
     }
 }

@@ -97,12 +97,14 @@ mod tests {
 
     #[test]
     fn test_valid_simple_identifier() {
-        assert!(validate_sql_identifier("v_user", "sql_source", "Query.users").is_ok());
+        validate_sql_identifier("v_user", "sql_source", "Query.users")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
     }
 
     #[test]
     fn test_valid_schema_qualified_identifier() {
-        assert!(validate_sql_identifier("public.v_user", "sql_source", "Query.users").is_ok());
+        validate_sql_identifier("public.v_user", "sql_source", "Query.users")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
     }
 
     #[test]
@@ -114,7 +116,8 @@ mod tests {
     #[test]
     fn test_identifier_exactly_63_bytes_accepted() {
         let ident = "a".repeat(63);
-        assert!(validate_sql_identifier(&ident, "sql_source", "Query.x").is_ok());
+        validate_sql_identifier(&ident, "sql_source", "Query.x")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
     }
 
     #[test]

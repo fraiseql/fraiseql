@@ -271,7 +271,9 @@ mod tests {
 
     #[test]
     fn test_server_runtime_config_validate_ok() {
-        assert!(ServerRuntimeConfig::default().validate().is_ok());
+        ServerRuntimeConfig::default()
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
     }
 
     #[test]
@@ -367,7 +369,9 @@ enabled = false
 
     #[test]
     fn test_database_runtime_config_validate_ok() {
-        assert!(DatabaseRuntimeConfig::default().validate().is_ok());
+        DatabaseRuntimeConfig::default()
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
     }
 
     #[test]

@@ -540,7 +540,10 @@ mod tests {
         assert_eq!(WhereOperator::from_str("eq").unwrap(), WhereOperator::Eq);
         assert_eq!(WhereOperator::from_str("icontains").unwrap(), WhereOperator::Icontains);
         assert_eq!(WhereOperator::from_str("gte").unwrap(), WhereOperator::Gte);
-        assert!(WhereOperator::from_str("unknown").is_err());
+        assert!(
+            matches!(WhereOperator::from_str("unknown"), Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for unknown operator"
+        );
     }
 
     #[test]
@@ -644,7 +647,11 @@ mod tests {
     #[test]
     fn test_from_graphql_json_invalid_operator() {
         let json = json!({ "field": { "nonexistent_op": 42 } });
-        assert!(WhereClause::from_graphql_json(&json).is_err());
+        let result = WhereClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error, got: {result:?}"
+        );
     }
 
     #[test]

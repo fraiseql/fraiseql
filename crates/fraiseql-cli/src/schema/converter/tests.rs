@@ -149,7 +149,7 @@ fn test_validate_unknown_type_reference() {
     };
 
     let result = SchemaConverter::convert(intermediate);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.expect_err("test").to_string().contains("unknown type 'UnknownType'"));
 }
 
@@ -974,7 +974,7 @@ fn test_validate_unknown_interface() {
     };
 
     let result = SchemaConverter::convert(intermediate);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.expect_err("test").to_string().contains("unknown interface"));
 }
 
@@ -1040,7 +1040,7 @@ fn test_validate_missing_interface_field() {
     };
 
     let result = SchemaConverter::convert(intermediate);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.expect_err("test").to_string().contains("missing field 'id'"));
 }
 
