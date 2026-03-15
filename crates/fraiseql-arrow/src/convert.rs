@@ -420,7 +420,10 @@ mod tests {
         let rows = vec![vec![Some(Value::Int(1))]];
 
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for column count mismatch, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("expected 2"));
     }
 
@@ -434,7 +437,10 @@ mod tests {
         let rows = vec![vec![Some(Value::String("not an int".to_string()))]];
 
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for wrong value type, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected int"));
     }
 
@@ -460,7 +466,10 @@ mod tests {
     fn test_downcast_builder_rejects_mismatched_type() {
         let mut builder: Box<dyn ArrayBuilder> = Box::new(StringBuilder::new());
         let result = downcast_builder::<Int32Builder>(&mut builder, "Int32Builder", "Int32");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for mismatched builder type, got: {result:?}"
+        );
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Expected Int32Builder"));
     }
@@ -469,7 +478,7 @@ mod tests {
     fn test_downcast_builder_accepts_correct_type() {
         let mut builder: Box<dyn ArrayBuilder> = Box::new(StringBuilder::new());
         let result = downcast_builder::<StringBuilder>(&mut builder, "StringBuilder", "Utf8");
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("downcast to correct type should succeed: {e}"));
     }
 
     // --- Null handling for each Arrow type ---
@@ -553,7 +562,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::String("not-an-int".to_string()))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for string in Int64 column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected int64 value"));
     }
 
@@ -563,7 +575,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::Float(1.0))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for float in Boolean column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected bool value"));
     }
 
@@ -573,7 +588,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::Bool(true))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for bool in Utf8 column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected string value"));
     }
 
@@ -583,7 +601,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::Float(std::f64::consts::PI))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for float in Int32 column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected int"));
     }
 
@@ -594,7 +615,10 @@ mod tests {
         // i64::MAX cannot be represented as i32
         let rows = vec![vec![Some(Value::Int(i64::MAX))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for Int32 overflow, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Int overflow"));
     }
 
@@ -608,7 +632,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::String("2026-01-01".to_string()))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for string in Timestamp column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected timestamp value"));
     }
 
@@ -618,7 +645,10 @@ mod tests {
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
         let rows = vec![vec![Some(Value::String("2026-01-01".to_string()))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for string in Date32 column, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Expected date value"));
     }
 
@@ -630,7 +660,10 @@ mod tests {
         // create_builders itself should fail
         let rows = vec![vec![None::<Value>]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for unsupported data type, got: {result:?}"
+        );
         assert!(result.unwrap_err().to_string().contains("Unsupported data type"));
     }
 
@@ -710,7 +743,10 @@ mod tests {
         // Row has 2 columns but schema has 1
         let rows = vec![vec![Some(Value::Int(1)), Some(Value::Int(2))]];
         let result = converter.convert_batch(rows);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for too many columns, got: {result:?}"
+        );
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("expected 1"));
     }
@@ -955,7 +991,10 @@ mod tests {
     fn test_downcast_builder_error_message_includes_both_type_names() {
         let mut builder: Box<dyn ArrayBuilder> = Box::new(BooleanBuilder::new());
         let result = downcast_builder::<Float64Builder>(&mut builder, "Float64Builder", "Float64");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(ArrowError::InvalidArgumentError(_))),
+            "expected InvalidArgumentError for mismatched builder type, got: {result:?}"
+        );
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("Float64Builder"));
         assert!(msg.contains("Float64"));

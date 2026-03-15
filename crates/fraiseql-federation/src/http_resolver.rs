@@ -445,68 +445,141 @@ mod tests {
 
     #[test]
     fn test_subgraph_url_allows_public_https() {
-        assert!(validate_subgraph_url("https://api.example.com/graphql").is_ok());
-        assert!(validate_subgraph_url("https://subgraph.mycompany.io/").is_ok());
+        validate_subgraph_url("https://api.example.com/graphql")
+            .unwrap_or_else(|e| panic!("public HTTPS URL should be allowed: {e}"));
+        validate_subgraph_url("https://subgraph.mycompany.io/")
+            .unwrap_or_else(|e| panic!("public HTTPS URL should be allowed: {e}"));
     }
 
     #[test]
     fn test_subgraph_url_rejects_http_scheme_by_default() {
         // http:// must be rejected unless FRAISEQL_FEDERATION_ALLOW_INSECURE=true
         let result = validate_subgraph_url("http://api.example.com/graphql");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for http:// scheme, got: {result:?}"
+        );
         let msg = format!("{}", result.unwrap_err());
         assert!(msg.contains("https://") || msg.contains("FRAISEQL_FEDERATION_ALLOW_INSECURE"));
     }
 
     #[test]
     fn test_subgraph_url_rejects_non_http_scheme() {
-        assert!(validate_subgraph_url("ftp://example.com/graphql").is_err());
-        assert!(validate_subgraph_url("file:///etc/passwd").is_err());
-        assert!(validate_subgraph_url("no-scheme-at-all").is_err());
+        let result = validate_subgraph_url("ftp://example.com/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for ftp:// scheme, got: {result:?}"
+        );
+        let result = validate_subgraph_url("file:///etc/passwd");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for file:// scheme, got: {result:?}"
+        );
+        let result = validate_subgraph_url("no-scheme-at-all");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for missing scheme, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_loopback() {
-        assert!(validate_subgraph_url("https://localhost/graphql").is_err());
-        assert!(validate_subgraph_url("https://localhost:8080/graphql").is_err());
-        assert!(validate_subgraph_url("https://sub.localhost/graphql").is_err());
+        let result = validate_subgraph_url("https://localhost/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for localhost, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://localhost:8080/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for localhost:8080, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://sub.localhost/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for sub.localhost, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_loopback_ip() {
-        assert!(validate_subgraph_url("https://127.0.0.1/graphql").is_err());
-        assert!(validate_subgraph_url("https://127.255.255.255/graphql").is_err());
+        let result = validate_subgraph_url("https://127.0.0.1/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for 127.0.0.1, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://127.255.255.255/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for 127.255.255.255, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_private_ranges() {
-        assert!(validate_subgraph_url("https://10.0.0.1/graphql").is_err());
-        assert!(validate_subgraph_url("https://172.16.0.1/graphql").is_err());
-        assert!(validate_subgraph_url("https://172.31.255.255/graphql").is_err());
-        assert!(validate_subgraph_url("https://192.168.1.1/graphql").is_err());
+        for url in [
+            "https://10.0.0.1/graphql",
+            "https://172.16.0.1/graphql",
+            "https://172.31.255.255/graphql",
+            "https://192.168.1.1/graphql",
+        ] {
+            let result = validate_subgraph_url(url);
+            assert!(
+                matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+                "expected Internal error for private IP in {url}, got: {result:?}"
+            );
+        }
     }
 
     #[test]
     fn test_subgraph_url_rejects_link_local() {
-        assert!(validate_subgraph_url("https://169.254.0.1/graphql").is_err());
-        assert!(validate_subgraph_url("https://169.254.169.254/graphql").is_err()); // AWS metadata
+        let result = validate_subgraph_url("https://169.254.0.1/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for link-local 169.254.0.1, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://169.254.169.254/graphql"); // AWS metadata
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for link-local 169.254.169.254, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_cgnat() {
-        assert!(validate_subgraph_url("https://100.64.0.1/graphql").is_err());
-        assert!(validate_subgraph_url("https://100.127.255.255/graphql").is_err());
+        let result = validate_subgraph_url("https://100.64.0.1/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for CGNAT 100.64.0.1, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://100.127.255.255/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for CGNAT 100.127.255.255, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_ipv6_loopback() {
-        assert!(validate_subgraph_url("https://[::1]/graphql").is_err());
+        let result = validate_subgraph_url("https://[::1]/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for IPv6 loopback, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_subgraph_url_rejects_ipv6_ula() {
-        assert!(validate_subgraph_url("https://[fc00::1]/graphql").is_err());
-        assert!(validate_subgraph_url("https://[fd00::1]/graphql").is_err());
+        let result = validate_subgraph_url("https://[fc00::1]/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for IPv6 ULA fc00::1, got: {result:?}"
+        );
+        let result = validate_subgraph_url("https://[fd00::1]/graphql");
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for IPv6 ULA fd00::1, got: {result:?}"
+        );
     }
 
     // ── Existing tests (updated for new() returning Result) ───────────────────
@@ -528,8 +601,9 @@ mod tests {
                 .resolve_entities("https://example.com/graphql", &[], &FieldSelection::default())
                 .await;
 
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap().len(), 0);
+            let entities = result
+                .unwrap_or_else(|e| panic!("empty representations should succeed: {e}"));
+            assert_eq!(entities.len(), 0);
         });
     }
 
@@ -581,10 +655,9 @@ mod tests {
             errors: None,
         };
 
-        let result = resolver.parse_response(&response, &representations);
-        assert!(result.is_ok());
-
-        let entities = result.unwrap();
+        let entities = resolver
+            .parse_response(&response, &representations)
+            .unwrap_or_else(|e| panic!("parse_response should succeed for valid response: {e}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }
@@ -602,7 +675,10 @@ mod tests {
         };
 
         let result = resolver.parse_response(&response, &representations);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for GraphQL errors in response, got: {result:?}"
+        );
     }
 
     #[test]
@@ -623,7 +699,10 @@ mod tests {
         };
 
         let result = resolver.parse_response(&response, &representations);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+            "expected Internal error for entity count mismatch, got: {result:?}"
+        );
     }
 
     #[test]

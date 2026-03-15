@@ -538,7 +538,10 @@ mod tests {
     async fn test_create_saga_with_empty_steps() {
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
         let result = coordinator.create_saga(vec![]).await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::saga_store::SagaStoreError::Database(_))),
+            "expected Database error for empty steps, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -555,7 +558,7 @@ mod tests {
         )];
 
         let result = coordinator.create_saga(steps).await;
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("create_saga with valid steps should succeed: {e}"));
     }
 
     #[tokio::test]
@@ -609,14 +612,16 @@ mod tests {
             serde_json::json!({}),
         )];
 
-        let saga_id = coordinator.create_saga(steps).await;
-        assert!(saga_id.is_ok());
-
-        let id = saga_id.unwrap();
+        let id = coordinator
+            .create_saga(steps)
+            .await
+            .unwrap_or_else(|e| panic!("create_saga should succeed: {e}"));
 
         // Execute saga
-        let result = coordinator.execute_saga(id).await;
-        assert!(result.is_ok());
+        coordinator
+            .execute_saga(id)
+            .await
+            .unwrap_or_else(|e| panic!("execute_saga should succeed: {e}"));
     }
 
     #[tokio::test]
@@ -656,14 +661,16 @@ mod tests {
             ),
         ];
 
-        let saga_id = coordinator.create_saga(steps).await;
-        assert!(saga_id.is_ok());
-
-        let id = saga_id.unwrap();
+        let id = coordinator
+            .create_saga(steps)
+            .await
+            .unwrap_or_else(|e| panic!("create_saga with multiple steps should succeed: {e}"));
 
         // Execute saga
-        let result = coordinator.execute_saga(id).await;
-        assert!(result.is_ok());
+        coordinator
+            .execute_saga(id)
+            .await
+            .unwrap_or_else(|e| panic!("execute_saga with multiple steps should succeed: {e}"));
     }
 
     #[tokio::test]
@@ -675,8 +682,8 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let status = coordinator.get_saga_status(saga_id).await;
 
-        assert!(status.is_ok());
-        let status = status.unwrap();
+        let status = status
+            .unwrap_or_else(|e| panic!("get_saga_status should succeed: {e}"));
         assert_eq!(status.saga_id, saga_id);
     }
 
@@ -689,8 +696,8 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let result = coordinator.cancel_saga(saga_id).await;
 
-        assert!(result.is_ok());
-        let result = result.unwrap();
+        let result = result
+            .unwrap_or_else(|e| panic!("cancel_saga should succeed: {e}"));
         assert_eq!(result.saga_id, saga_id);
         assert_eq!(result.state, SagaState::Failed);
     }
@@ -704,7 +711,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let result = coordinator.get_saga_result(saga_id).await;
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("get_saga_result should succeed: {e}"));
     }
 
     #[tokio::test]
@@ -715,9 +722,10 @@ mod tests {
 
         let result = coordinator.list_in_flight_sagas().await;
 
-        assert!(result.is_ok());
-        let sagas = result.unwrap();
-        assert!(sagas.is_empty() || !sagas.is_empty()); // Just verify it returns a list
+        let sagas = result
+            .unwrap_or_else(|e| panic!("list_in_flight_sagas should succeed: {e}"));
+        // Verify it returns a (possibly empty) list
+        assert!(sagas.is_empty(), "stub should return empty list");
     }
 
     // Compile-time assertion: SagaCoordinator must be Send.
