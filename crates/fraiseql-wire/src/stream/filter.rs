@@ -123,13 +123,25 @@ mod tests {
         let mut filtered = FilteredStream::new(inner, predicate);
 
         // First item OK
-        assert!(filtered.next().await.unwrap().is_ok());
+        filtered
+            .next()
+            .await
+            .unwrap()
+            .unwrap_or_else(|e| panic!("expected Ok for first item, got: {e}"));
 
         // Second item is error
-        assert!(filtered.next().await.unwrap().is_err());
+        let second = filtered.next().await.unwrap();
+        assert!(
+            matches!(second, Err(Error::JsonDecode(_))),
+            "expected JsonDecode error for second item, got: {second:?}"
+        );
 
         // Third item OK
-        assert!(filtered.next().await.unwrap().is_ok());
+        filtered
+            .next()
+            .await
+            .unwrap()
+            .unwrap_or_else(|e| panic!("expected Ok for third item, got: {e}"));
     }
 
     #[tokio::test]

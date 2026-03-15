@@ -316,28 +316,33 @@ mod tests {
 
     #[test]
     fn test_field_validation() {
-        assert!(OrderByClause::jsonb_field("valid_name", SortOrder::Asc)
+        OrderByClause::jsonb_field("valid_name", SortOrder::Asc)
             .validate()
-            .is_ok());
-        assert!(OrderByClause::jsonb_field("123invalid", SortOrder::Asc)
-            .validate()
-            .is_err());
-        assert!(OrderByClause::jsonb_field("bad-name", SortOrder::Asc)
-            .validate()
-            .is_err());
+            .unwrap_or_else(|e| panic!("expected Ok for 'valid_name': {e}"));
+
+        let result = OrderByClause::jsonb_field("123invalid", SortOrder::Asc).validate();
+        assert!(result.is_err(), "expected Err for '123invalid', got: {result:?}");
+
+        let result = OrderByClause::jsonb_field("bad-name", SortOrder::Asc).validate();
+        assert!(result.is_err(), "expected Err for 'bad-name', got: {result:?}");
     }
 
     #[test]
     fn test_collation_validation() {
         let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("en-US");
-        assert!(clause.validate().is_ok());
+        clause
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for collation 'en-US': {e}"));
 
         let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("C.UTF-8");
-        assert!(clause.validate().is_ok());
+        clause
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for collation 'C.UTF-8': {e}"));
 
         let clause =
             OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("invalid!!!special");
-        assert!(clause.validate().is_err());
+        let result = clause.validate();
+        assert!(result.is_err(), "expected Err for collation 'invalid!!!special', got: {result:?}");
     }
 
     #[test]

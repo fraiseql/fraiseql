@@ -68,7 +68,8 @@ mod tests {
         };
 
         let msg = BackendMessage::RowDescription(vec![field]);
-        assert!(validate_row_description(&msg).is_ok());
+        validate_row_description(&msg)
+            .unwrap_or_else(|e| panic!("expected Ok for valid RowDescription: {e}"));
     }
 
     #[test]
@@ -84,7 +85,11 @@ mod tests {
         };
 
         let msg = BackendMessage::RowDescription(vec![field]);
-        assert!(validate_row_description(&msg).is_err());
+        let result = validate_row_description(&msg);
+        assert!(
+            matches!(result, Err(Error::InvalidSchema(_))),
+            "expected InvalidSchema error for wrong column name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -100,7 +105,11 @@ mod tests {
         };
 
         let msg = BackendMessage::RowDescription(vec![field]);
-        assert!(validate_row_description(&msg).is_err());
+        let result = validate_row_description(&msg);
+        assert!(
+            matches!(result, Err(Error::InvalidSchema(_))),
+            "expected InvalidSchema error for wrong type OID, got: {result:?}"
+        );
     }
 
     #[test]
@@ -117,6 +126,10 @@ mod tests {
         let field2 = field1.clone();
 
         let msg = BackendMessage::RowDescription(vec![field1, field2]);
-        assert!(validate_row_description(&msg).is_err());
+        let result = validate_row_description(&msg);
+        assert!(
+            matches!(result, Err(Error::InvalidSchema(_))),
+            "expected InvalidSchema error for multiple columns, got: {result:?}"
+        );
     }
 }

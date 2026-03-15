@@ -550,7 +550,11 @@ mod tests {
     #[test]
     fn test_extract_null_field() {
         let msg = BackendMessage::DataRow(vec![None]);
-        assert!(extract_json_bytes(&msg).is_err());
+        let result = extract_json_bytes(&msg);
+        assert!(
+            matches!(result, Err(Error::Protocol(_))),
+            "expected Protocol error for null field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -564,7 +568,11 @@ mod tests {
     #[test]
     fn test_parse_invalid_json() {
         let data = Bytes::from_static(b"not json");
-        assert!(parse_json(data).is_err());
+        let result = parse_json(data);
+        assert!(
+            matches!(result, Err(Error::JsonDecode(_))),
+            "expected JsonDecode error for invalid JSON, got: {result:?}"
+        );
     }
 
     #[test]

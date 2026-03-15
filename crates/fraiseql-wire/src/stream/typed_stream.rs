@@ -161,8 +161,7 @@ mod tests {
         }
 
         let result = TypedJsonStream::<TestType>::deserialize_value(json);
-        assert!(result.is_ok());
-        let item = result.unwrap();
+        let item = result.unwrap_or_else(|e| panic!("expected Ok for valid JSON, got: {e}"));
         assert_eq!(item.id, "123");
         assert_eq!(item.name, "Test");
     }
@@ -183,15 +182,12 @@ mod tests {
         }
 
         let result = TypedJsonStream::<TestType>::deserialize_value(json);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        match err {
-            Error::Deserialization { type_name, details } => {
+        match result {
+            Err(Error::Deserialization { type_name, details }) => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("name"));
             }
-            _ => panic!("Expected Deserialization error"),
+            other => panic!("expected Deserialization error for missing field, got: {other:?}"),
         }
     }
 
@@ -211,15 +207,12 @@ mod tests {
         }
 
         let result = TypedJsonStream::<TestType>::deserialize_value(json);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        match err {
-            Error::Deserialization { type_name, details } => {
+        match result {
+            Err(Error::Deserialization { type_name, details }) => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("invalid") || details.contains("type"));
             }
-            _ => panic!("Expected Deserialization error"),
+            other => panic!("expected Deserialization error for type mismatch, got: {other:?}"),
         }
     }
 
@@ -232,8 +225,8 @@ mod tests {
 
         // Test that Value (escape hatch) works
         let result = TypedJsonStream::<serde_json::Value>::deserialize_value(json.clone());
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), json);
+        let value = result.unwrap_or_else(|e| panic!("expected Ok for Value escape hatch, got: {e}"));
+        assert_eq!(value, json);
     }
 
     #[test]

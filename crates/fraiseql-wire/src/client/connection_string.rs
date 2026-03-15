@@ -357,9 +357,12 @@ mod tests {
 
     #[test]
     fn test_valid_socket_dir_accepted() {
-        assert!(validate_socket_dir("/run/postgresql").is_ok());
-        assert!(validate_socket_dir("/tmp").is_ok());
-        assert!(validate_socket_dir("/var/run/postgresql").is_ok());
+        validate_socket_dir("/run/postgresql")
+            .unwrap_or_else(|e| panic!("expected Ok for /run/postgresql: {e}"));
+        validate_socket_dir("/tmp")
+            .unwrap_or_else(|e| panic!("expected Ok for /tmp: {e}"));
+        validate_socket_dir("/var/run/postgresql")
+            .unwrap_or_else(|e| panic!("expected Ok for /var/run/postgresql: {e}"));
     }
 
     #[test]

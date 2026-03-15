@@ -616,13 +616,15 @@ mod tests {
             Field::JsonbField("name".to_string()),
             Value::String("John".to_string()),
         );
-        assert!(op.validate().is_ok());
+        op.validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid field 'name': {e}"));
 
         let op = WhereOperator::Eq(
             Field::JsonbField("bad-name".to_string()),
             Value::String("John".to_string()),
         );
-        assert!(op.validate().is_err());
+        let result = op.validate();
+        assert!(result.is_err(), "expected Err for invalid field 'bad-name', got: {result:?}");
     }
 
     #[test]

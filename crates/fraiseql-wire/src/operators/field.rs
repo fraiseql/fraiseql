@@ -241,15 +241,16 @@ mod tests {
 
     #[test]
     fn test_field_validation() {
-        assert!(Field::JsonbField("name".to_string()).validate().is_ok());
-        assert!(Field::JsonbField("name-invalid".to_string())
+        Field::JsonbField("name".to_string())
             .validate()
-            .is_err());
-        assert!(
-            Field::JsonbPath(vec!["user".to_string(), "name".to_string()])
-                .validate()
-                .is_ok()
-        );
+            .unwrap_or_else(|e| panic!("expected Ok for valid field 'name': {e}"));
+
+        let result = Field::JsonbField("name-invalid".to_string()).validate();
+        assert!(result.is_err(), "expected Err for field 'name-invalid', got: {result:?}");
+
+        Field::JsonbPath(vec!["user".to_string(), "name".to_string()])
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid JsonbPath [user, name]: {e}"));
     }
 
     #[test]
