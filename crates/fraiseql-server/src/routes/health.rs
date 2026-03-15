@@ -168,8 +168,6 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         }
     };
 
-    let status = if db_healthy { "healthy" } else { "unhealthy" };
-
     let schema_hash = Some(state.executor.schema().content_hash());
 
     let federation = state.circuit_breaker.as_ref().map(|cb| FederationHealth {
@@ -197,21 +195,46 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     #[cfg(not(feature = "observers"))]
     let observers: Option<ObserverHealth> = None;
 
+    // Probe cache health when the Arrow cache is attached to AppState.
+    #[cfg(feature = "arrow")]
+    let cache = state.cache.as_ref().map(|_| CacheHealth {
+        connected: true, // In-memory cache is always "connected"
+        backend:   "in-memory".to_string(),
+    });
+    #[cfg(not(feature = "arrow"))]
+    let cache: Option<CacheHealth> = None;
+
+    // Probe secrets backend health.
+    #[cfg(feature = "secrets")]
+    let secrets = if let Some(ref sm) = state.secrets_manager {
+        let connected = sm.health_check().await.is_ok();
+        Some(SecretsHealth {
+            connected,
+            backend: sm.backend_name().to_string(),
+        })
+    } else {
+        None
+    };
+    #[cfg(not(feature = "secrets"))]
+    let secrets: Option<SecretsHealth> = None;
+
+    let status = determine_status(db_healthy, &observers, &secrets, &federation);
+
     let response = HealthResponse {
         status: status.to_string(),
         database,
         observers,
-        cache: None,   // Populated when Redis cache probe is wired into AppState
-        secrets: None, // Populated when Vault probe is wired into AppState
+        cache,
+        secrets,
         federation,
         version: env!("CARGO_PKG_VERSION").to_string(),
         schema_hash,
     };
 
-    let status_code = if db_healthy {
-        StatusCode::OK
-    } else {
+    let status_code = if status == "unhealthy" {
         StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::OK
     };
 
     (status_code, Json(response))
@@ -302,6 +325,40 @@ pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync 
     (status_code, Json(response))
 }
 
+/// Determines overall health status.
+///
+/// - `"unhealthy"` (503): database is down
+/// - `"degraded"` (200): database is up but one or more optional subsystems are failing
+/// - `"healthy"` (200): all enabled subsystems are operational
+fn determine_status(
+    db_healthy: bool,
+    observers: &Option<ObserverHealth>,
+    secrets: &Option<SecretsHealth>,
+    federation: &Option<FederationHealth>,
+) -> &'static str {
+    if !db_healthy {
+        return "unhealthy";
+    }
+
+    let observers_degraded = observers.as_ref().is_some_and(|o| !o.running);
+    let secrets_degraded = secrets.as_ref().is_some_and(|s| !s.connected);
+    let federation_degraded = federation.as_ref().is_some_and(|f| {
+        f.configured
+            && f.subgraphs.iter().any(|sg| {
+                matches!(
+                    sg.state,
+                    crate::federation::circuit_breaker::CircuitHealthState::Open
+                )
+            })
+    });
+
+    if observers_degraded || secrets_degraded || federation_degraded {
+        "degraded"
+    } else {
+        "healthy"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
@@ -315,6 +372,64 @@ mod tests {
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
     use super::*;
+
+    #[test]
+    fn test_determine_status_all_healthy() {
+        assert_eq!(determine_status(true, &None, &None, &None), "healthy");
+    }
+
+    #[test]
+    fn test_determine_status_db_down_is_unhealthy() {
+        assert_eq!(determine_status(false, &None, &None, &None), "unhealthy");
+    }
+
+    #[test]
+    fn test_determine_status_observers_not_running_is_degraded() {
+        let observers = Some(ObserverHealth {
+            running:        false,
+            pending_events: 0,
+            last_error:     None,
+        });
+        assert_eq!(determine_status(true, &observers, &None, &None), "degraded");
+    }
+
+    #[test]
+    fn test_determine_status_secrets_disconnected_is_degraded() {
+        let secrets = Some(SecretsHealth {
+            connected: false,
+            backend:   "vault".to_string(),
+        });
+        assert_eq!(determine_status(true, &None, &secrets, &None), "degraded");
+    }
+
+    #[test]
+    fn test_determine_status_federation_circuit_open_is_degraded() {
+        use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
+
+        let federation = Some(FederationHealth {
+            configured: true,
+            subgraphs:  vec![SubgraphCircuitHealth {
+                subgraph: "Product".to_string(),
+                state:    CircuitHealthState::Open,
+            }],
+        });
+        assert_eq!(
+            determine_status(true, &None, &None, &federation),
+            "degraded"
+        );
+    }
+
+    #[test]
+    fn test_determine_status_db_down_overrides_degraded() {
+        let secrets = Some(SecretsHealth {
+            connected: false,
+            backend:   "vault".to_string(),
+        });
+        assert_eq!(
+            determine_status(false, &None, &secrets, &None),
+            "unhealthy"
+        );
+    }
 
     #[test]
     fn test_health_response_serialization() {
