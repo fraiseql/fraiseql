@@ -235,6 +235,11 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
+      - name: Run federation saga integration tests
+        run: cargo test -p fraiseql-federation --test saga_integration -- --ignored --test-threads=1
+        env:
+          FRAISEQL_TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
   # Integration tests with MySQL
   integration-mysql:
     name: Integration Tests (MySQL)
@@ -685,6 +690,17 @@ jobs:
           TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
+      - name: Run Redis PKCE and rate-limit tests (fraiseql-auth)
+        run: cargo test -p fraiseql-auth --lib -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+          REDIS_TEST_URL: redis://localhost:6379
+
+      - name: Run Redis rate-limit middleware tests (fraiseql-server)
+        run: cargo test -p fraiseql-server --lib rate_limit -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+
   # Integration tests for NATS JetStream (observer transport)
   integration-nats:
     name: Integration Tests (NATS)
@@ -1026,6 +1042,15 @@ jobs:
           --health-retries 5
         ports:
           - 5433:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -1078,6 +1103,12 @@ jobs:
         env:
           FRAISEQL_TEST_URL: http://localhost:8815
           RUST_LOG: debug
+
+      - name: Run PKCE flow integration test
+        run: cargo test -p fraiseql-server --test auth_pkce_flow_test -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          REDIS_TEST_URL: redis://localhost:6379
 
       - name: Stop server
         if: always()
