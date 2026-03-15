@@ -356,10 +356,16 @@ impl CustomTypeRegistry {
     /// registry.register("LibraryCode".to_string(), def).unwrap();
     ///
     /// // Valid
-    /// assert!(registry.validate("LibraryCode", &json!("LIB-1234")).is_ok());
+    /// assert!(
+    ///     registry.validate("LibraryCode", &json!("LIB-1234")).is_ok(),
+    ///     "valid library code should pass pattern validation"
+    /// );
     ///
     /// // Invalid
-    /// assert!(registry.validate("LibraryCode", &json!("INVALID")).is_err());
+    /// assert!(
+    ///     registry.validate("LibraryCode", &json!("INVALID")).is_err(),
+    ///     "string not matching LIB-NNNN pattern should fail"
+    /// );
     /// ```
     pub fn validate(&self, type_name: &str, value: &serde_json::Value) -> Result<()> {
         let def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {

@@ -18,7 +18,10 @@ use crate::error::{FraiseQLError, Result};
 /// use serde_json::json;
 /// // Either entityId OR entityPayload, but not both
 /// let input = json!({ "entityId": "123", "entityPayload": null });
-/// assert!(OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None).is_ok());
+/// assert!(
+///     OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None).is_ok(),
+///     "one-of constraint satisfied when only entityId is present"
+/// );
 /// ```
 pub struct OneOfValidator;
 
@@ -66,7 +69,10 @@ impl OneOfValidator {
 /// use serde_json::json;
 /// // At least one of: email, phone, address must be present
 /// let input = json!({ "email": "user@example.com", "phone": null, "address": null });
-/// assert!(AnyOfValidator::validate(&input, &["email".to_string(), "phone".to_string(), "address".to_string()], None).is_ok());
+/// assert!(
+///     AnyOfValidator::validate(&input, &["email".to_string(), "phone".to_string(), "address".to_string()], None).is_ok(),
+///     "any-of constraint satisfied when at least one field is present"
+/// );
 /// ```
 pub struct AnyOfValidator;
 
@@ -106,7 +112,10 @@ impl AnyOfValidator {
 /// use serde_json::json;
 /// // If isPremium is true, then paymentMethod is required
 /// let input = json!({ "isPremium": true, "paymentMethod": "credit_card" });
-/// assert!(ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None).is_ok());
+/// assert!(
+///     ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None).is_ok(),
+///     "conditional requirement satisfied when condition field is true and required field present"
+/// );
 /// ```
 pub struct ConditionalRequiredValidator;
 
@@ -162,7 +171,10 @@ impl ConditionalRequiredValidator {
 /// use serde_json::json;
 /// // If addressId is not provided, then street, city, zip must all be provided
 /// let input = json!({ "addressId": null, "street": "123 Main St", "city": "Springfield", "zip": "12345" });
-/// assert!(RequiredIfAbsentValidator::validate(&input, "addressId", &["street".to_string(), "city".to_string(), "zip".to_string()], None).is_ok());
+/// assert!(
+///     RequiredIfAbsentValidator::validate(&input, "addressId", &["street".to_string(), "city".to_string(), "zip".to_string()], None).is_ok(),
+///     "required-if-absent constraint satisfied when absent field is null and all required fields present"
+/// );
 /// ```
 pub struct RequiredIfAbsentValidator;
 

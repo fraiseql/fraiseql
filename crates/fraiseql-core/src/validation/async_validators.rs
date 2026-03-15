@@ -141,8 +141,12 @@ pub type ArcAsyncValidator = std::sync::Arc<dyn AsyncValidator>;
 /// # #[tokio::main]
 /// # async fn main() {
 /// let v = EmailFormatValidator::new();
-/// assert!(v.validate_async("alice@example.com", "email").await.is_ok());
-/// assert!(v.validate_async("not-an-email", "email").await.is_err());
+/// v.validate_async("alice@example.com", "email").await
+///     .expect("valid email should pass validation");
+/// assert!(
+///     v.validate_async("not-an-email", "email").await.is_err(),
+///     "string without @ should fail email validation"
+/// );
 /// # }
 /// ```
 pub struct EmailFormatValidator {
@@ -205,9 +209,16 @@ impl AsyncValidator for EmailFormatValidator {
 /// # #[tokio::main]
 /// # async fn main() {
 /// let v = PhoneE164Validator::new();
-/// assert!(v.validate_async("+14155552671", "phone").await.is_ok());
-/// assert!(v.validate_async("0044207946000", "phone").await.is_err()); // missing +
-/// assert!(v.validate_async("+123", "phone").await.is_err());           // too short
+/// v.validate_async("+14155552671", "phone").await
+///     .expect("E.164 number should pass phone validation");
+/// assert!(
+///     v.validate_async("0044207946000", "phone").await.is_err(),
+///     "number without leading + should fail E.164 validation"
+/// );
+/// assert!(
+///     v.validate_async("+123", "phone").await.is_err(),
+///     "too-short number should fail phone validation"
+/// );
 /// # }
 /// ```
 pub struct PhoneE164Validator {

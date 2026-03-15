@@ -15,13 +15,25 @@
 //!
 //! // UUID policy: strict UUID validation
 //! let policy = IDPolicy::UUID;
-//! assert!(validate_id("550e8400-e29b-41d4-a716-446655440000", policy).is_ok());
-//! assert!(validate_id("not-a-uuid", policy).is_err());
+//! assert!(
+//!     validate_id("550e8400-e29b-41d4-a716-446655440000", policy).is_ok(),
+//!     "valid UUID should pass UUID policy"
+//! );
+//! assert!(
+//!     validate_id("not-a-uuid", policy).is_err(),
+//!     "non-UUID string should fail UUID policy"
+//! );
 //!
 //! // OPAQUE policy: any string accepted
 //! let policy = IDPolicy::OPAQUE;
-//! assert!(validate_id("not-a-uuid", policy).is_ok());
-//! assert!(validate_id("any-arbitrary-string", policy).is_ok());
+//! assert!(
+//!     validate_id("not-a-uuid", policy).is_ok(),
+//!     "OPAQUE policy should accept any string"
+//! );
+//! assert!(
+//!     validate_id("any-arbitrary-string", policy).is_ok(),
+//!     "OPAQUE policy should accept arbitrary strings"
+//! );
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -103,12 +115,24 @@ impl std::error::Error for IDValidationError {}
 /// use fraiseql_core::validation::{IDPolicy, validate_id};
 ///
 /// // UUID policy enforces UUID format
-/// assert!(validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok());
-/// assert!(validate_id("not-uuid", IDPolicy::UUID).is_err());
+/// assert!(
+///     validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok(),
+///     "valid UUID should pass UUID policy"
+/// );
+/// assert!(
+///     validate_id("not-uuid", IDPolicy::UUID).is_err(),
+///     "non-UUID string should fail UUID policy"
+/// );
 ///
 /// // OPAQUE policy accepts any string
-/// assert!(validate_id("anything", IDPolicy::OPAQUE).is_ok());
-/// assert!(validate_id("", IDPolicy::OPAQUE).is_ok());
+/// assert!(
+///     validate_id("anything", IDPolicy::OPAQUE).is_ok(),
+///     "OPAQUE policy should accept any string"
+/// );
+/// assert!(
+///     validate_id("", IDPolicy::OPAQUE).is_ok(),
+///     "OPAQUE policy should accept empty string"
+/// );
 /// ```
 pub fn validate_id(id: &str, policy: IDPolicy) -> Result<(), IDValidationError> {
     match policy {
@@ -207,8 +231,14 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
 /// use fraiseql_core::validation::{validate_id, IDPolicy};
 ///
 /// // Validate each ID individually
-/// assert!(validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok());
-/// assert!(validate_id("6ba7b810-9dad-11d1-80b4-00c04fd430c8", IDPolicy::UUID).is_ok());
+/// assert!(
+///     validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok(),
+///     "first UUID should pass validation"
+/// );
+/// assert!(
+///     validate_id("6ba7b810-9dad-11d1-80b4-00c04fd430c8", IDPolicy::UUID).is_ok(),
+///     "second UUID should pass validation"
+/// );
 /// ```
 ///
 /// # Errors

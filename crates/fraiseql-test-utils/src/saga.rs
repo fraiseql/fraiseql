@@ -19,7 +19,7 @@
 //!     ];
 //!
 //!     let result = executor.execute_saga("saga-1", steps).await;
-//!     assert!(result.is_ok());
+//!     result.expect("saga should complete successfully in the happy path");
 //! }
 //! ```
 

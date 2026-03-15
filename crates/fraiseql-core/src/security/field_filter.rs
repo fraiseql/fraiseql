@@ -32,11 +32,17 @@
 //!
 //! // Check if user can access a field
 //! let scopes = vec!["read:User.salary".to_string()];
-//! assert!(filter.can_access("User", "salary", &scopes).is_ok());
+//! assert!(
+//!     filter.can_access("User", "salary", &scopes).is_ok(),
+//!     "user with admin scope should access salary field"
+//! );
 //!
 //! // Without scope, access is denied
 //! let no_scopes: Vec<String> = vec![];
-//! assert!(filter.can_access("User", "salary", &no_scopes).is_err());
+//! assert!(
+//!     filter.can_access("User", "salary", &no_scopes).is_err(),
+//!     "user without required scope should be denied salary access"
+//! );
 //! ```
 //!
 //! ## Integration with AuthenticatedUser

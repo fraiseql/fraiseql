@@ -80,7 +80,7 @@ impl CollationMapper {
     ///
     /// // Invalid locale (not in allowed list)
     /// let result = mapper.map_locale("invalid");
-    /// assert!(result.is_ok()); // Returns fallback by default
+    /// assert!(result.is_ok(), "utf8 is a valid collation: {result:?}");
     /// ```
     pub fn map_locale(&self, locale: &str) -> Result<Option<String>> {
         if !self.config.enabled {
