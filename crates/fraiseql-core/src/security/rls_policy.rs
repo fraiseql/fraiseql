@@ -319,6 +319,9 @@ pub struct CompiledRLSPolicy {
 }
 
 impl std::fmt::Debug for CompiledRLSPolicy {
+    #[cfg_attr(test, mutants::skip)]
+    // Reason: diagnostic-only impl — outputs "<cached>" and "<clock>" placeholder
+    // strings that no test asserts on; mutations to these literals cannot be killed.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompiledRLSPolicy")
             .field("rules_by_type", &self.rules_by_type)

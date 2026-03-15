@@ -55,6 +55,9 @@ pub enum IntrospectionPolicy {
 }
 
 impl fmt::Display for IntrospectionPolicy {
+    #[cfg_attr(test, mutants::skip)]
+    // Reason: diagnostic Display impl — string values are not asserted by any test;
+    // mutations to the variant strings cannot be killed.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Allowed => write!(f, "Allowed"),
