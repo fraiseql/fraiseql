@@ -30,7 +30,6 @@ async fn oidc_discovery_server_error_returns_metadata_error() {
     )
     .await;
 
-    assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(
         matches!(err, AuthError::OidcMetadataError { .. }),
@@ -56,7 +55,6 @@ async fn oidc_discovery_invalid_json_returns_metadata_error() {
     )
     .await;
 
-    assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(
         matches!(err, AuthError::OidcMetadataError { .. }),
@@ -86,7 +84,10 @@ async fn oidc_discovery_missing_required_fields_returns_error() {
     )
     .await;
 
-    assert!(result.is_err(), "missing required OIDC fields should fail");
+    assert!(
+        matches!(result, Err(AuthError::OidcMetadataError { .. })),
+        "missing required OIDC fields should produce OidcMetadataError, got: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -101,7 +102,6 @@ async fn oidc_discovery_connection_refused_returns_error() {
     )
     .await;
 
-    assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(
         matches!(err, AuthError::OidcMetadataError { .. }),

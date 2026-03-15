@@ -51,10 +51,12 @@ async fn test_get_schema_versions_action() {
     let response = client.do_action(request).await;
 
     // Without authentication, should fail
-    assert!(response.is_err());
-    if let Err(status) = response {
-        assert_eq!(status.code(), tonic::Code::Unauthenticated);
-    }
+    let status = response.unwrap_err();
+    assert_eq!(
+        status.code(),
+        tonic::Code::Unauthenticated,
+        "expected Unauthenticated, got: {status:?}"
+    );
 }
 
 #[tokio::test]
