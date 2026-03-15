@@ -756,8 +756,10 @@ mod tests {
         };
 
         let result = AggregationPlanner::plan(request, metadata);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("not found")),
+            "expected Validation error about measure not found, got: {result:?}"
+        );
     }
 
     #[test]
@@ -781,8 +783,10 @@ mod tests {
         };
 
         let result = AggregationPlanner::plan(request, metadata);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("not found")),
+            "expected Validation error about column not found, got: {result:?}"
+        );
     }
 
     #[test]
@@ -815,25 +819,41 @@ mod tests {
     #[test]
     fn test_order_by_from_graphql_json_invalid_direction() {
         let json = serde_json::json!({ "name": "INVALID" });
-        assert!(OrderByClause::from_graphql_json(&json).is_err());
+        let result = OrderByClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for invalid direction, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_order_by_rejects_sql_injection_in_field() {
         let json = serde_json::json!({ "x' || pg_sleep(5) || '": "ASC" });
-        assert!(OrderByClause::from_graphql_json(&json).is_err());
+        let result = OrderByClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for SQL injection in field, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_order_by_rejects_field_with_dot() {
         let json = serde_json::json!({ "a.b": "ASC" });
-        assert!(OrderByClause::from_graphql_json(&json).is_err());
+        let result = OrderByClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for dot in field name, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_order_by_rejects_empty_field() {
         let json = serde_json::json!({ "": "ASC" });
-        assert!(OrderByClause::from_graphql_json(&json).is_err());
+        let result = OrderByClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty field name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -846,7 +866,11 @@ mod tests {
     #[test]
     fn test_order_by_array_rejects_injection_field() {
         let json = serde_json::json!([{ "field": "x' OR '1'='1", "direction": "ASC" }]);
-        assert!(OrderByClause::from_graphql_json(&json).is_err());
+        let result = OrderByClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for SQL injection in array field, got: {result:?}"
+        );
     }
 
     /// Helper: metadata with declared dimension paths (for allowlist tests).
@@ -879,7 +903,8 @@ mod tests {
             limit:        None,
             offset:       None,
         };
-        assert!(AggregationPlanner::plan(request, metadata).is_ok());
+        AggregationPlanner::plan(request, metadata)
+            .unwrap_or_else(|e| panic!("declared dimension path should be accepted: {e}"));
     }
 
     #[test]
@@ -901,10 +926,9 @@ mod tests {
             offset:       None,
         };
         let result = AggregationPlanner::plan(request, metadata);
-        assert!(result.is_err());
         assert!(
-            result.unwrap_err().to_string().contains("not found"),
-            "Error message should mention 'not found'"
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("not found")),
+            "expected Validation error about undeclared dimension path, got: {result:?}"
         );
     }
 
@@ -928,6 +952,7 @@ mod tests {
             limit:        None,
             offset:       None,
         };
-        assert!(AggregationPlanner::plan(request, metadata).is_ok());
+        AggregationPlanner::plan(request, metadata)
+            .unwrap_or_else(|e| panic!("any path should be accepted when paths empty: {e}"));
     }
 }

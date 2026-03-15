@@ -259,7 +259,7 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 10 < 20 to pass: {e}"));
     }
 
     #[test]
@@ -275,7 +275,10 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must be") && message.contains("less than")),
+            "expected Validation error for 30 < 20, got: {result:?}"
+        );
     }
 
     #[test]
@@ -286,7 +289,7 @@ mod tests {
         });
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 42 == 42 to pass: {e}"));
     }
 
     #[test]
@@ -297,7 +300,7 @@ mod tests {
         });
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::NotEqual, "b", None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 10 != 20 to pass: {e}"));
     }
 
     #[test]
@@ -313,7 +316,7 @@ mod tests {
             "min",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 10 >= 10 to pass: {e}"));
     }
 
     #[test]
@@ -329,7 +332,7 @@ mod tests {
             "end_name",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 'alice' < 'zoe' to pass: {e}"));
     }
 
     #[test]
@@ -345,7 +348,10 @@ mod tests {
             "end_name",
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must be") && message.contains("less than")),
+            "expected Validation error for 'zoe' < 'alice', got: {result:?}"
+        );
     }
 
     #[test]
@@ -361,7 +367,7 @@ mod tests {
             "end_date",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected date string comparison to pass: {e}"));
     }
 
     #[test]
@@ -377,7 +383,7 @@ mod tests {
             "budget",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 19.99 < 25.50 to pass: {e}"));
     }
 
     #[test]
@@ -392,7 +398,10 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("not found")),
+            "expected Validation error for missing left field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -407,7 +416,10 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("not found")),
+            "expected Validation error for missing right field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -423,7 +435,7 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected null field to be skipped: {e}"));
     }
 
     #[test]
@@ -439,7 +451,7 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected both null fields to be skipped: {e}"));
     }
 
     #[test]
@@ -455,10 +467,10 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("Cannot compare"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Cannot compare")),
+            "expected Validation error for type mismatch, got: {result:?}"
+        );
     }
 
     #[test]
@@ -474,10 +486,10 @@ mod tests {
             "end",
             Some("dateRange"),
         );
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { path, .. }) = result {
-            assert_eq!(path, Some("dateRange".to_string()));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref path, .. }) if *path == Some("dateRange".to_string())),
+            "expected Validation error with path 'dateRange', got: {result:?}"
+        );
     }
 
     #[test]
@@ -493,13 +505,10 @@ mod tests {
             "max_price",
             None,
         );
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("price"));
-            assert!(message.contains("max_price"));
-            assert!(message.contains("100"));
-            assert!(message.contains("50"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("price") && message.contains("max_price") && message.contains("100") && message.contains("50")),
+            "expected Validation error with field names and values, got: {result:?}"
+        );
     }
 
     #[test]
@@ -534,7 +543,10 @@ mod tests {
         let input = json!([1, 2, 3]);
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("not an object")),
+            "expected Validation error for non-object input, got: {result:?}"
+        );
     }
 
     #[test]
@@ -547,7 +559,10 @@ mod tests {
             "end",
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("not found")),
+            "expected Validation error for empty object, got: {result:?}"
+        );
     }
 
     #[test]
@@ -558,7 +573,7 @@ mod tests {
         });
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected 0 == 0 to pass: {e}"));
     }
 
     #[test]
@@ -569,7 +584,7 @@ mod tests {
         });
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected -10 < 5 to pass: {e}"));
     }
 
     #[test]
@@ -580,6 +595,6 @@ mod tests {
         });
         let result =
             validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected '' < 'text' to pass: {e}"));
     }
 }

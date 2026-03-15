@@ -398,9 +398,9 @@ mod tests {
         let filter = FieldFilter::permissive();
         let scopes: Vec<String> = vec![];
 
-        assert!(filter.can_access("User", "name", &scopes).is_ok());
-        assert!(filter.can_access("User", "email", &scopes).is_ok());
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
+        filter.can_access("User", "name", &scopes).unwrap_or_else(|e| panic!("expected access to User.name: {e}"));
+        filter.can_access("User", "email", &scopes).unwrap_or_else(|e| panic!("expected access to User.email: {e}"));
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected access to User.salary: {e}"));
     }
 
     #[test]
@@ -410,11 +410,12 @@ mod tests {
 
         // Unprotected fields are allowed
         let no_scopes: Vec<String> = vec![];
-        assert!(filter.can_access("User", "name", &no_scopes).is_ok());
-        assert!(filter.can_access("User", "email", &no_scopes).is_ok());
+        filter.can_access("User", "name", &no_scopes).unwrap_or_else(|e| panic!("expected access to User.name: {e}"));
+        filter.can_access("User", "email", &no_scopes).unwrap_or_else(|e| panic!("expected access to User.email: {e}"));
 
         // Protected field is denied without scope
-        assert!(filter.can_access("User", "salary", &no_scopes).is_err());
+        let result = filter.can_access("User", "salary", &no_scopes);
+        assert_eq!(result.unwrap_err(), FieldAccessError::new("User", "salary"));
     }
 
     #[test]
@@ -423,10 +424,10 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let no_scopes: Vec<String> = vec![];
-        assert!(filter.can_access("User", "name", &no_scopes).is_ok());
-        assert!(filter.can_access("User", "salary", &no_scopes).is_err());
-        assert!(filter.can_access("User", "ssn", &no_scopes).is_err());
-        assert!(filter.can_access("User", "bonus", &no_scopes).is_err());
+        filter.can_access("User", "name", &no_scopes).unwrap_or_else(|e| panic!("expected access to User.name: {e}"));
+        assert_eq!(filter.can_access("User", "salary", &no_scopes).unwrap_err(), FieldAccessError::new("User", "salary"));
+        assert_eq!(filter.can_access("User", "ssn", &no_scopes).unwrap_err(), FieldAccessError::new("User", "ssn"));
+        assert_eq!(filter.can_access("User", "bonus", &no_scopes).unwrap_err(), FieldAccessError::new("User", "bonus"));
     }
 
     #[test]
@@ -436,11 +437,11 @@ mod tests {
 
         let no_scopes: Vec<String> = vec![];
         // All fields on Secret type require authorization
-        assert!(filter.can_access("Secret", "anything", &no_scopes).is_err());
-        assert!(filter.can_access("Secret", "data", &no_scopes).is_err());
+        assert_eq!(filter.can_access("Secret", "anything", &no_scopes).unwrap_err(), FieldAccessError::new("Secret", "anything"));
+        assert_eq!(filter.can_access("Secret", "data", &no_scopes).unwrap_err(), FieldAccessError::new("Secret", "data"));
 
         // Other types are fine
-        assert!(filter.can_access("User", "name", &no_scopes).is_ok());
+        filter.can_access("User", "name", &no_scopes).unwrap_or_else(|e| panic!("expected access to User.name: {e}"));
     }
 
     // ========================================================================
@@ -453,7 +454,7 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["read:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected exact scope match: {e}"));
     }
 
     #[test]
@@ -464,8 +465,8 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["read:User.*".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
-        assert!(filter.can_access("User", "ssn", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected type wildcard to grant access to salary: {e}"));
+        filter.can_access("User", "ssn", &scopes).unwrap_or_else(|e| panic!("expected type wildcard to grant access to ssn: {e}"));
     }
 
     #[test]
@@ -476,8 +477,8 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["read:*".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
-        assert!(filter.can_access("Employee", "compensation", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected global wildcard to grant access to User.salary: {e}"));
+        filter.can_access("Employee", "compensation", &scopes).unwrap_or_else(|e| panic!("expected global wildcard to grant access to Employee.compensation: {e}"));
     }
 
     #[test]
@@ -489,9 +490,9 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["admin".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
-        assert!(filter.can_access("User", "ssn", &scopes).is_ok());
-        assert!(filter.can_access("Secret", "data", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected admin to bypass User.salary: {e}"));
+        filter.can_access("User", "ssn", &scopes).unwrap_or_else(|e| panic!("expected admin to bypass User.ssn: {e}"));
+        filter.can_access("Secret", "data", &scopes).unwrap_or_else(|e| panic!("expected admin to bypass Secret.data: {e}"));
     }
 
     #[test]
@@ -502,7 +503,7 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["superuser".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected custom admin scope to bypass: {e}"));
     }
 
     #[test]
@@ -512,15 +513,15 @@ mod tests {
 
         // Wrong type
         let scopes = vec!["read:Employee.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_err());
+        assert_eq!(filter.can_access("User", "salary", &scopes).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         // Wrong field
         let scopes = vec!["read:User.name".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_err());
+        assert_eq!(filter.can_access("User", "salary", &scopes).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         // Wrong action (write instead of read)
         let scopes = vec!["write:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &scopes).is_err());
+        assert_eq!(filter.can_access("User", "salary", &scopes).unwrap_err(), FieldAccessError::new("User", "salary"));
     }
 
     // ========================================================================
@@ -538,11 +539,11 @@ mod tests {
 
         // Default pattern doesn't work
         let wrong_scope = vec!["read:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &wrong_scope).is_err());
+        assert_eq!(filter.can_access("User", "salary", &wrong_scope).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         // Explicit scope works
         let right_scope = vec!["hr:view_compensation".to_string()];
-        assert!(filter.can_access("User", "salary", &right_scope).is_ok());
+        filter.can_access("User", "salary", &right_scope).unwrap_or_else(|e| panic!("expected explicit scope to grant access: {e}"));
     }
 
     #[test]
@@ -555,7 +556,7 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let admin_scope = vec!["admin".to_string()];
-        assert!(filter.can_access("User", "salary", &admin_scope).is_ok());
+        filter.can_access("User", "salary", &admin_scope).unwrap_or_else(|e| panic!("expected admin to bypass explicit scope: {e}"));
     }
 
     // ========================================================================
@@ -617,7 +618,7 @@ mod tests {
         let scopes = vec!["read:User.salary".to_string()];
 
         let errors = filter.validate_fields("User", &fields, &scopes);
-        assert!(errors.is_empty());
+        assert!(errors.is_empty(), "expected no validation errors, got: {errors:?}");
     }
 
     // ========================================================================
@@ -633,9 +634,9 @@ mod tests {
         let filter = builder.build();
         let no_scopes: Vec<String> = vec![];
 
-        assert!(filter.can_access("User", "salary", &no_scopes).is_err());
-        assert!(filter.can_access("User", "ssn", &no_scopes).is_err());
-        assert!(filter.can_access("User", "name", &no_scopes).is_ok());
+        assert_eq!(filter.can_access("User", "salary", &no_scopes).unwrap_err(), FieldAccessError::new("User", "salary"));
+        assert_eq!(filter.can_access("User", "ssn", &no_scopes).unwrap_err(), FieldAccessError::new("User", "ssn"));
+        filter.can_access("User", "name", &no_scopes).unwrap_or_else(|e| panic!("expected access to unprotected User.name: {e}"));
     }
 
     #[test]
@@ -648,8 +649,8 @@ mod tests {
         let wrong = vec!["read:User.salary".to_string()];
         let right = vec!["hr:compensation".to_string()];
 
-        assert!(filter.can_access("User", "salary", &wrong).is_err());
-        assert!(filter.can_access("User", "salary", &right).is_ok());
+        assert_eq!(filter.can_access("User", "salary", &wrong).unwrap_err(), FieldAccessError::new("User", "salary"));
+        filter.can_access("User", "salary", &right).unwrap_or_else(|e| panic!("expected explicit scope to grant access: {e}"));
     }
 
     #[test]
@@ -662,14 +663,14 @@ mod tests {
 
         // Default admin scope no longer works
         let admin = vec!["admin".to_string()];
-        assert!(filter.can_access("User", "salary", &admin).is_err());
+        assert_eq!(filter.can_access("User", "salary", &admin).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         // Custom admin scopes work
         let root = vec!["root".to_string()];
-        assert!(filter.can_access("User", "salary", &root).is_ok());
+        filter.can_access("User", "salary", &root).unwrap_or_else(|e| panic!("expected root admin scope to bypass: {e}"));
 
         let superadmin = vec!["superadmin".to_string()];
-        assert!(filter.can_access("User", "salary", &superadmin).is_ok());
+        filter.can_access("User", "salary", &superadmin).unwrap_or_else(|e| panic!("expected superadmin scope to bypass: {e}"));
     }
 
     // ========================================================================
@@ -696,11 +697,11 @@ mod tests {
 
         // "read" action doesn't work
         let read_scope = vec!["read:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &read_scope).is_err());
+        assert_eq!(filter.can_access("User", "salary", &read_scope).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         // "view" action works
         let view_scope = vec!["view:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &view_scope).is_ok());
+        filter.can_access("User", "salary", &view_scope).unwrap_or_else(|e| panic!("expected view action to grant access: {e}"));
     }
 
     // ========================================================================
@@ -713,7 +714,7 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let empty: Vec<String> = vec![];
-        assert!(filter.can_access("User", "salary", &empty).is_err());
+        assert_eq!(filter.can_access("User", "salary", &empty).unwrap_err(), FieldAccessError::new("User", "salary"));
     }
 
     #[test]
@@ -727,7 +728,7 @@ mod tests {
             "read:User.salary".to_string(), // This one matches
             "other:scope".to_string(),
         ];
-        assert!(filter.can_access("User", "salary", &scopes).is_ok());
+        filter.can_access("User", "salary", &scopes).unwrap_or_else(|e| panic!("expected one matching scope to suffice: {e}"));
     }
 
     #[test]
@@ -737,10 +738,10 @@ mod tests {
 
         // Scopes are case-sensitive
         let wrong_case = vec!["READ:User.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &wrong_case).is_err());
+        assert_eq!(filter.can_access("User", "salary", &wrong_case).unwrap_err(), FieldAccessError::new("User", "salary"));
 
         let wrong_type_case = vec!["read:user.salary".to_string()];
-        assert!(filter.can_access("User", "salary", &wrong_type_case).is_err());
+        assert_eq!(filter.can_access("User", "salary", &wrong_type_case).unwrap_err(), FieldAccessError::new("User", "salary"));
     }
 
     #[test]
@@ -750,6 +751,6 @@ mod tests {
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["read:UserProfile.social_security_number".to_string()];
-        assert!(filter.can_access("UserProfile", "social_security_number", &scopes).is_ok());
+        filter.can_access("UserProfile", "social_security_number", &scopes).unwrap_or_else(|e| panic!("expected access with special characters in names: {e}"));
     }
 }

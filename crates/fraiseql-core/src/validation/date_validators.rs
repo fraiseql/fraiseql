@@ -265,26 +265,44 @@ mod tests {
     #[test]
     fn test_parse_date_valid() {
         let result = parse_date("2026-02-08");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), (2026, 2, 8));
+        let parsed = result.unwrap_or_else(|e| panic!("valid date should parse: {e}"));
+        assert_eq!(parsed, (2026, 2, 8));
     }
 
     #[test]
     fn test_parse_date_invalid_format() {
-        assert!(parse_date("2026/02/08").is_err());
-        assert!(parse_date("02-08-2026").is_err());
+        assert!(
+            matches!(parse_date("2026/02/08"), Err(FraiseQLError::Validation { .. })),
+            "slash-separated date should fail parsing"
+        );
+        assert!(
+            matches!(parse_date("02-08-2026"), Err(FraiseQLError::Validation { .. })),
+            "MM-DD-YYYY format should fail parsing"
+        );
     }
 
     #[test]
     fn test_parse_date_invalid_month() {
-        assert!(parse_date("2026-13-01").is_err());
-        assert!(parse_date("2026-00-01").is_err());
+        assert!(
+            matches!(parse_date("2026-13-01"), Err(FraiseQLError::Validation { .. })),
+            "month 13 should fail validation"
+        );
+        assert!(
+            matches!(parse_date("2026-00-01"), Err(FraiseQLError::Validation { .. })),
+            "month 0 should fail validation"
+        );
     }
 
     #[test]
     fn test_parse_date_invalid_day() {
-        assert!(parse_date("2026-02-30").is_err());
-        assert!(parse_date("2026-04-31").is_err());
+        assert!(
+            matches!(parse_date("2026-02-30"), Err(FraiseQLError::Validation { .. })),
+            "Feb 30 should fail validation"
+        );
+        assert!(
+            matches!(parse_date("2026-04-31"), Err(FraiseQLError::Validation { .. })),
+            "Apr 31 should fail validation"
+        );
     }
 
     // ── leap year / days in month ────────────────────────────────────────────
@@ -307,26 +325,35 @@ mod tests {
 
     #[test]
     fn test_february_leap_year_edge_case() {
-        assert!(parse_date("2024-02-29").is_ok());
-        assert!(parse_date("2024-02-30").is_err());
+        parse_date("2024-02-29").unwrap_or_else(|e| panic!("Feb 29 on leap year should parse: {e}"));
+        assert!(
+            matches!(parse_date("2024-02-30"), Err(FraiseQLError::Validation { .. })),
+            "Feb 30 on leap year should fail"
+        );
     }
 
     #[test]
     fn test_february_non_leap_year_edge_case() {
-        assert!(parse_date("2025-02-28").is_ok());
-        assert!(parse_date("2025-02-29").is_err());
+        parse_date("2025-02-28").unwrap_or_else(|e| panic!("Feb 28 on non-leap year should parse: {e}"));
+        assert!(
+            matches!(parse_date("2025-02-29"), Err(FraiseQLError::Validation { .. })),
+            "Feb 29 on non-leap year should fail"
+        );
     }
 
     #[test]
     fn test_year_2000_leap_year() {
         assert!(is_leap_year(2000));
-        assert!(parse_date("2000-02-29").is_ok());
+        parse_date("2000-02-29").unwrap_or_else(|e| panic!("Feb 29 in 2000 should parse: {e}"));
     }
 
     #[test]
     fn test_year_1900_not_leap_year() {
         assert!(!is_leap_year(1900));
-        assert!(parse_date("1900-02-29").is_err());
+        assert!(
+            matches!(parse_date("1900-02-29"), Err(FraiseQLError::Validation { .. })),
+            "Feb 29 in 1900 (not leap) should fail"
+        );
     }
 
     // ── compare_dates / days_between ────────────────────────────────────────
@@ -355,39 +382,60 @@ mod tests {
 
     #[test]
     fn test_min_date_passes() {
-        assert!(validate_min_date("2026-02-08", "2026-02-01").is_ok());
-        assert!(validate_min_date("2026-02-08", "2026-02-08").is_ok());
+        validate_min_date("2026-02-08", "2026-02-01")
+            .unwrap_or_else(|e| panic!("date after min should pass: {e}"));
+        validate_min_date("2026-02-08", "2026-02-08")
+            .unwrap_or_else(|e| panic!("date equal to min should pass: {e}"));
     }
 
     #[test]
     fn test_min_date_fails() {
-        assert!(validate_min_date("2026-02-08", "2026-02-09").is_err());
+        let result = validate_min_date("2026-02-08", "2026-02-09");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "date before min should fail, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_max_date_passes() {
-        assert!(validate_max_date("2026-02-08", "2026-02-15").is_ok());
-        assert!(validate_max_date("2026-02-08", "2026-02-08").is_ok());
+        validate_max_date("2026-02-08", "2026-02-15")
+            .unwrap_or_else(|e| panic!("date before max should pass: {e}"));
+        validate_max_date("2026-02-08", "2026-02-08")
+            .unwrap_or_else(|e| panic!("date equal to max should pass: {e}"));
     }
 
     #[test]
     fn test_max_date_fails() {
-        assert!(validate_max_date("2026-02-08", "2026-02-07").is_err());
+        let result = validate_max_date("2026-02-08", "2026-02-07");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "date after max should fail, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_date_range_passes() {
-        assert!(validate_date_range("2026-02-08", "2026-01-01", "2026-12-31").is_ok());
+        validate_date_range("2026-02-08", "2026-01-01", "2026-12-31")
+            .unwrap_or_else(|e| panic!("date within range should pass: {e}"));
     }
 
     #[test]
     fn test_date_range_fails_below_min() {
-        assert!(validate_date_range("2025-12-31", "2026-01-01", "2026-12-31").is_err());
+        let result = validate_date_range("2025-12-31", "2026-01-01", "2026-12-31");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "date below range should fail, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_date_range_fails_above_max() {
-        assert!(validate_date_range("2027-01-01", "2026-01-01", "2026-12-31").is_err());
+        let result = validate_date_range("2027-01-01", "2026-01-01", "2026-12-31");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "date above range should fail, got: {result:?}"
+        );
     }
 
     // ── validate_min_age / validate_max_age (time-independent) ──────────────
@@ -395,31 +443,42 @@ mod tests {
     #[test]
     fn test_min_age_passes_clearly_old_enough() {
         // Born 50 years ago: definitely passes min_age = 18
-        assert!(validate_min_age(&years_ago(50), 18).is_ok());
+        validate_min_age(&years_ago(50), 18)
+            .unwrap_or_else(|e| panic!("50yo should pass min_age=18: {e}"));
     }
 
     #[test]
     fn test_min_age_fails_too_young() {
         // Born 5 years ago: cannot pass min_age = 18
-        assert!(validate_min_age(&years_ago(5), 18).is_err());
+        let result = validate_min_age(&years_ago(5), 18);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "5yo should fail min_age=18, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_min_age_birthday_today_exactly_18() {
         // Born exactly 18 years ago today → passes min_age = 18
-        assert!(validate_min_age(&years_ago(18), 18).is_ok());
+        validate_min_age(&years_ago(18), 18)
+            .unwrap_or_else(|e| panic!("exactly 18yo should pass min_age=18: {e}"));
     }
 
     #[test]
     fn test_max_age_passes_clearly_young_enough() {
         // Born 5 years ago: definitely passes max_age = 18
-        assert!(validate_max_age(&years_ago(5), 18).is_ok());
+        validate_max_age(&years_ago(5), 18)
+            .unwrap_or_else(|e| panic!("5yo should pass max_age=18: {e}"));
     }
 
     #[test]
     fn test_max_age_fails_too_old() {
         // Born 100 years ago: cannot pass max_age = 90
-        assert!(validate_max_age(&years_ago(100), 90).is_err());
+        let result = validate_max_age(&years_ago(100), 90);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "100yo should fail max_age=90, got: {result:?}"
+        );
     }
 
     // ── validate_max_days_in_future / validate_max_days_in_past ─────────────
@@ -427,30 +486,41 @@ mod tests {
     #[test]
     fn test_max_days_in_future_today_passes() {
         // Today is 0 days in the future — always passes
-        assert!(validate_max_days_in_future(&today_str(), 0).is_ok());
+        validate_max_days_in_future(&today_str(), 0)
+            .unwrap_or_else(|e| panic!("today should pass max_days_in_future=0: {e}"));
     }
 
     #[test]
     fn test_max_days_in_future_past_date_passes() {
         // A date in 2000 is never in the future
-        assert!(validate_max_days_in_future("2000-01-01", 0).is_ok());
+        validate_max_days_in_future("2000-01-01", 0)
+            .unwrap_or_else(|e| panic!("past date should pass max_days_in_future: {e}"));
     }
 
     #[test]
     fn test_max_days_in_future_far_future_fails() {
         // Year 9999 is always more than 30 days in the future
-        assert!(validate_max_days_in_future("9999-12-31", 30).is_err());
+        let result = validate_max_days_in_future("9999-12-31", 30);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "year 9999 should fail max_days_in_future=30, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_max_days_in_past_today_passes() {
         // Today is 0 days in the past — always passes
-        assert!(validate_max_days_in_past(&today_str(), 0).is_ok());
+        validate_max_days_in_past(&today_str(), 0)
+            .unwrap_or_else(|e| panic!("today should pass max_days_in_past=0: {e}"));
     }
 
     #[test]
     fn test_max_days_in_past_far_past_fails() {
         // A date 50 years ago is more than 30 days in the past
-        assert!(validate_max_days_in_past(&years_ago(50), 30).is_err());
+        let result = validate_max_days_in_past(&years_ago(50), 30);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "50 years ago should fail max_days_in_past=30, got: {result:?}"
+        );
     }
 }

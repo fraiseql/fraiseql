@@ -225,7 +225,7 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected exactly-one to pass with one present: {e}"));
     }
 
     #[test]
@@ -239,7 +239,10 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Exactly one of")),
+            "expected Validation error for both fields present, got: {result:?}"
+        );
     }
 
     #[test]
@@ -253,7 +256,10 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Exactly one of")),
+            "expected Validation error for neither field present, got: {result:?}"
+        );
     }
 
     #[test]
@@ -266,7 +272,7 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected exactly-one to pass with one field missing from object: {e}"));
     }
 
     #[test]
@@ -285,7 +291,7 @@ mod tests {
             ],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected any-of to pass with one present: {e}"));
     }
 
     #[test]
@@ -304,7 +310,7 @@ mod tests {
             ],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected any-of to pass with multiple present: {e}"));
     }
 
     #[test]
@@ -323,7 +329,10 @@ mod tests {
             ],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("At least one of")),
+            "expected Validation error for no fields present, got: {result:?}"
+        );
     }
 
     #[test]
@@ -338,7 +347,7 @@ mod tests {
             &["paymentMethod".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected conditional-required to pass when requirement met: {e}"));
     }
 
     #[test]
@@ -353,7 +362,10 @@ mod tests {
             &["paymentMethod".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Since") && message.contains("must also be provided")),
+            "expected Validation error for missing conditional requirement, got: {result:?}"
+        );
     }
 
     #[test]
@@ -368,7 +380,7 @@ mod tests {
             &["paymentMethod".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected conditional-required to pass when condition not met: {e}"));
     }
 
     #[test]
@@ -384,7 +396,7 @@ mod tests {
             &["customsCode".to_string(), "importDuties".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected conditional-required to pass with all requirements met: {e}"));
     }
 
     #[test]
@@ -400,7 +412,10 @@ mod tests {
             &["customsCode".to_string(), "importDuties".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Since") && message.contains("must also be provided")),
+            "expected Validation error for one missing requirement, got: {result:?}"
+        );
     }
 
     #[test]
@@ -417,7 +432,7 @@ mod tests {
             &["street".to_string(), "city".to_string(), "zip".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected required-if-absent to pass when requirements met: {e}"));
     }
 
     #[test]
@@ -434,7 +449,10 @@ mod tests {
             &["street".to_string(), "city".to_string(), "zip".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Since") && message.contains("must be provided")),
+            "expected Validation error for missing requirements when field absent, got: {result:?}"
+        );
     }
 
     #[test]
@@ -451,7 +469,7 @@ mod tests {
             &["street".to_string(), "city".to_string(), "zip".to_string()],
             None,
         );
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected required-if-absent to pass when field present: {e}"));
     }
 
     #[test]
@@ -463,7 +481,10 @@ mod tests {
             &["street".to_string(), "city".to_string()],
             None,
         );
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Since") && message.contains("must be provided")),
+            "expected Validation error for all fields missing from empty object, got: {result:?}"
+        );
     }
 
     #[test]
@@ -477,9 +498,9 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             Some("createInput"),
         );
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { path, .. }) = result {
-            assert_eq!(path, Some("createInput".to_string()));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref path, .. }) if *path == Some("createInput".to_string())),
+            "expected Validation error with path 'createInput', got: {result:?}"
+        );
     }
 }

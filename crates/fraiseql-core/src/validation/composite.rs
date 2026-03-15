@@ -307,7 +307,7 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "hello123", "password", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected all validators to pass: {e}"));
     }
 
     #[test]
@@ -320,10 +320,10 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "short", "password", true);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("All validators must pass"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("All validators must pass")),
+            "expected Validation error with 'All validators must pass', got: {result:?}"
+        );
     }
 
     #[test]
@@ -336,7 +336,10 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "Hello123", "username", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("All validators must pass")),
+            "expected Validation error with 'All validators must pass', got: {result:?}"
+        );
     }
 
     #[test]
@@ -353,10 +356,10 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "Hi", "field", true);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("All validators must pass"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("All validators must pass")),
+            "expected Validation error with 'All validators must pass', got: {result:?}"
+        );
     }
 
     #[test]
@@ -372,7 +375,7 @@ mod tests {
             },
         ];
         let result = validate_any(&rules, "abc", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected any validator to pass: {e}"));
     }
 
     #[test]
@@ -388,7 +391,7 @@ mod tests {
             },
         ];
         let result = validate_any(&rules, "Hi", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected any validator to pass: {e}"));
     }
 
     #[test]
@@ -404,10 +407,10 @@ mod tests {
             },
         ];
         let result = validate_any(&rules, "Hi", "field", true);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("At least one validator must pass"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("At least one validator must pass")),
+            "expected Validation error with 'At least one validator must pass', got: {result:?}"
+        );
     }
 
     #[test]
@@ -426,7 +429,7 @@ mod tests {
             },
         ];
         let result = validate_any(&rules, "hello", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected any validator to pass: {e}"));
     }
 
     #[test]
@@ -436,7 +439,7 @@ mod tests {
             message: None,
         };
         let result = validate_not(&rule, "abc", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected not-validator to pass when rule fails: {e}"));
     }
 
     #[test]
@@ -446,7 +449,10 @@ mod tests {
             message: None,
         };
         let result = validate_not(&rule, "abc", "field", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must fail but passed")),
+            "expected Validation error with 'must fail but passed', got: {result:?}"
+        );
     }
 
     #[test]
@@ -456,7 +462,7 @@ mod tests {
             max: None,
         };
         let result = validate_optional(&rule, "", "field", false);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected optional to skip absent field: {e}"));
     }
 
     #[test]
@@ -466,7 +472,7 @@ mod tests {
             max: None,
         };
         let result = validate_optional(&rule, "hello", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected optional to pass for valid present field: {e}"));
     }
 
     #[test]
@@ -476,7 +482,10 @@ mod tests {
             max: None,
         };
         let result = validate_optional(&rule, "hi", "field", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for present field failing rule, got: {result:?}"
+        );
     }
 
     #[test]
@@ -501,7 +510,7 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "User1234", "username", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected nested all+pattern to pass: {e}"));
     }
 
     #[test]
@@ -518,7 +527,10 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "Hi", "username", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("All validators must pass")),
+            "expected Validation error for length failure, got: {result:?}"
+        );
     }
 
     #[test]
@@ -536,7 +548,7 @@ mod tests {
             },
         ];
         let result = validate_all(&rules, "Password123", "password", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected strong password to pass: {e}"));
     }
 
     #[test]
@@ -551,7 +563,7 @@ mod tests {
             },
         ];
         let result = validate_any(&rules, "guest_123", "role", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected enum-or-pattern any to pass: {e}"));
     }
 
     #[test]
@@ -562,7 +574,7 @@ mod tests {
         };
         let result = validate_not(&rule, "abc123", "code", true);
         // Should pass because the regex doesn't match the whole string
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected not-numeric to pass for mixed string: {e}"));
     }
 
     #[test]
@@ -582,14 +594,14 @@ mod tests {
     fn test_multiple_validators_with_required() {
         let rules = vec![ValidationRule::Required];
         let result = validate_all(&rules, "test", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected required validator to pass: {e}"));
     }
 
     #[test]
     fn test_empty_rules_all() {
         let rules: Vec<ValidationRule> = vec![];
         let result = validate_all(&rules, "test", "field", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected empty all-rules to pass vacuously: {e}"));
     }
 
     #[test]
@@ -597,7 +609,10 @@ mod tests {
         let rules: Vec<ValidationRule> = vec![];
         let result = validate_any(&rules, "test", "field", true);
         // Any with no rules vacuously fails (nothing passed)
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("At least one validator must pass")),
+            "expected Validation error for empty any-rules, got: {result:?}"
+        );
     }
 
     #[test]
@@ -607,12 +622,18 @@ mod tests {
             max: Some(10),
         };
         let result = validate_single_rule(&rule, "hello", "password", true);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected length check to pass for 'hello': {e}"));
 
         let result = validate_single_rule(&rule, "hi", "password", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least")),
+            "expected Validation error for too-short value, got: {result:?}"
+        );
 
         let result = validate_single_rule(&rule, "this_is_too_long", "password", true);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at most")),
+            "expected Validation error for too-long value, got: {result:?}"
+        );
     }
 }

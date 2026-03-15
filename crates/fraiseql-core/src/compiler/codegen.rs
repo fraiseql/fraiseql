@@ -457,10 +457,9 @@ mod tests {
         let generator = CodeGenerator::new(true);
         let ir = AuthoringIR::new();
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate empty schema should succeed: {e}"));
         assert!(schema.types.is_empty());
         assert!(schema.queries.is_empty());
     }
@@ -499,10 +498,9 @@ mod tests {
             description: Some("User type".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate types with fields should succeed: {e}"));
         assert_eq!(schema.types.len(), 1);
 
         let user_type = &schema.types[0];
@@ -573,10 +571,9 @@ mod tests {
             },
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate queries with arguments should succeed: {e}"));
         assert_eq!(schema.queries.len(), 2);
 
         // Check single user query
@@ -627,10 +624,9 @@ mod tests {
             operation:   IRMutationOp::Create,
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate mutations should succeed: {e}"));
         assert_eq!(schema.mutations.len(), 1);
 
         let mutation = &schema.mutations[0];
@@ -671,10 +667,9 @@ mod tests {
             description: Some("Subscribe to user creation events".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate subscriptions should succeed: {e}"));
         assert_eq!(schema.subscriptions.len(), 1);
 
         let subscription = &schema.subscriptions[0];
@@ -711,10 +706,9 @@ mod tests {
             description: None,
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate list type fields should succeed: {e}"));
         let post_type = &schema.types[0];
 
         // [String] -> List(String)
@@ -759,10 +753,9 @@ mod tests {
             description: Some("Possible order statuses".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate enums should succeed: {e}"));
         assert_eq!(schema.enums.len(), 1);
 
         let order_status = &schema.enums[0];
@@ -792,10 +785,9 @@ mod tests {
             description: Some("An object with an ID".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate interfaces should succeed: {e}"));
         assert_eq!(schema.interfaces.len(), 1);
 
         let node = &schema.interfaces[0];
@@ -822,10 +814,9 @@ mod tests {
             description: Some("Possible search result types".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate unions should succeed: {e}"));
         assert_eq!(schema.unions.len(), 1);
 
         let search_result = &schema.unions[0];
@@ -862,10 +853,9 @@ mod tests {
             description: Some("Input for creating a user".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate input types should succeed: {e}"));
         assert_eq!(schema.input_types.len(), 1);
 
         let create_user = &schema.input_types[0];
@@ -881,10 +871,9 @@ mod tests {
         let mut ir = AuthoringIR::new();
         ir.scalars = vec![];
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate with empty scalars should succeed: {e}"));
         assert_eq!(schema.custom_scalars.count(), 0);
     }
 
@@ -903,10 +892,9 @@ mod tests {
             base_type:        Some("String".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate with single custom scalar should succeed: {e}"));
         assert_eq!(schema.custom_scalars.count(), 1);
         assert!(schema.custom_scalars.exists("LibraryCode"));
 
@@ -947,10 +935,9 @@ mod tests {
             base_type:        Some("String".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate with multiple custom scalars should succeed: {e}"));
         assert_eq!(schema.custom_scalars.count(), 3);
 
         // Verify all scalars are registered
@@ -978,10 +965,9 @@ mod tests {
             base_type:        Some("String".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate preserving scalar description should succeed: {e}"));
         let email_def = schema.custom_scalars.get("Email").unwrap();
 
         assert_eq!(email_def.description, Some("RFC 5322 compliant email address".to_string()));
@@ -1010,10 +996,9 @@ mod tests {
             base_type:        Some("String".to_string()),
         });
 
-        let result = generator.generate(&ir);
-        assert!(result.is_ok());
-
-        let schema = result.unwrap();
+        let schema = generator
+            .generate(&ir)
+            .unwrap_or_else(|e| panic!("generate scalars with validation rules should succeed: {e}"));
         let student_id = schema.custom_scalars.get("StudentID").unwrap();
 
         assert_eq!(student_id.validation_rules.len(), 1);

@@ -278,9 +278,8 @@ mod tests {
             }
         ]);
 
-        let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_ok());
-        let enums = result.unwrap();
+        let enums = EnumValidator::parse_enums(&json)
+            .unwrap_or_else(|e| panic!("parse simple enum should succeed: {e}"));
         assert_eq!(enums.len(), 1);
         assert_eq!(enums[0].name, "Status");
         assert_eq!(enums[0].values.len(), 2);
@@ -301,9 +300,8 @@ mod tests {
             }
         ]);
 
-        let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_ok());
-        let enums = result.unwrap();
+        let enums = EnumValidator::parse_enums(&json)
+            .unwrap_or_else(|e| panic!("parse enum with description should succeed: {e}"));
         assert_eq!(enums[0].description, Some("User account status".to_string()));
         assert_eq!(enums[0].values[0].description, Some("User is active".to_string()));
     }
@@ -322,9 +320,8 @@ mod tests {
             }
         ]);
 
-        let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_ok());
-        let enums = result.unwrap();
+        let enums = EnumValidator::parse_enums(&json)
+            .unwrap_or_else(|e| panic!("parse enum with deprecation should succeed: {e}"));
         assert_eq!(
             enums[0].values[0].deprecation_reason,
             Some("Use NEW_STATUS instead".to_string())
@@ -344,9 +341,8 @@ mod tests {
             }
         ]);
 
-        let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_ok());
-        let enums = result.unwrap();
+        let enums = EnumValidator::parse_enums(&json)
+            .unwrap_or_else(|e| panic!("parse multiple enums should succeed: {e}"));
         assert_eq!(enums.len(), 2);
     }
 
@@ -354,7 +350,10 @@ mod tests {
     fn test_enum_not_array() {
         let json = serde_json::json!({"name": "Status"});
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for non-array enums, got: {result:?}"
+        );
     }
 
     #[test]
@@ -366,7 +365,10 @@ mod tests {
         ]);
 
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing enum name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -378,7 +380,10 @@ mod tests {
         ]);
 
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing values field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -391,7 +396,10 @@ mod tests {
         ]);
 
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty values, got: {result:?}"
+        );
     }
 
     #[test]
@@ -407,7 +415,10 @@ mod tests {
         ]);
 
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for duplicate values, got: {result:?}"
+        );
     }
 
     #[test]
@@ -422,47 +433,80 @@ mod tests {
         ]);
 
         let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing value name, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_validate_enum_name_valid() {
-        assert!(EnumValidator::validate_enum_name("Status").is_ok());
-        assert!(EnumValidator::validate_enum_name("UserStatus").is_ok());
-        assert!(EnumValidator::validate_enum_name("Status2").is_ok());
+        EnumValidator::validate_enum_name("Status")
+            .unwrap_or_else(|e| panic!("'Status' should be valid: {e}"));
+        EnumValidator::validate_enum_name("UserStatus")
+            .unwrap_or_else(|e| panic!("'UserStatus' should be valid: {e}"));
+        EnumValidator::validate_enum_name("Status2")
+            .unwrap_or_else(|e| panic!("'Status2' should be valid: {e}"));
     }
 
     #[test]
     fn test_validate_enum_name_invalid_start() {
-        assert!(EnumValidator::validate_enum_name("2Status").is_err());
+        let result = EnumValidator::validate_enum_name("2Status");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for name starting with digit, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_validate_enum_name_invalid_chars() {
-        assert!(EnumValidator::validate_enum_name("Status-Type").is_err());
-        assert!(EnumValidator::validate_enum_name("Status Type").is_err());
+        let result1 = EnumValidator::validate_enum_name("Status-Type");
+        assert!(
+            matches!(result1, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for hyphen in name, got: {result1:?}"
+        );
+        let result2 = EnumValidator::validate_enum_name("Status Type");
+        assert!(
+            matches!(result2, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for space in name, got: {result2:?}"
+        );
     }
 
     #[test]
     fn test_validate_enum_value_valid() {
-        assert!(EnumValidator::validate_enum_value_name("ACTIVE", "Status").is_ok());
-        assert!(EnumValidator::validate_enum_value_name("ACTIVE_STATUS", "Status").is_ok());
-        assert!(EnumValidator::validate_enum_value_name("ACTIVE_STATUS_2", "Status").is_ok());
+        EnumValidator::validate_enum_value_name("ACTIVE", "Status")
+            .unwrap_or_else(|e| panic!("'ACTIVE' should be valid: {e}"));
+        EnumValidator::validate_enum_value_name("ACTIVE_STATUS", "Status")
+            .unwrap_or_else(|e| panic!("'ACTIVE_STATUS' should be valid: {e}"));
+        EnumValidator::validate_enum_value_name("ACTIVE_STATUS_2", "Status")
+            .unwrap_or_else(|e| panic!("'ACTIVE_STATUS_2' should be valid: {e}"));
     }
 
     #[test]
     fn test_validate_enum_value_invalid_lowercase() {
-        assert!(EnumValidator::validate_enum_value_name("Active", "Status").is_err());
+        let result = EnumValidator::validate_enum_value_name("Active", "Status");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for lowercase value name, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_validate_enum_value_invalid_start_underscore() {
-        assert!(EnumValidator::validate_enum_value_name("_ACTIVE", "Status").is_err());
+        let result = EnumValidator::validate_enum_value_name("_ACTIVE", "Status");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for underscore-prefixed value, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_enum_name_empty() {
-        assert!(EnumValidator::validate_enum_name("").is_err());
+        let result = EnumValidator::validate_enum_name("");
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty enum name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -493,9 +537,8 @@ mod tests {
             }
         ]);
 
-        let result = EnumValidator::parse_enums(&json);
-        assert!(result.is_ok());
-        let enums = result.unwrap();
+        let enums = EnumValidator::parse_enums(&json)
+            .unwrap_or_else(|e| panic!("parse complex enum scenario should succeed: {e}"));
         assert_eq!(enums[0].name, "OrderStatus");
         assert_eq!(enums[0].values.len(), 4);
         assert!(enums[0].values[3].deprecation_reason.is_some());

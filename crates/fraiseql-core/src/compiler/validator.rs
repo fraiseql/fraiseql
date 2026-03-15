@@ -335,16 +335,18 @@ mod tests {
     fn test_validator_new() {
         let validator = SchemaValidator::new();
         let ir = AuthoringIR::new();
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate new IR should succeed: {e}"));
     }
 
     #[test]
     fn test_validate_empty_ir() {
         let validator = SchemaValidator::new();
         let ir = AuthoringIR::new();
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate empty IR should succeed: {e}"));
     }
 
     fn make_fact_table(measures: Vec<MeasureColumn>, dim_name: &str) -> FactTableMetadata {
@@ -375,7 +377,9 @@ mod tests {
                 "data",
             ),
         );
-        assert!(validator.validate(ir).is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate fact table with valid metadata should succeed: {e}"));
     }
 
     #[test]
@@ -394,10 +398,10 @@ mod tests {
             ),
         );
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("must start with 'tf_' prefix"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("must start with 'tf_' prefix")),
+            "expected Validation error about tf_ prefix, got: {result:?}"
+        );
     }
 
     #[test]
@@ -406,10 +410,10 @@ mod tests {
         let mut ir = AuthoringIR::new();
         ir.fact_tables.insert("tf_sales".to_string(), make_fact_table(vec![], "data"));
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("must have at least one measure"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("must have at least one measure")),
+            "expected Validation error about empty measures, got: {result:?}"
+        );
     }
 
     #[test]
@@ -428,10 +432,10 @@ mod tests {
             ),
         );
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("dimensions missing 'name' field"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("dimensions missing 'name' field")),
+            "expected Validation error about missing dimensions name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -453,10 +457,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("must have a 'count' field"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("must have a 'count' field")),
+            "expected Validation error about missing count field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -486,8 +490,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate aggregate type with count should succeed: {e}"));
     }
 
     #[test]
@@ -509,10 +514,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("must be Boolean"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("must be Boolean")),
+            "expected Validation error about Boolean requirement, got: {result:?}"
+        );
     }
 
     #[test]
@@ -533,8 +538,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate group by input with Boolean fields should succeed: {e}"));
     }
 
     #[test]
@@ -556,10 +562,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("must have operator suffix"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("must have operator suffix")),
+            "expected Validation error about operator suffix, got: {result:?}"
+        );
     }
 
     #[test]
@@ -589,8 +595,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate having input with valid suffixes should succeed: {e}"));
     }
 
     // =========================================================================
@@ -658,8 +665,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate type with valid references should succeed: {e}"));
     }
 
     #[test]
@@ -681,11 +689,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("references unknown type"));
-            assert!(message.contains("NonExistentType"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("references unknown type") && message.contains("NonExistentType")),
+            "expected Validation error about unknown type reference, got: {result:?}"
+        );
     }
 
     #[test]
@@ -701,10 +708,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("name cannot be empty"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("name cannot be empty")),
+            "expected Validation error about empty type name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -746,8 +753,9 @@ mod tests {
             auto_params:  AutoParams::default(),
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate query with valid return type should succeed: {e}"));
     }
 
     #[test]
@@ -769,11 +777,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("returns unknown type"));
-            assert!(message.contains("NonExistentType"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("returns unknown type") && message.contains("NonExistentType")),
+            "expected Validation error about unknown return type, got: {result:?}"
+        );
     }
 
     #[test]
@@ -795,8 +802,9 @@ mod tests {
             auto_params:  AutoParams::default(),
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate query with scalar return type should succeed: {e}"));
     }
 
     #[test]
@@ -818,10 +826,10 @@ mod tests {
         });
 
         let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("Query name cannot be empty"));
-        }
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. }) if message.contains("Query name cannot be empty")),
+            "expected Validation error about empty query name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -852,8 +860,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("validate list type references should succeed: {e}"));
     }
 
     #[test]
@@ -919,8 +928,9 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok(), "All builtin scalars should be recognized");
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("all builtin scalars should be recognized: {e}"));
     }
 
     #[test]
@@ -965,7 +975,8 @@ mod tests {
             description: None,
         });
 
-        let result = validator.validate(ir);
-        assert!(result.is_ok(), "Rich scalars should be recognized");
+        validator
+            .validate(ir)
+            .unwrap_or_else(|e| panic!("rich scalars should be recognized: {e}"));
     }
 }

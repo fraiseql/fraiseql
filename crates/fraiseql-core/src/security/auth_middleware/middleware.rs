@@ -385,9 +385,8 @@ mod tests {
         let token = "test_token_12345";
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = req.extract_bearer_token();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), token);
+        let extracted = req.extract_bearer_token().unwrap_or_else(|e| panic!("expected bearer token extraction to succeed: {e}"));
+        assert_eq!(extracted, token);
     }
 
     #[test]
@@ -424,7 +423,7 @@ mod tests {
         let token = create_test_token("user123", 3600, None);
 
         let result = middleware.validate_token_structure(&token);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected valid token structure: {e}"));
     }
 
     #[test]
@@ -456,7 +455,7 @@ mod tests {
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
         let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected valid non-expired token to pass: {e}"));
     }
 
     #[test]
@@ -543,10 +542,7 @@ mod tests {
         let token = create_test_token("user_12345", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected user_id extraction to succeed: {e}"));
         assert_eq!(user.user_id, "user_12345");
     }
 
@@ -556,10 +552,7 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("read write admin"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected scope extraction to succeed: {e}"));
         assert_eq!(user.scopes, vec!["read", "write", "admin"]);
     }
 
@@ -569,11 +562,8 @@ mod tests {
         let token = create_test_token("user123", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
-        assert!(user.scopes.is_empty());
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected token without scopes to be valid: {e}"));
+        assert!(user.scopes.is_empty(), "expected empty scopes, got: {:?}", user.scopes);
     }
 
     #[test]
@@ -584,10 +574,7 @@ mod tests {
         let token = create_test_token("user123", offset_secs, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected expiry extraction to succeed: {e}"));
         let now = Utc::now();
         let diff = (user.expires_at - now).num_seconds();
 
@@ -739,10 +726,7 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("  read   write  admin  "));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected whitespace-heavy scopes to parse: {e}"));
         // split_whitespace handles multiple spaces correctly
         assert_eq!(user.scopes.len(), 3);
     }
@@ -753,10 +737,7 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("read"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let result = middleware.validate_request(&req);
-        assert!(result.is_ok());
-
-        let user = result.unwrap();
+        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected single scope to parse: {e}"));
         assert_eq!(user.scopes, vec!["read"]);
     }
 

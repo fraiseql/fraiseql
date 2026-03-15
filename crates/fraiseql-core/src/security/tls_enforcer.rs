@@ -293,7 +293,7 @@ mod tests {
         let enforcer = TlsEnforcer::permissive();
         let conn = TlsConnection::new_http();
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected HTTP allowed when TLS not required: {e}"));
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod tests {
         let enforcer = TlsEnforcer::standard();
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected HTTPS allowed when TLS required: {e}"));
     }
 
     // ============================================================================
@@ -340,7 +340,7 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // min_version = TLS 1.2
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected TLS 1.3 allowed when min 1.2: {e}"));
     }
 
     #[test]
@@ -348,7 +348,7 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // min_version = TLS 1.2
         let conn = TlsConnection::new_secure(TlsVersion::V1_2);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected TLS 1.2 allowed when min 1.2: {e}"));
     }
 
     #[test]
@@ -358,7 +358,7 @@ mod tests {
         let conn = TlsConnection::new_http();
 
         // Even though version is V1_2, this passes because is_secure=false
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected version check skipped for HTTP: {e}"));
     }
 
     // ============================================================================
@@ -370,7 +370,7 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // mtls_required = false
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected no client cert needed when mTLS not required: {e}"));
     }
 
     #[test]
@@ -387,7 +387,7 @@ mod tests {
         let enforcer = TlsEnforcer::strict(); // mtls_required = true
         let conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected valid client cert accepted when mTLS required: {e}"));
     }
 
     // ============================================================================
@@ -413,7 +413,7 @@ mod tests {
         let enforcer = TlsEnforcer::strict();
         let conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
 
-        assert!(enforcer.validate_connection(&conn).is_ok());
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected valid cert accepted: {e}"));
     }
 
     // ============================================================================
@@ -427,7 +427,7 @@ mod tests {
 
         // This should pass all checks
         let valid_conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
-        assert!(enforcer.validate_connection(&valid_conn).is_ok());
+        enforcer.validate_connection(&valid_conn).unwrap_or_else(|e| panic!("expected all checks to pass: {e}"));
 
         // Fails check 1: HTTP when TLS required
         let http_conn = TlsConnection::new_http();
@@ -575,11 +575,11 @@ mod tests {
 
         // HTTPS with TLS 1.2 should pass
         let secure_conn = TlsConnection::new_secure(TlsVersion::V1_2);
-        assert!(enforcer.validate_connection(&secure_conn).is_ok());
+        enforcer.validate_connection(&secure_conn).unwrap_or_else(|e| panic!("expected HTTPS with TLS 1.2 to pass: {e}"));
 
         // HTTPS without client cert should pass (mtls_required=false)
         let no_cert_conn = TlsConnection::new_secure(TlsVersion::V1_3);
-        assert!(enforcer.validate_connection(&no_cert_conn).is_ok());
+        enforcer.validate_connection(&no_cert_conn).unwrap_or_else(|e| panic!("expected HTTPS without client cert to pass: {e}"));
     }
 
     #[test]
