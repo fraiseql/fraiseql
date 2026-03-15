@@ -108,8 +108,7 @@ mod tests {
         let query = "query { users { id } }";
         let result = run(query);
 
-        assert!(result.is_ok());
-        let cmd_result = result.unwrap();
+        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
         assert_eq!(cmd_result.status, "success");
     }
 
@@ -118,7 +117,7 @@ mod tests {
         let query = "query { invalid {";
         let result = run(query);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for invalid query, got: {result:?}");
     }
 
     #[test]
@@ -126,8 +125,8 @@ mod tests {
         let query = "query { a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }";
         let result = run(query);
 
-        assert!(result.is_ok());
-        let cmd_result = result.unwrap();
+        let cmd_result =
+            result.unwrap_or_else(|e| panic!("expected Ok for deep nesting query: {e}"));
         if let Some(warnings) = cmd_result.data {
             assert!(!warnings.to_string().is_empty());
         }

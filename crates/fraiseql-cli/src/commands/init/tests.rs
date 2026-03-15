@@ -20,7 +20,7 @@ fn test_language_from_str() {
     assert_eq!(Language::from_str("swift").expect("test"), Language::Swift);
     assert_eq!(Language::from_str("scala").expect("test"), Language::Scala);
     assert_eq!(Language::from_str("sc").expect("test"), Language::Scala);
-    assert!(Language::from_str("haskell").is_err());
+    assert!(Language::from_str("haskell").is_err(), "expected Err for unsupported language 'haskell'");
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn test_database_from_str() {
     assert_eq!(Database::from_str("sqlite").expect("test"), Database::Sqlite);
     assert_eq!(Database::from_str("sqlserver").expect("test"), Database::SqlServer);
     assert_eq!(Database::from_str("mssql").expect("test"), Database::SqlServer);
-    assert!(Database::from_str("oracle").is_err());
+    assert!(Database::from_str("oracle").is_err(), "expected Err for unsupported database 'oracle'");
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn test_size_from_str() {
     assert_eq!(ProjectSize::from_str("xs").expect("test"), ProjectSize::Xs);
     assert_eq!(ProjectSize::from_str("s").expect("test"), ProjectSize::S);
     assert_eq!(ProjectSize::from_str("m").expect("test"), ProjectSize::M);
-    assert!(ProjectSize::from_str("l").is_err());
+    assert!(ProjectSize::from_str("l").is_err(), "expected Err for unsupported size 'l'");
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn test_init_refuses_existing_dir() {
     };
 
     let result = run(&config);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err when directory already exists");
     assert!(result.expect_err("test").to_string().contains("already exists"));
 }
 

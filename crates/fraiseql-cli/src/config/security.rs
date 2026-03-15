@@ -428,19 +428,25 @@ mod tests {
     #[test]
     fn test_error_sanitization_validation() {
         let mut config = ErrorSanitizationConfig::default();
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.leak_sensitive_details = true;
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "expected Err when leak_sensitive_details=true, got Ok"
+        );
     }
 
     #[test]
     fn test_rate_limiting_validation() {
         let mut config = RateLimitConfig::default();
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.auth_start_window_secs = 0;
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "expected Err when auth_start_window_secs=0, got Ok"
+        );
     }
 
     #[test]
@@ -462,27 +468,30 @@ mod tests {
     fn test_rate_limiting_one_max_requests_accepted() {
         let mut config = RateLimitConfig::default();
         config.auth_start_max_requests = 1;
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for max_requests=1: {e}"));
     }
 
     #[test]
     fn test_rate_limiting_callback_zero_max_requests_rejected() {
         let mut config = RateLimitConfig::default();
         config.auth_callback_max_requests = 0;
-        assert!(config.validate().is_err());
+        assert!(
+            config.validate().is_err(),
+            "expected Err when auth_callback_max_requests=0, got Ok"
+        );
     }
 
     #[test]
     fn test_state_encryption_validation() {
         let mut config = StateEncryptionConfig::default();
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.key_size = 20;
-        assert!(config.validate().is_err());
+        assert!(config.validate().is_err(), "expected Err when key_size=20, got Ok");
 
         config.key_size = 32;
         config.nonce_size = 16;
-        assert!(config.validate().is_err());
+        assert!(config.validate().is_err(), "expected Err when nonce_size=16, got Ok");
     }
 
     #[test]
@@ -501,14 +510,14 @@ mod tests {
     fn test_state_encryption_aes_256_gcm_accepted() {
         let mut config = StateEncryptionConfig::default();
         config.algorithm = "aes-256-gcm".to_string();
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for aes-256-gcm: {e}"));
     }
 
     #[test]
     fn test_state_encryption_chacha20_poly1305_accepted() {
         let config = StateEncryptionConfig::default();
         // default is "chacha20-poly1305"
-        assert!(config.validate().is_ok());
+        config.validate().unwrap_or_else(|e| panic!("expected Ok for default chacha20-poly1305: {e}"));
     }
 
     #[test]

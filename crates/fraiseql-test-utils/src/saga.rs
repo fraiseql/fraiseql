@@ -302,10 +302,10 @@ mod tests {
 
         let step = SagaStepDef::new(1, "order-service", "orders", json!({"orderId": "123"}));
 
-        let result = executor.execute_step("saga-123", &step).await;
-        assert!(result.is_ok());
-
-        let step_result = result.unwrap();
+        let step_result = executor
+            .execute_step("saga-123", &step)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from execute_step: {e}"));
         assert_eq!(step_result.step_number, 1);
         assert!(step_result.success);
         assert!(step_result.data.is_some());
@@ -320,10 +320,10 @@ mod tests {
             SagaStepDef::new(2, "inventory-service", "inventory", json!({"orderId": "123"})),
         ];
 
-        let result = executor.execute_saga("saga-123", steps).await;
-        assert!(result.is_ok());
-
-        let results = result.unwrap();
+        let results = executor
+            .execute_saga("saga-123", steps)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from execute_saga: {e}"));
         assert_eq!(results.len(), 2);
         assert!(results[0].success);
         assert!(results[1].success);
@@ -349,7 +349,8 @@ mod tests {
         ];
 
         // Verify LIFO order
-        let order_check = executor.verify_lifo_order(&forward_steps, &compensation_steps);
-        assert!(order_check.is_ok());
+        executor
+            .verify_lifo_order(&forward_steps, &compensation_steps)
+            .unwrap_or_else(|e| panic!("expected Ok from verify_lifo_order: {e}"));
     }
 }

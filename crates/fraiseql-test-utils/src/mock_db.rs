@@ -98,9 +98,11 @@ mod tests {
         let db = MockDb::new();
         db.insert("user_1".to_string(), json!({"id": "1", "name": "Alice"})).await;
 
-        let result = db.get("user_1").await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap()["name"], "Alice");
+        let value = db
+            .get("user_1")
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from mock_db.get: {e:?}"));
+        assert_eq!(value["name"], "Alice");
     }
 
     #[tokio::test]

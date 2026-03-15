@@ -251,7 +251,7 @@ mod tests {
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
             let result = resolve_database_url(None);
-            assert!(result.is_err());
+            assert!(result.is_err(), "expected Err when no database URL is available");
         });
 
         std::env::set_current_dir(original).unwrap();

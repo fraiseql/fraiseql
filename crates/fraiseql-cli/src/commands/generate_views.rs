@@ -359,7 +359,10 @@ mod tests {
         assert_eq!(RefreshStrategy::parse("trigger-based").unwrap(), RefreshStrategy::TriggerBased);
         assert_eq!(RefreshStrategy::parse("trigger").unwrap(), RefreshStrategy::TriggerBased);
         assert_eq!(RefreshStrategy::parse("scheduled").unwrap(), RefreshStrategy::Scheduled);
-        assert!(RefreshStrategy::parse("invalid").is_err());
+        assert!(
+            RefreshStrategy::parse("invalid").is_err(),
+            "expected Err for unknown refresh strategy"
+        );
     }
 
     #[test]
@@ -385,8 +388,11 @@ mod tests {
 
     #[test]
     fn test_validate_view_name_invalid() {
-        assert!(validate_view_name("invalid_view").is_err());
-        assert!(validate_view_name("v_user").is_err());
+        assert!(
+            validate_view_name("invalid_view").is_err(),
+            "expected Err for invalid_view prefix"
+        );
+        assert!(validate_view_name("v_user").is_err(), "expected Err for v_ prefix (not va_/tv_/ta_)");
     }
 
     #[test]

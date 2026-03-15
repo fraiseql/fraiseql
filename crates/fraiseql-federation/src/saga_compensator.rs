@@ -809,8 +809,8 @@ mod tests {
             .compensate_step(saga_id, 1, "testCompensation", &serde_json::json!({}), "test-service")
             .await;
 
-        assert!(result.is_ok());
-        let comp_result = result.unwrap();
+        let comp_result =
+            result.unwrap_or_else(|e| panic!("expected Ok from compensate_step: {e}"));
         assert_eq!(comp_result.step_number, 1);
         assert!(comp_result.success);
     }
@@ -821,7 +821,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let status = compensator.get_compensation_status(saga_id).await;
 
-        assert!(status.is_ok());
+        status.unwrap_or_else(|e| panic!("expected Ok from get_compensation_status: {e}"));
     }
 
     #[test]
@@ -838,8 +838,8 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let result = compensator.compensate_saga(saga_id).await;
 
-        assert!(result.is_ok());
-        let comp_result = result.unwrap();
+        let comp_result =
+            result.unwrap_or_else(|e| panic!("expected Ok from compensate_saga: {e}"));
         assert_eq!(comp_result.saga_id, saga_id);
         assert_eq!(comp_result.status, CompensationStatus::Compensated);
     }
@@ -881,9 +881,10 @@ mod tests {
         let compensator = SagaCompensator::new();
         let saga_id = Uuid::new_v4();
 
-        let result = compensator.compensate_saga(saga_id).await;
-        assert!(result.is_ok());
-        let comp_result = result.unwrap();
+        let comp_result = compensator
+            .compensate_saga(saga_id)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok from compensate_saga (continues on failure): {e}"));
         // Without store, compensation succeeds
         assert_eq!(comp_result.status, CompensationStatus::Compensated);
     }

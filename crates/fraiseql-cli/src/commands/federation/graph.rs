@@ -193,7 +193,10 @@ mod tests {
 
     #[test]
     fn test_graph_format_invalid() {
-        assert!("invalid".parse::<GraphFormat>().is_err());
+        assert!(
+            "invalid".parse::<GraphFormat>().is_err(),
+            "expected Err for unknown federation graph format"
+        );
     }
 
     #[test]

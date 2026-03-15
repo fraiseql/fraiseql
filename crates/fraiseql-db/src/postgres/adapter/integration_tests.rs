@@ -478,11 +478,10 @@ async fn test_invalid_view_name() {
 
     let result = adapter.execute_where_query("v_nonexistent", None, None, None).await;
 
-    assert!(result.is_err());
-    match result {
-        Err(FraiseQLError::Database { .. }) => (),
-        _ => panic!("Expected Database error"),
-    }
+    assert!(
+        matches!(result, Err(FraiseQLError::Database { .. })),
+        "expected Database error for nonexistent view, got: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -490,11 +489,10 @@ async fn test_invalid_connection_string() {
     let result =
         PostgresAdapter::new("postgresql://invalid:invalid@localhost:9999/nonexistent").await;
 
-    assert!(result.is_err());
-    match result {
-        Err(FraiseQLError::ConnectionPool { .. }) => (),
-        _ => panic!("Expected ConnectionPool error"),
-    }
+    assert!(
+        matches!(result, Err(FraiseQLError::ConnectionPool { .. })),
+        "expected ConnectionPool error for invalid connection string, got: {result:?}"
+    );
 }
 
 // ========================================================================
@@ -620,11 +618,10 @@ async fn test_execute_function_call_with_timing_disabled() {
     // Calling a nonexistent function should produce a Database error,
     // not a timing-related error — verifying the non-timing path is taken.
     let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
-    assert!(result.is_err());
-    match result {
-        Err(FraiseQLError::Database { .. }) => (),
-        other => panic!("Expected Database error, got: {other:?}"),
-    }
+    assert!(
+        matches!(result, Err(FraiseQLError::Database { .. })),
+        "expected Database error for nonexistent function (timing disabled), got: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -634,9 +631,8 @@ async fn test_execute_function_call_with_timing_enabled() {
     // Calling a nonexistent function should still produce a Database error,
     // but the timing transaction wrapping should not cause a different error type.
     let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
-    assert!(result.is_err());
-    match result {
-        Err(FraiseQLError::Database { .. }) => (),
-        other => panic!("Expected Database error with timing enabled, got: {other:?}"),
-    }
+    assert!(
+        matches!(result, Err(FraiseQLError::Database { .. })),
+        "expected Database error for nonexistent function (timing enabled), got: {result:?}"
+    );
 }

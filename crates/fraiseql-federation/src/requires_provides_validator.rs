@@ -644,7 +644,7 @@ mod tests {
             &entity_fields,
         );
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err when required field 'weight' is missing");
     }
 
     #[test]
@@ -669,7 +669,7 @@ mod tests {
             &entity_fields,
         );
 
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok when all required fields present: {e:?}"));
     }
 
     #[test]

@@ -670,8 +670,8 @@ mod tests {
     #[test]
     fn test_graph_format_invalid() {
         let result = "invalid".parse::<GraphFormat>();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Unknown format"));
+        let err = result.expect_err("expected Err for unknown graph format");
+        assert!(err.contains("Unknown format"), "expected 'Unknown format' in: {err}");
     }
 
     #[test]

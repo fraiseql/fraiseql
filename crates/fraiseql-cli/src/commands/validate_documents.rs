@@ -141,8 +141,7 @@ mod tests {
 
         let formatter = OutputFormatter::new(false, false);
         let result = run(path.to_str().unwrap(), &formatter);
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let msg = result.expect_err("expected Err for oversized manifest").to_string();
         assert!(msg.contains("too large"), "expected size error, got: {msg}");
     }
 
@@ -159,8 +158,7 @@ mod tests {
 
         let formatter = OutputFormatter::new(false, false);
         let result = run(path.to_str().unwrap(), &formatter);
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let msg = result.expect_err("expected Err for unknown manifest version").to_string();
         assert!(
             msg.contains("Unsupported manifest version"),
             "expected version error, got: {msg}"

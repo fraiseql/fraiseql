@@ -132,6 +132,6 @@ mod tests {
     #[test]
     fn test_analyze_nonexistent_file() {
         let result = run("/nonexistent/schema.json");
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for nonexistent schema file, got: {result:?}");
     }
 }

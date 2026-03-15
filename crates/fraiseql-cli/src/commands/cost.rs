@@ -53,8 +53,7 @@ mod tests {
         let query = "query { users { id } }";
         let result = run(query);
 
-        assert!(result.is_ok());
-        let cmd_result = result.unwrap();
+        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
         assert_eq!(cmd_result.status, "success");
     }
 
@@ -63,7 +62,7 @@ mod tests {
         let query = "query { invalid {";
         let result = run(query);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for invalid query, got: {result:?}");
     }
 
     #[test]
@@ -71,8 +70,7 @@ mod tests {
         let query = "query { users { id name } }";
         let result = run(query);
 
-        assert!(result.is_ok());
-        let cmd_result = result.unwrap();
+        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for score query: {e}"));
         if let Some(data) = cmd_result.data {
             assert!(data["complexity_score"].is_number());
         }

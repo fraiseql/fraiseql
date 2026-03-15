@@ -614,7 +614,7 @@ sql_source = "v_user"
 
         // Merge
         let result = SchemaMerger::merge_toml_only(temp_path);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("expected Ok from merge_toml_only: {e}"));
 
         // Clean up
         let _ = std::fs::remove_file(temp_path);
@@ -663,9 +663,7 @@ mutations = []
 
         // Merge
         let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
-        assert!(result.is_ok());
-
-        let schema = result?;
+        let schema = result.unwrap_or_else(|e| panic!("expected Ok from merge_with_includes: {e}"));
         assert_eq!(schema.types.len(), 2);
 
         Ok(())
@@ -695,9 +693,7 @@ mutations = []
 
         // Should succeed but with no files loaded (glob matches nothing)
         let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
-        assert!(result.is_ok());
-
-        let schema = result?;
+        let schema = result.unwrap_or_else(|e| panic!("expected Ok from merge_with_includes (missing files): {e}"));
         assert_eq!(schema.types.len(), 0);
 
         Ok(())
@@ -749,10 +745,8 @@ root_dir = "{schema_dir_str}"
         fs::write(&toml_path, toml_content)?;
 
         // Merge
-        let result = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap());
-
-        assert!(result.is_ok());
-        let schema = result?;
+        let schema = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap())
+            .unwrap_or_else(|e| panic!("expected Ok from merge_from_domains: {e}"));
 
         // Should have 2 types (from both domains)
         assert_eq!(schema.types.len(), 2);
@@ -802,10 +796,8 @@ root_dir = "{schema_dir_str}"
         let toml_path = temp_dir.path().join("fraiseql.toml");
         fs::write(&toml_path, toml_content)?;
 
-        let result = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap());
-
-        assert!(result.is_ok());
-        let schema = result?;
+        let schema = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap())
+            .unwrap_or_else(|e| panic!("expected Ok from merge_from_domains (alphabetical): {e}"));
 
         // Types should be loaded in alphabetical order: ALPHA, MIDDLE, ZEBRA
         let type_names: Vec<String> = schema.types.iter().map(|t| t.name.clone()).collect();
@@ -842,9 +834,8 @@ max_query_complexity = 25
         let temp_path = "/tmp/test_fraiseql_validation.toml";
         std::fs::write(temp_path, toml_content).unwrap();
 
-        let result = SchemaMerger::merge_toml_only(temp_path);
-        assert!(result.is_ok());
-        let schema = result.unwrap();
+        let schema = SchemaMerger::merge_toml_only(temp_path)
+            .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (with validation): {e}"));
 
         // validation_config should be populated
         let vc = schema.validation_config.as_ref().expect("validation_config should be set");
@@ -875,9 +866,8 @@ type = "ID"
         let temp_path = "/tmp/test_fraiseql_no_validation.toml";
         std::fs::write(temp_path, toml_content).unwrap();
 
-        let result = SchemaMerger::merge_toml_only(temp_path);
-        assert!(result.is_ok());
-        let schema = result.unwrap();
+        let schema = SchemaMerger::merge_toml_only(temp_path)
+            .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (no validation): {e}"));
 
         // validation_config should be None when no [validation] section
         assert!(schema.validation_config.is_none());

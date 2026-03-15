@@ -632,7 +632,8 @@ mod tests {
     #[test]
     fn escape_sql_string_accepts_exactly_max_bytes() {
         let at_limit = "a".repeat(MAX_SQL_VALUE_BYTES);
-        assert!(WhereSqlGenerator::escape_sql_string(&at_limit).is_ok());
+        WhereSqlGenerator::escape_sql_string(&at_limit)
+            .unwrap_or_else(|e| panic!("expected Ok for string at exactly MAX_SQL_VALUE_BYTES: {e}"));
     }
 
     #[test]

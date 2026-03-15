@@ -275,17 +275,21 @@ mod tests {
     #[test]
     fn test_validate_accepts_valid_defaults() {
         let config = RemoteDatabaseConfig::new("postgresql://host/db");
-        assert!(config.validate().is_ok(), "no explicit values — defaults are always valid");
+        config.validate().unwrap_or_else(|e| {
+            panic!("expected Ok for default config (no explicit values): {e}")
+        });
     }
 
     #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_accepts_pool_size_at_limits() {
         let lo = RemoteDatabaseConfig::new("postgresql://host/db").with_pool_size(MIN_POOL_SIZE);
-        assert!(lo.validate().is_ok());
+        lo.validate()
+            .unwrap_or_else(|e| panic!("expected Ok for pool_size=MIN_POOL_SIZE: {e}"));
 
         let hi = RemoteDatabaseConfig::new("postgresql://host/db").with_pool_size(MAX_POOL_SIZE);
-        assert!(hi.validate().is_ok());
+        hi.validate()
+            .unwrap_or_else(|e| panic!("expected Ok for pool_size=MAX_POOL_SIZE: {e}"));
     }
 
     #[cfg(feature = "unstable")]

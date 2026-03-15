@@ -278,7 +278,10 @@ mod tests {
     fn test_output_format_from_str() {
         assert!(matches!(OutputFormat::parse("python"), Ok(OutputFormat::Python)));
         assert!(matches!(OutputFormat::parse("json"), Ok(OutputFormat::Json)));
-        assert!(OutputFormat::parse("invalid").is_err());
+        assert!(
+            OutputFormat::parse("invalid").is_err(),
+            "expected Err for unknown output format 'invalid'"
+        );
     }
 
     #[test]

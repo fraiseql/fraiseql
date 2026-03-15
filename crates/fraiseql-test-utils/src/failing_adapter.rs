@@ -384,7 +384,7 @@ mod tests {
     async fn test_fail_on_query_zero() {
         let adapter = FailingAdapter::new().fail_on_query(0);
         let result = adapter.execute_where_query("v_user", None, None, None).await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err when fail_on_query(0) is set, got: {result:?}");
     }
 
     #[tokio::test]
@@ -399,9 +399,15 @@ mod tests {
     #[tokio::test]
     async fn test_reset() {
         let adapter = FailingAdapter::new().fail_on_query(0);
-        assert!(adapter.execute_where_query("v_user", None, None, None).await.is_err());
+        assert!(
+            adapter.execute_where_query("v_user", None, None, None).await.is_err(),
+            "expected Err before reset"
+        );
         adapter.reset();
-        assert!(adapter.execute_where_query("v_user", None, None, None).await.is_ok());
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok after reset: {e}"));
         assert_eq!(adapter.query_count(), 1);
     }
 }

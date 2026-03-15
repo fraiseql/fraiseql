@@ -390,7 +390,10 @@ mod tests {
 
         // Invalid locale should return error
         let result = mapper.map_locale("invalid-locale");
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "expected Err for invalid locale with Error strategy, got: {result:?}"
+        );
     }
 
     #[test]

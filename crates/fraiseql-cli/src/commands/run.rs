@@ -416,8 +416,7 @@ mod tests {
     #[test]
     fn test_resolve_input_explicit_missing_returns_helpful_error() {
         let result = resolve_input(Some("/nonexistent/path/schema.json"));
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let msg = result.expect_err("expected Err for missing path").to_string();
         assert!(msg.contains("not found"), "expected 'not found' in: {msg}");
         assert!(msg.contains("/nonexistent/path/schema.json"), "expected path in: {msg}");
     }
@@ -448,8 +447,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
 
         let result = auto_detect_input(dir.path());
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let msg = result.expect_err("expected Err when no files present").to_string();
         assert!(msg.contains("No input file found"), "expected hint in: {msg}");
         assert!(msg.contains("fraiseql run <INPUT>"), "expected usage in: {msg}");
     }
@@ -732,8 +730,7 @@ port = 0
             ],
             || {
                 let result = resolve_runtime_config(&toml_path, None, None, None);
-                assert!(result.is_err());
-                let msg = result.unwrap_err().to_string();
+                let msg = result.expect_err("expected Err for port=0").to_string();
                 assert!(msg.contains("port"), "got: {msg}");
             },
         );
@@ -760,8 +757,7 @@ pool_max = 10
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
             let result = resolve_runtime_config(&toml_path, None, None, None);
-            assert!(result.is_err());
-            let msg = result.unwrap_err().to_string();
+            let msg = result.expect_err("expected Err for pool_min > pool_max").to_string();
             assert!(msg.contains("pool_min"), "got: {msg}");
         });
     }
@@ -782,8 +778,7 @@ database_target = "postgresql"
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
             let result = resolve_runtime_config(&toml_path, None, None, None);
-            assert!(result.is_err());
-            let msg = result.unwrap_err().to_string();
+            let msg = result.expect_err("expected Err for missing database URL").to_string();
             assert!(msg.contains("database URL"), "got: {msg}");
         });
     }
