@@ -82,6 +82,16 @@ pub struct PostgresAdapter {
     timing_variable_name: String,
 }
 
+impl std::fmt::Debug for PostgresAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostgresAdapter")
+            .field("mutation_timing_enabled", &self.mutation_timing_enabled)
+            .field("timing_variable_name", &self.timing_variable_name)
+            .field("pool", &"<Pool>")
+            .finish()
+    }
+}
+
 impl PostgresAdapter {
     /// Create new PostgreSQL adapter with default pool configuration.
     ///

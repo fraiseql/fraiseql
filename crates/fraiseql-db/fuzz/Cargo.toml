@@ -1,0 +1,35 @@
+[[bin]]
+doc = false
+name = "where_generator"
+path = "fuzz_targets/where_generator.rs"
+
+[[bin]]
+doc = false
+name = "projection_generator"
+path = "fuzz_targets/projection_generator.rs"
+
+[[bin]]
+doc = false
+name = "where_from_json"
+path = "fuzz_targets/where_from_json.rs"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+
+[dependencies.fraiseql-db]
+default-features = false
+features = ["postgres", "rich-filters"]
+path = ".."
+
+[package]
+edition = "2021"
+name = "fraiseql-db-fuzz"
+publish = false
+version = "0.0.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]

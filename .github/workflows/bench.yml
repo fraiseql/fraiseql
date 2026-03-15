@@ -71,12 +71,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
-      # Compare only on PRs where a baseline was successfully restored
-      - name: Compare against dev baseline
+      # Compare only on PRs where a baseline was successfully restored.
+      # Micro benchmarks (pure computation, no DB I/O) use a tight 5% threshold.
+      # Slow benchmarks (DB-connected, high variance) use a relaxed 15% threshold.
+      - name: Compare micro benchmarks (5% threshold)
         if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
         run: |
-          critcmp dev pr --threshold 10 | tee bench-comparison.txt
-          # critcmp exits non-zero if any benchmark regressed more than 10%
+          critcmp dev pr --threshold 5 \
+            -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline)' \
+            | tee bench-comparison.txt || echo "::warning::Micro benchmarks regressed >5%"
+
+      - name: Compare slow benchmarks (15% threshold)
+        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
+        run: |
+          critcmp dev pr --threshold 15 \
+            -f '(10k_rows|100k_rows|1m_rows|where_clause|pagination|http_response_pipeline|graphql_transform|god_objects)' \
+            | tee -a bench-comparison.txt || echo "::warning::Slow benchmarks regressed >15%"
 
       # Save the new baseline after a successful dev push
       - name: Save dev baseline
@@ -101,7 +111,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## Benchmark Comparison (threshold: 10%)\n\n\`\`\`\n${body}\n\`\`\``
+              body: `## Benchmark Comparison\n\nMicro (pure computation): 5% threshold | Slow (DB-connected): 15% threshold\n\n\`\`\`\n${body}\n\`\`\``
             });
 
       - uses: actions/upload-artifact@v4

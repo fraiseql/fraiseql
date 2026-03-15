@@ -537,7 +537,7 @@ mod tests {
 
         assert!(result.valid);
         assert!(result.sql_constraint.is_some());
-        let sql = result.sql_constraint.unwrap();
+        let sql = result.sql_constraint.expect("sql_constraint must be Some when result.valid is true");
         assert!(sql.contains("CHECK"));
         assert!(sql.contains("startDate"));
         assert!(sql.contains("<="));
@@ -555,7 +555,7 @@ mod tests {
                 validator.validate_cross_field_rule("DateRange", "startDate", op, "endDate");
 
             assert!(result.valid);
-            let sql = result.sql_constraint.unwrap();
+            let sql = result.sql_constraint.expect("sql_constraint must be Some for valid operator");
             assert!(sql.contains(op) || op == "==" && sql.contains('='));
         }
     }
@@ -627,7 +627,7 @@ mod tests {
         let result = validator.validate_cross_field_rule("DateRange", "startDate", "<=", "endDate");
 
         assert!(result.valid);
-        let sql = result.sql_constraint.unwrap();
+        let sql = result.sql_constraint.expect("sql_constraint must be Some when result.valid is true");
         assert!(sql.contains("CHECK"));
     }
 
@@ -676,6 +676,6 @@ mod tests {
 
         assert!(!result.valid);
         assert!(result.errors[0].suggestion.is_some());
-        assert!(result.errors[0].suggestion.as_ref().unwrap().contains("Available fields"));
+        assert!(result.errors[0].suggestion.as_ref().expect("suggestion must be Some for typo error").contains("Available fields"));
     }
 }

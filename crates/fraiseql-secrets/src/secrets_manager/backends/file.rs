@@ -123,8 +123,8 @@ mod tests {
         let result = backend.get_secret("nonexistent.txt").await;
 
         assert!(
-            matches!(result, Err(SecretsError::ConnectionError(_))),
-            "expected ConnectionError for missing file, got: {result:?}"
+            matches!(result, Err(SecretsError::BackendError(_))),
+            "expected BackendError for missing file, got: {result:?}"
         );
     }
 

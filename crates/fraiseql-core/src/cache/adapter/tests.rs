@@ -137,7 +137,7 @@ async fn test_cache_miss_then_hit() {
     let result1 = adapter
         .execute_where_query("v_user", Some(&where_clause), None, None)
         .await
-        .unwrap();
+        .expect("mock adapter must not fail on first query");
     assert_eq!(result1.len(), 2);
     assert_eq!(adapter.inner().call_count(), 1);
 
@@ -145,7 +145,7 @@ async fn test_cache_miss_then_hit() {
     let result2 = adapter
         .execute_where_query("v_user", Some(&where_clause), None, None)
         .await
-        .unwrap();
+        .expect("mock adapter must not fail on second query");
     assert_eq!(result2.len(), 2);
     assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
 }
@@ -169,11 +169,11 @@ async fn test_different_where_clauses_produce_different_cache_entries() {
     };
 
     // Query 1
-    adapter.execute_where_query("v_user", Some(&where1), None, None).await.unwrap();
+    adapter.execute_where_query("v_user", Some(&where1), None, None).await.expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query 2 - different WHERE - should miss cache
-    adapter.execute_where_query("v_user", Some(&where2), None, None).await.unwrap();
+    adapter.execute_where_query("v_user", Some(&where2), None, None).await.expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 2);
 }
 
@@ -205,7 +205,7 @@ async fn test_invalidation_clears_cache() {
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Invalidate
-    let invalidated = adapter.invalidate_views(&["v_user".to_string()]).unwrap();
+    let invalidated = adapter.invalidate_views(&["v_user".to_string()]).expect("invalidate_views must succeed");
     assert_eq!(invalidated, 1);
 
     // Query 3 - cache miss again (was invalidated)
@@ -223,7 +223,7 @@ async fn test_different_limits_produce_different_cache_entries() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     // Query with limit 10
-    adapter.execute_where_query("v_user", None, Some(10), None).await.unwrap();
+    adapter.execute_where_query("v_user", None, Some(10), None).await.expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query with limit 20 - should miss cache

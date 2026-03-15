@@ -1,0 +1,1 @@
+{"or": [{"field": "role", "operator": "eq", "value": "admin"}, {"not": {"field": "banned", "operator": "eq", "value": true}}]}

@@ -76,7 +76,14 @@ impl AuthMiddleware {
         }
     }
 
-    /// Validate a Bearer token and extract claims
+    /// Validate a Bearer token and extract claims.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::InvalidToken` if the token signature is invalid,
+    /// expired, or does not match the expected issuer/audience.
+    /// Returns `AuthError::KeyError` if the public key cannot be used for
+    /// verification.
     pub async fn validate_token(&self, token: &str) -> Result<Claims> {
         self.validator.validate(token, &self.public_key)
     }

@@ -1,0 +1,30 @@
+[[bin]]
+doc = false
+name = "flight_ticket"
+path = "fuzz_targets/flight_ticket.rs"
+
+[[bin]]
+doc = false
+name = "db_convert"
+path = "fuzz_targets/db_convert.rs"
+
+[dependencies]
+arrow = {version = "57", features = ["csv", "json"]}
+libfuzzer-sys = "0.4"
+serde_json = "1"
+
+[dependencies.fraiseql-arrow]
+default-features = false
+path = ".."
+
+[package]
+edition = "2021"
+name = "fraiseql-arrow-fuzz"
+publish = false
+version = "0.0.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]

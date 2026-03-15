@@ -1,3 +1,21 @@
+[package]
+description = "Secrets management and field-level encryption for FraiseQL"
+name = "fraiseql-secrets"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[[bench]]
+harness = false
+name = "secrets_bench"
+
 [dependencies]
 # Encryption
 aes-gcm = {version = "0.10", features = ["zeroize"]}
@@ -16,6 +34,8 @@ uuid = {version = "1.0", features = ["v4", "serde"]}
 zeroize = "1.8"
 
 [dev-dependencies]
+criterion = {version = "0.5", features = ["html_reports"]}
+mutants = "0.0.4"
 proptest = {workspace = true}
 temp-env = {workspace = true}
 tempfile = "3.13"
@@ -24,17 +44,3 @@ wiremock = "0.6"
 
 [lints]
 workspace = true
-
-[package]
-description = "Secrets management and field-level encryption for FraiseQL"
-name = "fraiseql-secrets"
-authors.workspace = true
-categories.workspace = true
-documentation.workspace = true
-edition.workspace = true
-homepage.workspace = true
-keywords.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true

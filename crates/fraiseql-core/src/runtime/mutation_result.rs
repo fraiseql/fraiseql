@@ -214,7 +214,7 @@ mod tests {
         row.insert("entity".to_string(), json!({"id": "abc", "name": "Foo"}));
         row.insert("entity_type".to_string(), json!("Machine"));
 
-        let outcome = parse_mutation_row(&row).unwrap();
+        let outcome = parse_mutation_row(&row).expect("test fixture must parse successfully");
         assert!(matches!(outcome, MutationOutcome::Success { .. }));
         if let MutationOutcome::Success {
             entity,
@@ -238,7 +238,7 @@ mod tests {
         row.insert("entity_type".to_string(), json!("User"));
         row.insert("entity_id".to_string(), json!("550e8400-e29b-41d4-a716-446655440000"));
 
-        let outcome = parse_mutation_row(&row).unwrap();
+        let outcome = parse_mutation_row(&row).expect("test fixture must parse successfully");
         if let MutationOutcome::Success {
             entity_id,
             entity_type,
@@ -259,7 +259,7 @@ mod tests {
         row.insert("entity".to_string(), json!({"id": "abc"}));
         // entity_id column not present (CREATE mutation)
 
-        let outcome = parse_mutation_row(&row).unwrap();
+        let outcome = parse_mutation_row(&row).expect("test fixture must parse successfully");
         if let MutationOutcome::Success { entity_id, .. } = outcome {
             assert!(entity_id.is_none());
         } else {
@@ -274,7 +274,7 @@ mod tests {
         row.insert("message".to_string(), json!("invalid input"));
         row.insert("metadata".to_string(), json!({"last_activity_date": "2024-01-01"}));
 
-        let outcome = parse_mutation_row(&row).unwrap();
+        let outcome = parse_mutation_row(&row).expect("test fixture must parse successfully");
         assert!(matches!(outcome, MutationOutcome::Error { .. }));
         if let MutationOutcome::Error {
             status, metadata, ..

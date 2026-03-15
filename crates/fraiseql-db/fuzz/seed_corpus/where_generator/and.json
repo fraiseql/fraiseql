@@ -1,0 +1,1 @@
+{"and": [{"field": "age", "operator": "gt", "value": 18}, {"field": "active", "operator": "eq", "value": true}]}
