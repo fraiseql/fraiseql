@@ -563,6 +563,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.layer(DefaultBodyLimit::max(self.config.max_request_body_bytes));
         }
 
+        // Add HTTP header count and size limits (prevents header-flooding DoS)
+        {
+            let max_header_count = self.config.max_header_count;
+            let max_header_bytes = self.config.max_header_bytes;
+            info!(
+                max_header_count,
+                max_header_bytes, "HTTP header limits enabled"
+            );
+            app = app.layer(axum::middleware::from_fn(
+                move |req, next| {
+                    crate::middleware::header_limits_middleware(
+                        req,
+                        next,
+                        max_header_count,
+                        max_header_bytes,
+                    )
+                },
+            ));
+        }
+
         // Add per-request timeout (optional — defence against runaway DB queries).
         if let Some(timeout_secs) = self.config.request_timeout_secs {
             use std::time::Duration;

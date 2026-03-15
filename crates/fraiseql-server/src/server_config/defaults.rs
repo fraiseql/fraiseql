@@ -36,6 +36,22 @@ pub const fn default_max_get_query_bytes() -> usize {
     100_000
 }
 
+/// Default maximum number of HTTP headers per request.
+///
+/// Prevents header-flooding DoS attacks that exhaust memory by sending
+/// thousands of unique headers.
+pub const fn default_max_header_count() -> usize {
+    100
+}
+
+/// Default maximum total size of all HTTP headers in bytes (32 KiB).
+///
+/// Prevents memory exhaustion from oversized header values (e.g. huge cookies
+/// or authorization tokens).
+pub const fn default_max_header_bytes() -> usize {
+    32_768
+}
+
 pub fn default_graphql_path() -> String {
     "/graphql".to_string()
 }

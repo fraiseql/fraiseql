@@ -12,10 +12,11 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
-    default_introspection_path, default_max_request_body_bytes, default_metrics_json_path,
-    default_metrics_path, default_playground_path, default_pool_max_size, default_pool_min_size,
-    default_pool_timeout, default_readiness_path, default_schema_path,
-    default_shutdown_timeout_secs, default_subscription_path,
+    default_introspection_path, default_max_header_bytes, default_max_header_count,
+    default_max_request_body_bytes, default_metrics_json_path, default_metrics_path,
+    default_playground_path, default_pool_max_size, default_pool_min_size, default_pool_timeout,
+    default_readiness_path, default_schema_path, default_shutdown_timeout_secs,
+    default_subscription_path,
 };
 use fraiseql_core::security::OidcConfig;
 pub use observers::AdmissionConfig;
@@ -288,6 +289,21 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_max_request_body_bytes")]
     pub max_request_body_bytes: usize,
 
+    /// Maximum number of HTTP headers per request (default: 100).
+    ///
+    /// Requests with more headers than this limit receive 431 Request Header Fields Too Large.
+    /// Prevents header-flooding DoS attacks that exhaust memory.
+    #[serde(default = "defaults::default_max_header_count")]
+    pub max_header_count: usize,
+
+    /// Maximum total size of all HTTP headers in bytes (default: 32 KiB).
+    ///
+    /// Requests whose combined header name+value bytes exceed this limit receive
+    /// 431 Request Header Fields Too Large. Prevents memory exhaustion from
+    /// oversized header values.
+    #[serde(default = "defaults::default_max_header_bytes")]
+    pub max_header_bytes: usize,
+
     /// Per-request processing timeout in seconds (default: `None` — no timeout).
     ///
     /// When set, each HTTP request must complete within this many seconds or
@@ -432,6 +448,8 @@ impl Default for ServerConfig {
                          * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
+            max_header_count: default_max_header_count(),         // 100 headers
+            max_header_bytes: default_max_header_bytes(),         // 32 KiB
             rate_limiting: None,             // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
