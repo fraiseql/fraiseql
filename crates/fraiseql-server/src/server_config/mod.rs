@@ -1,4 +1,11 @@
-//! Server configuration.
+//! Server configuration (`*Config` types).
+//!
+//! These are developer-facing configuration types loaded from `fraiseql.toml`,
+//! environment variables, or CLI flags. They are mutable between deployments.
+//!
+//! For the distinction between `*Config` (developer-facing, mutable) and
+//! `*Settings` (compiled into `schema.compiled.json`, immutable at runtime),
+//! see `docs/architecture/config-vs-settings.md`.
 
 pub(crate) mod defaults;
 mod methods;
