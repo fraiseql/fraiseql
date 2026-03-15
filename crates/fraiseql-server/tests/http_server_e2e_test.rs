@@ -48,10 +48,20 @@ fn get_test_base_url() -> String {
     env::var("FRAISEQL_TEST_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }
 
+/// Returns `true` if `FRAISEQL_TEST_URL` is set, indicating a FraiseQL server
+/// is available for E2E testing. Tests that require a running server should
+/// call this and return early if it returns `false`.
+fn fraiseql_server_available() -> bool {
+    env::var("FRAISEQL_TEST_URL").is_ok()
+}
+
 /// Test that health endpoint responds correctly
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_health_endpoint_responds() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -75,8 +85,11 @@ async fn test_health_endpoint_responds() {
 
 /// Test that metrics endpoint responds with Prometheus format (requires bearer token)
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_endpoint_responds() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
     let token = get_metrics_token();
@@ -114,8 +127,11 @@ async fn test_metrics_endpoint_responds() {
 
 /// Test that metrics JSON endpoint responds correctly (requires bearer token)
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_json_endpoint_responds() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
     let token = get_metrics_token();
@@ -144,8 +160,11 @@ async fn test_metrics_json_endpoint_responds() {
 
 /// Test that metrics endpoint rejects requests without token
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_endpoint_requires_auth() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -164,8 +183,11 @@ async fn test_metrics_endpoint_requires_auth() {
 
 /// Test that metrics endpoint rejects invalid token
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_endpoint_rejects_invalid_token() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -187,8 +209,11 @@ async fn test_metrics_endpoint_rejects_invalid_token() {
 
 /// Test that invalid paths return 404
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_invalid_path_returns_404() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -206,8 +231,11 @@ async fn test_invalid_path_returns_404() {
 
 /// Test GraphQL endpoint accepts POST requests
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_graphql_endpoint_accepts_post() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -233,8 +261,11 @@ async fn test_graphql_endpoint_accepts_post() {
 
 /// Test GraphQL endpoint rejects GET requests
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_graphql_endpoint_rejects_get() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -253,8 +284,11 @@ async fn test_graphql_endpoint_rejects_get() {
 
 /// Test response includes correct headers
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_response_headers_correct() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -282,8 +316,11 @@ async fn test_response_headers_correct() {
 
 /// Test empty query returns validation error
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_empty_query_returns_error() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -318,8 +355,11 @@ async fn test_empty_query_returns_error() {
 
 /// Test malformed JSON returns bad request
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_malformed_json_returns_error() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -343,8 +383,11 @@ async fn test_malformed_json_returns_error() {
 
 /// Test introspection endpoint responds
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_introspection_endpoint_responds() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -368,8 +411,11 @@ async fn test_introspection_endpoint_responds() {
 
 /// Test concurrent requests to health endpoint
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_concurrent_health_requests() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 
@@ -395,8 +441,11 @@ async fn test_concurrent_health_requests() {
 
 /// Test response content type consistency
 #[tokio::test]
-#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_content_type_consistency() {
+    if !fraiseql_server_available() {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    }
     let client = create_test_client();
     let base_url = get_test_base_url();
 

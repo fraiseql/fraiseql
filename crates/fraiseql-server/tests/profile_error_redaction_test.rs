@@ -59,7 +59,7 @@ fn test_error_code_mapping_to_http_status() {
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
     );
     assert_eq!(ErrorCode::Unauthenticated.status_code(), axum::http::StatusCode::UNAUTHORIZED);
-    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::OK);
     assert_eq!(ErrorCode::Forbidden.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
 

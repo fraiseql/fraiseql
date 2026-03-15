@@ -43,7 +43,7 @@ impl TestDb {
 
         // Get or create database URL
         let db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string());
+            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
 
         tracing::info!("Connecting to PostgreSQL: {}", db_url);
 
@@ -147,10 +147,10 @@ impl TestDb {
     /// Get the database URL for fraiseql-core adapter.
     fn connection_string(&self) -> String {
         std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string())
+            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string())
             .rsplit_once('/')
             .map_or_else(
-                || format!("postgresql://localhost/{}", self.database_name),
+                || format!("postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/{}", self.database_name),
                 |(base, _)| format!("{}/{}", base, self.database_name),
             )
     }
@@ -161,7 +161,7 @@ impl Drop for TestDb {
         // Clean up test database (non-blocking)
         let db_name = self.database_name.clone();
         let default_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string());
+            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
 
         // Spawn async task to clean up database
         std::thread::spawn(move || {

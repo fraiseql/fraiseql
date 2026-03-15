@@ -277,6 +277,7 @@ async fn oidc_discovery_oversized_response_is_rejected() {
 
     let config = OidcConfig {
         issuer: mock.uri(),
+        audience: Some("test-audience".to_string()),
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;
@@ -303,6 +304,7 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
 
     let config = OidcConfig {
         issuer: mock.uri(),
+        audience: Some("test-audience".to_string()),
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;

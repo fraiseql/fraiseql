@@ -21,6 +21,28 @@ use sha1::Sha1;
 // Reference implementation (mirrors build_signing_string in twilio.rs)
 // ---------------------------------------------------------------------------
 
+/// Percent-decode a URL-encoded string, mirroring the production `percent_decode`.
+fn test_percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut result = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16);
+            let lo = (bytes[i + 2] as char).to_digit(16);
+            if let (Some(h), Some(l)) = (hi, lo) {
+                #[allow(clippy::cast_possible_truncation)]
+                result.push(char::from(((h << 4) | l) as u8));
+                i += 3;
+                continue;
+            }
+        }
+        result.push(char::from(bytes[i]));
+        i += 1;
+    }
+    result
+}
+
 fn make_twilio_signature(url: &str, form_body: &[u8], secret: &str) -> String {
     // Parse and sort form params — mirrors the production signing string builder.
     let body_str = std::str::from_utf8(form_body).unwrap_or("");
@@ -30,19 +52,19 @@ fn make_twilio_signature(url: &str, form_body: &[u8], secret: &str) -> String {
         // JSON or empty body: sign URL only.
         url.to_string()
     } else {
-        let mut params: Vec<(&str, &str)> = body_str
+        let mut params: Vec<(String, String)> = body_str
             .split('&')
             .filter_map(|pair| {
                 let mut kv = pair.splitn(2, '=');
                 let k = kv.next()?;
                 let v = kv.next().unwrap_or("");
-                Some((k, v))
+                Some((test_percent_decode(k), test_percent_decode(v)))
             })
             .collect();
-        params.sort_by_key(|(k, _)| *k);
+        params.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut s = url.to_string();
-        for (k, v) in params {
+        for (k, v) in &params {
             s.push_str(k);
             s.push_str(v);
         }

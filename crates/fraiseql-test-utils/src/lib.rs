@@ -48,7 +48,7 @@ pub use assertions::{
     assert_graphql_success, assert_has_data, assert_no_graphql_errors,
 };
 // Re-export database URL helper
-pub use db::database_url;
+pub use db::{database_url, try_database_url};
 // Re-export clock utilities for time-controlled testing
 pub use fraiseql_core::utils::clock::{Clock, ManualClock, SystemClock};
 // Re-export observer helpers

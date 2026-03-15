@@ -455,7 +455,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires PEM file on filesystem"]
     fn test_tls_config_builder_with_custom_ca() {
         // This test would require an actual PEM file
     }

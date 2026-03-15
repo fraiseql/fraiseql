@@ -9,8 +9,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_users_subgraph_query() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let response = graphql_query(USERS_SUBGRAPH_URL, "query { users { id identifier } }")
         .await
         .expect("Query should succeed");
@@ -37,8 +40,11 @@ async fn test_users_subgraph_query() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_orders_subgraph_query() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let response = graphql_query(ORDERS_SUBGRAPH_URL, "query { orders { id status total } }")
         .await
         .expect("Query should succeed");
@@ -59,8 +65,11 @@ async fn test_orders_subgraph_query() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_products_subgraph_query() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let response = graphql_query(PRODUCTS_SUBGRAPH_URL, "query { products { id name price } }")
         .await
         .expect("Query should succeed");
@@ -85,8 +94,11 @@ async fn test_products_subgraph_query() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_simple_query() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let response = graphql_query(APOLLO_GATEWAY_URL, "query { users { id identifier } }")
         .await
         .expect("Query should succeed");
@@ -107,8 +119,11 @@ async fn test_gateway_simple_query() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_direct_subgraph_queries() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     // Test 1: Query users directly from users subgraph

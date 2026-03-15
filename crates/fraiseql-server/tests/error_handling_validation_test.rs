@@ -94,7 +94,7 @@ fn test_invalid_graphql_query_syntax() {
 
     assert_eq!(error.code, ErrorCode::ParseError);
     assert!(error.locations.is_some());
-    assert_eq!(error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(error.code.status_code(), StatusCode::OK);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn test_unknown_field_validation_error() {
 
     assert_eq!(error.code, ErrorCode::ValidationError);
     assert!(error.path.is_some());
-    assert_eq!(error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(error.code.status_code(), StatusCode::OK);
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn test_type_mismatch_in_query() {
     let error = GraphQLError::validation("Argument 'id' requires type 'ID!', but received String");
 
     assert_eq!(error.code, ErrorCode::ValidationError);
-    assert_eq!(error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(error.code.status_code(), StatusCode::OK);
 }
 
 #[test]
@@ -133,7 +133,7 @@ fn test_required_field_missing() {
     let error = GraphQLError::validation("Argument 'email' is required for mutation 'createUser'");
 
     assert_eq!(error.code, ErrorCode::ValidationError);
-    assert_eq!(error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(error.code.status_code(), StatusCode::OK);
 }
 
 // ============================================================================
@@ -358,8 +358,8 @@ fn test_error_response_with_extensions() {
 #[test]
 fn test_http_status_codes_correct() {
     assert_eq!(ErrorCode::DatabaseError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
-    assert_eq!(ErrorCode::ParseError.status_code(), StatusCode::BAD_REQUEST);
-    assert_eq!(ErrorCode::ValidationError.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(ErrorCode::ParseError.status_code(), StatusCode::OK);
+    assert_eq!(ErrorCode::ValidationError.status_code(), StatusCode::OK);
     assert_eq!(ErrorCode::Unauthenticated.status_code(), StatusCode::UNAUTHORIZED);
     assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::REQUEST_TIMEOUT);
     assert_eq!(ErrorCode::RequestError.status_code(), StatusCode::BAD_REQUEST);

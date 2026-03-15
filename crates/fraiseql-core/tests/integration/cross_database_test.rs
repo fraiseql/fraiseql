@@ -3,9 +3,9 @@
 //! Validates that equivalent queries produce semantically equivalent results
 //! across PostgreSQL and MySQL adapters using real database containers.
 //!
-//! All tests are `#[ignore]` and require Docker. Run with:
+//! Tests require Docker and skip automatically unless `FEDERATION_TESTS` is set.
 //! ```bash
-//! cargo nextest run --test cross_database_test --run-ignored \
+//! FEDERATION_TESTS=1 cargo nextest run --test cross_database_test \
 //!     --features test-mysql,test-postgres
 //! ```
 //!
@@ -135,8 +135,11 @@ async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
 async fn same_query_returns_same_fields_on_pg_and_mysql() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let (pg, _pg_c) = setup_postgres().await;
     let (my, _my_c) = setup_mysql().await;
 
@@ -177,8 +180,11 @@ async fn same_query_returns_same_fields_on_pg_and_mysql() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
 async fn where_eq_operator_returns_same_results_on_pg_and_mysql() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let (pg, _pg_c) = setup_postgres().await;
     let (my, _my_c) = setup_mysql().await;
 
@@ -214,8 +220,11 @@ async fn where_eq_operator_returns_same_results_on_pg_and_mysql() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
 async fn where_gte_operator_returns_same_count_on_pg_and_mysql() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let (pg, _pg_c) = setup_postgres().await;
     let (my, _my_c) = setup_mysql().await;
 
@@ -248,8 +257,11 @@ async fn where_gte_operator_returns_same_count_on_pg_and_mysql() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
 async fn null_fields_represented_identically_across_adapters() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let (pg, _pg_c) = setup_postgres().await;
     let (my, _my_c) = setup_mysql().await;
 
@@ -285,8 +297,11 @@ async fn null_fields_represented_identically_across_adapters() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
 async fn limit_is_respected_consistently_across_adapters() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let (pg, _pg_c) = setup_postgres().await;
     let (my, _my_c) = setup_mysql().await;
 

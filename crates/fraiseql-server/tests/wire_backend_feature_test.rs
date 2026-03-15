@@ -71,9 +71,10 @@ mod postgres_adapter_tests {
     /// Test PostgreSQL adapter initialization without wire-backend feature.
     #[tokio::test]
     async fn test_postgres_adapter_initialization_default() {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-        });
+        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        };
 
         let adapter = PostgresAdapter::new(&db_url).await;
         assert!(adapter.is_ok(), "PostgresAdapter initialization failed: {:?}", adapter.err());
@@ -82,9 +83,10 @@ mod postgres_adapter_tests {
     /// Test PostgreSQL adapter with pool configuration (default feature).
     #[tokio::test]
     async fn test_postgres_adapter_with_pool_config_default() {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-        });
+        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        };
 
         let adapter = PostgresAdapter::with_pool_config(&db_url, 5, 20).await;
         assert!(adapter.is_ok(), "PostgresAdapter with pool config failed: {:?}", adapter.err());
@@ -174,9 +176,10 @@ async fn test_feature_gated_main_initialization_postgres() {
     // This test verifies the main.rs feature gates work correctly for PostgreSQL.
     // We test the adapter initialization logic that's gated in main.rs.
 
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-    });
+    let Ok(db_url) = std::env::var("DATABASE_URL") else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
 
     // Verify PostgreSQL initialization code path
     use fraiseql_core::db::PostgresAdapter;

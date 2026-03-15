@@ -58,7 +58,7 @@ fn test_example_basic_error_handling() {
     // Assertions match documentation
     assert_eq!(error.code, ErrorCode::ValidationError);
     assert_eq!(error.message, "Field 'email' is required for mutation 'createUser'");
-    assert_eq!(error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(error.code.status_code(), StatusCode::OK);
 }
 
 // ============================================================================
@@ -236,11 +236,11 @@ fn test_example_error_code_status_mapping() {
     let mappings = [
         ErrorMapping {
             code:   ErrorCode::ValidationError,
-            status: StatusCode::BAD_REQUEST,
+            status: StatusCode::OK,
         },
         ErrorMapping {
             code:   ErrorCode::ParseError,
-            status: StatusCode::BAD_REQUEST,
+            status: StatusCode::OK,
         },
         ErrorMapping {
             code:   ErrorCode::RequestError,
@@ -400,8 +400,8 @@ fn test_example_error_recovery_patterns() {
     {
         let error = GraphQLError::validation("Invalid field type");
         let status = error.code.status_code();
-        // Validation errors should not be retried
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        // Validation errors should not be retried (200 per GraphQL-over-HTTP spec)
+        assert_eq!(status, StatusCode::OK);
     }
 
     // Non-retryable error (authorization)
@@ -444,7 +444,7 @@ fn test_example_resolver_error_handling() {
         .with_request_id("req-resolver-001");
 
     assert_eq!(validation_error.code, ErrorCode::ValidationError);
-    assert_eq!(validation_error.code.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(validation_error.code.status_code(), StatusCode::OK);
 }
 
 // ============================================================================

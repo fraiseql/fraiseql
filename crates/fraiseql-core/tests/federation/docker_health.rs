@@ -9,40 +9,55 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_users_subgraph_health() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     if let Err(e) = wait_for_service(USERS_SUBGRAPH_URL, 30).await {
         panic!("Users subgraph health check failed: {}", e);
     }
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_orders_subgraph_health() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     if let Err(e) = wait_for_service(ORDERS_SUBGRAPH_URL, 30).await {
         panic!("Orders subgraph health check failed: {}", e);
     }
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_products_subgraph_health() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     if let Err(e) = wait_for_service(PRODUCTS_SUBGRAPH_URL, 30).await {
         panic!("Products subgraph health check failed: {}", e);
     }
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_health() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     if let Err(e) = wait_for_service(APOLLO_GATEWAY_URL, 30).await {
         panic!("Apollo Router health check failed: {}", e);
     }
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_schema_composition_sdl() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     // Wait for gateway to be ready
     wait_for_service(APOLLO_GATEWAY_URL, 30).await.expect("Gateway should be ready");
 
@@ -69,8 +84,11 @@ async fn test_apollo_router_schema_composition_sdl() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_setup_validation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     // Validate that 2-subgraph setup is working
     if let Err(e) = setup_federation_tests().await {
         panic!("2-subgraph federation setup failed: {}", e);

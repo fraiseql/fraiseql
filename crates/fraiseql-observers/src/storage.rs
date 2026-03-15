@@ -245,8 +245,11 @@ pub mod postgres {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[ignore = "Requires PostgreSQL connection"]
     async fn test_postgres_query_events() {
+        if std::env::var("DATABASE_URL").is_err() {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        }
         // This test would require a test database setup
         // Skipping for now - integration tests will cover this
     }

@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_setup_validation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key environment setup validation ---");
@@ -32,8 +35,11 @@ async fn test_composite_key_setup_validation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_single_field_federation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Single field composite key (baseline) ---");
@@ -72,8 +78,11 @@ async fn test_composite_key_single_field_federation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_multi_field_resolution() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Multi-field composite key resolution ---");
@@ -117,8 +126,11 @@ async fn test_composite_key_multi_field_resolution() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_tenant_isolation_with_composite_keys() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Tenant isolation with composite keys ---");
@@ -147,8 +159,11 @@ async fn test_tenant_isolation_with_composite_keys() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_entity_batch_resolution() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch entity resolution with composite keys ---");
@@ -186,8 +201,11 @@ async fn test_composite_key_entity_batch_resolution() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_federation_across_boundaries() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key federation across subgraph boundaries ---");
@@ -252,8 +270,11 @@ async fn test_composite_key_federation_across_boundaries() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_gateway_resolution() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key resolution through gateway ---");

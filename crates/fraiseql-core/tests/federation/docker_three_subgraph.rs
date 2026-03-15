@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_setup_validation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     println!("\n--- Test: 3-subgraph setup validation ---");
 
     let result = setup_three_subgraph_tests().await;
@@ -34,8 +37,11 @@ async fn test_three_subgraph_setup_validation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_direct_queries() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Direct queries to products subgraph ---");
@@ -68,8 +74,11 @@ async fn test_three_subgraph_direct_queries() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_order_with_products() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Orders with products field (2-hop) ---");
@@ -105,8 +114,11 @@ async fn test_three_subgraph_order_with_products() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_federation_users_orders_products() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: 3-hop federation query (users -> orders -> products) ---");
@@ -165,8 +177,11 @@ async fn test_three_subgraph_federation_users_orders_products() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_entity_resolution_chain() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Entity resolution chain across 3 subgraphs ---");
@@ -238,8 +253,11 @@ async fn test_three_subgraph_entity_resolution_chain() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_cross_boundary_federation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Cross-boundary federation (multi-level extends) ---");
@@ -272,8 +290,11 @@ async fn test_three_subgraph_cross_boundary_federation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_mutation_propagation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation propagation across 3 subgraphs ---");

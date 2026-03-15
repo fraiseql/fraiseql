@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_user_from_authoritative_subgraph() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Direct user mutation in authoritative subgraph ---");
@@ -50,8 +53,11 @@ async fn test_extended_mutation_user_from_authoritative_subgraph() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_update_user_from_extended_subgraph() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Update user mutation from extended subgraph (HTTP propagation) ---");
@@ -111,8 +117,11 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_create_order_with_user_reference() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Create order with user reference (entity linking) ---");
@@ -179,8 +188,11 @@ async fn test_extended_mutation_create_order_with_user_reference() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_error_handling() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Error handling in extended mutations ---");
@@ -219,8 +231,11 @@ async fn test_extended_mutation_error_handling() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_data_consistency_after_mutation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Data consistency after extended mutations ---");
@@ -292,8 +307,11 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_through_gateway() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation through gateway (federated mutation) ---");
@@ -344,8 +362,11 @@ async fn test_extended_mutation_through_gateway() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_mutation_with_isolation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation with composite key tenant isolation ---");

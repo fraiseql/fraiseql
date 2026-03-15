@@ -9,8 +9,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_user_entity_resolution() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     // Query users to get IDs
     let users_response = graphql_query(USERS_SUBGRAPH_URL, "query { users(limit: 1) { id } }")
         .await
@@ -51,8 +54,11 @@ async fn test_user_entity_resolution() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_invalid_query_error_handling() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let response = graphql_query(APOLLO_GATEWAY_URL, "query { invalidField { subfield } }")
         .await
         .expect("Request should complete even with invalid query");

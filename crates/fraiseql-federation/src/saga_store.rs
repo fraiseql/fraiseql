@@ -977,8 +977,11 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL database"]
     async fn test_postgres_connection() {
+        if std::env::var("DATABASE_URL").is_err() {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        }
         // Use SAGA_STORE_TEST_URL (postgres-specific) so this test is unaffected
         // when the suite is invoked with DATABASE_URL pointing to MySQL/SQL Server.
         let url = std::env::var("SAGA_STORE_TEST_URL").unwrap_or_else(|_| {

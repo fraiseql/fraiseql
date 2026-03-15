@@ -5,13 +5,12 @@
 //!
 //! # Running
 //!
-//! All tests are `#[ignore]` by default because they require Docker
-//! (testcontainers pulls PostgreSQL and/or Apollo Router images).
+//! Tests requiring Docker are guarded by the `FEDERATION_TESTS` environment
+//! variable and skip automatically when it is not set.
 //!
 //! ```sh
 //! # Run all federation integration tests (Docker must be available):
-//! cargo nextest run -p fraiseql-server --test federation_integration_test \
-//!   -- --include-ignored
+//! FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server --test federation_integration_test
 //! ```
 //!
 //! **Execution engine:** real FraiseQL executor
@@ -42,6 +41,7 @@ fn user_schema_with_federation() -> CompiledSchema {
             {
                 "name": "User",
                 "table": "\"user\"",
+                "sql_source": "v_user",
                 "fields": [
                     {"name": "id",   "field_type": "ID",     "nullable": false},
                     {"name": "name", "field_type": "String", "nullable": false}
@@ -106,7 +106,6 @@ async fn setup_users_table(port: u16) -> tokio_postgres::Client {
 ///
 /// Does NOT require Docker — uses `FailingAdapter` (no DB needed for SDL generation).
 #[tokio::test]
-#[ignore = "requires Docker (testcontainers)"]
 async fn service_sdl_contains_federation_directives() {
     let schema = user_schema_with_federation();
     let adapter = Arc::new(FailingAdapter::new());
@@ -141,8 +140,11 @@ async fn service_sdl_contains_federation_directives() {
 
 /// `_entities` resolves a `User` entity by ID from a real PostgreSQL database.
 #[tokio::test]
-#[ignore = "requires Docker (testcontainers pulls postgres image)"]
 async fn entities_resolves_user_by_id() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let pg = Postgres::default()
         .with_user("testuser")
         .with_password("testpw")
@@ -196,9 +198,13 @@ async fn entities_resolves_user_by_id() {
 /// Uses Linux host networking (`--network host`) so the Router container can
 /// reach the FraiseQL server on 127.0.0.1.
 #[tokio::test]
-#[ignore = "requires Docker (testcontainers pulls Apollo Router image + postgres)"]
 async fn apollo_router_routes_query_to_fraiseql_subgraph() {
     use testcontainers::{GenericImage, ImageExt as _, core::WaitFor};
+
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
 
     // Start PostgreSQL
     let pg = Postgres::default()
@@ -269,7 +275,6 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
 /// which the resolver maps to `null` for the missing entity.
 /// No Docker or real database required.
 #[tokio::test]
-#[ignore = "requires Docker (testcontainers)"]
 async fn entities_returns_null_for_missing_entity() {
     let schema = user_schema_with_federation();
     let adapter = Arc::new(FailingAdapter::new());
@@ -279,9 +284,9 @@ async fn entities_returns_null_for_missing_entity() {
     let resp = http
         .post(format!("{}/graphql", server.url))
         .json(&json!({
-            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id } } }",
+            "query": "query($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { id } } }",
             "variables": {
-                "repr": [{"__typename": "User", "id": "00000000-0000-0000-0000-000000000000"}]
+                "representations": [{"__typename": "User", "id": "00000000-0000-0000-0000-000000000000"}]
             }
         }))
         .send()

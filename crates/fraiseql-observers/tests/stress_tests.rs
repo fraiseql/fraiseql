@@ -25,7 +25,7 @@ mod stress_tests {
     /// Simulates 1000 events/second for 60 seconds
     /// Verifies: throughput, latency distribution, no memory leaks
     #[tokio::test]
-    #[ignore = "stress test - run with: cargo test --test stress_tests -- --ignored"]
+    #[ignore = "long-running stress test (60s+), run manually"]
     async fn stress_test_high_throughput() {
         let event_count = Arc::new(AtomicU64::new(0));
         let error_count = Arc::new(AtomicU64::new(0));
@@ -99,7 +99,6 @@ mod stress_tests {
     ///
     /// Verifies system can handle large event payloads without crashing
     #[tokio::test]
-    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_large_events() {
         let sizes = vec![
             1024,       // 1 KB
@@ -134,7 +133,6 @@ mod stress_tests {
     ///
     /// Verifies thread safety and no race conditions
     #[tokio::test]
-    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_concurrent_access() {
         let counter = Arc::new(AtomicU64::new(0));
         let mut handles = vec![];
@@ -172,7 +170,6 @@ mod stress_tests {
     ///
     /// Verifies system recovers gracefully from failures
     #[tokio::test]
-    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_error_recovery() {
         let success_count = Arc::new(AtomicU64::new(0));
         let failure_count = Arc::new(AtomicU64::new(0));
@@ -216,7 +213,6 @@ mod stress_tests {
     ///
     /// Verifies no memory leaks over extended period
     #[tokio::test]
-    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_memory_stability() {
         println!("\n=== Memory Stability Stress Test ===");
 

@@ -35,11 +35,19 @@ use std::{
 
 use test_helpers::*;
 
+/// Get base URL for load tests. Uses `FRAISEQL_TEST_URL` or defaults to `http://localhost:8000`.
+fn get_load_test_url() -> Option<String> {
+    std::env::var("FRAISEQL_TEST_URL").ok()
+}
+
 /// Test 10 concurrent requests to health endpoint
 #[tokio::test]
 async fn test_10_concurrent_health_requests() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let success_count = Arc::new(AtomicU64::new(0));
 
     let futures: Vec<_> = (0..10)
@@ -71,8 +79,11 @@ async fn test_10_concurrent_health_requests() {
 /// Test 50 concurrent GraphQL queries
 #[tokio::test]
 async fn test_50_concurrent_graphql_queries() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let success_count = Arc::new(AtomicU64::new(0));
     let error_count = Arc::new(AtomicU64::new(0));
 
@@ -124,14 +135,18 @@ async fn test_50_concurrent_graphql_queries() {
 /// Test 100 concurrent requests with varying endpoints
 #[tokio::test]
 async fn test_100_concurrent_mixed_endpoints() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let success_count = Arc::new(AtomicU64::new(0));
 
     let futures: Vec<_> = (0..100)
         .map(|i| {
             let client = client.clone();
             let success = success_count.clone();
+            let base_url = base_url.clone();
 
             async move {
                 let result = match i % 3 {
@@ -170,8 +185,11 @@ async fn test_100_concurrent_mixed_endpoints() {
 /// Test throughput of health endpoint
 #[tokio::test]
 async fn test_health_endpoint_throughput() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
 
     let start = Instant::now();
     let mut count = 0u64;
@@ -193,8 +211,11 @@ async fn test_health_endpoint_throughput() {
 /// Test latency distribution under load
 #[tokio::test]
 async fn test_latency_distribution() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let latencies = Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
     let futures: Vec<_> = (0..20)
@@ -232,8 +253,11 @@ async fn test_latency_distribution() {
 /// Test sustained load for 10 seconds
 #[tokio::test]
 async fn test_sustained_load() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let request_count = Arc::new(AtomicU64::new(0));
     let start = Instant::now();
 
@@ -241,6 +265,7 @@ async fn test_sustained_load() {
         .map(|_| {
             let client = client.clone();
             let count = request_count.clone();
+            let base_url = base_url.clone();
 
             async move {
                 let start = Instant::now();
@@ -279,8 +304,11 @@ async fn test_sustained_load() {
 /// Test error handling under concurrent load
 #[tokio::test]
 async fn test_error_handling_under_load() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let success_count = Arc::new(AtomicU64::new(0));
     let error_count = Arc::new(AtomicU64::new(0));
 
@@ -289,6 +317,7 @@ async fn test_error_handling_under_load() {
             let client = client.clone();
             let success = success_count.clone();
             let errors = error_count.clone();
+            let base_url = base_url.clone();
 
             async move {
                 let request = if i % 2 == 0 {
@@ -328,10 +357,12 @@ async fn test_error_handling_under_load() {
 
 /// Test connection pool behavior under load
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_connection_pool_stability() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let slow_requests = Arc::new(AtomicU64::new(0));
     let fast_requests = Arc::new(AtomicU64::new(0));
     let slow_threshold_ms = 100u128;
@@ -386,8 +417,11 @@ async fn test_connection_pool_stability() {
 /// Test graceful degradation under extreme load
 #[tokio::test]
 async fn test_extreme_concurrent_load() {
+    let Some(base_url) = get_load_test_url() else {
+        eprintln!("skipped: FRAISEQL_TEST_URL not set");
+        return;
+    };
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
     let success_count = Arc::new(AtomicU64::new(0));
 
     // Try 200 concurrent requests

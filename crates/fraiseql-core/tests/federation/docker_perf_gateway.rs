@@ -13,8 +13,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_performance_baseline() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query performance baseline ---");
@@ -78,8 +81,11 @@ async fn test_federation_query_performance_baseline() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_repeated_query_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Repeated federation query performance ---");
@@ -132,8 +138,11 @@ async fn test_federation_repeated_query_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_batch_vs_sequential_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch vs sequential entity resolution performance ---");
@@ -207,8 +216,11 @@ async fn test_federation_batch_vs_sequential_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_large_result_set_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Large result set federation performance ---");
@@ -273,8 +285,11 @@ async fn test_federation_large_result_set_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_complexity_scaling() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query complexity scaling ---");
@@ -340,8 +355,11 @@ async fn test_federation_query_complexity_scaling() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_concurrent_query_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Concurrent federation query performance ---");
@@ -386,8 +404,11 @@ async fn test_federation_concurrent_query_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_mutation_impact_on_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation impact on federation query performance ---");
@@ -432,8 +453,11 @@ async fn test_federation_mutation_impact_on_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_different_query_patterns_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Different query patterns performance comparison ---");

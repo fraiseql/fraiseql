@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_discovers_subgraphs() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router discovers all 3 subgraphs ---");
@@ -65,8 +68,11 @@ async fn test_apollo_router_discovers_subgraphs() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_schema_composition() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router schema composition ---");
@@ -124,8 +130,11 @@ async fn test_apollo_router_schema_composition() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_sdl_completeness() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router SDL completeness ---");
@@ -180,8 +189,11 @@ async fn test_apollo_router_sdl_completeness() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_federation_directives() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router federation directives ---");
@@ -231,8 +243,11 @@ async fn test_apollo_router_federation_directives() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_query_routing() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router query routing ---");
@@ -305,8 +320,11 @@ async fn test_apollo_router_query_routing() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_error_handling() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router error handling ---");

@@ -81,7 +81,6 @@ async fn setup_raw_connection(db_url: &str) -> tokio_postgres::Client {
 /// - `TEST_DATABASE_URL` environment variable pointing to a PostgreSQL instance
 /// - The test user must have privileges to enable RLS and create policies
 #[tokio::test]
-#[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_cache_does_not_leak_across_tenant_boundaries() {
     let db_url = if let Some(url) = test_db_url() {
         url
@@ -189,7 +188,6 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 ///
 /// This test uses the same fixture as above but toggled on/off.
 #[tokio::test]
-#[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_validate_rls_active_fails_without_rls() {
     let db_url = if let Some(url) = test_db_url() {
         url
@@ -216,7 +214,6 @@ async fn test_validate_rls_active_fails_without_rls() {
 
 /// Verifies `enforce_rls()` with `RlsEnforcement::Off` never errors.
 #[tokio::test]
-#[ignore = "requires PostgreSQL (set TEST_DATABASE_URL)"]
 async fn test_enforce_rls_off_skips_check() {
     let db_url = if let Some(url) = test_db_url() {
         url

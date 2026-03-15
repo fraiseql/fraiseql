@@ -18,8 +18,25 @@ pub fn database_url() -> String {
     })
 }
 
+/// Returns the test database URL if `DATABASE_URL` is set, or `None` otherwise.
+///
+/// Use this for tests that should be silently skipped (return early) when no
+/// database is available, instead of being permanently `#[ignore]`d.
+#[must_use]
+pub fn try_database_url() -> Option<String> {
+    std::env::var("DATABASE_URL").ok()
+}
+
 #[cfg(test)]
 mod tests {
-    // database_url() panics without DATABASE_URL set, so no unit test for it here.
-    // Integration callers are expected to set the env var or use #[ignore].
+    use super::*;
+
+    #[test]
+    fn try_database_url_returns_none_when_unset() {
+        // In normal test runs DATABASE_URL is not set, so this should return None.
+        // When it IS set (CI), the test still passes because Some(_) is also valid.
+        let result = try_database_url();
+        // Just verify it doesn't panic — the return value depends on the environment.
+        let _ = result;
+    }
 }

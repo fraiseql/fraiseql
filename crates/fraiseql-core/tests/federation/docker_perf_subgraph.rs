@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_federation_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query performance ---");
@@ -64,8 +67,11 @@ async fn test_two_subgraph_federation_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     let start = std::time::Instant::now();
 
     let _response = graphql_query(
@@ -94,8 +100,11 @@ async fn test_federation_query_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation performance ---");
@@ -138,8 +147,11 @@ async fn test_extended_mutation_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key resolution performance ---");
@@ -184,8 +196,11 @@ async fn test_composite_key_performance() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_batch_entity_resolution() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch entity resolution at scale ---");
@@ -231,8 +246,11 @@ async fn test_three_subgraph_batch_entity_resolution() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_gateway_composition() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router gateway composition ---");
@@ -286,8 +304,11 @@ async fn test_three_subgraph_gateway_composition() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_performance() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: 3-hop federation performance ---");

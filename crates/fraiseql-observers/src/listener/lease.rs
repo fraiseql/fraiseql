@@ -666,9 +666,11 @@ mod tests {
 
     #[cfg(feature = "postgres")]
     #[tokio::test]
-    #[ignore = "requires a running PostgreSQL instance (DATABASE_URL env var)"]
     async fn test_postgres_advisory_acquire_release() {
-        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let Ok(url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        };
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
 
         let lease = CheckpointLease::postgres(pool, "pg-listener-1".to_string(), 99_999);
@@ -686,9 +688,11 @@ mod tests {
 
     #[cfg(feature = "postgres")]
     #[tokio::test]
-    #[ignore = "requires a running PostgreSQL instance (DATABASE_URL env var)"]
     async fn test_postgres_advisory_contention() {
-        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let Ok(url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return;
+        };
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
 
         let lease_a = CheckpointLease::postgres(pool.clone(), "pg-a".to_string(), 88_888);
@@ -709,9 +713,11 @@ mod tests {
 
     #[cfg(feature = "redis-lease")]
     #[tokio::test]
-    #[ignore = "requires a running Redis instance (REDIS_URL env var)"]
     async fn test_redis_advisory_acquire_release() {
-        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+        let Ok(url) = std::env::var("REDIS_URL") else {
+            eprintln!("Skipping: REDIS_URL not set");
+            return;
+        };
         let client = redis::Client::open(url).unwrap();
         let conn = redis::aio::ConnectionManager::new(client).await.unwrap();
 
@@ -731,9 +737,11 @@ mod tests {
 
     #[cfg(feature = "redis-lease")]
     #[tokio::test]
-    #[ignore = "requires a running Redis instance (REDIS_URL env var)"]
     async fn test_redis_advisory_contention() {
-        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+        let Ok(url) = std::env::var("REDIS_URL") else {
+            eprintln!("Skipping: REDIS_URL not set");
+            return;
+        };
         let client = redis::Client::open(url).unwrap();
         let conn_a = redis::aio::ConnectionManager::new(client.clone()).await.unwrap();
         let conn_b = redis::aio::ConnectionManager::new(client).await.unwrap();

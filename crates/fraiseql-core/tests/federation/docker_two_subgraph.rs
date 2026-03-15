@@ -10,8 +10,11 @@ use super::common::*;
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_two_subgraph_federation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     // Query users with their orders (2-hop federation: gateway -> users -> orders)
     let query = r"
         query {
@@ -52,8 +55,11 @@ async fn test_gateway_two_subgraph_federation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_three_subgraph_federation() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     // Query users with their orders and order products (3-hop federation)
     let query = r"
         query {
@@ -91,8 +97,11 @@ async fn test_gateway_three_subgraph_federation() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_http_federation_from_orders() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Query orders with extended User fields (HTTP federation) ---");
@@ -145,8 +154,11 @@ async fn test_two_subgraph_http_federation_from_orders() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_federation_through_gateway() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federated query through Apollo Router gateway ---");
@@ -197,8 +209,11 @@ async fn test_two_subgraph_federation_through_gateway() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_entity_resolution_consistency() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Entity resolution consistency across subgraphs ---");
@@ -253,8 +268,11 @@ async fn test_two_subgraph_entity_resolution_consistency() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_data_consistency() {
+    if std::env::var("FEDERATION_TESTS").is_err() {
+        eprintln!("Skipping: FEDERATION_TESTS not set");
+        return;
+    }
     setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Data consistency between direct and federated queries ---");

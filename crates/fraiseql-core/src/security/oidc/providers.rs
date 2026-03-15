@@ -228,7 +228,7 @@ impl OidcConfig {
     ///
     /// Returns `SecurityError::SecurityConfigError` if:
     /// - Issuer is empty
-    /// - Issuer does not use HTTPS (except localhost)
+    /// - Issuer does not use HTTPS (except localhost/127.0.0.1)
     /// - Neither `audience` nor `additional_audiences` are configured
     /// - No algorithms are allowed
     pub fn validate(&self) -> Result<()> {
@@ -238,9 +238,13 @@ impl OidcConfig {
             ));
         }
 
-        if !self.issuer.starts_with("https://") && !self.issuer.starts_with("http://localhost") {
+        if !self.issuer.starts_with("https://")
+            && !self.issuer.starts_with("http://localhost")
+            && !self.issuer.starts_with("http://127.0.0.1")
+        {
             return Err(SecurityError::SecurityConfigError(
-                "OIDC issuer must use HTTPS (except localhost for development)".to_string(),
+                "OIDC issuer must use HTTPS (except localhost/127.0.0.1 for development)"
+                    .to_string(),
             ));
         }
 
