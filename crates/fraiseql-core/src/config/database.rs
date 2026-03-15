@@ -26,6 +26,9 @@ pub struct DatabaseConfig {
 
     /// Enable SSL for database connections.
     pub ssl_mode: SslMode,
+
+    /// Mutation timing configuration.
+    pub mutation_timing: MutationTimingConfig,
 }
 
 impl Default for DatabaseConfig {
@@ -38,6 +41,35 @@ impl Default for DatabaseConfig {
             query_timeout_secs:   30,
             idle_timeout_secs:    600,
             ssl_mode:             SslMode::Prefer,
+            mutation_timing:      MutationTimingConfig::default(),
+        }
+    }
+}
+
+/// Mutation timing configuration.
+///
+/// When enabled, the adapter injects `SET LOCAL <variable_name> = clock_timestamp()::text`
+/// before each mutation function call, allowing SQL functions to compute their own
+/// execution duration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MutationTimingConfig {
+    /// Whether mutation timing is enabled.
+    pub enabled: bool,
+
+    /// The PostgreSQL session variable name to set.
+    #[serde(default = "default_timing_variable")]
+    pub variable_name: String,
+}
+
+fn default_timing_variable() -> String {
+    "fraiseql.started_at".to_string()
+}
+
+impl Default for MutationTimingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            variable_name: default_timing_variable(),
         }
     }
 }

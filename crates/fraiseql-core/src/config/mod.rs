@@ -56,7 +56,7 @@ mod server;
 pub use auth::{AuthConfig, AuthProvider};
 pub use cache::CacheConfig;
 pub use cors::CorsConfig;
-pub use database::{DatabaseConfig, SslMode};
+pub use database::{DatabaseConfig, MutationTimingConfig, SslMode};
 // =============================================================================
 // Collation Configuration — re-exported from fraiseql-db
 // =============================================================================
@@ -906,6 +906,53 @@ on_invalid_locale = "{}"
             let config = FraiseQLConfig::from_toml(&toml).unwrap();
             assert_eq!(config.collation.on_invalid_locale, expected);
         }
+    }
+
+    #[test]
+    fn test_mutation_timing_default_disabled() {
+        let config = FraiseQLConfig::default();
+        assert!(!config.database.mutation_timing.enabled);
+        assert_eq!(config.database.mutation_timing.variable_name, "fraiseql.started_at");
+    }
+
+    #[test]
+    fn test_mutation_timing_from_toml() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[database.mutation_timing]
+enabled = true
+variable_name = "app.started_at"
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+        assert!(config.database.mutation_timing.enabled);
+        assert_eq!(config.database.mutation_timing.variable_name, "app.started_at");
+    }
+
+    #[test]
+    fn test_mutation_timing_from_toml_default_variable() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[database.mutation_timing]
+enabled = true
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+        assert!(config.database.mutation_timing.enabled);
+        assert_eq!(config.database.mutation_timing.variable_name, "fraiseql.started_at");
+    }
+
+    #[test]
+    fn test_mutation_timing_absent_uses_defaults() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+        assert!(!config.database.mutation_timing.enabled);
+        assert_eq!(config.database.mutation_timing.variable_name, "fraiseql.started_at");
     }
 
     #[test]
