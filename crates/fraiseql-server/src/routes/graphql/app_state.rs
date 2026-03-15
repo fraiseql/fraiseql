@@ -63,6 +63,10 @@ pub struct AppState<A: DatabaseAdapter> {
     pub max_get_query_bytes:   usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
     pub pool_tuner:            Option<Arc<crate::pool::PoolSizingAdvisor>>,
+    /// Observer runtime handle for health probes (optional, requires `observers` feature).
+    #[cfg(feature = "observers")]
+    pub observer_runtime:
+        Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -94,6 +98,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
             pool_tuner: None,
+            #[cfg(feature = "observers")]
+            observer_runtime: None,
             max_get_query_bytes: 100_000,
         }
     }
@@ -254,6 +260,17 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolSizingAdvisor>) -> Self {
         self.pool_tuner = Some(tuner);
+        self
+    }
+
+    /// Attach observer runtime for health probes.
+    #[cfg(feature = "observers")]
+    #[must_use]
+    pub fn with_observer_runtime(
+        mut self,
+        runtime: Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>,
+    ) -> Self {
+        self.observer_runtime = Some(runtime);
         self
     }
 

@@ -177,12 +177,32 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         subgraphs:  cb.health_snapshot(),
     });
 
+    // Probe observer health when the runtime is attached to AppState.
+    #[cfg(feature = "observers")]
+    let observers = if let Some(ref runtime) = state.observer_runtime {
+        let rt = runtime.read().await;
+        let health = rt.health();
+        Some(ObserverHealth {
+            running:        health.running,
+            pending_events: health.events_processed as usize,
+            last_error:     if health.errors > 0 {
+                Some(format!("{} errors encountered", health.errors))
+            } else {
+                None
+            },
+        })
+    } else {
+        None
+    };
+    #[cfg(not(feature = "observers"))]
+    let observers: Option<ObserverHealth> = None;
+
     let response = HealthResponse {
         status: status.to_string(),
         database,
-        observers: None, // Populated when observer health probe is wired into AppState
-        cache: None,     // Populated when Redis cache probe is wired into AppState
-        secrets: None,   // Populated when Vault probe is wired into AppState
+        observers,
+        cache: None,   // Populated when Redis cache probe is wired into AppState
+        secrets: None, // Populated when Vault probe is wired into AppState
         federation,
         version: env!("CARGO_PKG_VERSION").to_string(),
         schema_hash,

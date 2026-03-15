@@ -49,6 +49,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("Federation circuit breaker attached to AppState");
         }
 
+        // Attach observer runtime for health probes
+        #[cfg(feature = "observers")]
+        if let Some(ref runtime) = self.observer_runtime {
+            state = state.with_observer_runtime(runtime.clone());
+            info!("Observer runtime attached to AppState for health probes");
+        }
+
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
