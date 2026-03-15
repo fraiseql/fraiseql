@@ -23,8 +23,7 @@ fn test_mutation_extended_entity_requires_resolution() {
         runtime.block_on(executor.execute_extended_mutation("Order", "updateOrder", &variables));
 
     // Extended mutation returns entity representation
-    assert!(result.is_ok());
-    let response = result.unwrap();
+    let response = result.unwrap_or_else(|e| panic!("execute_extended_mutation(Order/updateOrder) failed: {e}"));
     assert_eq!(response["__typename"], "Order");
 }
 
@@ -44,8 +43,7 @@ fn test_mutation_extended_entity_propagates_to_owner() {
     let result =
         runtime.block_on(executor.execute_extended_mutation("User", "verifyUser", &variables));
 
-    assert!(result.is_ok());
-    let response = result.unwrap();
+    let response = result.unwrap_or_else(|e| panic!("execute_extended_mutation(User/verifyUser) failed: {e}"));
     assert_eq!(response["__typename"], "User");
 }
 
@@ -65,7 +63,7 @@ fn test_mutation_extended_entity_partial_fields() {
     let result =
         runtime.block_on(executor.execute_extended_mutation("Product", "updatePrice", &variables));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(Product/updatePrice) failed: {e}"));
 }
 
 #[test]
@@ -84,7 +82,7 @@ fn test_mutation_extended_entity_cross_subgraph() {
     let result =
         runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(Review/updateReview) failed: {e}"));
 }
 
 #[test]
@@ -107,7 +105,7 @@ fn test_mutation_extended_entity_with_external_fields() {
         &variables,
     ));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(OrderItem/updateQuantity) failed: {e}"));
 }
 
 #[test]
@@ -129,7 +127,7 @@ fn test_mutation_extended_entity_reference_tracking() {
         &variables,
     ));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(UserProfile/updateProfile) failed: {e}"));
 }
 
 #[test]
@@ -151,7 +149,7 @@ fn test_mutation_extended_entity_cascade_updates() {
         &variables,
     ));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(Organization/updateOrganization) failed: {e}"));
 }
 
 #[test]
@@ -174,5 +172,5 @@ fn test_mutation_extended_entity_conflict_resolution() {
         &variables,
     ));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_extended_mutation(SharedResource/updateResource) failed: {e}"));
 }

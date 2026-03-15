@@ -283,7 +283,7 @@ fn test_requires_enforcement_error_message_context() {
     };
 
     let result = common::enforce_requires(&metadata, "User", &["orders"], &repr);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err when required field missing (error context check), got: {result:?}");
     let err = result.unwrap_err();
     assert!(err.to_lowercase().contains("user"), "Error should mention type");
     assert!(

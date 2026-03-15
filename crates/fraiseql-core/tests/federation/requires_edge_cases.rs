@@ -201,7 +201,7 @@ fn test_requires_validation_error_includes_typename() {
     };
 
     let result = common::enforce_requires(&metadata, "Product", &["discount"], &repr);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for missing 'price' field, got: {result:?}");
     let err = result.unwrap_err();
     assert!(err.to_lowercase().contains("product"), "Error should include typename: {}", err);
 }
@@ -239,7 +239,7 @@ fn test_requires_validation_error_includes_field_name() {
     };
 
     let result = common::enforce_requires(&metadata, "User", &["recommendation"], &repr);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for missing 'interests' field, got: {result:?}");
     let err = result.unwrap_err();
     assert!(
         err.to_lowercase().contains("recommendation"),

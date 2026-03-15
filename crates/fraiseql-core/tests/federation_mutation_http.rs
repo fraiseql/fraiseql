@@ -44,10 +44,8 @@ fn test_build_mutation_query_for_update() {
         "status": "verified"
     });
 
-    let result = client.build_mutation_query("User", "updateUser", &variables, fed_type);
-    assert!(result.is_ok());
-
-    let request = result.unwrap();
+    let request = client.build_mutation_query("User", "updateUser", &variables, fed_type)
+        .unwrap_or_else(|e| panic!("build_mutation_query(User/updateUser) failed: {e}"));
     assert!(request.query.contains("mutation"));
     assert!(request.query.contains("updateUser"));
     assert_eq!(request.variables["id"], "user123");
@@ -81,10 +79,8 @@ fn test_mutation_query_excludes_external_fields() {
         "customer_id": "cust456"  // This is external, should be excluded
     });
 
-    let result = client.build_mutation_query("Order", "shipOrder", &variables, fed_type);
-    assert!(result.is_ok());
-
-    let request = result.unwrap();
+    let request = client.build_mutation_query("Order", "shipOrder", &variables, fed_type)
+        .unwrap_or_else(|e| panic!("build_mutation_query(Order/shipOrder) failed: {e}"));
     // Query should include status and order_id but not customer_id (which is external)
     assert!(request.query.contains("status:"));
     assert!(request.query.contains("order_id:"));
@@ -107,10 +103,8 @@ fn test_graphql_response_parsing_with_mutation_result() {
         errors: None,
     };
 
-    let result = client.parse_response(response, "updateUser");
-    assert!(result.is_ok());
-
-    let entity = result.unwrap();
+    let entity = client.parse_response(response, "updateUser")
+        .unwrap_or_else(|e| panic!("parse_response(updateUser) failed: {e}"));
     assert_eq!(entity["__typename"], "User");
     assert_eq!(entity["id"], "user123");
     assert_eq!(entity["status"], "verified");
@@ -131,7 +125,7 @@ fn test_graphql_response_with_mutation_error() {
     };
 
     let result = client.parse_response(response, "updateUser");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for GraphQL error response, got: {result:?}");
 
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("GraphQL error"));
@@ -154,7 +148,7 @@ fn test_graphql_response_missing_mutation_field() {
     };
 
     let result = client.parse_response(response, "updateUser");
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err when mutation field missing from response, got: {result:?}");
 }
 
 #[test]

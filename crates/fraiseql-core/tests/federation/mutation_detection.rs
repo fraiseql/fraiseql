@@ -88,7 +88,7 @@ fn test_mutation_variable_validation() {
     });
 
     let result = build_update_query("User", &missing_key, &metadata);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for missing key field in variable validation, got: {result:?}");
 }
 
 #[test]

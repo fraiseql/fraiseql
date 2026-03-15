@@ -34,7 +34,7 @@ async fn test_first_step_failure_prevents_second_step() {
 
     // The step can execute (placeholder), but in a real implementation,
     // it would be blocked because step 1 failed
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_step(2) after step 1 failure failed: {e}"));
 }
 
 #[tokio::test]
@@ -52,18 +52,18 @@ async fn test_middle_step_failure_stops_subsequent_steps() {
     let result1 = executor
         .execute_step(saga_id, 1, "mutation1", &serde_json::json!({"step": 1}), "service-1")
         .await;
-    assert!(result1.is_ok());
+    let result1 = result1.unwrap_or_else(|e| panic!("execute_step(1) failed: {e}"));
 
     // Step 2 should have executed
     let result2 = executor
         .execute_step(saga_id, 2, "mutation2", &serde_json::json!({"step": 2}), "service-2")
         .await;
-    assert!(result2.is_ok());
+    let result2 = result2.unwrap_or_else(|e| panic!("execute_step(2) failed: {e}"));
 
     // Step 3 and beyond would not execute in real implementation
     // Verify the failure point is at step 3
-    assert_eq!(result1.unwrap().step_number, 1);
-    assert_eq!(result2.unwrap().step_number, 2);
+    assert_eq!(result1.step_number, 1);
+    assert_eq!(result2.step_number, 2);
 }
 
 #[tokio::test]

@@ -39,7 +39,7 @@ fn test_mutation_invalid_field_value() {
 
     let result = build_insert_query("User", &invalid_variables, &metadata);
     // Should error because objects cannot convert to SQL literals
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for nested object variable, got: {result:?}");
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn test_mutation_missing_required_fields() {
     });
 
     let result = build_update_query("User", &missing_key, &metadata);
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for missing key field, got: {result:?}");
     assert!(result.unwrap_err().to_string().contains("missing"));
 }
 
@@ -74,7 +74,7 @@ fn test_mutation_authorization_error() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) authorization check failed: {e}"));
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_mutation_duplicate_key_error() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) duplicate key check failed: {e}"));
 }
 
 #[test]

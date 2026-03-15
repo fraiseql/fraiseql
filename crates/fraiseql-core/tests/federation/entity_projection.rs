@@ -101,9 +101,8 @@ fn test_database_query_timeout() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let result = runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"));
-
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(SELECT 1) (timeout test) failed: {e}"));
 }
 
 #[test]
@@ -112,11 +111,11 @@ fn test_database_connection_failure() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let result = runtime.block_on(mock_adapter.health_check());
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.health_check())
+        .unwrap_or_else(|e| panic!("health_check (connection failure test) failed: {e}"));
 
-    let result = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent"));
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(nonexistent) failed: {e}"));
 }
 
 #[test]
@@ -125,9 +124,8 @@ fn test_database_query_syntax_error() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let result = runtime.block_on(mock_adapter.execute_raw_query("INVALID SQL SYNTAX ;;;"));
-
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("INVALID SQL SYNTAX ;;;"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(invalid sql) failed: {e}"));
 }
 
 #[test]
@@ -165,5 +163,5 @@ fn test_database_constraint_violation() {
     let result =
         runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("resolve_entities_from_db (constraint violation test) failed: {e}"));
 }

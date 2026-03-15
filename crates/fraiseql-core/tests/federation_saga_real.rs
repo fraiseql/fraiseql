@@ -33,8 +33,7 @@ async fn create_saga_with_single_step_returns_valid_uuid() {
 
     let result = coordinator.create_saga(steps).await;
 
-    assert!(result.is_ok());
-    let saga_id = result.unwrap();
+    let saga_id = result.unwrap_or_else(|e| panic!("create_saga failed: {e}"));
     // Must be a v4 UUID (randomly generated)
     assert_eq!(saga_id.get_version_num(), 4);
 }
@@ -74,7 +73,7 @@ async fn create_saga_with_multiple_steps_succeeds() {
 
     let result = coordinator.create_saga(steps).await;
 
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("create_saga (multi-step) failed: {e}"));
 }
 
 #[tokio::test]
@@ -83,7 +82,7 @@ async fn create_saga_with_empty_steps_returns_error() {
 
     let result = coordinator.create_saga(vec![]).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for empty steps, got: {result:?}");
     let err = result.unwrap_err();
     assert!(err.to_string().contains("at least one step"));
 }
@@ -115,7 +114,7 @@ async fn create_saga_with_out_of_order_steps_returns_error() {
 
     let result = coordinator.create_saga(steps).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for out-of-order steps, got: {result:?}");
     let err = result.unwrap_err();
     assert!(err.to_string().contains("sequential"));
 }
@@ -131,8 +130,7 @@ async fn execute_saga_returns_completed_state() {
 
     let result = coordinator.execute_saga(saga_id).await;
 
-    assert!(result.is_ok());
-    let saga_result = result.unwrap();
+    let saga_result = result.unwrap_or_else(|e| panic!("execute_saga failed: {e}"));
     assert_eq!(saga_result.saga_id, saga_id);
     assert_eq!(saga_result.state, SagaState::Completed);
     assert!(!saga_result.compensated);
@@ -145,8 +143,7 @@ async fn cancel_saga_returns_failed_state_with_message() {
 
     let result = coordinator.cancel_saga(saga_id).await;
 
-    assert!(result.is_ok());
-    let saga_result = result.unwrap();
+    let saga_result = result.unwrap_or_else(|e| panic!("cancel_saga failed: {e}"));
     assert_eq!(saga_result.saga_id, saga_id);
     assert_eq!(saga_result.state, SagaState::Failed);
     assert!(saga_result.error.is_some());
@@ -160,8 +157,7 @@ async fn get_saga_status_returns_pending_state() {
 
     let result = coordinator.get_saga_status(saga_id).await;
 
-    assert!(result.is_ok());
-    let status = result.unwrap();
+    let status = result.unwrap_or_else(|e| panic!("get_saga_status failed: {e}"));
     assert_eq!(status.saga_id, saga_id);
     assert_eq!(status.state, SagaState::Pending);
     // Progress starts at zero
@@ -175,8 +171,7 @@ async fn get_saga_result_succeeds_for_any_id() {
 
     let result = coordinator.get_saga_result(saga_id).await;
 
-    assert!(result.is_ok());
-    let saga_result = result.unwrap();
+    let saga_result = result.unwrap_or_else(|e| panic!("get_saga_result failed: {e}"));
     assert_eq!(saga_result.saga_id, saga_id);
 }
 
@@ -186,9 +181,8 @@ async fn list_in_flight_sagas_returns_a_list() {
 
     let result = coordinator.list_in_flight_sagas().await;
 
-    assert!(result.is_ok());
     // The stub returns an empty list; the important thing is that the call succeeds.
-    let sagas = result.unwrap();
+    let sagas = result.unwrap_or_else(|e| panic!("list_in_flight_sagas failed: {e}"));
     assert!(sagas.is_empty());
 }
 
@@ -265,8 +259,7 @@ async fn executor_execute_step_without_store_succeeds() {
         .execute_step(saga_id, 1, "createOrder", &serde_json::json!({"id": "o1"}), "orders-svc")
         .await;
 
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("execute_step failed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
     assert!(step_result.error.is_none());
@@ -280,9 +273,9 @@ async fn executor_execute_saga_without_store_returns_empty_results() {
 
     let results = executor.execute_saga(saga_id).await;
 
-    assert!(results.is_ok());
     // No store → nothing to execute
-    assert!(results.unwrap().is_empty());
+    let results = results.unwrap_or_else(|e| panic!("execute_saga (executor) failed: {e}"));
+    assert!(results.is_empty());
 }
 
 #[tokio::test]
@@ -358,8 +351,7 @@ async fn compensator_compensate_step_without_store_succeeds() {
         .compensate_step(saga_id, 1, "deleteOrder", &serde_json::json!({"id": "o1"}), "orders-svc")
         .await;
 
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("compensate_step failed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
     assert!(step_result.error.is_none());
@@ -396,8 +388,7 @@ async fn compensator_compensate_saga_without_store_returns_compensated_status() 
 
     let result = compensator.compensate_saga(saga_id).await;
 
-    assert!(result.is_ok());
-    let comp_result = result.unwrap();
+    let comp_result = result.unwrap_or_else(|e| panic!("compensate_saga failed: {e}"));
     assert_eq!(comp_result.saga_id, saga_id);
     assert_eq!(comp_result.status, CompensationStatus::Compensated);
     assert!(comp_result.failed_steps.is_empty());
@@ -410,9 +401,9 @@ async fn compensator_get_compensation_status_without_store_returns_none() {
 
     let result = compensator.get_compensation_status(saga_id).await;
 
-    assert!(result.is_ok());
     // No store → nothing persisted → None
-    assert!(result.unwrap().is_none());
+    let status = result.unwrap_or_else(|e| panic!("get_compensation_status failed: {e}"));
+    assert!(status.is_none());
 }
 
 #[test]

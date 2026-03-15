@@ -53,8 +53,7 @@ fn test_resolve_entity_from_postgres_table() {
         .unwrap()
         .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres table) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
 
@@ -113,8 +112,7 @@ fn test_resolve_entities_batch_from_postgres() {
         .unwrap()
         .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (batch) failed: {e}"));
     assert_eq!(entities.len(), 2);
     assert!(entities[0].is_some());
     assert!(entities[1].is_some());
@@ -160,8 +158,7 @@ fn test_resolve_entity_composite_key_from_postgres() {
         .unwrap()
         .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (composite key) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
     assert_eq!(entities[0].as_ref().unwrap()["name"], "John");
@@ -202,8 +199,7 @@ fn test_resolve_entity_with_null_values_from_postgres() {
         .unwrap()
         .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (null values) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
 
@@ -251,8 +247,7 @@ fn test_resolve_entity_large_result_set_from_postgres() {
         .unwrap()
         .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (large result set) failed: {e}"));
     assert_eq!(entities.len(), 100);
     for entity in &entities {
         assert!(entity.is_some());

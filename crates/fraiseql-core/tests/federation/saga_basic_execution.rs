@@ -85,8 +85,7 @@ async fn test_each_step_receives_previous_step_output() {
         .execute_step(saga_id, 1, "mutation1", &serde_json::json!({"step": 1}), "service-1")
         .await;
 
-    assert!(result1.is_ok());
-    let step1_data = result1.unwrap().data;
+    let step1_data = result1.unwrap_or_else(|e| panic!("execute_step(1) failed: {e}")).data;
     assert!(step1_data.is_some());
 
     // Then: Step 2 should be able to use step 1's output
@@ -100,8 +99,7 @@ async fn test_each_step_receives_previous_step_output() {
         )
         .await;
 
-    assert!(result2.is_ok());
-    assert!(result2.unwrap().data.is_some());
+    assert!(result2.unwrap_or_else(|e| panic!("execute_step(2) failed: {e}")).data.is_some());
 }
 
 #[tokio::test]
@@ -125,8 +123,7 @@ async fn test_saga_result_contains_all_step_data() {
             )
             .await;
 
-        assert!(result.is_ok());
-        step_results.push(result.unwrap());
+        step_results.push(result.unwrap_or_else(|e| panic!("execute_step({step_number}) failed: {e}")));
     }
 
     // Then: All step results should be collected

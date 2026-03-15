@@ -72,8 +72,7 @@ fn test_database_connection_reuse() {
             &selection,
         ));
 
-        assert!(result.is_ok());
-        let entities = result.unwrap();
+        let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db failed on reuse attempt: {e}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }
@@ -88,11 +87,11 @@ fn test_database_connection_timeout() {
     let mock_adapter = Arc::new(common::MockDatabaseAdapter::new());
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let result = runtime.block_on(mock_adapter.health_check());
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.health_check())
+        .unwrap_or_else(|e| panic!("health_check failed: {e}"));
 
-    let result = runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"));
-    assert!(result.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(SELECT 1) failed: {e}"));
 }
 
 #[test]
@@ -134,8 +133,7 @@ fn test_database_connection_retry() {
             &selection,
         ));
 
-        assert!(result.is_ok(), "Attempt {} failed", attempt);
-        let entities = result.unwrap();
+        let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db failed on attempt {attempt}: {e}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }
@@ -195,8 +193,7 @@ fn test_database_query_execution_basic() {
     let result =
         runtime.block_on(resolver.resolve_entities_from_db("User", &representations, &selection));
 
-    assert!(result.is_ok());
-    let entities = result.unwrap();
+    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (basic query) failed: {e}"));
     assert_eq!(entities.len(), 2);
     assert_eq!(entities[0].as_ref().unwrap()["email"], "user1@example.com");
     assert_eq!(entities[1].as_ref().unwrap()["email"], "user2@example.com");
@@ -217,8 +214,7 @@ fn test_database_prepared_statements() {
     let result = runtime
         .block_on(mock_adapter.execute_raw_query("SELECT id, name FROM user WHERE id = 'user1'"));
 
-    assert!(result.is_ok());
-    let rows = result.unwrap();
+    let rows = result.unwrap_or_else(|e| panic!("execute_raw_query (prepared statement) failed: {e}"));
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["id"], "user1");
     assert_eq!(rows[0]["name"], "John");
@@ -253,14 +249,11 @@ fn test_database_transaction_handling() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let result1 = runtime.block_on(mock_adapter.health_check());
-    assert!(result1.is_ok());
+    runtime.block_on(mock_adapter.health_check())
+        .unwrap_or_else(|e| panic!("health_check (transaction handling) failed: {e}"));
 
-    let result2 = runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"));
-    assert!(result2.is_ok());
-
-    assert!(result1.is_ok());
-    assert!(result2.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(SELECT 1) (transaction handling) failed: {e}"));
 }
 
 #[test]
@@ -275,15 +268,13 @@ fn test_database_transaction_rollback() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let result1 = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"));
-    assert!(result1.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(user) (rollback test) failed: {e}"));
 
-    let result2 =
-        runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent_table"));
-    assert!(result2.is_ok());
+    runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent_table"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(nonexistent_table) failed: {e}"));
 
-    let result3 = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"));
-    assert!(result3.is_ok());
-    let rows = result3.unwrap();
+    let rows = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"))
+        .unwrap_or_else(|e| panic!("execute_raw_query(user) final check failed: {e}"));
     assert_eq!(rows[0]["id"], "user1");
 }

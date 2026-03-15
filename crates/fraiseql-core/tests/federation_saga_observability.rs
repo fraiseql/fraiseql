@@ -50,8 +50,7 @@ async fn test_coordinator_create_saga_emits_info() {
     let result = coordinator.create_saga(steps).await;
 
     // Then: Saga is created successfully
-    assert!(result.is_ok());
-    let saga_id = result.unwrap();
+    let saga_id = result.unwrap_or_else(|e| panic!("create_saga failed: {e}"));
     assert_eq!(saga_id.get_version_num(), 4); // UUIDv4
 }
 
@@ -64,7 +63,7 @@ async fn test_coordinator_create_saga_validation_emits_warn() {
     let result = coordinator.create_saga(vec![]).await;
 
     // Then: Error is returned for empty steps
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for empty steps, got: {result:?}");
     let err = result.unwrap_err();
     assert!(err.to_string().contains("at least one step"));
 }
@@ -79,8 +78,7 @@ async fn test_coordinator_execute_saga_emits_lifecycle() {
     let result = coordinator.execute_saga(saga_id).await;
 
     // Then: Result is returned with completed state
-    assert!(result.is_ok());
-    let saga_result = result.unwrap();
+    let saga_result = result.unwrap_or_else(|e| panic!("execute_saga failed: {e}"));
     assert_eq!(saga_result.saga_id, saga_id);
 }
 
@@ -94,8 +92,7 @@ async fn test_coordinator_cancel_saga_emits_info() {
     let result = coordinator.cancel_saga(saga_id).await;
 
     // Then: Saga is cancelled with error message
-    assert!(result.is_ok());
-    let saga_result = result.unwrap();
+    let saga_result = result.unwrap_or_else(|e| panic!("cancel_saga failed: {e}"));
     assert_eq!(saga_result.saga_id, saga_id);
     assert!(saga_result.error.is_some());
     assert!(saga_result.error.unwrap().contains("cancelled"));
@@ -124,8 +121,7 @@ async fn test_executor_execute_step_emits_info() {
         .await;
 
     // Then: Step executes successfully with result data
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("execute_step failed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
     assert!(step_result.data.is_some());
@@ -141,8 +137,7 @@ async fn test_executor_execute_saga_emits_lifecycle() {
     let result = executor.execute_saga(saga_id).await;
 
     // Then: Returns empty results (placeholder)
-    assert!(result.is_ok());
-    let results = result.unwrap();
+    let results = result.unwrap_or_else(|e| panic!("execute_saga (executor) failed: {e}"));
     assert!(results.is_empty());
 }
 
@@ -156,8 +151,7 @@ async fn test_executor_get_state_emits_debug() {
     let result = executor.get_execution_state(saga_id).await;
 
     // Then: State is returned
-    assert!(result.is_ok());
-    let state = result.unwrap();
+    let state = result.unwrap_or_else(|e| panic!("get_execution_state failed: {e}"));
     assert_eq!(state.saga_id, saga_id);
     assert!(!state.failed);
 }
@@ -182,8 +176,7 @@ async fn test_executor_step_context_includes_mutation_name() {
         .await;
 
     // Then: Step result reflects the step number
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("execute_step (context check) failed: {e}"));
     assert_eq!(step_result.step_number, 3);
     assert!(step_result.success);
 }
@@ -202,8 +195,7 @@ async fn test_compensator_compensate_saga_emits_info() {
     let result = compensator.compensate_saga(saga_id).await;
 
     // Then: Compensation completes with Compensated status
-    assert!(result.is_ok());
-    let comp_result = result.unwrap();
+    let comp_result = result.unwrap_or_else(|e| panic!("compensate_saga failed: {e}"));
     assert_eq!(comp_result.saga_id, saga_id);
     assert!(comp_result.failed_steps.is_empty());
 }
@@ -226,8 +218,7 @@ async fn test_compensator_compensate_step_emits_info() {
         .await;
 
     // Then: Step is compensated successfully
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("compensate_step failed: {e}"));
     assert_eq!(step_result.step_number, 2);
     assert!(step_result.success);
     assert!(step_result.data.is_some());
@@ -243,8 +234,8 @@ async fn test_compensator_status_query_emits_debug() {
     let result = compensator.get_compensation_status(saga_id).await;
 
     // Then: Returns None (placeholder, no compensation in progress)
-    assert!(result.is_ok());
-    assert!(result.unwrap().is_none());
+    let status = result.unwrap_or_else(|e| panic!("get_compensation_status failed: {e}"));
+    assert!(status.is_none());
 }
 
 #[tokio::test]
@@ -267,8 +258,7 @@ async fn test_compensator_step_context_includes_subgraph() {
         .await;
 
     // Then: Compensation step reflects correct step number
-    assert!(result.is_ok());
-    let step_result = result.unwrap();
+    let step_result = result.unwrap_or_else(|e| panic!("compensate_step (subgraph context) failed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
 }
