@@ -81,8 +81,9 @@ fn test_standard_profile_allows_deep_queries() {
         }
     }";
 
-    let result = validator.validate_query(deep_query);
-    assert!(result.is_ok(), "STANDARD profile should allow depth 12, got: {:?}", result);
+    validator
+        .validate_query(deep_query)
+        .unwrap_or_else(|e| panic!("STANDARD profile should allow depth 12, got: {e}"));
 }
 
 #[test]
@@ -95,17 +96,15 @@ fn test_standard_profile_rejects_excessive_depth() {
     let excessive_query = "{ a { b { c { d { e { f { g { h { i { j { k { l { m { n { o { p } } } } } } } } } } } } } } } }";
 
     let result = validator.validate_query(excessive_query);
-    assert!(result.is_err(), "STANDARD profile should reject excessive depth");
-
-    if let Err(ValidationError::QueryTooDeep {
-        max_depth,
-        actual_depth,
-    }) = result
-    {
-        assert_eq!(max_depth, 15);
-        assert!(actual_depth > 15);
-    } else {
-        panic!("Expected QueryTooDeep error, got {:?}", result);
+    match result {
+        Err(ValidationError::QueryTooDeep {
+            max_depth,
+            actual_depth,
+        }) => {
+            assert_eq!(max_depth, 15);
+            assert!(actual_depth > 15, "actual_depth ({actual_depth}) should exceed max (15)");
+        },
+        other => panic!("STANDARD profile should reject excessive depth with QueryTooDeep, got: {other:?}"),
     }
 }
 
@@ -119,17 +118,15 @@ fn test_regulated_profile_rejects_deep_queries() {
     let deep_query = "{ a { b { c { d { e { f { g { h { i { j { k } } } } } } } } } } }";
 
     let result = validator.validate_query(deep_query);
-    assert!(result.is_err(), "REGULATED profile should reject depth > 10");
-
-    if let Err(ValidationError::QueryTooDeep {
-        max_depth,
-        actual_depth,
-    }) = result
-    {
-        assert_eq!(max_depth, 10);
-        assert!(actual_depth > 10);
-    } else {
-        panic!("Expected QueryTooDeep error, got {:?}", result);
+    match result {
+        Err(ValidationError::QueryTooDeep {
+            max_depth,
+            actual_depth,
+        }) => {
+            assert_eq!(max_depth, 10);
+            assert!(actual_depth > 10, "actual_depth ({actual_depth}) should exceed max (10)");
+        },
+        other => panic!("REGULATED profile should reject depth > 10 with QueryTooDeep, got: {other:?}"),
     }
 }
 
@@ -158,8 +155,9 @@ fn test_regulated_profile_allows_boundary_depth() {
         }
     }";
 
-    let result = validator.validate_query(boundary_query);
-    assert!(result.is_ok(), "REGULATED profile should allow depth 10, got: {:?}", result);
+    validator
+        .validate_query(boundary_query)
+        .unwrap_or_else(|e| panic!("REGULATED profile should allow depth 10, got: {e}"));
 }
 
 #[test]
@@ -169,11 +167,16 @@ fn test_restricted_profile_max_depth_enforcement() {
 
     // Query with depth 5 should pass
     let at_limit = "{ a { b { c { d { e } } } } }";
-    assert!(validator.validate_query(at_limit).is_ok());
+    validator
+        .validate_query(at_limit)
+        .unwrap_or_else(|e| panic!("RESTRICTED profile should allow depth 5, got: {e}"));
 
     // Query with depth 6 should fail
     let over_limit = "{ a { b { c { d { e { f } } } } } }";
-    assert!(validator.validate_query(over_limit).is_err());
+    assert!(
+        matches!(validator.validate_query(over_limit), Err(ValidationError::QueryTooDeep { .. })),
+        "RESTRICTED profile should reject depth 6 with QueryTooDeep"
+    );
 }
 
 #[test]
@@ -183,12 +186,16 @@ fn test_standard_profile_complexity_limit() {
 
     // Simple query with low complexity should pass
     let simple = "{ posts { id title } }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator
+        .validate_query(simple)
+        .unwrap_or_else(|e| panic!("STANDARD profile should allow simple query, got: {e}"));
 
     // Moderately complex query should pass
     let moderate =
         "{ posts { id title author { id name email } comments { id text user { id name } } } }";
-    assert!(validator.validate_query(moderate).is_ok());
+    validator
+        .validate_query(moderate)
+        .unwrap_or_else(|e| panic!("STANDARD profile should allow moderate complexity, got: {e}"));
 }
 
 #[test]
@@ -198,11 +205,15 @@ fn test_regulated_profile_complexity_limit() {
 
     // Simple query should pass
     let simple = "{ posts { id title } }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator
+        .validate_query(simple)
+        .unwrap_or_else(|e| panic!("REGULATED profile should allow simple query, got: {e}"));
 
     // Moderately complex query should pass
     let moderate = "{ posts { id title author { id name } } }";
-    assert!(validator.validate_query(moderate).is_ok());
+    validator
+        .validate_query(moderate)
+        .unwrap_or_else(|e| panic!("REGULATED profile should allow moderate complexity, got: {e}"));
 }
 
 #[test]
@@ -212,11 +223,15 @@ fn test_restricted_profile_complexity_limit() {
 
     // Very simple query should pass
     let simple = "{ posts { id title } }";
-    assert!(validator.validate_query(simple).is_ok());
+    validator
+        .validate_query(simple)
+        .unwrap_or_else(|e| panic!("RESTRICTED profile should allow simple query, got: {e}"));
 
     // Slightly more complex should still pass (under 250)
     let light = "{ posts { id title author { id } } }";
-    assert!(validator.validate_query(light).is_ok());
+    validator
+        .validate_query(light)
+        .unwrap_or_else(|e| panic!("RESTRICTED profile should allow light complexity, got: {e}"));
 }
 
 #[test]
@@ -229,9 +244,15 @@ fn test_profile_query_validator_builder_pattern() {
     let restricted = RequestValidator::new().with_max_depth(5).with_max_complexity(250);
 
     // All should be created successfully
-    assert!(standard.validate_query("{ posts { id } }").is_ok());
-    assert!(regulated.validate_query("{ posts { id } }").is_ok());
-    assert!(restricted.validate_query("{ posts { id } }").is_ok());
+    standard
+        .validate_query("{ posts { id } }")
+        .unwrap_or_else(|e| panic!("standard validator should accept simple query, got: {e}"));
+    regulated
+        .validate_query("{ posts { id } }")
+        .unwrap_or_else(|e| panic!("regulated validator should accept simple query, got: {e}"));
+    restricted
+        .validate_query("{ posts { id } }")
+        .unwrap_or_else(|e| panic!("restricted validator should accept simple query, got: {e}"));
 }
 
 #[test]
@@ -247,7 +268,9 @@ fn test_disabling_depth_validation() {
         a { b { c { d { e { f { g { h { i { j } } } } } } } } }
     }";
 
-    assert!(validator.validate_query(excessive).is_ok());
+    validator
+        .validate_query(excessive)
+        .unwrap_or_else(|e| panic!("depth validation disabled, should allow any depth, got: {e}"));
 }
 
 #[test]
@@ -260,7 +283,9 @@ fn test_disabling_complexity_validation() {
 
     // Even a moderately complex query should pass
     let complex = "{ posts { id title author { id name } comments { id text user { id } } } }";
-    assert!(validator.validate_query(complex).is_ok());
+    validator
+        .validate_query(complex)
+        .unwrap_or_else(|e| panic!("complexity validation disabled, should allow any complexity, got: {e}"));
 }
 
 #[test]
@@ -275,9 +300,9 @@ fn test_graphql_request_structure_with_profiles() {
     };
 
     let validator = regulated_profile_validator();
-    let result = validator.validate_query(request.query.as_deref().unwrap());
-
-    assert!(result.is_ok());
+    validator
+        .validate_query(request.query.as_deref().unwrap())
+        .unwrap_or_else(|e| panic!("REGULATED profile should allow structured request query, got: {e}"));
 }
 
 #[test]
@@ -297,7 +322,9 @@ fn test_profile_limits_with_variables() {
     }";
 
     // Query structure itself should validate regardless of what variables are passed
-    assert!(validator.validate_query(query_with_vars).is_ok());
+    validator
+        .validate_query(query_with_vars)
+        .unwrap_or_else(|e| panic!("RESTRICTED profile should allow query with variables, got: {e}"));
 }
 
 #[test]
@@ -309,17 +336,15 @@ fn test_error_message_contains_profile_limits() {
     }";
 
     let result = validator.validate_query(excessive_depth);
-    assert!(result.is_err());
-
     match result {
         Err(ValidationError::QueryTooDeep {
             max_depth,
             actual_depth,
         }) => {
             assert_eq!(max_depth, 10, "Error should show REGULATED profile limit of 10");
-            assert!(actual_depth > 10);
+            assert!(actual_depth > 10, "actual_depth ({actual_depth}) should exceed max (10)");
         },
-        _ => panic!("Expected QueryTooDeep error with profile limits"),
+        other => panic!("Expected QueryTooDeep error with REGULATED profile limits, got: {other:?}"),
     }
 }
 
@@ -347,8 +372,13 @@ fn test_multiple_validators_independent() {
     }";
 
     // Should pass with lenient (STANDARD)
-    assert!(lenient.validate_query(moderate_query).is_ok());
+    lenient
+        .validate_query(moderate_query)
+        .unwrap_or_else(|e| panic!("STANDARD profile should allow moderate query, got: {e}"));
 
     // Should fail with strict (RESTRICTED)
-    assert!(strict.validate_query(moderate_query).is_err());
+    assert!(
+        matches!(strict.validate_query(moderate_query), Err(ValidationError::QueryTooDeep { .. })),
+        "RESTRICTED profile should reject moderate query with QueryTooDeep"
+    );
 }
