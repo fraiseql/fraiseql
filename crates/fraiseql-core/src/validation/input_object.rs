@@ -314,7 +314,7 @@ mod tests {
             ],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("any_of should pass when email is present: {e}"));
     }
 
     #[test]
@@ -332,7 +332,10 @@ mod tests {
             ],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("At least one of")),
+            "expected Validation error about missing fields, got: {result:?}"
+        );
     }
 
     #[test]
@@ -345,7 +348,7 @@ mod tests {
             fields: vec!["entityId".to_string(), "entityPayload".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("one_of should pass when exactly one field is present: {e}"));
     }
 
     #[test]
@@ -358,7 +361,10 @@ mod tests {
             fields: vec!["entityId".to_string(), "entityPayload".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Exactly one of")),
+            "expected Validation error about exactly one field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -371,7 +377,10 @@ mod tests {
             fields: vec!["entityId".to_string(), "entityPayload".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Exactly one of")),
+            "expected Validation error about exactly one field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -385,7 +394,7 @@ mod tests {
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("conditional_required should pass when condition is met: {e}"));
     }
 
     #[test]
@@ -399,7 +408,10 @@ mod tests {
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must also be provided")),
+            "expected Validation error about missing conditional fields, got: {result:?}"
+        );
     }
 
     #[test]
@@ -413,7 +425,7 @@ mod tests {
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("conditional_required should skip when condition field is null: {e}"));
     }
 
     #[test]
@@ -429,7 +441,7 @@ mod tests {
             then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("required_if_absent should pass when all then_fields are provided: {e}"));
     }
 
     #[test]
@@ -445,7 +457,10 @@ mod tests {
             then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must be provided")),
+            "expected Validation error about missing required fields, got: {result:?}"
+        );
     }
 
     #[test]
@@ -461,7 +476,7 @@ mod tests {
             then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("required_if_absent should skip when absent_field is present: {e}"));
     }
 
     #[test]
@@ -482,7 +497,7 @@ mod tests {
             },
         ];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("multiple rules should all pass: {e}"));
     }
 
     #[test]
@@ -503,7 +518,10 @@ mod tests {
             },
         ];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error when one rule fails, got: {result:?}"
+        );
     }
 
     #[test]
@@ -524,11 +542,11 @@ mod tests {
             },
         ];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            // Should have both error messages aggregated
-            assert!(message.contains("Exactly one") || message.contains("must also be provided"));
-        }
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. })
+                if message.contains("Exactly one") || message.contains("must also be provided")),
+            "expected aggregated Validation error with both failures, got: {result:?}"
+        );
     }
 
     #[test]
@@ -550,10 +568,12 @@ mod tests {
         ];
 
         let result = validate_input_object(&input, &rules, Some("createInput"));
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, path }) = result {
-            assert_eq!(path, Some("createInput".to_string()));
-            assert!(message.contains("failed"));
+        match result {
+            Err(FraiseQLError::Validation { ref message, ref path }) => {
+                assert_eq!(*path, Some("createInput".to_string()));
+                assert!(message.contains("failed"), "expected 'failed' in message, got: {message}");
+            },
+            other => panic!("expected Validation error with custom path, got: {other:?}"),
         }
     }
 
@@ -569,7 +589,7 @@ mod tests {
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("conditional_required with multiple fields should pass: {e}"));
     }
 
     #[test]
@@ -584,7 +604,10 @@ mod tests {
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must also be provided")),
+            "expected Validation error about missing conditional field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -604,14 +627,18 @@ mod tests {
     #[test]
     fn test_validation_result_into_result_success() {
         let result = InputObjectValidationResult::new();
-        assert!(result.into_result().is_ok());
+        result.into_result().unwrap_or_else(|e| panic!("empty result should be Ok: {e}"));
     }
 
     #[test]
     fn test_validation_result_into_result_failure() {
         let mut result = InputObjectValidationResult::new();
         result.add_error("Test error".to_string());
-        assert!(result.into_result().is_err());
+        let outcome = result.into_result();
+        assert!(
+            matches!(outcome, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Test error")),
+            "expected Validation error containing 'Test error', got: {outcome:?}"
+        );
     }
 
     #[test]
@@ -621,7 +648,10 @@ mod tests {
             fields: vec!["field".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("must be an object")),
+            "expected Validation error about non-object input, got: {result:?}"
+        );
     }
 
     #[test]
@@ -629,7 +659,7 @@ mod tests {
         let input = json!({"field": "value"});
         let rules: Vec<InputObjectRule> = vec![];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("empty rules should always pass: {e}"));
     }
 
     #[test]
@@ -639,10 +669,12 @@ mod tests {
             name: "myValidator".to_string(),
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("myValidator"));
-            assert!(message.contains("InputValidatorRegistry"));
+        match result {
+            Err(FraiseQLError::Validation { ref message, .. }) => {
+                assert!(message.contains("myValidator"), "expected 'myValidator' in message, got: {message}");
+                assert!(message.contains("InputValidatorRegistry"), "expected 'InputValidatorRegistry' in message, got: {message}");
+            },
+            other => panic!("expected Validation error about unregistered validator, got: {other:?}"),
         }
     }
 
@@ -658,7 +690,7 @@ mod tests {
             fields: vec!["entityId".to_string(), "name".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("create_or_reference pattern should pass with entityId: {e}"));
     }
 
     #[test]
@@ -675,6 +707,6 @@ mod tests {
             then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("address pattern should pass with all fields provided: {e}"));
     }
 }

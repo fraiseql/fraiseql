@@ -337,46 +337,63 @@ mod tests {
     #[tokio::test]
     async fn test_email_valid_simple() {
         let v = EmailFormatValidator::new();
-        assert!(v.validate_async("user@example.com", "email").await.is_ok());
+        v.validate_async("user@example.com", "email").await
+            .unwrap_or_else(|e| panic!("valid simple email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_valid_subdomain() {
         let v = EmailFormatValidator::new();
-        assert!(v.validate_async("user@mail.example.co.uk", "email").await.is_ok());
+        v.validate_async("user@mail.example.co.uk", "email").await
+            .unwrap_or_else(|e| panic!("valid subdomain email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_valid_plus_addressing() {
         let v = EmailFormatValidator::new();
-        assert!(v.validate_async("user+tag@example.com", "email").await.is_ok());
+        v.validate_async("user+tag@example.com", "email").await
+            .unwrap_or_else(|e| panic!("valid plus-addressed email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_valid_corporate_domain() {
         let v = EmailFormatValidator::new();
         // Must accept any valid domain, not a hardcoded allowlist
-        assert!(v.validate_async("alice@my-company.io", "email").await.is_ok());
-        assert!(v.validate_async("bob@university.edu", "email").await.is_ok());
+        v.validate_async("alice@my-company.io", "email").await
+            .unwrap_or_else(|e| panic!("valid corporate email should pass: {e}"));
+        v.validate_async("bob@university.edu", "email").await
+            .unwrap_or_else(|e| panic!("valid edu email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_invalid_no_at() {
         let v = EmailFormatValidator::new();
-        assert!(v.validate_async("notanemail", "email").await.is_err());
+        let result = v.validate_async("notanemail", "email").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid email format")),
+            "expected Validation error about invalid email format, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_email_invalid_no_tld() {
         let v = EmailFormatValidator::new();
         // Single label after @ has no dot — rejected
-        assert!(v.validate_async("user@localhost", "email").await.is_err());
+        let result = v.validate_async("user@localhost", "email").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid email format")),
+            "expected Validation error about invalid email format, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_email_invalid_empty() {
         let v = EmailFormatValidator::new();
-        assert!(v.validate_async("", "email").await.is_err());
+        let result = v.validate_async("", "email").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid email format")),
+            "expected Validation error about invalid email format, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -391,48 +408,69 @@ mod tests {
     #[tokio::test]
     async fn test_phone_valid_us() {
         let v = PhoneE164Validator::new();
-        assert!(v.validate_async("+14155552671", "phone").await.is_ok());
+        v.validate_async("+14155552671", "phone").await
+            .unwrap_or_else(|e| panic!("valid US phone should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_phone_valid_uk() {
         let v = PhoneE164Validator::new();
-        assert!(v.validate_async("+447911123456", "phone").await.is_ok());
+        v.validate_async("+447911123456", "phone").await
+            .unwrap_or_else(|e| panic!("valid UK phone should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_phone_valid_any_country_code() {
         let v = PhoneE164Validator::new();
         // Must accept all country codes, not a hardcoded subset
-        assert!(v.validate_async("+819012345678", "phone").await.is_ok()); // Japan
-        assert!(v.validate_async("+5511987654321", "phone").await.is_ok()); // Brazil
-        assert!(v.validate_async("+27821234567", "phone").await.is_ok()); // South Africa
+        v.validate_async("+819012345678", "phone").await
+            .unwrap_or_else(|e| panic!("valid Japan phone should pass: {e}"));
+        v.validate_async("+5511987654321", "phone").await
+            .unwrap_or_else(|e| panic!("valid Brazil phone should pass: {e}"));
+        v.validate_async("+27821234567", "phone").await
+            .unwrap_or_else(|e| panic!("valid South Africa phone should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_phone_invalid_missing_plus() {
         let v = PhoneE164Validator::new();
-        assert!(v.validate_async("14155552671", "phone").await.is_err());
+        let result = v.validate_async("14155552671", "phone").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid E.164")),
+            "expected Validation error about invalid E.164 phone, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_phone_invalid_too_short() {
         let v = PhoneE164Validator::new();
         // 5 digits after + — below E.164 minimum of 7
-        assert!(v.validate_async("+12345", "phone").await.is_err());
+        let result = v.validate_async("+12345", "phone").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid E.164")),
+            "expected Validation error about invalid E.164 phone, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_phone_invalid_too_long() {
         let v = PhoneE164Validator::new();
         // 16 digits after + — above E.164 maximum of 15
-        assert!(v.validate_async("+1234567890123456", "phone").await.is_err());
+        let result = v.validate_async("+1234567890123456", "phone").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid E.164")),
+            "expected Validation error about invalid E.164 phone, got: {result:?}"
+        );
     }
 
     #[tokio::test]
     async fn test_phone_invalid_leading_zero_country_code() {
         let v = PhoneE164Validator::new();
-        assert!(v.validate_async("+0441234567890", "phone").await.is_err());
+        let result = v.validate_async("+0441234567890", "phone").await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Invalid E.164")),
+            "expected Validation error about invalid E.164 phone, got: {result:?}"
+        );
     }
 
     #[tokio::test]

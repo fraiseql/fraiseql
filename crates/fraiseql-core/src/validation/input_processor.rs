@@ -230,7 +230,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("valid UUID should pass: {e}"));
     }
 
     #[test]
@@ -241,9 +241,8 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.field_path.contains("userId"));
+        let err = result.expect_err("invalid UUID should fail validation");
+        assert!(err.field_path.contains("userId"), "expected field_path to contain 'userId', got: {}", err.field_path);
     }
 
     #[test]
@@ -256,7 +255,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("multiple valid UUIDs should pass: {e}"));
     }
 
     #[test]
@@ -272,7 +271,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("nested valid UUIDs should pass: {e}"));
     }
 
     #[test]
@@ -288,7 +287,8 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_err());
+        let err = result.expect_err("nested invalid UUID should fail");
+        assert!(err.field_path.contains("authorId"), "expected field_path to contain 'authorId', got: {}", err.field_path);
     }
 
     #[test]
@@ -302,7 +302,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("array of valid UUIDs should pass: {e}"));
     }
 
     #[test]
@@ -318,7 +318,8 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_err());
+        let err = result.expect_err("array with invalid UUID should fail");
+        assert!(err.field_path.contains("userIds"), "expected field_path to contain 'userIds', got: {}", err.field_path);
     }
 
     #[test]
@@ -329,7 +330,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("opaque policy should accept any ID: {e}"));
     }
 
     #[test]
@@ -342,7 +343,7 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("disabled validation should skip checks: {e}"));
     }
 
     #[test]
@@ -355,15 +356,15 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("custom ID field with valid UUID should pass: {e}"));
     }
 
     #[test]
     fn test_process_null_variables() {
         let config = InputProcessingConfig::strict_uuid();
         let result = process_variables(&Value::Null, &config);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_null());
+        let value = result.unwrap_or_else(|e| panic!("null variables should pass: {e}"));
+        assert!(value.is_null(), "expected null output, got: {value:?}");
     }
 
     #[test]
@@ -376,6 +377,6 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        assert!(result.is_ok());
+        result.unwrap_or_else(|e| panic!("non-ID fields should pass through without validation: {e}"));
     }
 }

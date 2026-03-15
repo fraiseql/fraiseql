@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::*;
+use crate::error::FraiseQLError;
 use crate::validation::ValidationRule;
 
 #[test]
@@ -46,7 +47,8 @@ fn test_registry_register_and_get() {
     let registry = CustomTypeRegistry::new(Default::default());
     let def = CustomTypeDef::new("Email".to_string());
 
-    assert!(registry.register("Email".to_string(), def.clone()).is_ok());
+    registry.register("Email".to_string(), def.clone())
+        .unwrap_or_else(|e| panic!("register should succeed for new type: {e}"));
     assert_eq!(registry.get("Email"), Some(def));
 }
 
@@ -55,8 +57,13 @@ fn test_registry_register_duplicate() {
     let registry = CustomTypeRegistry::new(Default::default());
     let def = CustomTypeDef::new("Email".to_string());
 
-    assert!(registry.register("Email".to_string(), def.clone()).is_ok());
-    assert!(registry.register("Email".to_string(), def).is_err());
+    registry.register("Email".to_string(), def.clone())
+        .unwrap_or_else(|e| panic!("first register should succeed: {e}"));
+    let result = registry.register("Email".to_string(), def);
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("already registered")),
+        "expected Validation error about duplicate registration, got: {result:?}"
+    );
 }
 
 #[test]
@@ -141,7 +148,10 @@ fn test_registry_max_scalars_limit() {
 
     // Third registration should fail
     let result = registry.register("IBAN".to_string(), CustomTypeDef::new("IBAN".to_string()));
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("max scalars limit")),
+        "expected Validation error about max scalars limit, got: {result:?}"
+    );
 }
 
 #[test]
@@ -174,7 +184,10 @@ fn test_validate_unknown_scalar() {
     let value = serde_json::json!("some-value");
 
     let result = registry.validate("UnknownType", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Unknown custom scalar")),
+        "expected Validation error about unknown scalar type, got: {result:?}"
+    );
 }
 
 #[test]
@@ -186,7 +199,7 @@ fn test_validate_library_code_minimal() {
 
     let value = serde_json::json!("LIB-1234");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("minimal LibraryCode validation should pass: {e}"));
 }
 
 #[test]
@@ -198,7 +211,7 @@ fn test_validate_student_id_minimal() {
 
     let value = serde_json::json!("STU-2024-001");
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("minimal StudentID validation should pass: {e}"));
 }
 
 #[test]
@@ -210,7 +223,7 @@ fn test_validate_patient_id_minimal() {
 
     let value = serde_json::json!("PAT-987654");
     let result = registry.validate("PatientID", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("minimal PatientID validation should pass: {e}"));
 }
 
 #[test]
@@ -226,7 +239,7 @@ fn test_validate_with_pattern_rule_valid() {
 
     let value = serde_json::json!("LIB-1234");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("valid pattern should pass: {e}"));
 }
 
 #[test]
@@ -242,7 +255,10 @@ fn test_validate_with_pattern_rule_invalid() {
 
     let value = serde_json::json!("INVALID");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Library code must be LIB-####")),
+        "expected Validation error with custom pattern message, got: {result:?}"
+    );
 }
 
 #[test]
@@ -258,7 +274,7 @@ fn test_validate_with_length_rule_valid() {
 
     let value = serde_json::json!("STU-2024"); // 8 chars, within 5-15
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("valid length should pass: {e}"));
 }
 
 #[test]
@@ -274,7 +290,10 @@ fn test_validate_with_length_rule_too_short() {
 
     let value = serde_json::json!("STU"); // 3 chars, below min of 5
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least") && message.contains("5")),
+        "expected Validation error about minimum length, got: {result:?}"
+    );
 }
 
 #[test]
@@ -296,11 +315,16 @@ fn test_validate_with_multiple_rules() {
 
     // Valid: matches pattern and length
     let value_valid = serde_json::json!("PAT-123456");
-    assert!(registry.validate("PatientID", &value_valid).is_ok());
+    registry.validate("PatientID", &value_valid)
+        .unwrap_or_else(|e| panic!("valid value should pass all rules: {e}"));
 
     // Invalid: wrong pattern but right length
     let value_invalid_pattern = serde_json::json!("PAT-12345X");
-    assert!(registry.validate("PatientID", &value_invalid_pattern).is_err());
+    let result = registry.validate("PatientID", &value_invalid_pattern);
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Patient ID must be PAT-######")),
+        "expected Validation error about pattern mismatch, got: {result:?}"
+    );
 }
 
 #[test]
@@ -313,7 +337,7 @@ fn test_validate_library_code_with_elo_expression_valid() {
 
     let value = serde_json::json!("LIB-1234");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("valid LibraryCode with ELO should pass: {e}"));
 }
 
 #[test]
@@ -326,7 +350,10 @@ fn test_validate_library_code_with_elo_expression_invalid() {
 
     let value = serde_json::json!("INVALID-CODE");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "expected Validation error for invalid ELO expression, got: {result:?}"
+    );
 }
 
 #[test]
@@ -339,7 +366,7 @@ fn test_validate_student_id_with_elo_expression_valid() {
 
     let value = serde_json::json!("STU-2024-001");
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("valid StudentID with ELO should pass: {e}"));
 }
 
 #[test]
@@ -352,7 +379,10 @@ fn test_validate_student_id_with_elo_expression_invalid() {
 
     let value = serde_json::json!("STUDENT-2024");
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "expected Validation error for invalid StudentID ELO, got: {result:?}"
+    );
 }
 
 #[test]
@@ -365,7 +395,7 @@ fn test_validate_patient_id_with_elo_expression_valid() {
 
     let value = serde_json::json!("PAT-987654");
     let result = registry.validate("PatientID", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("valid PatientID with ELO should pass: {e}"));
 }
 
 #[test]
@@ -378,7 +408,10 @@ fn test_validate_patient_id_with_elo_expression_invalid() {
 
     let value = serde_json::json!("PATIENT123");
     let result = registry.validate("PatientID", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "expected Validation error for invalid PatientID ELO, got: {result:?}"
+    );
 }
 
 #[test]
@@ -395,7 +428,7 @@ fn test_validate_rules_then_elo_expression_both_valid() {
 
     let value = serde_json::json!("LIB-1234");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("both rules and ELO should pass: {e}"));
 }
 
 #[test]
@@ -413,7 +446,10 @@ fn test_validate_rules_pass_elo_fails() {
     // This passes the length rule but fails the ELO pattern
     let value = serde_json::json!("NOTVALID");
     let result = registry.validate("LibraryCode", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "expected Validation error when rules pass but ELO fails, got: {result:?}"
+    );
 }
 
 #[test]
@@ -431,7 +467,10 @@ fn test_validate_rules_fail_elo_not_evaluated() {
     // This fails the length rule, so ELO should not be evaluated
     let value = serde_json::json!("STU-2024");
     let result = registry.validate("StudentID", &value);
-    assert!(result.is_err());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least")),
+        "expected Validation error about length rule failure, got: {result:?}"
+    );
 }
 
 #[test]
@@ -446,15 +485,21 @@ fn test_validate_complex_elo_expression_with_multiple_conditions() {
 
     // Valid: matches pattern
     let value1 = serde_json::json!("PAT-123456");
-    assert!(registry.validate("PatientID", &value1).is_ok());
+    registry.validate("PatientID", &value1)
+        .unwrap_or_else(|e| panic!("pattern match should pass: {e}"));
 
     // Valid: contains substring (even though doesn't match pattern)
     let value2 = serde_json::json!("URGENT-CASE");
-    assert!(registry.validate("PatientID", &value2).is_ok());
+    registry.validate("PatientID", &value2)
+        .unwrap_or_else(|e| panic!("contains substring should pass: {e}"));
 
     // Invalid: neither matches pattern nor contains substring
     let value3 = serde_json::json!("INVALID");
-    assert!(registry.validate("PatientID", &value3).is_err());
+    let result = registry.validate("PatientID", &value3);
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "expected Validation error when no ELO condition matches, got: {result:?}"
+    );
 }
 
 #[test]
