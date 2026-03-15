@@ -1,6 +1,9 @@
-//! Authentication mechanisms for fraiseql-wire
+//! Wire-protocol SCRAM-SHA-256 authentication errors.
 //!
 //! Supports SCRAM-SHA-256 (Postgres 10+) as the primary authentication method.
+//! The `AuthError` here is specific to the wire protocol handshake — NOT the
+//! same as `fraiseql_error::AuthError` (domain) or `fraiseql_auth::AuthError`
+//! (OIDC/JWT middleware).
 
 pub mod scram;
 

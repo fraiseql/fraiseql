@@ -1,7 +1,8 @@
-/// Errors that occur in the observer / event-processing subsystem.
+/// Domain-level observer errors for `RuntimeError` aggregation.
 ///
-/// Observers watch for database change events and execute configured actions
-/// (webhooks, notifications, cache invalidations, etc.).
+/// These are the **client-facing** observer error variants. For operational
+/// observer errors with structured OB-codes (used in logging and retry
+/// decisions), see `fraiseql_observers::ObserverError`.
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
     /// The observer's trigger condition expression could not be parsed or

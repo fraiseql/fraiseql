@@ -1,4 +1,8 @@
-//! Observer error types and error code definitions.
+//! Operational observer errors with OB-codes — NOT the same as `fraiseql_error::ObserverError`.
+//!
+//! This `ObserverError` carries structured error codes (OB001-OB014+) for
+//! logging, retry decisions, and dead-letter queue routing. The domain-level
+//! `fraiseql_error::ObserverError` is a simpler aggregator for HTTP responses.
 
 use thiserror::Error;
 

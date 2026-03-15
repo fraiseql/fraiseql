@@ -1,4 +1,9 @@
-//! Authentication error types.
+//! Internal OIDC/JWT/session errors — NOT the same as `fraiseql_error::AuthError`.
+//!
+//! This `AuthError` carries diagnostic detail for the middleware/handler layer
+//! (JWT parse reasons, OIDC metadata failures, PKCE state errors). It is
+//! never exposed directly to clients — it gets mapped to the domain-level
+//! `fraiseql_error::AuthError` before reaching the HTTP response.
 use thiserror::Error;
 
 /// All errors that can arise in the authentication and authorization layer.

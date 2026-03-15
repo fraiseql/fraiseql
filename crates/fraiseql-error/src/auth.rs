@@ -1,4 +1,9 @@
-/// Errors that arise during authentication and authorisation flows.
+/// Domain-level auth errors for HTTP response mapping.
+///
+/// These are the **client-facing** auth error variants that get converted
+/// to HTTP status codes via `RuntimeError`. For internal OIDC/JWT processing
+/// errors, see `fraiseql_auth::AuthError`. For wire-protocol SCRAM errors,
+/// see `fraiseql_wire::auth::AuthError`.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
     /// The supplied username/password (or API key) did not match any account.
