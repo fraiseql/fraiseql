@@ -106,7 +106,7 @@ fn test_simple_field_query_structure() {
     let query = GraphQLQuery::new("{ users { id name } }");
 
     // Query should be valid
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Query should have no variables
     assert_eq!(query.variables.len(), 0);
@@ -118,10 +118,9 @@ fn test_simple_field_query_structure() {
 
     // Execute against test data
     let executor = FakeGraphQLExecutor::new();
-    let result = executor.execute(&query.query_string);
-    assert!(result.is_ok(), "Query execution failed: {:?}", result);
-
-    let response_data = result.unwrap();
+    let response_data = executor
+        .execute(&query.query_string)
+        .unwrap_or_else(|e| panic!("query execution failed: {e}"));
     let response_str = response_data.to_string();
 
     // Verify response contains expected data
@@ -138,7 +137,7 @@ fn test_query_with_variables_structure() {
         GraphQLQuery::new("query GetUser($userId: ID!) { user(id: $userId) { id name email } }")
             .with_variable("userId", "user_123");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert_eq!(query.variables.len(), 1);
     assert_eq!(query.variables.get("userId").unwrap(), "user_123");
 }
@@ -148,7 +147,7 @@ fn test_query_with_variables_structure() {
 fn test_nested_relationship_query_structure() {
     let query = GraphQLQuery::new("{ users { id name posts { id title content } } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Should have nested braces for relationships
     let brace_count = query.query_string.matches('{').count();
@@ -160,7 +159,7 @@ fn test_nested_relationship_query_structure() {
 fn test_query_with_aliases_structure() {
     let query = GraphQLQuery::new("{ users { userId: id userName: name userEmail: email } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("userId:"));
     assert!(query.query_string.contains("userName:"));
 }
@@ -170,7 +169,7 @@ fn test_query_with_aliases_structure() {
 fn test_multiple_root_fields_structure() {
     let query = GraphQLQuery::new("{ users { id } posts { id } comments { id } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Query should have all three root types
     assert!(query.query_string.contains("users"));
@@ -189,7 +188,7 @@ fn test_create_mutation_structure() {
         "mutation CreateUser { createUser(input: {name: \"John\", email: \"john@example.com\"}) { id name email } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("mutation"));
     assert!(query.query_string.contains("createUser"));
     assert!(query.query_string.contains("input"));
@@ -202,7 +201,7 @@ fn test_update_mutation_structure() {
         "mutation UpdateUser { updateUser(id: \"user_123\", input: {name: \"Jane\"}) { id name } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("mutation"));
     assert!(query.query_string.contains("updateUser"));
 }
@@ -214,7 +213,7 @@ fn test_delete_mutation_structure() {
         "mutation DeleteUser { deleteUser(id: \"user_123\") { success message } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("mutation"));
     assert!(query.query_string.contains("deleteUser"));
 }
@@ -226,7 +225,7 @@ fn test_batch_mutation_structure() {
         "mutation { createUser1: createUser(input: {name: \"User1\"}) { id } createUser2: createUser(input: {name: \"User2\"}) { id } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("createUser1:"));
     assert!(query.query_string.contains("createUser2:"));
 }
@@ -240,7 +239,7 @@ fn test_batch_mutation_structure() {
 fn test_one_to_many_relationship_structure() {
     let query = GraphQLQuery::new("{ users { id name posts { id title } } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Nested structure should be present
     assert!(query.query_string.contains("users"));
@@ -248,10 +247,9 @@ fn test_one_to_many_relationship_structure() {
 
     // Execute against test data
     let executor = FakeGraphQLExecutor::new();
-    let result = executor.execute(&query.query_string);
-    assert!(result.is_ok(), "Query execution failed: {:?}", result);
-
-    let response_data = result.unwrap();
+    let response_data = executor
+        .execute(&query.query_string)
+        .unwrap_or_else(|e| panic!("query execution failed: {e}"));
     let response_str = response_data.to_string();
 
     // Verify response contains expected data
@@ -268,7 +266,7 @@ fn test_deep_nested_query_structure() {
     let query =
         GraphQLQuery::new("{ users { id name posts { id title comments { id content } } } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Should have enough nesting
     let depth = query.query_string.matches('{').count();
@@ -280,7 +278,7 @@ fn test_deep_nested_query_structure() {
 fn test_field_projection_structure() {
     let query = GraphQLQuery::new("{ users { id posts { id } } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Should only request specific fields
     assert!(!query.query_string.contains("title"));
@@ -296,7 +294,7 @@ fn test_field_projection_structure() {
 fn test_count_aggregation_structure() {
     let query = GraphQLQuery::new("{ usersCount: count(type: \"User\") }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("count"));
 }
 
@@ -305,7 +303,7 @@ fn test_count_aggregation_structure() {
 fn test_sum_aggregation_structure() {
     let query = GraphQLQuery::new("{ totalAmount: sum(field: \"amount\", type: \"Order\") }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("sum"));
 }
 
@@ -314,7 +312,7 @@ fn test_sum_aggregation_structure() {
 fn test_avg_aggregation_structure() {
     let query = GraphQLQuery::new("{ avgAmount: avg(field: \"amount\", type: \"Order\") }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("avg"));
 }
 
@@ -325,7 +323,7 @@ fn test_group_by_aggregation_structure() {
         "{ ordersByStatus: groupBy(type: \"Order\", groupBy: \"status\") { status count } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("groupBy"));
 }
 
@@ -338,7 +336,7 @@ fn test_group_by_aggregation_structure() {
 fn test_where_filter_structure() {
     let query = GraphQLQuery::new("{ users(where: {status: {eq: \"active\"}}) { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("where"));
     assert!(query.query_string.contains("eq"));
 }
@@ -349,7 +347,7 @@ fn test_order_by_ascending_structure() {
     let query =
         GraphQLQuery::new("{ users(orderBy: {field: \"name\", direction: \"ASC\"}) { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("orderBy"));
     assert!(query.query_string.contains("ASC"));
 }
@@ -361,7 +359,7 @@ fn test_order_by_descending_structure() {
         "{ users(orderBy: {field: \"createdAt\", direction: \"DESC\"}) { id name createdAt } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("DESC"));
 }
 
@@ -372,7 +370,7 @@ fn test_multiple_filters_structure() {
         "{ users(where: {AND: [{status: {eq: \"active\"}}, {role: {eq: \"admin\"}}]}) { id name } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("AND"));
 }
 
@@ -383,7 +381,7 @@ fn test_filter_on_relationships_structure() {
         "{ users { id name posts(where: {published: {eq: true}}) { id title } } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Nested where clause
     let where_count = query.query_string.matches("where").count();
@@ -399,14 +397,13 @@ fn test_filter_on_relationships_structure() {
 fn test_limit_offset_pagination_structure() {
     let query = GraphQLQuery::new("{ users { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Execute basic users query (pagination tested through data limits)
     let executor = FakeGraphQLExecutor::new();
-    let result = executor.execute("{ users { id name } }");
-    assert!(result.is_ok(), "Query execution failed: {:?}", result);
-
-    let response_data = result.unwrap();
+    let response_data = executor
+        .execute("{ users { id name } }")
+        .unwrap_or_else(|e| panic!("query execution failed: {e}"));
     let response_str = response_data.to_string();
 
     // Verify we get results
@@ -422,7 +419,7 @@ fn test_cursor_pagination_structure() {
         "{ users(first: 10, after: \"cursor_abc\") { edges { cursor node { id name } } pageInfo { hasNextPage endCursor } } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("edges"));
     assert!(query.query_string.contains("pageInfo"));
 }
@@ -436,7 +433,7 @@ fn test_cursor_pagination_structure() {
 fn test_subscribe_to_create_events_structure() {
     let query = GraphQLQuery::new("subscription OnUserCreated { userCreated { id name email } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("subscription"));
     assert!(query.query_string.contains("userCreated"));
 }
@@ -446,7 +443,7 @@ fn test_subscribe_to_create_events_structure() {
 fn test_subscribe_to_update_events_structure() {
     let query = GraphQLQuery::new("subscription OnUserUpdated { userUpdated { id name email } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("subscription"));
     assert!(query.query_string.contains("userUpdated"));
 }
@@ -457,8 +454,8 @@ fn test_multiple_concurrent_subscriptions_structure() {
     let query1 = GraphQLQuery::new("subscription { userCreated { id } }");
     let query2 = GraphQLQuery::new("subscription { postCreated { id } }");
 
-    assert!(query1.validate().is_ok());
-    assert!(query2.validate().is_ok());
+    query1.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
+    query2.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Both should be valid subscriptions
     assert!(query1.query_string.contains("subscription"));
@@ -472,7 +469,7 @@ fn test_subscription_filtering_structure() {
         "subscription OnOrderCreated { orderCreated(where: {status: {eq: \"pending\"}}) { id status } }",
     );
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
     assert!(query.query_string.contains("where"));
 }
 
@@ -486,7 +483,7 @@ fn test_query_validation_error_structure() {
     let query = GraphQLQuery::new("{ users { id nonExistentField } }");
 
     // Query should still parse (structure is valid)
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // But it contains a non-existent field
     assert!(query.query_string.contains("nonExistentField"));
@@ -497,7 +494,7 @@ fn test_query_validation_error_structure() {
 fn test_not_found_error_structure() {
     let query = GraphQLQuery::new("{ user(id: \"nonexistent\") { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Query references a user ID that might not exist
     assert!(query.query_string.contains("nonexistent"));
@@ -508,7 +505,7 @@ fn test_not_found_error_structure() {
 fn test_type_mismatch_error_structure() {
     let query = GraphQLQuery::new("{ user(id: 12345) { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Note: passing integer where string might be expected
     assert!(query.query_string.contains("12345"));
@@ -519,7 +516,7 @@ fn test_type_mismatch_error_structure() {
 fn test_authorization_error_structure() {
     let query = GraphQLQuery::new("{ adminUsers { id name } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Query references admin-only field
     assert!(query.query_string.contains("adminUsers"));
@@ -530,7 +527,7 @@ fn test_authorization_error_structure() {
 fn test_invalid_mutation_input_structure() {
     let query = GraphQLQuery::new("mutation { createUser(input: {name: \"\"}) { id } }");
 
-    assert!(query.validate().is_ok());
+    query.validate().unwrap_or_else(|e| panic!("validation failed: {e}"));
 
     // Query has empty name
     assert!(query.query_string.contains("name: \"\""));

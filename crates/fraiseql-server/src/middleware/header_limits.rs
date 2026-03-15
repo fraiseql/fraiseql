@@ -88,9 +88,12 @@ mod tests {
             .uri("/")
             .header("x-test", "value")
             .body(Body::empty())
-            .unwrap();
+            .expect("Reason: test request builder should not fail");
 
-        let resp = app.oneshot(req).await.unwrap();
+        let resp = app
+            .oneshot(req)
+            .await
+            .expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -101,9 +104,14 @@ mod tests {
         for i in 0..10 {
             builder = builder.header(format!("x-test-{i}"), "value");
         }
-        let req = builder.body(Body::empty()).unwrap();
+        let req = builder
+            .body(Body::empty())
+            .expect("Reason: test request builder should not fail");
 
-        let resp = app.oneshot(req).await.unwrap();
+        let resp = app
+            .oneshot(req)
+            .await
+            .expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
     }
 
@@ -114,9 +122,12 @@ mod tests {
             .uri("/")
             .header("x-large", "a]".repeat(100))
             .body(Body::empty())
-            .unwrap();
+            .expect("Reason: test request builder should not fail");
 
-        let resp = app.oneshot(req).await.unwrap();
+        let resp = app
+            .oneshot(req)
+            .await
+            .expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
     }
 
@@ -128,9 +139,14 @@ mod tests {
         for i in 0..5 {
             builder = builder.header(format!("x-h-{i}"), "v");
         }
-        let req = builder.body(Body::empty()).unwrap();
+        let req = builder
+            .body(Body::empty())
+            .expect("Reason: test request builder should not fail");
 
-        let resp = app.oneshot(req).await.unwrap();
+        let resp = app
+            .oneshot(req)
+            .await
+            .expect("Reason: oneshot should not fail in test");
         // With 5 custom headers, total is 5 which is at limit — should pass
         assert_eq!(resp.status(), StatusCode::OK);
     }
