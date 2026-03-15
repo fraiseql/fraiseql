@@ -28,6 +28,7 @@ uuid = {version = "1.21", features = ["v4", "serde"]}
 zeroize = "1.8"
 
 [dev-dependencies]
+proptest = {workspace = true}
 temp-env = {workspace = true}
 tokio-test = "0.4"
 wiremock = "0.6"

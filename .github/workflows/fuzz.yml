@@ -71,3 +71,66 @@ jobs:
         with:
           name: fuzz-crash-wire-${{ matrix.target }}
           path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/
+
+  fuzz-auth:
+    name: Fuzz fraiseql-auth (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - jwt_parse
+          - pkce_token_parse
+          - state_token_decrypt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzer (1 hour)
+        run: |
+          cd crates/fraiseql-auth
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            fuzz/seed_corpus/${{ matrix.target }} \
+            -- -max_total_time=3600 \
+               -max_len=65536 \
+               -rss_limit_mb=2048
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-crash-auth-${{ matrix.target }}
+          path: crates/fraiseql-auth/fuzz/artifacts/${{ matrix.target }}/
+
+  fuzz-secrets:
+    name: Fuzz fraiseql-secrets (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - vault_secret_name
+          - encrypted_field_decode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzer (1 hour)
+        run: |
+          cd crates/fraiseql-secrets
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            fuzz/seed_corpus/${{ matrix.target }} \
+            -- -max_total_time=3600 \
+               -max_len=65536 \
+               -rss_limit_mb=2048
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-crash-secrets-${{ matrix.target }}
+          path: crates/fraiseql-secrets/fuzz/artifacts/${{ matrix.target }}/

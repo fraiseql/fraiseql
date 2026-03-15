@@ -1,3 +1,5 @@
+//! Vault address and secret-name validation (SSRF and input-size guards).
+
 use crate::secrets_manager::SecretsError;
 
 /// Maximum byte length for a Vault secret name / path.
@@ -5,7 +7,7 @@ use crate::secrets_manager::SecretsError;
 /// Vault's own internal key-value paths top out at a few hundred characters in
 /// practice; 1 024 bytes is generous while preventing cache-key DoS from a
 /// caller that passes a megabyte-sized string.
-pub(super) const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
+pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 
 /// Validate the Vault server address against SSRF-prone destinations.
 ///
@@ -76,7 +78,7 @@ fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
 }
 
 /// Validate Vault secret name format.
-pub(super) fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
+pub fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
         return Err(SecretsError::ValidationError("Vault secret name cannot be empty".to_string()));
     }

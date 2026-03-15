@@ -1,0 +1,27 @@
+[package]
+name = "fraiseql-secrets-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "vault_secret_name"
+path = "fuzz_targets/vault_secret_name.rs"
+doc = false
+
+[[bin]]
+name = "encrypted_field_decode"
+path = "fuzz_targets/encrypted_field_decode.rs"
+doc = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.fraiseql-secrets]
+path = ".."
+
+[workspace]
+members = ["."]

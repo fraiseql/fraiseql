@@ -157,6 +157,10 @@ impl QueryTraceBuilder {
     /// * `error` - Optional error message
     /// * `result_count` - Number of results returned (if applicable)
     ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future extension (e.g., sink flush failures).
+    ///
     /// # Returns
     ///
     /// Complete query execution trace

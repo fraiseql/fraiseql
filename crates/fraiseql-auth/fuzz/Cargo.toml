@@ -1,0 +1,34 @@
+[package]
+name = "fraiseql-auth-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "jwt_parse"
+path = "fuzz_targets/jwt_parse.rs"
+doc = false
+
+[[bin]]
+name = "pkce_token_parse"
+path = "fuzz_targets/pkce_token_parse.rs"
+doc = false
+
+[[bin]]
+name = "state_token_decrypt"
+path = "fuzz_targets/state_token_decrypt.rs"
+doc = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+jsonwebtoken = "9"
+
+[dependencies.fraiseql-auth]
+path = ".."
+default-features = false
+
+[workspace]
+members = ["."]

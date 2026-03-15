@@ -57,6 +57,10 @@ impl AggregationProjector {
     ///
     /// GraphQL-compatible JSON response
     ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future extension (e.g., type coercion failures).
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -129,6 +133,10 @@ impl AggregationProjector {
     /// Project a single aggregate result (no GROUP BY).
     ///
     /// When there's no GROUP BY, the result is a single object, not an array.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future extension (e.g., type coercion failures).
     ///
     /// # Example
     ///

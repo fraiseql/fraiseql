@@ -1328,6 +1328,18 @@ jobs:
       - name: Run parity tests
         run: make test-parity
 
+  # Dependency policy (licenses, bans, advisories)
+  cargo-deny:
+    name: Dependency Policy (cargo deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+          manifest-path: Cargo.toml
+
   # All checks passed
   ci-success:
     name: CI Success
@@ -1353,6 +1365,7 @@ jobs:
       - docs
       - feature-flags
       - sdk-parity
+      - cargo-deny
     runs-on: ubuntu-latest
     steps:
       - name: Mark CI as successful

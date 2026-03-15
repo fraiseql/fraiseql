@@ -294,7 +294,7 @@ lint-gate-core:
 # Gate: ensure executor error-documentation coverage does not regress.
 # Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
 # v2.2.0 target: ≥60.  Current baseline: 35.
-FRAISEQL_CORE_ERRORS_DOC_MIN ?= 35
+FRAISEQL_CORE_ERRORS_DOC_MIN ?= 40
 .PHONY: lint-gate-errors-doc
 lint-gate-errors-doc:
 	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \

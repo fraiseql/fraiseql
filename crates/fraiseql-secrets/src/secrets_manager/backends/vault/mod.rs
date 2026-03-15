@@ -11,7 +11,7 @@
 
 mod backend;
 mod cache;
-mod validation;
+pub mod validation;
 
 pub use backend::VaultBackend;
 

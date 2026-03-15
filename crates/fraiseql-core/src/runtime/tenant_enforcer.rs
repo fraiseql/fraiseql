@@ -56,6 +56,10 @@ impl TenantEnforcer {
     /// # Arguments
     /// * `where_clause` - User-provided WHERE clause
     ///
+    /// # Errors
+    ///
+    /// Returns an error string if tenant enforcement is required but `org_id` is not set.
+    ///
     /// # Returns
     /// * Modified WHERE clause with tenant filter added
     /// * Or error if tenant enforcement is required but org_id not provided
@@ -101,6 +105,10 @@ impl TenantEnforcer {
     ///
     /// # Arguments
     /// * `sql` - Original SQL query
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if tenant enforcement is required but `org_id` is not set.
     ///
     /// # Returns
     /// * Modified SQL with tenant filter, or original if no org_id

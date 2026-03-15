@@ -50,6 +50,10 @@ impl WindowProjector {
     /// * `rows` - SQL result rows as HashMaps (column name → value)
     /// * `plan` - Window execution plan (for metadata like aliases)
     ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future extension (e.g., type coercion failures).
+    ///
     /// # Returns
     ///
     /// GraphQL-compatible JSON array of objects
