@@ -8,6 +8,8 @@ use std::{collections::HashMap, sync::Arc};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use serde_json::Value;
 
+use crate::error::ArrowFlightError;
+
 /// Map GraphQL scalar types to Arrow types.
 ///
 /// # Arguments
@@ -104,9 +106,11 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 /// Returns error if rows are empty or if schema inference fails
 pub fn infer_schema_from_rows(
     rows: &[HashMap<String, Value>],
-) -> Result<Arc<Schema>, Box<dyn std::error::Error>> {
+) -> Result<Arc<Schema>, ArrowFlightError> {
     if rows.is_empty() {
-        return Err("Cannot infer schema from empty rows".into());
+        return Err(ArrowFlightError::SchemaNotFound(
+            "Cannot infer schema from empty rows".to_string(),
+        ));
     }
 
     let first_row = &rows[0];
@@ -381,8 +385,10 @@ mod tests {
     fn test_infer_schema_from_empty_rows_returns_error() {
         let rows: Vec<HashMap<String, Value>> = vec![];
         let result = infer_schema_from_rows(&rows);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot infer schema from empty rows"));
+        assert!(
+            matches!(result, Err(crate::error::ArrowFlightError::SchemaNotFound(_))),
+            "expected SchemaNotFound, got: {result:?}"
+        );
     }
 
     #[test]
