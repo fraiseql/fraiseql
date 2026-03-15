@@ -1,66 +1,13 @@
-name: Security Audit
+name: Security Audit (PR Gate)
 
+# Lightweight PR gate — full audit/deny runs in security-compliance.yml
 on:
-  push:
-    branches: [main, dev]
   pull_request:
-  schedule:
-    # Run daily at 00:00 UTC
-    - cron: '0 0 * * *'
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v5
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v5
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@cargo-audit
-
-      - name: Run cargo-audit
-        run: |
-          cargo audit \
-            --ignore RUSTSEC-2023-0071 `# rsa: Marvin attack — not exploitable (we don't use RSA PKCS#1v1.5 decrypt)` \
-            --ignore RUSTSEC-2024-0384 `# instant: unmaintained — transitive dep via qcell, no replacement yet` \
-            --ignore RUSTSEC-2024-0436 `# paste-impl: proc-macro, compile-time only, no runtime impact` \
-            --ignore RUSTSEC-2025-0134 `# openssl: X.509 policy processing — we use rustls, openssl is optional dep` \
-            --ignore RUSTSEC-2026-0002 `# hyper: slow-headers DoS — mitigated by our request_timeout_secs config`
-
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@cargo-deny
-
-      - name: Run cargo-deny
-        run: cargo deny check
-
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
