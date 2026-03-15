@@ -18,7 +18,7 @@ use crate::{
 ///
 /// # Interior mutability
 ///
-/// The parameter counter uses `Cell<usize>` (via [`ParamCounter`]).  This is
+/// The parameter counter uses `Cell<usize>` (via `ParamCounter`).  This is
 /// safe because:
 /// - `GenericWhereGenerator` is not `Sync` — no concurrent access is possible.
 /// - `generate()` resets the counter before every call.

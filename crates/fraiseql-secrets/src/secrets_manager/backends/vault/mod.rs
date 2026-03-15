@@ -5,9 +5,9 @@
 //! providing dynamic database credentials, TTL management, and encryption.
 //!
 //! # Sub-modules
-//! - [`cache`]: In-memory secret cache with TTL and LRU eviction.
-//! - [`backend`]: `VaultBackend` struct and all Vault API operations.
-//! - [`validation`]: Address and secret-name validation (SSRF guards).
+//! - `cache`: In-memory secret cache with TTL and LRU eviction.
+//! - `backend`: `VaultBackend` struct and all Vault API operations.
+//! - `validation`: Address and secret-name validation (SSRF guards).
 
 mod backend;
 mod cache;

@@ -172,7 +172,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Each root field is dispatched as an independent single-root query.
     /// Results are awaited with [`futures::future::try_join_all`] and merged
-    /// into a [`PipelineResult`].
+    /// into a `PipelineResult`.
     ///
     /// # Errors
     ///

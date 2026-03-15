@@ -47,7 +47,10 @@ pub struct RelayPageResult {
 /// To add support for a new database (e.g., Oracle, Snowflake):
 ///
 /// 1. **Create a new module** in `src/db/your_database/`
-/// 2. **Implement the trait**: ```rust,ignore pub struct YourDatabaseAdapter { /* fields */ }
+/// 2. **Implement the trait**:
+///
+///    ```rust,ignore
+///    pub struct YourDatabaseAdapter { /* fields */ }
 ///
 ///    #[async_trait]
 ///    impl DatabaseAdapter for YourDatabaseAdapter {
@@ -442,7 +445,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// placeholders for string and array values; numeric and NULL values may be inlined.
     /// `params` are the corresponding values in placeholder order.
     ///
-    /// Unlike [`execute_raw_query`], this method accepts bind parameters so that
+    /// Unlike `execute_raw_query`, this method accepts bind parameters so that
     /// user-supplied filter values never appear as string literals in the SQL text,
     /// eliminating the injection risk that `escape_sql_string` mitigated previously.
     ///
@@ -460,7 +463,7 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// Returns `FraiseQLError::Database` on execution failure.
     /// Returns `FraiseQLError::Database` on adapters that do not support raw SQL
-    /// (e.g., [`crate::fraiseql_wire_adapter::FraiseWireAdapter`]).
+    /// (e.g., `FraiseWireAdapter`).
     async fn execute_parameterized_aggregate(
         &self,
         sql: &str,
@@ -723,14 +726,13 @@ pub enum CursorValue {
 ///
 /// # Implementors
 ///
-/// - [`PostgresAdapter`](crate::postgres::PostgresAdapter) — full keyset pagination
-/// - [`MySqlAdapter`](crate::mysql::MySqlAdapter) — keyset pagination with `?` params
-/// - [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) — delegates to inner `A`
+/// - `PostgresAdapter` — full keyset pagination
+/// - `MySqlAdapter` — keyset pagination with `?` params
+/// - `CachedDatabaseAdapter<A>` — delegates to inner `A`
 ///
 /// # Usage
 ///
-/// Construct an [`Executor`](crate::runtime::Executor) with
-/// [`Executor::new_with_relay`](crate::runtime::Executor::new_with_relay) to enable relay
+/// Construct an `Executor` with `Executor::new_with_relay` to enable relay
 /// query execution. The bound `A: RelayDatabaseAdapter` is enforced at that call site.
 pub trait RelayDatabaseAdapter: DatabaseAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
@@ -787,12 +789,12 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 ///
 /// | Adapter | Implements |
 /// |---------|-----------|
-/// | [`PostgresAdapter`](crate::postgres::PostgresAdapter) | ✅ Yes |
-/// | [`MySqlAdapter`](crate::mysql::MySqlAdapter) | ✅ Yes |
-/// | [`SqlServerAdapter`](crate::sqlserver::SqlServerAdapter) | ✅ Yes |
-/// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
-/// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
-/// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
+/// | `PostgresAdapter` | ✅ Yes |
+/// | `MySqlAdapter` | ✅ Yes |
+/// | `SqlServerAdapter` | ✅ Yes |
+/// | `SqliteAdapter` | ❌ No — SQLite does not support stored-function mutations |
+/// | `FraiseWireAdapter` | ❌ No — read-only wire protocol |
+/// | `CachedDatabaseAdapter<A>` | ✅ When `A: MutationCapable` |
 pub trait MutationCapable: DatabaseAdapter {}
 
 /// Type alias for boxed dynamic database adapters.

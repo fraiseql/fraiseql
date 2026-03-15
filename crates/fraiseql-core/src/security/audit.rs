@@ -169,7 +169,7 @@ impl AuditLogger {
 
     /// Log an audit entry.
     ///
-    /// Truncates `query` and `variables` to [`Self::MAX_AUDIT_FIELD_BYTES`] before
+    /// Truncates `query` and `variables` to `MAX_AUDIT_FIELD_BYTES` before
     /// storing to prevent audit table bloat.
     ///
     /// # Errors

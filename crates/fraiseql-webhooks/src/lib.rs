@@ -23,7 +23,7 @@
 //! - **Shopify** — HMAC-SHA256 on `X-Shopify-Hmac-Sha256` header
 //! - **SendGrid** — ECDSA on `X-Twilio-Email-Event-Webhook-Signature`
 //! - **Paddle** — RSA-SHA256 on `Paddle-Signature` header
-//! - Custom providers via the [`traits::WebhookProvider`] trait
+//! - Custom providers via the [`traits::SignatureVerifier`] trait
 //!
 //! ## Security Properties
 //!
@@ -34,8 +34,8 @@
 //!
 //! ## Quick Start
 //!
-//! ```no_run
-//! // See docs/architecture/webhooks.md for the full integration guide.
+//! ```text
+//! See docs/architecture/webhooks.md for the full integration guide.
 //! ```
 //!
 //! ## See Also

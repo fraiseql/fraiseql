@@ -22,10 +22,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Errors
     ///
-    /// - [`FraiseQLError::Validation`] — query violates configured depth/complexity/alias limits
+    /// - `FraiseQLError::Validation` — query violates configured depth/complexity/alias limits
     ///   (only when `RuntimeConfig::query_validation` is `Some`).
-    /// - [`FraiseQLError::Timeout`] — query exceeded `RuntimeConfig::query_timeout_ms`.
-    /// - Any error returned by [`Self::execute_internal`].
+    /// - `FraiseQLError::Timeout` — query exceeded `RuntimeConfig::query_timeout_ms`.
+    /// - Any error returned by `execute_internal`.
     pub async fn execute(
         &self,
         query: &str,

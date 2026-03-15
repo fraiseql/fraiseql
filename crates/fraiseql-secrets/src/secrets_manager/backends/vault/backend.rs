@@ -68,7 +68,7 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 ///
 /// When the Vault token is obtained via AppRole login (`with_approle`), the token carries
 /// a TTL. To avoid using an expired token, callers should check `token_needs_renewal()` and
-/// call `renew_token()` proactively at [`TOKEN_RENEWAL_THRESHOLD`] (80%) of TTL elapsed.
+/// call `renew_token()` proactively at `TOKEN_RENEWAL_THRESHOLD` (80%) of TTL elapsed.
 ///
 /// A background task should be spawned to call `renew_token()` periodically; for example:
 /// ```rust,ignore

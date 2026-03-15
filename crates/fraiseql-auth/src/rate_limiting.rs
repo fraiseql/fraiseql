@@ -111,7 +111,7 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
 /// than `max_requests` in any single window, even under high concurrency.
 ///
-/// The map is capped at [`DEFAULT_MAX_ENTRIES`] keys. When a new key arrives at
+/// The map is capped at `DEFAULT_MAX_ENTRIES` keys. When a new key arrives at
 /// capacity the entry with the oldest `window_start` is evicted to make room,
 /// bounding memory growth while still tracking new sources.
 ///
@@ -181,7 +181,7 @@ impl KeyedRateLimiter {
     /// Create a rate limiter with a custom entry cap.
     ///
     /// Use this when the deployment context calls for a tighter or looser bound
-    /// than [`DEFAULT_MAX_ENTRIES`].  Setting `max_entries = 0` disables the cap
+    /// than `DEFAULT_MAX_ENTRIES`.  Setting `max_entries = 0` disables the cap
     /// (unbounded — not recommended in production).
     pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
         Self {

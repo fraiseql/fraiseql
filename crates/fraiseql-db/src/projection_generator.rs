@@ -120,7 +120,7 @@ impl PostgresProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name contains characters
+    /// Returns `FraiseQLError::Validation` if any field name contains characters
     /// that cannot be safely included in a SQL projection.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
@@ -261,7 +261,7 @@ impl MySqlProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
+    /// Returns `FraiseQLError::Validation` if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("`{}`", self.json_column));
@@ -356,7 +356,7 @@ impl SqliteProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
+    /// Returns `FraiseQLError::Validation` if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("\"{}\"", self.json_column));

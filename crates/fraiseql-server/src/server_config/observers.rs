@@ -63,7 +63,7 @@ pub struct ObserverConfig {
 
 /// Admission control configuration for backpressure limiting.
 ///
-/// Pairs with [`crate::resilience::backpressure::AdmissionController`].
+/// Pairs with `crate::resilience::backpressure::AdmissionController`.
 /// See [`super::ServerConfig::admission_control`] for wiring instructions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdmissionConfig {
