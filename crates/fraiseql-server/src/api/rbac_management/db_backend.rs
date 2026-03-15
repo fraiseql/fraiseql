@@ -780,7 +780,11 @@ mod tests {
 
     #[test]
     fn test_parse_permission_invalid() {
-        assert!(parse_permission("no_colon").is_err());
+        assert!(
+            matches!(parse_permission("no_colon"), Err(RbacDbError::QueryError(_))),
+            "expected QueryError for permission without colon, got: {:?}",
+            parse_permission("no_colon")
+        );
     }
 
     #[test]

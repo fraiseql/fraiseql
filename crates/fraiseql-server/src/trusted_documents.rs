@@ -323,7 +323,10 @@ mod tests {
 
         // Old document should be gone
         let result = store.resolve(Some("sha256:abc123"), None).await;
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(TrustedDocumentError::DocumentNotFound { .. })),
+            "expected DocumentNotFound after hot-reload removed old document, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -379,8 +382,7 @@ mod tests {
         let path = dir.path().join("small-manifest.json");
         let manifest = serde_json::json!({"version": 1, "documents": {}});
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
-        let result =
-            TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Permissive);
-        assert!(result.is_ok(), "small valid manifest must be accepted");
+        TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Permissive)
+            .unwrap_or_else(|e| panic!("small valid manifest must be accepted: {e}"));
     }
 }

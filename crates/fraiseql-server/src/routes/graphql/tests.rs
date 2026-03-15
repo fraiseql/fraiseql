@@ -319,7 +319,7 @@ fn test_graphql_rate_limiter_enforces_limit() {
         limiter.check("192.0.2.1").is_ok(),
         "request 2 within 2-request limit should be allowed"
     );
-    assert!(limiter.check("192.0.2.1").is_err());
+    assert!(limiter.check("192.0.2.1").is_err(), "request 3 should be rate-limited (limit is 2), got: {:?}", limiter.check("192.0.2.1"));
 }
 
 #[cfg(feature = "auth")]
@@ -396,7 +396,7 @@ async fn test_apq_miss_returns_not_found() {
     let metrics = ApqMetrics::default();
 
     let result = resolve_apq(&store, &metrics, "nonexistent_hash", None).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for APQ miss, got: {result:?}");
     assert_eq!(metrics.get_misses(), 1);
 }
 
@@ -425,6 +425,6 @@ async fn test_apq_hash_mismatch() {
     let metrics = ApqMetrics::default();
 
     let result = resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }")).await;
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err for APQ hash mismatch, got: {result:?}");
     assert_eq!(metrics.get_errors(), 1);
 }

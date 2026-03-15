@@ -264,7 +264,11 @@ mod tests {
     #[test]
     fn decode_transport_ws_invalid_json() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlTransportWs);
-        assert!(codec.decode("not json").is_err());
+        assert!(
+            matches!(codec.decode("not json"), Err(ProtocolError::InvalidJson(_))),
+            "expected InvalidJson error for malformed input, got: {:?}",
+            codec.decode("not json")
+        );
     }
 
     // ── ProtocolCodec::decode (legacy) ───────────────────────────

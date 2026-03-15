@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_require_org_id_failure() {
         let ctx = TenantContext { org_id: None };
-        assert!(ctx.require_org_id().is_err());
+        assert!(ctx.require_org_id().is_err(), "expected Err when org_id is None, got: {:?}", ctx.require_org_id());
         assert_eq!(
             ctx.require_org_id().unwrap_err(),
             "Request must be tenant-scoped (missing org_id)"

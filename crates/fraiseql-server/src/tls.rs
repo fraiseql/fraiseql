@@ -515,7 +515,7 @@ mod tests {
             .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let result = setup.create_rustls_config();
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err when TLS not enabled, got: {result:?}");
         assert!(result.unwrap_err().to_string().contains("TLS not enabled"));
     }
 
@@ -534,7 +534,7 @@ mod tests {
             .expect("TlsSetup::new succeeds with enabled=true when min_version is valid; cert reading happens later in create_rustls_config");
 
         let result = setup.create_rustls_config();
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for missing cert file, got: {result:?}");
         assert!(result.unwrap_err().to_string().contains("Failed to open"));
     }
 }

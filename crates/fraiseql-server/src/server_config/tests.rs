@@ -68,7 +68,7 @@ fn test_validate_metrics_disabled_ok() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn test_validate_metrics_enabled_without_token_fails() {
         ..ServerConfig::default()
     };
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("metrics_token is not set"));
 }
 
@@ -91,7 +91,7 @@ fn test_validate_metrics_enabled_with_short_token_fails() {
         ..ServerConfig::default()
     };
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("at least 16 characters"));
 }
 
@@ -103,7 +103,7 @@ fn test_validate_metrics_enabled_with_valid_token_ok() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn test_validate_tls_enabled_without_cert() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("certificate file not found"));
 }
 
@@ -243,7 +243,7 @@ fn test_validate_tls_invalid_min_version() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("min_version must be"));
 }
 
@@ -262,7 +262,7 @@ fn test_validate_database_tls_invalid_postgres_ssl_mode() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("Invalid postgres_ssl_mode"));
 }
 
@@ -287,7 +287,7 @@ fn test_validate_tls_requires_client_ca() {
     };
 
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("client_ca_path is not set"));
 }
 
@@ -334,7 +334,7 @@ fn test_validate_admin_api_enabled_without_token_fails() {
         ..ServerConfig::default()
     };
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("admin_token is not set"));
 }
 
@@ -346,7 +346,7 @@ fn test_validate_admin_api_enabled_with_short_token_fails() {
         ..ServerConfig::default()
     };
     let result = config.validate();
-    assert!(result.is_err());
+    assert!(result.is_err(), "expected Err, got: {result:?}");
     assert!(result.unwrap_err().contains("at least 32 characters"));
 }
 
@@ -358,7 +358,7 @@ fn test_validate_admin_api_enabled_with_valid_token_ok() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }
 
 // --- admin_readonly_token validation tests (S10-1) ---
@@ -405,7 +405,7 @@ fn test_validate_admin_readonly_token_valid_passes() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }
 
 #[test]
@@ -418,5 +418,5 @@ fn test_validate_admin_readonly_token_without_admin_enabled_is_ignored() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    assert!(config.validate().is_ok());
+    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }

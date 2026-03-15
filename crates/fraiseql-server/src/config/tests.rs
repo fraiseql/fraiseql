@@ -41,7 +41,7 @@ fn test_parse_size() {
 
 #[test]
 fn test_parse_size_invalid() {
-    assert!(parse_size("abc").is_err());
+    assert!(parse_size("abc").is_err(), "expected Err for invalid size string, got: {:?}", parse_size("abc"));
 }
 
 #[test]
@@ -55,8 +55,8 @@ fn test_parse_duration() {
 
 #[test]
 fn test_parse_duration_invalid() {
-    assert!(parse_duration("30").is_err()); // Missing unit
-    assert!(parse_duration("abc").is_err());
+    assert!(parse_duration("30").is_err(), "expected Err for duration without unit, got: {:?}", parse_duration("30")); // Missing unit
+    assert!(parse_duration("abc").is_err(), "expected Err for non-numeric duration, got: {:?}", parse_duration("abc"));
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn test_validation_missing_env_var() {
         let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let result = ConfigValidator::new(&config).validate();
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err for missing env var but got no errors");
         assert!(result.errors.iter().any(|e| matches!(e, ConfigError::MissingEnvVar { .. })));
     });
 }
@@ -117,6 +117,6 @@ fn test_validation_cross_field() {
         let result = ConfigValidator::new(&config).validate();
 
         // Should fail because email action requires notifications config
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected Err because email action requires notifications config but got no errors");
     });
 }

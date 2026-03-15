@@ -172,10 +172,9 @@ mod tests {
 
     #[test]
     fn test_validate_passes_for_defaults() {
-        assert!(
-            PoolPressureMonitorConfig::default().validate().is_ok(),
-            "default pool monitor config should pass validation"
-        );
+        PoolPressureMonitorConfig::default()
+            .validate()
+            .unwrap_or_else(|e| panic!("default pool monitor config should pass validation: {e}"));
     }
 
     #[test]
@@ -185,7 +184,7 @@ mod tests {
             max_pool_size: 5,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "min >= max should be invalid");
+        assert!(cfg.validate().is_err(), "min >= max should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -195,7 +194,7 @@ mod tests {
             max_pool_size: 10,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate().is_err(), "min == max should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -204,7 +203,7 @@ mod tests {
             scale_down_idle_ratio: 1.5,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "idle ratio > 1.0 should be invalid");
+        assert!(cfg.validate().is_err(), "idle ratio > 1.0 should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -213,7 +212,7 @@ mod tests {
             scale_down_idle_ratio: -0.1,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate().is_err(), "idle ratio < 0.0 should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -222,7 +221,7 @@ mod tests {
             scale_up_step: 0,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate().is_err(), "scale_up_step == 0 should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -231,7 +230,7 @@ mod tests {
             scale_down_step: 0,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate().is_err(), "scale_down_step == 0 should be invalid, got: {:?}", cfg.validate());
     }
 
     #[test]
@@ -247,6 +246,6 @@ mod tests {
             tuning_interval_ms: 50,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate().is_err(), "tuning_interval_ms < 100 should be invalid, got: {:?}", cfg.validate());
     }
 }

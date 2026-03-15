@@ -470,7 +470,9 @@ mod tests {
     #[tokio::test]
     async fn manager_allows_non_revoked_token() {
         let mgr = TokenRevocationManager::new(memory_store(), true, false);
-        assert!(mgr.check_token(Some("jti-ok")).await.is_ok());
+        mgr.check_token(Some("jti-ok"))
+            .await
+            .unwrap_or_else(|e| panic!("expected Ok for non-revoked token: {e:?}"));
     }
 
     #[tokio::test]
