@@ -12,6 +12,7 @@ mod tests {
     use fraiseql_core::validation::rate_limiting::{
         ValidationRateLimiter, ValidationRateLimitingConfig,
     };
+    use fraiseql_core::FraiseQLError;
 
     /// Test basic rate limiting on validation errors.
     #[test]
@@ -46,10 +47,14 @@ mod tests {
         }
 
         // Key1 should be limited
-        assert!(limiter.check_validation_errors(key1).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(key1), Err(FraiseQLError::RateLimited { .. })),
+            "key1 should be rate limited after exhausting allowance"
+        );
 
         // Key2 should still have allowance
-        assert!(limiter.check_validation_errors(key2).is_ok());
+        limiter.check_validation_errors(key2)
+            .expect("key2 should still have allowance since limits are per-key");
     }
 
     /// Test rate limiting with time window expiry.
@@ -65,16 +70,20 @@ mod tests {
         let key = "test-key";
 
         // Use up the limit
-        assert!(limiter.check_validation_errors(key).is_ok());
-        assert!(limiter.check_validation_errors(key).is_ok());
-        assert!(limiter.check_validation_errors(key).is_ok());
-        assert!(limiter.check_validation_errors(key).is_err());
+        limiter.check_validation_errors(key).expect("request 1 of 3 should succeed");
+        limiter.check_validation_errors(key).expect("request 2 of 3 should succeed");
+        limiter.check_validation_errors(key).expect("request 3 of 3 should succeed");
+        assert!(
+            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "request 4 should be rate limited after exhausting 3-request allowance"
+        );
 
         // Wait for window to expire
         thread::sleep(Duration::from_millis(1100));
 
         // Should allow more requests
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("should allow requests after window expiry");
     }
 
     /// Test rate limiting for depth violations.
@@ -85,12 +94,14 @@ mod tests {
         let key = "192.168.1.100";
 
         // Depth errors should have separate tracking
-        for _ in 0..50 {
-            assert!(limiter.check_depth_errors(key).is_ok());
+        for i in 0..50 {
+            limiter.check_depth_errors(key)
+                .unwrap_or_else(|_| panic!("depth error check {i} should succeed within limit"));
         }
 
         // Should still allow validation errors
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("validation errors should be independent from depth errors");
     }
 
     /// Test rate limiting for complexity violations.
@@ -101,12 +112,14 @@ mod tests {
         let key = "192.168.1.100";
 
         // Complexity errors should have separate tracking
-        for _ in 0..30 {
-            assert!(limiter.check_complexity_errors(key).is_ok());
+        for i in 0..30 {
+            limiter.check_complexity_errors(key)
+                .unwrap_or_else(|_| panic!("complexity error check {i} should succeed within limit"));
         }
 
         // Should still allow validation errors
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("validation errors should be independent from complexity errors");
     }
 
     /// Test rate limiting for malformed queries.
@@ -117,12 +130,14 @@ mod tests {
         let key = "192.168.1.100";
 
         // Malformed errors should have separate tracking
-        for _ in 0..40 {
-            assert!(limiter.check_malformed_errors(key).is_ok());
+        for i in 0..40 {
+            limiter.check_malformed_errors(key)
+                .unwrap_or_else(|_| panic!("malformed error check {i} should succeed within limit"));
         }
 
         // Should still allow validation errors
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("validation errors should be independent from malformed errors");
     }
 
     /// Test rate limiting for async validation failures.
@@ -133,12 +148,14 @@ mod tests {
         let key = "192.168.1.100";
 
         // Async validation errors should have separate tracking
-        for _ in 0..60 {
-            assert!(limiter.check_async_validation_errors(key).is_ok());
+        for i in 0..60 {
+            limiter.check_async_validation_errors(key)
+                .unwrap_or_else(|_| panic!("async validation error check {i} should succeed within limit"));
         }
 
         // Should still allow validation errors
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("validation errors should be independent from async validation errors");
     }
 
     /// Test per-user rate limiting.
@@ -155,10 +172,14 @@ mod tests {
             let _ = limiter.check_validation_errors(user1);
         }
 
-        assert!(limiter.check_validation_errors(user1).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(user1), Err(FraiseQLError::RateLimited { .. })),
+            "user1 should be rate limited after exhausting allowance"
+        );
 
         // User2 should be independent
-        assert!(limiter.check_validation_errors(user2).is_ok());
+        limiter.check_validation_errors(user2)
+            .expect("user2 should have independent allowance from user1");
     }
 
     /// Test tenant isolation.
@@ -175,10 +196,14 @@ mod tests {
             let _ = limiter.check_validation_errors(tenant1_ip);
         }
 
-        assert!(limiter.check_validation_errors(tenant1_ip).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(tenant1_ip), Err(FraiseQLError::RateLimited { .. })),
+            "tenant1 should be rate limited after exhausting allowance"
+        );
 
         // Tenant2 with same IP should be independent
-        assert!(limiter.check_validation_errors(tenant2_ip).is_ok());
+        limiter.check_validation_errors(tenant2_ip)
+            .expect("tenant2 should have independent allowance despite same IP");
     }
 
     /// Test concurrent access to rate limiter.
@@ -243,7 +268,10 @@ mod tests {
         }
 
         // 6th should fail
-        assert!(limiter.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "6th request should be rate limited with custom max_requests=5"
+        );
     }
 
     /// Test that cloned limiter shares state.
@@ -261,7 +289,10 @@ mod tests {
         }
 
         // limiter2 (cloned) should see the same limit
-        assert!(limiter2.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter2.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "cloned limiter should share state and see the same rate limit"
+        );
     }
 
     /// Test error response includes `retry_after_secs`.
@@ -278,7 +309,10 @@ mod tests {
 
         // Next should fail with rate limit error
         let result = limiter.check_validation_errors(key);
-        assert!(result.is_err());
+        assert!(
+            matches!(&result, Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited error after exhausting allowance, got: {result:?}"
+        );
 
         // Error should indicate rate limiting
         if let Err(err) = result {
@@ -304,11 +338,15 @@ mod tests {
         for _ in 0..3 {
             let _ = limiter.check_validation_errors(key);
         }
-        assert!(limiter.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "should be rate limited after exhausting 3-request allowance"
+        );
 
         // Clear and retry
         limiter.clear();
-        assert!(limiter.check_validation_errors(key).is_ok());
+        limiter.check_validation_errors(key)
+            .expect("should allow requests after clearing rate limiter state");
     }
 
     /// Test configuration loading and environment variable overrides.
@@ -382,13 +420,21 @@ mod tests {
         let key = "config-clone-test";
 
         // Both should have same limits
-        for _ in 0..100 {
-            assert!(limiter1.check_validation_errors(key).is_ok());
-            assert!(limiter2.check_validation_errors(key).is_ok());
+        for i in 0..100 {
+            limiter1.check_validation_errors(key)
+                .unwrap_or_else(|_| panic!("limiter1 request {i} should succeed within limit"));
+            limiter2.check_validation_errors(key)
+                .unwrap_or_else(|_| panic!("limiter2 request {i} should succeed within limit"));
         }
 
-        assert!(limiter1.check_validation_errors(key).is_err());
-        assert!(limiter2.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter1.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "limiter1 should be rate limited after exhausting allowance"
+        );
+        assert!(
+            matches!(limiter2.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "limiter2 should be rate limited after exhausting allowance"
+        );
     }
 
     /// Test independent rate limiting for different error dimensions.
@@ -400,18 +446,25 @@ mod tests {
 
         // All dimensions should be independent
         // Use up validation errors
-        for _ in 0..100 {
-            assert!(limiter.check_validation_errors(key).is_ok());
+        for i in 0..100 {
+            limiter.check_validation_errors(key)
+                .unwrap_or_else(|_| panic!("validation error check {i} should succeed within limit"));
         }
-        assert!(limiter.check_validation_errors(key).is_err());
+        assert!(
+            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
+            "validation errors should be rate limited after exhausting allowance"
+        );
 
         // But depth errors should still work
-        assert!(limiter.check_depth_errors(key).is_ok());
+        limiter.check_depth_errors(key)
+            .expect("depth errors should be independent from validation errors");
 
         // And complexity errors
-        assert!(limiter.check_complexity_errors(key).is_ok());
+        limiter.check_complexity_errors(key)
+            .expect("complexity errors should be independent from validation errors");
 
         // And async validation errors
-        assert!(limiter.check_async_validation_errors(key).is_ok());
+        limiter.check_async_validation_errors(key)
+            .expect("async validation errors should be independent from validation errors");
     }
 }
