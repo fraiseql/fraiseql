@@ -126,6 +126,29 @@ impl Clone for VaultBackend {
 
 #[async_trait::async_trait]
 impl SecretsBackend for VaultBackend {
+    fn name(&self) -> &'static str {
+        "vault"
+    }
+
+    async fn health_check(&self) -> Result<(), SecretsError> {
+        // GET /v1/sys/health is a lightweight unauthenticated endpoint
+        let url = format!("{}/{VAULT_API_VERSION}/sys/health", self.addr);
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| SecretsError::ConnectionError(format!("Vault unreachable: {e}")))?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(SecretsError::ConnectionError(format!(
+                "Vault unhealthy: {}",
+                resp.status()
+            )))
+        }
+    }
+
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 

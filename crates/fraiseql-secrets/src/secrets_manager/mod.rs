@@ -123,6 +123,16 @@ impl SecretsManager {
         SecretsManager { backend }
     }
 
+    /// Returns the backend type name (e.g., `"vault"`, `"env"`, `"file"`).
+    pub fn backend_name(&self) -> &'static str {
+        self.backend.name()
+    }
+
+    /// Performs a lightweight connectivity check on the underlying backend.
+    pub async fn health_check(&self) -> Result<(), SecretsError> {
+        self.backend.health_check().await
+    }
+
     /// Get secret by name from backend.
     pub async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         self.backend.get_secret(name).await
@@ -287,6 +297,14 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SecretsBackend for MockBackend {
+        fn name(&self) -> &'static str {
+            "mock"
+        }
+
+        async fn health_check(&self) -> Result<(), SecretsError> {
+            Ok(())
+        }
+
         async fn get_secret(&self, _name: &str) -> Result<String, SecretsError> {
             Ok(self.secret.clone())
         }

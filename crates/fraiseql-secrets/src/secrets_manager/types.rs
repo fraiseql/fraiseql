@@ -11,6 +11,14 @@ use super::SecretsError;
 /// Implementations: Vault, Environment Variables, File-based
 #[async_trait::async_trait]
 pub trait SecretsBackend: Send + Sync {
+    /// Returns the backend type name (e.g., `"vault"`, `"env"`, `"file"`).
+    fn name(&self) -> &'static str;
+
+    /// Performs a lightweight connectivity check.
+    ///
+    /// Returns `Ok(())` if the backend is reachable and authenticated.
+    async fn health_check(&self) -> Result<(), SecretsError>;
+
     /// Get secret by name
     ///
     /// # Arguments

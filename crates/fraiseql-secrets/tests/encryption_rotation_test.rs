@@ -239,6 +239,14 @@ struct FailingBackend;
 
 #[async_trait::async_trait]
 impl SecretsBackend for FailingBackend {
+    fn name(&self) -> &'static str {
+        "failing"
+    }
+
+    async fn health_check(&self) -> Result<(), SecretsError> {
+        Err(SecretsError::ConnectionError("Vault unavailable".to_string()))
+    }
+
     async fn get_secret(&self, _name: &str) -> Result<String, SecretsError> {
         Err(SecretsError::ConnectionError(
             "Vault: connection refused (simulated outage)".to_string(),

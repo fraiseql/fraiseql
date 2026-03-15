@@ -280,6 +280,14 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SecretsBackend for TestSecretsBackend {
+        fn name(&self) -> &'static str {
+            "test"
+        }
+
+        async fn health_check(&self) -> Result<(), SmError> {
+            Ok(())
+        }
+
         async fn get_secret(&self, name: &str) -> Result<String, SmError> {
             self.secrets
                 .get(name)

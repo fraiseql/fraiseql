@@ -31,6 +31,14 @@ pub struct EnvBackend;
 
 #[async_trait::async_trait]
 impl SecretsBackend for EnvBackend {
+    fn name(&self) -> &'static str {
+        "env"
+    }
+
+    async fn health_check(&self) -> Result<(), SecretsError> {
+        Ok(()) // Environment variables are always available
+    }
+
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_secret_name(name)?;
         std::env::var(name)

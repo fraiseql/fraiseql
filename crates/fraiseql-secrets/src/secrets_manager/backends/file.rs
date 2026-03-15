@@ -35,6 +35,22 @@ pub struct FileBackend {
 
 #[async_trait::async_trait]
 impl SecretsBackend for FileBackend {
+    fn name(&self) -> &'static str {
+        "file"
+    }
+
+    async fn health_check(&self) -> Result<(), SecretsError> {
+        // Check that the base directory exists and is readable
+        if self.base_path.is_dir() {
+            Ok(())
+        } else {
+            Err(SecretsError::ConnectionError(format!(
+                "Secrets directory not found: {}",
+                self.base_path.display()
+            )))
+        }
+    }
+
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         let path = self.base_path.join(name);
 
