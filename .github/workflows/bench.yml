@@ -1,0 +1,111 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev]
+
+jobs:
+  bench:
+    name: Criterion benchmarks
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install critcmp
+        run: cargo install critcmp --locked
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Initialize benchmark database
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
+      # Restore the most recent dev baseline (PRs only need a restore-keys fallback)
+      - name: Restore dev baseline
+        id: restore-baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: target/criterion/
+          key: bench-baseline-${{ github.event.pull_request.base.sha || github.sha }}
+          restore-keys: bench-baseline-
+
+      # On a PR: run benchmarks and save under the "pr" baseline name
+      # On a dev/main push: run benchmarks and save under the "dev" baseline name
+      - name: Run benchmarks
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cargo bench --workspace -- --save-baseline pr 2>&1 | tee bench.log
+          else
+            cargo bench --workspace -- --save-baseline dev 2>&1 | tee bench.log
+          fi
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      # Compare only on PRs where a baseline was successfully restored
+      - name: Compare against dev baseline
+        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
+        run: |
+          critcmp dev pr --threshold 10 | tee bench-comparison.txt
+          # critcmp exits non-zero if any benchmark regressed more than 10%
+
+      # Save the new baseline after a successful dev push
+      - name: Save dev baseline
+        if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: target/criterion/
+          key: bench-baseline-${{ github.sha }}
+
+      # Post the comparison table as a PR comment (informational, not blocking)
+      - name: Post comparison as PR comment
+        if: >
+          github.event_name == 'pull_request' &&
+          steps.restore-baseline.outputs.cache-hit == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('bench-comparison.txt')) return;
+            const body = fs.readFileSync('bench-comparison.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Benchmark Comparison (threshold: 10%)\n\n\`\`\`\n${body}\n\`\`\``
+            });
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: criterion-results
+          path: target/criterion/

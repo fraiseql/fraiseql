@@ -1218,64 +1218,10 @@ jobs:
           TLS_TEST_CA_CERT: /tmp/tls-ca.crt
           RUST_LOG: info
 
-  # Benchmark performance (only on v2-development)
+  # Benchmark performance — extracted to bench.yml for baseline comparison
   bench:
-    name: Benchmarks
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev'
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: fraiseql_test_password
-          POSTGRES_USER: fraiseql_test
-          POSTGRES_DB: test_fraiseql
-        options: >-
-          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5433:5432
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Initialize benchmark database
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
-
-      - name: Run benchmarks
-        run: cargo bench --no-fail-fast
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-
-      - name: Store benchmark results
-        uses: actions/upload-artifact@v6
-        with:
-          name: benchmark-results
-          path: target/criterion
+    uses: ./.github/workflows/bench.yml
+    secrets: inherit
 
 
   # Feature flag compilation coverage for fraiseql-server
