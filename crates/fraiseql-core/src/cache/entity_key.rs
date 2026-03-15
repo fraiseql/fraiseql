@@ -178,13 +178,19 @@ mod tests {
     #[test]
     fn test_reject_empty_entity_type() {
         let result = EntityKey::new("", "550e8400-e29b-41d4-a716-446655440000");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty entity_type, got: {result:?}"
+        );
     }
 
     #[test]
     fn test_reject_empty_entity_id() {
         let result = EntityKey::new("User", "");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for empty entity_id, got: {result:?}"
+        );
     }
 
     #[test]
@@ -216,7 +222,10 @@ mod tests {
     #[test]
     fn test_reject_colon_only_in_entity_type() {
         let result = EntityKey::new(":", "some-id");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for colon-only entity_type, got: {result:?}"
+        );
     }
 
     #[test]

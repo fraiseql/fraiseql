@@ -427,7 +427,10 @@ mod tests {
         });
 
         let result = parser.parse_cascade_response(&response);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing __typename, got: {result:?}"
+        );
     }
 
     #[test]
@@ -442,7 +445,10 @@ mod tests {
         });
 
         let result = parser.parse_cascade_response(&response);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for missing id, got: {result:?}"
+        );
     }
 
     #[test]

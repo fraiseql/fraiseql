@@ -405,7 +405,10 @@ mod tests {
     fn test_self_dependency_fails() {
         let mut invalidator = CascadeInvalidator::new();
         let result = invalidator.add_dependency("v_user", "v_user");
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(crate::error::FraiseQLError::Validation { .. })),
+            "expected Validation error for self-dependency, got: {result:?}"
+        );
     }
 
     #[test]
@@ -594,7 +597,10 @@ mod tests {
         // Adding C → A would create the cycle C→B→A→...→C — must be rejected.
         // (C depends on B which depends on A; adding A→C would close the loop)
         let result = invalidator.add_dependency("A", "C");
-        assert!(result.is_err(), "indirect cycle A→C→B→A should be rejected");
+        assert!(
+            matches!(result, Err(crate::error::FraiseQLError::Validation { .. })),
+            "expected Validation error for indirect cycle A→C→B→A, got: {result:?}"
+        );
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("cycle"), "error message should mention cycle, got: {msg}");
     }
@@ -605,7 +611,11 @@ mod tests {
         invalidator.add_dependency("B", "A").unwrap(); // B depends on A
         invalidator.add_dependency("C", "B").unwrap(); // C depends on B
         // A depends on C would close: A→C→B→A
-        assert!(invalidator.add_dependency("A", "C").is_err());
+        let result = invalidator.add_dependency("A", "C");
+        assert!(
+            matches!(result, Err(crate::error::FraiseQLError::Validation { .. })),
+            "expected Validation error for three-node cycle A→C→B→A, got: {result:?}"
+        );
     }
 
     #[test]

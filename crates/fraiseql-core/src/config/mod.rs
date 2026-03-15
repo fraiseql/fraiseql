@@ -541,7 +541,10 @@ mod tests {
     #[test]
     fn test_builder_requires_database_url() {
         let result = FraiseQLConfig::builder().build();
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Configuration { .. })),
+            "expected Configuration error when database URL is absent, got: {result:?}"
+        );
     }
 
     #[test]
@@ -668,7 +671,10 @@ provider = "jwt"
         // from_toml succeeds but validate would fail
         let config = result.unwrap();
         let validation = config.validate();
-        assert!(validation.is_err());
+        assert!(
+            matches!(validation, Err(FraiseQLError::Configuration { .. })),
+            "expected Configuration error for missing jwt_secret, got: {validation:?}"
+        );
         assert!(validation.unwrap_err().to_string().contains("jwt_secret is required"));
     }
 
@@ -684,7 +690,10 @@ provider = "auth0"
 "#;
         let config = FraiseQLConfig::from_toml(toml).unwrap();
         let validation = config.validate();
-        assert!(validation.is_err());
+        assert!(
+            matches!(validation, Err(FraiseQLError::Configuration { .. })),
+            "expected Configuration error for missing auth0 domain, got: {validation:?}"
+        );
         assert!(validation.unwrap_err().to_string().contains("domain is required"));
     }
 
