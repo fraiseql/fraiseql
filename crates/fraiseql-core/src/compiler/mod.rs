@@ -390,10 +390,9 @@ mod tests {
             "mutations": []
         }"#;
 
-        let result = compiler.compile(schema_json);
-        assert!(result.is_ok());
-
-        let compiled = result.unwrap();
+        let compiled = compiler
+            .compile(schema_json)
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
         assert_eq!(compiled.fact_tables.len(), 0);
     }
 

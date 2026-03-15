@@ -128,31 +128,38 @@ mod tests {
     #[test]
     fn test_measure_name_accepted() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
-        assert!(al.validate("revenue", "PARTITION BY").is_ok());
+        al.validate("revenue", "PARTITION BY")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_filter_name_accepted() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
-        assert!(al.validate("occurred_at", "ORDER BY").is_ok());
+        al.validate("occurred_at", "ORDER BY")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_dimension_short_name_accepted() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
-        assert!(al.validate("category", "PARTITION BY").is_ok());
+        al.validate("category", "PARTITION BY")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_dimension_full_json_path_accepted() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
-        assert!(al.validate("dimensions->>'category'", "PARTITION BY").is_ok());
+        al.validate("dimensions->>'category'", "PARTITION BY")
+            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
     fn test_unknown_field_rejected() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
-        assert!(al.validate("secret_column", "PARTITION BY").is_err());
+        assert!(
+            matches!(al.validate("secret_column", "PARTITION BY"), Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for unknown field"
+        );
     }
 
     #[test]
@@ -181,7 +188,9 @@ mod tests {
         // skipped (character-level validation in the planner still applies).
         let al = WindowAllowlist::default();
         assert!(al.is_empty());
-        assert!(al.validate("any_field", "PARTITION BY").is_ok());
-        assert!(al.validate("'; DROP TABLE users; --", "ORDER BY").is_ok());
+        al.validate("any_field", "PARTITION BY")
+            .unwrap_or_else(|e| panic!("expected Ok for empty allowlist: {e}"));
+        al.validate("'; DROP TABLE users; --", "ORDER BY")
+            .unwrap_or_else(|e| panic!("expected Ok for empty allowlist: {e}"));
     }
 }

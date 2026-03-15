@@ -170,10 +170,14 @@ fn test_validate_groups_frame_postgres_only() {
     };
 
     // Should pass for PostgreSQL
-    assert!(WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL).is_ok());
+    WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL)
+        .unwrap_or_else(|e| panic!("expected Ok for PostgreSQL GROUPS frame: {e}"));
 
     // Should fail for MySQL
-    assert!(WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::MySQL).is_err());
+    assert!(
+        WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::MySQL).is_err(),
+        "expected Err for MySQL GROUPS frame, got Ok"
+    );
 }
 
 // =============================================================================
@@ -317,9 +321,9 @@ fn test_window_planner_invalid_measure() {
         offset:       None,
     };
 
-    let result = WindowPlanner::plan(request, metadata);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("not found"));
+    let err = WindowPlanner::plan(request, metadata)
+        .expect_err("expected Err for invalid measure name");
+    assert!(err.to_string().contains("not found"), "unexpected error: {err}");
 }
 
 #[test]
@@ -338,9 +342,9 @@ fn test_window_planner_invalid_filter() {
         offset:       None,
     };
 
-    let result = WindowPlanner::plan(request, metadata);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("not found"));
+    let err = WindowPlanner::plan(request, metadata)
+        .expect_err("expected Err for invalid filter name");
+    assert!(err.to_string().contains("not found"), "unexpected error: {err}");
 }
 
 #[test]

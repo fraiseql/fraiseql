@@ -909,7 +909,10 @@ mod tests {
         let parser = SchemaParser::new();
         let json = "not valid json";
         let result = parser.parse(json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Parse { .. })),
+            "expected Parse error for invalid JSON, got: {result:?}"
+        );
     }
 
     #[test]
@@ -921,7 +924,10 @@ mod tests {
             }]
         }"#;
         let result = parser.parse(json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Parse { .. })),
+            "expected Parse error for missing required field, got: {result:?}"
+        );
     }
 
     #[test]
@@ -1003,7 +1009,10 @@ mod tests {
         let parser = SchemaParser::new();
         let json = r#"{"interfaces": [{"fields": []}]}"#;
         let result = parser.parse(json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Parse { .. })),
+            "expected Parse error for interface missing name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -1078,7 +1087,10 @@ mod tests {
         let parser = SchemaParser::new();
         let json = r#"{"unions": [{"types": []}]}"#;
         let result = parser.parse(json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Parse { .. })),
+            "expected Parse error for union missing name, got: {result:?}"
+        );
     }
 
     #[test]
@@ -1191,7 +1203,10 @@ mod tests {
         let parser = SchemaParser::new();
         let json = r#"{"input_types": [{"fields": []}]}"#;
         let result = parser.parse(json);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(FraiseQLError::Parse { .. })),
+            "expected Parse error for input type missing name, got: {result:?}"
+        );
     }
 
     #[test]

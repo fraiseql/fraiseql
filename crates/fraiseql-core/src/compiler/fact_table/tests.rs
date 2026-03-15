@@ -29,7 +29,8 @@ fn test_validate_valid_fact_table() {
         calendar_dimensions:  vec![],
     };
 
-    assert!(FactTableDetector::validate(&metadata).is_ok());
+    FactTableDetector::validate(&metadata)
+        .unwrap_or_else(|e| panic!("expected Ok for valid fact table: {e}"));
 }
 
 #[test]
@@ -46,8 +47,8 @@ fn test_validate_missing_measures() {
     };
 
     let result = FactTableDetector::validate(&metadata);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("at least one measure"));
+    let err = result.expect_err("expected Err for missing measures");
+    assert!(err.to_string().contains("at least one measure"), "unexpected error: {err}");
 }
 
 #[test]
@@ -68,8 +69,8 @@ fn test_validate_non_numeric_measure() {
     };
 
     let result = FactTableDetector::validate(&metadata);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("must be numeric"));
+    let err = result.expect_err("expected Err for non-numeric measure");
+    assert!(err.to_string().contains("must be numeric"), "unexpected error: {err}");
 }
 
 #[test]
