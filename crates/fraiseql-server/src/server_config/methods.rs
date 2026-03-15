@@ -162,6 +162,18 @@ impl ServerConfig {
             }
         }
 
+        // Rate limiting sanity check
+        if let Some(ref rl) = self.rate_limiting {
+            if rl.rps_per_ip > 0 && rl.rps_per_user > 0 && rl.rps_per_ip > rl.rps_per_user {
+                tracing::warn!(
+                    rps_per_ip = rl.rps_per_ip,
+                    rps_per_user = rl.rps_per_user,
+                    "rps_per_ip exceeds rps_per_user — authenticated users are more \
+                     restricted than anonymous IPs"
+                );
+            }
+        }
+
         // Production safety validation
         if Self::is_production_mode() {
             // Playground should be disabled in production
