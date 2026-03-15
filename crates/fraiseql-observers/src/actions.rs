@@ -581,7 +581,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("X-Custom".to_string(), "value".to_string());
         headers.insert("Authorization".to_string(), "Bearer token".to_string());
-        assert!(validate_headers(&headers).is_ok());
+        validate_headers(&headers).unwrap_or_else(|e| panic!("clean headers should pass: {e}"));
     }
 
     #[test]
@@ -597,19 +597,21 @@ mod tests {
     fn test_validate_headers_cr_in_name_rejected() {
         let mut headers = HashMap::new();
         headers.insert("X-Evil\rInjected".to_string(), "value".to_string());
-        assert!(validate_headers(&headers).is_err());
+        let result = validate_headers(&headers);
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "CR in header name should be rejected: {result:?}");
     }
 
     #[test]
     fn test_validate_headers_lf_in_value_rejected() {
         let mut headers = HashMap::new();
         headers.insert("X-Legit".to_string(), "value\r\nX-Injected: malicious".to_string());
-        assert!(validate_headers(&headers).is_err());
+        let result = validate_headers(&headers);
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "CRLF in header value should be rejected: {result:?}");
     }
 
     #[test]
     fn test_validate_headers_empty_map_passes() {
-        assert!(validate_headers(&HashMap::new()).is_ok());
+        validate_headers(&HashMap::new()).unwrap_or_else(|e| panic!("empty headers should pass: {e}"));
     }
 
     #[test]
@@ -652,7 +654,7 @@ mod tests {
         // Colons are valid in header *values* (e.g. "Bearer tok:en", URLs, etc.)
         let mut headers = HashMap::new();
         headers.insert("Authorization".to_string(), "Bearer abc:xyz".to_string());
-        assert!(validate_headers(&headers).is_ok());
+        validate_headers(&headers).unwrap_or_else(|e| panic!("colon in header value should be allowed: {e}"));
     }
 
     // --- HTTP status classification tests (14-4) ---
@@ -660,8 +662,8 @@ mod tests {
     #[test]
     fn test_200_ok_is_success() {
         let result = classify_http_status(reqwest::StatusCode::OK, 10.0);
-        assert!(result.is_ok());
-        assert!(result.unwrap().success);
+        let response = result.unwrap_or_else(|e| panic!("200 OK should be success: {e}"));
+        assert!(response.success);
     }
 
     #[test]
@@ -696,34 +698,48 @@ mod tests {
 
     #[test]
     fn test_outbound_url_scheme_must_be_http() {
-        assert!(validate_outbound_url("file:///etc/passwd").is_err());
-        assert!(validate_outbound_url("ftp://example.com").is_err());
-        assert!(validate_outbound_url("example.com/hook").is_err());
+        let result = validate_outbound_url("file:///etc/passwd");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "file scheme should be rejected: {result:?}");
+        let result = validate_outbound_url("ftp://example.com");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "ftp scheme should be rejected: {result:?}");
+        let result = validate_outbound_url("example.com/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "no scheme should be rejected: {result:?}");
     }
 
     #[test]
     fn test_outbound_url_blocks_loopback() {
-        assert!(validate_outbound_url("http://localhost:8080").is_err());
-        assert!(validate_outbound_url("http://127.0.0.1/hook").is_err());
-        assert!(validate_outbound_url("http://[::1]/hook").is_err());
+        let result = validate_outbound_url("http://localhost:8080");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "localhost should be blocked: {result:?}");
+        let result = validate_outbound_url("http://127.0.0.1/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "127.0.0.1 should be blocked: {result:?}");
+        let result = validate_outbound_url("http://[::1]/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "::1 should be blocked: {result:?}");
     }
 
     #[test]
     fn test_outbound_url_blocks_private_ranges() {
-        assert!(validate_outbound_url("http://10.0.0.1/hook").is_err());
-        assert!(validate_outbound_url("http://172.16.0.1/hook").is_err());
-        assert!(validate_outbound_url("http://192.168.1.100/hook").is_err());
+        let result = validate_outbound_url("http://10.0.0.1/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "10.x should be blocked: {result:?}");
+        let result = validate_outbound_url("http://172.16.0.1/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "172.16.x should be blocked: {result:?}");
+        let result = validate_outbound_url("http://192.168.1.100/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "192.168.x should be blocked: {result:?}");
         // AWS metadata endpoint
-        assert!(validate_outbound_url("http://169.254.169.254/latest/meta-data/").is_err());
+        let result = validate_outbound_url("http://169.254.169.254/latest/meta-data/");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "169.254.x should be blocked: {result:?}");
         // CGNAT range
-        assert!(validate_outbound_url("http://100.64.0.1/hook").is_err());
+        let result = validate_outbound_url("http://100.64.0.1/hook");
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })), "100.64.x should be blocked: {result:?}");
     }
 
     #[test]
     fn test_outbound_url_allows_public_addresses() {
-        assert!(validate_outbound_url("https://hooks.slack.com/services/xxx").is_ok());
-        assert!(validate_outbound_url("https://api.example.com/webhook").is_ok());
-        assert!(validate_outbound_url("http://203.0.113.10/hook").is_ok());
+        validate_outbound_url("https://hooks.slack.com/services/xxx")
+            .unwrap_or_else(|e| panic!("public slack URL should pass: {e}"));
+        validate_outbound_url("https://api.example.com/webhook")
+            .unwrap_or_else(|e| panic!("public API URL should pass: {e}"));
+        validate_outbound_url("http://203.0.113.10/hook")
+            .unwrap_or_else(|e| panic!("public IP should pass: {e}"));
     }
 
     // ── S24-H2: SlackAction client timeout ────────────────────────────────────

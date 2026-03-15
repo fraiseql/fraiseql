@@ -369,53 +369,69 @@ mod tests {
 
     #[test]
     fn test_valid_urls_pass() {
-        assert!(resolve_url(Some("https://hooks.example.com/notify"), None, "Test").is_ok());
-        assert!(resolve_url(Some("http://api.example.org/webhook"), None, "Test").is_ok());
+        resolve_url(Some("https://hooks.example.com/notify"), None, "Test")
+            .unwrap_or_else(|e| panic!("https URL should be valid: {e}"));
+        resolve_url(Some("http://api.example.org/webhook"), None, "Test")
+            .unwrap_or_else(|e| panic!("http URL should be valid: {e}"));
     }
 
     #[test]
     fn test_invalid_scheme_rejected() {
-        assert!(resolve_url(Some("ftp://example.com/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("file:///etc/passwd"), None, "Test").is_err());
+        let result = resolve_url(Some("ftp://example.com/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "ftp scheme should be rejected: {result:?}");
+        let result = resolve_url(Some("file:///etc/passwd"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "file scheme should be rejected: {result:?}");
     }
 
     #[test]
     fn test_localhost_rejected() {
-        assert!(resolve_url(Some("http://localhost/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://localhost.localdomain/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("https://subdomain.localhost/hook"), None, "Test").is_err());
+        let result = resolve_url(Some("http://localhost/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "localhost should be rejected: {result:?}");
+        let result = resolve_url(Some("http://localhost.localdomain/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "localhost.localdomain should be rejected: {result:?}");
+        let result = resolve_url(Some("https://subdomain.localhost/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "subdomain.localhost should be rejected: {result:?}");
     }
 
     #[test]
     fn test_private_ipv4_rejected() {
         // RFC 1918
-        assert!(resolve_url(Some("http://10.0.0.1/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://172.16.0.1/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://172.31.255.255/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://192.168.1.1/hook"), None, "Test").is_err());
+        let result = resolve_url(Some("http://10.0.0.1/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "10.x should be rejected: {result:?}");
+        let result = resolve_url(Some("http://172.16.0.1/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "172.16.x should be rejected: {result:?}");
+        let result = resolve_url(Some("http://172.31.255.255/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "172.31.x should be rejected: {result:?}");
+        let result = resolve_url(Some("http://192.168.1.1/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "192.168.x should be rejected: {result:?}");
         // Loopback
-        assert!(resolve_url(Some("http://127.0.0.1/hook"), None, "Test").is_err());
+        let result = resolve_url(Some("http://127.0.0.1/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "127.x should be rejected: {result:?}");
         // Link-local / AWS IMDS
-        assert!(
-            resolve_url(Some("http://169.254.169.254/latest/meta-data/"), None, "Test").is_err()
-        );
+        let result = resolve_url(Some("http://169.254.169.254/latest/meta-data/"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "169.254.x should be rejected: {result:?}");
     }
 
     #[test]
     fn test_private_ipv6_rejected() {
-        assert!(resolve_url(Some("http://[::1]/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://[fc00::1]/hook"), None, "Test").is_err());
-        assert!(resolve_url(Some("http://[fe80::1]/hook"), None, "Test").is_err());
+        let result = resolve_url(Some("http://[::1]/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "::1 should be rejected: {result:?}");
+        let result = resolve_url(Some("http://[fc00::1]/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "fc00::1 should be rejected: {result:?}");
+        let result = resolve_url(Some("http://[fe80::1]/hook"), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "fe80::1 should be rejected: {result:?}");
     }
 
     #[test]
     fn test_no_url_provided_error() {
-        assert!(resolve_url(None, None, "Test").is_err());
+        let result = resolve_url(None, None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "no URL should fail: {result:?}");
     }
 
     #[test]
     fn test_url_too_long_rejected() {
         let long_url = format!("https://example.com/{}", "a".repeat(2_100));
-        assert!(resolve_url(Some(&long_url), None, "Test").is_err());
+        let result = resolve_url(Some(&long_url), None, "Test");
+        assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "long URL should be rejected: {result:?}");
     }
 }

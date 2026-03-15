@@ -181,7 +181,7 @@ async fn test_run_listener_loop_empty_batch() {
     let result = executor.run_listener_loop(&mut listener, Some(1)).await;
 
     // Should succeed despite no entries
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("empty batch listener loop should succeed: {e}"));
 }
 
 #[tokio::test]
@@ -237,7 +237,7 @@ async fn test_run_listener_loop_with_iteration_limit() {
 
     // Should complete successfully with iteration limit
     let result = executor.run_listener_loop(&mut listener, Some(3)).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("listener loop with 3 iterations should succeed: {e}"));
 }
 
 #[test]
@@ -313,7 +313,7 @@ async fn test_run_listener_loop_zero_iterations() {
 
     // Should handle zero iterations
     let result = executor.run_listener_loop(&mut listener, Some(0)).await;
-    assert!(result.is_ok());
+    result.unwrap_or_else(|e| panic!("listener loop with 0 iterations should succeed: {e}"));
 }
 
 // =========================================================================
@@ -769,9 +769,10 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(matches!(err, ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing webhook URL should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -787,8 +788,7 @@ async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name()
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.expect_err("missing env var should return an error");
     if let ObserverError::InvalidActionConfig { reason } = err {
         assert!(
             reason.contains("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET"),
@@ -812,8 +812,10 @@ async fn test_dispatch_slack_missing_webhook_url_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing slack webhook URL should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -831,8 +833,10 @@ async fn test_dispatch_email_missing_to_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing email 'to' should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -850,8 +854,10 @@ async fn test_dispatch_email_missing_subject_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing email 'subject' should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -866,8 +872,10 @@ async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing SMS 'phone' should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -882,8 +890,10 @@ async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "missing push 'device_token' should return InvalidActionConfig: {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -899,8 +909,8 @@ async fn test_dispatch_slack_url_env_var_missing_error() {
 
     let result = executor.execute_action_internal(&action, &event).await;
 
-    assert!(result.is_err());
-    if let ObserverError::InvalidActionConfig { reason } = result.unwrap_err() {
+    let err = result.expect_err("missing slack env var should return an error");
+    if let ObserverError::InvalidActionConfig { reason } = err {
         assert!(
             reason.contains("FRAISEQL_TEST_SLACK_URL_MISSING_VAR"),
             "reason should mention var name, got: {reason}"
@@ -1393,9 +1403,9 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
         retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
-    let result = observer.compile_condition();
-    assert!(result.is_ok(), "valid condition must compile without error");
-    assert!(result.unwrap().is_some(), "compile_condition must return Some(ast)");
+    let ast = observer.compile_condition()
+        .unwrap_or_else(|e| panic!("valid condition must compile without error: {e}"));
+    assert!(ast.is_some(), "compile_condition must return Some(ast)");
 }
 
 #[test]
@@ -1409,10 +1419,10 @@ fn test_compile_condition_returns_none_when_no_condition() {
         retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
-    let result = observer.compile_condition();
-    assert!(result.is_ok());
+    let ast = observer.compile_condition()
+        .unwrap_or_else(|e| panic!("no-condition case must not error: {e}"));
     assert!(
-        result.unwrap().is_none(),
+        ast.is_none(),
         "compile_condition must return None when no condition"
     );
 }
@@ -1429,7 +1439,10 @@ fn test_compile_condition_returns_error_for_invalid_dsl() {
         on_failure: crate::config::FailurePolicy::Log,
     };
     let result = observer.compile_condition();
-    assert!(result.is_err(), "invalid DSL must return an error from compile_condition");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidCondition { .. })),
+        "invalid DSL must return InvalidCondition error: {result:?}"
+    );
 }
 
 // ── Action timeout tests (14-5) ───────────────────────────────────────────
