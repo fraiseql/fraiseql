@@ -440,7 +440,7 @@ impl BridgeTransportConfig {
     }
 
     /// Convert to `BridgeConfig` for use with `PostgresNatsBridge`
-    #[cfg(feature = "nats")]
+    #[cfg(all(feature = "postgres", feature = "nats"))]
     #[must_use]
     pub fn to_bridge_config(&self) -> crate::transport::BridgeConfig {
         crate::transport::BridgeConfig {

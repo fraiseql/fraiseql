@@ -166,6 +166,7 @@ fn test_retry_config_defaults() {
 
 // Listener integration tests ()
 
+#[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_run_listener_loop_empty_batch() {
     use sqlx::postgres::PgPool;
@@ -184,6 +185,7 @@ async fn test_run_listener_loop_empty_batch() {
     result.unwrap_or_else(|e| panic!("empty batch listener loop should succeed: {e}"));
 }
 
+#[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_checkpoint_tracking() {
     use sqlx::postgres::PgPool;
@@ -205,6 +207,7 @@ async fn test_checkpoint_tracking() {
     assert_eq!(listener.checkpoint(), 100);
 }
 
+#[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_listener_config_builder() {
     use sqlx::postgres::PgPool;
@@ -224,6 +227,7 @@ async fn test_listener_config_builder() {
 
 // Error handling and resilience tests ()
 
+#[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_run_listener_loop_with_iteration_limit() {
     use sqlx::postgres::PgPool;

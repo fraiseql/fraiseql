@@ -147,9 +147,12 @@ pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
 pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
 #[cfg(feature = "queue")]
 pub use job_queue::{Job as JobQueueItem, JobState};
+#[cfg(feature = "postgres")]
 pub use listener::{
-    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease, EventListener,
-    FailoverEvent, FailoverManager, ListenerConfig, ListenerHandle, ListenerHealth, ListenerState,
+    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, EventListener, ListenerConfig,
+};
+pub use listener::{
+    CheckpointLease, FailoverEvent, FailoverManager, ListenerHandle, ListenerHealth, ListenerState,
     ListenerStateMachine, MultiListenerCoordinator,
 };
 pub use logging::{
@@ -186,9 +189,11 @@ pub use traits::{
     TemplateRenderer,
 };
 pub use transport::{
-    EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport,
-    PostgresNotifyTransport, TransportHealth, TransportType,
+    EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport, TransportHealth,
+    TransportType,
 };
+#[cfg(feature = "postgres")]
+pub use transport::PostgresNotifyTransport;
 
 #[cfg(test)]
 mod integration_tests {
@@ -255,7 +260,7 @@ mod integration_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "postgres"))]
 mod e2e_tests {
     //! End-to-end integration tests
     //!

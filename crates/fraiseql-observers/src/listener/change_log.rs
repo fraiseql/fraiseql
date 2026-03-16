@@ -6,6 +6,14 @@
 //! 3. Converts entries to `EntityEvent` for observer processing
 //! 4. Maintains checkpoint for recovery after restarts
 //! 5. Handles backpressure and batch processing
+//!
+//! **Requires the `postgres` Cargo feature.**
+
+#[cfg(not(feature = "postgres"))]
+compile_error!(
+    "`fraiseql-observers::listener::change_log` requires the `postgres` feature. \
+     Enable it with: fraiseql-observers = { features = [\"postgres\"] }"
+);
 
 use std::{collections::HashMap, time::Duration};
 

@@ -61,8 +61,28 @@ pub struct MetricsRegistry {
 }
 
 impl MetricsRegistry {
-    /// Create a new metrics registry and register with default Prometheus registry
+    /// Return the process-level singleton, initializing it on the first call.
+    ///
+    /// Registration with the Prometheus global registry happens exactly once per
+    /// process, so calling this (or `new()` / `Default::default()`) any number of
+    /// times is safe.
+    pub fn global() -> PrometheusResult<Self> {
+        Ok(GLOBAL_REGISTRY
+            .get_or_init(|| Self::register_metrics().expect("Failed to initialize global metrics registry"))
+            .clone())
+    }
+
+    /// Return the process-level singleton.
+    ///
+    /// This always returns the same instance so that Prometheus metrics are
+    /// registered exactly once.  Calling `new()` multiple times is safe.
     pub fn new() -> PrometheusResult<Self> {
+        Self::global()
+    }
+
+    /// Register all metrics and construct the struct.  Called at most once per
+    /// process via `GLOBAL_REGISTRY`.
+    fn register_metrics() -> PrometheusResult<Self> {
         // Get the default Prometheus registry
         let registry = prometheus::default_registry();
 
@@ -367,17 +387,11 @@ impl MetricsRegistry {
         }
     }
 
-    /// Get or create the global singleton metrics registry
-    pub fn global() -> PrometheusResult<Self> {
-        Ok(GLOBAL_REGISTRY
-            .get_or_init(|| Self::new().expect("Failed to initialize global metrics registry"))
-            .clone())
-    }
 }
 
 impl Default for MetricsRegistry {
     fn default() -> Self {
-        Self::new().expect("Failed to initialize metrics registry")
+        Self::global().expect("Failed to initialize metrics registry")
     }
 }
 

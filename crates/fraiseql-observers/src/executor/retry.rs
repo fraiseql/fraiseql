@@ -235,6 +235,9 @@ impl ObserverExecutor {
     /// - Implements exponential backoff on database errors (up to 10 retries)
     /// - Skips malformed entries and continues processing
     /// - Continues indefinitely until listener stops or error occurs
+    ///
+    /// **Requires the `postgres` Cargo feature.**
+    #[cfg(feature = "postgres")]
     pub async fn run_listener_loop(
         &self,
         listener: &mut crate::listener::ChangeLogListener,
@@ -348,6 +351,9 @@ impl ObserverExecutor {
     ///
     /// # Returns
     /// `JoinHandle` for the background listener task
+    ///
+    /// **Requires the `postgres` Cargo feature.**
+    #[cfg(feature = "postgres")]
     #[must_use]
     pub fn spawn_listener(
         self: Arc<Self>,

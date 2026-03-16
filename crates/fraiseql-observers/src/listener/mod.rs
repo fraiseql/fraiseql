@@ -1,41 +1,51 @@
-//! PostgreSQL event listeners for the observer system.
+//! Event listeners for the observer system.
 //!
-//! This module provides two listening strategies:
-//! 1. **LISTEN/NOTIFY** - Low-latency but ephemeral (mod.rs)
+//! This module provides two listening strategies (both require the `postgres` feature):
+//! 1. **LISTEN/NOTIFY** - Low-latency but ephemeral (`mod.rs`)
 //! 2. **`ChangeLog` Polling** - Durable polling from `tb_entity_change_log` (`change_log.rs`)
 //!
-//! Multi-listener coordination for high availability:
-//! - state.rs: Listener lifecycle state machine
-//! - lease.rs: Distributed checkpoint leasing
-//! - coordinator.rs: Multi-listener coordination
-//! - failover.rs: Automatic failover management
+//! Multi-listener coordination for high availability (feature-independent):
+//! - `state.rs`: Listener lifecycle state machine
+//! - `lease.rs`: Distributed checkpoint leasing
+//! - `coordinator.rs`: Multi-listener coordination
+//! - `failover.rs`: Automatic failover management
 
+#[cfg(feature = "postgres")]
 pub mod change_log;
 pub mod coordinator;
 pub mod failover;
 pub mod lease;
 pub mod state;
 
+#[cfg(feature = "postgres")]
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 
+#[cfg(feature = "postgres")]
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
 pub use coordinator::{ListenerHandle, ListenerHealth, MultiListenerCoordinator};
 pub use failover::{FailoverEvent, FailoverManager};
 pub use lease::CheckpointLease;
+#[cfg(feature = "postgres")]
 use sqlx::postgres::{PgListener, PgPool};
 pub use state::{ListenerState, ListenerStateMachine};
+#[cfg(feature = "postgres")]
 use tokio::sync::mpsc;
+#[cfg(feature = "postgres")]
 use tracing::{debug, error, warn};
 
+#[cfg(feature = "postgres")]
 use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
 };
 
-/// Configuration for the event listener
+/// Configuration for the PostgreSQL LISTEN/NOTIFY event listener.
+///
+/// **Requires the `postgres` Cargo feature.**
+#[cfg(feature = "postgres")]
 #[derive(Debug, Clone)]
 pub struct ListenerConfig {
     /// PostgreSQL connection pool
@@ -51,13 +61,17 @@ pub struct ListenerConfig {
     pub backlog_alert_threshold: usize,
 }
 
-/// PostgreSQL event listener that receives NOTIFY events
+/// PostgreSQL event listener that receives NOTIFY events.
+///
+/// **Requires the `postgres` Cargo feature.**
+#[cfg(feature = "postgres")]
 pub struct EventListener {
     config:  ListenerConfig,
     sender:  mpsc::Sender<EntityEvent>,
     running: Arc<AtomicBool>,
 }
 
+#[cfg(feature = "postgres")]
 impl EventListener {
     /// Create a new event listener
     #[must_use]
@@ -188,8 +202,7 @@ impl EventListener {
 mod tests {
     use uuid::Uuid;
 
-    use super::*;
-    use crate::event::EventKind;
+    use crate::event::{EntityEvent, EventKind};
 
     #[tokio::test]
     async fn test_event_deserialization() {

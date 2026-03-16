@@ -37,6 +37,7 @@ use futures::Stream;
 use crate::{error::Result, event::EntityEvent};
 
 pub mod in_memory;
+#[cfg(feature = "postgres")]
 pub mod postgres_notify;
 
 #[cfg(feature = "nats")]
@@ -67,6 +68,7 @@ pub use mysql_bridge::{
 };
 #[cfg(feature = "nats")]
 pub use nats::{NatsConfig, NatsTransport};
+#[cfg(feature = "postgres")]
 pub use postgres_notify::PostgresNotifyTransport;
 
 /// Event stream type (async stream of `EntityEvents`)
