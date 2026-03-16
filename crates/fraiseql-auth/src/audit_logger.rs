@@ -203,6 +203,12 @@ pub struct AuditEntry {
     /// Additional context
     /// Max 2 KB per `bounds::MAX_CONTEXT_LEN`
     pub context:       Option<String>,
+    /// HMAC-SHA256 chain hash for tamper detection (64 hex chars).
+    ///
+    /// Each entry's hash depends on all previous entries, making retroactive
+    /// tampering detectable. `None` when tamper-evident logging is disabled.
+    /// Verify with [`crate::audit_chain::verify_chain`].
+    pub chain_hash:    Option<String>,
 }
 
 /// Audit logger trait - allows different implementations (structured logs, database, syslog, etc.)
@@ -248,6 +254,7 @@ pub trait AuditLogger: Send + Sync {
             success: true,
             error_message: None,
             context: None,
+            chain_hash: None,
         });
     }
 
@@ -268,6 +275,7 @@ pub trait AuditLogger: Send + Sync {
             success: false,
             error_message: Some(error.to_string()),
             context: None,
+            chain_hash: None,
         });
     }
 }
@@ -424,6 +432,7 @@ mod tests {
             success:       true,
             error_message: None,
             context:       None,
+            chain_hash:    None,
         };
 
         assert_eq!(entry.event_type, AuditEventType::JwtValidation);
@@ -552,6 +561,7 @@ mod tests {
             success:       true,
             error_message: None,
             context:       None,
+            chain_hash:    None,
         };
 
         // Verify subject fits within bounds
@@ -627,6 +637,7 @@ mod tests {
             success:       false,
             error_message: Some("e".repeat(bounds::MAX_ERROR_MESSAGE_LEN)),
             context:       Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
+            chain_hash:    None,
         };
 
         // Serialize to JSON to estimate size

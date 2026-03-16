@@ -41,6 +41,7 @@
 #![allow(clippy::ignored_unit_patterns)] // Reason: _ pattern in Ok(()) destructuring
 #![allow(clippy::default_trait_access)] // Reason: Type::default() clearer than Default::default()
 
+pub mod audit_chain;
 pub mod audit_logger;
 pub mod constant_time;
 pub mod error;
