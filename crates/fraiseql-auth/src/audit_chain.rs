@@ -126,6 +126,16 @@ pub enum ChainVerifyError {
         /// Zero-based index of the malformed entry.
         entry_index: usize,
     },
+    /// An audit entry is not a JSON object.
+    ///
+    /// Every entry produced by the audit logger is a JSON object. If this
+    /// variant is returned the supplied entries are malformed or have been
+    /// tampered with.
+    #[error("Entry {entry_index} is not a JSON object")]
+    InvalidEntry {
+        /// Zero-based index of the malformed entry.
+        entry_index: usize,
+    },
 }
 
 /// Verify the HMAC chain over a sequence of JSON entries.
@@ -163,13 +173,9 @@ pub fn verify_chain(
 
         // Re-compute the hash over the entry without the chain_hash field.
         let mut entry_for_hash = entry;
-        #[allow(clippy::unwrap_used)]
-        // Reason: serde_json::Value::as_object_mut() returns None only if entry is
-        // not an object. We are receiving structured audit entries which are always
-        // JSON objects; the None branch is unreachable in correct usage.
         entry_for_hash
             .as_object_mut()
-            .expect("audit entries must be JSON objects")
+            .ok_or(ChainVerifyError::InvalidEntry { entry_index: idx })?
             .remove("chain_hash");
         let entry_json = entry_for_hash.to_string();
         let expected_hash = hasher.advance(&entry_json);
