@@ -33,6 +33,8 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 walkdir = "2"
 
 [dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
 temp-env = {workspace = true}
 tempfile = "3.25"
 

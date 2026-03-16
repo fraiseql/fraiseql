@@ -1,178 +1,202 @@
-//! Integration tests for CLI help documentation
+//! Integration tests for CLI help documentation — in-process via assert_cmd.
 
-use std::process::Command;
+use assert_cmd::Command;
+use predicates::prelude::*;
 
-/// Helper function to run CLI command with --help flag
-fn get_help_output(args: &[&str]) -> String {
-    let mut cmd = Command::new("cargo");
-    cmd.arg("run").arg("-p").arg("fraiseql-cli").arg("--").args(args).arg("--help");
-
-    let output = cmd.output().expect("Failed to run command");
-    String::from_utf8_lossy(&output.stdout).to_string()
+fn fraiseql() -> Command {
+    Command::cargo_bin("fraiseql-cli").expect("fraiseql-cli binary not found")
 }
+
+// ── main --help ──────────────────────────────────────────────────────────────
 
 #[test]
 fn test_main_help_shows_json_flag() {
-    let help = get_help_output(&[]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "Main help should document --json flag"
-    );
+    fraiseql()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
 }
 
 #[test]
 fn test_main_help_shows_quiet_flag() {
-    let help = get_help_output(&[]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "Main help should document --quiet flag"
-    );
+    fraiseql()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
+
+// ── compile --help ───────────────────────────────────────────────────────────
 
 #[test]
 fn test_compile_help_shows_json_flag() {
-    let help = get_help_output(&["compile"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "compile help should document --json flag"
-    );
+    fraiseql()
+        .args(["compile", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
 }
 
 #[test]
 fn test_compile_help_shows_quiet_flag() {
-    let help = get_help_output(&["compile"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "compile help should document --quiet flag"
-    );
-}
-
-#[test]
-fn test_validate_help_shows_json_flag() {
-    let help = get_help_output(&["validate"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "validate help should document --json flag"
-    );
-}
-
-#[test]
-fn test_validate_help_shows_quiet_flag() {
-    let help = get_help_output(&["validate"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "validate help should document --quiet flag"
-    );
-}
-
-#[test]
-fn test_explain_help_shows_json_flag() {
-    let help = get_help_output(&["explain"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "explain help should document --json flag"
-    );
-}
-
-#[test]
-fn test_explain_help_shows_quiet_flag() {
-    let help = get_help_output(&["explain"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "explain help should document --quiet flag"
-    );
-}
-
-#[test]
-fn test_cost_help_shows_json_flag() {
-    let help = get_help_output(&["cost"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "cost help should document --json flag"
-    );
-}
-
-#[test]
-fn test_cost_help_shows_quiet_flag() {
-    let help = get_help_output(&["cost"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "cost help should document --quiet flag"
-    );
-}
-
-#[test]
-fn test_analyze_help_shows_json_flag() {
-    let help = get_help_output(&["analyze"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "analyze help should document --json flag"
-    );
-}
-
-#[test]
-fn test_analyze_help_shows_quiet_flag() {
-    let help = get_help_output(&["analyze"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "analyze help should document --quiet flag"
-    );
-}
-
-#[test]
-fn test_federation_graph_help_shows_json_flag() {
-    let help = get_help_output(&["federation", "graph"]);
-    assert!(
-        help.contains("--json") || help.contains("-j"),
-        "federation graph help should document --json flag"
-    );
-}
-
-#[test]
-fn test_federation_graph_help_shows_quiet_flag() {
-    let help = get_help_output(&["federation", "graph"]);
-    assert!(
-        help.contains("--quiet") || help.contains("-q"),
-        "federation graph help should document --quiet flag"
-    );
+    fraiseql()
+        .args(["compile", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_compile_help_shows_usage_example() {
-    let help = get_help_output(&["compile"]);
-    // Help text should contain some indication of how to use the command
-    assert!(help.len() > 20, "compile help should contain substantial documentation");
+    fraiseql()
+        .args(["compile", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
+}
+
+// ── validate --help ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_validate_help_shows_json_flag() {
+    fraiseql()
+        .args(["validate", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
+}
+
+#[test]
+fn test_validate_help_shows_quiet_flag() {
+    fraiseql()
+        .args(["validate", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_validate_help_shows_usage_example() {
-    let help = get_help_output(&["validate"]);
-    assert!(help.len() > 20, "validate help should contain substantial documentation");
+    fraiseql()
+        .args(["validate", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
+}
+
+// ── explain --help ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_explain_help_shows_json_flag() {
+    fraiseql()
+        .args(["explain", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
+}
+
+#[test]
+fn test_explain_help_shows_quiet_flag() {
+    fraiseql()
+        .args(["explain", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_explain_help_shows_usage_example() {
-    let help = get_help_output(&["explain"]);
-    assert!(help.len() > 20, "explain help should contain substantial documentation");
+    fraiseql()
+        .args(["explain", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
+}
+
+// ── cost --help ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cost_help_shows_json_flag() {
+    fraiseql()
+        .args(["cost", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
+}
+
+#[test]
+fn test_cost_help_shows_quiet_flag() {
+    fraiseql()
+        .args(["cost", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_cost_help_shows_usage_example() {
-    let help = get_help_output(&["cost"]);
-    assert!(help.len() > 20, "cost help should contain substantial documentation");
+    fraiseql()
+        .args(["cost", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
+}
+
+// ── analyze --help ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_analyze_help_shows_json_flag() {
+    fraiseql()
+        .args(["analyze", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
+}
+
+#[test]
+fn test_analyze_help_shows_quiet_flag() {
+    fraiseql()
+        .args(["analyze", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_analyze_help_shows_usage_example() {
-    let help = get_help_output(&["analyze"]);
-    assert!(help.len() > 20, "analyze help should contain substantial documentation");
+    fraiseql()
+        .args(["analyze", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
+}
+
+// ── federation graph --help ──────────────────────────────────────────────────
+
+#[test]
+fn test_federation_graph_help_shows_json_flag() {
+    fraiseql()
+        .args(["federation", "graph", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--json").or(predicate::str::contains("-j")));
+}
+
+#[test]
+fn test_federation_graph_help_shows_quiet_flag() {
+    fraiseql()
+        .args(["federation", "graph", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quiet").or(predicate::str::contains("-q")));
 }
 
 #[test]
 fn test_federation_graph_help_shows_usage_example() {
-    let help = get_help_output(&["federation", "graph"]);
-    assert!(
-        help.len() > 20,
-        "federation graph help should contain substantial documentation"
-    );
+    fraiseql()
+        .args(["federation", "graph", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r".{20,}").unwrap());
 }
