@@ -8,6 +8,7 @@ on:
 jobs:
   record-metrics:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Record CI duration
         run: |

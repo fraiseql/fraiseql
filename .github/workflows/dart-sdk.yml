@@ -14,6 +14,7 @@ jobs:
   test:
     name: Dart SDK
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: sdks/official/fraiseql-dart
@@ -41,6 +42,7 @@ jobs:
   publish:
     name: Publish to pub.dev
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: test
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/dart-sdk/v')
     permissions:

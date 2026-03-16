@@ -58,7 +58,7 @@ parking_lot = {workspace = true}
 pin-project = "1"
 rand = "0.8"
 # Redis for rate limiting (optional)
-redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 reqwest = {workspace = true}
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
@@ -103,8 +103,6 @@ futures = "0.3"
 proptest = {workspace = true}
 # HTTP testing
 reqwest = {workspace = true}
-# YAML parsing for deployment tests
-serde_yaml = "0.9"
 # Database testing
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
 temp-env = {workspace = true}

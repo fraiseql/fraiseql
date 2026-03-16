@@ -10,6 +10,7 @@ jobs:
   feature-matrix:
     name: "check (${{ matrix.features || 'no-default-features' }})"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -39,6 +40,7 @@ jobs:
   all-features:
     name: "test --all-features"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

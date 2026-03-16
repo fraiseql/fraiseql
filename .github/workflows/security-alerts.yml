@@ -14,6 +14,7 @@ jobs:
   scan-base-images:
     name: Scan Base Images
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -140,6 +141,7 @@ jobs:
   monitor-active-cves:
     name: Monitor Active CVEs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -286,6 +288,7 @@ jobs:
   compliance-summary:
     name: Weekly Compliance Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [scan-base-images, monitor-active-cves]
     if: always()
     steps:

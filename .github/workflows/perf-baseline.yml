@@ -23,6 +23,7 @@ jobs:
   load-test:
     name: Load test (k6)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Only run if this is a push or a PR with the "perf" label
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'perf')
 

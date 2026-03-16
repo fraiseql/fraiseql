@@ -22,6 +22,7 @@ jobs:
   fmt:
     name: Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +38,7 @@ jobs:
   check-test-imports:
     name: Check Test Imports
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +49,7 @@ jobs:
   clippy:
     name: Clippy Lints
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +115,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -172,6 +176,7 @@ jobs:
   integration-postgres:
     name: Integration Tests (PostgreSQL)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -244,6 +249,7 @@ jobs:
   integration-mysql:
     name: Integration Tests (MySQL)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       mysql:
@@ -295,6 +301,7 @@ jobs:
   integration-sqlite:
     name: Integration Tests (SQLite)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -325,6 +332,7 @@ jobs:
   integration-sqlserver:
     name: Integration Tests (SQL Server)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       sqlserver:
@@ -372,6 +380,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -476,6 +485,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -493,6 +503,7 @@ jobs:
   dependency-audit:
     name: Dependency Duplication Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -535,6 +546,7 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -567,6 +579,7 @@ jobs:
   integration-cross-db:
     name: Integration Tests (Cross-DB Parity)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -631,6 +644,7 @@ jobs:
   integration-redis:
     name: Integration Tests (Redis)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       redis:
@@ -705,6 +719,7 @@ jobs:
   integration-nats:
     name: Integration Tests (NATS)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -757,6 +772,7 @@ jobs:
   integration-observers:
     name: Integration Tests (Observers)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -843,6 +859,7 @@ jobs:
   integration-tls:
     name: Integration Tests (TLS Wire Protocol)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -916,6 +933,7 @@ jobs:
   integration-vault:
     name: Integration Tests (Vault Secrets Manager)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -974,6 +992,7 @@ jobs:
   integration-server:
     name: Integration Tests (Server Database)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -1027,6 +1046,7 @@ jobs:
   integration-http-e2e:
     name: Integration Tests (HTTP E2E Server)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -1118,6 +1138,7 @@ jobs:
   ignored-tests:
     name: Ignored Tests (Manual)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.event_name == 'workflow_dispatch'
     services:
       postgres:
@@ -1228,6 +1249,7 @@ jobs:
   feature-flags:
     name: Feature Flag Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -1267,6 +1289,7 @@ jobs:
   sdk-parity:
     name: Cross-SDK Schema Parity
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -1332,6 +1355,7 @@ jobs:
   cargo-deny:
     name: Dependency Policy (cargo deny)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
@@ -1339,6 +1363,34 @@ jobs:
           command: check
           arguments: --all-features
           manifest-path: Cargo.toml
+
+  # Doc tests across the entire workspace
+  doc-test:
+    name: Doc Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-doctest-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run doc tests
+        run: cargo test --doc --workspace
 
   # All checks passed
   ci-success:
@@ -1363,10 +1415,12 @@ jobs:
       - dependency-audit
       - integration-cross-db
       - docs
+      - doc-test
       - feature-flags
       - sdk-parity
       - cargo-deny
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Mark CI as successful
         run: echo "All CI checks passed!"

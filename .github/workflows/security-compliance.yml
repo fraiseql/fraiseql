@@ -24,6 +24,7 @@ jobs:
   secrets-scan:
     name: Secrets Detection
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Only run on pull requests where there's always a diff to scan
     # Push events to main can have BASE=HEAD which causes TruffleHog to error
     if: github.event_name == 'pull_request'
@@ -44,6 +45,7 @@ jobs:
   license-scan:
     name: License Compliance
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
 
@@ -184,6 +186,7 @@ jobs:
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
 
@@ -215,6 +218,7 @@ jobs:
   compliance-check:
     name: Compliance Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
 
@@ -268,6 +272,7 @@ jobs:
   security-gate:
     name: Security Gate ✅
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [secrets-scan, license-scan, container-security, dependency-audit, compliance-check]
     if: always()
     steps:
