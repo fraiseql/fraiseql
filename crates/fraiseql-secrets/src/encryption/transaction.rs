@@ -94,12 +94,13 @@ impl TransactionContext {
         request_id: impl Into<String>,
     ) -> Self {
         // Generate unique transaction ID
+        // Use unwrap_or(ZERO) to handle clock-before-epoch in VMs/containers.
+        let micros = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or(std::time::Duration::ZERO)
+            .as_micros();
         let transaction_id = format!(
-            "txn_{}_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("system clock is always past UNIX epoch")
-                .as_micros(),
+            "txn_{micros}_{}",
             &uuid::Uuid::new_v4().to_string()[..8]
         );
 

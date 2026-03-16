@@ -97,7 +97,7 @@ pub async fn create_secrets_manager(
         } => {
             info!(addr = %addr, "Initializing Vault secrets backend");
             let mut vault = match auth {
-                VaultAuth::Token(token) => VaultBackend::new(addr.as_str(), token.as_str()),
+                VaultAuth::Token(token) => VaultBackend::new(addr.as_str(), token.as_str())?,
                 VaultAuth::AppRole { role_id, secret_id } => {
                     VaultBackend::with_approle(&addr, &role_id, secret_id.as_str()).await?
                 },

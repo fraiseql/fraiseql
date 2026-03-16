@@ -49,7 +49,7 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// let vault = VaultBackend::new(
 ///     "https://vault.example.com:8200",
 ///     "s.xxxxxxxxxxxxxxxx"
-/// );
+/// )?;
 /// let secret = vault.get_secret("database/creds/fraiseql").await?;
 /// let (secret, expiry) = vault.get_secret_with_expiry("database/creds/fraiseql").await?;
 /// # Ok(())
@@ -208,18 +208,16 @@ impl SecretsBackend for VaultBackend {
 impl VaultBackend {
     /// Create new VaultBackend with server address and authentication token.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the HTTP client cannot be built (this should never happen in
-    /// practice — only invalid TLS configuration can trigger this path), or if
-    /// `addr` targets a private/loopback address (SSRF protection).
-    #[must_use]
-    pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
+    /// Returns `SecretsError` if `addr` targets a private/loopback address (SSRF
+    /// protection) or if the HTTP client cannot be built.
+    pub fn new<S: Into<String>>(addr: S, token: S) -> Result<Self, SecretsError> {
         let addr_str: String = addr.into();
         // SECURITY: Reject Vault addresses that target private/loopback ranges (SSRF).
-        validate_vault_addr(&addr_str).expect("Vault address failed SSRF validation");
-        let client = build_http_client(true).expect("Failed to build Vault HTTP client");
-        VaultBackend {
+        validate_vault_addr(&addr_str)?;
+        let client = build_http_client(true)?;
+        Ok(VaultBackend {
             addr: addr_str,
             token: Zeroizing::new(token.into()),
             namespace: None,
@@ -229,7 +227,7 @@ impl VaultBackend {
             // Static token — no TTL tracking
             token_obtained_at: None,
             token_ttl_secs: None,
-        }
+        })
     }
 
     /// Set Vault namespace (Enterprise feature).
@@ -299,7 +297,7 @@ impl VaultBackend {
         let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
         let token_obtained_at = Some(Utc::now());
 
-        let mut backend = Self::new(addr, &token);
+        let mut backend = Self::new(addr, token.as_str())?;
         backend.token_obtained_at = token_obtained_at;
         backend.token_ttl_secs = token_ttl_secs;
         Ok(backend)

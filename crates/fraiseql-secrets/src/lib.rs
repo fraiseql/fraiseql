@@ -60,3 +60,6 @@ pub use secrets_manager::{
     create_secrets_manager,
     types::{Secret, SecretsBackend},
 };
+
+/// Crate-level `Result` alias — errors are always [`SecretsError`].
+pub type Result<T> = std::result::Result<T, SecretsError>;

@@ -10,7 +10,7 @@ use crate::secrets_manager::{SecretsBackend, SecretsError};
 /// Test VaultBackend creation
 #[test]
 fn test_vault_backend_creation() {
-    let vault = VaultBackend::new("https://vault.local:8200", "mytoken");
+    let vault = VaultBackend::new("https://vault.local:8200", "mytoken").unwrap();
     assert_eq!(vault.addr(), "https://vault.local:8200");
     assert_eq!(vault.token(), "mytoken");
 }
@@ -18,7 +18,7 @@ fn test_vault_backend_creation() {
 /// Test VaultBackend placeholder returns error
 #[tokio::test]
 async fn test_vault_backend_placeholder() {
-    let vault = VaultBackend::new("https://vault.local:8200", "token");
+    let vault = VaultBackend::new("https://vault.local:8200", "token").unwrap();
 
     let result = vault.get_secret("any/path").await;
     assert!(result.is_err(), "placeholder vault should return an error: {result:?}");
@@ -27,8 +27,8 @@ async fn test_vault_backend_placeholder() {
 /// Test multiple VaultBackend instances
 #[test]
 fn test_vault_backend_multiple() {
-    let vault1 = VaultBackend::new("https://vault1.local:8200", "token1");
-    let vault2 = VaultBackend::new("https://vault2.local:8200", "token2");
+    let vault1 = VaultBackend::new("https://vault1.local:8200", "token1").unwrap();
+    let vault2 = VaultBackend::new("https://vault2.local:8200", "token2").unwrap();
 
     assert_ne!(vault1.addr(), vault2.addr());
     assert_ne!(vault1.token(), vault2.token());
@@ -37,7 +37,7 @@ fn test_vault_backend_multiple() {
 /// Test VaultBackend clone
 #[test]
 fn test_vault_backend_clone() {
-    let vault1 = VaultBackend::new("https://vault.local:8200", "token");
+    let vault1 = VaultBackend::new("https://vault.local:8200", "token").unwrap();
     let vault2 = vault1.clone();
 
     assert_eq!(vault1.addr(), vault2.addr());
