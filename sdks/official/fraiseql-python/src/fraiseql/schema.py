@@ -1,5 +1,17 @@
 """Schema export functionality."""
 
+from __future__ import annotations
+
+__all__ = [
+    "config",
+    "export_schema",
+    "export_types",
+    "get_schema_dict",
+    "Schema",
+    "CompiledSchema",
+    "Federation",
+]
+
 import json
 from typing import Any
 
@@ -69,7 +81,7 @@ class Schema:
         self.types = types or []
         # Note: In real implementation, would extract federation metadata from types
 
-    def compile(self) -> "CompiledSchema":
+    def compile(self) -> CompiledSchema:
         """Compile the schema for federation.
 
         Returns:
@@ -111,7 +123,7 @@ class CompiledSchema:
             return Federation(enabled=True, version="v2")
         return None
 
-    def get_type(self, name: str) -> dict[str, Any] | None:
+    def get_type(self, name: str) -> TypeInfo | None:
         """Get type information by name.
 
         Args:

@@ -19,6 +19,10 @@ name = "sql_projection_benchmark"
 
 [[bench]]
 harness = false
+name = "cache_concurrent_bench"
+
+[[bench]]
+harness = false
 name = "federation_bench"
 
 [dependencies]

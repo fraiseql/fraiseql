@@ -78,7 +78,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
         run: |
           critcmp dev pr --threshold 5 \
-            -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline)' \
+            -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline|cache_concurrent|cache_get_latency)' \
             | tee bench-comparison.txt || echo "::warning::Micro benchmarks regressed >5%"
 
       - name: Compare slow benchmarks (15% threshold)

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT [id], [label], ROW_NUMBER() OVER (ORDER BY [score] DESC) AS [row_num] FROM [v_score]

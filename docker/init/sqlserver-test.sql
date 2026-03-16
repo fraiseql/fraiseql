@@ -81,3 +81,57 @@ GO
 
 CREATE VIEW v_relay_item AS SELECT id, data FROM relay_item;
 GO
+
+-- ============================================================================
+-- Scored item (window function + CTE + aggregation tests)
+--
+-- Plain relational columns so RANK(), ROW_NUMBER(), SUM(), COUNT() work
+-- without JSON_VALUE. SQL Server 2012+ supports all window functions.
+-- ============================================================================
+CREATE TABLE score_item (
+    id       CHAR(36)     NOT NULL PRIMARY KEY,
+    category NVARCHAR(50) NOT NULL,
+    score    INT          NOT NULL,
+    label    NVARCHAR(100) NOT NULL
+);
+GO
+
+INSERT INTO score_item (id, category, score, label) VALUES
+  ('sc-01', 'A', 95, 'alpha'),
+  ('sc-02', 'A', 80, 'beta'),
+  ('sc-03', 'A', 80, 'gamma'),
+  ('sc-04', 'B', 70, 'delta'),
+  ('sc-05', 'B', 60, 'epsilon'),
+  ('sc-06', 'B', 90, 'zeta'),
+  ('sc-07', 'C', 50, 'eta'),
+  ('sc-08', 'C', 55, 'theta');
+GO
+
+CREATE VIEW v_score AS SELECT id, category, score, label FROM score_item;
+GO
+
+-- ============================================================================
+-- Mutation stored procedure
+--
+-- SQL Server uses OUTPUT INSERTED.* for returning inserted rows.
+-- ============================================================================
+CREATE TABLE tag_item (
+    pk_tag  INT          NOT NULL IDENTITY(1,1) PRIMARY KEY,
+    name    NVARCHAR(200) NOT NULL UNIQUE
+);
+GO
+
+CREATE VIEW v_tag AS SELECT pk_tag, name FROM tag_item;
+GO
+
+CREATE OR ALTER PROCEDURE fn_create_tag @p_name NVARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM tag_item WHERE name = @p_name)
+        INSERT INTO tag_item (name) OUTPUT INSERTED.pk_tag AS id, INSERTED.name
+        VALUES (@p_name);
+    ELSE
+        SELECT pk_tag AS id, name FROM tag_item WHERE name = @p_name;
+END;
+GO

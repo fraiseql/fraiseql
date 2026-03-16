@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT COUNT(*) AS cnt, SUM(score) AS total, AVG(score) AS avg_score, MIN(score) AS min_score, MAX(score) AS max_score FROM `v_score`

@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release
 
 # Default target
 help:
@@ -71,6 +71,12 @@ build:
 # Build release
 build-release:
 	cargo build --release --all-features
+
+# Prepare a release: bump version, update CHANGELOG and README, commit, tag.
+# Usage: make release VERSION=2.2.0
+release:
+	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=x.y.z" && exit 1)
+	bash tools/release.sh $(VERSION)
 
 # Run all tests (unit + integration)
 test: test-unit test-integration

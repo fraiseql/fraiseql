@@ -1097,3 +1097,237 @@ mod mysql_relay {
         assert_snapshot!(sql);
     }
 }
+
+// ============================================================================
+// Parity Group: Window Functions (MySQL 8+ and SQL Server 2012+)
+// ============================================================================
+
+mod window_functions {
+    use insta::assert_snapshot;
+
+    // MySQL 8+: RANK() partitioned by category
+    #[test]
+    fn snapshot_mysql_window_rank() {
+        let sql = "SELECT category, score, label, \
+                   RANK() OVER (PARTITION BY category ORDER BY score DESC) AS rnk \
+                   FROM `v_score` \
+                   ORDER BY category, rnk";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: RANK() partitioned by category
+    #[test]
+    fn snapshot_sqlserver_window_rank() {
+        let sql = "SELECT [category], [score], [label], \
+                   RANK() OVER (PARTITION BY [category] ORDER BY [score] DESC) AS [rnk] \
+                   FROM [v_score] \
+                   ORDER BY [category], [rnk]";
+        assert_snapshot!(sql);
+    }
+
+    // MySQL 8+: ROW_NUMBER() across all rows
+    #[test]
+    fn snapshot_mysql_window_row_number() {
+        let sql = "SELECT id, label, \
+                   ROW_NUMBER() OVER (ORDER BY score DESC) AS row_num \
+                   FROM `v_score`";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: ROW_NUMBER() across all rows
+    #[test]
+    fn snapshot_sqlserver_window_row_number() {
+        let sql = "SELECT [id], [label], \
+                   ROW_NUMBER() OVER (ORDER BY [score] DESC) AS [row_num] \
+                   FROM [v_score]";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// Parity Group: CTEs (MySQL 8+ and SQL Server)
+// ============================================================================
+
+mod cte_queries {
+    use insta::assert_snapshot;
+
+    // MySQL 8+: basic CTE (WITH clause)
+    #[test]
+    fn snapshot_mysql_cte_basic() {
+        let sql = "WITH top_scores AS (\
+                   SELECT id, label, score FROM `v_score` WHERE score >= 80\
+                   ) \
+                   SELECT * FROM top_scores ORDER BY score DESC";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: basic CTE
+    #[test]
+    fn snapshot_sqlserver_cte_basic() {
+        let sql = "WITH top_scores AS (\
+                   SELECT [id], [label], [score] FROM [v_score] WHERE [score] >= 80\
+                   ) \
+                   SELECT * FROM top_scores ORDER BY [score] DESC";
+        assert_snapshot!(sql);
+    }
+
+    // MySQL 8+: recursive CTE
+    #[test]
+    fn snapshot_mysql_cte_recursive() {
+        let sql = "WITH RECURSIVE counter(n) AS (\
+                   SELECT 1 \
+                   UNION ALL \
+                   SELECT n + 1 FROM counter WHERE n < 5\
+                   ) \
+                   SELECT n FROM counter";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: recursive CTE (no RECURSIVE keyword — SQL Server omits it)
+    #[test]
+    fn snapshot_sqlserver_cte_recursive() {
+        let sql = "WITH counter(n) AS (\
+                   SELECT 1 \
+                   UNION ALL \
+                   SELECT n + 1 FROM counter WHERE n < 5\
+                   ) \
+                   SELECT n FROM counter";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// Parity Group: Aggregations (MySQL and SQL Server)
+// ============================================================================
+
+mod aggregation_parity {
+    use insta::assert_snapshot;
+
+    // MySQL: GROUP BY with COUNT and MAX
+    #[test]
+    fn snapshot_mysql_group_by_aggregation() {
+        let sql = "SELECT category, COUNT(*) AS cnt, MAX(score) AS max_score \
+                   FROM `v_score` \
+                   GROUP BY category \
+                   ORDER BY category";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: GROUP BY with COUNT and MAX
+    #[test]
+    fn snapshot_sqlserver_group_by_aggregation() {
+        let sql = "SELECT [category], COUNT(*) AS [cnt], MAX([score]) AS [max_score] \
+                   FROM [v_score] \
+                   GROUP BY [category] \
+                   ORDER BY [category]";
+        assert_snapshot!(sql);
+    }
+
+    // MySQL: full aggregate row
+    #[test]
+    fn snapshot_mysql_full_aggregates() {
+        let sql = "SELECT COUNT(*) AS cnt, SUM(score) AS total, \
+                   AVG(score) AS avg_score, MIN(score) AS min_score, MAX(score) AS max_score \
+                   FROM `v_score`";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: full aggregate row (AVG needs CAST for non-integer result)
+    #[test]
+    fn snapshot_sqlserver_full_aggregates() {
+        let sql = "SELECT COUNT(*) AS [cnt], SUM([score]) AS [total], \
+                   AVG(CAST([score] AS FLOAT)) AS [avg_score], \
+                   MIN([score]) AS [min_score], MAX([score]) AS [max_score] \
+                   FROM [v_score]";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// Parity Group: Keyset Pagination — MySQL
+// ============================================================================
+
+mod mysql_keyset_pagination {
+    use insta::assert_snapshot;
+
+    // Forward first page — no cursor
+    #[test]
+    fn snapshot_mysql_pagination_keyset_forward_first() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `id` AS _relay_cursor \
+                   FROM `v_relay_item` \
+                   ORDER BY `id` ASC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Forward with after cursor
+    #[test]
+    fn snapshot_mysql_pagination_keyset_forward_after() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `id` AS _relay_cursor \
+                   FROM `v_relay_item` \
+                   WHERE `id` > ? \
+                   ORDER BY `id` ASC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward with before cursor
+    #[test]
+    fn snapshot_mysql_pagination_keyset_backward_before() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `id` AS _relay_cursor \
+                   FROM `v_relay_item` \
+                   WHERE `id` < ? \
+                   ORDER BY `id` DESC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// Parity Group: Keyset Pagination — SQL Server
+// ============================================================================
+
+mod sqlserver_keyset_pagination {
+    use insta::assert_snapshot;
+
+    // Forward first page — no cursor
+    #[test]
+    fn snapshot_sqlserver_pagination_keyset_forward_first() {
+        let sql = "SELECT [data] FROM (\
+                   SELECT [data], [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY\
+                   ) AS _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Forward with after cursor
+    #[test]
+    fn snapshot_sqlserver_pagination_keyset_forward_after() {
+        let sql = "SELECT [data] FROM (\
+                   SELECT [data], [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   WHERE [id] > @p1 \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward with before cursor
+    #[test]
+    fn snapshot_sqlserver_pagination_keyset_backward_before() {
+        let sql = "SELECT [data] FROM (\
+                   SELECT [data], [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   WHERE [id] < @p1 \
+                   ORDER BY [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+}

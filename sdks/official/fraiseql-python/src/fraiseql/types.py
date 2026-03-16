@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "python_type_to_graphql",
+    "extract_field_config",
+    "extract_field_info",
+    "extract_function_signature",
+]
+
 from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
 
 if TYPE_CHECKING:
-    from fraiseql.decorators import FieldConfig
+    from fraiseql.decorators import FieldConfig  # type: ignore[attr-defined]
 
 
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
@@ -102,7 +109,7 @@ def extract_field_config(field_type: Any) -> FieldConfig | None:
         FieldConfig if found in annotations, None otherwise
     """
     # Import here to avoid circular import
-    from fraiseql.decorators import FieldConfig
+    from fraiseql.decorators import FieldConfig  # type: ignore[attr-defined]
 
     origin = get_origin(field_type)
     if origin is not Annotated:

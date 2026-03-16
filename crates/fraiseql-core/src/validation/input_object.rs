@@ -101,11 +101,21 @@ impl InputObjectValidationResult {
     }
 
     /// Convert to a Result, failing if there are errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any validation errors have been
+    /// accumulated via [`add_error`][Self::add_error].
     pub fn into_result(self) -> Result<()> {
         self.into_result_with_path("input")
     }
 
     /// Convert to a Result with a custom path, failing if there are errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] with the given `path` if any
+    /// validation errors have been accumulated.
     pub fn into_result_with_path(self, path: &str) -> Result<()> {
         if self.has_errors() {
             Err(FraiseQLError::Validation {

@@ -241,6 +241,7 @@ impl CustomTypeRegistry {
     /// assert!(registry.exists("IBAN"));
     /// assert_eq!(registry.count(), 51);
     /// ```
+    #[must_use]
     pub fn with_builtin_rich_scalars() -> Self {
         let registry = Self::new(CustomTypeRegistryConfig::default());
 

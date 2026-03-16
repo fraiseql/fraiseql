@@ -38,6 +38,14 @@ Example:
     ```
 """
 
+from fraiseql.client import (
+    FraiseQLAuthError,
+    FraiseQLClient,
+    FraiseQLDatabaseError,
+    FraiseQLError,
+    FraiseQLRateLimitError,
+    FraiseQLUnsupportedError,
+)
 from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, subscription
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import error as error_decorator
@@ -45,6 +53,7 @@ from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
+from fraiseql.registry import SchemaRegistry, generate_schema_json
 from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema, export_types
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
@@ -54,22 +63,37 @@ from fraiseql.validators import (
     validate_custom_scalar,
 )
 
+# Aliases for cleaner API (must be defined before __all__ references them)
+type = type_decorator
+enum = enum_decorator
+error = error_decorator
+input = input_decorator
+interface = interface_decorator
+union = union_decorator
+
 __version__ = "2.0.0-alpha.1"
 
 __all__ = [
-    # Decorators
-    "type_decorator",
-    "enum_decorator",
-    "error_decorator",
-    "input_decorator",
-    "interface_decorator",
-    "union_decorator",
+    # Authoring decorators (clean alias names)
+    "type",
+    "enum",
+    "error",
+    "input",
+    "interface",
+    "union",
     "scalar",
     "query",
     "mutation",
     "subscription",
     "field",
     "FieldConfig",
+    # Client classes
+    "FraiseQLClient",
+    "FraiseQLError",
+    "FraiseQLAuthError",
+    "FraiseQLUnsupportedError",
+    "FraiseQLRateLimitError",
+    "FraiseQLDatabaseError",
     # Custom scalars
     "CustomScalar",
     # Scalar types
@@ -85,6 +109,9 @@ __all__ = [
     "config",
     "export_schema",
     "export_types",
+    # Schema registry
+    "SchemaRegistry",
+    "generate_schema_json",
     # Scope validation (RBAC)
     "validate_scope",
     "ScopeValidationError",
@@ -93,14 +120,4 @@ __all__ = [
     "validate_custom_scalar",
     "ScalarValidationError",
     "get_all_custom_scalars",
-    # Metadata
-    "__version__",
 ]
-
-# Aliases for cleaner API
-type = type_decorator
-enum = enum_decorator
-error = error_decorator
-input = input_decorator
-interface = interface_decorator
-union = union_decorator

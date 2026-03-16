@@ -886,6 +886,623 @@ mod sqlserver_relay_tests {
 }
 
 // ============================================================================
+// MySQL Relay Pagination Tests
+// ============================================================================
+
+#[cfg(feature = "test-mysql")]
+mod mysql_relay_tests {
+    use fraiseql_core::db::{
+        mysql::MySqlAdapter,
+        traits::{CursorValue, RelayDatabaseAdapter},
+        where_clause::{WhereClause, WhereOperator},
+    };
+
+    const MYSQL_URL: &str =
+        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+
+    async fn adapter() -> MySqlAdapter {
+        MySqlAdapter::new(MYSQL_URL).await.expect("Failed to connect to MySQL")
+    }
+
+    fn extract_label(row: &fraiseql_core::db::types::JsonbValue) -> String {
+        row.as_value()
+            .get("label")
+            .and_then(|v| v.as_str())
+            .expect("row must have 'label' field")
+            .to_string()
+    }
+
+    /// Forward pagination returns the first page.
+    #[tokio::test]
+    async fn test_mysql_relay_forward_first_page() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
+            .await
+            .expect("forward first page");
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.has_previous_page, false);
+    }
+
+    /// Forward pagination with an `after` cursor skips earlier rows.
+    #[tokio::test]
+    async fn test_mysql_relay_forward_with_after_cursor() {
+        let a = adapter().await;
+        // Fetch first page to get a cursor
+        let first = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
+            .await
+            .expect("first page");
+        assert_eq!(first.rows.len(), 3);
+
+        let cursor_val = CursorValue::String(
+            first.end_cursor.expect("must have end cursor"),
+        );
+        let second = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(cursor_val),
+                None,
+                3,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("second page");
+        assert!(
+            !second.rows.is_empty(),
+            "second page must have rows after cursor"
+        );
+    }
+
+    /// Requesting more rows than exist returns has_next_page=false.
+    #[tokio::test]
+    async fn test_mysql_relay_forward_exhausted() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 100, true, None, None, false)
+            .await
+            .expect("over-limit page");
+        assert_eq!(result.rows.len(), 10, "all 10 rows returned");
+        assert_eq!(result.has_next_page, false);
+    }
+
+    /// Backward pagination returns the last page.
+    #[tokio::test]
+    async fn test_mysql_relay_backward_last_page() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, false, None, None, false)
+            .await
+            .expect("backward last page");
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.has_next_page, false);
+    }
+
+    /// Total count is returned when requested.
+    #[tokio::test]
+    async fn test_mysql_relay_total_count() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, true)
+            .await
+            .expect("total count query");
+        assert_eq!(result.total_count, Some(10), "must count all 10 rows");
+    }
+
+    /// WHERE filter reduces the result set.
+    #[tokio::test]
+    async fn test_mysql_relay_forward_with_where_clause() {
+        use serde_json::json;
+        let a = adapter().await;
+        // Filter: only items whose label is "item-1"
+        let where_clause = WhereClause::Field {
+            path:     vec!["label".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("item-1"),
+        };
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                None,
+                None,
+                10,
+                true,
+                Some(&where_clause),
+                None,
+                true,
+            )
+            .await
+            .expect("filtered relay page");
+        assert_eq!(result.total_count, Some(1), "only item-1 matches");
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(extract_label(&result.rows[0]), "item-1");
+    }
+
+    /// Querying a non-existent view returns a database error.
+    #[tokio::test]
+    async fn test_mysql_relay_missing_view_returns_error() {
+        use fraiseql_core::error::FraiseQLError;
+        let a = adapter().await;
+        let err = a
+            .execute_relay_page(
+                "v_nonexistent_view",
+                "id",
+                None,
+                None,
+                3,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect_err("missing view must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Database { .. }),
+            "Expected Database error, got {err:?}"
+        );
+    }
+}
+
+// ============================================================================
+// MySQL Advanced Query Tests (window functions, CTEs, aggregations)
+// ============================================================================
+
+#[cfg(feature = "test-mysql")]
+mod mysql_advanced_tests {
+    use fraiseql_core::db::mysql::MySqlAdapter;
+
+    const MYSQL_URL: &str =
+        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+
+    async fn adapter() -> MySqlAdapter {
+        MySqlAdapter::new(MYSQL_URL).await.expect("Failed to connect to MySQL")
+    }
+
+    /// MySQL 8+ RANK() window function partitioned by category.
+    #[tokio::test]
+    async fn test_mysql_window_function_rank() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT category, score, label,
+                        RANK() OVER (PARTITION BY category ORDER BY score DESC) AS rnk
+                 FROM v_score
+                 ORDER BY category, rnk",
+            )
+            .await
+            .expect("RANK() window function must succeed on MySQL 8+");
+        // 8 rows in tb_score
+        assert_eq!(results.len(), 8, "all 8 scored rows returned");
+        let first = &results[0];
+        assert!(first.contains_key("rnk"), "must include rank column");
+        // Category A: alpha(95), beta(80), gamma(80) — alpha has rank 1
+        let cat = first.get("category").and_then(|v| v.as_str()).unwrap_or("");
+        assert_eq!(cat, "A");
+        let rnk = first.get("rnk").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(rnk, 1, "highest score in category A must have rank 1");
+    }
+
+    /// MySQL 8+ ROW_NUMBER() window function.
+    #[tokio::test]
+    async fn test_mysql_window_function_row_number() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT id, label,
+                        ROW_NUMBER() OVER (ORDER BY score DESC) AS row_num
+                 FROM v_score",
+            )
+            .await
+            .expect("ROW_NUMBER() must succeed on MySQL 8+");
+        assert_eq!(results.len(), 8);
+        // Each row has a unique row_num
+        let row_nums: Vec<u64> = results
+            .iter()
+            .filter_map(|r| r.get("row_num").and_then(|v| v.as_u64()))
+            .collect();
+        assert_eq!(row_nums.len(), 8, "all rows must have row_num");
+    }
+
+    /// CTE (WITH clause) is supported on MySQL 8+.
+    #[tokio::test]
+    async fn test_mysql_cte_basic() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "WITH top_scores AS (
+                     SELECT id, label, score FROM v_score WHERE score >= 80
+                 )
+                 SELECT * FROM top_scores ORDER BY score DESC",
+            )
+            .await
+            .expect("CTE must be supported on MySQL 8+");
+        // Scores >= 80: alpha(95), beta(80), gamma(80), zeta(90) → 4 rows
+        assert_eq!(results.len(), 4, "four rows have score >= 80");
+    }
+
+    /// Recursive CTE returns expected depth.
+    #[tokio::test]
+    async fn test_mysql_cte_recursive() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "WITH RECURSIVE counter(n) AS (
+                     SELECT 1
+                     UNION ALL
+                     SELECT n + 1 FROM counter WHERE n < 5
+                 )
+                 SELECT n FROM counter",
+            )
+            .await
+            .expect("recursive CTE must succeed");
+        assert_eq!(results.len(), 5, "recursive CTE must return 5 rows");
+    }
+
+    /// COUNT, SUM, AVG, MIN, MAX aggregations.
+    #[tokio::test]
+    async fn test_mysql_aggregations() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT
+                     COUNT(*) AS cnt,
+                     SUM(score) AS total,
+                     AVG(score) AS avg_score,
+                     MIN(score) AS min_score,
+                     MAX(score) AS max_score
+                 FROM v_score",
+            )
+            .await
+            .expect("aggregations must succeed");
+        assert_eq!(results.len(), 1, "aggregation returns one row");
+        let row = &results[0];
+        let cnt = row.get("cnt").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(cnt, 8, "8 score rows");
+        let max = row.get("max_score").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(max, 95, "max score is 95 (alpha)");
+        let min = row.get("min_score").and_then(|v| v.as_u64()).unwrap_or(999);
+        assert_eq!(min, 50, "min score is 50 (eta)");
+    }
+
+    /// GROUP BY aggregation per category.
+    #[tokio::test]
+    async fn test_mysql_group_by_aggregation() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT category, COUNT(*) AS cnt, MAX(score) AS max_score
+                 FROM v_score
+                 GROUP BY category
+                 ORDER BY category",
+            )
+            .await
+            .expect("GROUP BY must succeed");
+        // 3 categories: A(3 rows), B(3 rows), C(2 rows)
+        assert_eq!(results.len(), 3, "3 distinct categories");
+        let first = &results[0];
+        let cat = first.get("category").and_then(|v| v.as_str()).unwrap_or("");
+        assert_eq!(cat, "A");
+        let cnt = first.get("cnt").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(cnt, 3, "category A has 3 rows");
+    }
+}
+
+// ============================================================================
+// MySQL Mutation Tests
+// ============================================================================
+
+#[cfg(feature = "test-mysql")]
+mod mysql_mutation_tests {
+    use fraiseql_core::db::mysql::MySqlAdapter;
+
+    const MYSQL_URL: &str =
+        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+
+    /// MySQL mutation via stored procedure: insert returns the new row.
+    #[tokio::test]
+    async fn test_mysql_mutation_insert_via_procedure() {
+        let a = MySqlAdapter::new(MYSQL_URL).await.expect("connect");
+        let result = a
+            .execute_function_call(
+                "fn_create_tag",
+                &[serde_json::json!("test-tag-plan03")],
+            )
+            .await
+            .expect("stored procedure call must succeed");
+        // Procedure returns one row with id and name
+        assert!(!result.is_empty(), "INSERT must return the new row");
+        let row = &result[0];
+        assert!(row.contains_key("id"), "returned row must have id");
+        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        assert_eq!(name, "test-tag-plan03");
+    }
+
+    /// Calling a non-existent procedure returns a database error.
+    #[tokio::test]
+    async fn test_mysql_mutation_nonexistent_procedure_returns_error() {
+        use fraiseql_core::error::FraiseQLError;
+        let a = MySqlAdapter::new(MYSQL_URL).await.expect("connect");
+        let err = a
+            .execute_function_call("fn_does_not_exist", &[])
+            .await
+            .expect_err("non-existent procedure must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Database { .. }),
+            "Expected Database error, got {err:?}"
+        );
+    }
+}
+
+// ============================================================================
+// MySQL Error Path Tests
+// ============================================================================
+
+#[cfg(feature = "test-mysql")]
+mod mysql_error_tests {
+    use fraiseql_core::{db::mysql::MySqlAdapter, error::FraiseQLError};
+
+    /// A completely bad connection URL returns a database error.
+    #[tokio::test]
+    async fn test_mysql_connection_failure_returns_database_error() {
+        // Port 1 is almost certainly closed; connection attempt must fail.
+        let result =
+            MySqlAdapter::new("mysql://bad_user:bad_pass@127.0.0.1:1/nonexistent_db").await;
+        assert!(
+            result.is_err(),
+            "connection to bad URL must fail"
+        );
+        if let Err(err) = result {
+            assert!(
+                matches!(err, FraiseQLError::Database { .. }),
+                "Expected Database error on bad connection, got {err:?}"
+            );
+        }
+    }
+
+    /// Querying a non-existent view returns a database error.
+    #[tokio::test]
+    async fn test_mysql_missing_view_returns_database_error() {
+        let a = MySqlAdapter::new(
+            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql",
+        )
+        .await
+        .expect("connect");
+        let err = a
+            .execute_where_query("v_view_that_does_not_exist", None, Some(1), None)
+            .await
+            .expect_err("non-existent view must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Database { .. }),
+            "Expected Database error for missing view, got {err:?}"
+        );
+    }
+}
+
+// ============================================================================
+// SQL Server Advanced Query Tests (window functions, CTEs, aggregations)
+// ============================================================================
+
+#[cfg(feature = "test-sqlserver")]
+mod sqlserver_advanced_tests {
+    use fraiseql_core::db::sqlserver::SqlServerAdapter;
+
+    const SQLSERVER_URL: &str =
+        "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+
+    async fn adapter() -> SqlServerAdapter {
+        SqlServerAdapter::new(SQLSERVER_URL).await.expect("Failed to connect to SQL Server")
+    }
+
+    /// SQL Server RANK() window function partitioned by category.
+    #[tokio::test]
+    async fn test_sqlserver_window_function_rank() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT category, score, label,
+                        RANK() OVER (PARTITION BY category ORDER BY score DESC) AS rnk
+                 FROM v_score
+                 ORDER BY category, rnk",
+            )
+            .await
+            .expect("RANK() must succeed on SQL Server 2012+");
+        assert_eq!(results.len(), 8, "all 8 scored rows returned");
+        let first = &results[0];
+        assert!(first.contains_key("rnk"), "must include rank column");
+    }
+
+    /// SQL Server ROW_NUMBER() window function.
+    #[tokio::test]
+    async fn test_sqlserver_window_function_row_number() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT id, label,
+                        ROW_NUMBER() OVER (ORDER BY score DESC) AS row_num
+                 FROM v_score",
+            )
+            .await
+            .expect("ROW_NUMBER() must succeed");
+        assert_eq!(results.len(), 8);
+    }
+
+    /// CTE (WITH clause) is fully supported on SQL Server.
+    #[tokio::test]
+    async fn test_sqlserver_cte_basic() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "WITH top_scores AS (
+                     SELECT id, label, score FROM v_score WHERE score >= 80
+                 )
+                 SELECT * FROM top_scores ORDER BY score DESC",
+            )
+            .await
+            .expect("CTE must succeed on SQL Server");
+        assert_eq!(results.len(), 4, "four rows have score >= 80");
+    }
+
+    /// Recursive CTE on SQL Server.
+    #[tokio::test]
+    async fn test_sqlserver_cte_recursive() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "WITH counter(n) AS (
+                     SELECT 1
+                     UNION ALL
+                     SELECT n + 1 FROM counter WHERE n < 5
+                 )
+                 SELECT n FROM counter",
+            )
+            .await
+            .expect("recursive CTE must succeed on SQL Server");
+        assert_eq!(results.len(), 5, "recursive CTE must return 5 rows");
+    }
+
+    /// COUNT, SUM, AVG, MIN, MAX aggregations on SQL Server.
+    #[tokio::test]
+    async fn test_sqlserver_aggregations() {
+        let a = adapter().await;
+        let results = a
+            .execute_raw_query(
+                "SELECT
+                     COUNT(*) AS cnt,
+                     SUM(score) AS total,
+                     AVG(CAST(score AS FLOAT)) AS avg_score,
+                     MIN(score) AS min_score,
+                     MAX(score) AS max_score
+                 FROM v_score",
+            )
+            .await
+            .expect("aggregations must succeed");
+        assert_eq!(results.len(), 1);
+        let row = &results[0];
+        let cnt = row.get("cnt").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(cnt, 8);
+        let max = row.get("max_score").and_then(|v| v.as_u64()).unwrap_or(0);
+        assert_eq!(max, 95, "max score is 95 (alpha)");
+    }
+}
+
+// ============================================================================
+// SQL Server Mutation Tests
+// ============================================================================
+
+#[cfg(feature = "test-sqlserver")]
+mod sqlserver_mutation_tests {
+    use fraiseql_core::db::sqlserver::SqlServerAdapter;
+
+    const SQLSERVER_URL: &str =
+        "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+
+    /// SQL Server mutation via stored procedure using OUTPUT INSERTED.*.
+    #[tokio::test]
+    async fn test_sqlserver_mutation_insert_via_procedure() {
+        let a = SqlServerAdapter::new(SQLSERVER_URL).await.expect("connect");
+        let result = a
+            .execute_function_call(
+                "fn_create_tag",
+                &[serde_json::json!("test-tag-sqlserver")],
+            )
+            .await
+            .expect("stored procedure call must succeed");
+        assert!(!result.is_empty(), "INSERT must return the new row");
+        let row = &result[0];
+        assert!(row.contains_key("id"), "returned row must have id");
+        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        assert_eq!(name, "test-tag-sqlserver");
+    }
+
+    /// Calling a non-existent procedure returns a database error.
+    #[tokio::test]
+    async fn test_sqlserver_mutation_nonexistent_procedure_returns_error() {
+        use fraiseql_core::error::FraiseQLError;
+        let a = SqlServerAdapter::new(SQLSERVER_URL).await.expect("connect");
+        let err = a
+            .execute_function_call("fn_does_not_exist", &[])
+            .await
+            .expect_err("non-existent procedure must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Database { .. }),
+            "Expected Database error, got {err:?}"
+        );
+    }
+}
+
+// ============================================================================
+// DialectCapabilityGuard Error Path Tests
+// ============================================================================
+
+#[cfg(any(feature = "mysql", feature = "sqlserver"))]
+mod dialect_guard_error_tests {
+    use fraiseql_db::{DialectCapabilityGuard, Feature};
+    use fraiseql_db::types::DatabaseType;
+    use fraiseql_error::FraiseQLError;
+
+    /// JSONB path ops are unsupported on MySQL — guard returns Unsupported.
+    #[cfg(feature = "mysql")]
+    #[test]
+    fn test_mysql_jsonb_returns_unsupported() {
+        let result = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps);
+        assert!(
+            matches!(result, Err(FraiseQLError::Unsupported { .. })),
+            "JSONB ops on MySQL must return Unsupported, got {result:?}"
+        );
+    }
+
+    /// Subscriptions are unsupported on MySQL — guard returns Unsupported.
+    #[cfg(feature = "mysql")]
+    #[test]
+    fn test_mysql_subscriptions_returns_unsupported() {
+        let result =
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Subscriptions);
+        assert!(
+            matches!(result, Err(FraiseQLError::Unsupported { .. })),
+            "Subscriptions on MySQL must return Unsupported"
+        );
+    }
+
+    /// JSONB path ops are unsupported on SQL Server — guard returns Unsupported.
+    #[cfg(feature = "sqlserver")]
+    #[test]
+    fn test_sqlserver_jsonb_returns_unsupported() {
+        let result =
+            DialectCapabilityGuard::check(DatabaseType::SQLServer, Feature::JsonbPathOps);
+        assert!(
+            matches!(result, Err(FraiseQLError::Unsupported { .. })),
+            "JSONB ops on SQL Server must return Unsupported"
+        );
+    }
+
+    /// Mutations are supported on both MySQL and SQL Server — guard returns Ok.
+    #[cfg(feature = "mysql")]
+    #[test]
+    fn test_mysql_mutations_are_supported() {
+        assert!(
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Mutations).is_ok(),
+            "Mutations must be supported on MySQL"
+        );
+    }
+
+    /// Window functions are supported on both MySQL 8+ and SQL Server 2012+.
+    #[cfg(feature = "mysql")]
+    #[test]
+    fn test_mysql_window_functions_are_supported() {
+        assert!(
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::WindowFunctions).is_ok(),
+            "Window functions must be supported on MySQL 8+"
+        );
+    }
+}
+
+// ============================================================================
 // Cross-Database Tests (Database-Agnostic)
 // ============================================================================
 

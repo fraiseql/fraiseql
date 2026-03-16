@@ -18,6 +18,7 @@ This directory contains operational runbooks for managing, troubleshooting, and 
 | [10 - Certificate Rotation](./10-certificate-rotation.md) | TLS cert expiry or renewal | Standard |
 | [11 - Schema Migration](./11-schema-migration.md) | Update compiled schema | Standard |
 | [12 - Incident Response](./12-incident-response.md) | General incident template | Variable |
+| [13 - Schema Hot-Reload Failure](./13-schema-hot-reload-failure.md) | Schema reload cycle failing | Medium |
 
 ## Using These Runbooks
 
@@ -131,6 +132,8 @@ When adding new runbooks:
 
 ## Changelog
 
+- **v2.1.0** (2026-03-16) - Added schema hot-reload failure runbook
+  - Runbook 13: schema hot-reload failure diagnosis and recovery
 - **v2.0.0** (2026-02-19) - Initial runbook suite for FraiseQL v2
   - 12 core operational runbooks covering critical scenarios
   - Standard diagnostic procedures

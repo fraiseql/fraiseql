@@ -2552,6 +2552,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "hex",
+ "hmac",
  "http 1.4.0",
  "jsonwebtoken",
  "proptest",

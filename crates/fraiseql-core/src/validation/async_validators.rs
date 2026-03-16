@@ -93,6 +93,7 @@ impl AsyncValidatorConfig {
     }
 
     /// Set field pattern for this validator.
+    #[must_use]
     pub fn with_field_pattern(mut self, pattern: impl Into<String>) -> Self {
         self.field_pattern = pattern.into();
         self

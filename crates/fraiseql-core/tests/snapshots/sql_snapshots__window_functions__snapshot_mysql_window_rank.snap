@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT category, score, label, RANK() OVER (PARTITION BY category ORDER BY score DESC) AS rnk FROM `v_score` ORDER BY category, rnk

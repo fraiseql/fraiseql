@@ -1,0 +1,166 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "jsonb_column": "payload",
+      "description": "A registered user in the system",
+      "fields": [
+        {"name": "id",         "field_type": "ID",       "nullable": false},
+        {"name": "email",      "field_type": "String",   "nullable": false},
+        {"name": "name",       "field_type": "String",   "nullable": true},
+        {"name": "created_at", "field_type": "DateTime", "nullable": false},
+        {"name": "active",     "field_type": "Boolean",  "nullable": false}
+      ]
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "jsonb_column": "payload",
+      "description": "A blog post authored by a user",
+      "fields": [
+        {"name": "id",         "field_type": "ID",       "nullable": false},
+        {"name": "title",      "field_type": "String",   "nullable": false},
+        {"name": "body",       "field_type": "String",   "nullable": true},
+        {"name": "author_id",  "field_type": "ID",       "nullable": false},
+        {"name": "published",  "field_type": "Boolean",  "nullable": false},
+        {"name": "created_at", "field_type": "DateTime", "nullable": false}
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "UserRole",
+      "description": "Role assigned to a user",
+      "values": [
+        {"name": "ADMIN",  "description": "Full administrative access"},
+        {"name": "EDITOR", "description": "Can create and edit content"},
+        {"name": "VIEWER", "description": "Read-only access"}
+      ]
+    }
+  ],
+  "input_types": [
+    {
+      "name": "CreateUserInput",
+      "description": "Input for creating a new user",
+      "fields": [
+        {"name": "email", "field_type": "String", "nullable": false},
+        {"name": "name",  "field_type": "String", "nullable": true},
+        {"name": "role",  "field_type": "UserRole"}
+      ]
+    }
+  ],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "description": "List all users with optional filtering",
+      "jsonb_column": "payload",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "arguments": [
+        {
+          "name": "email",
+          "arg_type": "String",
+          "nullable": true,
+          "description": "Filter by email address"
+        },
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "offset",
+          "arg_type": "Int",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_user",
+      "description": "Fetch a single user by ID",
+      "jsonb_column": "payload",
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_post",
+      "description": "List all posts",
+      "jsonb_column": "payload",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": false
+      },
+      "arguments": [
+        {
+          "name": "author_id",
+          "arg_type": "ID",
+          "nullable": true,
+          "description": "Filter by author"
+        }
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createUser",
+      "return_type": "User",
+      "sql_source": "fn_create_user",
+      "description": "Create a new user account",
+      "operation": {"Insert": {"table": "users"}},
+      "arguments": [
+        {"name": "email", "arg_type": "String", "nullable": false},
+        {"name": "name",  "arg_type": "String", "nullable": true},
+        {"name": "role",  "arg_type": {"Enum": "UserRole"}, "nullable": true}
+      ]
+    },
+    {
+      "name": "updateUser",
+      "return_type": "User",
+      "sql_source": "fn_update_user",
+      "description": "Update an existing user",
+      "operation": {"Update": {"table": "users"}},
+      "arguments": [
+        {"name": "id",    "arg_type": "ID",     "nullable": false},
+        {"name": "name",  "arg_type": "String", "nullable": true},
+        {"name": "email", "arg_type": "String", "nullable": true}
+      ]
+    },
+    {
+      "name": "deleteUser",
+      "return_type": "User",
+      "sql_source": "fn_delete_user",
+      "description": "Delete a user account",
+      "operation": {"Delete": {"table": "users"}},
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "subscriptions": []
+}

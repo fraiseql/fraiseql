@@ -203,6 +203,12 @@ impl CascadeInvalidator {
     ///
     /// Set of all invalidated views (including the target)
     ///
+    /// # Errors
+    ///
+    /// Currently infallible — always returns `Ok`. The `Result` return type is
+    /// reserved for future cycle-detection logic that may return
+    /// [`FraiseQLError::Validation`] on circular dependency graphs.
+    ///
     /// # Example
     ///
     /// ```rust

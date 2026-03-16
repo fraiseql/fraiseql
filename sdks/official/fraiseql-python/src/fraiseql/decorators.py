@@ -2,6 +2,21 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "FieldConfig",
+    "field",
+    "type",
+    "query",
+    "mutation",
+    "subscription",
+    "enum",
+    "error",
+    "input",
+    "interface",
+    "union",
+    "scalar",
+]
+
 import re
 from dataclasses import dataclass
 from enum import Enum as PythonEnum
@@ -241,7 +256,7 @@ def type(
         - Use implements=["InterfaceName"] to implement interfaces
     """
 
-    def decorator(c: type[T]) -> type[T]:
+    def decorator(c: type[T]) -> type[T]:  # type: ignore[valid-type]
         # Mark class as a FraiseQL type
         c.__fraiseql_type__ = True
 
@@ -564,7 +579,7 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
     return decorator(func)
 
 
-def error(cls: type[T]) -> type[T]:
+def error(cls: type[T]) -> type[T]:  # type: ignore[valid-type]
     """Decorator to mark a Python class as a GraphQL error type.
 
     Like @type, but sets is_error=True in the schema output. Error types are
@@ -595,7 +610,7 @@ def error(cls: type[T]) -> type[T]:
     return cls
 
 
-def enum(cls: type[E]) -> type[E]:
+def enum(cls: type[E]) -> type[E]:  # type: ignore[valid-type]
     """Decorator to mark a Python enum as a GraphQL enum.
 
     This decorator registers the enum with the schema registry for JSON export.
@@ -645,7 +660,7 @@ def enum(cls: type[E]) -> type[E]:
 
         # Check for deprecation (can be set via class attribute)
         if hasattr(member, "_deprecated"):
-            deprecated_info = member._deprecated  # noqa: SLF001
+            deprecated_info = member._deprecated  # noqa: SLF001  # type: ignore[attr-defined]
             value_info["deprecated"] = {"reason": deprecated_info}
 
         values.append(value_info)
@@ -661,7 +676,7 @@ def enum(cls: type[E]) -> type[E]:
     return cls
 
 
-def interface(cls: type[T]) -> type[T]:
+def interface(cls: type[T]) -> type[T]:  # type: ignore[valid-type]
     """Decorator to mark a Python class as a GraphQL interface.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -719,7 +734,7 @@ def interface(cls: type[T]) -> type[T]:
     return cls
 
 
-def input(cls: type[T]) -> type[T]:
+def input(cls: type[T]) -> type[T]:  # type: ignore[valid-type]
     """Decorator to mark a Python class as a GraphQL input object.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -881,8 +896,8 @@ def subscription(
 
 def union(
     name: str | None = None,
-    members: list[type] | None = None,
-) -> Callable[[type[T]], type[T]]:
+    members: list[type] | None = None,  # type: ignore[valid-type]
+) -> Callable[[type[T]], type[T]]:  # type: ignore[valid-type]
     """Decorator to mark a Python class as a GraphQL union type.
 
     Per GraphQL spec §3.10, unions represent a type that could be one of
@@ -927,7 +942,7 @@ def union(
         - Use docstrings on the class for descriptions
     """
 
-    def decorator(cls: type[T]) -> type[T]:
+    def decorator(cls: type[T]) -> type[T]:  # type: ignore[valid-type]
         union_name = name if name is not None else cls.__name__
 
         # Extract member type names
@@ -949,7 +964,7 @@ def union(
     return decorator
 
 
-def scalar(cls: type[S]) -> type[S]:
+def scalar(cls: type[S]) -> type[S]:  # type: ignore[valid-type]
     """Decorator to register a custom scalar with the schema.
 
     This decorator registers the scalar globally so it can be:

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT category, COUNT(*) AS cnt, MAX(score) AS max_score FROM `v_score` GROUP BY category ORDER BY category

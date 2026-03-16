@@ -1,0 +1,44 @@
+name: semver-checks
+
+# Detects accidental breaking API changes on PRs targeting dev.
+# Skipped on release-prep branches where version bumps are intentional.
+
+on:
+  pull_request:
+    branches: [dev]
+
+jobs:
+  semver:
+    name: API semver compatibility
+    runs-on: ubuntu-latest
+
+    # Skip release-prep branches — they intentionally bump version numbers.
+    if: "!contains(github.head_ref, 'release-prep')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y mold
+
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+
+      # Compare the PR branch against the latest published crates.io baseline.
+      # --workspace covers all public crates in the monorepo.
+      # Features omitted intentionally: semver-checks inspects public API
+      # signatures which are feature-gated; the default feature set is sufficient
+      # for detecting breaking changes in the core API surface.
+      - name: Check semver compatibility
+        run: |
+          cargo semver-checks check-release \
+            --workspace \
+            --exclude fraiseql-test-utils

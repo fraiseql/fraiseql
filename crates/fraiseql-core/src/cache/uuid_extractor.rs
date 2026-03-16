@@ -80,7 +80,11 @@ impl UUIDExtractor {
     ///
     /// - `Ok(Some(uuid))` - UUID found and valid
     /// - `Ok(None)` - No UUID found (e.g., null response)
-    /// - `Err(_)` - Invalid UUID format
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if an `"id"` field is found but
+    /// its value is not a valid UUID v4 string.
     ///
     /// # Examples
     ///
@@ -127,6 +131,11 @@ impl UUIDExtractor {
     /// # Returns
     ///
     /// List of extracted UUIDs (empty if none found)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any `"id"` field found in the
+    /// response is not a valid UUID v4 string.
     ///
     /// # Examples
     ///
