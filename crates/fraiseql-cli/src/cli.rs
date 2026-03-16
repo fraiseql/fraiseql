@@ -502,6 +502,35 @@ EXAMPLES:
         #[arg(short, long, default_value = "8080")]
         port: u16,
     },
+
+    /// Run diagnostic checks for common FraiseQL setup problems
+    ///
+    /// Checks schema file, TOML config, DATABASE_URL, JWT secret, Redis, TLS,
+    /// and cache/auth coherence. Prints a color-coded report and exits 0 if
+    /// all checks pass or 1 if any check fails (warnings do not fail).
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql doctor
+    fraiseql doctor --schema schema.compiled.json --config fraiseql.toml
+    fraiseql doctor --db-url postgres://user:pass@host:5432/db
+    fraiseql doctor --json")]
+    Doctor {
+        /// Path to fraiseql.toml configuration file.
+        #[arg(long, default_value = "fraiseql.toml")]
+        config: std::path::PathBuf,
+
+        /// Path to schema.compiled.json.
+        #[arg(long, default_value = "schema.compiled.json")]
+        schema: std::path::PathBuf,
+
+        /// Override DATABASE_URL for the connectivity check.
+        #[arg(long)]
+        db_url: Option<String>,
+
+        /// Output machine-readable JSON (for CI integration).
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]

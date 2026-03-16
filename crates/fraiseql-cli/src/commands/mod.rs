@@ -4,6 +4,7 @@ pub mod analyze;
 pub mod compile;
 pub mod cost;
 pub mod dependency_graph;
+pub mod doctor;
 pub mod explain;
 pub mod extract;
 pub mod federation;

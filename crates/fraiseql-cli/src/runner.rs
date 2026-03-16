@@ -348,6 +348,21 @@ pub async fn run() {
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
+
+        Commands::Doctor {
+            config,
+            schema,
+            db_url,
+            json: json_flag,
+        } => {
+            let all_passed =
+                commands::doctor::run(&config, &schema, db_url.as_deref(), json_flag);
+            if all_passed {
+                Ok(())
+            } else {
+                process::exit(1);
+            }
+        },
     };
 
     if let Err(e) = result {
