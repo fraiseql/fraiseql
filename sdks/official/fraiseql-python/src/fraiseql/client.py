@@ -134,7 +134,7 @@ class FraiseQLClient:
         resp.raise_for_status()
         body: dict[str, Any] = resp.json()
 
-        if "errors" in body:
+        if body.get("errors"):
             raise _classify_error(body["errors"])
 
         return body

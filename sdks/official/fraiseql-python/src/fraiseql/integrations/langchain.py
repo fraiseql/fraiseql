@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic import ConfigDict
+
 from fraiseql.client import FraiseQLClient
 
 try:
@@ -37,14 +39,13 @@ except ImportError as exc:
 class FraiseQLTool(BaseTool):
     """A LangChain tool wrapping a single FraiseQL query or mutation."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str  # type: ignore[assignment]
     description: str  # type: ignore[assignment]
     client: Any  # FraiseQLClient (not serializable by pydantic)
     query_template: str
     is_mutation: bool = False
-
-    class Config:
-        arbitrary_types_allowed = True
 
     def _run(
         self,
@@ -168,14 +169,13 @@ class FraiseQLToolkit:
 class FraiseQLRetriever(BaseRetriever):
     """A LangChain retriever that executes a FraiseQL query and returns Documents."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     client: Any  # FraiseQLClient
     query: str
     variables: dict[str, Any] | None = None
     text_key: str = "name"
     metadata_keys: list[str] | None = None
-
-    class Config:
-        arbitrary_types_allowed = True
 
     def _get_relevant_documents(
         self,
