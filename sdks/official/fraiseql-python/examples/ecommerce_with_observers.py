@@ -55,9 +55,8 @@ class Payment:
         ),
     ],
 )
-def on_high_value_order():
+def on_high_value_order() -> None:
     """Triggered when a high-value order is created."""
-    pass
 
 
 # Observer 2: Notify when orders are shipped
@@ -75,9 +74,8 @@ def on_high_value_order():
         ),
     ],
 )
-def on_order_shipped():
+def on_order_shipped() -> None:
     """Triggered when an order status changes to 'shipped'."""
-    pass
 
 
 # Observer 3: Alert on payment failures with aggressive retry
@@ -99,9 +97,8 @@ def on_order_shipped():
         max_delay_ms=60000,
     ),
 )
-def on_payment_failure():
+def on_payment_failure() -> None:
     """Triggered when a payment fails."""
-    pass
 
 
 # Observer 4: Archive deleted orders
@@ -115,9 +112,8 @@ def on_payment_failure():
         ),
     ],
 )
-def on_order_deleted():
+def on_order_deleted() -> None:
     """Triggered when an order is deleted."""
-    pass
 
 
 # Observer 5: Simple notification for all new orders
@@ -126,9 +122,8 @@ def on_order_deleted():
     event="INSERT",
     actions=[slack("#orders", "New order {id} by {customer_email}")],
 )
-def on_order_created():
+def on_order_created() -> None:
     """Triggered when any order is created."""
-    pass
 
 
 if __name__ == "__main__":
