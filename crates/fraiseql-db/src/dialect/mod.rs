@@ -13,6 +13,7 @@
 
 // The trait lives in a sub-module so the `pub use` below re-exports it cleanly
 // without polluting this module's item namespace with the internal `trait_def` name.
+pub mod capability;
 pub mod trait_def;
 
 mod mysql;
@@ -20,6 +21,7 @@ mod postgres;
 mod sqlite;
 mod sqlserver;
 
+pub use capability::{DialectCapabilityGuard, Feature};
 pub use mysql::MySqlDialect;
 pub use postgres::PostgresDialect;
 pub use sqlite::SqliteDialect;

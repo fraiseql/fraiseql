@@ -213,7 +213,8 @@ pub use collation_config::{
     PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
 };
 pub use dialect::{
-    MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect, SqliteDialect, UnsupportedOperator,
+    DialectCapabilityGuard, Feature, MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect,
+    SqliteDialect, UnsupportedOperator,
 };
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
