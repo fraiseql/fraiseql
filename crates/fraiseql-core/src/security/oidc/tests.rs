@@ -141,13 +141,14 @@ fn test_oidc_config_default_cache_ttl_is_short() {
 
 fn make_validator(issuer: &str) -> OidcValidator {
     OidcValidator {
-        config:      OidcConfig {
+        config:       OidcConfig {
             issuer: issuer.to_string(),
             ..Default::default()
         },
-        http_client: reqwest::Client::new(),
-        jwks_uri:    format!("{issuer}/.well-known/jwks.json"),
-        jwks_cache:  Arc::new(RwLock::new(None)),
+        http_client:  reqwest::Client::new(),
+        jwks_uri:     format!("{issuer}/.well-known/jwks.json"),
+        jwks_cache:   Arc::new(RwLock::new(None)),
+        replay_cache: None,
     }
 }
 

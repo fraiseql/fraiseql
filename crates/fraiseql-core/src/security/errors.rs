@@ -164,6 +164,13 @@ pub enum SecurityError {
         algorithm: String,
     },
 
+    /// JWT token has been replayed — its `jti` (JWT ID) was already used.
+    ///
+    /// A previously-validated token is being reused. This indicates a
+    /// stolen-token replay attack. The token should be rejected and the event
+    /// should trigger a security alert.
+    TokenReplayed,
+
     /// GraphQL introspection query is not allowed.
     ///
     /// The security policy disallows introspection queries (__schema, __type),
@@ -267,6 +274,9 @@ impl fmt::Display for SecurityError {
             },
             Self::InvalidTokenAlgorithm { algorithm } => {
                 write!(f, "Invalid token algorithm: {algorithm}")
+            },
+            Self::TokenReplayed => {
+                write!(f, "Token has already been used (replay detected)")
             },
             Self::IntrospectionDisabled { detail } => {
                 write!(f, "Introspection disabled: {detail}")
@@ -372,6 +382,7 @@ impl PartialEq for SecurityError {
                 Self::InvalidTokenAlgorithm { algorithm: a1 },
                 Self::InvalidTokenAlgorithm { algorithm: a2 },
             ) => a1 == a2,
+            (Self::TokenReplayed, Self::TokenReplayed) => true,
             (
                 Self::IntrospectionDisabled { detail: d1 },
                 Self::IntrospectionDisabled { detail: d2 },

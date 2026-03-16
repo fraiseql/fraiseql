@@ -28,6 +28,11 @@ pub struct JwtClaims {
     /// Not before (Unix timestamp)
     pub nbf: Option<i64>,
 
+    /// JWT ID — unique identifier for this token.
+    ///
+    /// Used by the replay cache to detect reuse of a stolen token.
+    pub jti: Option<String>,
+
     /// Scope (space-separated string, common in Auth0/Okta)
     pub scope: Option<String>,
 

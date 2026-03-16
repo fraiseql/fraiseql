@@ -101,6 +101,9 @@ kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]
 redis-apq = ["redis"]
+# JWT replay prevention via Redis SET NX (requires a Redis instance).
+# Enables RedisReplayCache for distributed jti replay detection.
+jwt-replay = ["redis"]
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
 # Includes specialized filter operators for 44 rich scalar types
 rich-filters = ["fraiseql-db/rich-filters"]

@@ -22,6 +22,7 @@ use crate::security::{
         audience::JwtClaims,
         jwks::CachedJwks,
         providers::{MAX_CLOCK_SKEW_SECS, OidcConfig},
+        replay_cache::ReplayCache,
     },
 };
 
@@ -37,10 +38,13 @@ use crate::security::{
 /// JWKS fetch/cache/key-selection helpers are in `impl OidcValidator` blocks
 /// defined in the `jwks` sub-module.
 pub struct OidcValidator {
-    pub(super) config:      OidcConfig,
-    pub(super) http_client: reqwest::Client,
-    pub(super) jwks_cache:  Arc<RwLock<Option<CachedJwks>>>,
-    pub(super) jwks_uri:    String,
+    pub(super) config:        OidcConfig,
+    pub(super) http_client:   reqwest::Client,
+    pub(super) jwks_cache:    Arc<RwLock<Option<CachedJwks>>>,
+    pub(super) jwks_uri:      String,
+    /// Optional JWT replay cache. When set, each validated token's `jti` is
+    /// checked against the cache and rejected if it has been seen before.
+    pub(super) replay_cache:  Option<Arc<ReplayCache>>,
 }
 
 impl OidcValidator {
@@ -62,7 +66,11 @@ impl OidcValidator {
 
         config.validate()?;
 
+        // Redirects are disabled to prevent redirect-chain SSRF attacks.
+        // `https_only` is not set here because `OidcConfig::validate()` already
+        // requires HTTPS for the issuer URL (localhost HTTP is allowed for dev/test).
         let http_client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(30))
             .build()
             .map_err(|e| SecurityError::SecurityConfigError(format!("HTTP client error: {e}")))?;
@@ -120,6 +128,7 @@ impl OidcValidator {
             http_client,
             jwks_cache: Arc::new(RwLock::new(None)),
             jwks_uri,
+            replay_cache: None,
         })
     }
 
@@ -130,7 +139,11 @@ impl OidcValidator {
     pub fn with_jwks_uri(config: OidcConfig, jwks_uri: String) -> Self {
         // Use the same 30-second timeout as `new()` to prevent indefinitely
         // blocked JWKS fetches when the endpoint is slow or hung.
+        // Redirects are disabled to prevent redirect-chain SSRF attacks.
+        // `https_only` is not set here because `OidcConfig::validate()` already
+        // requires HTTPS for the issuer URL (localhost HTTP is allowed for dev/test).
         let http_client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("TLS backend should always be available for reqwest HTTP client");
@@ -139,7 +152,22 @@ impl OidcValidator {
             http_client,
             jwks_cache: Arc::new(RwLock::new(None)),
             jwks_uri,
+            replay_cache: None,
         }
+    }
+
+    /// Attach a JWT replay cache to this validator.
+    ///
+    /// When set, every validated token's `jti` claim is checked against the
+    /// cache. A token whose `jti` has been seen before is rejected with
+    /// `SecurityError::TokenReplayed`, preventing stolen-token replay attacks.
+    ///
+    /// If `require_jti` is `true` in [`OidcConfig`], tokens without a `jti`
+    /// are also rejected before the replay check is reached.
+    #[must_use]
+    pub fn with_replay_cache(mut self, cache: Arc<ReplayCache>) -> Self {
+        self.replay_cache = Some(cache);
+        self
     }
 
     /// Validate a JWT token and extract user information.
@@ -216,6 +244,49 @@ impl OidcValidator {
         })?;
 
         let claims = token_data.claims;
+
+        // Validate jti claim if required by configuration.
+        if self.config.require_jti && claims.jti.is_none() {
+            tracing::debug!("JWT missing required jti (JWT ID) claim");
+            return Err(SecurityError::TokenMissingClaim {
+                claim: "jti".to_string(),
+            });
+        }
+
+        // Replay check: if a replay cache is configured and the token carries a jti,
+        // verify the jti has not been seen before and record it for future checks.
+        if let (Some(replay_cache), Some(ref jti)) = (&self.replay_cache, &claims.jti) {
+            use std::time::Duration;
+            // Compute the token's remaining TTL for the cache entry.
+            let ttl = claims.exp.and_then(|exp| {
+                let remaining = exp - chrono::Utc::now().timestamp();
+                if remaining > 0 {
+                    Some(Duration::from_secs(remaining.cast_unsigned()))
+                } else {
+                    None
+                }
+            }).unwrap_or(Duration::from_secs(900)); // Fallback: 15-minute TTL
+
+            replay_cache
+                .check_and_record(jti, ttl)
+                .await
+                .map_err(|e| {
+                    use crate::security::oidc::replay_cache::ReplayCacheError;
+                    match e {
+                        ReplayCacheError::Replayed => {
+                            tracing::warn!(jti = %jti, "JWT replay detected");
+                            SecurityError::TokenReplayed
+                        }
+                        ReplayCacheError::Backend(_) => {
+                            // Backend error with fail-open is already handled inside
+                            // ReplayCache::check_and_record(); reaching here means
+                            // fail-closed is configured.
+                            tracing::warn!(jti = %jti, error = %e, "Replay cache backend error");
+                            SecurityError::InvalidToken
+                        }
+                    }
+                })?;
+        }
 
         // Extract scopes first (before moving claims.sub)
         let scopes = self.extract_scopes(&claims);

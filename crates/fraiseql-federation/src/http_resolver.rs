@@ -201,7 +201,12 @@ impl HttpEntityResolver {
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised
     /// (e.g., invalid TLS configuration).
     pub fn new(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
+        // Redirects are disabled to prevent redirect-chain SSRF attacks:
+        // a compromised subgraph could redirect to an internal network address,
+        // bypassing the URL-parse SSRF guard applied to the initial URL only.
         let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .https_only(true)
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
             .map_err(|e| fraiseql_error::FraiseQLError::Internal {
@@ -226,7 +231,9 @@ impl HttpEntityResolver {
     /// **Never use in production** — this bypasses all SSRF protections.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
+        // No https_only in test mode to allow contacting loopback mock servers over HTTP.
         let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
             .map_err(|e| fraiseql_error::FraiseQLError::Internal {

@@ -86,6 +86,19 @@ pub struct OidcConfig {
     /// Some providers use "scp" or "permissions" (array)
     #[serde(default = "default_scope_claim")]
     pub scope_claim: String,
+
+    /// Require the `jti` (JWT ID) claim on every validated token.
+    ///
+    /// When `true`, tokens without a `jti` are rejected with a validation error.
+    /// When `false` (default), a missing `jti` is accepted but the token cannot
+    /// be replay-checked.
+    ///
+    /// Set to `true` when you have a [`ReplayCache`] configured, so that every
+    /// token is guaranteed to be uniquely identifiable.
+    ///
+    /// [`ReplayCache`]: crate::security::oidc::replay_cache::ReplayCache
+    #[serde(default)]
+    pub require_jti: bool,
 }
 
 pub(super) const fn default_jwks_cache_ttl() -> u64 {
@@ -126,6 +139,7 @@ impl Default for OidcConfig {
             jwks_uri:             None,
             required:             default_required(),
             scope_claim:          default_scope_claim(),
+            require_jti:          false,
         }
     }
 }

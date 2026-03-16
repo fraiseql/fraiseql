@@ -8,9 +8,12 @@ const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 use async_trait::async_trait;
 use serde_json::json;
 
-use crate::security::kms::{
-    base::{BaseKmsProvider, KeyInfo, RotationPolicyInfo},
-    error::{KmsError, KmsResult},
+use crate::{
+    http::build_ssrf_safe_client,
+    security::kms::{
+        base::{BaseKmsProvider, KeyInfo, RotationPolicyInfo},
+        error::{KmsError, KmsResult},
+    },
 };
 
 /// Configuration for Vault KMS provider.
@@ -114,12 +117,11 @@ pub struct VaultKmsProvider {
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
-        let client =
-            reqwest::Client::builder().timeout(VAULT_REQUEST_TIMEOUT).build().map_err(|e| {
-                KmsError::InvalidConfiguration {
-                    message: format!("Failed to build HTTP client: {e}"),
-                }
-            })?;
+        let client = build_ssrf_safe_client(VAULT_REQUEST_TIMEOUT).map_err(|e| {
+            KmsError::InvalidConfiguration {
+                message: format!("Failed to build HTTP client: {e}"),
+            }
+        })?;
         Ok(Self { config, client })
     }
 

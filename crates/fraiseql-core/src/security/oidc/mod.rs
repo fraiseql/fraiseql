@@ -46,6 +46,7 @@
 pub(crate) mod audience;
 pub(crate) mod jwks;
 pub(crate) mod providers;
+pub mod replay_cache;
 pub(crate) mod token;
 
 #[cfg(test)]
@@ -55,4 +56,8 @@ mod tests;
 pub use audience::{Audience, JwtClaims};
 pub use jwks::{Jwk, Jwks, OidcDiscoveryDocument};
 pub use providers::OidcConfig;
+pub use replay_cache::{
+    FailurePolicy, MemoryReplayCache, ReplayCache, ReplayCacheBackend, ReplayCacheError,
+    jwt_replay_cache_errors_total, jwt_replay_rejected_total,
+};
 pub use token::OidcValidator;

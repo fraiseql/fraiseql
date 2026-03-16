@@ -45,14 +45,21 @@ impl WebhookLifecycle {
         timeout_ms: u64,
     ) -> Self {
         let timeout = Duration::from_millis(timeout_ms);
-        let client = reqwest::Client::builder().timeout(timeout).build().unwrap_or_else(|e| {
-            warn!(
-                error = %e,
-                "Failed to build reqwest client with timeout; using default client. \
-                 Webhook lifecycle hooks may not respect the configured timeout."
-            );
-            reqwest::Client::default()
-        });
+        // Redirects are disabled to prevent redirect-chain SSRF attacks.
+        // `https_only` is intentionally not set here because webhook URLs
+        // may legitimately use plain HTTP in development/staging environments.
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(timeout)
+            .build()
+            .unwrap_or_else(|e| {
+                warn!(
+                    error = %e,
+                    "Failed to build reqwest client with timeout; using default client. \
+                     Webhook lifecycle hooks may not respect the configured timeout."
+                );
+                reqwest::Client::default()
+            });
         Self {
             client,
             on_connect_url,
