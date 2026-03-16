@@ -402,7 +402,10 @@ impl<'a> ConfigValidator<'a> {
             if rate_limit.backend == "redis" && self.config.cache.is_none() {
                 self.result.add_error(ConfigError::ValidationError {
                     field:   "rate_limiting.backend".to_string(),
-                    message: "Redis rate limiting requires cache configuration".to_string(),
+                    message: "Redis rate limiting requires cache configuration. \
+                              Add a [cache] section to fraiseql.toml or change \
+                              [rate_limiting] backend from 'redis' to 'memory'."
+                        .to_string(),
                 });
             }
         }
@@ -674,6 +677,34 @@ mod tests {
                         if field.contains("max_concurrent_requests"))
                 }),
                 "max_concurrent_requests=0 must fail validation"
+            );
+        });
+    }
+
+    #[test]
+    fn redis_rate_limiting_without_cache_error_references_fraiseql_toml() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [database]
+                url_env = "DATABASE_URL"
+
+                [rate_limiting]
+                default = "100/minute"
+                backend = "redis"
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            let has_toml_ref = result.errors.iter().any(|e| {
+                matches!(e, ConfigError::ValidationError { ref message, .. }
+                    if message.contains("fraiseql.toml"))
+            });
+            assert!(
+                has_toml_ref,
+                "error message must reference fraiseql.toml; errors: {:?}",
+                result.errors
             );
         });
     }

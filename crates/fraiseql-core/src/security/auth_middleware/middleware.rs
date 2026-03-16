@@ -123,9 +123,27 @@ impl AuthMiddleware {
                         expired_at: Utc::now(), // Approximate - actual time is not accessible
                     }
                 },
-                jsonwebtoken::errors::ErrorKind::InvalidSignature => SecurityError::InvalidToken,
-                jsonwebtoken::errors::ErrorKind::InvalidIssuer => SecurityError::InvalidToken,
-                jsonwebtoken::errors::ErrorKind::InvalidAudience => SecurityError::InvalidToken,
+                jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                    SecurityError::JwtSignatureInvalid
+                },
+                jsonwebtoken::errors::ErrorKind::InvalidIssuer => {
+                    SecurityError::JwtIssuerMismatch {
+                        expected: self
+                            .config
+                            .issuer
+                            .clone()
+                            .unwrap_or_else(|| "(not configured)".to_string()),
+                    }
+                },
+                jsonwebtoken::errors::ErrorKind::InvalidAudience => {
+                    SecurityError::JwtAudienceMismatch {
+                        expected: self
+                            .config
+                            .audience
+                            .clone()
+                            .unwrap_or_else(|| "(not configured)".to_string()),
+                    }
+                },
                 jsonwebtoken::errors::ErrorKind::InvalidAlgorithm => {
                     SecurityError::InvalidTokenAlgorithm {
                         algorithm: format!("{:?}", signing_key.algorithm()),
@@ -813,8 +831,8 @@ mod tests {
 
         let result = middleware.validate_request(&req);
         assert!(
-            matches!(result, Err(SecurityError::InvalidToken)),
-            "Expected InvalidToken for wrong signature, got: {:?}",
+            matches!(result, Err(SecurityError::JwtSignatureInvalid)),
+            "Expected JwtSignatureInvalid for wrong signature, got: {:?}",
             result
         );
     }
@@ -901,10 +919,51 @@ mod tests {
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);
         assert!(
-            matches!(result, Err(SecurityError::InvalidToken)),
-            "Expected InvalidToken for wrong issuer, got: {:?}",
+            matches!(result, Err(SecurityError::JwtIssuerMismatch { .. })),
+            "Expected JwtIssuerMismatch for wrong issuer, got: {:?}",
             result
         );
+    }
+
+    #[test]
+    #[allow(clippy::items_after_statements)] // Reason: test helper structs defined near point of use for readability
+    fn test_jwt_issuer_mismatch_error_contains_expected_issuer_and_word_issuer() {
+        use jsonwebtoken::{EncodingKey, Header, encode};
+
+        #[derive(serde::Serialize)]
+        struct ClaimsWithIss {
+            sub: String,
+            exp: i64,
+            iss: String,
+        }
+
+        let secret = "test-secret";
+        let expected_issuer = "https://auth.example.com";
+        let config = AuthConfig::with_hs256(secret).with_issuer(expected_issuer);
+        let middleware = AuthMiddleware::from_config(config);
+
+        // Token signed with the right secret but wrong issuer.
+        let now = chrono::Utc::now().timestamp();
+        let claims = ClaimsWithIss {
+            sub: "user123".to_string(),
+            exp: now + 3600,
+            iss: "https://wrong-issuer.com".to_string(),
+        };
+
+        let token =
+            encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+                .unwrap();
+
+        let req = AuthRequest::new(Some(format!("Bearer {token}")));
+        let result = middleware.validate_request(&req);
+        let err = result.expect_err("expected error for wrong issuer");
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains(expected_issuer),
+            "error message must contain expected issuer '{expected_issuer}': {msg}"
+        );
+        assert!(msg.contains("issuer"), "error message must contain 'issuer': {msg}");
     }
 
     #[test]
@@ -1009,8 +1068,8 @@ mod tests {
         let req = AuthRequest::new(Some(format!("Bearer {tampered_token}")));
         let result = middleware.validate_request(&req);
         assert!(
-            matches!(result, Err(SecurityError::InvalidToken)),
-            "Expected InvalidToken for tampered payload, got: {:?}",
+            matches!(result, Err(SecurityError::JwtSignatureInvalid)),
+            "Expected JwtSignatureInvalid for tampered payload, got: {:?}",
             result
         );
     }

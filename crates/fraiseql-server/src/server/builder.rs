@@ -96,8 +96,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 return Err(ServerError::ConfigError(
                     "Cache is enabled in a multi-tenant schema but no Row-Level Security \
                      policies are declared. This would allow cross-tenant cache hits and \
-                     data leakage. Either disable caching, declare RLS policies, or set \
-                     `security.multi_tenant = false` to acknowledge single-tenant mode."
+                     data leakage. In fraiseql.toml, either disable caching with \
+                     [cache] enabled = false, declare [security.rls] policies, or set \
+                     [security] multi_tenant = false to acknowledge single-tenant mode."
                         .to_string(),
                 ));
             }

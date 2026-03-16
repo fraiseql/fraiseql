@@ -138,6 +138,30 @@ pub enum SecurityError {
     /// or validate. Could be due to invalid signature, bad format, etc.
     InvalidToken,
 
+    /// JWT signature verification failed.
+    ///
+    /// The token's signature does not match the configured signing secret.
+    /// Most commonly caused by a wrong or rotated FRAISEQL_JWT_SECRET.
+    JwtSignatureInvalid,
+
+    /// JWT issuer claim does not match the expected issuer.
+    ///
+    /// The token was issued by a different service than expected.
+    /// Check `[security.jwt] issuer` in fraiseql.toml.
+    JwtIssuerMismatch {
+        /// The expected issuer from configuration
+        expected: String,
+    },
+
+    /// JWT audience claim does not match the expected audience.
+    ///
+    /// The token was issued for a different service or audience.
+    /// Check `[security.jwt] audience` in fraiseql.toml.
+    JwtAudienceMismatch {
+        /// The expected audience from configuration
+        expected: String,
+    },
+
     /// Authentication token has expired.
     ///
     /// The authentication token has an 'exp' claim and that timestamp
@@ -266,6 +290,27 @@ impl fmt::Display for SecurityError {
             Self::InvalidToken => {
                 write!(f, "Invalid authentication token")
             },
+            Self::JwtSignatureInvalid => {
+                write!(
+                    f,
+                    "JWT signature invalid — verify FRAISEQL_JWT_SECRET matches the secret \
+                     used to sign the token"
+                )
+            },
+            Self::JwtIssuerMismatch { expected } => {
+                write!(
+                    f,
+                    "JWT issuer does not match expected '{expected}' — \
+                     check [security.jwt] issuer in fraiseql.toml"
+                )
+            },
+            Self::JwtAudienceMismatch { expected } => {
+                write!(
+                    f,
+                    "JWT audience does not match expected '{expected}' — \
+                     check [security.jwt] audience in fraiseql.toml"
+                )
+            },
             Self::TokenExpired { expired_at } => {
                 write!(f, "Token expired at {expired_at}")
             },
@@ -372,6 +417,15 @@ impl PartialEq for SecurityError {
             },
             (Self::AuthRequired, Self::AuthRequired) => true,
             (Self::InvalidToken, Self::InvalidToken) => true,
+            (Self::JwtSignatureInvalid, Self::JwtSignatureInvalid) => true,
+            (
+                Self::JwtIssuerMismatch { expected: e1 },
+                Self::JwtIssuerMismatch { expected: e2 },
+            ) => e1 == e2,
+            (
+                Self::JwtAudienceMismatch { expected: e1 },
+                Self::JwtAudienceMismatch { expected: e2 },
+            ) => e1 == e2,
             (Self::TokenExpired { expired_at: e1 }, Self::TokenExpired { expired_at: e2 }) => {
                 e1 == e2
             },

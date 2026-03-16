@@ -173,7 +173,8 @@ impl DialectCapabilityGuard {
 
         Err(FraiseQLError::Unsupported {
             message: format!(
-                "{} is not supported on {}.{suggestion}",
+                "{} is not supported on {}.{suggestion} \
+                 See docs/database-compatibility.md for the full feature matrix.",
                 feature.display_name(),
                 dialect.as_str(),
             ),
@@ -214,7 +215,8 @@ impl DialectCapabilityGuard {
 
         Err(FraiseQLError::Unsupported {
             message: format!(
-                "The following features are not supported on {}:\n{}",
+                "The following features are not supported on {}:\n{}\n\
+                 See docs/database-compatibility.md for the full feature matrix.",
                 dialect.as_str(),
                 failures.join("\n"),
             ),
@@ -355,6 +357,31 @@ mod tests {
                 &[Feature::JsonbPathOps, Feature::Subscriptions, Feature::Mutations],
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_guard_error_links_to_compatibility_docs() {
+        let err = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps)
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("docs/database-compatibility.md"),
+            "unsupported feature error must link to compatibility docs: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_guard_check_all_error_links_to_compatibility_docs() {
+        let err = DialectCapabilityGuard::check_all(
+            DatabaseType::SQLite,
+            &[Feature::Mutations, Feature::WindowFunctions],
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("docs/database-compatibility.md"),
+            "check_all error must link to compatibility docs: {msg}"
         );
     }
 

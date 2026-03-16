@@ -456,6 +456,40 @@ mod tests {
     }
 
     #[test]
+    fn test_uzer_typo_suggests_user() {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name:                "user".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+        });
+        let matcher = QueryMatcher::new(schema);
+
+        // "uzer" is one edit away from "user" — should suggest it.
+        let result = matcher.match_query("{ uzer { id } }", None);
+        let err = result.expect_err("expected Err for typo'd query name");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Did you mean"),
+            "expected 'Did you mean' suggestion in: {msg}"
+        );
+    }
+
+    #[test]
     fn test_unknown_query_error_includes_suggestion() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
