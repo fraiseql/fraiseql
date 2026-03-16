@@ -13,6 +13,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 // ── Helper functions ──────────────────────────────────────────────────────
 
 /// Load configuration from file or use defaults.
+///
+/// # Errors
+///
+/// Returns an error if the config file cannot be read or is not valid TOML.
 fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     if let Some(path) = config_path {
         tracing::info!(path = %path, "Loading configuration from file");
@@ -105,6 +109,10 @@ fn warn_if_unrecognised_bool(var: &str, val: &str) {
 }
 
 /// Validate that schema file exists.
+///
+/// # Errors
+///
+/// Returns an error with a user-friendly message if the file does not exist.
 fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
     if !path.exists() {
         anyhow::bail!(
@@ -128,6 +136,11 @@ fn init_tracing() {
 }
 
 /// Load config from file/defaults, apply all env var overrides, then validate.
+///
+/// # Errors
+///
+/// Returns an error if configuration loading fails (file I/O, parse errors) or
+/// if the resulting configuration is invalid.
 fn load_and_validate_config() -> anyhow::Result<ServerConfig> {
     let config_path = env::var("FRAISEQL_CONFIG").ok();
     let mut config = load_config(config_path.as_deref())?;

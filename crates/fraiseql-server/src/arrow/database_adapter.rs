@@ -107,6 +107,9 @@ impl FlightDatabaseAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
+    /// # Errors
+    ///
+    /// Returns [`DatabaseError`] if the underlying PostgreSQL query fails.
     async fn execute_raw_query(
         &self,
         sql: &str,
@@ -125,6 +128,9 @@ impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
+    /// # Errors
+    ///
+    /// Returns [`DatabaseError`] if the underlying wire query fails.
     async fn execute_raw_query(
         &self,
         sql: &str,

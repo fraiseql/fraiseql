@@ -177,6 +177,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::to_string(&response)?)
     }
 
+    /// Execute a regular (non-aggregate, non-relay) GraphQL query.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the query does not match a compiled
+    /// template or requires a security context that is not present.
+    /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
     pub(super) async fn execute_regular_query(
         &self,
         query: &str,
@@ -278,6 +285,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///   }
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if required pagination variables are
+    /// missing or contain invalid cursor values.
+    /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
     pub(super) async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,

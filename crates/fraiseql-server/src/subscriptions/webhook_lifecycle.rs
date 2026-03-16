@@ -123,6 +123,10 @@ impl WebhookLifecycle {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl SubscriptionLifecycle for WebhookLifecycle {
+    /// # Errors
+    ///
+    /// Returns an error string if the HTTP POST to the `on_connect` webhook URL fails
+    /// or returns a non-2xx status code.
     async fn on_connect(
         &self,
         params: &serde_json::Value,
@@ -183,6 +187,10 @@ impl SubscriptionLifecycle for WebhookLifecycle {
         });
     }
 
+    /// # Errors
+    ///
+    /// Returns an error string if the HTTP POST to the `on_subscribe` webhook URL fails
+    /// or returns a non-2xx status code.
     async fn on_subscribe(
         &self,
         subscription_name: &str,

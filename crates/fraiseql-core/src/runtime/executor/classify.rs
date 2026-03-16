@@ -50,6 +50,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Returns `(QueryType, Some(ParsedQuery))` for `Regular` queries and
     /// `(QueryType, None)` for all other types (introspection, federation, etc.).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Parse`] if the query string is malformed GraphQL.
     pub(super) fn classify_query_with_parse(
         &self,
         query: &str,

@@ -247,6 +247,10 @@ impl SqlServerAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for SqlServerAdapter {
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if the SQL Server query fails or the
+    /// result cannot be deserialized as JSONB.
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -295,6 +299,10 @@ impl DatabaseAdapter for SqlServerAdapter {
         self.execute_raw(&sql, params).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if WHERE clause generation fails, or
+    /// [`FraiseQLError::Database`] if the SQL Server query fails.
     async fn execute_where_query(
         &self,
         view: &str,

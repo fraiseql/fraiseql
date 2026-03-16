@@ -6,7 +6,12 @@ use super::{
 };
 
 impl AggregationSqlGenerator {
-    /// Build SELECT clause
+    /// Build SELECT clause.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if an unrecognised aggregate function
+    /// or GROUP BY expression cannot be converted to SQL.
     pub(super) fn build_select_clause(
         &self,
         group_by_expressions: &[GroupByExpression],
@@ -404,7 +409,12 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Build GROUP BY clause
+    /// Build GROUP BY clause.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any GROUP BY expression cannot
+    /// be converted to SQL (e.g., unsupported temporal bucket on the current dialect).
     pub(super) fn build_group_by_clause(
         &self,
         group_by_expressions: &[GroupByExpression],

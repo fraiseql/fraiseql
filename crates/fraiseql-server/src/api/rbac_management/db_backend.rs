@@ -641,6 +641,10 @@ impl RbacDbBackend {
     // =========================================================================
 
     /// Get the `"resource:action"` permission strings for a role.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RbacDbError::QueryError`] if the database query fails.
     async fn get_role_permissions(&self, role_id: Uuid) -> Result<Vec<String>, RbacDbError> {
         let rows = sqlx::query(
             "SELECT p.resource, p.action
@@ -665,6 +669,10 @@ impl RbacDbBackend {
     }
 
     /// Find or create a permission, returning its UUID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RbacDbError::QueryError`] if the SELECT or INSERT query fails.
     async fn ensure_permission(
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -703,6 +711,10 @@ impl RbacDbBackend {
 }
 
 /// Parse a `"resource:action"` string into its components.
+///
+/// # Errors
+///
+/// Returns [`RbacDbError::QueryError`] if the string does not contain a `:` separator.
 fn parse_permission(perm: &str) -> Result<(&str, &str), RbacDbError> {
     perm.split_once(':').ok_or_else(|| {
         RbacDbError::QueryError(format!(

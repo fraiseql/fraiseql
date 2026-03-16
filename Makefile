@@ -298,20 +298,39 @@ lint-gate-core:
 	fi; \
 	echo "OK: $$count narrow cast allows (≤$(FRAISEQL_CORE_CAST_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
 
-# Gate: ensure executor error-documentation coverage does not regress.
-# Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
-# v2.2.0 target: ≥60.  Current baseline: 35.
-FRAISEQL_CORE_ERRORS_DOC_MIN ?= 50
-.PHONY: lint-gate-errors-doc
-lint-gate-errors-doc:
+# Gate: ensure error-documentation coverage does not regress across all crates.
+# Counts "# Errors" doc sections; floors raised as coverage grows.
+FRAISEQL_CORE_RUNTIME_ERRORS_DOC_MIN ?= 56
+FRAISEQL_CORE_ERRORS_DOC_MIN         ?= 140
+FRAISEQL_DB_ERRORS_DOC_MIN           ?= 75
+FRAISEQL_SERVER_ERRORS_DOC_MIN       ?= 95
+
+.PHONY: lint-gate-errors-doc lint-gate-errors-doc-core-runtime lint-gate-errors-doc-core lint-gate-errors-doc-db lint-gate-errors-doc-server
+lint-gate-errors-doc: lint-gate-errors-doc-core-runtime lint-gate-errors-doc-core lint-gate-errors-doc-db lint-gate-errors-doc-server
+
+lint-gate-errors-doc-core-runtime:
 	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \
-	echo "fraiseql-core runtime # Errors doc sections: $$count (min: $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
-	if [ "$$count" -lt "$(FRAISEQL_CORE_ERRORS_DOC_MIN)" ]; then \
-	  echo "ERROR: # Errors doc coverage regressed ($$count < $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
-	  echo "  Add '# Errors' doc sections to public functions in crates/fraiseql-core/src/runtime/"; \
-	  exit 1; \
-	fi; \
-	echo "OK: $$count sections (≥$(FRAISEQL_CORE_ERRORS_DOC_MIN))"
+	[ "$$count" -ge "$(FRAISEQL_CORE_RUNTIME_ERRORS_DOC_MIN)" ] || \
+	  (echo "ERROR: fraiseql-core/runtime # Errors regressed ($$count < $(FRAISEQL_CORE_RUNTIME_ERRORS_DOC_MIN))"; exit 1); \
+	echo "OK fraiseql-core/runtime: $$count (≥$(FRAISEQL_CORE_RUNTIME_ERRORS_DOC_MIN))"
+
+lint-gate-errors-doc-core:
+	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/ | wc -l); \
+	[ "$$count" -ge "$(FRAISEQL_CORE_ERRORS_DOC_MIN)" ] || \
+	  (echo "ERROR: fraiseql-core # Errors regressed ($$count < $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; exit 1); \
+	echo "OK fraiseql-core: $$count (≥$(FRAISEQL_CORE_ERRORS_DOC_MIN))"
+
+lint-gate-errors-doc-db:
+	@count=$$(grep -r "# Errors" crates/fraiseql-db/src/ | wc -l); \
+	[ "$$count" -ge "$(FRAISEQL_DB_ERRORS_DOC_MIN)" ] || \
+	  (echo "ERROR: fraiseql-db # Errors regressed ($$count < $(FRAISEQL_DB_ERRORS_DOC_MIN))"; exit 1); \
+	echo "OK fraiseql-db: $$count (≥$(FRAISEQL_DB_ERRORS_DOC_MIN))"
+
+lint-gate-errors-doc-server:
+	@count=$$(grep -r "# Errors" crates/fraiseql-server/src/ | wc -l); \
+	[ "$$count" -ge "$(FRAISEQL_SERVER_ERRORS_DOC_MIN)" ] || \
+	  (echo "ERROR: fraiseql-server # Errors regressed ($$count < $(FRAISEQL_SERVER_ERRORS_DOC_MIN))"; exit 1); \
+	echo "OK fraiseql-server: $$count (≥$(FRAISEQL_SERVER_ERRORS_DOC_MIN))"
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:

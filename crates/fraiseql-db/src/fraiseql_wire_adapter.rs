@@ -106,6 +106,11 @@ impl FraiseWireAdapter {
     }
 
     /// Build SQL query from view and WHERE clause.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the WHERE clause contains an
+    /// operator that cannot be serialized to SQL by [`WhereSqlGenerator`].
     fn build_query(
         &self,
         view: &str,
@@ -134,6 +139,11 @@ impl FraiseWireAdapter {
     }
 
     /// Execute manual query with raw SQL (for limit/offset support).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if SQL generation fails, or
+    /// [`FraiseQLError::Database`] if the wire connection or query execution fails.
     async fn execute_manual_query(
         &self,
         view: &str,
@@ -204,6 +214,9 @@ impl FraiseWireAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for FraiseWireAdapter {
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if the wire connection or query execution fails.
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -216,6 +229,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
         self.execute_where_query(view, where_clause, limit, None).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if SQL generation fails, or
+    /// [`FraiseQLError::Database`] if the wire connection or query execution fails.
     async fn execute_where_query(
         &self,
         view: &str,
@@ -295,6 +312,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
         }
     }
 
+    /// # Errors
+    ///
+    /// Always returns [`FraiseQLError::Database`] — arbitrary SQL is not supported
+    /// by fraiseql-wire; use [`Self::execute_where_query`] instead.
     async fn execute_raw_query(
         &self,
         _sql: &str,
@@ -308,6 +329,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
         })
     }
 
+    /// # Errors
+    ///
+    /// Always returns [`FraiseQLError::Database`] — aggregate SQL is not supported
+    /// by fraiseql-wire.
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,

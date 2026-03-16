@@ -375,6 +375,11 @@ impl ResultProjector {
     /// // Result: { "id": "123", "name": "Alice", "__typename": "User" }
     /// assert_eq!(result["__typename"], "User");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the projected data contains a
+    /// list element that is not a JSON object, making `__typename` injection impossible.
     pub fn add_typename_only(
         &self,
         projected_data: &JsonbValue,

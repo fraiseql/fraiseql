@@ -209,6 +209,11 @@ fn extract_document_id(request: &GraphQLRequest) -> Option<String> {
 ///
 /// Returns the resolved query body, or an error if the query is not found and no body was
 /// provided (the client should resend with the full body).
+///
+/// # Errors
+///
+/// Returns [`ErrorResponse`] if the hash doesn't match the body, or if the
+/// hash is unknown and no query body was provided (client must retry with full body).
 pub(crate) async fn resolve_apq(
     apq_store: &dyn ApqStorage,
     apq_metrics: &ApqMetrics,

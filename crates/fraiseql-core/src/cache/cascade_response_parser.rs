@@ -149,6 +149,12 @@ impl CascadeResponseParser {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the cascade field is present but
+    /// malformed (e.g., `updated` or `deleted` is not an array, or an entity is
+    /// missing `__typename` / `id`).
     pub fn parse_cascade_response(&self, response: &Value) -> Result<CascadeEntities> {
         // Find cascade field in response
         let cascade = self.find_cascade_field(response)?;

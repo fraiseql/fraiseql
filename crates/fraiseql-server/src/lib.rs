@@ -124,6 +124,11 @@ pub mod auth {
         pub struct StateEncryptionService;
         impl StateEncryptionService {
             /// Stub: returns `None`.
+            ///
+            /// # Errors
+            ///
+            /// Currently infallible — always returns `Ok(None)`.
+            /// Errors may be returned when the `auth` feature is enabled.
             pub fn from_compiled_schema(
                 _s: &serde_json::Value,
             ) -> crate::Result<Option<std::sync::Arc<Self>>> {

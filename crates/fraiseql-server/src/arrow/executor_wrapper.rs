@@ -34,6 +34,9 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
+    /// # Errors
+    ///
+    /// Returns the executor error serialized as a `String` if query execution fails.
     async fn execute_with_security(
         &self,
         query: &str,

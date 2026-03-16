@@ -311,6 +311,11 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a query and return parsed JSON.
     ///
     /// Same as `execute()` but returns parsed `serde_json::Value` instead of string.
+    ///
+    /// # Errors
+    ///
+    /// Propagates all errors from [`Self::execute`] and additionally returns
+    /// [`FraiseQLError::Database`] if the response string is not valid JSON.
     pub async fn execute_json(
         &self,
         query: &str,
