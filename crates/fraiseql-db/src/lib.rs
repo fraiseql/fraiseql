@@ -171,6 +171,9 @@
 //         blocks and do not affect production stack usage.
 #![allow(clippy::large_stack_arrays)]
 
+/// A type alias for `Result<T, fraiseql_error::FraiseQLError>`, used throughout this crate.
+pub type Result<T> = std::result::Result<T, fraiseql_error::FraiseQLError>;
+
 // New modules (types extracted from fraiseql-core)
 pub mod collation_config;
 pub mod dialect;

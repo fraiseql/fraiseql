@@ -27,7 +27,37 @@
 //! # }
 //! ```
 
-use fraiseql_error::Result;
+use fraiseql_error::{FraiseQLError, Result};
+
+/// Validate that a GraphQL field name contains only characters that are safe
+/// for use in SQL projections (alphanumeric characters and underscores only).
+///
+/// GraphQL field names in FraiseQL are either snake_case (schema definitions)
+/// or camelCase (after the compiler's automatic conversion). Both forms are
+/// subsets of `[a-zA-Z_][a-zA-Z0-9_]*`, so this function rejects any name
+/// that falls outside that alphabet.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if `field` contains a character outside
+/// `[a-zA-Z0-9_]`.
+fn validate_field_name(field: &str) -> Result<()> {
+    if field
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        Ok(())
+    } else {
+        Err(FraiseQLError::Validation {
+            message: format!(
+                "field name '{}' contains characters that cannot be safely projected; \
+                 only ASCII alphanumeric characters and underscores are allowed",
+                field
+            ),
+            path:    None,
+        })
+    }
+}
 
 /// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
 ///
@@ -126,6 +156,11 @@ impl PostgresProjectionGenerator {
         if fields.is_empty() {
             // No fields to project, return pass-through
             return Ok(format!("\"{}\"", self.jsonb_column));
+        }
+
+        // Validate all field names before generating any SQL.
+        for field in fields {
+            validate_field_name(field)?;
         }
 
         // Build the jsonb_build_object() call with all requested fields
@@ -267,6 +302,11 @@ impl MySqlProjectionGenerator {
             return Ok(format!("`{}`", self.json_column));
         }
 
+        // Validate all field names before generating any SQL.
+        for field in fields {
+            validate_field_name(field)?;
+        }
+
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
@@ -360,6 +400,11 @@ impl SqliteProjectionGenerator {
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("\"{}\"", self.json_column));
+        }
+
+        // Validate all field names before generating any SQL.
+        for field in fields {
+            validate_field_name(field)?;
         }
 
         let field_pairs: Vec<String> = fields
@@ -613,14 +658,56 @@ mod tests {
 
     #[test]
     fn test_postgres_projection_sql_injection_in_field_name() {
-        // A field name containing a single quote must be escaped in the SQL output
+        // A field name containing a single quote is rejected by the validator — it is
+        // not a valid GraphQL / FraiseQL field identifier and must never reach SQL.
         let generator = PostgresProjectionGenerator::new();
         let fields = vec!["user'name".to_string()];
-        let sql = generator.generate_projection_sql(&fields).unwrap();
-        // The response key literal must not contain an unescaped single quote
-        assert!(!sql.contains("'user'name'"), "Single quote in field name must be escaped");
-        // Should contain the doubled-quote escape
-        assert!(sql.contains("user''name"), "Single quote must be doubled in the SQL literal");
+        let result = generator.generate_projection_sql(&fields);
+        assert!(result.is_err(), "Field name with single quote must be rejected");
+    }
+
+    #[test]
+    fn test_postgres_projection_rejects_field_with_semicolon() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec!["id; DROP TABLE users--".to_string()];
+        let result = generator.generate_projection_sql(&fields);
+        assert!(result.is_err(), "Field name with SQL injection characters must be rejected");
+    }
+
+    #[test]
+    fn test_mysql_projection_rejects_unsafe_field_name() {
+        let generator = MySqlProjectionGenerator::new();
+        let fields = vec!["field`hack".to_string()];
+        let result = generator.generate_projection_sql(&fields);
+        assert!(result.is_err(), "Field name with backtick must be rejected");
+    }
+
+    #[test]
+    fn test_sqlite_projection_rejects_unsafe_field_name() {
+        let generator = SqliteProjectionGenerator::new();
+        let fields = vec!["field\"inject".to_string()];
+        let result = generator.generate_projection_sql(&fields);
+        assert!(result.is_err(), "Field name with double-quote must be rejected");
+    }
+
+    #[test]
+    fn test_validate_field_name_accepts_valid_names() {
+        assert!(super::validate_field_name("id").is_ok());
+        assert!(super::validate_field_name("user_id").is_ok());
+        assert!(super::validate_field_name("firstName").is_ok());
+        assert!(super::validate_field_name("createdAt").is_ok());
+        assert!(super::validate_field_name("field123").is_ok());
+        assert!(super::validate_field_name("_private").is_ok());
+    }
+
+    #[test]
+    fn test_validate_field_name_rejects_unsafe_chars() {
+        assert!(super::validate_field_name("user'name").is_err());
+        assert!(super::validate_field_name("field-name").is_err());
+        assert!(super::validate_field_name("field.name").is_err());
+        assert!(super::validate_field_name("field;inject").is_err());
+        assert!(super::validate_field_name("field\"inject").is_err());
+        assert!(super::validate_field_name("field`hack").is_err());
     }
 
     #[test]

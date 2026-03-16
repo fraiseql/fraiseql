@@ -1,7 +1,9 @@
 //! Database types and data structures.
 
+#[cfg(feature = "postgres")]
 use bytes::BytesMut;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "postgres")]
 use tokio_postgres::types::{IsNull, ToSql, Type};
 
 /// Database types supported by FraiseQL.
@@ -93,6 +95,7 @@ impl JsonbValue {
 ///
 /// This enum ensures type information is preserved when converting GraphQL input values
 /// to PostgreSQL parameters, avoiding protocol errors from type mismatches.
+#[cfg(feature = "postgres")]
 #[derive(Debug, Clone)]
 pub enum QueryParam {
     /// SQL NULL value
@@ -113,6 +116,7 @@ pub enum QueryParam {
     Json(serde_json::Value),
 }
 
+#[cfg(feature = "postgres")]
 impl From<serde_json::Value> for QueryParam {
     fn from(value: serde_json::Value) -> Self {
         match value {
@@ -130,6 +134,7 @@ impl From<serde_json::Value> for QueryParam {
     }
 }
 
+#[cfg(feature = "postgres")]
 impl ToSql for QueryParam {
     tokio_postgres::types::to_sql_checked!();
 
@@ -163,13 +168,17 @@ impl ToSql for QueryParam {
 /// # Example
 ///
 /// ```rust
+/// # #[cfg(feature = "postgres")]
+/// # {
 /// use fraiseql_db::types::db_types::{QueryParam, to_sql_param};
 ///
 /// let param = QueryParam::BigInt(42);
 /// let boxed = to_sql_param(&param);
 /// // boxed can be passed to tokio-postgres query methods
 /// drop(boxed);
+/// # }
 /// ```
+#[cfg(feature = "postgres")]
 pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
     match param {
         QueryParam::Null => Box::new(None::<String>),
