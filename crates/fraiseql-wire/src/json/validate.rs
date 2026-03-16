@@ -2,18 +2,18 @@
 
 use crate::protocol::{BackendMessage, FieldDescription};
 use crate::util::oid::is_json_oid;
-use crate::{Error, Result};
+use crate::{Result, WireError};
 
 /// Validate that `RowDescription` matches our requirements
 pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,
-        _ => return Err(Error::Protocol("expected RowDescription".into())),
+        _ => return Err(WireError::Protocol("expected RowDescription".into())),
     };
 
     // Must have exactly one column
     if fields.len() != 1 {
-        return Err(Error::InvalidSchema(format!(
+        return Err(WireError::InvalidSchema(format!(
             "expected 1 column, got {}",
             fields.len()
         )));
@@ -23,7 +23,7 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
 
     // Column must be named "data"
     if field.name != "data" {
-        return Err(Error::InvalidSchema(format!(
+        return Err(WireError::InvalidSchema(format!(
             "expected column named 'data', got '{}'",
             field.name
         )));
@@ -31,7 +31,7 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
 
     // Type must be json or jsonb
     if !is_json_oid(field.type_oid) {
-        return Err(Error::InvalidSchema(format!(
+        return Err(WireError::InvalidSchema(format!(
             "expected json/jsonb type, got OID {}",
             field.type_oid
         )));
@@ -44,7 +44,7 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
 pub fn extract_field_description(msg: &BackendMessage) -> Result<FieldDescription> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,
-        _ => return Err(Error::Protocol("expected RowDescription".into())),
+        _ => return Err(WireError::Protocol("expected RowDescription".into())),
     };
 
     Ok(fields[0].clone())
@@ -87,7 +87,7 @@ mod tests {
         let msg = BackendMessage::RowDescription(vec![field]);
         let result = validate_row_description(&msg);
         assert!(
-            matches!(result, Err(Error::InvalidSchema(_))),
+            matches!(result, Err(WireError::InvalidSchema(_))),
             "expected InvalidSchema error for wrong column name, got: {result:?}"
         );
     }
@@ -107,7 +107,7 @@ mod tests {
         let msg = BackendMessage::RowDescription(vec![field]);
         let result = validate_row_description(&msg);
         assert!(
-            matches!(result, Err(Error::InvalidSchema(_))),
+            matches!(result, Err(WireError::InvalidSchema(_))),
             "expected InvalidSchema error for wrong type OID, got: {result:?}"
         );
     }
@@ -128,7 +128,7 @@ mod tests {
         let msg = BackendMessage::RowDescription(vec![field1, field2]);
         let result = validate_row_description(&msg);
         assert!(
-            matches!(result, Err(Error::InvalidSchema(_))),
+            matches!(result, Err(WireError::InvalidSchema(_))),
             "expected InvalidSchema error for multiple columns, got: {result:?}"
         );
     }

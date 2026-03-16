@@ -5,7 +5,7 @@
 //! while implementing `Stream<Item = Result<T>>`.
 
 use crate::stream::JsonStream;
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use futures::stream::Stream;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -74,7 +74,7 @@ impl<T: DeserializeOwned + Unpin> QueryStream<T> {
     fn deserialize_value(value: Value) -> Result<T> {
         match serde_json::from_value::<T>(value) {
             Ok(result) => Ok(result),
-            Err(e) => Err(Error::Deserialization {
+            Err(e) => Err(WireError::Deserialization {
                 type_name: std::any::type_name::<T>().to_string(),
                 details: e.to_string(),
             }),

@@ -59,6 +59,7 @@ type RustPredicate = Box<dyn Fn(&Value) -> bool + Send>;
 /// # Ok(())
 /// # }
 /// ```
+#[must_use = "call .execute() to run the query"]
 pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Value> {
     client: FraiseClient,
     entity: String,
@@ -222,7 +223,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// Set maximum memory limit for buffered items (default: unbounded)
     ///
     /// When the estimated memory usage of buffered items exceeds this limit,
-    /// the stream will return `Error::MemoryLimitExceeded` instead of additional items.
+    /// the stream will return `WireError::MemoryLimitExceeded` instead of additional items.
     ///
     /// Memory is estimated as: `items_buffered * 2048 bytes` (conservative for typical JSON).
     ///

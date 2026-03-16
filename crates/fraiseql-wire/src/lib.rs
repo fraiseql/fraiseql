@@ -52,7 +52,7 @@ pub mod util;
 
 // Re-export commonly used types
 pub use client::FraiseClient;
-pub use error::{Error, Result};
+pub use error::{Result, WireError};
 pub use operators::{Field, OrderByClause, SortOrder, Value, WhereOperator};
 
 /// Library version

@@ -141,12 +141,12 @@ impl Transport {
                 // Server accepted SSL - proceed with TLS handshake
             }
             b'N' => {
-                return Err(crate::Error::Config(
+                return Err(crate::WireError::Config(
                     "Server does not support SSL connections".to_string(),
                 ));
             }
             other => {
-                return Err(crate::Error::Config(format!(
+                return Err(crate::WireError::Config(format!(
                     "Unexpected SSL response from server: {:02x}",
                     other
                 )));
@@ -156,7 +156,7 @@ impl Transport {
         // Parse server name for TLS handshake (SNI)
         let server_name = crate::connection::parse_server_name(host)?;
         let server_name = rustls_pki_types::ServerName::try_from(server_name)
-            .map_err(|_| crate::Error::Config(format!("Invalid hostname for TLS: {}", host)))?;
+            .map_err(|_| crate::WireError::Config(format!("Invalid hostname for TLS: {}", host)))?;
 
         // Perform TLS handshake
         let client_config = tls_config.client_config();
@@ -164,7 +164,7 @@ impl Transport {
         let tls_stream = tls_connector
             .connect(server_name, tcp_stream)
             .await
-            .map_err(|e| crate::Error::Config(format!("TLS handshake failed: {}", e)))?;
+            .map_err(|e| crate::WireError::Config(format!("TLS handshake failed: {}", e)))?;
 
         Ok(Transport::Tcp(TcpVariant::Tls(tls_stream)))
     }

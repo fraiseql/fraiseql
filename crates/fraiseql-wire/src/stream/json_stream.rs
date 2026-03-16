@@ -1,7 +1,7 @@
 //! JSON stream implementation
 
 use crate::protocol::BackendMessage;
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use bytes::Bytes;
 use futures::stream::Stream;
 use serde_json::Value;
@@ -265,7 +265,7 @@ impl JsonStream {
             }
             StreamState::Completed | StreamState::Failed => {
                 // Cannot pause a terminal stream
-                Err(Error::Protocol(
+                Err(WireError::Protocol(
                     "cannot pause a completed or failed stream".to_string(),
                 ))
             }
@@ -328,7 +328,7 @@ impl JsonStream {
                 }
                 StreamState::Completed | StreamState::Failed => {
                     // Cannot resume a terminal stream
-                    Err(Error::Protocol(
+                    Err(WireError::Protocol(
                         "cannot resume a completed or failed stream".to_string(),
                     ))
                 }
@@ -469,7 +469,7 @@ impl Stream for JsonStream {
                     // Record metric for memory limit exceeded
                     crate::metrics::counters::memory_limit_exceeded(&self.entity);
                     self.state_atomic_set_failed();
-                    return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
+                    return Poll::Ready(Some(Err(WireError::MemoryLimitExceeded {
                         limit,
                         estimated_memory,
                     })));
@@ -478,7 +478,7 @@ impl Stream for JsonStream {
                 // Hard limit (no soft limits configured)
                 crate::metrics::counters::memory_limit_exceeded(&self.entity);
                 self.state_atomic_set_failed();
-                return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
+                return Poll::Ready(Some(Err(WireError::MemoryLimitExceeded {
                     limit,
                     estimated_memory,
                 })));
@@ -510,7 +510,7 @@ pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
     match msg {
         BackendMessage::DataRow(fields) => {
             if fields.len() != 1 {
-                return Err(Error::Protocol(format!(
+                return Err(WireError::Protocol(format!(
                     "expected 1 field, got {}",
                     fields.len()
                 )));
@@ -519,9 +519,9 @@ pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
             let field = &fields[0];
             field
                 .clone()
-                .ok_or_else(|| Error::Protocol("null data field".into()))
+                .ok_or_else(|| WireError::Protocol("null data field".into()))
         }
-        _ => Err(Error::Protocol("expected DataRow".into())),
+        _ => Err(WireError::Protocol("expected DataRow".into())),
     }
 }
 
@@ -550,7 +550,7 @@ mod tests {
         let msg = BackendMessage::DataRow(vec![None]);
         let result = extract_json_bytes(&msg);
         assert!(
-            matches!(result, Err(Error::Protocol(_))),
+            matches!(result, Err(WireError::Protocol(_))),
             "expected Protocol error for null field, got: {result:?}"
         );
     }
@@ -568,7 +568,7 @@ mod tests {
         let data = Bytes::from_static(b"not json");
         let result = parse_json(data);
         assert!(
-            matches!(result, Err(Error::JsonDecode(_))),
+            matches!(result, Err(WireError::JsonDecode(_))),
             "expected JsonDecode error for invalid JSON, got: {result:?}"
         );
     }

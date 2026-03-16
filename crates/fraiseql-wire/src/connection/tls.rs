@@ -3,7 +3,7 @@
 //! This module provides TLS configuration for connecting to remote Postgres servers.
 //! TLS is recommended for all non-local connections to prevent credential interception.
 
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::RootCertStore;
@@ -115,6 +115,7 @@ impl std::fmt::Debug for TlsConfig {
 /// Builder for TLS configuration.
 ///
 /// Provides a fluent API for constructing TLS configurations with custom settings.
+#[must_use = "call .build() to construct the final value"]
 pub struct TlsConfigBuilder {
     ca_cert_path: Option<String>,
     verify_hostname: bool,
@@ -190,7 +191,7 @@ impl TlsConfigBuilder {
     ///
     /// # Errors
     ///
-    /// [`TlsConfigBuilder::build`] returns `Error::Config` when this option is `true`
+    /// [`TlsConfigBuilder::build`] returns `WireError::Config` when this option is `true`
     /// in a release build (`cfg(not(debug_assertions))`).
     ///
     /// # Examples
@@ -279,7 +280,7 @@ impl TlsConfigBuilder {
 
                 // Log warnings if there were errors, but don't fail
                 if !result.errors.is_empty() && store.is_empty() {
-                    return Err(Error::Config(
+                    return Err(WireError::Config(
                         "Failed to load any system root certificates".to_string(),
                     ));
                 }
@@ -307,7 +308,7 @@ impl TlsConfigBuilder {
     /// Load a custom CA certificate from a PEM file.
     fn load_custom_ca(&self, ca_path: &str) -> Result<RootCertStore> {
         let ca_cert_data = fs::read(ca_path).map_err(|e| {
-            Error::Config(format!(
+            WireError::Config(format!(
                 "Failed to read CA certificate file '{}': {}",
                 ca_path, e
             ))
@@ -332,7 +333,7 @@ impl TlsConfigBuilder {
                     break;
                 }
                 Err(_) => {
-                    return Err(Error::Config(format!(
+                    return Err(WireError::Config(format!(
                         "Failed to parse CA certificate from '{}'",
                         ca_path
                     )));
@@ -341,7 +342,7 @@ impl TlsConfigBuilder {
         }
 
         if found_certs == 0 {
-            return Err(Error::Config(format!(
+            return Err(WireError::Config(format!(
                 "No valid certificates found in '{}'",
                 ca_path
             )));
@@ -362,12 +363,12 @@ impl TlsConfigBuilder {
 ///
 /// # Errors
 ///
-/// Returns `Error::Config` if `danger_accept_invalid_certs` is set in a release build.
+/// Returns `WireError::Config` if `danger_accept_invalid_certs` is set in a release build.
 fn validate_tls_security(danger_accept_invalid_certs: bool) -> Result<()> {
     if danger_accept_invalid_certs {
         // SECURITY: Return an error in release builds to prevent accidental production use
         #[cfg(not(debug_assertions))]
-        return Err(Error::Config(
+        return Err(WireError::Config(
             "TLS certificate validation bypass not permitted in release builds".into(),
         ));
 
@@ -400,7 +401,7 @@ pub fn parse_server_name(hostname: &str) -> Result<String> {
 
     // Validate hostname (basic check)
     if hostname.is_empty() || hostname.len() > 253 {
-        return Err(Error::Config(format!(
+        return Err(WireError::Config(format!(
             "Invalid hostname for TLS: '{}'",
             hostname
         )));
@@ -411,7 +412,7 @@ pub fn parse_server_name(hostname: &str) -> Result<String> {
         .chars()
         .all(|c| c.is_alphanumeric() || c == '-' || c == '.')
     {
-        return Err(Error::Config(format!(
+        return Err(WireError::Config(format!(
             "Invalid hostname for TLS: '{}'",
             hostname
         )));

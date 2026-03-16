@@ -38,15 +38,15 @@ impl FraiseClient {
                 let host = info
                     .host
                     .as_ref()
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
                 let port = info
                     .port
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
                 let path = info.unix_socket.as_ref().ok_or_else(|| {
-                    crate::Error::Config("Unix transport requires a socket path".into())
+                    crate::WireError::Config("Unix transport requires a socket path".into())
                 })?;
                 Transport::connect_unix(path).await?
             }
@@ -93,14 +93,14 @@ impl FraiseClient {
                 let host = info
                     .host
                     .as_ref()
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
                 let port = info
                     .port
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
-                return Err(crate::Error::Config(
+                return Err(crate::WireError::Config(
                     "TLS is only supported for TCP connections".into(),
                 ));
             }
@@ -151,15 +151,15 @@ impl FraiseClient {
                 let host = info
                     .host
                     .as_ref()
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
                 let port = info
                     .port
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
                 let path = info.unix_socket.as_ref().ok_or_else(|| {
-                    crate::Error::Config("Unix transport requires a socket path".into())
+                    crate::WireError::Config("Unix transport requires a socket path".into())
                 })?;
                 Transport::connect_unix(path).await?
             }
@@ -223,14 +223,14 @@ impl FraiseClient {
                 let host = info
                     .host
                     .as_ref()
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
                 let port = info
                     .port
-                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
+                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
-                return Err(crate::Error::Config(
+                return Err(crate::WireError::Config(
                     "TLS is only supported for TCP connections".into(),
                 ));
             }

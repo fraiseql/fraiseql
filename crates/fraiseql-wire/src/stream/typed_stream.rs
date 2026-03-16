@@ -4,7 +4,7 @@
 //! Type T is **consumer-side only** - it does NOT affect SQL generation, filtering,
 //! ordering, or wire protocol. Deserialization happens lazily at `poll_next()`.
 
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use futures::stream::Stream;
 use futures::StreamExt;
 use serde::de::DeserializeOwned;
@@ -86,7 +86,7 @@ impl<T: DeserializeOwned> TypedJsonStream<T> {
                     &type_name,
                     "serde_error",
                 );
-                Err(Error::Deserialization {
+                Err(WireError::Deserialization {
                     type_name,
                     details: e.to_string(),
                 })
@@ -172,7 +172,7 @@ mod tests {
 
         let result = TypedJsonStream::<TestType>::deserialize_value(json);
         match result {
-            Err(Error::Deserialization { type_name, details }) => {
+            Err(WireError::Deserialization { type_name, details }) => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("name"));
             }
@@ -197,7 +197,7 @@ mod tests {
 
         let result = TypedJsonStream::<TestType>::deserialize_value(json);
         match result {
-            Err(Error::Deserialization { type_name, details }) => {
+            Err(WireError::Deserialization { type_name, details }) => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("invalid") || details.contains("type"));
             }

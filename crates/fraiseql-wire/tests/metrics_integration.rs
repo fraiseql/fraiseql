@@ -462,9 +462,9 @@ fn test_memory_limit_exceeded_metric() {
 /// Test memory limit exceeded error creation
 #[test]
 fn test_memory_limit_exceeded_error() {
-    use fraiseql_wire::Error;
+    use fraiseql_wire::WireError;
 
-    let err = Error::MemoryLimitExceeded {
+    let err = WireError::MemoryLimitExceeded {
         limit: 500_000_000,
         estimated_memory: 750_000_000,
     };
@@ -524,9 +524,9 @@ fn test_memory_estimation_formula() {
 /// Test error properties for memory limit scenario
 #[test]
 fn test_memory_limit_error_properties() {
-    use fraiseql_wire::Error;
+    use fraiseql_wire::WireError;
 
-    let error = Error::MemoryLimitExceeded {
+    let error = WireError::MemoryLimitExceeded {
         limit: 100_000,
         estimated_memory: 150_000,
     };

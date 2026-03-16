@@ -6,7 +6,7 @@
 //! * <postgres:///database?host=/path/to/socket> (Unix socket, custom directory)
 
 use crate::connection::ConnectionConfig;
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use std::path::{Component, Path, PathBuf};
 use zeroize::Zeroizing;
 
@@ -20,13 +20,13 @@ const MAX_SOCKET_DIR_BYTES: usize = 4096;
 ///
 /// # Errors
 ///
-/// Returns `Error::Config` if:
+/// Returns `WireError::Config` if:
 /// - `dir` is longer than `MAX_SOCKET_DIR_BYTES`
 /// - `dir` is not an absolute path (does not start with `/`)
 /// - `dir` contains a `..` component (path traversal)
 fn validate_socket_dir(dir: &str) -> Result<()> {
     if dir.len() > MAX_SOCKET_DIR_BYTES {
-        return Err(Error::Config(format!(
+        return Err(WireError::Config(format!(
             "Unix socket directory path is too long ({} bytes, max {MAX_SOCKET_DIR_BYTES})",
             dir.len()
         )));
@@ -34,13 +34,13 @@ fn validate_socket_dir(dir: &str) -> Result<()> {
 
     let p = Path::new(dir);
     if !p.is_absolute() {
-        return Err(Error::Config(format!(
+        return Err(WireError::Config(format!(
             "Unix socket directory must be an absolute path (got {dir:?})"
         )));
     }
 
     if p.components().any(|c| c == Component::ParentDir) {
-        return Err(Error::Config(format!(
+        return Err(WireError::Config(format!(
             "Unix socket directory must not contain '..' components (got {dir:?})"
         )));
     }
@@ -117,7 +117,7 @@ impl ConnectionInfo {
     pub fn parse(s: &str) -> Result<Self> {
         // Simple parser (production code would use url crate)
         if !s.starts_with("postgres://") && !s.starts_with("postgresql://") {
-            return Err(Error::Config(
+            return Err(WireError::Config(
                 "connection string must start with postgres://".into(),
             ));
         }
@@ -166,7 +166,7 @@ impl ConnectionInfo {
         } else {
             // Use default socket directory
             resolve_default_socket_dir().ok_or_else(|| {
-                Error::Config(
+                WireError::Config(
                     "could not locate Unix socket directory. Set host query parameter explicitly."
                         .into(),
                 )
@@ -220,7 +220,7 @@ impl ConnectionInfo {
             let (host, port) = host_port.split_at(pos);
             let port = port[1..]
                 .parse()
-                .map_err(|_| Error::Config("invalid port".into()))?;
+                .map_err(|_| WireError::Config("invalid port".into()))?;
             (host.to_string(), port)
         } else {
             (host_port.to_string(), 5432)
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_relative_socket_dir_rejected() {
         let err = validate_socket_dir("run/postgresql").unwrap_err();
-        assert!(matches!(err, Error::Config(_)));
+        assert!(matches!(err, WireError::Config(_)));
         let msg = err.to_string();
         assert!(msg.contains("absolute"), "error must say 'absolute': {msg}");
     }
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn test_dot_dot_in_socket_dir_rejected() {
         let err = validate_socket_dir("/run/../etc").unwrap_err();
-        assert!(matches!(err, Error::Config(_)));
+        assert!(matches!(err, WireError::Config(_)));
         let msg = err.to_string();
         assert!(msg.contains(".."), "error must mention '..': {msg}");
     }
@@ -386,7 +386,7 @@ mod tests {
         // 4097-byte path must be rejected by the length guard.
         let long = format!("/{}", "a".repeat(4096));
         let err = validate_socket_dir(&long).unwrap_err();
-        assert!(matches!(err, Error::Config(_)));
+        assert!(matches!(err, WireError::Config(_)));
         let msg = err.to_string();
         assert!(msg.contains("4096"), "error must mention the limit: {msg}");
     }

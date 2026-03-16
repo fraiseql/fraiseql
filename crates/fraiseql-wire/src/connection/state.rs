@@ -1,6 +1,6 @@
 //! Connection state machine
 
-use crate::{Error, Result};
+use crate::{Result, WireError};
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,7 +48,7 @@ impl ConnectionState {
     /// Transition to new state
     pub fn transition(&mut self, next: ConnectionState) -> Result<()> {
         if !self.can_transition_to(next) {
-            return Err(Error::InvalidState {
+            return Err(WireError::InvalidState {
                 expected: format!("valid transition from {:?}", self),
                 actual: format!("{:?}", next),
             });
@@ -95,7 +95,7 @@ mod tests {
         let mut state = ConnectionState::Initial;
         let result = state.transition(ConnectionState::Idle);
         assert!(
-            matches!(result, Err(Error::InvalidState { .. })),
+            matches!(result, Err(WireError::InvalidState { .. })),
             "expected InvalidState error for Initial→Idle, got: {result:?}"
         );
     }

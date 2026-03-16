@@ -81,7 +81,7 @@ where
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
-    use crate::Error;
+    use crate::WireError;
     use futures::{stream, StreamExt};
 
     #[tokio::test]
@@ -111,7 +111,7 @@ mod tests {
     async fn test_filter_propagates_errors() {
         let values = vec![
             Ok(serde_json::json!({"id": 1})),
-            Err(Error::JsonDecode(serde_json::Error::io(
+            Err(WireError::JsonDecode(serde_json::Error::io(
                 std::io::Error::other("test error"),
             ))),
             Ok(serde_json::json!({"id": 2})),
@@ -132,7 +132,7 @@ mod tests {
         // Second item is error
         let second = filtered.next().await.unwrap();
         assert!(
-            matches!(second, Err(Error::JsonDecode(_))),
+            matches!(second, Err(WireError::JsonDecode(_))),
             "expected JsonDecode error for second item, got: {second:?}"
         );
 

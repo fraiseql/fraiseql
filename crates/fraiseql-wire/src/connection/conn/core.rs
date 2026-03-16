@@ -8,7 +8,7 @@ use crate::connection::transport::Transport;
 use crate::protocol::{
     decode_message, encode_message, AuthenticationMessage, BackendMessage, FrontendMessage,
 };
-use crate::{Error, Result};
+use crate::{Result, WireError};
 use bytes::{Buf, BytesMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::Instrument;
@@ -126,13 +126,13 @@ impl Connection {
                         let password = config
                             .password
                             .as_ref()
-                            .ok_or_else(|| Error::Authentication("password required".into()))?;
+                            .ok_or_else(|| WireError::Authentication("password required".into()))?;
                         // SECURITY: Convert from Zeroizing wrapper while preserving password content
                         let pwd_msg = FrontendMessage::Password(password.as_str().to_string());
                         self.send_message(&pwd_msg).await?;
                     }
                     AuthenticationMessage::Md5Password { .. } => {
-                        return Err(Error::Authentication(
+                        return Err(WireError::Authentication(
                             "MD5 authentication not supported. Use SCRAM-SHA-256 or cleartext password".into(),
                         ));
                     }
@@ -142,12 +142,12 @@ impl Connection {
                         self.handle_sasl(&mechanisms, config).await?;
                     }
                     AuthenticationMessage::SaslContinue { .. } => {
-                        return Err(Error::Protocol(
+                        return Err(WireError::Protocol(
                             "unexpected SaslContinue outside of SASL flow".into(),
                         ));
                     }
                     AuthenticationMessage::SaslFinal { .. } => {
-                        return Err(Error::Protocol(
+                        return Err(WireError::Protocol(
                             "unexpected SaslFinal outside of SASL flow".into(),
                         ));
                     }
@@ -167,10 +167,10 @@ impl Connection {
                 }
                 BackendMessage::ErrorResponse(err) => {
                     crate::metrics::counters::auth_failed(auth_mechanism, "server_error");
-                    return Err(Error::Authentication(err.to_string()));
+                    return Err(WireError::Authentication(err.to_string()));
                 }
                 _ => {
-                    return Err(Error::Protocol(format!(
+                    return Err(WireError::Protocol(format!(
                         "unexpected message during auth: {:?}",
                         msg
                     )));
@@ -189,7 +189,7 @@ impl Connection {
     ) -> Result<()> {
         // Check if server supports SCRAM-SHA-256
         if !mechanisms.contains(&"SCRAM-SHA-256".to_string()) {
-            return Err(Error::Authentication(format!(
+            return Err(WireError::Authentication(format!(
                 "server does not support SCRAM-SHA-256. Available: {}",
                 mechanisms.join(", ")
             )));
@@ -197,7 +197,7 @@ impl Connection {
 
         // Get password
         let password = config.password.as_ref().ok_or_else(|| {
-            Error::Authentication("password required for SCRAM authentication".into())
+            WireError::Authentication("password required for SCRAM authentication".into())
         })?;
 
         // Create SCRAM client
@@ -218,17 +218,17 @@ impl Connection {
         let server_first_data = match server_first_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslContinue { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(Error::Authentication(format!("SASL server error: {}", err)));
+                return Err(WireError::Authentication(format!("SASL server error: {}", err)));
             }
             _ => {
-                return Err(Error::Protocol(
+                return Err(WireError::Protocol(
                     "expected SaslContinue message during SASL authentication".into(),
                 ));
             }
         };
 
         let server_first = String::from_utf8(server_first_data).map_err(|e| {
-            Error::Authentication(format!("invalid UTF-8 in server first message: {}", e))
+            WireError::Authentication(format!("invalid UTF-8 in server first message: {}", e))
         })?;
 
         tracing::debug!("received SCRAM server first message");
@@ -236,7 +236,7 @@ impl Connection {
         // Generate client final message
         let (client_final, scram_state) = scram
             .client_final(&server_first)
-            .map_err(|e| Error::Authentication(format!("SCRAM error: {}", e)))?;
+            .map_err(|e| WireError::Authentication(format!("SCRAM error: {}", e)))?;
 
         // Send SaslResponse with client final message
         let msg = FrontendMessage::SaslResponse {
@@ -249,23 +249,23 @@ impl Connection {
         let server_final_data = match server_final_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslFinal { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(Error::Authentication(format!("SASL server error: {}", err)));
+                return Err(WireError::Authentication(format!("SASL server error: {}", err)));
             }
             _ => {
-                return Err(Error::Protocol(
+                return Err(WireError::Protocol(
                     "expected SaslFinal message during SASL authentication".into(),
                 ));
             }
         };
 
         let server_final = String::from_utf8(server_final_data).map_err(|e| {
-            Error::Authentication(format!("invalid UTF-8 in server final message: {}", e))
+            WireError::Authentication(format!("invalid UTF-8 in server final message: {}", e))
         })?;
 
         // Verify server signature
         scram
             .verify_server_final(&server_final, &scram_state)
-            .map_err(|e| Error::Authentication(format!("SCRAM verification failed: {}", e)))?;
+            .map_err(|e| WireError::Authentication(format!("SCRAM verification failed: {}", e)))?;
 
         tracing::debug!("SCRAM-SHA-256 authentication successful");
         Ok(())
@@ -274,7 +274,7 @@ impl Connection {
     /// Execute a simple query (returns all backend messages)
     pub async fn simple_query(&mut self, query: &str) -> Result<Vec<BackendMessage>> {
         if self.state != ConnectionState::Idle {
-            return Err(Error::ConnectionBusy(format!(
+            return Err(WireError::ConnectionBusy(format!(
                 "connection in state: {}",
                 self.state
             )));
@@ -323,7 +323,7 @@ impl Connection {
             // Need more data
             let n = self.transport.read_buf(&mut self.read_buf).await?;
             if n == 0 {
-                return Err(Error::ConnectionClosed);
+                return Err(WireError::ConnectionClosed);
             }
         }
     }
@@ -361,7 +361,7 @@ impl Connection {
             use tokio::sync::mpsc;
 
             if self.state != ConnectionState::Idle {
-                return Err(Error::ConnectionBusy(format!(
+                return Err(WireError::ConnectionBusy(format!(
                     "connection in state: {}",
                     self.state
                 )));
@@ -390,7 +390,7 @@ impl Connection {
                                 break;
                             }
                         }
-                        return Err(Error::Sql(err.to_string()));
+                        return Err(WireError::Sql(err.to_string()));
                     }
                     BackendMessage::BackendKeyData { process_id, secret_key: _ } => {
                         // This provides the key needed for cancel requests - store it and continue
@@ -415,14 +415,14 @@ impl Connection {
                     BackendMessage::ReadyForQuery { .. } => {
                         // Received ReadyForQuery without RowDescription
                         // This means the query didn't produce a result set
-                        return Err(Error::Protocol(
+                        return Err(WireError::Protocol(
                             "no result set received from query - \
                              check that the entity name is correct and the table/view exists"
                                 .into(),
                         ));
                     }
                     _ => {
-                        return Err(Error::Protocol(format!(
+                        return Err(WireError::Protocol(format!(
                             "unexpected message type in query response: {:?}",
                             msg
                         )));
@@ -692,13 +692,13 @@ impl Connection {
                                 BackendMessage::ErrorResponse(err) => {
                                     crate::metrics::counters::query_error(&entity_for_metrics, "server_error");
                                     crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                    let _ = result_tx.send(Err(Error::Sql(err.to_string()))).await;
+                                    let _ = result_tx.send(Err(WireError::Sql(err.to_string()))).await;
                                     break;
                                 }
                                 _ => {
                                     crate::metrics::counters::query_error(&entity_for_metrics, "protocol_error");
                                     crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                    let _ = result_tx.send(Err(Error::Protocol(
+                                    let _ = result_tx.send(Err(WireError::Protocol(
                                         format!("unexpected message: {:?}", msg)
                                     ))).await;
                                     break;
