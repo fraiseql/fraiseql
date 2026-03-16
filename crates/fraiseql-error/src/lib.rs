@@ -40,6 +40,7 @@ mod auth;
 mod config;
 pub mod core_error;
 mod file;
+pub mod graphql_error;
 #[cfg(feature = "axum-compat")]
 mod http;
 mod integration;
@@ -51,6 +52,7 @@ pub use auth::AuthError;
 pub use config::ConfigError;
 pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
 pub use file::FileError;
+pub use graphql_error::{GraphQLError, GraphQLErrorLocation};
 // Re-export for convenience — only available with the `axum-compat` feature
 #[cfg(feature = "axum-compat")]
 pub use http::{ErrorResponse, IntoHttpResponse};

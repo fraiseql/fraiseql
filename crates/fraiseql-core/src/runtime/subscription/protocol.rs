@@ -224,60 +224,7 @@ impl ServerMessage {
     }
 }
 
-/// GraphQL error format.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphQLError {
-    /// Error message.
-    pub message: String,
-
-    /// Error locations in query.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub locations: Option<Vec<ErrorLocation>>,
-
-    /// Error path.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path: Option<Vec<serde_json::Value>>,
-
-    /// Extensions (error codes, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extensions: Option<HashMap<String, serde_json::Value>>,
-}
-
-impl GraphQLError {
-    /// Create a simple error message.
-    #[must_use]
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message:    message.into(),
-            locations:  None,
-            path:       None,
-            extensions: None,
-        }
-    }
-
-    /// Create an error with code extension.
-    #[must_use]
-    pub fn with_code(message: impl Into<String>, code: impl Into<String>) -> Self {
-        let mut extensions = HashMap::new();
-        extensions.insert("code".to_string(), serde_json::json!(code.into()));
-
-        Self {
-            message:    message.into(),
-            locations:  None,
-            path:       None,
-            extensions: Some(extensions),
-        }
-    }
-}
-
-/// Error location in query.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorLocation {
-    /// Line number (1-indexed).
-    pub line:   u32,
-    /// Column number (1-indexed).
-    pub column: u32,
-}
+pub use fraiseql_error::{GraphQLError, GraphQLErrorLocation as ErrorLocation};
 
 /// Close codes for WebSocket connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

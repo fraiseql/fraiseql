@@ -13,7 +13,7 @@ const MAX_ENTITY_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
 
 use std::time::Duration;
 
-use fraiseql_error::Result;
+use fraiseql_error::{GraphQLError, Result};
 use serde_json::{Value, json};
 
 use crate::{
@@ -61,11 +61,6 @@ struct GraphQLRequest {
 struct GraphQLResponse {
     data:   Option<Value>,
     errors: Option<Vec<GraphQLError>>,
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct GraphQLError {
-    message: String,
 }
 
 /// Validate that a subgraph URL is safe to contact.
@@ -676,9 +671,7 @@ mod tests {
 
         let response = GraphQLResponse {
             data:   None,
-            errors: Some(vec![GraphQLError {
-                message: "Entity not found".to_string(),
-            }]),
+            errors: Some(vec![GraphQLError::new("Entity not found")]),
         };
 
         let result = resolver.parse_response(&response, &representations);

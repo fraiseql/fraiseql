@@ -118,9 +118,7 @@ fn test_graphql_response_with_mutation_error() {
     let response = GraphQLResponse {
         data:   None,
         errors: Some(vec![
-            fraiseql_core::federation::mutation_http_client::GraphQLError {
-                message: "User not found".to_string(),
-            },
+            fraiseql_core::federation::mutation_http_client::GraphQLError::new("User not found"),
         ]),
     };
 

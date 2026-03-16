@@ -56,12 +56,9 @@ pub struct GraphQLResponse {
     pub errors: Option<Vec<GraphQLError>>,
 }
 
-/// GraphQL error format
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct GraphQLError {
-    /// Error message
-    pub message: String,
-}
+/// Re-export the canonical [`fraiseql_error::GraphQLError`] for consumers who import
+/// federation types via this module's path.
+pub use fraiseql_error::GraphQLError;
 
 /// HTTP client for executing mutations on remote subgraphs
 pub struct HttpMutationClient {
