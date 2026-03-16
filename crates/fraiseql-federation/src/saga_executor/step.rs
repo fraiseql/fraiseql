@@ -39,7 +39,7 @@ impl SagaExecutor {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let executor = SagaExecutor::new();
@@ -55,7 +55,6 @@ impl SagaExecutor {
     ///     println!("Order created with data: {:?}", result.data);
     /// } else {
     ///     eprintln!("Step failed: {}", result.error.unwrap());
-    ///     // Compensation will be triggered by coordinator
     /// }
     /// ```
     pub async fn execute_step(

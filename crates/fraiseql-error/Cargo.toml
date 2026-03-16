@@ -14,6 +14,10 @@ toml = "0.8"
 # Enable this feature in crates that serve HTTP responses (e.g. fraiseql-server).
 axum-compat = ["dep:axum"]
 
+[[test]]
+name = "http_responses"
+required-features = ["axum-compat"]
+
 [lints]
 workspace = true
 

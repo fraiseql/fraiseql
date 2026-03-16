@@ -75,9 +75,17 @@ impl QueryPlanner {
     ///
     /// ```no_run
     /// // Requires: a QueryMatch from compiled schema matching.
+    /// # use fraiseql_core::runtime::{QueryMatcher, QueryPlanner};
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # use fraiseql_error::Result;
+    /// # fn example() -> Result<()> {
+    /// # let schema: CompiledSchema = unimplemented!();
+    /// # let query_match = QueryMatcher::new(schema).match_query("query{users{id}}", None)?;
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn plan(&self, query_match: &QueryMatch) -> Result<ExecutionPlan> {
         // Note: FraiseQL uses compiled SQL templates, so "query planning" means

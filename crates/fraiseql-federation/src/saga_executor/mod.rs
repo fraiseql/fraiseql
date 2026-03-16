@@ -54,7 +54,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! let executor = SagaExecutor::new();

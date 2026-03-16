@@ -50,8 +50,8 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// # Example
 ///
 /// ```rust,no_run
-/// use fraiseql_core::db::postgres::PostgresAdapter;
-/// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
+/// use fraiseql_db::postgres::PostgresAdapter;
+/// use fraiseql_db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -106,7 +106,7 @@ impl PostgresAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_db::postgres::PostgresAdapter;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # Ok(())
@@ -332,10 +332,11 @@ impl PostgresAdapter {
     /// // Requires: running PostgreSQL database.
     /// use fraiseql_db::postgres::PostgresAdapter;
     /// use fraiseql_db::types::SqlProjectionHint;
+    /// use fraiseql_db::DatabaseType;
     ///
     /// # async fn example(adapter: &PostgresAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// let projection = SqlProjectionHint {
-    ///     database: "postgresql".to_string(),
+    ///     database: DatabaseType::PostgreSQL,
     ///     projection_template: "jsonb_build_object('id', data->>'id')".to_string(),
     ///     estimated_reduction_percent: 75,
     /// };

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_core::db::{WhereClause, WhereOperator};
+/// use fraiseql_db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// // Simple condition: email ILIKE '%example.com%'
@@ -471,7 +471,7 @@ impl WhereOperator {
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_core::db::{HavingClause, WhereOperator};
+/// use fraiseql_db::{HavingClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// // Simple condition: COUNT(*) > 10

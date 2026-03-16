@@ -28,8 +28,8 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::mysql::MySqlAdapter;
-/// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
+/// use fraiseql_db::mysql::MySqlAdapter;
+/// use fraiseql_db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {

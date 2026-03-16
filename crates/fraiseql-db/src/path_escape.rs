@@ -14,7 +14,7 @@
 ///
 /// # Example
 /// ```
-/// use fraiseql_core::db::path_escape::escape_postgres_jsonb_segment;
+/// use fraiseql_db::path_escape::escape_postgres_jsonb_segment;
 /// assert_eq!(escape_postgres_jsonb_segment("user'name"), "user''name");
 /// assert_eq!(escape_postgres_jsonb_segment("normal"), "normal");
 /// ```
@@ -26,7 +26,7 @@ pub fn escape_postgres_jsonb_segment(segment: &str) -> String {
 ///
 /// # Example
 /// ```
-/// use fraiseql_core::db::path_escape::escape_postgres_jsonb_path;
+/// use fraiseql_db::path_escape::escape_postgres_jsonb_path;
 /// let path = vec!["user".to_string(), "name".to_string()];
 /// let result = escape_postgres_jsonb_path(&path);
 /// // Ensures each segment is properly escaped
@@ -43,7 +43,7 @@ pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
 ///
 /// # Example
 /// ```
-/// use fraiseql_core::db::path_escape::escape_mysql_json_path;
+/// use fraiseql_db::path_escape::escape_mysql_json_path;
 /// let path = vec!["user".to_string(), "name".to_string()];
 /// let result = escape_mysql_json_path(&path);
 /// assert_eq!(result, "$.user.name");

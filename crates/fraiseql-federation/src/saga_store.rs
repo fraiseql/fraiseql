@@ -21,7 +21,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
@@ -302,7 +302,7 @@ impl PostgresSagaStore {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;

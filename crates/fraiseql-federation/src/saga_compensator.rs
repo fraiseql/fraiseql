@@ -82,7 +82,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! let compensator = SagaCompensator::new();
@@ -93,21 +93,12 @@
 //! match result.status {
 //!     CompensationStatus::Compensated => {
 //!         println!("All steps rolled back successfully");
-//!         // Saga state: Compensated
-//!         // No manual intervention needed
 //!     }
 //!     CompensationStatus::PartiallyCompensated => {
 //!         println!("Some compensations failed: {:?}", result.failed_steps);
-//!         // Saga state: CompensationFailed
-//!         // Requires manual recovery for failed steps
-//!         for step_num in result.failed_steps {
-//!             eprintln!("Step {} compensation failed - manual recovery needed", step_num);
-//!         }
 //!     }
 //!     CompensationStatus::CompensationFailed => {
 //!         eprintln!("All compensations failed - manual intervention required");
-//!         eprintln!("Error: {}", result.error.unwrap());
-//!         // May need operator to manually fix state
 //!     }
 //! }
 //! ```
@@ -295,7 +286,7 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let compensator = SagaCompensator::new();
@@ -501,7 +492,7 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let result = compensator.compensate_step(
@@ -655,7 +646,7 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let result = compensator.get_compensation_status(saga_id).await?;

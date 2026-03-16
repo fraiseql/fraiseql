@@ -57,17 +57,21 @@ pub type BoxDynTransportAdapter = Box<dyn TransportAdapter>;
 /// ```no_run
 /// // Requires: live transport destination (webhook/NATS/etc).
 /// use fraiseql_core::runtime::subscription::{
-///     TransportManager, WebhookAdapter, WebhookConfig,
+///     TransportManager, WebhookAdapter, WebhookTransportConfig, SubscriptionEvent,
 /// };
 ///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let event: SubscriptionEvent = unimplemented!();
 /// let mut manager = TransportManager::new();
 ///
 /// // Add webhook adapter
-/// let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/events"));
+/// let webhook = WebhookAdapter::new(WebhookTransportConfig::new("https://api.example.com/events"))?;
 /// manager.add_adapter(Box::new(webhook));
 ///
 /// // Deliver to all transports
 /// manager.deliver_all(&event, "orderCreated").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct TransportManager {
     adapters: Vec<BoxDynTransportAdapter>,

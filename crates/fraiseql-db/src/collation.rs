@@ -16,8 +16,8 @@ use crate::{collation_config::CollationConfig, types::DatabaseType};
 /// # Examples
 ///
 /// ```
-/// use fraiseql_core::config::CollationConfig;
-/// use fraiseql_core::db::{DatabaseType, collation::CollationMapper};
+/// use fraiseql_db::CollationConfig;
+/// use fraiseql_db::{DatabaseType, collation::CollationMapper};
 ///
 /// // PostgreSQL with ICU
 /// let config = CollationConfig::default();
@@ -68,8 +68,8 @@ impl CollationMapper {
     /// # Examples
     ///
     /// ```
-    /// use fraiseql_core::config::CollationConfig;
-    /// use fraiseql_core::db::{DatabaseType, collation::CollationMapper};
+    /// use fraiseql_db::CollationConfig;
+    /// use fraiseql_db::{DatabaseType, collation::CollationMapper};
     ///
     /// let config = CollationConfig::default();
     /// let mapper = CollationMapper::new(config, DatabaseType::PostgreSQL);

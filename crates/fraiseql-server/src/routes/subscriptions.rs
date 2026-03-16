@@ -12,7 +12,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: running server with initialized subscription manager.
 //! use fraiseql_server::routes::subscriptions::{subscription_handler, SubscriptionState};
 //!

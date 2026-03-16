@@ -141,11 +141,11 @@ impl ObserverExecutor {
     /// use std::sync::Arc;
     /// use fraiseql_observers::{ObserverExecutor, EventMatcher};
     /// use fraiseql_observers::transport::{InMemoryTransport, EventFilter};
-    /// use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
+    /// use fraiseql_observers::traits::DeadLetterQueue;
     ///
     /// # async fn example() -> fraiseql_observers::Result<()> {
     /// let matcher = EventMatcher::new();
-    /// let dlq = Arc::new(MockDeadLetterQueue::new());
+    /// # let dlq: Arc<dyn DeadLetterQueue> = unimplemented!();
     /// let executor = ObserverExecutor::new(matcher, dlq);
     ///
     /// let transport = Arc::new(InMemoryTransport::new());

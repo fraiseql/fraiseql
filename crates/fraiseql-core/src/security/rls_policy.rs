@@ -91,6 +91,7 @@ use crate::{
 /// // The executor receives an RlsWhereClause after evaluating the policy.
 /// // It cannot construct one directly — that would be a compile error.
 /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+/// # let context: SecurityContext = unimplemented!();
 /// let rls = DefaultRLSPolicy::new();
 /// let rls_clause = rls.evaluate(&context, "Post").unwrap();
 /// // rls_clause is Option<RlsWhereClause> — proven to have gone through RLS
@@ -162,6 +163,7 @@ pub trait RLSPolicy: Send + Sync {
     /// // Requires: a SecurityContext built from authenticated request metadata.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+    /// # let context: SecurityContext = unimplemented!();
     /// let rls = DefaultRLSPolicy::new();
     /// // filter is Some(RlsWhereClause) wrapping the evaluated WhereClause
     /// let filter = rls.evaluate(&context, "Post").unwrap();

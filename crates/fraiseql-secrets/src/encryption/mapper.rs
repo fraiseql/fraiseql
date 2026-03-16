@@ -22,9 +22,10 @@
 //! // Requires: DatabaseFieldAdapter backed by a live SecretsManager.
 //! # async fn example(adapter: fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
 //! use fraiseql_secrets::encryption::mapper::FieldMapper;
+//! use std::sync::Arc;
 //! // Create mapper with encrypted field configuration
 //! let mapper = FieldMapper::new(
-//!     adapter,
+//!     Arc::new(adapter),
 //!     vec!["email".to_string(), "phone".to_string()]
 //! );
 //!

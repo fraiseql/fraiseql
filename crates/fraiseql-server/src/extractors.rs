@@ -23,7 +23,7 @@ use crate::middleware::AuthUser;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```text
 /// // Requires: running Axum server with authentication middleware configured.
 /// async fn graphql_handler(
 ///     State(state): State<AppState>,

@@ -43,7 +43,7 @@
 //! ```no_run
 //! // Requires: fraiseql_core graphql module (internal types).
 //! use fraiseql_core::graphql::{parse_query, FragmentResolver, DirectiveEvaluator};
-//!
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let query = r#"
 //!     fragment UserFields on User { id name }
 //!     query { users { ...UserFields } }
@@ -52,6 +52,8 @@
 //! let parsed = parse_query(query)?;
 //! let resolver = FragmentResolver::new(&parsed.fragments);
 //! let resolved = resolver.resolve_spreads(&parsed.selections)?;
+//! # Ok(())
+//! # }
 //! ```
 
 // ============================================================================

@@ -10,7 +10,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! let subgraphs = vec![
@@ -419,7 +419,7 @@ impl CompositionValidator {
     /// Type conflicts always produce errors (safest default).
     ///
     /// # Example
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let validator = CompositionValidator::new();
@@ -441,7 +441,7 @@ impl CompositionValidator {
     /// Returns vector of all composition errors if validation or composition fails.
     ///
     /// # Example
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let subgraphs = vec![

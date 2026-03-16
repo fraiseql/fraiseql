@@ -23,33 +23,31 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: live subscription infrastructure (schema + transport).
-//! use fraiseql_core::runtime::subscription::{
-//!     SubscriptionManager, SubscriptionEvent, SubscriptionId,
-//! };
-//! use tokio::sync::broadcast;
+//! ```text
+//! // Illustrative — subscription infrastructure requires a live schema + transport.
+//! // Use SubscriptionManager::new(Arc::new(schema)) for the full API.
 //!
 //! // Create subscription manager
-//! let manager = SubscriptionManager::new(schema);
+//! let manager = SubscriptionManager::new(Arc::new(schema));
 //!
-//! // Subscribe to events
+//! // Subscribe to events (synchronous, not async)
 //! let subscription_id = manager.subscribe(
 //!     "OrderCreated",
-//!     user_context,
-//!     variables,
-//! ).await?;
+//!     user_context_json,
+//!     variables_json,
+//!     "connection-id",
+//! )?;
 //!
-//! // Receive events
+//! // Receive events via broadcast channel
 //! let mut receiver = manager.receiver();
-//! while let Ok(event) = receiver.recv().await {
-//!     if event.matches_subscription(subscription_id) {
+//! while let Ok(payload) = receiver.recv().await {
+//!     if payload.subscription_id == subscription_id {
 //!         // Deliver to client
 //!     }
 //! }
 //!
-//! // Unsubscribe
-//! manager.unsubscribe(subscription_id).await?;
+//! // Unsubscribe (synchronous)
+//! manager.unsubscribe(subscription_id)?;
 //! ```
 
 use thiserror::Error;

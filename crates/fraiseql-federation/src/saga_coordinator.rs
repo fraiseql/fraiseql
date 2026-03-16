@@ -37,7 +37,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! // Create saga coordinator
@@ -131,7 +131,7 @@ impl SagaStep {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let step = SagaStep::new(
@@ -263,13 +263,13 @@ impl SagaCoordinator {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
     /// let steps = vec![
-    ///     SagaStep::new(1, "svc1", "Type1", "mut1", ..., "comp1", ...),
-    ///     SagaStep::new(2, "svc2", "Type2", "mut2", ..., "comp2", ...),
+    ///     SagaStep::new(1, "svc1", "Type1", "mut1", vars, "comp1", comp_vars),
+    ///     SagaStep::new(2, "svc2", "Type2", "mut2", vars, "comp2", comp_vars),
     /// ];
     /// let saga_id = coordinator.create_saga(steps).await?;
     /// ```
@@ -340,7 +340,7 @@ impl SagaCoordinator {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let result = coordinator.execute_saga(saga_id).await?;

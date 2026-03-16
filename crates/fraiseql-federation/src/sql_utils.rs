@@ -27,8 +27,8 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// // Requires: fraiseql_core crate context. See unit tests below for runnable examples.
+/// ```text
+/// // Illustrative — see unit tests below for runnable examples.
 /// value_to_sql_literal(&json!("test")) // produces "'test'"
 /// value_to_sql_literal(&json!("O'Brien")) // produces "'O''Brien'"
 /// value_to_sql_literal(&json!(123)) // produces "123"
@@ -56,8 +56,8 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// // Requires: fraiseql_core crate context. See unit tests below for runnable examples.
+/// ```text
+/// // Illustrative — see unit tests below for runnable examples.
 /// value_to_string(&json!("test")) // produces "test"
 /// value_to_string(&json!(123)) // produces "123"
 /// ```

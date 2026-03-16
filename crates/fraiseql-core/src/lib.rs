@@ -44,12 +44,16 @@
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_core::runtime::Executor;
+//! use fraiseql_core::db::postgres::PostgresAdapter;
+//! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let schema_json = r#"{"types":[],"queries":[]}"#;
 //! // Load compiled schema
-//! let schema = CompiledSchema::from_file("schema.compiled.json")?;
+//! let schema = CompiledSchema::from_json(schema_json)?;
 //!
 //! // Create executor (db_pool is a DatabaseAdapter implementation)
+//! let db_pool = Arc::new(PostgresAdapter::new("postgresql://localhost/mydb").await?);
 //! let executor = Executor::new(schema, db_pool);
 //!
 //! // Execute query

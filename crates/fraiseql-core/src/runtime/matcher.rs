@@ -75,10 +75,17 @@ impl QueryMatcher {
     /// ```no_run
     /// // Requires: compiled schema.
     /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # use fraiseql_core::runtime::QueryMatcher;
+    /// # use fraiseql_error::Result;
+    /// # fn example() -> Result<()> {
+    /// # let schema: CompiledSchema = unimplemented!();
     /// let matcher = QueryMatcher::new(schema);
     /// let query = "query { users { id name } }";
     /// let matched = matcher.match_query(query, None)?;
     /// assert_eq!(matched.query_def.name, "users");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn match_query(
         &self,

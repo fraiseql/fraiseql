@@ -16,8 +16,8 @@
 //! # Example
 //!
 //! ```rust
-//! use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
-//! # use fraiseql_core::error::Result;
+//! use fraiseql_db::projection_generator::PostgresProjectionGenerator;
+//! # use fraiseql_error::Result;
 //! # fn example() -> Result<()> {
 //! let generator = PostgresProjectionGenerator::new();
 //! let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
@@ -105,8 +105,8 @@ impl PostgresProjectionGenerator {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
-    /// # use fraiseql_core::error::Result;
+    /// use fraiseql_db::projection_generator::PostgresProjectionGenerator;
+    /// # use fraiseql_error::Result;
     /// # fn example() -> Result<()> {
     /// let generator = PostgresProjectionGenerator::new();
     /// let fields = vec!["id".to_string(), "email".to_string()];
@@ -214,7 +214,7 @@ impl Default for PostgresProjectionGenerator {
 /// # Example
 ///
 /// ```
-/// use fraiseql_core::db::projection_generator::MySqlProjectionGenerator;
+/// use fraiseql_db::projection_generator::MySqlProjectionGenerator;
 ///
 /// let generator = MySqlProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];
@@ -310,7 +310,7 @@ impl Default for MySqlProjectionGenerator {
 /// # Example
 ///
 /// ```
-/// use fraiseql_core::db::projection_generator::SqliteProjectionGenerator;
+/// use fraiseql_db::projection_generator::SqliteProjectionGenerator;
 ///
 /// let generator = SqliteProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];

@@ -128,6 +128,7 @@ impl SecurityContext {
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::security::SecurityContext;
     /// # use fraiseql_core::security::AuthenticatedUser;
+    /// # let authenticated_user: AuthenticatedUser = unimplemented!();
     /// let context = SecurityContext::from_user(authenticated_user, "req-123".to_string());
     /// ```
     pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
@@ -287,6 +288,8 @@ impl SecurityContext {
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::security::SecurityContext;
     /// # use fraiseql_core::schema::SecurityConfig;
+    /// # let context: SecurityContext = unimplemented!();
+    /// # let config: SecurityConfig = unimplemented!();
     /// let can_access = context.can_access_scope(&config, "read:User.email");
     /// ```
     #[must_use]

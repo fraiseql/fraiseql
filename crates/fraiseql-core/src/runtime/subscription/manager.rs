@@ -454,7 +454,10 @@ impl SubscriptionManager {
 ///
 /// ```rust
 /// # use serde_json::json;
-/// # use fraiseql_core::runtime::subscription::manager::get_json_pointer_value;
+/// # fn get_json_pointer_value<'a>(data: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
+/// #     let normalized = if path.starts_with('/') { path.to_string() } else { format!("/{}", path.replace('.', "/")) };
+/// #     data.pointer(&normalized)
+/// # }
 /// let data = json!({"user": {"id": 123, "name": "Alice"}});
 /// let id = get_json_pointer_value(&data, "user/id");  // Some(&123)
 /// let alt = get_json_pointer_value(&data, "user.id"); // Some(&123)

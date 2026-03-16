@@ -106,6 +106,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # use fraiseql_core::runtime::Executor;
     /// # use std::sync::Arc;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let schema_json = r#"{"types":[],"queries":[]}"#;
+    /// # let connection_string = "postgresql://localhost/mydb";
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new(schema, Arc::new(adapter));
@@ -196,6 +198,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     /// # use fraiseql_core::runtime::Executor;
     /// # use std::sync::Arc;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let connection_string = "postgresql://localhost/mydb";
+    /// # let schema: CompiledSchema = unimplemented!();
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new_with_relay(schema, Arc::new(adapter));
     /// # Ok(()) }

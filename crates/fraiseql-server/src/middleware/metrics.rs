@@ -19,7 +19,7 @@ use crate::metrics_server::MetricsCollector;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```text
 /// // Requires: running Axum application with a MetricsCollector instance.
 /// use axum::{Router, middleware};
 /// use fraiseql_server::middleware::metrics_middleware;

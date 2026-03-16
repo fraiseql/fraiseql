@@ -31,7 +31,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```text
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_federation::saga_recovery_manager::{
@@ -161,7 +161,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let config = RecoveryConfig::default();
@@ -183,7 +183,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// assert!(!manager.is_running());
@@ -201,7 +201,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// let stats = manager.get_stats();
@@ -222,7 +222,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// manager.start_background_loop().await?;
@@ -269,7 +269,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// manager.stop_background_loop().await?;
@@ -293,7 +293,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
     /// // See: tests/integration/ for runnable examples.
     /// manager.run_iteration().await?;

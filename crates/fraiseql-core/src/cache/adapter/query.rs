@@ -21,7 +21,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use fraiseql_core::cache::adapter::view_name_to_entity_type;
+/// use fraiseql_core::cache::view_name_to_entity_type;
 /// assert_eq!(view_name_to_entity_type("v_user"),        Some("User".to_string()));
 /// assert_eq!(view_name_to_entity_type("v_order_item"),  Some("OrderItem".to_string()));
 /// assert_eq!(view_name_to_entity_type("tv_user_event"), Some("UserEvent".to_string()));

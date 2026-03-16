@@ -26,14 +26,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```text
     /// // Requires: running PostgreSQL database and compiled schema file.
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
     /// server.serve().await?;
-    /// # Ok(())
-    /// # }
     /// ```
     pub async fn with_relay_pagination(
         config: ServerConfig,

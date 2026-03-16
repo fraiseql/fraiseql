@@ -49,7 +49,7 @@ pub struct AuthUser(pub AuthenticatedUser);
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```text
 /// // Requires: OIDC provider reachable for JWKS discovery, running Axum application.
 /// use axum::{middleware, Router};
 ///

@@ -23,16 +23,20 @@
 //! # Examples
 //!
 //! ```no_run
-//! // Requires: Redis (when dedup/caching enabled) and a config.toml file.
+//! // Requires: Redis (when dedup/caching enabled) and a running environment.
 //! use fraiseql_observers::factory::ExecutorFactory;
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
+//! use fraiseql_observers::traits::DeadLetterQueue;
+//! use fraiseql_observers::event::EntityEvent;
+//! use std::sync::Arc;
 //!
-//! // Load configuration
 //! # async fn example() -> fraiseql_observers::Result<()> {
-//! let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
+//! # let config: ObserverRuntimeConfig = unimplemented!();
+//! # let dlq: Arc<dyn DeadLetterQueue> = unimplemented!();
+//! # let event: EntityEvent = unimplemented!();
 //!
 //! // Build executor stack (automatically wraps based on config)
-//! let executor_stack = ExecutorFactory::build(&config).await?;
+//! let executor_stack = ExecutorFactory::build(&config, dlq).await?;
 //!
 //! // Process events
 //! executor_stack.process_event(&event).await?;

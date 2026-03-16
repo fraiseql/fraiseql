@@ -581,10 +581,10 @@ impl TestTypeBuilder {
 /// // Nullable field using the nullable constructor
 /// let bio = TestFieldBuilder::nullable("bio", FieldType::String).build();
 ///
-/// // Scope-guarded field that returns null on deny
+/// // Scope-guarded field that masks on deny
 /// let private = TestFieldBuilder::new("salary", FieldType::Int)
 ///     .requires_scope("read:Employee.salary")
-///     .on_deny(FieldDenyPolicy::Nullify)
+///     .on_deny(FieldDenyPolicy::Mask)
 ///     .build();
 /// ```
 pub struct TestFieldBuilder {

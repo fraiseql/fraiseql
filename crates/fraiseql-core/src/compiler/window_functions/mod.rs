@@ -43,37 +43,23 @@
 //!
 //! # High-Level Example (WindowRequest)
 //!
-//! ```no_run
+//! ```text
+//! // Illustrative output structure only — not directly runnable.
 //! // Requires: FactTableMetadata from compiled schema.
-//! use fraiseql_core::compiler::window_functions::*;
-//! use fraiseql_core::compiler::fact_table::FactTableMetadata;
-//! # use fraiseql_core::error::Result;
-//! # fn example() -> Result<()> {
-//! let metadata = FactTableMetadata::default();
 //! let request = WindowRequest {
-//!     table_name: "tf_sales".to_string(),
-//!     select: vec![
-//!         WindowSelectColumn::Measure { name: "revenue".to_string(), alias: "revenue".to_string() },
-//!         WindowSelectColumn::Dimension { path: "category".to_string(), alias: "category".to_string() },
-//!     ],
-//!     windows: vec![
-//!         WindowFunctionRequest {
-//!             function: WindowFunctionSpec::RowNumber,
-//!             alias: "rank".to_string(),
-//!             partition_by: vec![PartitionByColumn::Dimension { path: "category".to_string() }],
-//!             order_by: vec![WindowOrderBy { field: "revenue".to_string(), direction: OrderDirection::Desc }],
-//!             frame: None,
-//!         },
-//!     ],
+//!     table_name: "tf_sales",
+//!     select: [Measure("revenue"), Dimension("category")],
+//!     windows: [{
+//!         function: RowNumber,
+//!         alias: "rank",
+//!         partition_by: [Dimension("category")],
+//!         order_by: [("revenue", Desc)],
+//!     }],
 //!     where_clause: None,
-//!     order_by: vec![],
 //!     limit: Some(100),
-//!     offset: None,
 //! };
 //!
 //! let plan = WindowPlanner::plan(request, metadata)?;
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! # SQL Example (WindowExecutionPlan output)

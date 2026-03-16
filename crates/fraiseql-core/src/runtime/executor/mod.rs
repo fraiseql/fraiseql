@@ -135,6 +135,7 @@
 //! use fraiseql_core::db::postgres::PostgresAdapter;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let schema_json = r#"{"types":[],"queries":[]}"#;
 //! // Load compiled schema and create adapter
 //! let schema = CompiledSchema::from_json(schema_json)?;
 //! let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;

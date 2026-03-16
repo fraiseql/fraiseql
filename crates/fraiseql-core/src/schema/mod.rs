@@ -27,7 +27,8 @@
 //! ```no_run
 //! // Requires: a compiled schema JSON file from `fraiseql-cli compile`.
 //! use fraiseql_core::schema::CompiledSchema;
-//!
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let json_str = r#"{"types":[],"queries":[]}"#;
 //! // From schema.compiled.json produced by `fraiseql-cli compile`
 //! let schema = CompiledSchema::from_json(json_str)?;
 //!
@@ -37,6 +38,8 @@
 //! // Access schema info
 //! println!("Types: {}", schema.types.len());
 //! println!("Queries: {}", schema.queries.len());
+//! # Ok(())
+//! # }
 //! ```
 
 mod compiled;

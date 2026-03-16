@@ -36,8 +36,8 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::sqlite::SqliteAdapter;
-/// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
+/// use fraiseql_db::sqlite::SqliteAdapter;
+/// use fraiseql_db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {

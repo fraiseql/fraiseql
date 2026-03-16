@@ -50,6 +50,7 @@
 //! ```no_run
 //! // Requires: AuthenticatedUser from live JWT validation.
 //! use fraiseql_core::security::{AuthenticatedUser, FieldFilter};
+//! use fraiseql_core::security::field_filter::FieldAccessError;
 //!
 //! fn check_field_access(
 //!     filter: &FieldFilter,

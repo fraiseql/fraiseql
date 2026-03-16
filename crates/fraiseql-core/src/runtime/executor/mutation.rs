@@ -94,12 +94,22 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: live database adapter.
+    /// // Requires: live database adapter with MutationCapable implementation.
     /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # use fraiseql_core::runtime::Executor;
+    /// # use std::sync::Arc;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let schema: CompiledSchema = unimplemented!();
+    /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
+    /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation_query("createUser", Some(&vars)).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars)).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub(super) async fn execute_mutation_query(
         &self,

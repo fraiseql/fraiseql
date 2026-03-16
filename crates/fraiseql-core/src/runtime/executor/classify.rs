@@ -27,19 +27,14 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// // Requires: live executor with compiled schema.
-    /// // Regular query
-    /// let query_type = executor.classify_query("{ users { id } }")?;
-    /// assert_eq!(query_type, QueryType::Regular);
+    /// ```text
+    /// // Illustrative — classify_query() is internal.
+    /// // Use executor.execute(query, None).await? for the public API.
     ///
-    /// // Mutation
-    /// let query_type = executor.classify_query("mutation { createUser(...) { id } }")?;
-    /// // Routes to execute_mutation_query()
-    ///
-    /// // Introspection (uses pre-built response)
-    /// let query_type = executor.classify_query("{ __schema { types { name } } }")?;
-    /// // Routes to introspection.schema_response
+    /// // Regular query → Regular
+    /// // Mutation       → Mutation  → execute_mutation_query()
+    /// // __schema       → Introspection
+    /// // _entities      → Federation
     /// ```
     pub(super) fn classify_query(&self, query: &str) -> Result<QueryType> {
         self.classify_query_with_parse(query).map(|(qt, _)| qt)

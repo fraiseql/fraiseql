@@ -39,25 +39,22 @@
 //!
 //! ```no_run
 //! // Requires: a JobQueue implementation (e.g., RedisJobQueue) and Redis.
-//! use fraiseql_observers::queue::{Job, JobWorker};
+//! use fraiseql_observers::queue::Job;
+//! use fraiseql_observers::event::EntityEvent;
+//! use fraiseql_observers::config::ActionConfig;
 //!
-//! # async fn example(queue: std::sync::Arc<dyn fraiseql_observers::queue::JobQueue>, executor: std::sync::Arc<dyn fraiseql_observers::traits::ActionExecutor>, entity_event: fraiseql_observers::event::EntityEvent, action: fraiseql_observers::config::ActionConfig) -> fraiseql_observers::Result<()> {
-//! let now = chrono::Utc::now();
+//! # async fn example<Q: fraiseql_observers::queue::JobQueue>(queue: Q, entity_event: EntityEvent, action: ActionConfig) -> fraiseql_observers::Result<()> {
 //! let job = Job {
 //!     id: "job-123".to_string(),
 //!     action_id: "send_batch_email".to_string(),
 //!     event: entity_event,
 //!     action_config: action,
 //!     attempt: 1,
-//!     created_at: now,
-//!     next_retry_at: now,
+//!     created_at: chrono::Utc::now().timestamp(),
+//!     next_retry_at: chrono::Utc::now().timestamp(),
 //! };
 //!
 //! queue.enqueue(&job).await?;
-//!
-//! // Process with worker
-//! let worker = JobWorker::new(queue, executor, 4);
-//! worker.run().await?;
 //! # Ok(())
 //! # }
 //! ```

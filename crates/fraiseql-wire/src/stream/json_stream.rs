@@ -191,15 +191,13 @@ impl JsonStream {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// // Requires: live Postgres connection via FraiseClient.
-    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// ```text
+    /// // Requires: a JsonStream instance from execute_query.
+    /// // Note: set_pause_timeout is on JsonStream, not QueryStream.
+    /// // Use FraiseClient::execute_query (internal) to obtain a JsonStream directly.
     /// use std::time::Duration;
-    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.set_pause_timeout(Duration::from_secs(5));
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
-    /// # Ok(())
-    /// # }
     /// ```
     pub fn set_pause_timeout(&mut self, duration: Duration) {
         self.ensure_pause_resume().pause_timeout = Some(duration);

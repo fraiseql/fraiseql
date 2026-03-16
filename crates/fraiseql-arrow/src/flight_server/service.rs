@@ -96,10 +96,14 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # struct MyAdapter;
+    /// # #[async_trait::async_trait]
+    /// # impl DatabaseAdapter for MyAdapter {
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// # }
     /// // In production, create a real PostgresAdapter from fraiseql-core
     /// // and wrap it to implement the local DatabaseAdapter trait
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
     ///
     /// let service = FraiseQLFlightService::new_with_db(db_adapter);
     /// # Ok(())
@@ -141,8 +145,12 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// # struct MyAdapter;
+    /// # #[async_trait::async_trait]
+    /// # impl DatabaseAdapter for MyAdapter {
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// # }
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
     /// # Ok(())
     /// # }
@@ -184,17 +192,28 @@ impl FraiseQLFlightService {
     /// ```no_run
     /// // Requires: running PostgreSQL database and OIDC provider for JWT validation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
+    /// use fraiseql_arrow::DatabaseAdapter;
     /// use fraiseql_core::security::OidcValidator;
+    /// use fraiseql_core::security::oidc::OidcConfig;
     /// use std::sync::Arc;
     ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # struct MyAdapter;
+    /// # #[async_trait::async_trait]
+    /// # impl DatabaseAdapter for MyAdapter {
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// # }
     /// // Create your adapter and OIDC validator for JWT authentication
-    /// let db_adapter: Arc<dyn fraiseql_arrow::DatabaseAdapter> = Arc::new(postgres_adapter);
-    /// let validator: Arc<OidcValidator> = Arc::new(oidc_validator);
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
+    /// # let config: OidcConfig = unimplemented!();
+    /// let validator: Arc<OidcValidator> = Arc::new(OidcValidator::new(config).await?);
     /// let service = FraiseQLFlightService::new_with_auth(
-    ///     Arc::new(db_adapter),
+    ///     db_adapter,
     ///     Some(60),
-    ///     Arc::new(validator)
+    ///     validator
     /// );
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn new_with_auth(
@@ -252,12 +271,16 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// # struct MyAdapter;
+    /// # #[async_trait::async_trait]
+    /// # impl DatabaseAdapter for MyAdapter {
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// # }
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
     /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
     /// // Pre-load schemas from database at startup
-    /// let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
+    /// let preloaded = service.preload_schemas_from_db().await?;
     /// eprintln!("Preloaded {} schemas from database", preloaded);
     ///
     /// // Schemas now available immediately for queries
@@ -311,16 +334,19 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: running PostgreSQL database and compiled schema.
-    /// use fraiseql_core::runtime::Executor;
-    /// use fraiseql_core::db::PostgresAdapter;
+    /// // Requires: a type implementing `fraiseql_arrow::flight_server::QueryExecutor`.
+    /// use fraiseql_arrow::flight_server::QueryExecutor;
+    /// use fraiseql_core::security::SecurityContext;
     /// use std::sync::Arc;
     ///
-    /// # async fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService, schema: fraiseql_core::schema::CompiledSchema) -> Result<(), Box<dyn std::error::Error>> {
-    /// let adapter = PostgresAdapter::new(connection_string).await?;
-    /// let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
+    /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
+    /// # struct MyExecutor;
+    /// # #[async_trait::async_trait]
+    /// # impl QueryExecutor for MyExecutor {
+    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<String, String> { unimplemented!() }
+    /// # }
+    /// let executor: Arc<dyn QueryExecutor> = Arc::new(MyExecutor);
     /// service.set_executor(executor);
-    /// # Ok(())
     /// # }
     /// ```
     pub fn set_executor(&mut self, executor: Arc<dyn QueryExecutor>) {
@@ -348,12 +374,19 @@ impl FraiseQLFlightService {
     ///
     /// ```no_run
     /// // Requires: an EventStorage implementation (e.g., backed by a database or Redis).
-    /// use fraiseql_arrow::EventStorage;
+    /// use fraiseql_arrow::event_storage::{EventStorage, HistoricalEvent};
+    /// use chrono::{DateTime, Utc};
     /// use std::sync::Arc;
     ///
     /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
+    /// # struct MyEventStorage;
+    /// # #[async_trait::async_trait]
+    /// # impl EventStorage for MyEventStorage {
+    /// #     async fn query_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { unimplemented!() }
+    /// #     async fn count_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>) -> Result<usize, String> { unimplemented!() }
+    /// # }
     /// // Provide your EventStorage implementation (e.g., backed by a database or Redis)
-    /// let storage: Arc<dyn EventStorage> = Arc::new(my_event_storage);
+    /// let storage: Arc<dyn EventStorage> = Arc::new(MyEventStorage);
     /// service.set_event_storage(storage);
     /// # }
     /// ```

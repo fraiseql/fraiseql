@@ -57,23 +57,20 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 /// # Example
 ///
 /// ```no_run
-/// // Requires: fraiseql-core PostgresAdapter and a running PostgreSQL database.
-/// use std::{collections::HashMap, sync::Arc};
+/// // Requires: a running database and an implementation of this trait.
+/// use std::collections::HashMap;
 /// use fraiseql_arrow::db::{DatabaseAdapter, DatabaseError, DatabaseResult};
 ///
-/// struct FlightDatabaseAdapter {
-///     inner: Arc<fraiseql_core::db::PostgresAdapter>,
-/// }
+/// struct MyAdapter { /* database connection */ }
 ///
 /// #[async_trait::async_trait]
-/// impl DatabaseAdapter for FlightDatabaseAdapter {
+/// impl DatabaseAdapter for MyAdapter {
 ///     async fn execute_raw_query(
 ///         &self,
 ///         sql: &str,
 ///     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-///         self.inner.execute_raw_query(sql)
-///             .await
-///             .map_err(|e| DatabaseError::new(e.to_string()))
+///         // Execute SQL and return rows as JSON maps
+///         todo!("connect to database and execute: {}", sql)
 ///     }
 /// }
 /// ```
