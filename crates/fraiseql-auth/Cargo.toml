@@ -27,7 +27,13 @@ urlencoding = "2.1"
 uuid = {version = "1.21", features = ["v4", "serde"]}
 zeroize = "1.8"
 
+[[bench]]
+harness = false
+name = "auth_bench"
+
 [dev-dependencies]
+criterion = {version = "0.5", features = ["html_reports"]}
+jsonwebtoken = "9.2"
 proptest = {workspace = true}
 temp-env = {workspace = true}
 tokio-test = "0.4"

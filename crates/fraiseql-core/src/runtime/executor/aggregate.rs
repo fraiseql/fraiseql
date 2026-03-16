@@ -9,6 +9,12 @@ use crate::{
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute an aggregate query dispatch.
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — the query name does not end with `_aggregate`,
+    ///   or the derived fact table is not found in the compiled schema.
+    /// * Propagates errors from [`execute_aggregate_query`](Self::execute_aggregate_query).
     pub(super) async fn execute_aggregate_dispatch(
         &self,
         query_name: &str,
@@ -47,6 +53,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 
     /// Execute a window query dispatch.
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — the query name does not end with `_window`,
+    ///   or the derived fact table is not found in the compiled schema.
+    /// * Propagates errors from [`execute_window_query`](Self::execute_window_query).
     pub(super) async fn execute_window_dispatch(
         &self,
         query_name: &str,

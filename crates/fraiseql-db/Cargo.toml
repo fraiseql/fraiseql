@@ -28,8 +28,15 @@ tokio-util = "0.7"
 tracing = {workspace = true}
 uuid = {workspace = true}
 
+[[bench]]
+harness = false
+name = "sql_generation_bench"
+
 [dev-dependencies]
+criterion = {version = "0.5", features = ["html_reports"]}
+insta = {workspace = true}
 proptest = {workspace = true}
+serde_json = {workspace = true}
 
 [features]
 default = ["postgres"]

@@ -170,3 +170,88 @@ impl TokenRefreshWorker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn test_scheduler_schedule_and_get_due_refresh() {
+        let scheduler = TokenRefreshScheduler::new();
+        // Schedule a refresh in the past (already due)
+        let past = Utc::now() - Duration::seconds(10);
+        scheduler
+            .schedule_refresh("session_a".to_string(), past)
+            .expect("schedule_refresh must succeed");
+
+        let next = scheduler.get_next_refresh().expect("get_next_refresh must succeed");
+        assert_eq!(next, Some("session_a".to_string()));
+    }
+
+    #[test]
+    fn test_scheduler_future_refresh_not_returned() {
+        let scheduler = TokenRefreshScheduler::new();
+        // Schedule a refresh far in the future
+        let future = Utc::now() + Duration::hours(1);
+        scheduler
+            .schedule_refresh("session_b".to_string(), future)
+            .expect("schedule_refresh must succeed");
+
+        let next = scheduler.get_next_refresh().expect("get_next_refresh must succeed");
+        assert!(next.is_none(), "future refresh must not be returned as next");
+    }
+
+    #[test]
+    fn test_scheduler_ordering_by_time() {
+        let scheduler = TokenRefreshScheduler::new();
+        let now = Utc::now();
+        scheduler
+            .schedule_refresh("later".to_string(), now - Duration::seconds(5))
+            .expect("schedule must succeed");
+        scheduler
+            .schedule_refresh("earlier".to_string(), now - Duration::seconds(10))
+            .expect("schedule must succeed");
+
+        // The earliest due refresh should come first
+        let first = scheduler.get_next_refresh().expect("must succeed");
+        assert_eq!(first, Some("earlier".to_string()));
+        let second = scheduler.get_next_refresh().expect("must succeed");
+        assert_eq!(second, Some("later".to_string()));
+    }
+
+    #[test]
+    fn test_scheduler_cancel_refresh() {
+        let scheduler = TokenRefreshScheduler::new();
+        let future = Utc::now() + Duration::hours(1);
+        scheduler
+            .schedule_refresh("session_c".to_string(), future)
+            .expect("schedule must succeed");
+
+        let cancelled = scheduler
+            .cancel_refresh("session_c")
+            .expect("cancel must succeed");
+        assert!(cancelled, "cancel_refresh must return true for existing session");
+
+        let cancelled_again = scheduler
+            .cancel_refresh("session_c")
+            .expect("cancel must succeed");
+        assert!(!cancelled_again, "cancel_refresh must return false for already-removed session");
+    }
+
+    #[test]
+    fn test_scheduler_cancel_nonexistent_returns_false() {
+        let scheduler = TokenRefreshScheduler::new();
+        let cancelled = scheduler
+            .cancel_refresh("nonexistent")
+            .expect("cancel must succeed");
+        assert!(!cancelled);
+    }
+
+    #[test]
+    fn test_scheduler_empty_returns_none() {
+        let scheduler = TokenRefreshScheduler::new();
+        let next = scheduler.get_next_refresh().expect("must succeed");
+        assert!(next.is_none());
+    }
+}

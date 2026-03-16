@@ -131,3 +131,151 @@ impl Default for NonceParameter {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- PKCEChallenge tests ---
+
+    #[test]
+    fn test_pkce_challenge_method_is_s256() {
+        let challenge = PKCEChallenge::new();
+        assert_eq!(
+            challenge.code_challenge_method, "S256",
+            "PKCE challenge method must be S256"
+        );
+    }
+
+    #[test]
+    fn test_pkce_verifier_is_uuid_format() {
+        let challenge = PKCEChallenge::new();
+        // UUID v4 format: 8-4-4-4-12 hex digits
+        assert!(
+            uuid::Uuid::parse_str(&challenge.code_verifier).is_ok(),
+            "PKCE code_verifier must be a valid UUID"
+        );
+    }
+
+    #[test]
+    fn test_pkce_challenge_is_not_empty() {
+        let challenge = PKCEChallenge::new();
+        assert!(
+            !challenge.code_challenge.is_empty(),
+            "PKCE code_challenge must not be empty"
+        );
+    }
+
+    #[test]
+    fn test_pkce_verify_correct_verifier() {
+        let challenge = PKCEChallenge::new();
+        let verifier = challenge.code_verifier.clone();
+        assert!(
+            challenge.verify(&verifier),
+            "PKCEChallenge::verify must succeed for the original verifier"
+        );
+    }
+
+    #[test]
+    fn test_pkce_verify_wrong_verifier_fails() {
+        let challenge = PKCEChallenge::new();
+        assert!(
+            !challenge.verify("definitely-wrong-verifier"),
+            "PKCEChallenge::verify must fail for an incorrect verifier"
+        );
+    }
+
+    #[test]
+    fn test_pkce_two_challenges_differ() {
+        let c1 = PKCEChallenge::new();
+        let c2 = PKCEChallenge::new();
+        assert_ne!(
+            c1.code_verifier, c2.code_verifier,
+            "consecutive PKCE challenges must have unique verifiers"
+        );
+        assert_ne!(
+            c1.code_challenge, c2.code_challenge,
+            "consecutive PKCE challenges must have unique challenges"
+        );
+    }
+
+    // --- StateParameter tests ---
+
+    #[test]
+    fn test_state_parameter_not_expired_on_creation() {
+        let state = StateParameter::new();
+        assert!(
+            !state.is_expired(),
+            "freshly created StateParameter must not be expired"
+        );
+    }
+
+    #[test]
+    fn test_state_verify_correct_value() {
+        let state = StateParameter::new();
+        let value = state.state.clone();
+        assert!(
+            state.verify(&value),
+            "StateParameter::verify must succeed for the correct state value"
+        );
+    }
+
+    #[test]
+    fn test_state_verify_wrong_value_fails() {
+        let state = StateParameter::new();
+        assert!(
+            !state.verify("wrong-state-value"),
+            "StateParameter::verify must fail for an incorrect state value"
+        );
+    }
+
+    #[test]
+    fn test_state_parameters_are_unique() {
+        let s1 = StateParameter::new();
+        let s2 = StateParameter::new();
+        assert_ne!(
+            s1.state, s2.state,
+            "consecutive StateParameter values must be unique"
+        );
+    }
+
+    // --- NonceParameter tests ---
+
+    #[test]
+    fn test_nonce_not_expired_on_creation() {
+        let nonce = NonceParameter::new();
+        assert!(
+            !nonce.is_expired(),
+            "freshly created NonceParameter must not be expired"
+        );
+    }
+
+    #[test]
+    fn test_nonce_verify_correct_value() {
+        let nonce = NonceParameter::new();
+        let value = nonce.nonce.clone();
+        assert!(
+            nonce.verify(&value),
+            "NonceParameter::verify must succeed for the correct nonce value"
+        );
+    }
+
+    #[test]
+    fn test_nonce_verify_wrong_value_fails() {
+        let nonce = NonceParameter::new();
+        assert!(
+            !nonce.verify("wrong-nonce-value"),
+            "NonceParameter::verify must fail for an incorrect nonce value"
+        );
+    }
+
+    #[test]
+    fn test_nonce_parameters_are_unique() {
+        let n1 = NonceParameter::new();
+        let n2 = NonceParameter::new();
+        assert_ne!(
+            n1.nonce, n2.nonce,
+            "consecutive NonceParameter values must be unique"
+        );
+    }
+}

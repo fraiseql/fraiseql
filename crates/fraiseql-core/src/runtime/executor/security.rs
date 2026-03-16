@@ -59,6 +59,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// GraphQL response as JSON string, or error if cancelled or execution fails
     ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Cancelled`] — the cancellation token was triggered before
+    ///   or during execution.
+    /// * Propagates any error from the underlying [`execute`](Self::execute) call.
+    ///
     /// # Example
     ///
     /// ```no_run

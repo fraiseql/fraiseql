@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+((data->>'published')::boolean = $1 AND data->>'author_id' = $2)

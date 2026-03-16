@@ -156,3 +156,148 @@ pub enum ParseError {
         reason: String,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use super::*;
+
+    // ─── resolve_env_value ──────────────────────────────────────────────────
+
+    #[test]
+    fn literal_value_returned_unchanged() {
+        assert_eq!(resolve_env_value("hello").unwrap(), "hello");
+    }
+
+    #[test]
+    fn env_var_reference_resolves() {
+        temp_env::with_var("FRAISEQL_TEST_ENV_RS", Some("resolved"), || {
+            assert_eq!(
+                resolve_env_value("${FRAISEQL_TEST_ENV_RS}").unwrap(),
+                "resolved"
+            );
+        });
+    }
+
+    #[test]
+    fn missing_env_var_returns_error() {
+        temp_env::with_var("FRAISEQL_MISSING_VAR", None::<&str>, || {
+            let err = resolve_env_value("${FRAISEQL_MISSING_VAR}").unwrap_err();
+            assert!(
+                matches!(err, EnvError::MissingVar { ref name } if name == "FRAISEQL_MISSING_VAR"),
+                "expected MissingVar, got: {err:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn default_syntax_uses_fallback_when_absent() {
+        temp_env::with_var("FRAISEQL_ABSENT", None::<&str>, || {
+            assert_eq!(
+                resolve_env_value("${FRAISEQL_ABSENT:-fallback}").unwrap(),
+                "fallback"
+            );
+        });
+    }
+
+    #[test]
+    fn default_syntax_uses_real_value_when_present() {
+        temp_env::with_var("FRAISEQL_PRESENT", Some("real"), || {
+            assert_eq!(
+                resolve_env_value("${FRAISEQL_PRESENT:-fallback}").unwrap(),
+                "real"
+            );
+        });
+    }
+
+    #[test]
+    fn required_with_message_syntax_errors_with_message() {
+        temp_env::with_var("FRAISEQL_REQUIRED", None::<&str>, || {
+            let err = resolve_env_value("${FRAISEQL_REQUIRED:?must be set}").unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    EnvError::MissingVarWithMessage { ref name, ref message }
+                    if name == "FRAISEQL_REQUIRED" && message == "must be set"
+                ),
+                "expected MissingVarWithMessage, got: {err:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn required_with_message_syntax_resolves_when_present() {
+        temp_env::with_var("FRAISEQL_REQUIRED_OK", Some("value"), || {
+            assert_eq!(
+                resolve_env_value("${FRAISEQL_REQUIRED_OK:?must be set}").unwrap(),
+                "value"
+            );
+        });
+    }
+
+    // ─── get_env_value ──────────────────────────────────────────────────────
+
+    #[test]
+    fn get_env_value_returns_value_when_set() {
+        temp_env::with_var("FRAISEQL_GET_TEST", Some("got_it"), || {
+            assert_eq!(get_env_value("FRAISEQL_GET_TEST").unwrap(), "got_it");
+        });
+    }
+
+    #[test]
+    fn get_env_value_returns_error_when_missing() {
+        temp_env::with_var("FRAISEQL_GET_MISSING", None::<&str>, || {
+            assert!(get_env_value("FRAISEQL_GET_MISSING").is_err());
+        });
+    }
+
+    // ─── parse_size edge cases ──────────────────────────────────────────────
+
+    #[test]
+    fn parse_size_overflow_returns_error() {
+        // usize::MAX GB would overflow
+        let result = parse_size(&format!("{}GB", usize::MAX));
+        assert!(result.is_err(), "overflow must return Err");
+    }
+
+    #[test]
+    fn parse_size_whitespace_trimmed() {
+        assert_eq!(parse_size("  10MB  ").unwrap(), 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn parse_size_case_insensitive() {
+        assert_eq!(parse_size("10mb").unwrap(), 10 * 1024 * 1024);
+        assert_eq!(parse_size("10Mb").unwrap(), 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn parse_size_zero_is_valid() {
+        assert_eq!(parse_size("0MB").unwrap(), 0);
+    }
+
+    // ─── parse_duration edge cases ──────────────────────────────────────────
+
+    #[test]
+    fn parse_duration_zero_is_valid() {
+        assert_eq!(parse_duration("0s").unwrap(), Duration::from_secs(0));
+    }
+
+    #[test]
+    fn parse_duration_whitespace_trimmed() {
+        assert_eq!(parse_duration("  30s  ").unwrap(), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn parse_duration_missing_unit_returns_error() {
+        let err = parse_duration("42").unwrap_err();
+        assert!(matches!(err, ParseError::InvalidDuration { .. }));
+    }
+
+    #[test]
+    fn parse_duration_non_numeric_returns_error() {
+        let err = parse_duration("xyzs").unwrap_err();
+        assert!(matches!(err, ParseError::InvalidDuration { .. }));
+    }
+}

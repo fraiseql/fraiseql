@@ -70,7 +70,7 @@ fn representation_validation(c: &mut Criterion) {
 
     c.bench_function("validate_representations_100", |b| {
         b.iter(|| {
-            validate_representations(black_box(&reps), black_box(&metadata)).unwrap()
+            validate_representations(black_box(&reps), black_box(&metadata)).unwrap();
         });
     });
 }

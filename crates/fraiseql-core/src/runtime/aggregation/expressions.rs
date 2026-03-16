@@ -41,7 +41,12 @@ impl AggregationSqlGenerator {
         Ok(format!("SELECT\n  {}", columns.join(",\n  ")))
     }
 
-    /// Convert GROUP BY expression to SQL
+    /// Convert GROUP BY expression to SQL.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future expression types that may
+    /// require validation (e.g., computed GROUP BY expressions).
     pub(super) fn group_by_expression_to_sql(&self, expr: &GroupByExpression) -> Result<String> {
         match expr {
             GroupByExpression::JsonbPath {
@@ -119,7 +124,12 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Convert aggregate expression to SQL
+    /// Convert aggregate expression to SQL.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` when an advanced aggregate function
+    /// (e.g., `STRING_AGG`) is not supported by the target database dialect.
     pub(super) fn aggregate_expression_to_sql(&self, expr: &AggregateExpression) -> Result<String> {
         match expr {
             AggregateExpression::Count { .. } => Ok("COUNT(*)".to_string()),
@@ -409,7 +419,12 @@ impl AggregationSqlGenerator {
         Ok(format!("GROUP BY {}", columns.join(", ")))
     }
 
-    /// Build ORDER BY clause
+    /// Build ORDER BY clause.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for future validation of column references
+    /// against the aggregation plan.
     pub(super) fn build_order_by_clause(&self, order_by: &[OrderByClause]) -> Result<String> {
         let clauses: Vec<String> = order_by
             .iter()

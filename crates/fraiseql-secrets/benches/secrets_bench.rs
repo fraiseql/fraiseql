@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: benchmark setup code
+#![allow(clippy::cast_possible_truncation)] // Reason: i iterates 0..32, safely within u8
 #![allow(missing_docs)]
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};

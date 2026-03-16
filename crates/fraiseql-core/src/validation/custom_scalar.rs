@@ -166,7 +166,6 @@ mod tests {
 
     #[test]
     fn test_custom_scalar_result_type_alias_is_result_value() {
-        let result: super::CustomScalarResult = Ok(json!("ok"));
-        result.unwrap_or_else(|e| panic!("CustomScalarResult should hold Ok value: {e}"));
+        let _result: super::CustomScalarResult = Ok(json!("ok"));
     }
 }

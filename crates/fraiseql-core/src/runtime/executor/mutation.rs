@@ -139,6 +139,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * `variables` - Optional JSON object of client-supplied variable values
     /// * `security_ctx` - Optional authenticated user context; required when the mutation
     ///   definition has one or more `inject` params
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — mutation not found, no `sql_source`, missing
+    ///   security context for `inject` params, or database function returned no rows.
+    /// * [`FraiseQLError::Database`] — the adapter's `execute_function_call` failed.
     pub(super) async fn execute_mutation_query_with_security(
         &self,
         mutation_name: &str,

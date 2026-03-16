@@ -218,7 +218,7 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     #[cfg(not(feature = "secrets"))]
     let secrets: Option<SecretsHealth> = None;
 
-    let status = determine_status(db_healthy, &observers, &secrets, &federation);
+    let status = determine_status(db_healthy, observers.as_ref(), secrets.as_ref(), federation.as_ref());
 
     let response = HealthResponse {
         status: status.to_string(),
@@ -332,17 +332,17 @@ pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync 
 /// - `"healthy"` (200): all enabled subsystems are operational
 fn determine_status(
     db_healthy: bool,
-    observers: &Option<ObserverHealth>,
-    secrets: &Option<SecretsHealth>,
-    federation: &Option<FederationHealth>,
+    observers: Option<&ObserverHealth>,
+    secrets: Option<&SecretsHealth>,
+    federation: Option<&FederationHealth>,
 ) -> &'static str {
     if !db_healthy {
         return "unhealthy";
     }
 
-    let observers_degraded = observers.as_ref().is_some_and(|o| !o.running);
-    let secrets_degraded = secrets.as_ref().is_some_and(|s| !s.connected);
-    let federation_degraded = federation.as_ref().is_some_and(|f| {
+    let observers_degraded = observers.is_some_and(|o| !o.running);
+    let secrets_degraded = secrets.is_some_and(|s| !s.connected);
+    let federation_degraded = federation.is_some_and(|f| {
         f.configured
             && f.subgraphs.iter().any(|sg| {
                 matches!(
@@ -375,12 +375,12 @@ mod tests {
 
     #[test]
     fn test_determine_status_all_healthy() {
-        assert_eq!(determine_status(true, &None, &None, &None), "healthy");
+        assert_eq!(determine_status(true, None, None, None), "healthy");
     }
 
     #[test]
     fn test_determine_status_db_down_is_unhealthy() {
-        assert_eq!(determine_status(false, &None, &None, &None), "unhealthy");
+        assert_eq!(determine_status(false, None, None, None), "unhealthy");
     }
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
             pending_events: 0,
             last_error:     None,
         });
-        assert_eq!(determine_status(true, &observers, &None, &None), "degraded");
+        assert_eq!(determine_status(true, observers.as_ref(), None, None), "degraded");
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
             connected: false,
             backend:   "vault".to_string(),
         });
-        assert_eq!(determine_status(true, &None, &secrets, &None), "degraded");
+        assert_eq!(determine_status(true, None, secrets.as_ref(), None), "degraded");
     }
 
     #[test]
@@ -414,7 +414,7 @@ mod tests {
             }],
         });
         assert_eq!(
-            determine_status(true, &None, &None, &federation),
+            determine_status(true, None, None, federation.as_ref()),
             "degraded"
         );
     }
@@ -426,7 +426,7 @@ mod tests {
             backend:   "vault".to_string(),
         });
         assert_eq!(
-            determine_status(false, &None, &secrets, &None),
+            determine_status(false, None, secrets.as_ref(), None),
             "unhealthy"
         );
     }

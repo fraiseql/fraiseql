@@ -44,7 +44,7 @@ async fn test_new_with_malformed_url_returns_connection_pool_error() {
     // at pool creation or the initial `pool.get()`, both mapped to ConnectionPool.
     let result = PostgresAdapter::new("not-a-postgres-url").await;
     assert!(result.is_err(), "expected error for malformed URL");
-    let err = result.err().expect("error confirmed above");
+    let err = result.expect_err("error confirmed above");
     assert!(
         matches!(err, FraiseQLError::ConnectionPool { .. }),
         "expected ConnectionPool error for malformed URL, got: {err:?}"
@@ -55,7 +55,7 @@ async fn test_new_with_malformed_url_returns_connection_pool_error() {
 async fn test_with_pool_size_malformed_url_returns_connection_pool_error() {
     let result = PostgresAdapter::with_pool_size("://bad-url", 1).await;
     assert!(result.is_err(), "expected error for bad URL");
-    let err = result.err().expect("error confirmed above");
+    let err = result.expect_err("error confirmed above");
     assert!(
         matches!(err, FraiseQLError::ConnectionPool { .. }),
         "expected ConnectionPool error for bad URL with custom pool size, got: {err:?}"

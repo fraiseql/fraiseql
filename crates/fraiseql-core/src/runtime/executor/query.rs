@@ -27,6 +27,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// - High performance (database can optimize filters)
     /// - Correct handling of pagination (LIMIT applied after RLS filtering)
     /// - Type-safe composition via WhereClause enum
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — security token expired, role check failed,
+    ///   or query not found in schema.
+    /// * [`FraiseQLError::Database`] — the database adapter returned an error.
     pub(super) async fn execute_regular_query_with_security(
         &self,
         query: &str,

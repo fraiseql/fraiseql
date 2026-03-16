@@ -291,7 +291,7 @@ fn test_validate_with_length_rule_too_short() {
     let value = serde_json::json!("STU"); // 3 chars, below min of 5
     let result = registry.validate("StudentID", &value);
     assert!(
-        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least") && message.contains("5")),
+        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least") && message.contains('5')),
         "expected Validation error about minimum length, got: {result:?}"
     );
 }

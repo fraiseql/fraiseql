@@ -79,7 +79,8 @@ deadpool-postgres.workspace = true
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-wire = {workspace = true}
-insta = {version = "1.38", features = ["yaml"]}
+insta = {workspace = true}
+mutants = "0.0.4"
 proptest = {workspace = true}
 serial_test = "3"
 sqlx = {workspace = true, features = ["mysql"]}

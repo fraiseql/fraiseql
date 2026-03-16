@@ -10,6 +10,12 @@ use crate::{
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a federation query (_service or _entities).
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — the query name is not `_service` or `_entities`,
+    ///   or federation is not enabled in the compiled schema.
+    /// * [`FraiseQLError::Database`] — the `_entities` lookup query fails.
     pub(super) async fn execute_federation_query(
         &self,
         query_name: &str,

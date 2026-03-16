@@ -133,3 +133,155 @@ impl UserInfo {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- TokenResponse tests ---
+
+    #[test]
+    fn test_token_response_deserializes_from_json() {
+        let json = r#"{
+            "access_token": "eyJhbGciOiJSUzI1NiJ9.test.sig",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "refresh_token": "rt-abc123",
+            "scope": "openid profile email"
+        }"#;
+
+        let token: TokenResponse = serde_json::from_str(json)
+            .expect("valid OAuth token response JSON must deserialize successfully");
+
+        assert_eq!(token.access_token, "eyJhbGciOiJSUzI1NiJ9.test.sig");
+        assert_eq!(token.token_type, "Bearer");
+        assert_eq!(token.expires_in, 3600);
+        assert_eq!(token.refresh_token, Some("rt-abc123".to_string()));
+        assert_eq!(token.scope, Some("openid profile email".to_string()));
+    }
+
+    #[test]
+    fn test_token_response_missing_optional_fields() {
+        let json = r#"{
+            "access_token": "at_minimal",
+            "token_type": "Bearer",
+            "expires_in": 3600
+        }"#;
+
+        let token: TokenResponse = serde_json::from_str(json)
+            .expect("token response without optional fields must still deserialize");
+
+        assert!(
+            token.refresh_token.is_none(),
+            "missing refresh_token must deserialize to None"
+        );
+        assert!(token.id_token.is_none(), "missing id_token must deserialize to None");
+        assert!(token.scope.is_none(), "missing scope must deserialize to None");
+    }
+
+    #[test]
+    fn test_token_response_missing_access_token_fails() {
+        let json = r#"{
+            "token_type": "Bearer",
+            "expires_in": 3600
+        }"#;
+
+        let result: Result<TokenResponse, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "token response without access_token must fail to deserialize"
+        );
+    }
+
+    #[test]
+    fn test_token_response_expiry_is_in_future() {
+        let token = TokenResponse::new("at".to_string(), "Bearer".to_string(), 3600);
+        let expiry = token.expiry_time();
+        assert!(
+            expiry > Utc::now(),
+            "expiry_time for a token with expires_in=3600 must be in the future"
+        );
+    }
+
+    #[test]
+    fn test_token_response_new_is_not_expired() {
+        let token = TokenResponse::new("at".to_string(), "Bearer".to_string(), 3600);
+        assert!(
+            !token.is_expired(),
+            "a freshly created token with expires_in=3600 must not be expired"
+        );
+    }
+
+    // --- IdTokenClaims tests ---
+
+    #[test]
+    fn test_id_token_claims_not_expired() {
+        let exp = (Utc::now() + chrono::Duration::hours(1)).timestamp();
+        let claims = IdTokenClaims::new(
+            "https://issuer.example.com".to_string(),
+            "user123".to_string(),
+            "client_id".to_string(),
+            exp,
+            Utc::now().timestamp(),
+        );
+        assert!(!claims.is_expired(), "future exp must not be expired");
+    }
+
+    #[test]
+    fn test_id_token_claims_expired() {
+        let exp = (Utc::now() - chrono::Duration::hours(1)).timestamp();
+        let claims = IdTokenClaims::new(
+            "https://issuer.example.com".to_string(),
+            "user123".to_string(),
+            "client_id".to_string(),
+            exp,
+            Utc::now().timestamp(),
+        );
+        assert!(claims.is_expired(), "past exp must be expired");
+    }
+
+    #[test]
+    fn test_id_token_claims_expiring_soon() {
+        let exp = (Utc::now() + chrono::Duration::seconds(30)).timestamp();
+        let claims = IdTokenClaims::new(
+            "https://issuer.example.com".to_string(),
+            "user123".to_string(),
+            "client_id".to_string(),
+            exp,
+            Utc::now().timestamp(),
+        );
+        assert!(
+            claims.is_expiring_soon(60),
+            "token expiring in 30s must be considered expiring soon with grace=60s"
+        );
+        assert!(
+            !claims.is_expiring_soon(10),
+            "token expiring in 30s must not be considered expiring soon with grace=10s"
+        );
+    }
+
+    // --- UserInfo tests ---
+
+    #[test]
+    fn test_userinfo_creation() {
+        let user = UserInfo::new("sub_123".to_string());
+        assert_eq!(user.sub, "sub_123");
+        assert!(user.email.is_none());
+        assert!(user.name.is_none());
+    }
+
+    #[test]
+    fn test_userinfo_deserializes_from_json() {
+        let json = r#"{
+            "sub": "user_789",
+            "email": "user@example.com",
+            "email_verified": true,
+            "name": "Test User"
+        }"#;
+        let user: UserInfo =
+            serde_json::from_str(json).expect("valid userinfo JSON must deserialize");
+        assert_eq!(user.sub, "user_789");
+        assert_eq!(user.email, Some("user@example.com".to_string()));
+        assert_eq!(user.email_verified, Some(true));
+    }
+}

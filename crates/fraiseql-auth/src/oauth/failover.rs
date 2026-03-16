@@ -78,3 +78,79 @@ impl ProviderFailoverManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_primary_available_by_default() {
+        let mgr = ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "primary");
+    }
+
+    #[test]
+    fn test_fallback_used_when_primary_unavailable() {
+        let mgr = ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
+        mgr.mark_unavailable("primary".to_string(), 300)
+            .expect("mark_unavailable must succeed");
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "fallback");
+    }
+
+    #[test]
+    fn test_all_unavailable_returns_error() {
+        let mgr =
+            ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
+        mgr.mark_unavailable("primary".to_string(), 300)
+            .expect("must succeed");
+        mgr.mark_unavailable("fallback".to_string(), 300)
+            .expect("must succeed");
+        let result = mgr.get_available_provider();
+        assert!(result.is_err(), "must return error when no providers are available");
+    }
+
+    #[test]
+    fn test_mark_available_restores_provider() {
+        let mgr = ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
+        mgr.mark_unavailable("primary".to_string(), 300)
+            .expect("must succeed");
+        mgr.mark_available("primary").expect("must succeed");
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "primary", "primary must be available after mark_available");
+    }
+
+    #[test]
+    fn test_no_fallbacks_returns_primary() {
+        let mgr = ProviderFailoverManager::new("only".to_string(), vec![]);
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "only");
+    }
+
+    #[test]
+    fn test_no_fallbacks_primary_unavailable_returns_error() {
+        let mgr = ProviderFailoverManager::new("only".to_string(), vec![]);
+        mgr.mark_unavailable("only".to_string(), 300)
+            .expect("must succeed");
+        let result = mgr.get_available_provider();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_multiple_fallbacks_in_order() {
+        let mgr = ProviderFailoverManager::new(
+            "primary".to_string(),
+            vec!["fb1".to_string(), "fb2".to_string()],
+        );
+        mgr.mark_unavailable("primary".to_string(), 300)
+            .expect("must succeed");
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "fb1", "first fallback must be selected");
+
+        mgr.mark_unavailable("fb1".to_string(), 300)
+            .expect("must succeed");
+        let available = mgr.get_available_provider().expect("must succeed");
+        assert_eq!(available, "fb2", "second fallback must be selected when first is unavailable");
+    }
+}

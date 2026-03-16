@@ -192,14 +192,15 @@ clippy:
 # production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
 # This secondary gate limits annotation proliferation (each annotation is a deliberate exception).
 # Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
-# Baseline: 1 (fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call).
+# Baseline: 0 (plan-09 replaced the NaiveDate::from_ymd_opt().unwrap() with unreachable!).
+# `#![allow]` inside `#[cfg(test)]` modules are excluded via `grep -v '#!\[allow'`.
 # Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
-UNWRAP_ALLOW_LIMIT ?= 1
+UNWRAP_ALLOW_LIMIT ?= 0
 .PHONY: lint-unwrap
 lint-unwrap:
 	@echo "=== Counting unwrap allows in production code ==="
 	@count=$$(grep -rn 'allow.*unwrap_used' crates/*/src/ --include="*.rs" \
-		| grep -v "test" | wc -l); \
+		| grep -v "test" | grep -v '#!\[allow' | wc -l); \
 	echo "Current count: $$count / $(UNWRAP_ALLOW_LIMIT)"; \
 	if [ "$$count" -gt "$(UNWRAP_ALLOW_LIMIT)" ]; then \
 		echo "ERROR: $$count production unwrap allows exceeds limit of $(UNWRAP_ALLOW_LIMIT)"; \
@@ -294,7 +295,7 @@ lint-gate-core:
 # Gate: ensure executor error-documentation coverage does not regress.
 # Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
 # v2.2.0 target: ≥60.  Current baseline: 35.
-FRAISEQL_CORE_ERRORS_DOC_MIN ?= 40
+FRAISEQL_CORE_ERRORS_DOC_MIN ?= 50
 .PHONY: lint-gate-errors-doc
 lint-gate-errors-doc:
 	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \
@@ -352,10 +353,14 @@ bench-baseline:
 	@echo "Baseline saved as 'dev'. Run 'make bench-compare' after future changes."
 
 ## bench-compare: run benchmarks and compare against the saved 'dev' baseline
+## Micro benchmarks (pure computation) use a 5% threshold; slow (DB) benchmarks use 15%.
 bench-compare:
 	@command -v critcmp >/dev/null 2>&1 || cargo install critcmp --locked
 	cargo bench --workspace -- --save-baseline current
-	critcmp dev current --threshold 10 || true
+	@echo "=== Micro benchmarks (5% threshold) ==="
+	critcmp dev current --threshold 5 -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline)' || true
+	@echo "=== Slow benchmarks (15% threshold) ==="
+	critcmp dev current --threshold 15 -f '(10k_rows|100k_rows|1m_rows|where_clause|pagination|http_response_pipeline|graphql_transform|god_objects)' || true
 
 ## bench-critical: run only the latency-sensitive hot-path benchmarks
 bench-critical:

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/window_function_snapshots.rs
+expression: "plan_and_generate(&query(), DatabaseType::PostgreSQL)"
+---
+SELECT occurred_at AS occurred_at, revenue AS revenue, SUM(revenue) OVER (ORDER BY occurred_at ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total FROM tf_sales

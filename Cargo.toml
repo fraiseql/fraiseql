@@ -87,6 +87,8 @@ linked-hash-map = "0.5"
 lru = "0.16"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
+# Snapshot testing
+insta = {version = "1.38", features = ["yaml"]}
 # Property-based testing
 proptest = "1.4"
 # Random

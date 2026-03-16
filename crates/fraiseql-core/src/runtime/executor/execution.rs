@@ -144,6 +144,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// GraphQL response as JSON string, or error if access denied
     ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — query validation fails, or the user's scopes
+    ///   do not include a field required by the `field_filter` policy.
+    /// * Propagates errors from query classification and execution.
+    ///
     /// # Example
     ///
     /// ```no_run

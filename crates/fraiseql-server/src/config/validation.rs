@@ -419,3 +419,282 @@ impl<'a> ConfigValidator<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use super::*;
+
+    // ─── ValidationResult ───────────────────────────────────────────────────
+
+    #[test]
+    fn empty_result_is_ok() {
+        let result = ValidationResult::new();
+        assert!(result.is_ok());
+        assert!(!result.is_err());
+    }
+
+    #[test]
+    fn result_with_error_is_err() {
+        let mut result = ValidationResult::new();
+        result.add_error(ConfigError::ValidationError {
+            field:   "test".into(),
+            message: "bad".into(),
+        });
+        assert!(result.is_err());
+        assert!(!result.is_ok());
+    }
+
+    #[test]
+    fn result_with_only_warnings_is_ok() {
+        let mut result = ValidationResult::new();
+        result.add_warning("heads up");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn into_result_single_error() {
+        let mut result = ValidationResult::new();
+        result.add_error(ConfigError::ValidationError {
+            field:   "port".into(),
+            message: "invalid".into(),
+        });
+        let err = result.into_result().unwrap_err();
+        assert!(
+            matches!(err, ConfigError::ValidationError { ref field, .. } if field == "port"),
+            "single error must be unwrapped, not wrapped in MultipleErrors"
+        );
+    }
+
+    #[test]
+    fn into_result_multiple_errors() {
+        let mut result = ValidationResult::new();
+        result.add_error(ConfigError::ValidationError {
+            field:   "a".into(),
+            message: "bad a".into(),
+        });
+        result.add_error(ConfigError::ValidationError {
+            field:   "b".into(),
+            message: "bad b".into(),
+        });
+        let err = result.into_result().unwrap_err();
+        assert!(
+            matches!(err, ConfigError::MultipleErrors { ref errors } if errors.len() == 2),
+            "multiple errors must be wrapped in MultipleErrors"
+        );
+    }
+
+    #[test]
+    fn into_result_ok_returns_warnings() {
+        let mut result = ValidationResult::new();
+        result.add_warning("warn1");
+        result.add_warning("warn2");
+        let warnings = result.into_result().unwrap();
+        assert_eq!(warnings.len(), 2);
+    }
+
+    // ─── ConfigValidator — server validation ────────────────────────────────
+
+    /// Minimal valid TOML for constructing a RuntimeConfig.
+    fn minimal_config(toml_override: &str) -> RuntimeConfig {
+        let toml = format!(
+            r#"
+            [server]
+            port = 4000
+
+            [database]
+            url_env = "DATABASE_URL"
+
+            {toml_override}
+            "#
+        );
+        toml::from_str(&toml).unwrap()
+    }
+
+    #[test]
+    fn valid_minimal_config_passes_validation() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let config = minimal_config("");
+            let result = ConfigValidator::new(&config).validate();
+            assert!(result.is_ok(), "valid minimal config must pass: {:?}", result.errors);
+        });
+    }
+
+    #[test]
+    fn port_zero_fails_validation() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 0
+
+                [database]
+                url_env = "DATABASE_URL"
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(result.is_err(), "port=0 must fail validation");
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. } if field.contains("port"))
+                }),
+                "error must reference port field"
+            );
+        });
+    }
+
+    #[test]
+    fn pool_size_zero_fails_validation() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [database]
+                url_env = "DATABASE_URL"
+                pool_size = 0
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(result.is_err(), "pool_size=0 must fail validation");
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. } if field.contains("pool_size"))
+                }),
+                "error must reference pool_size field"
+            );
+        });
+    }
+
+    #[test]
+    fn empty_database_url_env_fails_validation() {
+        let toml = r#"
+            [server]
+            port = 4000
+
+            [database]
+            url_env = ""
+        "#;
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
+        let result = ConfigValidator::new(&config).validate();
+        assert!(result.is_err(), "empty url_env must fail validation");
+    }
+
+    #[test]
+    fn placeholder_section_notifications_fails() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [database]
+                url_env = "DATABASE_URL"
+
+                [notifications]
+                enabled = true
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. } if field == "notifications")
+                }),
+                "placeholder 'notifications' section must be rejected"
+            );
+        });
+    }
+
+    #[test]
+    fn placeholder_section_logging_fails() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [database]
+                url_env = "DATABASE_URL"
+
+                [logging]
+                level = "debug"
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. } if field == "logging")
+                }),
+                "placeholder 'logging' section must be rejected"
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_max_request_size_fails_validation() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [server.limits]
+                max_request_size = "not-a-size"
+
+                [database]
+                url_env = "DATABASE_URL"
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. }
+                        if field.contains("max_request_size"))
+                }),
+                "invalid max_request_size must fail validation"
+            );
+        });
+    }
+
+    #[test]
+    fn zero_max_concurrent_requests_fails_validation() {
+        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
+            let toml = r#"
+                [server]
+                port = 4000
+
+                [server.limits]
+                max_concurrent_requests = 0
+
+                [database]
+                url_env = "DATABASE_URL"
+            "#;
+            let config: RuntimeConfig = toml::from_str(toml).unwrap();
+            let result = ConfigValidator::new(&config).validate();
+            assert!(
+                result.errors.iter().any(|e| {
+                    matches!(e, ConfigError::ValidationError { ref field, .. }
+                        if field.contains("max_concurrent_requests"))
+                }),
+                "max_concurrent_requests=0 must fail validation"
+            );
+        });
+    }
+
+    #[test]
+    fn multiple_errors_collected_in_one_pass() {
+        let toml = r#"
+            [server]
+            port = 0
+
+            [database]
+            url_env = ""
+            pool_size = 0
+        "#;
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
+        let result = ConfigValidator::new(&config).validate();
+        assert!(
+            result.errors.len() >= 3,
+            "validator must collect all errors in one pass, got {} errors: {:?}",
+            result.errors.len(),
+            result.errors
+        );
+    }
+}

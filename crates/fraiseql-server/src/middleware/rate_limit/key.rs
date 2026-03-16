@@ -52,3 +52,104 @@ pub(super) struct PathRateLimit {
     /// Maximum burst (= max_requests).
     pub(super) burst:          f64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    // ─── build_rate_limit_key ───────────────────────────────────────────────
+
+    #[test]
+    fn key_without_prefix() {
+        let key = build_rate_limit_key("ip", "1.2.3.4", None);
+        assert_eq!(key, "fraiseql:rl:ip:1.2.3.4");
+    }
+
+    #[test]
+    fn key_with_prefix() {
+        let key = build_rate_limit_key("path", "1.2.3.4", Some("/auth/start"));
+        assert_eq!(key, "fraiseql:rl:path:/auth/start:1.2.3.4");
+    }
+
+    // ─── is_private_or_loopback ─────────────────────────────────────────────
+
+    #[test]
+    fn loopback_ipv4_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+    }
+
+    #[test]
+    fn rfc1918_10_x_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+    }
+
+    #[test]
+    fn rfc1918_172_16_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))));
+    }
+
+    #[test]
+    fn rfc1918_192_168_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))));
+    }
+
+    #[test]
+    fn link_local_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V4(Ipv4Addr::new(169, 254, 1, 1))));
+    }
+
+    #[test]
+    fn public_ipv4_is_not_private() {
+        assert!(!is_private_or_loopback(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
+    }
+
+    #[test]
+    fn loopback_ipv6_is_private() {
+        assert!(is_private_or_loopback(IpAddr::V6(Ipv6Addr::LOCALHOST)));
+    }
+
+    #[test]
+    fn public_ipv6_is_not_private() {
+        assert!(!is_private_or_loopback(IpAddr::V6(Ipv6Addr::new(
+            0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888
+        ))));
+    }
+
+    // ─── path_matches_rule ──────────────────────────────────────────────────
+
+    #[test]
+    fn exact_match() {
+        assert!(path_matches_rule("/auth/start", "/auth/start"));
+    }
+
+    #[test]
+    fn sub_path_matches() {
+        assert!(path_matches_rule("/auth/start/extra", "/auth/start"));
+    }
+
+    #[test]
+    fn query_string_matches() {
+        assert!(path_matches_rule("/auth/start?code=abc", "/auth/start"));
+    }
+
+    #[test]
+    fn superset_does_not_match() {
+        assert!(!path_matches_rule("/auth/startover", "/auth/start"));
+    }
+
+    #[test]
+    fn hyphenated_suffix_does_not_match() {
+        assert!(!path_matches_rule("/auth/start-session", "/auth/start"));
+    }
+
+    #[test]
+    fn completely_different_path_does_not_match() {
+        assert!(!path_matches_rule("/graphql", "/auth/start"));
+    }
+
+    #[test]
+    fn empty_path_does_not_match_prefix() {
+        assert!(!path_matches_rule("", "/auth/start"));
+    }
+}

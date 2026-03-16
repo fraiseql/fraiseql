@@ -1,6 +1,7 @@
 //! Property-based tests for fraiseql-auth security invariants.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use proptest::prelude::*;
@@ -22,7 +23,7 @@ proptest! {
             exp,
             iss: "test".into(),
             aud: vec![],
-            extra: Default::default(),
+            extra: HashMap::default(),
         };
         prop_assert!(claims.is_expired());
     }
@@ -40,7 +41,7 @@ proptest! {
             exp: now + offset,
             iss: "test".into(),
             aud: vec![],
-            extra: Default::default(),
+            extra: HashMap::default(),
         };
         prop_assert!(!claims.is_expired());
     }

@@ -20,7 +20,7 @@ use fraiseql_core::{
 #[tokio::test]
 async fn connection_to_invalid_host_returns_connection_pool_error() {
     let result = PostgresAdapter::new("postgres://localhost:19999/nonexistent").await;
-    let err = result.err().expect("expected connection to fail");
+    let err = result.expect_err("expected connection to fail");
     assert!(
         matches!(err, FraiseQLError::ConnectionPool { .. }),
         "expected ConnectionPool, got {err:?}"
