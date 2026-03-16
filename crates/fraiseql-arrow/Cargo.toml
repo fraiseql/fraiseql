@@ -23,6 +23,8 @@ dashmap = "6.1"
 # FraiseQL core (for Executor and query execution)
 fraiseql-core = {workspace = true}
 futures = "0.3"
+# HTTP client (for SSRF-safe URL parsing)
+reqwest = {workspace = true}
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "9"
 parquet = "57"

@@ -14,6 +14,13 @@ use graphql_parser::query::{
 /// [`RequestValidator`], the server HTTP handler, and the CLI `explain` command.
 pub const DEFAULT_MAX_ALIASES: usize = 30;
 
+/// Maximum number of variables per request (DoS protection).
+///
+/// A single GraphQL request with thousands of variables can cause excessive memory
+/// allocation during deserialization and variable injection. This constant caps
+/// the number of top-level keys in the `variables` JSON object.
+pub const MAX_VARIABLES_COUNT: usize = 1_000;
+
 /// Configuration for query complexity limits.
 #[derive(Debug, Clone)]
 pub struct ComplexityConfig {
@@ -237,7 +244,8 @@ impl RequestValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] if variables are not a JSON object.
+    /// Returns [`ValidationError`] if variables are not a JSON object or exceed
+    /// [`MAX_VARIABLES_COUNT`].
     pub fn validate_variables(
         &self,
         variables: Option<&serde_json::Value>,
@@ -247,6 +255,15 @@ impl RequestValidator {
                 return Err(ValidationError::InvalidVariables(
                     "Variables must be an object".to_string(),
                 ));
+            }
+            // Safety: we just verified `vars` is an object above.
+            let obj = vars.as_object().expect("checked above");
+            if obj.len() > MAX_VARIABLES_COUNT {
+                return Err(ValidationError::InvalidVariables(format!(
+                    "Too many variables: {} exceeds maximum of {}",
+                    obj.len(),
+                    MAX_VARIABLES_COUNT
+                )));
             }
         }
         Ok(())
@@ -703,6 +720,36 @@ mod tests {
             matches!(result, Err(ValidationError::InvalidVariables(_))),
             "expected InvalidVariables, got: {result:?}"
         );
+    }
+
+    #[test]
+    fn test_validate_variables_too_many() {
+        let validator = RequestValidator::new();
+        // Build an object with MAX_VARIABLES_COUNT + 1 keys — must be rejected.
+        let vars: serde_json::Value = serde_json::Value::Object(
+            (0..=MAX_VARIABLES_COUNT)
+                .map(|i| (format!("v{i}"), serde_json::Value::Null))
+                .collect(),
+        );
+        let result = validator.validate_variables(Some(&vars));
+        assert!(
+            matches!(result, Err(ValidationError::InvalidVariables(_))),
+            "expected InvalidVariables for too-many-variables, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_validate_variables_at_limit_is_ok() {
+        let validator = RequestValidator::new();
+        // Exactly MAX_VARIABLES_COUNT keys — must be accepted.
+        let vars: serde_json::Value = serde_json::Value::Object(
+            (0..MAX_VARIABLES_COUNT)
+                .map(|i| (format!("v{i}"), serde_json::Value::Null))
+                .collect(),
+        );
+        validator
+            .validate_variables(Some(&vars))
+            .unwrap_or_else(|e| panic!("expected Ok at limit, got: {e}"));
     }
 
     // ── Disabled validation ──

@@ -105,23 +105,36 @@ fn default_clickhouse_max_retries() -> usize {
 /// - Non-HTTP(S) schemes (file://, ftp://, etc.)
 /// - Loopback addresses (`localhost`, `127.x.x.x`, `::1`)
 /// - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
-/// - Link-local (169.254/16, fe80::/10)
-/// - CGNAT (100.64/10), ULA (fc00::/7)
+/// - Link-local (169.254/16, `fe80::/10`)
+/// - CGNAT (100.64/10), ULA (`fc00::/7`)
 fn validate_clickhouse_url(url: &str) -> Result<()> {
-    let lower = url.to_ascii_lowercase();
-    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+    // Use reqwest::Url::parse() to safely extract the host — manual string splitting
+    // is fragile in the presence of credentials (user:pass@host) and IPv6 literals.
+    let parsed = reqwest::Url::parse(url).map_err(|e| {
+        ArrowFlightError::Configuration(format!("ClickHouse URL is not a valid URL ({url}): {e}"))
+    })?;
+
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
         return Err(ArrowFlightError::Configuration(format!(
             "ClickHouse URL must use http:// or https:// scheme: {url}"
         )));
     }
 
-    // Extract the host portion (strip scheme, then take up to the first / : ? #)
-    let after_scheme = if lower.starts_with("https://") {
-        &url[8..]
+    let host_raw = parsed.host_str().unwrap_or("");
+    if host_raw.is_empty() {
+        return Err(ArrowFlightError::Configuration(format!(
+            "ClickHouse URL has no host: {url}"
+        )));
+    }
+
+    // The `url` crate wraps IPv6 literals in brackets in `host_str()` (e.g. "[::1]").
+    // Strip them before parsing to `IpAddr` so IPv6 SSRF checks work correctly.
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
     } else {
-        &url[7..]
+        host_raw
     };
-    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
 
     if is_ssrf_blocked_host_ch(host) {
         return Err(ArrowFlightError::Configuration(format!(
@@ -135,7 +148,7 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
 /// Returns `true` for hostnames/IPs that are blocked as SSRF targets.
 fn is_ssrf_blocked_host_ch(host: &str) -> bool {
     let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
+    if lower == "localhost" || lower.ends_with(".localhost") {
         return true;
     }
 
@@ -147,27 +160,23 @@ fn is_ssrf_blocked_host_ch(host: &str) -> bool {
             || is_cgnat_v4(addr); // 100.64/10
     }
 
-    // Literal IPv6 (strip optional brackets)
-    let ipv6_host = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(addr) = ipv6_host.parse::<std::net::Ipv6Addr>() {
-        return addr.is_loopback()       // ::1
-            || addr.is_unspecified()    // ::
-            || is_ula_v6(addr); // fc00::/7
+    // Literal IPv6 (already bracket-stripped by caller)
+    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
+        return addr.is_loopback()                              // ::1
+            || addr.is_unspecified()                           // ::
+            || (addr.segments()[0] & 0xfe00) == 0xfc00         // ULA fc00::/7
+            || (addr.segments()[0] & 0xffc0) == 0xfe80; // link-local fe80::/10
     }
 
     false
 }
 
 /// Returns `true` for addresses in the CGNAT range 100.64.0.0/10.
-fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
+const fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
     let [a, b, ..] = addr.octets();
     a == 100 && (b & 0xC0) == 64
 }
 
-/// Returns `true` for addresses in the ULA range fc00::/7.
-fn is_ula_v6(addr: std::net::Ipv6Addr) -> bool {
-    (addr.segments()[0] & 0xFE00) == 0xFC00
-}
 
 impl Default for ClickHouseSinkConfig {
     fn default() -> Self {
@@ -698,6 +707,37 @@ mod tests {
             "http://203.0.113.10:8123", // TEST-NET-3 (documentation range)
         ] {
             assert!(validate_clickhouse_url(url).is_ok(), "Expected SSRF pass for: {url}");
+        }
+    }
+
+    #[test]
+    fn test_clickhouse_url_blocks_credential_bypass() {
+        // H1: credentials in URL must not let attacker bypass host extraction
+        for url in &[
+            "http://user:password@127.0.0.1:8123",
+            "http://attacker@localhost:8123",
+            "http://x:y@192.168.1.1:8123",
+            "http://evil@10.0.0.1:8123",
+        ] {
+            assert!(
+                validate_clickhouse_url(url).is_err(),
+                "Expected SSRF rejection for credential-in-URL: {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_clickhouse_url_blocks_ipv6_link_local() {
+        // H2: fe80::/10 link-local must be blocked
+        for url in &[
+            "http://[fe80::1]:8123",
+            "http://[fe80::dead:beef]:8123",
+            "http://[febf::1]:8123", // fe80::/10 covers fe80..febf
+        ] {
+            assert!(
+                validate_clickhouse_url(url).is_err(),
+                "Expected SSRF rejection for fe80::/10 link-local: {url}"
+            );
         }
     }
 }
