@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next release notes go here -->
 
+## [2.2.0] — 2026-03-17
+
+### Added
+
+- **Python SDK**: `AsyncFraiseQLClient` with retry, typed error hierarchy (`FraiseQLError`,
+  `GraphQLError`, `NetworkError`, `TimeoutError`, `AuthenticationError`), LangChain + LlamaIndex
+  integrations
+- **TypeScript SDK** (`@fraiseql/client`): async HTTP client, typed errors, Vercel AI SDK,
+  LangChain.js, and Mastra integrations (282 tests)
+- **Go SDK**: HTTP client with retry, typed error hierarchy, OpenAI and Anthropic tool converters
+- **Java SDK**: HTTP client (`FraiseQLClient`), full exception hierarchy, Spring AI + LangChain4j
+  integration stubs
+- **C# SDK**: `FraiseQLClient` with retry, exception hierarchy, Semantic Kernel integration
+- **F# SDK**: `FraiseQLClient`, functional-style error handling, Semantic Kernel integration
+- **PHP SDK**: `FraiseQLClient` with retry, PSR-18 adapter, OpenAI PHP and Prism integrations
+- **Elixir SDK**: HTTP client, typed errors, LangChain Elixir integration
+- **Ruby SDK**: `FraiseQL::Client` (Net::HTTP), full error hierarchy, ruby-openai + LangChain.rb
+- **Dart/Flutter SDK**: `FraiseQLClient` with `authorizationFactory`, Google Gemini /
+  Firebase Vertex AI integration via `FunctionDeclaration`
+- **Rust client crate** (`fraiseql-client`): standalone `FraiseQLClientBuilder` with
+  async query/mutate/subscribe, Candle ML integration for embedding storage/retrieval
+- **`fraiseql_core::prelude`** module for ergonomic single-import access to common types
+- **Criterion benchmark suite**: GraphQL parse, cache latency, full-pipeline comparisons
+- **Fuzz harnesses**: GraphQL parser, wire protocol decoder, SCRAM auth, schema
+  deserialization, SQL codegen (cargo-fuzz targets in each affected crate)
+- **E2E pipeline test** (`make e2e`): Python authoring → CLI compile → server → SDK queries
+- All 11 SDKs ship GitHub Actions CI workflows
+
+### Changed
+
+- **API renames** (non-breaking: old names kept with `#[deprecated]`):
+  - `fraiseql_arrow::DatabaseAdapter` → `ArrowDatabaseAdapter`
+  - `fraiseql_arrow::EventStorage` → `ArrowEventStorage`
+  - `fraiseql_auth::Sanitizable` → `Sanitize`
+  - `fraiseql_auth::AuditableResult` → `AuditExt`
+  - `fraiseql_db::MutationCapable` → `SupportsMutations`
+  - `fraiseql_core::graphql::complexity::ValidationError` → `ComplexityValidationError`
+  - `fraiseql_core::security::errors::Result` visibility reduced to `pub(crate)`
+- `fraiseql_observers::CacheBackendDyn` visibility reduced to `pub(crate)` (never public API)
+- `fraiseql_cli::commands::init::skeletons` functions changed to `pub(crate)`
+
+### Fixed
+
+- Python SDK: `null` errors array no longer raises `FraiseQLError` (cross-SDK invariant)
+- `fraiseql-client` Candle integration: use proper error variants for tensor errors
+
+### Security
+
+- All security hardening from S15–S19 included (see v2.1.0 release notes for details)
+
 ## [2.1.0] — 2026-03-13
 
 ### Changed
