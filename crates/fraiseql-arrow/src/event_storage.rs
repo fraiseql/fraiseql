@@ -33,20 +33,24 @@ pub struct HistoricalEvent {
     pub timestamp:   DateTime<Utc>,
 }
 
-/// Trait for querying historical events from storage.
+/// Arrow Flight-specific trait for querying historical observer events from storage.
 ///
 /// Implementations should handle date range filtering, entity type filtering,
 /// and result limiting efficiently (with appropriate database indexes).
+///
+/// # Why a separate trait?
+///
+/// Named `ArrowEventStorage` to avoid clashing with observer storage traits in other crates.
 ///
 /// # Example Implementations
 ///
 /// - PostgreSQL: Query from a `fraiseql_events` table
 /// - `DuckDB`: Query from Parquet files in cloud storage
 /// - `ClickHouse`: Query from a distributed events table
-// Reason: used as dyn Trait (Arc<dyn EventStorage>); async_trait ensures Send bounds and
+// Reason: used as dyn Trait (Arc<dyn ArrowEventStorage>); async_trait ensures Send bounds and
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
-pub trait EventStorage: Send + Sync {
+pub trait ArrowEventStorage: Send + Sync {
     /// Query historical events by entity type and optional date range.
     ///
     /// # Arguments
@@ -81,6 +85,10 @@ pub trait EventStorage: Send + Sync {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<usize, String>;
 }
+
+/// Deprecated alias — use [`ArrowEventStorage`] instead.
+#[deprecated(since = "2.2.0", note = "Use `ArrowEventStorage` instead")]
+pub trait EventStorage: ArrowEventStorage {}
 
 #[cfg(test)]
 mod tests {

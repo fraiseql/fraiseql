@@ -12,7 +12,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 #[cfg(feature = "arrow")]
-use fraiseql_arrow::db::{DatabaseAdapter as ArrowDatabaseAdapter, DatabaseError};
+use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError};
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]

@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 
 use crate::{
-    db::DatabaseAdapter,
+    db::ArrowDatabaseAdapter,
     error::{ArrowFlightError, Result},
 };
 
@@ -222,7 +222,7 @@ impl SchemaRegistry {
     pub async fn reload_schema(
         &self,
         view_name: &str,
-        db_adapter: &dyn DatabaseAdapter,
+        db_adapter: &dyn ArrowDatabaseAdapter,
     ) -> Result<u64> {
         use tracing::info;
 
@@ -271,7 +271,7 @@ impl SchemaRegistry {
     /// # Returns
     ///
     /// Ok(count) with number of successfully reloaded schemas
-    pub async fn reload_all_schemas(&self, db_adapter: &dyn DatabaseAdapter) -> Result<usize> {
+    pub async fn reload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
         use tracing::warn;
 
         let views = vec!["va_orders", "va_users", "ta_orders", "ta_users"];
@@ -414,7 +414,7 @@ impl SchemaRegistry {
     ///
     /// This method attempts to discover views by name pattern. If discovery fails,
     /// fallback to hardcoded defaults. Falls back gracefully on any database errors.
-    pub async fn preload_all_schemas(&self, db_adapter: &dyn DatabaseAdapter) -> Result<usize> {
+    pub async fn preload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
         use tracing::info;
 
         // List of known view patterns to check

@@ -97,9 +97,9 @@ pub mod clickhouse_sink;
 pub use cache::QueryCache;
 #[cfg(feature = "clickhouse")]
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
-pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};
+pub use db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
-pub use event_storage::{EventStorage, HistoricalEvent};
+pub use event_storage::{ArrowEventStorage, HistoricalEvent};
 pub use exchange_protocol::{ExchangeMessage, RequestType};
 pub use export::{BatchStats, BulkExporter, ExportFormat};
 pub use flight_server::{FraiseQLFlightService, QueryExecutor};

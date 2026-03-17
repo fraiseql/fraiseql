@@ -21,9 +21,9 @@ use super::{
 use crate::{
     cache::QueryCache,
     convert::{ConvertConfig, RowToArrowConverter},
-    db::DatabaseAdapter,
+    db::ArrowDatabaseAdapter,
     db_convert::convert_db_rows_to_arrow,
-    event_storage::EventStorage,
+    event_storage::ArrowEventStorage,
     export::{BulkExporter, ExportFormat},
     metadata::SchemaRegistry,
     subscription::SubscriptionManager,
@@ -90,27 +90,27 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
+    /// // Requires: running PostgreSQL database and a ArrowDatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
-    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use fraiseql_arrow::ArrowDatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
-    /// # impl DatabaseAdapter for MyAdapter {
+    /// # impl ArrowDatabaseAdapter for MyAdapter {
     /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
     /// # }
     /// // In production, create a real PostgresAdapter from fraiseql-core
-    /// // and wrap it to implement the local DatabaseAdapter trait
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
+    /// // and wrap it to implement the local ArrowDatabaseAdapter trait
+    /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     ///
     /// let service = FraiseQLFlightService::new_with_db(db_adapter);
     /// # Ok(())
     /// # }
     /// ```
     #[must_use]
-    pub fn new_with_db(db_adapter: Arc<dyn DatabaseAdapter>) -> Self {
+    pub fn new_with_db(db_adapter: Arc<dyn ArrowDatabaseAdapter>) -> Self {
         let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults(); // Register va_orders, va_users, ta_orders, ta_users, etc.
 
@@ -139,24 +139,24 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
+    /// // Requires: running PostgreSQL database and a ArrowDatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
-    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use fraiseql_arrow::ArrowDatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
-    /// # impl DatabaseAdapter for MyAdapter {
+    /// # impl ArrowDatabaseAdapter for MyAdapter {
     /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
     /// # }
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
+    /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
     /// # Ok(())
     /// # }
     /// ```
     #[must_use]
-    pub fn new_with_cache(db_adapter: Arc<dyn DatabaseAdapter>, cache_ttl_secs: u64) -> Self {
+    pub fn new_with_cache(db_adapter: Arc<dyn ArrowDatabaseAdapter>, cache_ttl_secs: u64) -> Self {
         let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults();
 
@@ -192,7 +192,7 @@ impl FraiseQLFlightService {
     /// ```no_run
     /// // Requires: running PostgreSQL database and OIDC provider for JWT validation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
-    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use fraiseql_arrow::ArrowDatabaseAdapter;
     /// use fraiseql_core::security::OidcValidator;
     /// use fraiseql_core::security::oidc::OidcConfig;
     /// use std::sync::Arc;
@@ -200,11 +200,11 @@ impl FraiseQLFlightService {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
-    /// # impl DatabaseAdapter for MyAdapter {
+    /// # impl ArrowDatabaseAdapter for MyAdapter {
     /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
     /// # }
     /// // Create your adapter and OIDC validator for JWT authentication
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
+    /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// # let config: OidcConfig = unimplemented!();
     /// let validator: Arc<OidcValidator> = Arc::new(OidcValidator::new(config).await?);
     /// let service = FraiseQLFlightService::new_with_auth(
@@ -217,7 +217,7 @@ impl FraiseQLFlightService {
     /// ```
     #[must_use]
     pub fn new_with_auth(
-        db_adapter: Arc<dyn DatabaseAdapter>,
+        db_adapter: Arc<dyn ArrowDatabaseAdapter>,
         cache_ttl_secs: Option<u64>,
         oidc_validator: Arc<OidcValidator>,
     ) -> Self {
@@ -267,16 +267,16 @@ impl FraiseQLFlightService {
     /// ```no_run
     /// // Requires: running PostgreSQL database with va_* and ta_* views.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
-    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use fraiseql_arrow::ArrowDatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
-    /// # impl DatabaseAdapter for MyAdapter {
+    /// # impl ArrowDatabaseAdapter for MyAdapter {
     /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
     /// # }
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(MyAdapter);
+    /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
     /// // Pre-load schemas from database at startup
@@ -373,30 +373,30 @@ impl FraiseQLFlightService {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: an EventStorage implementation (e.g., backed by a database or Redis).
-    /// use fraiseql_arrow::event_storage::{EventStorage, HistoricalEvent};
+    /// // Requires: an ArrowEventStorage implementation (e.g., backed by a database or Redis).
+    /// use fraiseql_arrow::event_storage::{ArrowEventStorage, HistoricalEvent};
     /// use chrono::{DateTime, Utc};
     /// use std::sync::Arc;
     ///
     /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
     /// # struct MyEventStorage;
     /// # #[async_trait::async_trait]
-    /// # impl EventStorage for MyEventStorage {
+    /// # impl ArrowEventStorage for MyEventStorage {
     /// #     async fn query_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { unimplemented!() }
     /// #     async fn count_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>) -> Result<usize, String> { unimplemented!() }
     /// # }
-    /// // Provide your EventStorage implementation (e.g., backed by a database or Redis)
-    /// let storage: Arc<dyn EventStorage> = Arc::new(MyEventStorage);
+    /// // Provide your ArrowEventStorage implementation (e.g., backed by a database or Redis)
+    /// let storage: Arc<dyn ArrowEventStorage> = Arc::new(MyEventStorage);
     /// service.set_event_storage(storage);
     /// # }
     /// ```
-    pub fn set_event_storage(&mut self, event_storage: Arc<dyn EventStorage>) {
+    pub fn set_event_storage(&mut self, event_storage: Arc<dyn ArrowEventStorage>) {
         self.event_storage = Some(event_storage);
     }
 
     /// Get a reference to the event storage, if set.
     #[must_use]
-    pub fn event_storage(&self) -> Option<&Arc<dyn EventStorage>> {
+    pub fn event_storage(&self) -> Option<&Arc<dyn ArrowEventStorage>> {
         self.event_storage.as_ref()
     }
 

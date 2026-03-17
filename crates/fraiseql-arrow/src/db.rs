@@ -44,27 +44,30 @@ impl std::error::Error for DatabaseError {}
 /// Result type for database operations.
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
-/// Database adapter for executing queries against views.
+/// Arrow Flight-specific database adapter for executing raw SQL queries.
 ///
 /// This trait abstracts over different database backends (PostgreSQL, MySQL, SQLite, etc.)
 /// and provides a minimal interface for executing raw SQL and returning results as JSON.
+/// It is intentionally simpler than `fraiseql_db::DatabaseAdapter` — only the methods
+/// needed for Arrow Flight streaming are required.
 ///
-/// # Implementation Notes
+/// # Why a separate trait?
 ///
-/// In fraiseql-server, the `PostgresAdapter` from fraiseql-core should be wrapped
-/// to implement this trait by delegating to its `execute_raw_query` method.
+/// `fraiseql-arrow` must not take a compile-time dependency on `fraiseql-core` (to avoid
+/// circular crate dependencies). `ArrowDatabaseAdapter` carries only what the Flight layer
+/// needs; `fraiseql-server` wraps a core adapter to satisfy both traits.
 ///
 /// # Example
 ///
 /// ```no_run
 /// // Requires: a running database and an implementation of this trait.
 /// use std::collections::HashMap;
-/// use fraiseql_arrow::db::{DatabaseAdapter, DatabaseError, DatabaseResult};
+/// use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
 ///
 /// struct MyAdapter { /* database connection */ }
 ///
 /// #[async_trait::async_trait]
-/// impl DatabaseAdapter for MyAdapter {
+/// impl ArrowDatabaseAdapter for MyAdapter {
 ///     async fn execute_raw_query(
 ///         &self,
 ///         sql: &str,
@@ -74,10 +77,10 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///     }
 /// }
 /// ```
-// Reason: used as dyn Trait (Arc<dyn DatabaseAdapter>); async_trait ensures Send bounds and
+// Reason: used as dyn Trait (Arc<dyn ArrowDatabaseAdapter>); async_trait ensures Send bounds and
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
-pub trait DatabaseAdapter: Send + Sync {
+pub trait ArrowDatabaseAdapter: Send + Sync {
     /// Execute a raw SQL query and return rows as JSON objects.
     ///
     /// # Arguments
@@ -97,3 +100,7 @@ pub trait DatabaseAdapter: Send + Sync {
         sql: &str,
     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>>;
 }
+
+/// Deprecated alias — use [`ArrowDatabaseAdapter`] instead.
+#[deprecated(since = "2.2.0", note = "Use `ArrowDatabaseAdapter` instead")]
+pub trait DatabaseAdapter: ArrowDatabaseAdapter {}

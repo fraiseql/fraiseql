@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::EventStorage;
+use crate::ArrowEventStorage;
 
 /// A single subscriber's event stream
 #[derive(Clone)]
@@ -32,7 +32,7 @@ pub struct SubscriptionManager {
     /// Map of `subscription_id` -> `EventSubscription`
     subscriptions: Arc<DashMap<String, EventSubscription>>,
     /// Reference to event storage for historical queries (optional)
-    event_storage: Option<Arc<dyn EventStorage>>,
+    event_storage: Option<Arc<dyn ArrowEventStorage>>,
 }
 
 impl SubscriptionManager {
@@ -45,7 +45,7 @@ impl SubscriptionManager {
     }
 
     /// Create a new subscription manager with event storage.
-    pub fn with_event_storage(event_storage: Arc<dyn EventStorage>) -> Self {
+    pub fn with_event_storage(event_storage: Arc<dyn ArrowEventStorage>) -> Self {
         Self {
             subscriptions: Arc::new(DashMap::new()),
             event_storage: Some(event_storage),
@@ -154,7 +154,7 @@ impl SubscriptionManager {
     }
 
     /// Get reference to event storage if available.
-    pub fn event_storage(&self) -> Option<&Arc<dyn EventStorage>> {
+    pub fn event_storage(&self) -> Option<&Arc<dyn ArrowEventStorage>> {
         self.event_storage.as_ref()
     }
 }

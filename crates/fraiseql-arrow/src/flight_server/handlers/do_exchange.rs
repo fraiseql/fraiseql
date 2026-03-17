@@ -92,7 +92,7 @@ async fn handle_query(
 /// Process an `Upload` exchange request: decode Arrow batch and INSERT into target table.
 async fn handle_upload(
     tx: &Sender<Result<FlightData, Status>>,
-    db_adapter: &Option<Arc<dyn crate::db::DatabaseAdapter>>,
+    db_adapter: &Option<Arc<dyn crate::db::ArrowDatabaseAdapter>>,
     user_id: &str,
     correlation_id: &str,
     table: String,

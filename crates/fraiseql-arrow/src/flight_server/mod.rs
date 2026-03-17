@@ -61,7 +61,10 @@ pub(crate) use self::convert::{
     encode_json_to_arrow_batch, record_batch_to_flight_data, schema_to_flight_data,
 };
 use crate::{
-    cache::QueryCache, db::DatabaseAdapter, event_storage::EventStorage, metadata::SchemaRegistry,
+    cache::QueryCache,
+    db::ArrowDatabaseAdapter,
+    event_storage::ArrowEventStorage,
+    metadata::SchemaRegistry,
     subscription::SubscriptionManager,
 };
 
@@ -141,7 +144,7 @@ pub struct FraiseQLFlightService {
     pub(crate) schema_registry:      Arc<SchemaRegistry>,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    pub(crate) db_adapter:           Option<Arc<dyn DatabaseAdapter>>,
+    pub(crate) db_adapter:           Option<Arc<dyn ArrowDatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
     /// Uses trait object to abstract over generic `Executor<A>` type.
     pub(crate) executor:             Option<Arc<dyn QueryExecutor>>,
@@ -153,7 +156,7 @@ pub struct FraiseQLFlightService {
     /// OIDC validator for JWT authentication during handshake
     pub(crate) oidc_validator:       Option<Arc<OidcValidator>>,
     /// Optional event storage for historical observer event queries
-    pub(crate) event_storage:        Option<Arc<dyn EventStorage>>,
+    pub(crate) event_storage:        Option<Arc<dyn ArrowEventStorage>>,
     /// Subscription manager for real-time event streaming
     pub(crate) subscription_manager: Arc<SubscriptionManager>,
     /// Allow clients to submit raw SQL via `BatchedQueries` tickets.

@@ -9,7 +9,7 @@
 //! Arrow Flight support uses a library/consumer split:
 //!
 //! - [`fraiseql_arrow`] (the `fraiseql-arrow` crate) — full Arrow Flight gRPC implementation,
-//!   database-agnostic via `DatabaseAdapter` and `QueryExecutor` traits
+//!   database-agnostic via `ArrowDatabaseAdapter` and `QueryExecutor` traits
 //! - This module (`fraiseql-server/src/arrow`) — thin adapter layer that bridges `fraiseql-core`
 //!   adapters to the `fraiseql-arrow` traits
 //!
@@ -23,7 +23,7 @@
 //! [`fraiseql_arrow`] library crate. This module provides:
 //!
 //! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to implement
-//!   `fraiseql_arrow::DatabaseAdapter`
+//!   `fraiseql_arrow::ArrowDatabaseAdapter`
 //! - [`ExecutorQueryAdapter`]: Wraps `Executor<A>` to implement `fraiseql_arrow::QueryExecutor`
 //!   (type erasure)
 //! - [`create_flight_service`]: Factory that assembles a configured `FraiseQLFlightService` from
