@@ -1392,6 +1392,40 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc --workspace
 
+  # Verify fuzz harnesses compile (no execution — nightly only needed to compile)
+  fuzz-build:
+    name: Fuzz Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --quiet
+      - name: Build fraiseql-core fuzz targets
+        run: cargo fuzz build graphql_parser
+        working-directory: crates/fraiseql-core
+      - name: Build fraiseql-wire fuzz targets
+        run: cargo fuzz build protocol_decode
+        working-directory: crates/fraiseql-wire
+
+  # Verify benchmarks compile without running them
+  bench-compile:
+    name: Bench Compile Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+      - name: Compile benchmarks (no run)
+        run: cargo bench --workspace --no-run
+
   # All checks passed
   ci-success:
     name: CI Success
@@ -1419,6 +1453,8 @@ jobs:
       - feature-flags
       - sdk-parity
       - cargo-deny
+      - fuzz-build
+      - bench-compile
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
