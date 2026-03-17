@@ -42,10 +42,10 @@ jobs:
       - name: Type check
         run: npm run typecheck --if-present || npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests (vitest)
         run: npm test
 
-      - name: Build
+      - name: Build (tsup)
         run: npm run build --if-present
 
   publish:

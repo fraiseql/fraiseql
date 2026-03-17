@@ -1,8 +1,12 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/tests"],
-  testMatch: ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
+  roots: ["<rootDir>/tests", "<rootDir>/src/__tests__"],
+  testMatch: ["**/__tests__/**/*.test.ts", "**/?(*.)+(spec|test).ts"],
+  testPathIgnorePatterns: ["/node_modules/", "/__mocks__/"],
+  moduleNameMapper: {
+    "^ai$": "<rootDir>/src/__tests__/__mocks__/ai.ts",
+  },
   moduleFileExtensions: ["ts", "js", "json"],
   collectCoverageFrom: [
     "src/**/*.ts",

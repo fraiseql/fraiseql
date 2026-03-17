@@ -173,3 +173,17 @@ export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from
 // Export observer authoring API
 export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
 export type { RetryConfig } from "./observers";
+
+// Export HTTP client
+export { FraiseQLClient } from "./client";
+export type { FraiseQLClientConfig, HttpRetryConfig } from "./client";
+export {
+  FraiseQLError,
+  GraphQLError,
+  NetworkError,
+  TimeoutError,
+  AuthenticationError,
+  RateLimitError,
+} from "./errors";
+export type { GraphQLErrorEntry } from "./errors";
+export { executeWithRetry } from "./http-retry";
