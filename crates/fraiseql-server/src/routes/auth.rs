@@ -302,26 +302,14 @@ pub async fn revoke_token(
     State(state): State<std::sync::Arc<RevocationRouteState>>,
     Json(body): Json<RevokeTokenRequest>,
 ) -> Response {
-    use jsonwebtoken::{Algorithm, DecodingKey, Validation};
-
-    // Decode without verification — we only need the claims.
-    let mut validation = Validation::new(Algorithm::HS256);
-    validation.insecure_disable_signature_validation();
-    validation.validate_exp = false;
-    validation.validate_aud = false;
-    validation.required_spec_claims.clear();
-
     #[derive(serde::Deserialize)]
     struct MinimalClaims {
         jti: Option<String>,
         exp: Option<u64>,
     }
 
-    let claims = match jsonwebtoken::decode::<MinimalClaims>(
-        &body.token,
-        &DecodingKey::from_secret(b"unused"),
-        &validation,
-    ) {
+    // Decode without signature verification — we only need the claims for revocation.
+    let claims = match jsonwebtoken::dangerous::insecure_decode::<MinimalClaims>(&body.token) {
         Ok(data) => data.claims,
         Err(e) => {
             return auth_error(StatusCode::BAD_REQUEST, &format!("Invalid token: {e}"));
