@@ -1,11 +1,17 @@
 name: fraiseql
-description: FraiseQL v2 Dart/Flutter SDK — not yet implemented. See README.md.
-version: 0.0.0
-homepage: https://github.com/fraiseql/fraiseql
+description: FraiseQL Dart/Flutter SDK - Compiled GraphQL client
+version: 2.2.0
+repository: https://github.com/fraiseql/fraiseql
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  http: ^1.2.0
 
 dev_dependencies:
+  lints: ^3.0.0
   test: ^1.25.0
-  lints: ^4.0.0
+
+# Optional AI integrations (add only if available):
+# google_generative_ai: ^0.4.0

@@ -1,8 +1,10 @@
-/// FraiseQL v2 Dart SDK
+/// FraiseQL Dart/Flutter SDK.
 ///
-/// Status: Not yet implemented.
-/// This is a placeholder library. See README.md for details.
-library fraiseql;
+/// Provides an HTTP client for executing GraphQL queries against a FraiseQL
+/// server, along with authoring annotations for schema generation.
+library;
 
-/// Package version constant.
-const String version = '0.0.0';
+export 'src/authoring/annotations.dart';
+export 'src/client.dart';
+export 'src/errors.dart';
+export 'src/integrations/gemini.dart';

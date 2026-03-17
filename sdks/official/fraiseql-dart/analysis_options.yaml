@@ -1,1 +1,13 @@
 include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    missing_required_param: error
+    missing_return: error
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - avoid_print
+    - require_trailing_commas
+    - sort_pub_dependencies
