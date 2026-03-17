@@ -86,7 +86,8 @@ pub mod require_permission_directive;
 // ============================================================================
 
 pub use complexity::{
-    ComplexityConfig, DEFAULT_MAX_ALIASES, QueryMetrics, RequestValidator, ValidationError,
+    ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, QueryMetrics,
+    RequestValidator,
 };
 pub use directive_evaluator::{
     CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,

@@ -131,7 +131,7 @@ pub use ir::{
 };
 pub use lowering::{DatabaseTarget, SqlTemplateGenerator};
 pub use parser::SchemaParser;
-pub use validator::{SchemaValidator, ValidationError};
+pub use validator::{SchemaValidationError, SchemaValidator};
 pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowFunctionPlanner};
 
 use crate::{error::Result, schema::CompiledSchema};

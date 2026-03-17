@@ -369,24 +369,24 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         }
 
         let graphql_error = match e {
-            crate::validation::ValidationError::QueryTooDeep {
+            crate::validation::ComplexityValidationError::QueryTooDeep {
                 max_depth,
                 actual_depth,
             } => GraphQLError::validation(format!(
                 "Query exceeds maximum depth: {actual_depth} > {max_depth}"
             )),
-            crate::validation::ValidationError::QueryTooComplex {
+            crate::validation::ComplexityValidationError::QueryTooComplex {
                 max_complexity,
                 actual_complexity,
             } => GraphQLError::validation(format!(
                 "Query exceeds maximum complexity: {actual_complexity} > {max_complexity}"
             )),
-            crate::validation::ValidationError::MalformedQuery(msg) => {
+            crate::validation::ComplexityValidationError::MalformedQuery(msg) => {
                 metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
             },
-            crate::validation::ValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
-            crate::validation::ValidationError::TooManyAliases {
+            crate::validation::ComplexityValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
+            crate::validation::ComplexityValidationError::TooManyAliases {
                 max_aliases,
                 actual_aliases,
             } => GraphQLError::validation(format!(

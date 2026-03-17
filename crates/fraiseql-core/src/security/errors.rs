@@ -224,7 +224,7 @@ pub enum SecurityError {
 /// Convenience type alias for security operation results.
 ///
 /// Use `Result<T>` in security modules for consistent error handling.
-pub type Result<T> = std::result::Result<T, SecurityError>;
+pub(crate) type Result<T> = std::result::Result<T, SecurityError>;
 
 impl fmt::Display for SecurityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

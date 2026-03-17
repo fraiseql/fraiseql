@@ -42,9 +42,9 @@ fn is_valid_type(base_type: &str, defined_types: &std::collections::HashSet<&str
     is_known_scalar(base_type) || defined_types.contains(base_type)
 }
 
-/// Validation error.
+/// Schema validation error produced by [`SchemaValidator`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidationError {
+pub struct SchemaValidationError {
     /// Error message.
     pub message:  String,
     /// Location in schema.

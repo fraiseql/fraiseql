@@ -53,9 +53,9 @@ pub struct QueryMetrics {
     pub alias_count: usize,
 }
 
-/// Validation error types.
+/// GraphQL query validation error types (depth, complexity, aliases).
 #[derive(Debug, thiserror::Error, Clone)]
-pub enum ValidationError {
+pub enum ComplexityValidationError {
     /// Query exceeds maximum allowed depth.
     #[error("Query exceeds maximum depth of {max_depth}: depth = {actual_depth}")]
     QueryTooDeep {
@@ -173,13 +173,13 @@ impl RequestValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError::MalformedQuery`] if the query cannot be parsed.
-    pub fn analyze(&self, query: &str) -> Result<QueryMetrics, ValidationError> {
+    /// Returns [`ComplexityValidationError::MalformedQuery`] if the query cannot be parsed.
+    pub fn analyze(&self, query: &str) -> Result<QueryMetrics, ComplexityValidationError> {
         if query.trim().is_empty() {
-            return Err(ValidationError::MalformedQuery("Empty query".to_string()));
+            return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
         }
         let document = graphql_parser::parse_query::<String>(query)
-            .map_err(|e| ValidationError::MalformedQuery(format!("{e}")))?;
+            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
         let fragments = collect_fragments(&document);
         Ok(QueryMetrics {
             depth:       self.calculate_depth_ast(&document, &fragments),
@@ -192,10 +192,10 @@ impl RequestValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] if the query violates any validation rules.
-    pub fn validate_query(&self, query: &str) -> Result<(), ValidationError> {
+    /// Returns [`ComplexityValidationError`] if the query violates any validation rules.
+    pub fn validate_query(&self, query: &str) -> Result<(), ComplexityValidationError> {
         if query.trim().is_empty() {
-            return Err(ValidationError::MalformedQuery("Empty query".to_string()));
+            return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
         }
 
         // Skip AST parsing only when depth, complexity, AND alias checks are all disabled.
@@ -206,13 +206,13 @@ impl RequestValidator {
         }
 
         let document = graphql_parser::parse_query::<String>(query)
-            .map_err(|e| ValidationError::MalformedQuery(format!("{e}")))?;
+            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
         let fragments = collect_fragments(&document);
 
         if self.validate_depth {
             let depth = self.calculate_depth_ast(&document, &fragments);
             if depth > self.max_depth {
-                return Err(ValidationError::QueryTooDeep {
+                return Err(ComplexityValidationError::QueryTooDeep {
                     max_depth:    self.max_depth,
                     actual_depth: depth,
                 });
@@ -222,7 +222,7 @@ impl RequestValidator {
         if self.validate_complexity {
             let complexity = self.calculate_complexity_ast(&document, &fragments);
             if complexity > self.max_complexity {
-                return Err(ValidationError::QueryTooComplex {
+                return Err(ComplexityValidationError::QueryTooComplex {
                     max_complexity:    self.max_complexity,
                     actual_complexity: complexity,
                 });
@@ -231,7 +231,7 @@ impl RequestValidator {
 
         let alias_count = self.count_aliases_ast(&document);
         if alias_count > self.max_aliases_per_query {
-            return Err(ValidationError::TooManyAliases {
+            return Err(ComplexityValidationError::TooManyAliases {
                 max_aliases:    self.max_aliases_per_query,
                 actual_aliases: alias_count,
             });
@@ -244,22 +244,22 @@ impl RequestValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] if variables are not a JSON object or exceed
+    /// Returns [`ComplexityValidationError`] if variables are not a JSON object or exceed
     /// [`MAX_VARIABLES_COUNT`].
     pub fn validate_variables(
         &self,
         variables: Option<&serde_json::Value>,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ComplexityValidationError> {
         if let Some(vars) = variables {
             if !vars.is_object() {
-                return Err(ValidationError::InvalidVariables(
+                return Err(ComplexityValidationError::InvalidVariables(
                     "Variables must be an object".to_string(),
                 ));
             }
             // Safety: we just verified `vars` is an object above.
             let obj = vars.as_object().expect("checked above");
             if obj.len() > MAX_VARIABLES_COUNT {
-                return Err(ValidationError::InvalidVariables(format!(
+                return Err(ComplexityValidationError::InvalidVariables(format!(
                     "Too many variables: {} exceeds maximum of {}",
                     obj.len(),
                     MAX_VARIABLES_COUNT
@@ -560,7 +560,7 @@ mod tests {
         let deep = "{ user { profile { settings { theme } } } }";
         let result = validator.validate_query(deep);
         assert!(
-            matches!(result, Err(ValidationError::QueryTooDeep { .. })),
+            matches!(result, Err(ComplexityValidationError::QueryTooDeep { .. })),
             "expected QueryTooDeep, got: {result:?}"
         );
     }
@@ -640,7 +640,7 @@ mod tests {
         assert!(
             matches!(
                 validator.validate_query(query),
-                Err(ValidationError::TooManyAliases {
+                Err(ComplexityValidationError::TooManyAliases {
                     actual_aliases: 3,
                     ..
                 })
@@ -668,7 +668,7 @@ mod tests {
         });
         let result_31 = validator.validate_query(&format!("query {{ {fields_31} }}"));
         assert!(
-            matches!(result_31, Err(ValidationError::TooManyAliases { .. })),
+            matches!(result_31, Err(ComplexityValidationError::TooManyAliases { .. })),
             "expected TooManyAliases for 31 aliases, got: {result_31:?}"
         );
     }
@@ -680,12 +680,12 @@ mod tests {
         let validator = RequestValidator::new();
         let r1 = validator.validate_query("");
         assert!(
-            matches!(r1, Err(ValidationError::MalformedQuery(_))),
+            matches!(r1, Err(ComplexityValidationError::MalformedQuery(_))),
             "expected MalformedQuery for empty string, got: {r1:?}"
         );
         let r2 = validator.validate_query("   ");
         assert!(
-            matches!(r2, Err(ValidationError::MalformedQuery(_))),
+            matches!(r2, Err(ComplexityValidationError::MalformedQuery(_))),
             "expected MalformedQuery for whitespace, got: {r2:?}"
         );
     }
@@ -695,7 +695,7 @@ mod tests {
         let validator = RequestValidator::new();
         let result = validator.validate_query("{ invalid query {{}}");
         assert!(
-            matches!(result, Err(ValidationError::MalformedQuery(_))),
+            matches!(result, Err(ComplexityValidationError::MalformedQuery(_))),
             "expected MalformedQuery, got: {result:?}"
         );
     }
@@ -717,7 +717,7 @@ mod tests {
         let vars = serde_json::json!([1, 2, 3]);
         let result = validator.validate_variables(Some(&vars));
         assert!(
-            matches!(result, Err(ValidationError::InvalidVariables(_))),
+            matches!(result, Err(ComplexityValidationError::InvalidVariables(_))),
             "expected InvalidVariables, got: {result:?}"
         );
     }
@@ -733,7 +733,7 @@ mod tests {
         );
         let result = validator.validate_variables(Some(&vars));
         assert!(
-            matches!(result, Err(ValidationError::InvalidVariables(_))),
+            matches!(result, Err(ComplexityValidationError::InvalidVariables(_))),
             "expected InvalidVariables for too-many-variables, got: {result:?}"
         );
     }
@@ -780,7 +780,7 @@ mod tests {
         // Depth-6 query should fail
         let result = validator.validate_query("{ a { b { c { d { e { f } } } } } }");
         assert!(
-            matches!(result, Err(ValidationError::QueryTooDeep { .. })),
+            matches!(result, Err(ComplexityValidationError::QueryTooDeep { .. })),
             "expected QueryTooDeep for depth-6 query with max 5, got: {result:?}"
         );
     }

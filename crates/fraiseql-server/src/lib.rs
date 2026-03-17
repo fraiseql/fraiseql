@@ -198,7 +198,7 @@ pub use schema::CompiledSchemaLoader;
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use tls::TlsSetup;
-pub use validation::{RequestValidator, ValidationError};
+pub use validation::{ComplexityValidationError, RequestValidator};
 
 /// Server error type.
 #[derive(Debug, thiserror::Error)]

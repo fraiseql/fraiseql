@@ -5,5 +5,5 @@
 //! types for use within `fraiseql-server` without duplicating logic.
 
 pub use fraiseql_core::graphql::complexity::{
-    ComplexityConfig, QueryMetrics, RequestValidator, ValidationError,
+    ComplexityConfig, ComplexityValidationError, QueryMetrics, RequestValidator,
 };

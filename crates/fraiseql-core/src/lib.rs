@@ -135,6 +135,8 @@ pub mod types;
 pub mod utils;
 pub mod validation;
 
+pub mod prelude;
+
 // Re-exports for convenience
 pub use config::FraiseQLConfig;
 pub use error::{FraiseQLError, Result};
