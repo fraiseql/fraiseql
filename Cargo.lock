@@ -2867,7 +2867,7 @@ dependencies = [
  "hmac",
  "http 1.4.0",
  "ipnet",
- "jsonwebtoken 9.3.1",
+ "jsonwebtoken 10.3.0",
  "metrics 0.22.4",
  "metrics-exporter-prometheus",
  "opentelemetry 0.29.1",
@@ -2885,7 +2885,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "serde_yaml",
  "sha1",
  "sha2",
  "sqlx",
@@ -6273,19 +6272,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_yaml"
-version = "0.9.34+deprecated"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
-dependencies = [
- "indexmap 2.13.0",
- "itoa",
- "ryu",
- "serde",
- "unsafe-libyaml",
-]
-
-[[package]]
 name = "serial_test"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7585,12 +7571,6 @@ dependencies = [
  "crypto-common",
  "subtle",
 ]
-
-[[package]]
-name = "unsafe-libyaml"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "untrusted"

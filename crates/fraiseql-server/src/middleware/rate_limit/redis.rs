@@ -234,7 +234,10 @@ impl RedisRateLimiter {
 
         let result: Vec<i64> = match do_evalsha(&sha).query_async(&mut conn).await {
             Ok(r) => r,
-            Err(e) if e.kind() == redis::ErrorKind::NoScriptError => {
+            Err(e)
+                if e.kind()
+                    == redis::ErrorKind::Server(redis::ServerErrorKind::NoScript) =>
+            {
                 // Script cache was cleared (e.g. Redis restart) — reload and retry.
                 *self.script_sha.write().await = None;
                 let sha2 = self.load_script().await?;

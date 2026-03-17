@@ -58,7 +58,7 @@ rand = {workspace = true}
 # Kafka (optional)
 rdkafka = {workspace = true, optional = true}
 # Redis APQ backend (optional)
-redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 regex = {workspace = true}
 reqwest = {workspace = true}
 # Workspace dependencies
