@@ -22,6 +22,7 @@
     <Compile Include="MutationBuilder.fs" />
     <Compile Include="SchemaExporter.fs" />
     <Compile Include="Dsl.fs" />
+    <Compile Include="Client.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
