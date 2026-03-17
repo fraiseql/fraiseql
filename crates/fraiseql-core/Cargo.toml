@@ -1,5 +1,13 @@
 [[bench]]
 harness = false
+name = "graphql_parse"
+
+[[bench]]
+harness = false
+name = "cache"
+
+[[bench]]
+harness = false
 name = "adapter_comparison"
 required-features = ["postgres"]
 
