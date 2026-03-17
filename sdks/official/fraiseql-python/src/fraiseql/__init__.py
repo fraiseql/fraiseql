@@ -38,6 +38,7 @@ Example:
     ```
 """
 
+from fraiseql.async_client import AsyncFraiseQLClient
 from fraiseql.client import (
     FraiseQLAuthError,
     FraiseQLClient,
@@ -53,7 +54,14 @@ from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
+from fraiseql.errors import (
+    AuthenticationError,
+    GraphQLError,
+    NetworkError,
+    TimeoutError,
+)
 from fraiseql.registry import SchemaRegistry, generate_schema_json
+from fraiseql.retry import RetryConfig
 from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema, export_types
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
@@ -87,13 +95,22 @@ __all__ = [
     "subscription",
     "field",
     "FieldConfig",
-    # Client classes
+    # Async client
+    "AsyncFraiseQLClient",
+    # Client classes (legacy async client)
     "FraiseQLClient",
     "FraiseQLError",
     "FraiseQLAuthError",
     "FraiseQLUnsupportedError",
     "FraiseQLRateLimitError",
     "FraiseQLDatabaseError",
+    # Error hierarchy
+    "GraphQLError",
+    "NetworkError",
+    "TimeoutError",
+    "AuthenticationError",
+    # Retry configuration
+    "RetryConfig",
     # Custom scalars
     "CustomScalar",
     # Scalar types
