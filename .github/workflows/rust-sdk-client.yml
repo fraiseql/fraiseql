@@ -1,0 +1,26 @@
+name: Rust SDK Client
+on:
+  push:
+    paths: ['sdks/official/fraiseql-rust/fraiseql-client/**']
+  pull_request:
+    paths: ['sdks/official/fraiseql-rust/fraiseql-client/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdks/official/fraiseql-rust/fraiseql-client
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: sdks/official/fraiseql-rust/fraiseql-client
+      - name: Test
+        run: cargo test --all-features
+        working-directory: sdks/official/fraiseql-rust/fraiseql-client
+      - name: Doc
+        run: cargo doc --no-deps 2>&1 | grep -c "^warning" | xargs -I{} test {} -eq 0 || true
+        working-directory: sdks/official/fraiseql-rust/fraiseql-client

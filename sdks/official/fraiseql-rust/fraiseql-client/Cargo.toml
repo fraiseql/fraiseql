@@ -1,0 +1,40 @@
+[package]
+name = "fraiseql-client"
+version = "2.2.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Async HTTP client for FraiseQL GraphQL servers"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+keywords = ["graphql", "fraiseql", "client", "async"]
+categories = ["web-programming::http-client", "database"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time"] }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+wiremock = "0.6"
+
+[features]
+default = []
+candle = ["dep:candle-core"]
+
+[dependencies.candle-core]
+version = "0.8"
+optional = true
+
+[workspace]
