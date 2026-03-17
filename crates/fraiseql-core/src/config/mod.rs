@@ -152,7 +152,6 @@ impl Default for FraiseQLConfig {
 
 impl FraiseQLConfig {
     /// Create a new configuration builder.
-    #[must_use]
     pub fn builder() -> ConfigBuilder {
         ConfigBuilder::default()
     }
@@ -282,7 +281,6 @@ impl FraiseQLConfig {
     }
 
     /// Create a test configuration.
-    #[must_use]
     pub fn test() -> Self {
         Self {
             server: CoreServerConfig {
@@ -416,6 +414,7 @@ fn expand_env_vars(content: &str) -> String {
 }
 
 /// Configuration builder.
+#[must_use = "call .build() to construct the final value"]
 #[derive(Debug, Default)]
 pub struct ConfigBuilder {
     config: FraiseQLConfig,
@@ -423,7 +422,6 @@ pub struct ConfigBuilder {
 
 impl ConfigBuilder {
     /// Set the database URL.
-    #[must_use]
     pub fn database_url(mut self, url: &str) -> Self {
         self.config.database.url = url.to_string();
         self.config.database_url = url.to_string();
@@ -431,7 +429,6 @@ impl ConfigBuilder {
     }
 
     /// Set the server host.
-    #[must_use]
     pub fn host(mut self, host: &str) -> Self {
         self.config.server.host = host.to_string();
         self.config.host = host.to_string();
@@ -439,7 +436,6 @@ impl ConfigBuilder {
     }
 
     /// Set the server port.
-    #[must_use]
     pub const fn port(mut self, port: u16) -> Self {
         self.config.server.port = port;
         self.config.port = port;
@@ -447,7 +443,6 @@ impl ConfigBuilder {
     }
 
     /// Set maximum database connections.
-    #[must_use]
     pub const fn max_connections(mut self, n: u32) -> Self {
         self.config.database.max_connections = n;
         self.config.max_connections = n;
@@ -455,7 +450,6 @@ impl ConfigBuilder {
     }
 
     /// Set query timeout.
-    #[must_use]
     pub const fn query_timeout(mut self, secs: u64) -> Self {
         self.config.database.query_timeout_secs = secs;
         self.config.query_timeout_secs = secs;
@@ -463,35 +457,30 @@ impl ConfigBuilder {
     }
 
     /// Set CORS configuration.
-    #[must_use]
     pub fn cors(mut self, cors: CorsConfig) -> Self {
         self.config.cors = cors;
         self
     }
 
     /// Set auth configuration.
-    #[must_use]
     pub fn auth(mut self, auth: AuthConfig) -> Self {
         self.config.auth = auth;
         self
     }
 
     /// Set rate limit configuration.
-    #[must_use]
     pub fn rate_limit(mut self, rate_limit: RateLimitConfig) -> Self {
         self.config.rate_limit = rate_limit;
         self
     }
 
     /// Set cache configuration.
-    #[must_use]
     pub const fn cache(mut self, cache: CacheConfig) -> Self {
         self.config.cache = cache;
         self
     }
 
     /// Set collation configuration.
-    #[must_use]
     pub fn collation(mut self, collation: CollationConfig) -> Self {
         self.config.collation = collation;
         self

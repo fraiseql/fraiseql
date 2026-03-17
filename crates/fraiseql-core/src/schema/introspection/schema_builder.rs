@@ -24,6 +24,7 @@ use super::{
 // =============================================================================
 
 /// Builds introspection schema from compiled schema.
+#[must_use = "call .build() to construct the final value"]
 pub struct IntrospectionBuilder;
 
 impl IntrospectionBuilder {
@@ -455,7 +456,6 @@ impl IntrospectionResponses {
     /// Build introspection responses from compiled schema.
     ///
     /// This is called once at server startup and cached.
-    #[must_use]
     pub fn build(schema: &CompiledSchema) -> Self {
         let introspection = IntrospectionBuilder::build(schema);
         let type_map = IntrospectionBuilder::build_type_map(&introspection);

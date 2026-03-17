@@ -299,6 +299,27 @@ impl ObserverRuntime {
         let executor_ref = Arc::clone(&self.executor);
         let entity_type_index_ref = Arc::clone(&self.entity_type_index);
 
+        // Extract non-optional initial values for the background task.
+        // SAFETY: These were populated immediately above in this function before we
+        // reach this point, so the Option is always Some here.  We surface a proper
+        // error rather than panicking so callers get a useful diagnostic.
+        let initial_matcher = {
+            let m = self.matcher.read().await;
+            m.clone().ok_or_else(|| {
+                ServerError::ConfigError(
+                    "matcher not initialised before spawning background task".to_string(),
+                )
+            })?
+        };
+        let initial_executor = {
+            let ex = self.executor.read().await;
+            ex.clone().ok_or_else(|| {
+                ServerError::ConfigError(
+                    "executor not initialised before spawning background task".to_string(),
+                )
+            })?
+        };
+
         debug!("About to spawn background task");
         running.store(true, Ordering::SeqCst);
 
@@ -306,6 +327,9 @@ impl ObserverRuntime {
         debug!("Calling tokio::spawn()");
         let handle = tokio::spawn(async move {
             let mut listener = ChangeLogListener::new(listener_config);
+            // Start with the values captured at launch time; hot-reload replaces them.
+            let mut current_matcher = initial_matcher;
+            let mut current_executor = initial_executor;
 
             debug!("Observer runtime background task spawned");
             debug!("Poll interval: {:?}", poll_interval);
@@ -318,6 +342,20 @@ impl ObserverRuntime {
                         break;
                     }
                     result = listener.next_batch() => {
+                        // Refresh matcher/executor from shared slot in case a hot-reload occurred.
+                        {
+                            let m = matcher_ref.read().await;
+                            if let Some(updated) = m.clone() {
+                                current_matcher = updated;
+                            }
+                        }
+                        {
+                            let ex = executor_ref.read().await;
+                            if let Some(updated) = ex.clone() {
+                                current_executor = updated;
+                            }
+                        }
+
                         match result {
                             Ok(entries) => {
                                 if entries.is_empty() {
@@ -339,20 +377,12 @@ impl ObserverRuntime {
                                         }
                                     };
 
-                                    // Clone matcher from shared reference (cheap - EventMatcher uses Arc internally)
-                                    let matcher = {
-                                        let m = matcher_ref.read().await;
-                                        m.as_ref().expect("matcher initialized before processing loop starts").clone()
-                                    };
+                                    // Find matching observers using current (possibly reloaded) matcher
+                                    let matching_observers = current_matcher.find_matches(&event);
 
-                                    // Find matching observers
-                                    let matching_observers = matcher.find_matches(&event);
-
-                                    // Process event (read executor from shared reference)
-                                    let process_result = {
-                                        let ex = executor_ref.read().await;
-                                        ex.as_ref().expect("executor initialized before processing loop starts").process_event(&event).await
-                                    };
+                                    // Process event using current (possibly reloaded) executor
+                                    let process_result =
+                                        current_executor.process_event(&event).await;
 
                                     match process_result {
                                         Ok(summary) => {

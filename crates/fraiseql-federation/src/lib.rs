@@ -96,7 +96,8 @@ pub use database_resolver::*;
 pub use dependency_graph::DependencyGraph;
 pub use direct_db_resolver::*;
 pub use entity_resolver::*;
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::FraiseQLError;
+pub use fraiseql_error::Result;
 pub use http_resolver::*;
 pub use logging::{
     FederationLogContext, FederationOperationType, LogTimer, OperationStatus, ResolutionStrategy,

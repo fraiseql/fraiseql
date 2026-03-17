@@ -57,7 +57,7 @@ fn simulate_concurrent_requests(
     (acquired, rejected)
 }
 
-/// AdmissionController allows exactly N concurrent requests when N permits are
+/// `AdmissionController` allows exactly N concurrent requests when N permits are
 /// configured and all requests arrive simultaneously.
 #[test]
 fn test_admission_controller_allows_up_to_limit() {
@@ -73,7 +73,7 @@ fn test_admission_controller_allows_up_to_limit() {
     );
 }
 
-/// AdmissionController rejects requests that exceed the semaphore capacity.
+/// `AdmissionController` rejects requests that exceed the semaphore capacity.
 #[test]
 fn test_admission_controller_rejects_over_limit() {
     let limit = 5;

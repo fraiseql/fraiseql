@@ -79,6 +79,7 @@ pub struct QueryExecutionTrace {
 /// println!("Query took {} microseconds", trace.total_duration_us);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
+#[must_use = "call .finish() to construct the final value"]
 pub struct QueryTraceBuilder {
     query_id: String,
     query:    String,
@@ -93,7 +94,6 @@ impl QueryTraceBuilder {
     ///
     /// * `query_id` - Unique ID for query correlation
     /// * `query` - Query string (will be truncated if very long)
-    #[must_use]
     pub fn new(query_id: &str, query: &str) -> Self {
         let query_str = if query.len() > 500 {
             format!("{}...", &query[..500])

@@ -122,6 +122,7 @@ impl ConnectionConfig {
 ///     .application_name("my_app")
 ///     .build();
 /// ```
+#[must_use = "call .build() to construct the final value"]
 #[derive(Debug, Clone)]
 pub struct ConnectionConfigBuilder {
     pub(super) database: String,

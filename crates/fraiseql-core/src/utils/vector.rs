@@ -110,49 +110,42 @@ impl VectorSearchQuery {
     }
 
     /// Set the embedding column.
-    #[must_use]
     pub fn with_embedding_column(mut self, column: impl Into<String>) -> Self {
         self.embedding_column = column.into();
         self
     }
 
     /// Set the columns to select.
-    #[must_use]
     pub fn with_select_columns(mut self, columns: Vec<String>) -> Self {
         self.select_columns = columns;
         self
     }
 
     /// Set the distance metric.
-    #[must_use]
     pub const fn with_distance_metric(mut self, metric: DistanceMetric) -> Self {
         self.distance_metric = metric;
         self
     }
 
     /// Set the result limit.
-    #[must_use]
     pub const fn with_limit(mut self, limit: u32) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set a WHERE clause filter.
-    #[must_use]
     pub fn with_where(mut self, clause: impl Into<String>) -> Self {
         self.where_clause = Some(clause.into());
         self
     }
 
     /// Include distance score in results.
-    #[must_use]
     pub const fn with_distance_score(mut self) -> Self {
         self.include_distance = true;
         self
     }
 
     /// Set pagination offset.
-    #[must_use]
     pub const fn with_offset(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
         self
@@ -202,21 +195,18 @@ impl VectorInsertQuery {
     }
 
     /// Set the columns to insert.
-    #[must_use]
     pub fn with_columns(mut self, columns: Vec<String>) -> Self {
         self.columns = columns;
         self
     }
 
     /// Set the vector column name.
-    #[must_use]
     pub fn with_vector_column(mut self, column: impl Into<String>) -> Self {
         self.vector_column = column.into();
         self
     }
 
     /// Enable upsert mode.
-    #[must_use]
     pub fn with_upsert(mut self, conflict_columns: Vec<String>) -> Self {
         self.upsert = true;
         self.conflict_columns = conflict_columns;
@@ -224,14 +214,12 @@ impl VectorInsertQuery {
     }
 
     /// Set columns to update on conflict.
-    #[must_use]
     pub fn with_update_columns(mut self, columns: Vec<String>) -> Self {
         self.update_columns = columns;
         self
     }
 
     /// Set the RETURNING clause.
-    #[must_use]
     pub fn with_returning(mut self, column: impl Into<String>) -> Self {
         self.returning = Some(column.into());
         self
@@ -242,6 +230,7 @@ impl VectorInsertQuery {
 ///
 /// This struct generates SQL for vector similarity search and manipulation
 /// operations using `PostgreSQL`'s `pgvector` extension.
+#[must_use = "call .build() to construct the final value"]
 #[derive(Debug, Clone, Default)]
 pub struct VectorQueryBuilder {
     /// Parameter placeholder style ($1 vs ?).
@@ -260,13 +249,11 @@ pub enum PlaceholderStyle {
 
 impl VectorQueryBuilder {
     /// Create a new vector query builder.
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create a builder with question mark placeholders.
-    #[must_use]
     pub const fn with_question_marks() -> Self {
         Self {
             placeholder_style: PlaceholderStyle::QuestionMark,

@@ -88,7 +88,6 @@ impl std::error::Error for FieldAccessError {}
 
 impl FieldAccessError {
     /// Create a new field access error
-    #[must_use]
     pub fn new(type_name: impl Into<String>, field_name: impl Into<String>) -> Self {
         let type_name = type_name.into();
         let field_name = field_name.into();
@@ -103,7 +102,6 @@ impl FieldAccessError {
     }
 
     /// Create error with custom message
-    #[must_use]
     pub fn with_message(
         type_name: impl Into<String>,
         field_name: impl Into<String>,
@@ -140,7 +138,6 @@ pub struct FieldFilterConfig {
 
 impl FieldFilterConfig {
     /// Create a new empty configuration
-    #[must_use]
     pub fn new() -> Self {
         Self {
             protected_fields: HashMap::new(),
@@ -154,7 +151,6 @@ impl FieldFilterConfig {
     ///
     /// Protected fields require a scope matching `{action}:{Type}.{field}`
     /// or a wildcard scope like `{action}:{Type}.*` or `{action}:*`.
-    #[must_use]
     pub fn protect_field(mut self, type_name: &str, field_name: &str) -> Self {
         self.protected_fields
             .entry(type_name.to_string())
@@ -164,7 +160,6 @@ impl FieldFilterConfig {
     }
 
     /// Mark multiple fields on a type as protected
-    #[must_use]
     pub fn protect_fields(mut self, type_name: &str, field_names: &[&str]) -> Self {
         let fields = self.protected_fields.entry(type_name.to_string()).or_default();
         for field_name in field_names {
@@ -174,7 +169,6 @@ impl FieldFilterConfig {
     }
 
     /// Protect all fields on a type (require explicit scopes for any field)
-    #[must_use]
     pub fn protect_type(mut self, type_name: &str) -> Self {
         // Use special "*" marker to indicate all fields are protected
         self.protected_fields
@@ -198,7 +192,6 @@ impl FieldFilterConfig {
     ///     .protect_field("User", "salary")
     ///     .require_scope("User", "salary", "hr:view_compensation");
     /// ```
-    #[must_use]
     pub fn require_scope(mut self, type_name: &str, field_name: &str, scope: &str) -> Self {
         let key = format!("{type_name}.{field_name}");
         self.explicit_scopes.insert(key, scope.to_string());
@@ -211,14 +204,12 @@ impl FieldFilterConfig {
     }
 
     /// Add an admin scope that bypasses all checks
-    #[must_use]
     pub fn add_admin_scope(mut self, scope: &str) -> Self {
         self.admin_scopes.insert(scope.to_string());
         self
     }
 
     /// Set the default action for scope patterns (default: "read")
-    #[must_use]
     pub fn with_default_action(mut self, action: &str) -> Self {
         self.default_action = action.to_string();
         self
@@ -247,13 +238,11 @@ pub struct FieldFilter {
 
 impl FieldFilter {
     /// Create a new field filter with the given configuration
-    #[must_use]
     pub const fn new(config: FieldFilterConfig) -> Self {
         Self { config }
     }
 
     /// Create a permissive filter that allows all access (for testing)
-    #[must_use]
     pub fn permissive() -> Self {
         Self {
             config: FieldFilterConfig::new(),
@@ -348,6 +337,7 @@ impl FieldFilter {
 ///
 /// This is typically used during schema compilation to build
 /// a filter based on `@requiresScope` directives.
+#[must_use = "call .build() to construct the final value"]
 #[derive(Debug, Default)]
 pub struct FieldFilterBuilder {
     config: FieldFilterConfig,
@@ -355,7 +345,6 @@ pub struct FieldFilterBuilder {
 
 impl FieldFilterBuilder {
     /// Create a new builder
-    #[must_use]
     pub fn new() -> Self {
         Self {
             config: FieldFilterConfig::new(),
