@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, MutationCapable},
+        traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -99,7 +99,7 @@ impl DatabaseAdapter for NoopAdapter {
     }
 }
 
-impl MutationCapable for NoopAdapter {}
+impl SupportsMutations for NoopAdapter {}
 
 // ---------------------------------------------------------------------------
 // Helpers

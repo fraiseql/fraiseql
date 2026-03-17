@@ -77,7 +77,8 @@ use super::{
 use crate::{
     cache::config::RlsEnforcement,
     db::{
-        DatabaseAdapter, DatabaseType, MutationCapable, PoolMetrics, WhereClause, types::JsonbValue,
+        DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
+        types::JsonbValue,
     },
     error::{FraiseQLError, Result},
     schema::CompiledSchema,
@@ -576,4 +577,4 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     }
 }
 
-impl<A: MutationCapable + Send + Sync> MutationCapable for CachedDatabaseAdapter<A> {}
+impl<A: SupportsMutations + Send + Sync> SupportsMutations for CachedDatabaseAdapter<A> {}

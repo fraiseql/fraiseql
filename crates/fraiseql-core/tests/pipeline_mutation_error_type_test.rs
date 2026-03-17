@@ -15,7 +15,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, MutationCapable},
+        traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -104,7 +104,7 @@ impl DatabaseAdapter for ErrorMockAdapter {
     }
 }
 
-impl MutationCapable for ErrorMockAdapter {}
+impl SupportsMutations for ErrorMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Error type mutation result population

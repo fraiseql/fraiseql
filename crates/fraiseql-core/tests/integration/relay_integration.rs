@@ -13,7 +13,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},
+        traits::{CursorValue, DatabaseAdapter, SupportsMutations, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -155,7 +155,7 @@ impl DatabaseAdapter for RelayMockAdapter {
     }
 }
 
-impl MutationCapable for RelayMockAdapter {}
+impl SupportsMutations for RelayMockAdapter {}
 
 impl RelayDatabaseAdapter for RelayMockAdapter {
     /// Keyset pagination with optional filter, sort, and totalCount.
@@ -750,7 +750,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
     }
 }
 
-impl MutationCapable for UuidRelayMockAdapter {}
+impl SupportsMutations for UuidRelayMockAdapter {}
 
 impl RelayDatabaseAdapter for UuidRelayMockAdapter {
     async fn execute_relay_page(

@@ -2,7 +2,7 @@
 
 use super::{Executor, resolve_inject_value};
 use crate::{
-    db::traits::{DatabaseAdapter, MutationCapable},
+    db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     runtime::{
         ResultProjector,
@@ -12,10 +12,10 @@ use crate::{
     security::SecurityContext,
 };
 
-/// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
+/// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
 ///
 /// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
-/// because `SqliteAdapter` does not implement the `MutationCapable` marker trait.
+/// because `SqliteAdapter` does not implement the `SupportsMutations` marker trait.
 ///
 /// ```compile_fail
 /// use fraiseql_core::runtime::Executor;
@@ -28,12 +28,12 @@ use crate::{
 ///     executor.execute_mutation("createUser", None).await.unwrap();
 /// }
 /// ```
-impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
+impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
     ///
     /// Unlike `execute()` (which accepts raw GraphQL strings and performs a runtime
     /// `supports_mutations()` check), this method is only available on adapters that
-    /// implement [`MutationCapable`].  The capability is enforced at **compile time**:
+    /// implement [`SupportsMutations`].  The capability is enforced at **compile time**:
     /// attempting to call this method with `SqliteAdapter` results in a compiler error.
     ///
     /// # Arguments
@@ -53,7 +53,7 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
-        // No runtime supports_mutations() check: the MutationCapable bound
+        // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
     }
@@ -94,7 +94,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: live database adapter with MutationCapable implementation.
+    /// // Requires: live database adapter with SupportsMutations implementation.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::db::postgres::PostgresAdapter;
     /// # use fraiseql_core::schema::CompiledSchema;

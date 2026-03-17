@@ -118,7 +118,7 @@ impl DatabaseAdapter for MockAdapter {
     }
 }
 
-impl MutationCapable for MockAdapter {}
+impl SupportsMutations for MockAdapter {}
 
 #[tokio::test]
 async fn test_cache_miss_then_hit() {

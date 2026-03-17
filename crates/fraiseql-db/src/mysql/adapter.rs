@@ -12,7 +12,7 @@ use crate::{
     dialect::MySqlDialect,
     identifier::quote_mysql_identifier,
     traits::{
-        CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+        CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
     },
     types::{
         DatabaseType, JsonbValue, PoolMetrics,
@@ -671,7 +671,7 @@ impl MySqlAdapter {
     }
 }
 
-impl MutationCapable for MySqlAdapter {}
+impl SupportsMutations for MySqlAdapter {}
 
 // ── RelayDatabaseAdapter ───────────────────────────────────────────────────
 

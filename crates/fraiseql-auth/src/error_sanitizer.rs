@@ -46,17 +46,25 @@ impl fmt::Display for SanitizedError {
 
 impl std::error::Error for SanitizedError {}
 
-/// Helper trait for creating sanitized errors from standard error types
-pub trait Sanitizable {
+/// Helper trait for creating sanitized errors from standard error types.
+///
+/// The method `.sanitized(msg)` converts any `Display` type into a [`SanitizedError`],
+/// keeping the original message for server-side logging while returning a safe message
+/// in the API response.
+pub trait Sanitize {
     /// Convert to a sanitized error
     fn sanitized(self, user_message: &str) -> SanitizedError;
 }
 
-impl<E: fmt::Display> Sanitizable for E {
+impl<E: fmt::Display> Sanitize for E {
     fn sanitized(self, user_message: &str) -> SanitizedError {
         SanitizedError::new(user_message, self.to_string())
     }
 }
+
+/// Deprecated alias — use [`Sanitize`] instead.
+#[deprecated(since = "2.2.0", note = "Use `Sanitize` instead")]
+pub trait Sanitizable: Sanitize {}
 
 /// Pre-defined error messages for common authentication scenarios
 pub mod messages {

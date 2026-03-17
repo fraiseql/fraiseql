@@ -11,7 +11,7 @@ use crate::{
     dialect::SqlServerDialect,
     identifier::quote_sqlserver_identifier,
     traits::{
-        CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+        CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
     },
     types::{
         DatabaseType, JsonbValue, PoolMetrics,
@@ -712,7 +712,7 @@ fn build_relay_where_sql(cursor_part: Option<&str>, user_part: Option<&str>) -> 
     }
 }
 
-impl MutationCapable for SqlServerAdapter {}
+impl SupportsMutations for SqlServerAdapter {}
 
 impl RelayDatabaseAdapter for SqlServerAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.

@@ -361,7 +361,7 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
 ///     .validate(token, &public_key)
 ///     .audit_log(AuditEventType::JwtValidation, SecretType::JwtToken, None, "validate")?;
 /// ```
-pub trait AuditableResult<T, E> {
+pub trait AuditExt<T, E> {
     /// Log success or failure of a result
     fn audit_log(
         self,
@@ -372,7 +372,11 @@ pub trait AuditableResult<T, E> {
     ) -> Result<T, E>;
 }
 
-impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
+/// Deprecated alias — use [`AuditExt`] instead.
+#[deprecated(since = "2.2.0", note = "Use `AuditExt` instead")]
+pub trait AuditableResult<T, E>: AuditExt<T, E> {}
+
+impl<T, E: std::fmt::Display> AuditExt<T, E> for Result<T, E> {
     fn audit_log(
         self,
         event_type: AuditEventType,

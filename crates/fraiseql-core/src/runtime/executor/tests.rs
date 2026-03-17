@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use super::*;
 use crate::{
-    db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
+    db::{SupportsMutations, types::JsonbValue, where_clause::WhereClause},
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
     schema::{AutoParams, CompiledSchema, QueryDefinition},
 };
@@ -110,7 +110,7 @@ impl DatabaseAdapter for MockAdapter {
     }
 }
 
-impl MutationCapable for MockAdapter {}
+impl SupportsMutations for MockAdapter {}
 
 /// Read-only adapter that returns false from supports_mutations() —
 /// used to test the runtime mutation guard in execute_mutation_query.
@@ -984,7 +984,7 @@ mod security {
     /// when other limits are turned off.
     #[test]
     fn test_alias_limit_enforced_when_depth_and_complexity_disabled() {
-        use crate::graphql::complexity::{RequestValidator, ValidationError};
+        use crate::graphql::complexity::{ComplexityValidationError, RequestValidator};
 
         let validator = RequestValidator::new()
             .with_depth_validation(false)
@@ -999,7 +999,7 @@ mod security {
         assert!(
             matches!(
                 err,
-                ValidationError::TooManyAliases {
+                ComplexityValidationError::TooManyAliases {
                     actual_aliases: 3,
                     ..
                 }

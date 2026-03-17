@@ -86,13 +86,13 @@ mod rate_limiting_tests;
 mod integration_security_tests;
 
 pub use audit_logger::{
-    AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
-    init_audit_logger,
+    AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
+    get_audit_logger, init_audit_logger,
 };
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
-    AuthErrorSanitizer, Sanitizable, SanitizedError, messages as error_messages,
+    AuthErrorSanitizer, Sanitize, SanitizedError, messages as error_messages,
 };
 pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,

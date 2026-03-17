@@ -1,4 +1,4 @@
-//! `DatabaseAdapter` and `MutationCapable` implementations for `PostgresAdapter`.
+//! `DatabaseAdapter` and `SupportsMutations` implementations for `PostgresAdapter`.
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
@@ -6,7 +6,7 @@ use tokio_postgres::Row;
 
 use super::{PostgresAdapter, build_where_select_sql};
 use crate::{
-    traits::{DatabaseAdapter, MutationCapable},
+    traits::{DatabaseAdapter, SupportsMutations},
     types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam, sql_hints::SqlProjectionHint},
     where_clause::WhereClause,
 };
@@ -304,4 +304,4 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 }
 
-impl MutationCapable for PostgresAdapter {}
+impl SupportsMutations for PostgresAdapter {}

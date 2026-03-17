@@ -25,7 +25,7 @@ use fraiseql_core::{
         QueryResultCache,
     },
     db::{
-        traits::{DatabaseAdapter, MutationCapable},
+        traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -122,7 +122,7 @@ impl DatabaseAdapter for InnerMockAdapter {
     }
 }
 
-impl MutationCapable for InnerMockAdapter {}
+impl SupportsMutations for InnerMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Helpers

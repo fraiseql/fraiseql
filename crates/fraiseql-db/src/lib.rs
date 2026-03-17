@@ -237,9 +237,10 @@ pub use projection_generator::{
 pub use sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::SqlServerAdapter;
+#[allow(deprecated)] // Reason: re-exporting deprecated alias for backwards compatibility
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+    MutationCapable, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,

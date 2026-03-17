@@ -25,7 +25,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, MutationCapable},
+        traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -149,7 +149,7 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
     }
 }
 
-impl MutationCapable for PerfTestDatabaseAdapter {}
+impl SupportsMutations for PerfTestDatabaseAdapter {}
 
 /// Create federation metadata for test entities
 fn create_test_metadata() -> FederationMetadata {

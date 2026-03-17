@@ -772,15 +772,17 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// Adapters that implement this trait signal that they can execute GraphQL mutations by
 /// calling stored database functions (e.g. `fn_create_user`, `fn_update_order`).
 ///
+/// Marker trait for database adapters that support stored-procedure mutations.
+///
 /// # Role: documentation, generic bound, and compile-time enforcement
 ///
 /// This trait serves three purposes:
 /// 1. **Documentation**: it makes write-capable adapters self-describing at the type level.
 /// 2. **Generic bounds**: code that only accepts write-capable adapters can constrain on `A:
-///    MutationCapable` (e.g., `CachedDatabaseAdapter<A: MutationCapable>`).
+///    SupportsMutations` (e.g., `CachedDatabaseAdapter<A: SupportsMutations>`).
 /// 3. **Compile-time enforcement**: `Executor<A>::execute_mutation()` is only available when `A:
-///    MutationCapable`. Attempting to call it with `SqliteAdapter` produces a compiler error
-///    (`error[E0277]: SqliteAdapter does not implement MutationCapable`).
+///    SupportsMutations`. Attempting to call it with `SqliteAdapter` produces a compiler error
+///    (`error[E0277]: SqliteAdapter does not implement SupportsMutations`).
 ///
 /// The `execute()` method (which accepts raw GraphQL strings) still performs a runtime
 /// `supports_mutations()` check because it cannot know the operation type at compile time.
@@ -795,8 +797,12 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// | `SqlServerAdapter` | ✅ Yes |
 /// | `SqliteAdapter` | ❌ No — SQLite does not support stored-function mutations |
 /// | `FraiseWireAdapter` | ❌ No — read-only wire protocol |
-/// | `CachedDatabaseAdapter<A>` | ✅ When `A: MutationCapable` |
-pub trait MutationCapable: DatabaseAdapter {}
+/// | `CachedDatabaseAdapter<A>` | ✅ When `A: SupportsMutations` |
+pub trait SupportsMutations: DatabaseAdapter {}
+
+/// Deprecated alias — use [`SupportsMutations`] instead.
+#[deprecated(since = "2.2.0", note = "Use `SupportsMutations` instead")]
+pub trait MutationCapable: SupportsMutations {}
 
 /// Type alias for boxed dynamic database adapters.
 ///
