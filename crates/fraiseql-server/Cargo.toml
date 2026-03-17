@@ -126,8 +126,6 @@ cors = []
 database = []
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
-# Note: `--no-default-features` currently fails to compile (some code paths are not yet gated).
-# Full `default = []` is a planned improvement (see roadmap.md).
 default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]

@@ -284,6 +284,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             });
         }
 
+        // Reason: state_encryption/pkce_store/oidc_server_client are only stored when
+        //         feature = "auth" is enabled; without it they are legitimately unused.
+        #[cfg(not(feature = "auth"))]
+        let _ = (state_encryption, pkce_store, oidc_server_client);
         Ok(Self {
             config,
             executor,

@@ -1,5 +1,6 @@
 // Allow list mirrors fraiseql-core — same code, same suppressions.
 // Reason: pedantic lints applied to existing federation module code.
+#![warn(missing_docs)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]

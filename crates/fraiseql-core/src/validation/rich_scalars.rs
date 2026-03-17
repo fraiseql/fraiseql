@@ -13,9 +13,9 @@ use crate::validation::patterns;
 static EMAIL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email regex is valid"));
 
-// International phone: +1-999-999-9999 or +999999999999, etc.
+// International phone: +1-999-999-9999 or +999999999999, etc. — lenient pattern from `patterns::PHONE_LENIENT`
 static PHONE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\+?[1-9]\d{1,14}$").expect("phone regex is valid"));
+    LazyLock::new(|| Regex::new(patterns::PHONE_LENIENT).expect("phone regex is valid"));
 
 // VIN: 17 alphanumeric characters (no I, O, Q)
 static VIN_REGEX: LazyLock<Regex> =

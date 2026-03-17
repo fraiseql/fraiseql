@@ -36,6 +36,8 @@
 //! provider endpoints) return **generic** descriptions in the HTTP response body.
 //! Raw error details are available only in structured server logs.
 
+#![warn(missing_docs)]
+
 mod auth;
 mod config;
 pub mod core_error;

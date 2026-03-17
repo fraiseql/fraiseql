@@ -24,12 +24,12 @@ pub type AsyncValidatorResult = Result<()>;
 static EMAIL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email format regex is valid"));
 
-/// E.164 phone number regex.
+/// E.164 phone number regex — canonical pattern from [`patterns::PHONE_E164`].
 ///
 /// Accepts `+` followed by a non-zero leading digit and 6–14 more digits
 /// (7–15 total digits after the `+`), covering all valid ITU-T E.164 numbers.
 static PHONE_E164_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\+[1-9]\d{6,14}$").expect("E.164 phone regex is valid"));
+    LazyLock::new(|| Regex::new(patterns::PHONE_E164).expect("E.164 phone regex is valid"));
 
 /// Provider types for async validators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
