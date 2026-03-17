@@ -28,6 +28,16 @@ doc = false
 name = "query_variables"
 path = "fuzz_targets/query_variables.rs"
 
+[[bin]]
+doc = false
+name = "complexity"
+path = "fuzz_targets/complexity.rs"
+
+[[bin]]
+doc = false
+name = "rate_limiter"
+path = "fuzz_targets/rate_limiter.rs"
+
 [dependencies]
 arbitrary = {version = "1", features = ["derive"]}
 libfuzzer-sys = "0.4"

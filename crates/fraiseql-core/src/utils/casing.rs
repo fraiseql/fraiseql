@@ -105,6 +105,7 @@ pub fn to_camel_case(s: &str) -> String {
 /// assert_eq!(normalize_field_path("user.createdAt"), "user.created_at");
 /// assert_eq!(normalize_field_path("device.sensor.currentValue"), "device.sensor.current_value");
 /// ```
+#[must_use]
 pub fn normalize_field_path(path: &str) -> String {
     if !path.contains('.') {
         return to_snake_case(path);

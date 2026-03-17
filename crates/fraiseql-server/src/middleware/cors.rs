@@ -38,9 +38,20 @@ pub fn cors_layer() -> CorsLayer {
 
 /// Create restricted CORS layer for production.
 ///
+/// Only the origins listed in `allowed_origins` will be accepted.
+/// An empty list blocks all cross-origin requests.
+///
 /// # Arguments
 ///
-/// * `allowed_origins` - List of allowed origin URLs
+/// * `allowed_origins` - Exact origin URLs that are permitted, e.g.
+///   `["https://app.example.com", "https://admin.example.com"]`.
+///
+/// # Example
+///
+/// ```text
+/// // Typically called from ServerConfig::cors_origins during server startup.
+/// let layer = cors_layer_restricted(vec!["https://app.example.com".to_string()]);
+/// ```
 #[must_use]
 pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
     let origins: Vec<_> = allowed_origins.iter().filter_map(|origin| origin.parse().ok()).collect();

@@ -170,6 +170,24 @@ mod tests {
     }
 
     #[test]
+    fn test_edge_cursor_i64_min_roundtrips() {
+        // Guards the sign-flip mutation: decode(encode(i64::MIN)) must equal i64::MIN.
+        let cursor = encode_edge_cursor(i64::MIN);
+        assert_eq!(
+            decode_edge_cursor(&cursor),
+            Some(i64::MIN),
+            "i64::MIN must roundtrip through encode/decode"
+        );
+    }
+
+    #[test]
+    fn test_edge_cursor_negative_max_roundtrips() {
+        // Guards -(i64::MAX): distinct from i64::MIN, covers the full negative range.
+        let cursor = encode_edge_cursor(-i64::MAX);
+        assert_eq!(decode_edge_cursor(&cursor), Some(-i64::MAX));
+    }
+
+    #[test]
     fn test_edge_cursor_invalid() {
         assert_eq!(decode_edge_cursor("!!!not-base64"), None);
         assert_eq!(decode_edge_cursor(""), None);
