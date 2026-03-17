@@ -1,0 +1,9 @@
+[fraiseql]
+name = "fraiseql-e2e-test"
+version = "1.0.0"
+
+[fraiseql.database]
+url_env = "FRAISEQL_TEST_DATABASE_URL"
+
+[fraiseql.server]
+port = 17843

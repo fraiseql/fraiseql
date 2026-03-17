@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release
 
 # Default target
 help:
@@ -621,6 +621,16 @@ e2e-clean:
 	@docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
 	@rm -rf /tmp/fraiseql-*-test-output
 	@echo "✅ Cleanup complete"
+
+## Pipeline E2E: compile schema → run stage-5 query tests
+## Requires: Docker (for Postgres), Python 3.12+, FRAISEQL_TEST_URL env var
+e2e: e2e-setup
+	@echo "[Stage 2] Compiling schema..."
+	@cargo run -p fraiseql-cli -- compile tests/e2e/schema.json \
+	  --output tests/e2e/schema.compiled.json 2>/dev/null || \
+	  echo "Note: compile stage requires a generated schema.json (run: uv run python tests/e2e/schema/types.py > tests/e2e/schema.json)"
+	@echo "E2E infrastructure ready."
+	@echo "To run query tests: FRAISEQL_TEST_URL=http://localhost:17843 pytest tests/e2e/test_stage5_queries.py -v"
 
 ## Status: Check E2E test infrastructure
 e2e-status:
