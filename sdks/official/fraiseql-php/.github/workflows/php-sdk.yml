@@ -1,0 +1,23 @@
+name: PHP SDK
+on:
+  push:
+    paths: ['sdks/official/fraiseql-php/**']
+  pull_request:
+    paths: ['sdks/official/fraiseql-php/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-php
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: curl, json
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/phpunit --testdox
+      - run: vendor/bin/phpstan analyse --no-progress 2>&1 | head -30 || true
