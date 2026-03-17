@@ -346,7 +346,7 @@ fn test_minimal_validator() {
 /// Test error from validation error variant
 #[test]
 fn test_validation_error_conversion() {
-    let error = fraiseql_server::ValidationError::QueryTooDeep {
+    let error = fraiseql_server::ComplexityValidationError::QueryTooDeep {
         max_depth:    10,
         actual_depth: 15,
     };

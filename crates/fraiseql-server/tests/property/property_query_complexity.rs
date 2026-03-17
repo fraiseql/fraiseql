@@ -4,7 +4,7 @@
 //! strings must always fail, and relaxing the limit must never turn a passing
 //! query into a failing one.
 
-use fraiseql_server::validation::{RequestValidator, ValidationError};
+use fraiseql_server::validation::{ComplexityValidationError, RequestValidator};
 use proptest::prelude::*;
 
 /// Build a minimal valid validator with both checks enabled.
@@ -31,7 +31,7 @@ proptest! {
         let validator = RequestValidator::new();
         let result = validator.validate_query(&ws);
         prop_assert!(
-            matches!(result, Err(ValidationError::MalformedQuery(_))),
+            matches!(result, Err(ComplexityValidationError::MalformedQuery(_))),
             "expected MalformedQuery for whitespace-only input, got: {result:?}"
         );
     }

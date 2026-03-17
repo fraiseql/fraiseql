@@ -395,6 +395,7 @@ impl SearchBackend for HttpSearchBackend {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assertions_on_constants)] // Reason: test code
 mod tests {
     use super::*;
 

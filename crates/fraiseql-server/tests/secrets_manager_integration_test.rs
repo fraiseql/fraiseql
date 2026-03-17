@@ -76,7 +76,7 @@ async fn test_vault_backend_approle_initialization() {
         addr:       "http://127.0.0.1:8200".to_string(),
         auth:       VaultAuth::AppRole {
             role_id:   "test-role-id".to_string(),
-            secret_id: "test-secret-id".to_string(),
+            secret_id: "test-secret-id".to_string().into(),
         },
         namespace:  None,
         tls_verify: true,

@@ -26,7 +26,7 @@
 
 use fraiseql_server::{
     routes::graphql::GraphQLRequest,
-    validation::{RequestValidator, ValidationError},
+    validation::{ComplexityValidationError, RequestValidator},
 };
 
 /// Helper function to create a validator with standard profile limits
@@ -97,7 +97,7 @@ fn test_standard_profile_rejects_excessive_depth() {
 
     let result = validator.validate_query(excessive_query);
     match result {
-        Err(ValidationError::QueryTooDeep {
+        Err(ComplexityValidationError::QueryTooDeep {
             max_depth,
             actual_depth,
         }) => {
@@ -119,7 +119,7 @@ fn test_regulated_profile_rejects_deep_queries() {
 
     let result = validator.validate_query(deep_query);
     match result {
-        Err(ValidationError::QueryTooDeep {
+        Err(ComplexityValidationError::QueryTooDeep {
             max_depth,
             actual_depth,
         }) => {
@@ -174,7 +174,7 @@ fn test_restricted_profile_max_depth_enforcement() {
     // Query with depth 6 should fail
     let over_limit = "{ a { b { c { d { e { f } } } } } }";
     assert!(
-        matches!(validator.validate_query(over_limit), Err(ValidationError::QueryTooDeep { .. })),
+        matches!(validator.validate_query(over_limit), Err(ComplexityValidationError::QueryTooDeep { .. })),
         "RESTRICTED profile should reject depth 6 with QueryTooDeep"
     );
 }
@@ -337,7 +337,7 @@ fn test_error_message_contains_profile_limits() {
 
     let result = validator.validate_query(excessive_depth);
     match result {
-        Err(ValidationError::QueryTooDeep {
+        Err(ComplexityValidationError::QueryTooDeep {
             max_depth,
             actual_depth,
         }) => {
@@ -378,7 +378,7 @@ fn test_multiple_validators_independent() {
 
     // Should fail with strict (RESTRICTED)
     assert!(
-        matches!(strict.validate_query(moderate_query), Err(ValidationError::QueryTooDeep { .. })),
+        matches!(strict.validate_query(moderate_query), Err(ComplexityValidationError::QueryTooDeep { .. })),
         "RESTRICTED profile should reject moderate query with QueryTooDeep"
     );
 }

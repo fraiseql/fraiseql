@@ -1,4 +1,5 @@
-//! Integration tests for CLI help documentation — in-process via assert_cmd.
+//! Integration tests for CLI help documentation — in-process via `assert_cmd`.
+#![allow(clippy::unwrap_used)] // Reason: test predicates use .unwrap() for regex construction; panic is acceptable in tests
 
 use assert_cmd::Command;
 use predicates::prelude::*;

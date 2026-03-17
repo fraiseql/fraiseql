@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl fraiseql_arrow::db::DatabaseAdapter for TestFlightAdapter {
+    impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
         async fn execute_raw_query(
             &self,
             sql: &str,
@@ -224,9 +224,9 @@ mod tests {
     /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
     async fn create_flight_adapter(
         conn_string: &str,
-    ) -> Result<Arc<dyn fraiseql_arrow::db::DatabaseAdapter>, Box<dyn std::error::Error>> {
+    ) -> Result<Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter>, Box<dyn std::error::Error>> {
         let pg_adapter = fraiseql_core::db::PostgresAdapter::new(conn_string).await?;
-        let adapter: Arc<dyn fraiseql_arrow::db::DatabaseAdapter> =
+        let adapter: Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter> =
             Arc::new(TestFlightAdapter { inner: pg_adapter });
         Ok(adapter)
     }

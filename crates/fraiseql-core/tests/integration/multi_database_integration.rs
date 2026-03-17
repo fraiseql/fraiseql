@@ -1109,11 +1109,11 @@ mod mysql_advanced_tests {
             .expect("ROW_NUMBER() must succeed on MySQL 8+");
         assert_eq!(results.len(), 8);
         // Each row has a unique row_num
-        let row_nums: Vec<u64> = results
+        let row_nums_count = results
             .iter()
-            .filter_map(|r| r.get("row_num").and_then(|v| v.as_u64()))
-            .collect();
-        assert_eq!(row_nums.len(), 8, "all rows must have row_num");
+            .filter(|r| r.get("row_num").and_then(|v| v.as_u64()).is_some())
+            .count();
+        assert_eq!(row_nums_count, 8, "all rows must have row_num");
     }
 
     /// CTE (WITH clause) is supported on MySQL 8+.

@@ -10,7 +10,7 @@
 #![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use fraiseql_arrow::db::DatabaseAdapter as ArrowDatabaseAdapter;
+use fraiseql_arrow::ArrowDatabaseAdapter;
 use fraiseql_core::db::DatabaseAdapter;
 use sqlx::postgres::PgPoolOptions;
 
@@ -20,7 +20,7 @@ struct BenchFlightAdapter {
 }
 
 #[async_trait::async_trait]
-impl fraiseql_arrow::db::DatabaseAdapter for BenchFlightAdapter {
+impl fraiseql_arrow::ArrowDatabaseAdapter for BenchFlightAdapter {
     async fn execute_raw_query(
         &self,
         sql: &str,
