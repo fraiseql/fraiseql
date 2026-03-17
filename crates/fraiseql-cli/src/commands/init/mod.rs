@@ -17,6 +17,7 @@ use tracing::info;
 
 /// Supported authoring languages
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Language {
     /// Python authoring (default)
     Python,
@@ -100,6 +101,7 @@ impl FromStr for Language {
 
 /// Supported databases
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Database {
     /// PostgreSQL (primary)
     Postgres,
@@ -161,6 +163,7 @@ impl Database {
 
 /// Project size determines directory granularity
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProjectSize {
     /// Single `schema.sql` file
     Xs,
@@ -198,6 +201,11 @@ pub struct InitConfig {
 }
 
 /// Run the init command
+///
+/// # Errors
+///
+/// Returns an error if the target directory already exists, if any file or
+/// directory creation fails, or if the language skeleton cannot be written.
 pub fn run(config: &InitConfig) -> Result<()> {
     let project_dir = PathBuf::from(&config.project_name);
 

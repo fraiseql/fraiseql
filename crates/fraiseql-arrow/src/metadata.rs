@@ -270,7 +270,12 @@ impl SchemaRegistry {
     ///
     /// # Returns
     ///
-    /// Ok(count) with number of successfully reloaded schemas
+    /// `Ok(count)` with the number of successfully reloaded schemas.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible and always returns `Ok`. Individual
+    /// view reload failures are logged as warnings but do not propagate.
     pub async fn reload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
         use tracing::warn;
 
@@ -414,6 +419,12 @@ impl SchemaRegistry {
     ///
     /// This method attempts to discover views by name pattern. If discovery fails,
     /// fallback to hardcoded defaults. Falls back gracefully on any database errors.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible. Individual view query failures are
+    /// logged at debug level and skipped; default schemas are registered as a
+    /// fallback if no views could be preloaded.
     pub async fn preload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
         use tracing::info;
 

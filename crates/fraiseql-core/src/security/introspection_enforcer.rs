@@ -43,6 +43,7 @@ use crate::security::errors::{Result, SecurityError};
 ///
 /// Defines what level of introspection is allowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum IntrospectionPolicy {
     /// Introspection queries are allowed for all clients
     Allowed,
@@ -153,18 +154,22 @@ impl IntrospectionEnforcer {
         Self::new(IntrospectionPolicy::InternalOnly)
     }
 
-    /// Validate whether an introspection query is allowed
+    /// Validate whether an introspection query is allowed.
     ///
     /// Performs 3 validation checks:
     /// 1. Detect if query is an introspection query
     /// 2. Check user authentication (if required by policy)
     /// 3. Apply policy enforcement
     ///
-    /// Returns Ok(()) if query is allowed, Err if blocked.
-    ///
     /// # Arguments
     /// * `query` - The GraphQL query string to validate
     /// * `authenticated_user_id` - Optional user ID (None = anonymous, Some(id) = authenticated)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecurityError::IntrospectionDisabled`] if the query is an
+    /// introspection query and the active policy disallows it (either globally
+    /// disabled or requiring authentication when the user is anonymous).
     pub fn validate_query(&self, query: &str, authenticated_user_id: Option<&str>) -> Result<()> {
         // Check 1: Detect introspection patterns
         let is_introspection = self.is_introspection_query(query);

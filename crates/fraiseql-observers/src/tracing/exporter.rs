@@ -41,6 +41,11 @@ impl JaegerConfig {
     }
 
     /// Validate Jaeger configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Tracing`] if the endpoint or service name is empty,
+    /// the sample rate is outside `0.0..=1.0`, or `max_batch_size` is 0.
     pub fn validate(&self) -> Result<()> {
         if self.endpoint.is_empty() {
             return Err(Error::Tracing("Jaeger endpoint cannot be empty".to_string()));

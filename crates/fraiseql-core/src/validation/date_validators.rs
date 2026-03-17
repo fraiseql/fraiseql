@@ -122,6 +122,11 @@ fn days_between(left: (u32, u32, u32), right: (u32, u32, u32)) -> i64 {
 }
 
 /// Validate that a date is >= minimum date.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if either date string is not valid
+/// ISO 8601 (YYYY-MM-DD) or if `date_str` is earlier than `min_date_str`.
 pub fn validate_min_date(date_str: &str, min_date_str: &str) -> Result<()> {
     let date = parse_date(date_str)?;
     let min_date = parse_date(min_date_str)?;
@@ -137,6 +142,11 @@ pub fn validate_min_date(date_str: &str, min_date_str: &str) -> Result<()> {
 }
 
 /// Validate that a date is <= maximum date.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if either date string is not valid
+/// ISO 8601 (YYYY-MM-DD) or if `date_str` is later than `max_date_str`.
 pub fn validate_max_date(date_str: &str, max_date_str: &str) -> Result<()> {
     let date = parse_date(date_str)?;
     let max_date = parse_date(max_date_str)?;
@@ -152,6 +162,11 @@ pub fn validate_max_date(date_str: &str, max_date_str: &str) -> Result<()> {
 }
 
 /// Validate that a date is within a range (inclusive).
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if any date string is invalid, if
+/// `date_str` is before `min_date_str`, or if `date_str` is after `max_date_str`.
 pub fn validate_date_range(date_str: &str, min_date_str: &str, max_date_str: &str) -> Result<()> {
     validate_min_date(date_str, min_date_str)?;
     validate_max_date(date_str, max_date_str)?;
@@ -159,6 +174,11 @@ pub fn validate_date_range(date_str: &str, min_date_str: &str, max_date_str: &st
 }
 
 /// Validate that a person is at least min_age years old.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `date_str` is not valid ISO 8601
+/// (YYYY-MM-DD) or if the calculated age is less than `min_age`.
 pub fn validate_min_age(date_str: &str, min_age: u32) -> Result<()> {
     let birth_date = parse_date(date_str)?;
     let today = get_today();
@@ -180,6 +200,11 @@ pub fn validate_min_age(date_str: &str, min_age: u32) -> Result<()> {
 }
 
 /// Validate that a person is at most max_age years old.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `date_str` is not valid ISO 8601
+/// (YYYY-MM-DD) or if the calculated age exceeds `max_age`.
 pub fn validate_max_age(date_str: &str, max_age: u32) -> Result<()> {
     let birth_date = parse_date(date_str)?;
     let today = get_today();
@@ -201,6 +226,11 @@ pub fn validate_max_age(date_str: &str, max_age: u32) -> Result<()> {
 }
 
 /// Validate that a date is not more than max_days in the future.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `date_str` is not valid ISO 8601
+/// (YYYY-MM-DD) or if the date is more than `max_days` days in the future.
 pub fn validate_max_days_in_future(date_str: &str, max_days: i64) -> Result<()> {
     let date = parse_date(date_str)?;
     let today = get_today();
@@ -220,6 +250,11 @@ pub fn validate_max_days_in_future(date_str: &str, max_days: i64) -> Result<()> 
 }
 
 /// Validate that a date is not more than max_days in the past.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `date_str` is not valid ISO 8601
+/// (YYYY-MM-DD) or if the date is more than `max_days` days in the past.
 pub fn validate_max_days_in_past(date_str: &str, max_days: i64) -> Result<()> {
     let date = parse_date(date_str)?;
     let today = get_today();

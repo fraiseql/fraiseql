@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 __all__ = [
+    "CompiledSchema",
+    "Federation",
+    "Schema",
     "config",
     "export_schema",
     "export_types",
     "get_schema_dict",
-    "Schema",
-    "CompiledSchema",
-    "Federation",
 ]
 
 import json

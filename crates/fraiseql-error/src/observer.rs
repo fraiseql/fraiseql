@@ -4,6 +4,7 @@
 /// observer errors with structured OB-codes (used in logging and retry
 /// decisions), see `fraiseql_observers::ObserverError`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ObserverError {
     /// The observer's trigger condition expression could not be parsed or
     /// evaluated.

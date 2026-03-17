@@ -5,6 +5,7 @@
 /// errors, see `fraiseql_auth::AuthError`. For wire-protocol SCRAM errors,
 /// see `fraiseql_wire::auth::AuthError`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AuthError {
     /// The supplied username/password (or API key) did not match any account.
     #[error("Invalid credentials")]

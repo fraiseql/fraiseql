@@ -36,7 +36,7 @@ interface FederationMetadata {
   provides_data: string[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic class property access required for legacy decorator metadata storage
 function getOrInitMeta(cls: any): FederationMetadata {
   if (!cls.__fraiseqlFederation__) {
     cls.__fraiseqlFederation__ = {
@@ -59,13 +59,13 @@ function getOrInitMeta(cls: any): FederationMetadata {
  * Falls back to federation metadata for any decorated fields that may not
  * appear in a plain instantiation.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic class instantiation for field discovery
 function getClassFields(cls: any): Set<string> {
   const fields = new Set<string>();
 
   // ES2022 class field instantiation
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- instantiating unknown class constructor
     const instance = new (cls as new () => any)();
     for (const key of Object.keys(instance)) {
       fields.add(key);
@@ -101,11 +101,11 @@ function getClassFields(cls: any): Set<string> {
  * @throws If the same field is declared as a key more than once
  */
 export function Key(field: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy class decorator signature
   return function (cls: any): any {
     const meta = getOrInitMeta(cls);
     if (meta.keys.some((k) => k.fields.includes(field))) {
-      throw new Error(`Duplicate key field '${field}' on type ${cls.name as string}`);
+      throw new Error(`Duplicate key field '${field}' on type ${cls.name}`);
     }
     meta.keys.push({ fields: [field] });
     return cls;
@@ -121,11 +121,11 @@ export function Key(field: string) {
  * @throws If @Key decorator has not been applied to the class
  */
 export function Extends() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy class decorator signature
   return function (cls: any): any {
     const meta = getOrInitMeta(cls);
     if (meta.keys.length === 0) {
-      throw new Error(`@Extends requires @Key decorator on type ${cls.name as string}`);
+      throw new Error(`@Extends requires @Key decorator on type ${cls.name}`);
     }
     meta.extend = true;
     return cls;
@@ -141,7 +141,7 @@ export function Extends() {
  */
 export function External() {
   return function (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
     target: any,
     key: string,
     descriptor?: PropertyDescriptor
@@ -164,7 +164,7 @@ export function External() {
  * @param field - Name of the required field
  */
 export function Requires(field: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
   return function (target: any, key: string): void {
     const meta = getOrInitMeta(target.constructor);
     meta.requires[key] = field;
@@ -177,7 +177,7 @@ export function Requires(field: string) {
  * @param targets - One or more "TypeName.fieldName" strings
  */
 export function Provides(...targets: string[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
   return function (target: any, key: string): void {
     const meta = getOrInitMeta(target.constructor);
     meta.provides[key] = (meta.provides[key] ?? []).concat(targets);
@@ -196,15 +196,28 @@ export function Provides(...targets: string[]) {
  * @param types - Array of class constructors decorated with @Type and federation decorators
  * @returns Schema object compatible with schema.json, augmented with federation metadata
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function generateSchemaJson(types: any[]): any {
+/** Opaque type for class constructors passed to federation functions. */
+type FederatedClass = { name: string; __fraiseqlFederation__?: FederationMetadata };
+
+export function generateSchemaJson(types: FederatedClass[]): Record<string, unknown> {
   const { SchemaRegistry: Registry } = require("./registry") as {
     SchemaRegistry: typeof import("./registry").SchemaRegistry;
   };
   const base = Registry.getSchema();
 
+  /** Per-field federation overlay attached to each field in the output. */
+  interface FieldFederation {
+    external?: true;
+    requires?: string;
+    provides?: string[];
+  }
+
+  /** Merged field shape: base Field (registered) or bare name entry (class-instantiated only). */
+  type MergedField =
+    | import("./registry").Field
+    | (Partial<import("./registry").Field> & { name: string; federation?: FieldFederation });
+
   // Build a lookup: class name → federation metadata
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fedByName = new Map<string, FederationMetadata>();
   for (const cls of types) {
     const meta: FederationMetadata = cls.__fraiseqlFederation__ ?? {
@@ -215,7 +228,7 @@ export function generateSchemaJson(types: any[]): any {
       provides: {},
       provides_data: [],
     };
-    fedByName.set(cls.name as string, meta);
+    fedByName.set(cls.name, meta);
   }
 
   // Augment each type from the registry with federation metadata.
@@ -227,16 +240,13 @@ export function generateSchemaJson(types: any[]): any {
     if (!meta) return typeDef;
 
     // All field names known to this type (registered + class-instantiated)
-    const cls = types.find((c) => (c.name as string) === typeDef.name);
+    const cls = types.find((c) => c.name === typeDef.name);
     const allFieldNames = getClassFields(cls);
 
     // Start from registered fields (have full type info)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const registeredNames = new Set(typeDef.fields.map((f) => f.name));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mergedFields: any[] = typeDef.fields.map((f) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fieldFed: Record<string, any> = {};
+    const mergedFields: MergedField[] = typeDef.fields.map((f) => {
+      const fieldFed: FieldFederation = {};
       if (meta.external_fields.includes(f.name)) fieldFed.external = true;
       if (meta.requires[f.name] !== undefined) fieldFed.requires = meta.requires[f.name];
       if (meta.provides[f.name] !== undefined) fieldFed.provides = meta.provides[f.name];
@@ -247,14 +257,12 @@ export function generateSchemaJson(types: any[]): any {
     // Append fields found via class instantiation that weren't explicitly registered
     for (const fieldName of allFieldNames) {
       if (registeredNames.has(fieldName)) continue;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fieldFed: Record<string, any> = {};
+      const fieldFed: FieldFederation = {};
       if (meta.external_fields.includes(fieldName)) fieldFed.external = true;
       if (meta.requires[fieldName] !== undefined) fieldFed.requires = meta.requires[fieldName];
       if (meta.provides[fieldName] !== undefined) fieldFed.provides = meta.provides[fieldName];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const entry: Record<string, any> = { name: fieldName };
-      if (Object.keys(fieldFed).length > 0) entry.federation = fieldFed;
+      const entry: MergedField = { name: fieldName };
+      if (Object.keys(fieldFed).length > 0) (entry as { name: string; federation?: FieldFederation }).federation = fieldFed;
       mergedFields.push(entry);
     }
 
@@ -288,8 +296,7 @@ export function generateSchemaJson(types: any[]): any {
  * @param types - Array of class constructors to validate
  * @throws If any federation constraint is violated
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function validateFederation(types: any[]): void {
+export function validateFederation(types: FederatedClass[]): void {
   // Import here to avoid circular dependency
   const { SchemaRegistry: Registry } = require("./registry") as {
     SchemaRegistry: typeof import("./registry").SchemaRegistry;
@@ -304,8 +311,8 @@ export function validateFederation(types: any[]): void {
     if (keys.length > 0) {
       // @Key requires @Type
       const schema = Registry.getSchema();
-      if (!schema.types.some((t) => t.name === (cls.name as string))) {
-        throw new Error(`@Key requires @Type decorator on class ${cls.name as string}`);
+      if (!schema.types.some((t) => t.name === (cls.name))) {
+        throw new Error(`@Key requires @Type decorator on class ${cls.name}`);
       }
 
       // Key fields must exist on the class
@@ -313,7 +320,7 @@ export function validateFederation(types: any[]): void {
         for (const field of key.fields) {
           if (!allFields.has(field)) {
             throw new Error(
-              `Field '${field}' not found on type ${cls.name as string}`
+              `Field '${field}' not found on type ${cls.name}`
             );
           }
         }
@@ -322,14 +329,14 @@ export function validateFederation(types: any[]): void {
 
     // @External requires @Extends
     if ((meta?.external_fields?.length ?? 0) > 0 && !(meta?.extend)) {
-      throw new Error(`@external requires @extends on type ${cls.name as string}`);
+      throw new Error(`@external requires @extends on type ${cls.name}`);
     }
 
     // @Requires target fields must exist
     for (const requiredField of Object.values(meta?.requires ?? {})) {
       if (!allFields.has(requiredField)) {
         throw new Error(
-          `Field '${requiredField}' not found on type ${cls.name as string}`
+          `Field '${requiredField}' not found on type ${cls.name}`
         );
       }
     }

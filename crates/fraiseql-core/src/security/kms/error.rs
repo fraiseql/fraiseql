@@ -4,6 +4,7 @@ use std::fmt;
 
 /// KMS operation errors.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum KmsError {
     /// Key not found in KMS provider
     KeyNotFound {

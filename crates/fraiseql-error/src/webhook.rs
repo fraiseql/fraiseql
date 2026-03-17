@@ -1,5 +1,6 @@
 /// Errors that occur while receiving and validating inbound webhook requests.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum WebhookError {
     /// The HMAC signature on the webhook payload does not match the expected
     /// value for the shared secret.

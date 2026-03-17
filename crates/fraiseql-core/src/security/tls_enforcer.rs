@@ -59,6 +59,7 @@ use crate::security::errors::{Result, SecurityError};
 ///
 /// Represents the version of TLS/SSL used for the connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TlsVersion {
     /// TLS 1.0 (deprecated, insecure)
     V1_0,
@@ -231,7 +232,7 @@ impl TlsEnforcer {
         Self::from_config(TlsConfig::strict())
     }
 
-    /// Validate a TLS connection against the enforcer's configuration
+    /// Validate a TLS connection against the enforcer's configuration.
     ///
     /// Performs 4 validation checks in order:
     /// 1. HTTPS requirement (if tls_required=true, reject HTTP)
@@ -239,7 +240,12 @@ impl TlsEnforcer {
     /// 3. mTLS requirement (if mtls_required=true, require client cert)
     /// 4. Client cert validity (if client cert present, it must be valid)
     ///
-    /// Returns Ok(()) if all checks pass, Err(TlsError) if any fail.
+    /// # Errors
+    ///
+    /// Returns [`SecurityError::TlsRequired`] if the connection is HTTP but TLS is required.
+    /// Returns [`SecurityError::TlsVersionTooOld`] if the TLS version is below `min_version`.
+    /// Returns [`SecurityError::MtlsRequired`] if mTLS is required but no client cert is present.
+    /// Returns [`SecurityError::InvalidClientCert`] if a client cert is present but invalid.
     pub fn validate_connection(&self, conn: &TlsConnection) -> Result<()> {
         // Check 1: HTTPS requirement
         if self.config.tls_required && !conn.is_secure {

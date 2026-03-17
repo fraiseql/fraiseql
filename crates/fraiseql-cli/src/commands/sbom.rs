@@ -11,6 +11,7 @@ use tracing::info;
 
 /// Output format for SBOM
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SbomFormat {
     /// CycloneDX JSON format (default)
     CycloneDx,
@@ -54,6 +55,11 @@ struct CargoLock {
 }
 
 /// Run the SBOM command
+///
+/// # Errors
+///
+/// Returns an error if `Cargo.lock` cannot be found or parsed, if SBOM
+/// serialization fails, or if the output file cannot be written.
 pub fn run(format: SbomFormat, output: Option<&str>) -> Result<()> {
     info!("Generating SBOM in {format} format");
 

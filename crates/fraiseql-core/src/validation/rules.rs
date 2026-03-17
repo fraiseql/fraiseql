@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Multiple rules can be combined on a single field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
+#[non_exhaustive]
 pub enum ValidationRule {
     /// Field is required (non-null) and must have a value.
     #[serde(rename = "required")]

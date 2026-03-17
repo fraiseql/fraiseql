@@ -72,6 +72,7 @@ pub mod bounds {
 /// String representations (via [`AuditEventType::as_str`]) are stable across releases
 /// and are the values written to log sinks and compliance audit trails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AuditEventType {
     /// A JWT was checked for validity (signature, expiry, claims).
     JwtValidation,
@@ -131,6 +132,7 @@ impl AuditEventType {
 /// security event.  This enables compliance queries such as "show all events
 /// involving client secrets" or "which refresh tokens were revoked today".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SecretType {
     /// A JWT access token (short-lived bearer credential).
     JwtToken,
@@ -400,7 +402,7 @@ impl<T, E: std::fmt::Display> AuditExt<T, E> for Result<T, E> {
 mod tests {
     use std::sync::Mutex;
 
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

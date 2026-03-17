@@ -106,7 +106,7 @@ impl DimensionRateLimiter {
     }
 
     fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
-        #[allow(clippy::expect_used)]
+        #[allow(clippy::expect_used)]  // Reason: invariant holds at this point; panic would indicate a logic error
         // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant.
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
             .expect("MAX_RATE_LIMITER_ENTRIES must be > 0");
@@ -218,27 +218,52 @@ impl ValidationRateLimiter {
         }
     }
 
-    /// Check rate limit for validation errors
+    /// Check rate limit for validation errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::RateLimited`] if the key has exceeded the
+    /// validation-errors rate limit within the configured window.
     pub fn check_validation_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.validation_errors.check(key)
     }
 
-    /// Check rate limit for depth errors
+    /// Check rate limit for depth errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::RateLimited`] if the key has exceeded the
+    /// depth-errors rate limit within the configured window.
     pub fn check_depth_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.depth_errors.check(key)
     }
 
-    /// Check rate limit for complexity errors
+    /// Check rate limit for complexity errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::RateLimited`] if the key has exceeded the
+    /// complexity-errors rate limit within the configured window.
     pub fn check_complexity_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.complexity_errors.check(key)
     }
 
-    /// Check rate limit for malformed errors
+    /// Check rate limit for malformed errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::RateLimited`] if the key has exceeded the
+    /// malformed-errors rate limit within the configured window.
     pub fn check_malformed_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.malformed_errors.check(key)
     }
 
-    /// Check rate limit for async validation errors
+    /// Check rate limit for async validation errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::RateLimited`] if the key has exceeded the
+    /// async-validation-errors rate limit within the configured window.
     pub fn check_async_validation_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.async_validation_errors.check(key)
     }

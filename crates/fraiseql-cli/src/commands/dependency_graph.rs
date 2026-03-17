@@ -15,6 +15,7 @@ use crate::output::CommandResult;
 
 /// Export format for dependency graph
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum GraphFormat {
     /// JSON format (machine-readable, default)
     #[default]
@@ -155,6 +156,12 @@ pub struct GraphStats {
 }
 
 /// Run the dependency graph command
+///
+/// # Errors
+///
+/// Returns an error if the schema file cannot be read or cannot be deserialized
+/// as a `CompiledSchema`. Also propagates JSON serialization errors for the
+/// selected output format.
 pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     // Load and parse schema
     let schema_content = fs::read_to_string(schema_path)?;
@@ -254,7 +261,7 @@ fn build_output(
 
     // Calculate stats
     let total_deps: usize = nodes.iter().map(|n| n.dependency_count).sum();
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
     // Reason: schema type counts won't exceed f64 mantissa precision
     let avg_deps = if nodes.is_empty() {
         0.0

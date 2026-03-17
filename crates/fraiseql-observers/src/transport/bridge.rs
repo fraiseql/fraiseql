@@ -185,6 +185,11 @@ pub struct ChangeLogEntry {
 
 impl ChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `modification_type` is not one
+    /// of `INSERT`, `UPDATE`, or `DELETE`.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -331,7 +336,7 @@ impl PostgresNatsBridge {
     /// - Bridge restarted mid-run
     /// - Multiple publishers existed in the past
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<ChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<ChangeLogEntry> = sqlx::query_as(
             r"
@@ -388,6 +393,11 @@ impl PostgresNatsBridge {
     /// 3. Save cursor checkpoint
     /// 4. Wait for NOTIFY or timeout
     /// 5. Repeat
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::ListenerConnectionFailed`] if the PostgreSQL LISTEN
+    /// connection cannot be established. Propagates database or NATS publish errors.
     pub async fn run(&self) -> Result<()> {
         info!("Starting PostgreSQL → NATS bridge: {}", self.config.transport_name);
 

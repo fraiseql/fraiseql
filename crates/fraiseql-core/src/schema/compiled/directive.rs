@@ -110,6 +110,7 @@ impl DirectiveDefinition {
 /// - Type system locations (schema definitions)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum DirectiveLocationKind {
     // Executable directive locations
     /// Directive on query operation.

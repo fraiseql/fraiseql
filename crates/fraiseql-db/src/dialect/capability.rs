@@ -27,6 +27,7 @@ use crate::types::DatabaseType;
 
 /// A database feature that may not be supported on all dialects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Feature {
     /// JSONB path expressions (`metadata->>'key'`, `@>`, `?`, etc.)
     JsonbPathOps,

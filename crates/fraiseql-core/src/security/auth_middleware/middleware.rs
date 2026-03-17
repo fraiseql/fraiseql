@@ -53,7 +53,7 @@ impl AuthMiddleware {
         Self::from_config(AuthConfig::strict())
     }
 
-    /// Validate authentication in a request
+    /// Validate authentication in a request.
     ///
     /// Performs validation checks in order:
     /// 1. Extract token from Authorization header
@@ -63,7 +63,12 @@ impl AuthMiddleware {
     /// 5. Extract required claims (sub)
     /// 6. Extract optional claims (scope, aud, iss)
     ///
-    /// Returns AuthenticatedUser if valid, Err if any check fails.
+    /// # Errors
+    ///
+    /// Returns [`SecurityError::AuthRequired`] if no Authorization header or
+    /// token is missing. Returns [`SecurityError::InvalidToken`] if the token
+    /// signature, expiry, issuer, or audience is invalid. Returns
+    /// [`SecurityError::MissingClaim`] if a required claim is absent.
     pub fn validate_request(&self, req: &AuthRequest) -> Result<AuthenticatedUser> {
         // Check 1: Extract token from Authorization header
         let token = self.extract_token(req)?;

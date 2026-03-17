@@ -48,6 +48,7 @@ use crate::{
 
 /// Aggregate function type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AggregateFunction {
     /// COUNT(*) - count rows
     Count,
@@ -149,6 +150,7 @@ impl AggregateFunction {
 
 /// Temporal bucket for time-based grouping
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TemporalBucket {
     /// Second-level grouping
     Second,
@@ -236,6 +238,7 @@ impl TemporalBucket {
 
 /// Boolean aggregate function (AND/OR)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum BoolAggregateFunction {
     /// BOOL_AND - all values must be true
     And,
@@ -287,6 +290,7 @@ pub struct AggregateField {
 
 /// Kind of aggregate field
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AggregateFieldKind {
     /// count field (always Int!)
     Count,
@@ -331,6 +335,7 @@ pub struct GroupByField {
 
 /// Kind of GROUP BY field
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GroupByFieldKind {
     /// JSONB dimension
     Dimension {
@@ -372,6 +377,7 @@ pub struct HavingField {
 
 /// HAVING comparison operator
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum HavingOperator {
     /// Equal (=)
     Eq,

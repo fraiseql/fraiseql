@@ -11,6 +11,7 @@ use zeroize::Zeroizing;
 /// Intended use of the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum KeyPurpose {
     /// Key used for encryption/decryption
     EncryptDecrypt,
@@ -33,6 +34,7 @@ impl fmt::Display for KeyPurpose {
 /// Current state of the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum KeyState {
     /// Key is active and can be used
     Enabled,

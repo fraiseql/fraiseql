@@ -243,6 +243,10 @@ impl FieldEncryptionService {
     /// Trigger key rotation if a rotation manager is configured.
     ///
     /// Returns the new key version, or `None` if rotation is not configured.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::EncryptionError`] if the underlying rotation manager fails.
     pub fn rotate_key(&self) -> Result<Option<u16>, SecretsError> {
         match &self.rotation_manager {
             Some(rm) => {

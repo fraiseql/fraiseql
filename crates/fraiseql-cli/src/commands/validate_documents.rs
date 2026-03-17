@@ -35,6 +35,11 @@ struct Manifest {
 }
 
 /// Run the `validate-documents` command.
+///
+/// # Errors
+///
+/// Returns an error if the manifest file cannot be read, exceeds the 10 MiB size
+/// limit, cannot be parsed as JSON, or specifies an unsupported manifest version.
 pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
 

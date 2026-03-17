@@ -22,6 +22,11 @@ use tracing::{error, info};
 /// 3. Auto-recompiles on save
 /// 4. Provides compilation feedback
 ///
+/// # Errors
+///
+/// Returns an error if the schema file does not exist, if the file watcher cannot
+/// be created or started, or if the watch channel closes unexpectedly.
+///
 /// # Future Enhancement
 ///
 /// Will integrate with fraiseql-server to provide hot-reload of the GraphQL endpoint

@@ -55,6 +55,7 @@ pub struct QueryMetrics {
 
 /// GraphQL query validation error types (depth, complexity, aliases).
 #[derive(Debug, thiserror::Error, Clone)]
+#[non_exhaustive]
 pub enum ComplexityValidationError {
     /// Query exceeds maximum allowed depth.
     #[error("Query exceeds maximum depth of {max_depth}: depth = {actual_depth}")]
@@ -201,7 +202,7 @@ impl RequestValidator {
         // Skip AST parsing only when depth, complexity, AND alias checks are all disabled.
         // The alias amplification check is a distinct DoS vector: it must run even when
         // depth and complexity validation are both turned off.
-        if !self.validate_depth && !self.validate_complexity && self.max_aliases_per_query == 0 {
+        if !self.validate_depth && !self.validate_complexity || /* ~ changed by cargo-mutants ~ */ self.max_aliases_per_query == 0 {
             return Ok(());
         }
 
@@ -467,7 +468,7 @@ fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<S
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             if let graphql_parser::query::Value::Int(n) = value {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]  // Reason: value is bounded; truncation cannot occur in practice
                 // Reason: value is clamped to [1, 100] immediately after; truncation
                 // and sign loss are intentional and safe here.
                 let limit = n.as_i64().unwrap_or(10) as usize;

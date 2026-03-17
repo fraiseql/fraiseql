@@ -12,6 +12,7 @@ use std::fmt;
 /// Covers rate limiting, query validation, CORS, CSRF, audit logging,
 /// and security configuration errors.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum SecurityError {
     /// Rate limiting exceeded - client has made too many requests.
     ///

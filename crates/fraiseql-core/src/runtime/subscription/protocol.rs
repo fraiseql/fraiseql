@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// Client-to-server message types.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ClientMessageType {
     /// Connection initialization.
     ConnectionInit,
@@ -51,6 +52,7 @@ impl ClientMessageType {
 
 /// Server-to-client message types.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ServerMessageType {
     /// Connection acknowledged.
     ConnectionAck,
@@ -228,6 +230,7 @@ pub use fraiseql_error::{GraphQLError, GraphQLErrorLocation as ErrorLocation};
 
 /// Close codes for WebSocket connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CloseCode {
     /// Normal closure.
     Normal               = 1000,

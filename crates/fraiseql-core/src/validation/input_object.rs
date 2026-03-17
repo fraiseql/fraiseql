@@ -33,6 +33,7 @@ use crate::error::{FraiseQLError, Result};
 
 /// Rules that apply at the input object level.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum InputObjectRule {
     /// At least one field from the set must be provided
     AnyOf {

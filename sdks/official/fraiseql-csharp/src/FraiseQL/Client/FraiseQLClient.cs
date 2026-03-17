@@ -63,12 +63,12 @@ public sealed class FraiseQLClient : IDisposable
     }
 
     /// <summary>Executes a GraphQL query synchronously and returns the deserialized <c>data</c> field.</summary>
-    public T Query<T>(string query, object? variables = null)
-        => QueryAsync<T>(query, variables).GetAwaiter().GetResult();
+    public T Query<T>(string query, object? variables = null, string? operationName = null)
+        => QueryAsync<T>(query, variables, operationName).GetAwaiter().GetResult();
 
     /// <summary>Executes a GraphQL mutation synchronously and returns the deserialized <c>data</c> field.</summary>
-    public T Mutate<T>(string mutation, object? variables = null)
-        => MutateAsync<T>(mutation, variables).GetAwaiter().GetResult();
+    public T Mutate<T>(string mutation, object? variables = null, string? operationName = null)
+        => MutateAsync<T>(mutation, variables, operationName).GetAwaiter().GetResult();
 
     /// <summary>Executes a GraphQL query asynchronously and returns the deserialized <c>data</c> field.</summary>
     /// <exception cref="GraphQLException">The response contained one or more GraphQL errors.</exception>
@@ -76,8 +76,8 @@ public sealed class FraiseQLClient : IDisposable
     /// <exception cref="RateLimitException">The server returned HTTP 429.</exception>
     /// <exception cref="FraiseQLTimeoutException">The request exceeded its timeout.</exception>
     /// <exception cref="NetworkException">A network-level error occurred.</exception>
-    public async Task<T> QueryAsync<T>(string query, object? variables = null, CancellationToken ct = default)
-        => await ExecuteAsync<T>(query, variables, ct);
+    public async Task<T> QueryAsync<T>(string query, object? variables = null, string? operationName = null, CancellationToken ct = default)
+        => await ExecuteAsync<T>(query, variables, operationName, ct);
 
     /// <summary>Executes a GraphQL mutation asynchronously and returns the deserialized <c>data</c> field.</summary>
     /// <exception cref="GraphQLException">The response contained one or more GraphQL errors.</exception>
@@ -85,12 +85,14 @@ public sealed class FraiseQLClient : IDisposable
     /// <exception cref="RateLimitException">The server returned HTTP 429.</exception>
     /// <exception cref="FraiseQLTimeoutException">The request exceeded its timeout.</exception>
     /// <exception cref="NetworkException">A network-level error occurred.</exception>
-    public async Task<T> MutateAsync<T>(string mutation, object? variables = null, CancellationToken ct = default)
-        => await ExecuteAsync<T>(mutation, variables, ct);
+    public async Task<T> MutateAsync<T>(string mutation, object? variables = null, string? operationName = null, CancellationToken ct = default)
+        => await ExecuteAsync<T>(mutation, variables, operationName, ct);
 
-    private async Task<T> ExecuteAsync<T>(string gqlQuery, object? variables, CancellationToken ct)
+    private async Task<T> ExecuteAsync<T>(string gqlQuery, object? variables, string? operationName, CancellationToken ct)
     {
-        var body = new { query = gqlQuery, variables };
+        var body = operationName is not null
+            ? (object)new { query = gqlQuery, variables, operationName }
+            : new { query = gqlQuery, variables };
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.Url)
         {
             Content = JsonContent.Create(body)

@@ -43,6 +43,7 @@ pub struct IntermediateFragment {
 /// Fragment field selection - either a simple field or a nested object/fragment spread.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum IntermediateFragmentField {
     /// Simple field name (e.g., "id", "name")
     Simple(String),

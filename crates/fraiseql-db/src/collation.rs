@@ -82,6 +82,11 @@ impl CollationMapper {
     /// let result = mapper.map_locale("invalid");
     /// assert!(result.is_ok(), "utf8 is a valid collation: {result:?}");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `locale` is not in the allowed list
+    /// and the configured `InvalidLocaleStrategy` is `Reject`.
     pub fn map_locale(&self, locale: &str) -> Result<Option<String>> {
         if !self.config.enabled {
             return Ok(None);

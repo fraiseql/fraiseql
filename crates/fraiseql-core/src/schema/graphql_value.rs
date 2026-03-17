@@ -31,6 +31,7 @@ use crate::error::{FraiseQLError, Result};
 /// `GraphQLValue::Boolean(true)` as `true`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum GraphQLValue {
     /// `null`
     Null,

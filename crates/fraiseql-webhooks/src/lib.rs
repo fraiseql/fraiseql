@@ -80,6 +80,7 @@ pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Errors that can occur during webhook request processing.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum WebhookError {
     /// The incoming request did not include the expected signature header for the provider.
     #[error("Missing signature header")]

@@ -31,6 +31,7 @@ use crate::validation::rules::ValidationRule;
 
 /// Determines how child validation rules interact with parent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InheritanceMode {
     /// Child rules completely override parent rules (no inheritance)
     Override,

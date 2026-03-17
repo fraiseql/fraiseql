@@ -12,6 +12,13 @@ use crate::schema::intermediate::{
 };
 
 impl SchemaConverter {
+    /// Parse a raw inject-source string (e.g. `"jwt:org_id"`) into an
+    /// [`InjectedParamSource`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string uses an unsupported prefix, or if the
+    /// `jwt:` prefix is present but the claim name is empty.
     pub(super) fn parse_inject_source(raw: &str) -> Result<InjectedParamSource> {
         if let Some(claim) = raw.strip_prefix("jwt:") {
             if claim.is_empty() {

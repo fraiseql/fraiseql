@@ -10,6 +10,7 @@ use tokio::net::{TcpStream, UnixStream};
 
 /// TCP stream variant: plain or TLS-encrypted
 #[allow(clippy::large_enum_variant)] // Reason: variant size difference is acceptable; boxing would add indirection in hot path
+#[non_exhaustive]
 pub enum TcpVariant {
     /// Plain TCP connection
     Plain(TcpStream),
@@ -28,6 +29,10 @@ impl std::fmt::Debug for TcpVariant {
 
 impl TcpVariant {
     /// Write all bytes to the stream
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O write fails.
     pub async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         match self {
             TcpVariant::Plain(stream) => stream.write_all(buf).await?,
@@ -37,6 +42,10 @@ impl TcpVariant {
     }
 
     /// Flush the stream
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O flush fails.
     pub async fn flush(&mut self) -> Result<()> {
         match self {
             TcpVariant::Plain(stream) => stream.flush().await?,
@@ -46,6 +55,10 @@ impl TcpVariant {
     }
 
     /// Read into buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O read fails.
     pub async fn read_buf(&mut self, buf: &mut BytesMut) -> Result<usize> {
         let n = match self {
             TcpVariant::Plain(stream) => stream.read_buf(buf).await?,
@@ -55,6 +68,10 @@ impl TcpVariant {
     }
 
     /// Shutdown the stream
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O shutdown fails.
     pub async fn shutdown(&mut self) -> Result<()> {
         match self {
             TcpVariant::Plain(stream) => stream.shutdown().await?,
@@ -69,6 +86,10 @@ impl TcpVariant {
     /// `SO_KEEPALIVE` with the given idle interval. This is a no-op for TLS
     /// streams that wrap a `TcpStream`; the keepalive is applied to the inner
     /// TCP socket before the TLS handshake anyway.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if setting the socket keepalive options fails.
     pub fn apply_keepalive(&self, idle: Duration) -> Result<()> {
         let keepalive = TcpKeepalive::new().with_time(idle);
         match self {
@@ -92,6 +113,7 @@ impl TcpVariant {
 /// Transport layer abstraction
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)] // Reason: variant size difference is acceptable; boxing would add indirection in hot path
+#[non_exhaustive]
 pub enum Transport {
     /// TCP socket (plain or TLS)
     Tcp(TcpVariant),
@@ -101,6 +123,10 @@ pub enum Transport {
 
 impl Transport {
     /// Connect via plain TCP
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the TCP connection to `host:port` fails.
     pub async fn connect_tcp(host: &str, port: u16) -> Result<Self> {
         let stream = TcpStream::connect((host, port)).await?;
         Ok(Transport::Tcp(TcpVariant::Plain(stream)))
@@ -170,12 +196,20 @@ impl Transport {
     }
 
     /// Connect via Unix socket
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the Unix domain socket connection to `path` fails.
     pub async fn connect_unix(path: &Path) -> Result<Self> {
         let stream = UnixStream::connect(path).await?;
         Ok(Transport::Unix(stream))
     }
 
     /// Write bytes to the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O write fails.
     pub async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.write_all(buf).await?,
@@ -185,6 +219,10 @@ impl Transport {
     }
 
     /// Flush the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O flush fails.
     pub async fn flush(&mut self) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.flush().await?,
@@ -194,6 +232,10 @@ impl Transport {
     }
 
     /// Read bytes into buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O read fails.
     pub async fn read_buf(&mut self, buf: &mut BytesMut) -> Result<usize> {
         let n = match self {
             Transport::Tcp(variant) => variant.read_buf(buf).await?,
@@ -203,6 +245,10 @@ impl Transport {
     }
 
     /// Shutdown the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if the underlying I/O shutdown fails.
     pub async fn shutdown(&mut self) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.shutdown().await?,
@@ -216,6 +262,10 @@ impl Transport {
     /// A no-op for Unix socket transports (keepalive is a TCP-layer feature).
     /// Logs a warning and returns `Ok(())` rather than failing if the platform
     /// does not support the requested keepalive interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if setting the socket keepalive options fails on a TCP transport.
     pub fn apply_keepalive(&self, idle: Duration) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.apply_keepalive(idle),

@@ -29,6 +29,7 @@ use tokio::sync::RwLock;
 
 /// Enforcement mode for trusted documents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustedDocumentMode {
     /// Only `documentId` requests allowed; raw query strings rejected.
     Strict,
@@ -41,7 +42,7 @@ pub enum TrustedDocumentMode {
 struct Manifest {
     // Reason: serde deserialization target — `version` is present in the manifest JSON
     // for forward-compatibility but is not consumed by the current lookup logic.
-    #[allow(dead_code)]
+    #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
     version:   u32,
     documents: HashMap<String, String>,
 }
@@ -177,6 +178,7 @@ fn normalize_keys(documents: HashMap<String, String>) -> HashMap<String, String>
 
 /// Errors from trusted document resolution.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TrustedDocumentError {
     /// Raw queries are not permitted in strict mode.
     #[error("Raw queries are not permitted. Send a documentId instead.")]

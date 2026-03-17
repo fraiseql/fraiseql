@@ -249,8 +249,12 @@ impl KeyedRateLimiter {
     ///
     /// # Returns
     ///
-    /// - Ok(()) if the request is allowed and counter has been incremented
-    /// - Err(AuthError::RateLimited) if the key has exceeded the rate limit
+    /// `Ok(())` if the request is allowed and the counter has been incremented.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::RateLimited`] if the key has exceeded the configured
+    /// rate limit within the sliding window.
     ///
     /// # Panics
     ///
@@ -425,7 +429,7 @@ impl Default for RateLimiters {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

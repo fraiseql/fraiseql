@@ -5,6 +5,11 @@ use tracing::info;
 
 use super::{InitConfig, Language};
 
+/// Create the language-specific authoring skeleton for the project.
+///
+/// # Errors
+///
+/// Propagates any file-system errors from the language-specific skeleton creator.
 pub(super) fn create_authoring_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     match config.language {
         Language::Python => create_python_skeleton(project_dir, config),
@@ -20,6 +25,11 @@ pub(super) fn create_authoring_skeleton(project_dir: &Path, config: &InitConfig)
     }
 }
 
+/// Create the Python authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_python_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -118,6 +128,11 @@ def tags() -> list[Tag]:
     Ok(())
 }
 
+/// Create the TypeScript authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_typescript_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -220,6 +235,11 @@ export const tagsQuery = query("tags", {{
     Ok(())
 }
 
+/// Create the Rust authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_rust_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -309,6 +329,11 @@ pub fn tags() -> Vec<Tag> {{
     Ok(())
 }
 
+/// Create the Java authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_java_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -391,6 +416,11 @@ public interface Tags {{}}
     Ok(())
 }
 
+/// Create the Kotlin authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_kotlin_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -472,6 +502,11 @@ fun tags(): List<Tag> = TODO("Schema definition only")
     Ok(())
 }
 
+/// Create the Go authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_go_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -547,6 +582,11 @@ func init() {{
     Ok(())
 }
 
+/// Create the C# authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_csharp_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -628,6 +668,11 @@ public static partial class Tags;
     Ok(())
 }
 
+/// Create the Swift authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_swift_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -707,6 +752,11 @@ func tags() -> [Tag] {{ fatalError("Schema definition only") }}
     Ok(())
 }
 
+/// Create the Scala authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_scala_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -788,6 +838,11 @@ def tags(): List[Tag] = ???
     Ok(())
 }
 
+/// Create the PHP authoring skeleton under `project_dir/schema/`.
+///
+/// # Errors
+///
+/// Returns an error if the schema directory or skeleton files cannot be created.
 pub(super) fn create_php_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
@@ -911,6 +966,11 @@ final class Tag
     Ok(())
 }
 
+/// Initialise a git repository in `project_dir`.
+///
+/// # Errors
+///
+/// Returns an error if `git init` cannot be spawned or exits with a non-zero status.
 pub(super) fn init_git(project_dir: &Path) -> Result<()> {
     let status = Command::new("git")
         .args(["init"])

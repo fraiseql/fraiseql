@@ -46,6 +46,12 @@ pub struct Domain {
 
 impl DomainDiscovery {
     /// Discover all domains in root_dir
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if domain discovery is enabled but `root_dir` does not
+    /// exist, if the directory cannot be read, or if a domain entry has an
+    /// invalid (non-UTF-8) name.
     pub fn resolve_domains(&self) -> Result<Vec<Domain>> {
         if !self.enabled {
             return Ok(Vec::new());
@@ -111,7 +117,12 @@ impl SchemaIncludes {
     /// Resolve glob patterns to actual file paths
     ///
     /// # Returns
-    /// ResolvedIncludes with expanded file paths, or error if resolution fails
+    /// `ResolvedIncludes` with expanded file paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any glob pattern is syntactically invalid or if a
+    /// matched path cannot be accessed.
     pub fn resolve_globs(&self) -> Result<ResolvedIncludes> {
         use glob::glob as glob_pattern;
 

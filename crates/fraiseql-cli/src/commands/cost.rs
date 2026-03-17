@@ -24,6 +24,11 @@ pub struct CostResponse {
 }
 
 /// Run cost command (minimal complexity analysis)
+///
+/// # Errors
+///
+/// Returns an error if the query cannot be parsed or if complexity analysis
+/// fails. Also propagates errors from JSON serialization of the response.
 pub fn run(query: &str) -> Result<CommandResult> {
     // Validate query syntax
     let _parsed = parse_query(query)?;

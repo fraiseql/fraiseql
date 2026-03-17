@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 
 /// Mock database error type
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MockDbError {
     /// Query execution failed
     QueryError(String),

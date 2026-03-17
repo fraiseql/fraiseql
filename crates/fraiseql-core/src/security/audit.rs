@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 
 /// Errors that can occur during audit operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AuditError {
     /// Database operation failed.
     #[error("Database operation failed: {0}")]
@@ -27,6 +28,7 @@ pub enum AuditError {
 
 /// Audit log levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AuditLevel {
     /// Informational messages
     INFO,

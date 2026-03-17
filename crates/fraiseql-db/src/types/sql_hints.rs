@@ -32,6 +32,7 @@ pub struct OrderByClause {
 
 /// Sort direction
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum OrderDirection {
     /// Ascending (A-Z, 0-9)
     Asc,

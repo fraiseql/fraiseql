@@ -1,6 +1,7 @@
 /// Errors that occur when communicating with external integration services
 /// such as search engines, caches, or message queues.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum IntegrationError {
     /// A search provider (e.g. Elasticsearch, Typesense) returned an error.
     #[error("Search provider error: {provider} - {message}")]

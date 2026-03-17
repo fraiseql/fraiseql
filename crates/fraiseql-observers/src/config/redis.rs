@@ -107,6 +107,11 @@ impl RedisConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if any required field is empty or
+    /// a numeric field violates its allowed range.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {

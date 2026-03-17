@@ -38,6 +38,7 @@ impl Default for ConvertConfig {
 /// In production, this will be replaced with actual database driver types.
 /// For, this provides the interface for converting values.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Value {
     /// UTF-8 string value
     String(String),

@@ -36,6 +36,7 @@ pub struct ValidationIssue {
 
 /// Issue severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IssueSeverity {
     /// Critical error - validation fails
     Error,

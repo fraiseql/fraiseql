@@ -9,6 +9,7 @@ use crate::error::{FraiseQLError, Result};
 
 /// Validation context for custom scalar operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ValidationContext {
     /// Serialize a database value to GraphQL response.
     Serialize,

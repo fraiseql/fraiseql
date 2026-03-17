@@ -14,6 +14,7 @@ use crate::error::{ObserverError, Result};
 
 /// Listener lifecycle state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ListenerState {
     /// Listener being initialized
     Initializing,
@@ -79,6 +80,11 @@ impl ListenerStateMachine {
     /// Transition to a new state
     ///
     /// All state mutations happen under a single lock, making transitions atomic.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if the transition is not permitted
+    /// from the current state, or if the maximum recovery attempt count has been exceeded.
     pub async fn transition(&self, next_state: ListenerState) -> Result<()> {
         let mut inner = self.inner.lock().await;
 

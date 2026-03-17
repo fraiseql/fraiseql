@@ -1,5 +1,7 @@
 // Test stub for the 'ai' peer dependency
-export const tool = jest.fn(
+import { vi } from 'vitest';
+
+export const tool = vi.fn(
   (config: {
     description: string;
     parameters: unknown;

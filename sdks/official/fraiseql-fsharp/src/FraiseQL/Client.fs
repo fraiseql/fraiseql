@@ -86,10 +86,13 @@ type FraiseQLHttpClient(options: FraiseQLClientOptions) =
     new(url: string) = new FraiseQLHttpClient(FraiseQLClientOptions.defaultFor url)
 
     /// Executes a GraphQL query asynchronously and returns the deserialized <c>data</c> field.
-    member _.ExecuteAsync<'T>(gqlQuery: string, ?variables: obj, ?ct: CancellationToken) : Task<'T> =
+    member _.ExecuteAsync<'T>(gqlQuery: string, ?variables: obj, ?operationName: string, ?ct: CancellationToken) : Task<'T> =
         let ct = defaultArg ct CancellationToken.None
         task {
-            let body = {| query = gqlQuery; variables = variables |}
+            let body =
+                match operationName with
+                | Some opName -> {| query = gqlQuery; variables = variables; operationName = opName |} :> obj
+                | None        -> {| query = gqlQuery; variables = variables |} :> obj
             use request = new HttpRequestMessage(HttpMethod.Post, options.Url,
                                                  Content = JsonContent.Create(body))
 
@@ -161,13 +164,13 @@ type FraiseQLHttpClient(options: FraiseQLClientOptions) =
         }
 
     /// Executes a GraphQL query and returns the deserialized <c>data</c> field as an F# Async.
-    member this.AsyncQuery<'T>(query: string, ?variables: obj) : Async<'T> =
-        this.ExecuteAsync<'T>(query, ?variables = variables)
+    member this.AsyncQuery<'T>(query: string, ?variables: obj, ?operationName: string) : Async<'T> =
+        this.ExecuteAsync<'T>(query, ?variables = variables, ?operationName = operationName)
         |> Async.AwaitTask
 
     /// Executes a GraphQL mutation and returns the deserialized <c>data</c> field as an F# Async.
-    member this.AsyncMutate<'T>(mutation: string, ?variables: obj) : Async<'T> =
-        this.ExecuteAsync<'T>(mutation, ?variables = variables)
+    member this.AsyncMutate<'T>(mutation: string, ?variables: obj, ?operationName: string) : Async<'T> =
+        this.ExecuteAsync<'T>(mutation, ?variables = variables, ?operationName = operationName)
         |> Async.AwaitTask
 
     interface IDisposable with

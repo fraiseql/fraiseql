@@ -202,7 +202,7 @@ pub fn log_security_config(config: &SecurityConfigFromSchema) {
     );
 }
 
-/// Verify security configuration consistency
+/// Verify security configuration consistency.
 ///
 /// Performs validation checks to ensure the loaded security configuration
 /// doesn't have dangerous or conflicting settings.
@@ -213,7 +213,13 @@ pub fn log_security_config(config: &SecurityConfigFromSchema) {
 ///
 /// # Returns
 ///
-/// Returns Ok(()) if configuration is valid, Err with description if not
+/// Returns `Ok(())` if configuration is valid.
+///
+/// # Errors
+///
+/// Returns [`AuthError::ConfigError`] if `leak_sensitive_details` is `true`,
+/// `auth_start_max_requests` is zero when rate limiting is enabled, or
+/// `auth_start_window_secs` is zero when rate limiting is enabled.
 pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()> {
     // Check if sensitive data leaking is disabled (security requirement)
     if config.error_sanitization.leak_sensitive_details {
@@ -252,7 +258,7 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

@@ -50,7 +50,7 @@ interface ObserverConfig {
  * @returns Method decorator
  */
 export function Observer(config: ObserverConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy method decorator target
   return function (_target: any, propertyKey: string, _descriptor: PropertyDescriptor): void {
     SchemaRegistry.registerObserver(
       propertyKey,
@@ -84,8 +84,12 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
   if (url === undefined && options?.url_env === undefined) {
     throw new Error("Either url or url_env must be provided");
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const action: any = {
+  const action: ObserverAction & {
+    headers: Record<string, string>;
+    url?: string;
+    url_env?: string;
+    body_template?: string;
+  } = {
     type: "webhook",
     headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
   };
@@ -98,7 +102,7 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
   if (options?.body_template !== undefined) {
     action.body_template = options.body_template;
   }
-  return action as ObserverAction;
+  return action;
 }
 
 /**
@@ -118,8 +122,12 @@ interface SlackOptions {
  * @returns Slack action definition
  */
 export function slack(channel: string, message: string, options?: SlackOptions): ObserverAction {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const action: any = {
+  const action: ObserverAction & {
+    channel: string;
+    message: string;
+    webhook_url_env: string;
+    webhook_url?: string;
+  } = {
     type: "slack",
     channel,
     message,
@@ -128,7 +136,7 @@ export function slack(channel: string, message: string, options?: SlackOptions):
   if (options?.webhook_url !== undefined) {
     action.webhook_url = options.webhook_url;
   }
-  return action as ObserverAction;
+  return action;
 }
 
 /**
@@ -153,8 +161,12 @@ export function email(
   body: string,
   options?: EmailOptions
 ): ObserverAction {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const action: any = {
+  const action: ObserverAction & {
+    to: string;
+    subject: string;
+    body: string;
+    from?: string;
+  } = {
     type: "email",
     to,
     subject,
@@ -163,5 +175,5 @@ export function email(
   if (options?.from_email !== undefined) {
     action.from = options.from_email;
   }
-  return action as ObserverAction;
+  return action;
 }

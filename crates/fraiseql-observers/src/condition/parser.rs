@@ -12,6 +12,12 @@ use crate::error::{ObserverError, Result};
 const MAX_CONDITION_DEPTH: usize = 64;
 
 impl ConditionParser {
+    /// Parse a token stream into a [`ConditionAst`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidCondition`] if the token stream is empty,
+    /// exceeds `MAX_CONDITION_DEPTH`, or contains unexpected tokens.
     pub(super) fn parse_tokens(&self, tokens: &[Token]) -> Result<ConditionAst> {
         let mut pos = 0;
         let ast = self.parse_or(tokens, &mut pos, 0)?;
@@ -126,6 +132,12 @@ impl ConditionParser {
         }
     }
 
+    /// Parse a function call into a [`ConditionAst`] node.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidCondition`] if `name` is not a recognised
+    /// built-in function or the argument count is wrong.
     pub(super) fn parse_function(&self, name: &str, args: &[String]) -> Result<ConditionAst> {
         match name {
             "has_field" => {

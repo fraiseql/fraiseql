@@ -26,6 +26,7 @@ use thiserror::Error;
 
 /// Error type for all credential rotation and key lifecycle operations.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RotationError {
     /// A Mutex was poisoned (another thread panicked while holding the lock).
     #[error("Lock poisoned: {0}")]
@@ -41,6 +42,7 @@ pub type KeyVersion = u16;
 
 /// Status of a key version in its lifecycle
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KeyVersionStatus {
     /// Active and available for encryption and decryption
     Active,
@@ -156,6 +158,7 @@ impl KeyVersionMetadata {
 
 /// Rotation schedule configuration
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RotationSchedule {
     /// Manual rotation only (no automatic schedule)
     Manual,
@@ -327,6 +330,10 @@ impl VersionedKeyStorage {
     }
 
     /// Add a new key version
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if the versions mutex is poisoned.
     pub fn add_version(&self, metadata: KeyVersionMetadata) -> Result<KeyVersion, RotationError> {
         let mut versions = self
             .versions
@@ -339,6 +346,11 @@ impl VersionedKeyStorage {
     }
 
     /// Set current version
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a mutex is poisoned.
+    /// Returns [`RotationError::VersionNotFound`] if the version does not exist in storage.
     pub fn set_current_version(&self, version: KeyVersion) -> Result<(), RotationError> {
         let versions = self
             .versions
@@ -358,6 +370,10 @@ impl VersionedKeyStorage {
     }
 
     /// Get current version
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if the current-version mutex is poisoned.
     pub fn get_current_version(&self) -> Result<KeyVersion, RotationError> {
         let current = self
             .current_version
@@ -379,6 +395,10 @@ impl VersionedKeyStorage {
     }
 
     /// Get all versions sorted by issue date (newest first)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if the versions mutex is poisoned.
     pub fn get_all_versions(&self) -> Result<Vec<KeyVersionMetadata>, RotationError> {
         let versions = self
             .versions
@@ -425,6 +445,10 @@ impl CredentialRotationManager {
     }
 
     /// Initialize with first key version
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn initialize_key(&self) -> Result<KeyVersion, RotationError> {
         let version = self.storage.next_version_number();
         let metadata = KeyVersionMetadata::new(version, self.config.ttl_days);
@@ -453,6 +477,10 @@ impl CredentialRotationManager {
     ///
     /// If step 3 crashes mid-flight, rows will be in a mixed state. Resume by
     /// re-querying all rows still carrying the old version marker.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn rotate_key(&self) -> Result<KeyVersion, RotationError> {
         let start = std::time::Instant::now();
 
@@ -471,11 +499,19 @@ impl CredentialRotationManager {
     }
 
     /// Get current version number
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if the current-version mutex is poisoned.
     pub fn get_current_version(&self) -> Result<KeyVersion, RotationError> {
         self.storage.get_current_version()
     }
 
     /// Check if refresh is needed for any version
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn needs_refresh(&self) -> Result<bool, RotationError> {
         let current_version = self.storage.get_current_version()?;
         if let Some(metadata) = self.storage.get_version(current_version)? {
@@ -486,12 +522,20 @@ impl CredentialRotationManager {
     }
 
     /// Get current version metadata
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn get_current_metadata(&self) -> Result<Option<KeyVersionMetadata>, RotationError> {
         let current_version = self.storage.get_current_version()?;
         self.storage.get_version(current_version)
     }
 
     /// Check if version exists and is usable for decryption
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn can_decrypt_with_version(&self, version: KeyVersion) -> Result<bool, RotationError> {
         if let Some(metadata) = self.storage.get_version(version)? {
             // Can decrypt with any non-compromised version
@@ -507,11 +551,19 @@ impl CredentialRotationManager {
     }
 
     /// Get all version history
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if the versions mutex is poisoned.
     pub fn get_version_history(&self) -> Result<Vec<KeyVersionMetadata>, RotationError> {
         self.storage.get_all_versions()
     }
 
     /// Check if any version needs attention (expiring or expired)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn has_versions_needing_attention(&self) -> Result<bool, RotationError> {
         let history = self.get_version_history()?;
         Ok(history
@@ -520,24 +572,40 @@ impl CredentialRotationManager {
     }
 
     /// Get active versions count
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn active_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Active).count())
     }
 
     /// Get expired versions count
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn expired_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Expired).count())
     }
 
     /// Get compromised versions count
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn compromised_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Compromised).count())
     }
 
     /// Check if current version needs refresh
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn current_version_needs_refresh(&self) -> Result<bool, RotationError> {
         let current_version = self.get_current_version()?;
         if let Some(metadata) = self.storage.get_version(current_version)? {
@@ -548,6 +616,10 @@ impl CredentialRotationManager {
     }
 
     /// Perform emergency rotation due to compromise
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn emergency_rotate(&self, reason: impl Into<String>) -> Result<KeyVersion, RotationError> {
         let current_version = self.get_current_version()?;
         if let Some(mut metadata) = self.storage.get_version(current_version)? {
@@ -586,6 +658,10 @@ impl CredentialRotationManager {
     }
 
     /// Check compliance for HIPAA (annual rotation)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn check_hipaa_compliance(&self) -> Result<bool, RotationError> {
         let metadata = self.get_current_metadata()?;
         if let Some(m) = metadata {
@@ -597,6 +673,10 @@ impl CredentialRotationManager {
     }
 
     /// Check compliance for PCI-DSS (annual rotation)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RotationError::LockPoisoned`] if a storage mutex is poisoned.
     pub fn check_pci_compliance(&self) -> Result<bool, RotationError> {
         let metadata = self.get_current_metadata()?;
         if let Some(m) = metadata {

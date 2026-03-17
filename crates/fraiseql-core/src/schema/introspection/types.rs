@@ -294,6 +294,7 @@ pub struct IntrospectionDirective {
 /// `__TypeKind` enum per GraphQL spec §4.1.4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum TypeKind {
     /// A scalar type (Int, String, Boolean, etc.)
     Scalar,
@@ -316,6 +317,7 @@ pub enum TypeKind {
 /// `__DirectiveLocation` enum per GraphQL spec §4.1.5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum DirectiveLocation {
     /// Directive on query operation.
     Query,

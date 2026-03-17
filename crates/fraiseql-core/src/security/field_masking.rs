@@ -36,6 +36,7 @@ use crate::security::SecurityProfile;
 
 /// Field sensitivity classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FieldSensitivity {
     /// Public field - no masking
     Public,

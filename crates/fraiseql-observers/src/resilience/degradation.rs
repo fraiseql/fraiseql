@@ -14,6 +14,7 @@ use crate::error::Result;
 
 /// Degradation level indicator
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DegradationLevel {
     /// System operating normally
     Normal,
@@ -73,6 +74,10 @@ impl GracefulDegradation {
     }
 
     /// Execute with degradation awareness
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error returned by `f`.
     pub async fn with_degradation<F, T>(&self, f: F) -> Result<T>
     where
         F: Fn(

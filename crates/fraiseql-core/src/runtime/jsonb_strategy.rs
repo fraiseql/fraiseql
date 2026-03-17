@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 /// Strategy for JSONB field handling
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum JsonbStrategy {
     /// Extract only requested fields using jsonb_build_object/JSON_OBJECT
     #[default]
@@ -64,7 +65,7 @@ impl JsonbOptimizationOptions {
             return self.default_strategy;
         }
 
-        #[allow(clippy::cast_precision_loss)]
+        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: field counts are small integers; f64 precision loss on usize is not material
         // here.
         let percent = (requested_fields as f64 / total_fields as f64) * 100.0;

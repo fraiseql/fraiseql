@@ -41,6 +41,7 @@ pub struct Cli {
 }
 
 /// Output format for CLI responses
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Human-readable text output
@@ -71,6 +72,7 @@ impl std::fmt::Display for OutputFormat {
 }
 
 /// Available CLI commands
+#[non_exhaustive]
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Show observer runtime status
@@ -135,6 +137,7 @@ pub enum Commands {
 }
 
 /// DLQ management subcommands
+#[non_exhaustive]
 #[derive(Subcommand, Debug)]
 pub enum DlqSubcommand {
     /// List failed items in DLQ

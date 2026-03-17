@@ -104,6 +104,12 @@ impl CascadeInvalidator {
     /// * `dependent_view` - View that depends on another
     /// * `dependency_view` - View that is depended upon
     ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `dependent_view` and
+    /// `dependency_view` are the same (self-dependency), or if adding the edge
+    /// would create a cycle in the dependency graph.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -244,14 +250,14 @@ impl CascadeInvalidator {
 
         // Update statistics
         self.stats.total_cascades += 1;
-        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
         // Reason: invalidated.len() is a usize which fits in u64 on all supported 64-bit platforms.
         {
             self.stats.total_invalidated += invalidated.len() as u64;
         }
         self.stats.max_affected = self.stats.max_affected.max(invalidated.len());
         if self.stats.total_cascades > 0 {
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
             // Reason: average_affected is a display metric; f64 precision loss on u64 counters is
             // acceptable.
             {

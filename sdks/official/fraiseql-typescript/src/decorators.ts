@@ -82,8 +82,8 @@ export interface TypeConfig {
  * ```
  */
 export function Type(_config?: TypeConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return function <T extends { new (...args: any[]): {} }>(constructor: T) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- required by legacy decorator API
+  return function <T extends { new (...args: any[]): object }>(constructor: T) {
     // Extract type name from class
     const typeName = constructor.name;
 
@@ -149,7 +149,7 @@ export interface OperationConfig {
  * ```
  */
 export function Query(config?: OperationConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
   return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     const methodName = propertyKey;
@@ -162,7 +162,7 @@ export function Query(config?: OperationConfig) {
       false, // Placeholder
       false, // Placeholder
       [], // Placeholder
-      originalMethod?.toString?.().split("\n")[0],
+      originalMethod?.toString?.().split("\n")[0] ?? undefined,
       config
     );
 
@@ -211,7 +211,7 @@ export interface MutationConfig extends OperationConfig {
  * ```
  */
 export function Mutation(config?: MutationConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
   return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     const methodName = propertyKey;
@@ -224,7 +224,7 @@ export function Mutation(config?: MutationConfig) {
       false, // Placeholder
       false, // Placeholder
       [], // Placeholder
-      originalMethod?.toString?.().split("\n")[0],
+      originalMethod?.toString?.().split("\n")[0] ?? undefined,
       config
     );
 
@@ -570,7 +570,7 @@ export interface SubscriptionConfig {
  * ```
  */
 export function Subscription(config?: SubscriptionConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
   return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     const methodName = propertyKey;
@@ -585,7 +585,7 @@ export function Subscription(config?: SubscriptionConfig) {
       entityType,
       false, // Placeholder for nullable
       [], // Placeholder for arguments
-      originalMethod?.toString?.().split("\n")[0],
+      originalMethod?.toString?.().split("\n")[0] ?? undefined,
       config
     );
 
@@ -686,17 +686,19 @@ export function registerSubscription(
  * - Name must be unique within schema
  * - Scalar must be defined before @Type that uses it
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function Scalar<T extends typeof CustomScalar>(target: T): T {
   // Verify that target extends CustomScalar
   if (!isCustomScalarSubclass(target)) {
+    // Use (target as object) to avoid narrowing to never before the throw
+    const name = (target as { name?: string }).name ?? "(unknown)";
     throw new TypeError(
-      `@Scalar can only be applied to CustomScalar subclasses, got ${(target as any).name}`
+      `@Scalar can only be applied to CustomScalar subclasses, got ${name}`
     );
   }
 
-  // Create instance to get the name
-  const instance = new (target as any)();
+  // Create instance to get the name; double-cast through unknown to satisfy abstract→concrete
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- instantiating abstract class subclass
+  const instance = new (target as unknown as new () => any)();
   const scalarName = instance.name;
 
   // Validate name
@@ -717,6 +719,7 @@ export function Scalar<T extends typeof CustomScalar>(target: T): T {
  *
  * @internal
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- required for prototype chain check
 function isCustomScalarSubclass(target: any): target is typeof CustomScalar {
   try {
     // Check prototype chain

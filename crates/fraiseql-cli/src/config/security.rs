@@ -78,6 +78,11 @@ impl Default for ErrorSanitizationConfig {
 
 impl ErrorSanitizationConfig {
     /// Validate error sanitization configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `leak_sensitive_details` is `true`, which is a
+    /// security risk that must not be enabled in production.
     pub fn validate(&self) -> Result<()> {
         if self.leak_sensitive_details {
             anyhow::bail!(
@@ -152,6 +157,11 @@ impl Default for RateLimitConfig {
 
 impl RateLimitConfig {
     /// Validate rate limiting configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any time-window is zero or if any `max_requests`
+    /// value is zero (which would permanently block all requests).
     pub fn validate(&self) -> Result<()> {
         for (name, window) in &[
             ("auth_start_window_secs", self.auth_start_window_secs),
@@ -242,6 +252,11 @@ const SUPPORTED_ALGORITHMS: &[&str] = &["chacha20-poly1305", "aes-256-gcm"];
 
 impl StateEncryptionConfig {
     /// Validate state encryption configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `algorithm` is not a supported value, if `key_size`
+    /// is not 16, 24, or 32 bytes, or if `nonce_size` is not 12 bytes.
     pub fn validate(&self) -> Result<()> {
         if !SUPPORTED_ALGORITHMS.contains(&self.algorithm.as_str()) {
             anyhow::bail!(
@@ -354,6 +369,11 @@ pub struct SecurityConfig {
 
 impl SecurityConfig {
     /// Validate all security configurations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any sub-configuration is invalid, if a role name is
+    /// empty, or if a role definition contains no scopes.
     pub fn validate(&self) -> Result<()> {
         self.error_sanitization.validate()?;
         self.rate_limiting.validate()?;

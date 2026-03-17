@@ -27,6 +27,7 @@ fn csv_quote(s: &str) -> String {
 
 /// Encryption operation type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OperationType {
     /// INSERT operation
     Insert,
@@ -51,6 +52,7 @@ impl std::fmt::Display for OperationType {
 
 /// Encryption event status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EventStatus {
     /// Operation succeeded
     Success,
@@ -239,6 +241,11 @@ impl AuditLogger {
     }
 
     /// Log encryption operation
+    ///
+    /// # Errors
+    ///
+    /// This function currently never returns an error; it always succeeds after evicting
+    /// the oldest entry if the log is at capacity.
     pub fn log_entry(&mut self, entry: AuditLogEntry) -> Result<(), SecretsError> {
         // Keep bounded history
         if self.entries.len() >= self.max_entries {

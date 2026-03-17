@@ -62,6 +62,7 @@ use crate::{compiler::ir::IRQuery, error::Result};
 /// Indicates how many entities a query typically returns,
 /// which affects expected cache hit rate.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[non_exhaustive]
 pub enum QueryCardinality {
     /// Single entity: WHERE id = ? → 1 entity
     /// Expected cache hit rate: 91%

@@ -37,6 +37,11 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Execute a call through the appropriate endpoint breaker
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::CircuitBreakerOpen`] if the circuit for `endpoint`
+    /// is open. Propagates any error returned by `f`.
     pub async fn call<F, T>(&self, endpoint: &str, f: F) -> Result<T>
     where
         F: FnOnce() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>,

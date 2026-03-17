@@ -16,7 +16,7 @@ pub(super) const DEFAULT_MAX_CACHE_ENTRIES: usize = 1_000;
 // Reason: fields populated by serde deserialization; only `data` and
 // `lease_duration` are accessed in business logic; the rest are kept for
 // completeness and potential future auditing.
-#[allow(dead_code)]
+#[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
 pub(super) struct VaultResponse {
     pub(super) request_id:     String,
     pub(super) lease_id:       String,

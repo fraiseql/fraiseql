@@ -156,6 +156,7 @@ pub struct WindowRequest {
 /// Column selection for window query (semantic names).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum WindowSelectColumn {
     /// Select a measure column (e.g., "revenue")
     Measure {
@@ -219,6 +220,7 @@ pub struct WindowFunctionRequest {
 /// this uses measure/dimension names that get validated against metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum WindowFunctionSpec {
     // =========================================================================
     // Ranking Functions (no field reference needed)
@@ -339,6 +341,7 @@ pub enum WindowFunctionSpec {
 /// PARTITION BY column specification (semantic).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PartitionByColumn {
     /// Partition by dimension from JSONB
     Dimension {
@@ -430,6 +433,7 @@ pub struct WindowFunction {
 /// Window function types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum WindowFunctionType {
     // Ranking functions
     /// ROW_NUMBER() - Sequential number within partition
@@ -557,6 +561,7 @@ pub struct WindowFrame {
 /// Window frame type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum FrameType {
     /// ROWS frame - Physical rows
     Rows,
@@ -571,6 +576,7 @@ pub enum FrameType {
 /// Window frame boundary
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FrameBoundary {
     /// UNBOUNDED PRECEDING
     UnboundedPreceding,
@@ -597,6 +603,7 @@ pub enum FrameBoundary {
 /// Frame exclusion mode (PostgreSQL)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FrameExclusion {
     /// EXCLUDE CURRENT ROW
     CurrentRow,

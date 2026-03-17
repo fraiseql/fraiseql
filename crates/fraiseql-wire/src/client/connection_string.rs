@@ -69,6 +69,7 @@ pub struct ConnectionInfo {
 
 /// Transport type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TransportType {
     /// TCP socket
     Tcp,
@@ -114,6 +115,11 @@ fn construct_socket_path(socket_dir: &str, port: u16) -> PathBuf {
 
 impl ConnectionInfo {
     /// Parse connection string
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the string does not start with `postgres://` or
+    /// `postgresql://`, or if the host/port/database fields cannot be parsed.
     pub fn parse(s: &str) -> Result<Self> {
         // Simple parser (production code would use url crate)
         if !s.starts_with("postgres://") && !s.starts_with("postgresql://") {

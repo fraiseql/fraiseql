@@ -136,6 +136,9 @@ impl TenantContext {
     /// let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
     /// assert_eq!(tenant.id(), "acme-corp");
     /// ```
+    /// # Errors
+    ///
+    /// Returns a `String` error if the `tenant_id` claim is missing or not a string.
     pub fn from_jwt_claims(claims: &JsonValue) -> Result<Self, String> {
         // Extract tenant_id from claims
         let tenant_id = claims

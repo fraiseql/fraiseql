@@ -15,6 +15,12 @@ pub struct FraiseClient {
 impl FraiseClient {
     /// Connect to Postgres using connection string
     ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the connection string is invalid or missing required
+    /// fields. Returns [`WireError`] if the TCP or Unix socket connection fails, or if
+    /// startup/authentication is rejected by the server.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -30,6 +36,12 @@ impl FraiseClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the connection string is malformed or missing
+    /// required fields (host/port for TCP, path for Unix sockets).
+    /// Returns [`WireError::Io`] if the underlying TCP or Unix socket connection fails.
     pub async fn connect(connection_string: &str) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
 

@@ -84,6 +84,7 @@ pub struct AggregationRequest {
 
 /// GROUP BY selection
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GroupBySelection {
     /// Group by JSONB dimension
     Dimension {
@@ -130,6 +131,7 @@ impl GroupBySelection {
 
 /// Aggregate selection (what to compute)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AggregateSelection {
     /// COUNT(*)
     Count {
@@ -204,6 +206,7 @@ pub struct AggregationPlan {
 
 /// Validated GROUP BY expression
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GroupByExpression {
     /// JSONB dimension extraction
     JsonbPath {
@@ -236,6 +239,7 @@ pub enum GroupByExpression {
 
 /// Validated aggregate expression
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AggregateExpression {
     /// COUNT(*)
     Count {

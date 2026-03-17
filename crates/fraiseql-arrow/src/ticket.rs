@@ -20,6 +20,7 @@ const MAX_FLIGHT_TICKET_BYTES: usize = 256 * 1024; // 256 KiB
 /// In production, a more compact format (protobuf, msgpack) could be used.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum FlightTicket {
     /// GraphQL query result.
     ///

@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// The type of database event that triggered the observer
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[non_exhaustive]
 pub enum EventKind {
     /// Entity was created
     #[serde(rename = "INSERT")]

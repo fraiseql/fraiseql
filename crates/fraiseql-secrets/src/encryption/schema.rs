@@ -9,6 +9,7 @@ use crate::secrets_manager::SecretsError;
 
 /// Encryption mark type used in struct annotations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EncryptionMark {
     /// Basic `#[encrypted]` mark
     Encrypted,
@@ -180,6 +181,11 @@ impl StructSchema {
     }
 
     /// Validate schema configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::ValidationError`] if the type name is empty or any encrypted
+    /// field is missing its key reference.
     pub fn validate(&self) -> Result<(), SecretsError> {
         if self.type_name.is_empty() {
             return Err(SecretsError::ValidationError(
@@ -225,6 +231,10 @@ impl SchemaRegistry {
     }
 
     /// Register schema
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::ValidationError`] if the schema fails validation (see [`StructSchema::validate`]).
     pub fn register(&mut self, schema: StructSchema) -> Result<(), SecretsError> {
         schema.validate()?;
         self.schemas.insert(schema.type_name.clone(), schema);
@@ -283,6 +293,10 @@ impl SchemaRegistry {
     }
 
     /// Validate all registered schemas
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::ValidationError`] if any registered schema fails validation.
     pub fn validate_all(&self) -> Result<(), SecretsError> {
         for schema in self.schemas.values() {
             schema.validate()?;

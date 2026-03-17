@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 /// Severity level for design issues
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum IssueSeverity {
     /// Critical issues that may cause performance problems or bugs
     #[serde(rename = "critical")]
@@ -131,7 +132,11 @@ impl DesignAudit {
         }
     }
 
-    /// Analyze a schema from JSON string
+    /// Analyze a schema from JSON string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`serde_json::Error`] if `json` is not valid JSON.
     pub fn from_schema_json(json: &str) -> Result<Self, serde_json::Error> {
         // Parse the schema JSON
         let schema: serde_json::Value = serde_json::from_str(json)?;
@@ -199,7 +204,7 @@ impl DesignAudit {
 
         // Clamp to 0-100
         let score = score.clamp(0.0, 100.0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]  // Reason: value is bounded; truncation cannot occur in practice
         // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe.
         {
             score as u8

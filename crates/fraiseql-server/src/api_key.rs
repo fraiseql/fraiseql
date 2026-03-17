@@ -86,6 +86,7 @@ struct ResolvedStaticKey {
 
 /// API key authentication result.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ApiKeyResult {
     /// Key found and valid — contains the constructed `SecurityContext`.
     Authenticated(Box<SecurityContext>),

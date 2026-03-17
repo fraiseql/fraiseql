@@ -654,3 +654,152 @@ fn selections_contain_field(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graphql::FieldSelection;
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    fn leaf(name: &str) -> FieldSelection {
+        FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        }
+    }
+
+    fn fragment(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
+        FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: nested,
+            directives:    vec![],
+        }
+    }
+
+    // =========================================================================
+    // compute_projection_reduction
+    // =========================================================================
+
+    #[test]
+    fn projection_reduction_zero_fields_is_clamped_to_90() {
+        // 0 fields requested → saved = 20 → 100% → clamped to 90
+        assert_eq!(compute_projection_reduction(0), 90);
+    }
+
+    #[test]
+    fn projection_reduction_all_fields_is_clamped_to_10() {
+        // 20 fields (= baseline) → saved = 0 → 0% → clamped to 10
+        assert_eq!(compute_projection_reduction(20), 10);
+    }
+
+    #[test]
+    fn projection_reduction_above_baseline_clamps_to_10() {
+        // 50 fields > 20 baseline → same as 20 → clamped to 10
+        assert_eq!(compute_projection_reduction(50), 10);
+    }
+
+    #[test]
+    fn projection_reduction_10_fields_is_50_percent() {
+        // 10 requested → saved = 10 → 10/20 * 100 = 50 → within [10, 90]
+        assert_eq!(compute_projection_reduction(10), 50);
+    }
+
+    #[test]
+    fn projection_reduction_1_field_is_high() {
+        // 1 requested → saved = 19 → 95% → clamped to 90
+        assert_eq!(compute_projection_reduction(1), 90);
+    }
+
+    #[test]
+    fn projection_reduction_result_always_in_clamp_range() {
+        for n in 0_usize..=30 {
+            let r = compute_projection_reduction(n);
+            assert!(r >= 10 && r <= 90, "out of [10,90] for n={n}: got {r}");
+        }
+    }
+
+    // =========================================================================
+    // selections_contain_field
+    // =========================================================================
+
+    #[test]
+    fn empty_selections_returns_false() {
+        assert!(!selections_contain_field(&[], "totalCount"));
+    }
+
+    #[test]
+    fn direct_match_returns_true() {
+        let sels = vec![leaf("edges"), leaf("totalCount"), leaf("pageInfo")];
+        assert!(selections_contain_field(&sels, "totalCount"));
+    }
+
+    #[test]
+    fn absent_field_returns_false() {
+        let sels = vec![leaf("edges"), leaf("pageInfo")];
+        assert!(!selections_contain_field(&sels, "totalCount"));
+    }
+
+    #[test]
+    fn inline_fragment_nested_match_returns_true() {
+        // "...on UserConnection" wrapping totalCount
+        let inline = fragment("...on UserConnection", vec![leaf("totalCount"), leaf("edges")]);
+        let sels = vec![inline];
+        assert!(selections_contain_field(&sels, "totalCount"));
+    }
+
+    #[test]
+    fn inline_fragment_does_not_spuriously_match_fragment_name() {
+        // The fragment entry (name "...on Foo") only matches a field named exactly "...on Foo"
+        // when searched directly; it should NOT match an unrelated field name.
+        let inline = fragment("...on Foo", vec![leaf("id")]);
+        let sels = vec![inline];
+        assert!(!selections_contain_field(&sels, "totalCount"));
+        // "id" is nested inside the fragment and should be found via recursion
+        assert!(selections_contain_field(&sels, "id"));
+    }
+
+    #[test]
+    fn field_not_in_fragment_returns_false() {
+        let inline = fragment("...on UserConnection", vec![leaf("edges"), leaf("pageInfo")]);
+        let sels = vec![inline];
+        assert!(!selections_contain_field(&sels, "totalCount"));
+    }
+
+    #[test]
+    fn non_fragment_nested_field_not_searched() {
+        // Only entries whose name starts with "..." trigger recursion.
+        // A plain field's nested_fields should NOT be recursed into.
+        let nested_count = fragment("edges", vec![leaf("totalCount")]);
+        let sels = vec![nested_count];
+        // "edges" doesn't start with "..." — nested fields not searched
+        assert!(!selections_contain_field(&sels, "totalCount"));
+    }
+
+    #[test]
+    fn multiple_fragments_any_can_match() {
+        let frag1 = fragment("...on TypeA", vec![leaf("id")]);
+        let frag2 = fragment("...on TypeB", vec![leaf("totalCount")]);
+        let sels = vec![frag1, frag2];
+        assert!(selections_contain_field(&sels, "totalCount"));
+        assert!(selections_contain_field(&sels, "id"));
+        assert!(!selections_contain_field(&sels, "name"));
+    }
+
+    #[test]
+    fn mixed_direct_and_fragment_selections() {
+        let inline = fragment("...on Connection", vec![leaf("pageInfo")]);
+        let sels = vec![leaf("edges"), inline, leaf("metadata")];
+        assert!(selections_contain_field(&sels, "edges"));
+        assert!(selections_contain_field(&sels, "pageInfo"));
+        assert!(selections_contain_field(&sels, "metadata"));
+        assert!(!selections_contain_field(&sels, "cursor"));
+    }
+}

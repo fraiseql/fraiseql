@@ -100,6 +100,7 @@ impl Default for VectorConfig {
 /// - IVFFlat: Inverted File with Flat compression (slower queries, less memory)
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum VectorIndexType {
     /// HNSW index - best for most use cases.
     /// Pros: Fast queries, good recall
@@ -148,6 +149,7 @@ impl VectorIndexType {
 /// - `InnerProduct`: `<#>` (dot product, negate for similarity)
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DistanceMetric {
     /// Cosine distance (1 - cosine similarity).
     /// Best for normalized embeddings (`OpenAI`, most text embeddings).
@@ -205,6 +207,7 @@ impl DistanceMetric {
 /// Policy applied when a user lacks the required scope for a field.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FieldDenyPolicy {
     /// Reject the entire query with a `FORBIDDEN` error (default).
     #[default]
@@ -600,6 +603,7 @@ impl FieldDefinition {
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
+#[non_exhaustive]
 pub enum FieldType {
     // ===== Core Scalar Types (GraphQL built-ins) =====
     /// GraphQL String type.

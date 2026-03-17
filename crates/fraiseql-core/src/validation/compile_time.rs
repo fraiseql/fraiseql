@@ -30,6 +30,7 @@ pub struct TypeDef {
 
 /// Field type information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FieldType {
     /// UTF-8 text field.
     String,

@@ -1,5 +1,6 @@
 /// Errors that occur during file upload, validation, storage, or retrieval.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FileError {
     /// The uploaded file exceeds the configured maximum size.
     #[error("File too large: {size} bytes (max: {max} bytes)")]

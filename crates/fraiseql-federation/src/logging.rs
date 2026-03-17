@@ -11,6 +11,7 @@ use serde::Serialize;
 
 /// Federation operation types for logging.
 #[derive(Debug, Clone, Copy, Serialize)]
+#[non_exhaustive]
 pub enum FederationOperationType {
     /// Entity resolution (_entities query)
     #[serde(rename = "entity_resolution")]
@@ -31,6 +32,7 @@ pub enum FederationOperationType {
 
 /// Federation resolution strategy for logging.
 #[derive(Debug, Clone, Copy, Serialize)]
+#[non_exhaustive]
 pub enum ResolutionStrategy {
     /// Local resolution (in-memory cache)
     #[serde(rename = "local")]
@@ -91,6 +93,7 @@ pub struct FederationLogContext {
 
 /// Operation status for federation logs.
 #[derive(Debug, Clone, Copy, Serialize)]
+#[non_exhaustive]
 pub enum OperationStatus {
     /// Operation started (but not completed)
     #[serde(rename = "started")]

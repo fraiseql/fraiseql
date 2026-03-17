@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 /// ]);
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum WhereClause {
     /// Single field condition.
     Field {
@@ -496,6 +497,7 @@ impl WhereOperator {
 /// ]);
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum HavingClause {
     /// Aggregate field condition (e.g., count_gt, revenue_sum_gte).
     Aggregate {

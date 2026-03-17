@@ -106,6 +106,12 @@ impl CodeGenerator {
     ///
     /// - (Compilation): SQL template generation
     /// - Compiler module documentation for pipeline overview
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the IR contains invalid field types,
+    /// unknown types, or conflicting definitions. Returns [`FraiseQLError::Internal`]
+    /// for unexpected code-generation failures.
     pub fn generate(&self, ir: &AuthoringIR) -> Result<CompiledSchema> {
         // Build set of known type names for field type parsing
         let known_types: HashSet<String> = ir.types.iter().map(|t| t.name.clone()).collect();

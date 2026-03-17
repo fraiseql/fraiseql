@@ -103,6 +103,11 @@ impl ClickHouseConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `url`, `database`, or `table` is
+    /// empty, `batch_size` is 0 or exceeds 100,000, or `batch_timeout_secs` is 0.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {

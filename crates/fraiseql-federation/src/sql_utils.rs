@@ -25,6 +25,11 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 /// - Null: converted to "NULL"
 /// - Arrays/Objects: returns error
 ///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `value` is a JSON array or object,
+/// which cannot be represented as a scalar SQL literal.
+///
 /// # Examples
 ///
 /// ```text
@@ -53,6 +58,11 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
 /// Convert a JSON value to its string representation for use in SQL.
 ///
 /// This is used for extracting key values before they are escaped and quoted.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `value` is a JSON array or object,
+/// which cannot be represented as a plain string for WHERE clause use.
 ///
 /// # Examples
 ///

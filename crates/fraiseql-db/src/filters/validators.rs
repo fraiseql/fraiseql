@@ -56,6 +56,7 @@ fn compile_pattern(pattern: &str) -> Result<Regex> {
 
 /// Validation rule for an operator parameter.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ValidationRule {
     /// Pattern matching (pre-compiled regex)
     Pattern(Regex),
@@ -85,6 +86,7 @@ pub enum ValidationRule {
 
 /// Supported checksum algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ChecksumType {
     /// IBAN MOD-97 checksum
     Mod97,
@@ -207,7 +209,7 @@ impl ValidationRule {
                 // Length rule
                 if let Some(Value::Number(n)) = map.get("length") {
                     if let Some(length) = n.as_u64() {
-                        #[allow(clippy::cast_possible_truncation)]
+                        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
                         // Reason: length comes from user schema config; values exceeding
                         // usize::MAX are not meaningful as string-length limits and are
                         // silently saturated here (32-bit platforms only).
@@ -221,7 +223,7 @@ impl ValidationRule {
                     (map.get("min_length"), map.get("max_length"))
                 {
                     if let (Some(min_val), Some(max_val)) = (min.as_u64(), max.as_u64()) {
-                        #[allow(clippy::cast_possible_truncation)]
+                        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
                         // Reason: min/max length limits from schema config; values exceeding
                         // usize::MAX are not meaningful for string-length validation.
                         let (min, max) = (

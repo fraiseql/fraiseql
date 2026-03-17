@@ -90,6 +90,10 @@ impl FieldMapping {
     }
 
     /// Convert to plaintext string
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::EncryptionError`] if the field value contains invalid UTF-8.
     pub fn to_string(&self) -> Result<String, SecretsError> {
         String::from_utf8(self.value.clone()).map_err(|e| {
             SecretsError::EncryptionError(format!(
@@ -272,6 +276,10 @@ impl FieldMapper {
     /// Validate field encryption configuration
     ///
     /// Returns error if configuration is inconsistent or incomplete.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError::ValidationError`] if no encrypted fields are configured.
     pub fn validate_configuration(&self) -> Result<(), SecretsError> {
         if self.encrypted_fields().is_empty() {
             return Err(SecretsError::ValidationError(

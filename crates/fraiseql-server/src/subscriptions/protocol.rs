@@ -9,6 +9,7 @@ use fraiseql_core::runtime::protocol::{ClientMessage, ServerMessage};
 
 /// Supported WebSocket sub-protocols for GraphQL subscriptions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WsProtocol {
     /// Modern `graphql-transport-ws` protocol (enisdenjo/graphql-ws).
     ///
@@ -178,6 +179,7 @@ fn translate_legacy_server_type(modern: &str) -> Option<&str> {
 
 /// Protocol-level errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProtocolError {
     /// The raw message was not valid JSON.
     InvalidJson(String),

@@ -18,6 +18,7 @@ const MAX_EXCHANGE_MESSAGE_BYTES: usize = 256 * 1024; // 256 KiB
 /// Encapsulates requests, responses, and control messages with correlation IDs
 /// to match requests to responses in a bidirectional stream.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ExchangeMessage {
     /// Client request with correlation ID for tracking.
     ///
@@ -55,6 +56,7 @@ pub enum ExchangeMessage {
 ///
 /// Each request type has different semantics and response format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum RequestType {
     /// Execute a GraphQL query.
     ///

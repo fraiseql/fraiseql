@@ -239,6 +239,10 @@ impl QueryResultCache {
     /// Look up a cached result by its cache key.
     ///
     /// Returns `None` when caching is disabled or the key is not present or expired.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`] if the cache `Mutex` is poisoned.
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);
@@ -606,7 +610,7 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)]
+        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
         // here.
         {

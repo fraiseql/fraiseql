@@ -55,6 +55,11 @@ impl AggregationSqlGenerator {
                 let s = self.where_clause_to_sql_parameterized(inner, metadata, params)?;
                 Ok(format!("NOT ({s})"))
             },
+            // Reason: non_exhaustive requires catch-all for cross-crate matches
+            _ => Err(crate::FraiseQLError::Validation {
+                message: "Unknown WhereClause variant".to_string(),
+                path: None,
+            }),
         }
     }
 

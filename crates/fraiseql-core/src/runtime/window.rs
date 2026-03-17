@@ -108,6 +108,8 @@ impl WindowSqlGenerator {
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
+                    // Reason: non_exhaustive requires catch-all for cross-crate matches
+                    _ => "ASC",
                 };
                 // Fields in the outer ORDER BY may be JSONB path expressions
                 // (e.g. `data->>'category'`) or window aliases (e.g. `rank`); they
@@ -155,6 +157,8 @@ impl WindowSqlGenerator {
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
+                    // Reason: non_exhaustive requires catch-all for cross-crate matches
+                    _ => "ASC",
                 };
                 sql.push_str(&format!("{} {}", order.field, dir));
             }

@@ -22,6 +22,7 @@
 /// Used for structured logging and debugging to understand why cache entries
 /// were invalidated.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum InvalidationReason {
     /// Invalidation triggered by a GraphQL mutation.
     ///

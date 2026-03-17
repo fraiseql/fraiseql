@@ -25,6 +25,7 @@ const STATE_FAILED: u8 = 3;
 /// Streams start in Running state and can transition to Paused
 /// or terminal states (Completed, Failed).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StreamState {
     /// Background task is actively reading from Postgres
     Running,
@@ -227,6 +228,10 @@ impl JsonStream {
     ///
     /// Returns an error if the stream has already completed or failed.
     ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Protocol`] if the stream is in a terminal state (completed or failed).
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -281,6 +286,10 @@ impl JsonStream {
     /// already-running stream is a no-op.
     ///
     /// Returns an error if the stream has already completed or failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Protocol`] if the stream is in a terminal state (completed or failed).
     ///
     /// # Example
     ///
@@ -348,6 +357,10 @@ impl JsonStream {
     /// # Arguments
     ///
     /// * `reason` - Optional reason for pausing (logged at debug level)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Protocol`] if the stream is in a terminal state (completed or failed).
     ///
     /// # Example
     ///
@@ -506,6 +519,11 @@ impl Stream for JsonStream {
 }
 
 /// Extract JSON bytes from `DataRow` message
+///
+/// # Errors
+///
+/// Returns [`WireError::Protocol`] if the message is not a `DataRow`, the row does not
+/// have exactly one field, or the field value is null.
 pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
     match msg {
         BackendMessage::DataRow(fields) => {
@@ -526,6 +544,10 @@ pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
 }
 
 /// Parse JSON bytes into Value
+///
+/// # Errors
+///
+/// Returns [`WireError`] if the bytes are not valid JSON.
 pub fn parse_json(data: Bytes) -> Result<Value> {
     let value: Value = serde_json::from_slice(&data)?;
     Ok(value)

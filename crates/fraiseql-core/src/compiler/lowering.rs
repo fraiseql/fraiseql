@@ -37,6 +37,7 @@ use crate::error::Result;
 
 /// Database target for SQL generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum DatabaseTarget {
     /// PostgreSQL database.
     #[default]
@@ -111,6 +112,7 @@ impl DatabaseTarget {
 
 /// Template kind for categorizing generated templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TemplateKind {
     /// SELECT query template.
     Query,

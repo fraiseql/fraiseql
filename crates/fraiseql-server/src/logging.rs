@@ -127,6 +127,7 @@ impl Default for RequestContext {
 /// Log level for severity classification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
+#[non_exhaustive]
 pub enum LogLevel {
     /// Trace level (most verbose)
     Trace,

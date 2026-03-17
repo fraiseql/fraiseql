@@ -32,6 +32,7 @@ use tracing::warn;
 
 /// Error returned by [`ReplayCacheBackend::check_and_record`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ReplayCacheError {
     /// The `jti` was already seen — this is a replayed token.
     #[error("JWT token has already been used (jti replay detected)")]
@@ -47,6 +48,7 @@ pub enum ReplayCacheError {
 
 /// Policy controlling what happens when the replay-cache backend is unavailable.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum FailurePolicy {
     /// Accept the token and log a warning. Prevents auth outages during backend
     /// downtime at the cost of reduced replay protection during the outage.

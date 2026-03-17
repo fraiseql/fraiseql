@@ -5,6 +5,7 @@ use thiserror::Error;
 
 /// Main error type for fraiseql-wire operations
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WireError {
     /// Connection error
     #[error("connection error: {0}")]

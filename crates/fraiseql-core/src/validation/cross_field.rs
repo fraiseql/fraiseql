@@ -29,6 +29,7 @@ use crate::error::{FraiseQLError, Result};
 
 /// Operators supported for cross-field comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ComparisonOperator {
     /// Less than (<)
     LessThan,

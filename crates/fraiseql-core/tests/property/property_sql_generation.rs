@@ -601,6 +601,8 @@ proptest! {
             WhereClause::Not(_) | WhereClause::Field { .. } => {
                 prop_assert!(!clause.is_empty());
             }
+            // Reason: non_exhaustive requires catch-all for cross-crate matches
+            _ => {}
         }
     }
 

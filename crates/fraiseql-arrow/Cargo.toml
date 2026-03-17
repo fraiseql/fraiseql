@@ -26,7 +26,7 @@ futures = "0.3"
 # HTTP client (for SSRF-safe URL parsing)
 reqwest = {workspace = true}
 # JWT handling (for session token creation and validation)
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 parquet = "57"
 prost = "0.14"
 # Serialization

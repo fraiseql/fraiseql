@@ -4,6 +4,7 @@ use crate::{Result, WireError};
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ConnectionState {
     /// Initial state (not connected)
     Initial,
@@ -46,6 +47,11 @@ impl ConnectionState {
     }
 
     /// Transition to new state
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::InvalidState`] if the transition from the current state to `next`
+    /// is not permitted by the state machine.
     pub fn transition(&mut self, next: ConnectionState) -> Result<()> {
         if !self.can_transition_to(next) {
             return Err(WireError::InvalidState {

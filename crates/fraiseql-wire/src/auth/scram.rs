@@ -22,6 +22,7 @@ const MAX_SCRAM_ITERATIONS: u32 = 1_000_000;
 
 /// SCRAM authentication error types
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ScramError {
     /// Invalid proof from server
     InvalidServerProof(String),
@@ -90,6 +91,13 @@ impl ScramClient {
     /// Process server first message and generate client final message
     ///
     /// Returns (`client_final_message`, `internal_state`)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ScramError::InvalidServerMessage`] if the server message cannot be parsed,
+    /// the server nonce does not start with the client nonce, or the iteration count is
+    /// invalid or exceeds `MAX_SCRAM_ITERATIONS`. Returns [`ScramError::Base64Error`] if
+    /// the salt is not valid base64.
     pub fn client_final(&mut self, server_first: &str) -> Result<(String, ScramState), ScramError> {
         // Parse server first message: r=<client_nonce><server_nonce>,s=<salt>,i=<iterations>
         let (server_nonce, salt, iterations) = parse_server_first(server_first)?;

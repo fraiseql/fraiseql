@@ -44,6 +44,12 @@ impl Connection {
     }
 
     /// Perform startup and authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::InvalidState`] if the connection is not in the `Initial` state.
+    /// Returns [`WireError::Authentication`] if authentication is rejected by the server.
+    /// Returns [`WireError`] on any I/O or protocol error during the handshake.
     pub async fn startup(&mut self, config: &ConnectionConfig) -> Result<()> {
         async {
             self.state.transition(ConnectionState::AwaitingAuth)?;
@@ -272,6 +278,12 @@ impl Connection {
     }
 
     /// Execute a simple query (returns all backend messages)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::ConnectionBusy`] if the connection is not idle.
+    /// Returns [`WireError::InvalidState`] if the state machine transition fails.
+    /// Returns [`WireError`] on any I/O or protocol error during execution.
     pub async fn simple_query(&mut self, query: &str) -> Result<Vec<BackendMessage>> {
         if self.state != ConnectionState::Idle {
             return Err(WireError::ConnectionBusy(format!(
@@ -329,6 +341,11 @@ impl Connection {
     }
 
     /// Close the connection
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::InvalidState`] if the state machine transition to `Closed` fails.
+    /// Returns [`WireError`] if the transport shutdown fails.
     pub async fn close(mut self) -> Result<()> {
         self.state.transition(ConnectionState::Closed)?;
         let _ = self.send_message(&FrontendMessage::Terminate).await;

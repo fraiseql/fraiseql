@@ -50,17 +50,29 @@ func NewClient(config ClientConfig) *Client {
 	return c
 }
 
+// ExecuteInput holds the inputs for an Execute call.
+type ExecuteInput struct {
+	Query         string
+	Variables     map[string]any
+	OperationName string
+}
+
 // Query executes a GraphQL query and unmarshals the data section into v.
 func (c *Client) Query(ctx context.Context, query string, variables map[string]any, v any) error {
-	return c.execute(ctx, query, variables, v)
+	return c.execute(ctx, ExecuteInput{Query: query, Variables: variables}, v)
 }
 
 // Mutate executes a GraphQL mutation and unmarshals the data section into v.
 func (c *Client) Mutate(ctx context.Context, mutation string, variables map[string]any, v any) error {
-	return c.execute(ctx, mutation, variables, v)
+	return c.execute(ctx, ExecuteInput{Query: mutation, Variables: variables}, v)
 }
 
-func (c *Client) execute(ctx context.Context, query string, variables map[string]any, v any) error {
+// Execute executes a GraphQL operation with full control over the request inputs.
+func (c *Client) Execute(ctx context.Context, input ExecuteInput, v any) error {
+	return c.execute(ctx, input, v)
+}
+
+func (c *Client) execute(ctx context.Context, input ExecuteInput, v any) error {
 	attempts := 1
 	retry := c.config.Retry
 	if retry != nil && retry.MaxAttempts > 1 {
@@ -80,7 +92,7 @@ func (c *Client) execute(ctx context.Context, query string, variables map[string
 			}
 		}
 
-		lastErr = c.doRequest(ctx, query, variables, v)
+		lastErr = c.doRequest(ctx, input, v)
 		if lastErr == nil {
 			return nil
 		}
@@ -88,8 +100,8 @@ func (c *Client) execute(ctx context.Context, query string, variables map[string
 	return lastErr
 }
 
-func (c *Client) doRequest(ctx context.Context, query string, variables map[string]any, v any) error {
-	body, err := json.Marshal(GraphQLRequest{Query: query, Variables: variables})
+func (c *Client) doRequest(ctx context.Context, input ExecuteInput, v any) error {
+	body, err := json.Marshal(GraphQLRequest{Query: input.Query, Variables: input.Variables, OperationName: input.OperationName})
 	if err != nil {
 		return &NetworkError{FraiseQLError: FraiseQLError{Message: fmt.Sprintf("marshal request: %v", err)}}
 	}

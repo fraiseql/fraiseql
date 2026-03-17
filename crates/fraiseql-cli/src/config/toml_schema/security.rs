@@ -250,6 +250,7 @@ impl Default for RateLimitingSecurityConfig {
 
 /// AEAD algorithm for OAuth state and PKCE state blobs.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EncryptionAlgorithm {
     /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly)
     #[default]
@@ -272,6 +273,7 @@ impl fmt::Display for EncryptionAlgorithm {
 /// Where the encryption key is sourced from.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum KeySource {
     /// Read key from an environment variable
     #[default]
@@ -305,6 +307,7 @@ impl Default for StateEncryptionConfig {
 
 /// PKCE code challenge method.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CodeChallengeMethod {
     /// SHA-256 (required in production)
     #[default]
@@ -407,6 +410,7 @@ pub struct StaticApiKeyEntry {
 /// Trusted document mode.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum TrustedDocumentMode {
     /// Only documentId requests allowed; raw query strings rejected
     Strict,

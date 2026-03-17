@@ -46,6 +46,7 @@ use uuid::Uuid;
 
 /// Error type for saga store operations
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SagaStoreError {
     /// Database connection or query error
     Database(String),
@@ -103,6 +104,7 @@ pub type Result<T> = std::result::Result<T, SagaStoreError>;
 
 /// Lifecycle state of a distributed saga.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SagaState {
     /// Saga is created but has not started executing.
     Pending,
@@ -149,6 +151,7 @@ impl SagaState {
 
 /// Lifecycle state of a single saga step.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StepState {
     /// Step is queued but has not started.
     Pending,
@@ -187,6 +190,7 @@ impl StepState {
 
 /// The kind of GraphQL mutation a saga step executes.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MutationType {
     /// Step creates a new entity.
     Create,
@@ -704,7 +708,7 @@ impl PostgresSagaStore {
 
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: saga count is bounded by configuration and won't exceed i64::MAX
         let step_number = step.order as i32;
 

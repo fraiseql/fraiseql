@@ -60,7 +60,8 @@ export function validateCustomScalar(
   value: unknown,
   context: "serialize" | "parseValue" | "parseLiteral" = "parseValue"
 ): unknown {
-  const instance = new (scalarClass as any)();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- instantiating abstract class subclass
+  const instance = new (scalarClass as new () => any)();
   const scalarName = instance.name;
 
   try {

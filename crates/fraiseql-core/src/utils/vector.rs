@@ -34,6 +34,7 @@ use crate::schema::{DistanceMetric, VectorConfig};
 
 /// A SQL parameter value for vector queries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum VectorParam {
     /// A vector embedding (array of floats).
     Vector(Vec<f32>),
@@ -239,6 +240,7 @@ pub struct VectorQueryBuilder {
 
 /// Style of parameter placeholders in generated SQL.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum PlaceholderStyle {
     /// `PostgreSQL` style: `$1`, `$2`, `$3`
     #[default]

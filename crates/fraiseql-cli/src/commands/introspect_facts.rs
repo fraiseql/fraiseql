@@ -20,6 +20,7 @@ use crate::output::OutputFormatter;
 
 /// Output format for introspection results.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum OutputFormat {
     /// Python decorator format
     Python,

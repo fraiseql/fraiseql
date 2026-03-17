@@ -166,6 +166,11 @@ impl PostgresAdvisoryLease {
     ///
     /// Returns `true` when the lock is now held (including if we already held it),
     /// `false` when another session holds the lock.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if acquiring a pool connection or
+    /// executing `pg_try_advisory_lock` fails.
     pub async fn acquire(&self) -> Result<bool> {
         let mut conn_guard = self.conn.lock().await;
 
@@ -195,6 +200,11 @@ impl PostgresAdvisoryLease {
     }
 
     /// Release the advisory lock and return the connection to the pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if `pg_advisory_unlock` fails, or
+    /// [`ObserverError::InvalidConfig`] if the lock is not currently held.
     pub async fn release(&self) -> Result<()> {
         let mut conn_guard = self.conn.lock().await;
         if let Some(mut conn) = conn_guard.take() {
@@ -217,11 +227,19 @@ impl PostgresAdvisoryLease {
     /// No-op: PostgreSQL session advisory locks have no TTL.
     ///
     /// Returns `true` while the lock is held, `false` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`.
     pub async fn renew(&self) -> Result<bool> {
         Ok(self.conn.lock().await.is_some())
     }
 
     /// Returns `true` if we currently hold the advisory lock.
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`.
     pub async fn is_valid(&self) -> Result<bool> {
         Ok(self.conn.lock().await.is_some())
     }
@@ -230,6 +248,10 @@ impl PostgresAdvisoryLease {
     ///
     /// Note: advisory locks store no metadata in PostgreSQL, so the holder
     /// of an uncontested lock is not externally visible.
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`.
     pub async fn get_holder(&self) -> Result<Option<String>> {
         if self.conn.lock().await.is_some() {
             Ok(Some(self.listener_id.clone()))
@@ -239,6 +261,10 @@ impl PostgresAdvisoryLease {
     }
 
     /// Returns `u64::MAX`: PostgreSQL advisory locks do not expire.
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`.
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         Ok(u64::MAX)
     }
@@ -291,6 +317,10 @@ impl RedisAdvisoryLease {
     ///
     /// Returns `true` when the key was set (we now hold the lease),
     /// `false` when it already existed (another instance holds it).
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or command errors.
     pub async fn acquire(&self) -> Result<bool> {
         let key = self.redis_key();
         // SET key value NX EX ttl → "OK" on success, nil on failure.
@@ -308,6 +338,10 @@ impl RedisAdvisoryLease {
     /// Release the lease atomically via Lua.
     ///
     /// Only deletes the key when the stored value matches our `listener_id`.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or Lua script execution errors.
     pub async fn release(&self) -> Result<()> {
         let key = self.redis_key();
         // Lua: check value matches, then DEL atomically.
@@ -330,6 +364,10 @@ impl RedisAdvisoryLease {
     ///
     /// Returns `true` if the TTL was refreshed (we hold the lease),
     /// `false` if the key is missing or owned by another listener.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or Lua script execution errors.
     pub async fn renew(&self) -> Result<bool> {
         let key = self.redis_key();
         let script = r"
@@ -350,6 +388,10 @@ impl RedisAdvisoryLease {
     }
 
     /// Returns `true` if the Redis key exists and is owned by this listener.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or command errors.
     pub async fn is_valid(&self) -> Result<bool> {
         let key = self.redis_key();
         let holder: Option<String> =
@@ -358,6 +400,10 @@ impl RedisAdvisoryLease {
     }
 
     /// Returns the current holder's `listener_id`, or `None` if the key is absent.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or command errors.
     pub async fn get_holder(&self) -> Result<Option<String>> {
         let key = self.redis_key();
         let holder: Option<String> =
@@ -368,6 +414,10 @@ impl RedisAdvisoryLease {
     /// Returns remaining TTL in milliseconds (Redis `TTL` command × 1000).
     ///
     /// Returns `0` when the key is absent or has no TTL.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Redis connection or command errors.
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         let key = self.redis_key();
         let ttl_secs: i64 = redis::cmd("TTL").arg(&key).query_async(&mut self.conn.clone()).await?;
@@ -443,6 +493,10 @@ impl CheckpointLease {
     /// Attempt to acquire the lease.
     ///
     /// Returns `true` when acquired (or already held), `false` when contested.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn acquire(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.acquire().await,
@@ -454,6 +508,10 @@ impl CheckpointLease {
     }
 
     /// Release the lease.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn release(&self) -> Result<()> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.release().await,
@@ -467,6 +525,10 @@ impl CheckpointLease {
     /// Renew (extend) the lease TTL.
     ///
     /// For Postgres advisory leases this is a no-op; returns `true` while held.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn renew(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.renew().await,
@@ -478,6 +540,10 @@ impl CheckpointLease {
     }
 
     /// Returns `true` if the lease is currently held and (for timed backends) not expired.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn is_valid(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.is_valid().await,
@@ -489,6 +555,10 @@ impl CheckpointLease {
     }
 
     /// Returns the listener ID that currently holds the lease, or `None`.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn get_holder(&self) -> Result<Option<String>> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.get_holder().await,
@@ -502,6 +572,10 @@ impl CheckpointLease {
     /// Returns the remaining lease duration in milliseconds.
     ///
     /// For Postgres advisory leases returns `u64::MAX` (no expiry).
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying backend (`InProcess`, `Postgres`, or `Redis`).
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.time_remaining_ms().await,

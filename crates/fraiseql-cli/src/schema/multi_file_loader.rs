@@ -61,6 +61,12 @@ impl MultiFileLoader {
     }
 
     /// Load from directory with file path tracking for conflict detection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `dir_path` is not a directory, if more than
+    /// `MAX_SCHEMA_FILES` JSON files are found, if any file cannot be read or
+    /// parsed as JSON, or if duplicate type/query/mutation names are detected.
     pub fn load_from_directory_with_tracking(dir_path: &str) -> Result<LoadResult> {
         let dir = Path::new(dir_path);
         if !dir.is_dir() {
@@ -164,7 +170,12 @@ impl MultiFileLoader {
     /// * `paths` - Vector of file paths to load
     ///
     /// # Returns
-    /// Merged Value with "types", "queries", "mutations" as arrays
+    /// Merged `Value` with "types", "queries", "mutations" as arrays.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any path does not exist, cannot be read, or cannot
+    /// be parsed as JSON.
     pub fn load_from_paths(paths: &[PathBuf]) -> Result<Value> {
         let mut types = Vec::new();
         let mut queries = Vec::new();

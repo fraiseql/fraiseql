@@ -8,6 +8,7 @@ use arrow::array::RecordBatch;
 
 /// Supported export formats
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ExportFormat {
     /// Apache Parquet columnar format
     Parquet,

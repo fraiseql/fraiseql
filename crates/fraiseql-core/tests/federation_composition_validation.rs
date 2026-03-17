@@ -54,6 +54,7 @@ mod harness {
     // ========================================================================
 
     #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
     pub enum FieldType {
         ID,
         String,

@@ -256,6 +256,7 @@ pub struct AutoParams {
 
 /// Mutation operation type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum MutationOperation {
     /// INSERT operation.
     Create,

@@ -75,6 +75,12 @@ impl JwksCache {
 
     /// Get a decoding key by `kid`, fetching from the remote JWKS endpoint if
     /// the cache is stale or the key is missing.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error if the remote JWKS endpoint is unreachable, returns
+    /// an oversized response, returns invalid JSON, or if the internal cache lock
+    /// is poisoned.
     pub async fn get_key(&self, kid: &str) -> Result<Option<DecodingKey>, String> {
         // Fast path: cache is fresh and key exists
         if let Some(key) = self.get_key_from_cache(kid) {
@@ -93,6 +99,11 @@ impl JwksCache {
     }
 
     /// Force a refresh of the JWKS keys from the remote endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the remote JWKS fetch (network failure, oversized
+    /// response, JSON parse error, or poisoned cache lock).
     pub async fn force_refresh(&self) -> Result<(), String> {
         self.fetch_keys().await
     }
@@ -183,7 +194,7 @@ mod tests {
         matchers::{method, path},
     };
 
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

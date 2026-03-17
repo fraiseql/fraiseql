@@ -21,6 +21,11 @@ impl SchemaOptimizer {
     /// - Join order hints
     /// - Projection optimization
     /// - Predicate pushdown opportunities
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; returns `Ok` in all cases. The `Result` return
+    /// type is reserved for future optimizations that may produce errors.
     pub fn optimize(schema: &mut CompiledSchema) -> Result<OptimizationReport> {
         info!("Optimizing compiled schema");
 

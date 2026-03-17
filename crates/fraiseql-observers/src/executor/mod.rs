@@ -194,6 +194,12 @@ impl ObserverExecutor {
     /// 1. Evaluate condition (if present)
     /// 2. Execute actions with retry logic
     /// 3. Handle failures via DLQ
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the condition parser if a condition expression is invalid.
+    /// Action execution failures are recorded in the `ExecutionSummary` rather than
+    /// returned as errors.
     pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummary> {
         // Record metrics
         #[cfg(feature = "metrics")]

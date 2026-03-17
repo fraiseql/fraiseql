@@ -230,12 +230,22 @@ impl CompilationCache {
     }
 
     /// Get current cache metrics.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible. The `Result` return type is
+    /// reserved for future implementations that may use fallible storage.
     pub fn metrics(&self) -> Result<CompilationCacheMetrics> {
         let metrics = self.metrics.lock().expect("metrics lock poisoned");
         Ok(metrics.clone())
     }
 
     /// Clear all cached compilations.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible. The `Result` return type is
+    /// reserved for future implementations that may use fallible storage.
     pub fn clear(&self) -> Result<()> {
         self.cache.lock().expect("cache lock poisoned").clear();
         let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
@@ -244,12 +254,17 @@ impl CompilationCache {
     }
 
     /// Get cache hit rate as percentage (0-100).
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible. The `Result` return type is
+    /// reserved for future implementations that may use fallible storage.
     pub fn hit_rate(&self) -> Result<f64> {
         let metrics = self.metrics.lock().expect("metrics lock poisoned");
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
-        #[allow(clippy::cast_precision_loss)]
+        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
         // acceptable here.
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)

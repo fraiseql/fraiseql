@@ -136,6 +136,11 @@ impl JobQueueConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `url` is empty or any numeric
+    /// field (`batch_size`, `batch_timeout_secs`, `max_retries`, `worker_concurrency`) is 0.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {

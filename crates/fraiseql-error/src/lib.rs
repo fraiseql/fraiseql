@@ -72,6 +72,7 @@ pub use webhook::WebhookError;
 /// code. Sensitive internal details (database messages, config values) are
 /// stripped from the HTTP response and are only present in server-side logs.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RuntimeError {
     /// A configuration error, such as an invalid or missing config file.
     #[error(transparent)]

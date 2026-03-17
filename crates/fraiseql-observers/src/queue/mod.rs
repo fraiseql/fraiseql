@@ -70,6 +70,7 @@ use crate::{config::ActionConfig, error::Result, event::EntityEvent, traits::Act
 
 /// Status of a job in the queue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum JobStatus {
     /// Job is waiting to be processed
     Pending,

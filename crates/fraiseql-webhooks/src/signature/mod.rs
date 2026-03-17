@@ -22,6 +22,7 @@ pub use registry::ProviderRegistry;
 
 /// Errors produced by low-level signature verification routines.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SignatureError {
     /// The signature header value could not be parsed according to the provider's expected format.
     /// For example, a GitHub signature missing the `sha256=` prefix triggers this variant.

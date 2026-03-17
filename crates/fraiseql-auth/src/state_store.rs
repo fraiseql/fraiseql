@@ -174,6 +174,10 @@ impl RedisStateStore {
     /// # Ok(())
     /// # }
     /// ```
+    /// # Errors
+    ///
+    /// Returns [`AuthError::ConfigError`] if the Redis URL is invalid or if the
+    /// connection manager cannot be established.
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client =
             redis::Client::open(redis_url).map_err(|e| crate::error::AuthError::ConfigError {
@@ -258,7 +262,7 @@ impl StateStore for RedisStateStore {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

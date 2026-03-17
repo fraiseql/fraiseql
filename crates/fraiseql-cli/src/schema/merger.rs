@@ -27,7 +27,12 @@ impl SchemaMerger {
     /// * `toml_path` - Path to fraiseql.toml (configuration)
     ///
     /// # Returns
-    /// Combined IntermediateSchema
+    /// Combined `IntermediateSchema`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either file cannot be read or parsed, or if the
+    /// merged result cannot be deserialized into an `IntermediateSchema`.
     pub fn merge_files(types_path: &str, toml_path: &str) -> Result<IntermediateSchema> {
         // Load types.json
         let types_json = fs::read_to_string(types_path)
@@ -52,7 +57,12 @@ impl SchemaMerger {
     /// * `toml_path` - Path to fraiseql.toml with inline type definitions
     ///
     /// # Returns
-    /// IntermediateSchema from TOML definitions
+    /// `IntermediateSchema` from TOML definitions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML file cannot be loaded, if validation fails,
+    /// or if the merged result cannot be deserialized into an `IntermediateSchema`.
     pub fn merge_toml_only(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -71,7 +81,12 @@ impl SchemaMerger {
     /// * `schema_dir` - Path to directory containing schema files
     ///
     /// # Returns
-    /// IntermediateSchema from loaded files + TOML definitions
+    /// `IntermediateSchema` from loaded files + TOML definitions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either file cannot be loaded or validated, if the
+    /// directory cannot be read, or if the merged result cannot be deserialized.
     pub fn merge_from_directory(toml_path: &str, schema_dir: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -178,7 +193,13 @@ impl SchemaMerger {
     /// * `toml_path` - Path to fraiseql.toml with domain_discovery enabled
     ///
     /// # Returns
-    /// IntermediateSchema from all domains (types.json, queries.json, mutations.json)
+    /// `IntermediateSchema` from all domains (types.json, queries.json, mutations.json).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML cannot be loaded or validated, if domain
+    /// discovery fails, if any domain file cannot be parsed, or if the merged
+    /// result cannot be deserialized.
     pub fn merge_from_domains(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -235,7 +256,13 @@ impl SchemaMerger {
     /// * `toml_path` - Path to fraiseql.toml with schema.includes section
     ///
     /// # Returns
-    /// IntermediateSchema from loaded files + TOML definitions
+    /// `IntermediateSchema` from loaded files + TOML definitions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML cannot be loaded or validated, if any glob
+    /// pattern is invalid, if a matched file cannot be parsed, or if the merged
+    /// result cannot be deserialized.
     pub fn merge_with_includes(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;

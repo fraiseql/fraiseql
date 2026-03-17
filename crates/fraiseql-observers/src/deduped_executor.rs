@@ -82,6 +82,7 @@ use tracing::{debug, error, warn};
 /// usually undesirable in production — a `tracing::warn!` is emitted
 /// when the executor is constructed with `Unrestricted`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum TenantScope {
     /// Accept every event regardless of `tenant_id`.
     ///

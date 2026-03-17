@@ -18,6 +18,7 @@ use uuid::Uuid;
 // ========================================================================
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SagaState {
     Pending,
     Executing,
@@ -29,6 +30,7 @@ pub enum SagaState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum StepState {
     #[default]
     Pending,
@@ -38,6 +40,7 @@ pub enum StepState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum MutationType {
     Create,
     #[default]
@@ -46,12 +49,14 @@ pub enum MutationType {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum StepBehavior {
     Succeed,
     Fail(String),
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum CompensationBehavior {
     Succeed,
     Fail(String),

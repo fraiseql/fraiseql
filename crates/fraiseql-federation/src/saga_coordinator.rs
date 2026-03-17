@@ -168,6 +168,7 @@ impl SagaStep {
 
 /// Compensation strategy for saga failures
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum CompensationStrategy {
     /// Automatically compensate on any failure
     #[default]

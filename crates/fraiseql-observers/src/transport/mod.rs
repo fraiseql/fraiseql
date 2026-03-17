@@ -117,6 +117,7 @@ pub trait EventTransport: Send + Sync {
 
 /// Transport type identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TransportType {
     /// PostgreSQL LISTEN/NOTIFY
     PostgresNotify,
@@ -157,6 +158,7 @@ pub struct TransportHealth {
 
 /// Health status enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HealthStatus {
     /// Transport healthy
     Healthy,

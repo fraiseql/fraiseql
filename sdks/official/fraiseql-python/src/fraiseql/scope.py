@@ -53,6 +53,9 @@ The runtime checks if any user scope matches a field's required scope.
 
 import re
 
+_SCOPE_PART_COUNT = 2  # action:resource — exactly two parts separated by ':'
+_RESOURCE_PART_COUNT = 2  # Type.field — exactly two parts separated by '.'
+
 
 class ScopeValidationError(ValueError):
     """Exception raised when scope validation fails.
@@ -94,7 +97,7 @@ def validate_scope(scope: str | None) -> None:
         )
 
     parts = scope.split(":")
-    if len(parts) != 2:
+    if len(parts) != _SCOPE_PART_COUNT:
         raise ScopeValidationError(
             f"Scope '{scope}' has too many colons. "
             "Expected format: action:resource with single ':' separator"
@@ -170,7 +173,7 @@ def _is_valid_resource(resource: str) -> bool:
     # Specific field reference: "Type.field"
     if "." in resource:
         parts = resource.split(".")
-        if len(parts) != 2:
+        if len(parts) != _RESOURCE_PART_COUNT:
             return False
         type_name, field_name = parts
         return bool(re.match(r"^[A-Z][a-zA-Z0-9_]*$", type_name)) and bool(

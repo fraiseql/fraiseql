@@ -13,6 +13,7 @@ use crate::error::{ObserverError, Result};
 /// Transport type for event sourcing
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum TransportKind {
     /// PostgreSQL LISTEN/NOTIFY (default, existing behavior)
     #[default]
@@ -101,6 +102,12 @@ impl TransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if NATS transport is selected without
+    /// a URL, if `run_bridge` is set without NATS transport, or if nested NATS or
+    /// bridge config validation fails.
     pub fn validate(&self) -> Result<()> {
         // NATS transport requires NATS URL
         if self.transport == TransportKind::Nats && self.nats.url.is_empty() {
@@ -202,6 +209,11 @@ impl NatsTransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `subject_prefix` or `consumer_name`
+    /// is empty, or if nested JetStream config validation fails.
     pub fn validate(&self) -> Result<()> {
         if self.subject_prefix.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -325,6 +337,11 @@ impl JetStreamConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `dedup_window_minutes` is outside
+    /// `1..=60`, `ack_wait_secs` is 0, or `max_deliver` is not positive.
     pub fn validate(&self) -> Result<()> {
         if self.dedup_window_minutes == 0 || self.dedup_window_minutes > 60 {
             return Err(ObserverError::InvalidConfig {
@@ -420,6 +437,11 @@ impl BridgeTransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `transport_name` is empty,
+    /// `batch_size` is 0 or exceeds 10,000, or `poll_interval_secs` is 0.
     pub fn validate(&self) -> Result<()> {
         if self.transport_name.is_empty() {
             return Err(ObserverError::InvalidConfig {

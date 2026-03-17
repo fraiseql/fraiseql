@@ -368,6 +368,11 @@ impl CustomTypeRegistry {
     ///     "string not matching LIB-NNNN pattern should fail"
     /// );
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `type_name` is unknown, the value
+    /// fails pattern/length/range rules, or an ELO expression evaluates to `false`.
     pub fn validate(&self, type_name: &str, value: &serde_json::Value) -> Result<()> {
         let def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Unknown custom scalar type '{}'", type_name),

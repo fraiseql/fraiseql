@@ -13,6 +13,7 @@ use std::fmt;
 
 /// Authentication error types
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum AuthError {
     /// SCRAM-specific error
     Scram(ScramError),

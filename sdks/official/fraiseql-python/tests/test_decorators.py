@@ -489,7 +489,7 @@ def test_duplicate_type_registration_raises_error() -> None:
     with pytest.raises(ValueError, match="already registered"):
 
         @fraiseql.type
-        class User:  # noqa: F811
+        class User:
             id: str
 
 
@@ -507,7 +507,7 @@ def test_duplicate_query_registration_raises_error() -> None:
     with pytest.raises(ValueError, match="already registered"):
 
         @fraiseql.query(sql_source="v_user")
-        def get_user() -> User:  # noqa: F811
+        def get_user() -> User:
             pass
 
 
@@ -525,7 +525,7 @@ def test_duplicate_mutation_registration_raises_error() -> None:
     with pytest.raises(ValueError, match="already registered"):
 
         @fraiseql.mutation(operation="CREATE")
-        def create_user(name: str) -> User:  # noqa: F811
+        def create_user(name: str) -> User:
             pass
 
 
@@ -702,7 +702,7 @@ def test_query_cache_ttl_negative_raises() -> None:
     class Gizmo:
         id: int
 
-    with pytest.raises(ValueError, match="non-negative integer"):  # noqa: PT011
+    with pytest.raises(ValueError, match="non-negative integer"):
 
         @fraiseql.query(sql_source="v_gizmo", cache_ttl_seconds=-1)
         def gizmos() -> list[Gizmo]:

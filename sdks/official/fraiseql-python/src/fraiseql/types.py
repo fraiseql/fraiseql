@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 __all__ = [
-    "python_type_to_graphql",
     "extract_field_config",
     "extract_field_info",
     "extract_function_signature",
+    "python_type_to_graphql",
 ]
 
+import inspect
 from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
 
 if TYPE_CHECKING:
-    from fraiseql.decorators import FieldConfig  # type: ignore[attr-defined]
+    from fraiseql.decorators import FieldConfig
+
+_NULLABLE_UNION_ARG_COUNT = 2
 
 
-def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
+def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:  # noqa: PLR0911 — each return handles a distinct type branch
     """Convert Python type hint to GraphQL type string.
 
     Args:
@@ -55,7 +58,7 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
     is_union = origin is Union or (hasattr(origin, "__name__") and origin.__name__ == "UnionType")
     if is_union:
         # Check if it's a nullable type (T | None)
-        if len(args) == 2 and type(None) in args:
+        if len(args) == _NULLABLE_UNION_ARG_COUNT and type(None) in args:
             # Get the non-None type
             non_none_type = args[0] if args[1] is type(None) else args[1]
             base_type, _ = python_type_to_graphql(non_none_type)
@@ -108,8 +111,7 @@ def extract_field_config(field_type: Any) -> FieldConfig | None:
     Returns:
         FieldConfig if found in annotations, None otherwise
     """
-    # Import here to avoid circular import
-    from fraiseql.decorators import FieldConfig  # type: ignore[attr-defined]
+    from fraiseql.decorators import FieldConfig  # noqa: PLC0415, I001 — circular import; deferred to runtime
 
     origin = get_origin(field_type)
     if origin is not Annotated:
@@ -207,15 +209,13 @@ def extract_function_signature(func: Any) -> dict[str, Any]:
             "return_type": {"type": "[User!]", "nullable": False, "is_list": True}
         }
     """
-    import inspect
-
     sig = inspect.signature(func)
     annotations = func.__annotations__
 
     # Extract arguments
     arguments = []
     for param_name, param in sig.parameters.items():
-        if param_name == "self" or param_name == "info":
+        if param_name in {"self", "info"}:
             continue
 
         if param_name not in annotations:

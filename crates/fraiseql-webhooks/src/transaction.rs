@@ -12,6 +12,7 @@ use super::{Result, WebhookError};
 
 /// Transaction isolation levels for webhook processing
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum WebhookIsolation {
     /// Read Committed - default, good for most cases
     #[default]

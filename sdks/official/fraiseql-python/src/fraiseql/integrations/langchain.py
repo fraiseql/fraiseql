@@ -41,8 +41,8 @@ class FraiseQLTool(BaseTool):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    name: str  # type: ignore[assignment]
-    description: str  # type: ignore[assignment]
+    name: str
+    description: str
     client: Any  # FraiseQLClient (not serializable by pydantic)
     query_template: str
     is_mutation: bool = False

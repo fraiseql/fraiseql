@@ -2,8 +2,9 @@ package fraiseql
 
 // GraphQLRequest is the JSON body sent to a GraphQL server.
 type GraphQLRequest struct {
-	Query     string         `json:"query"`
-	Variables map[string]any `json:"variables,omitempty"`
+	Query         string         `json:"query"`
+	Variables     map[string]any `json:"variables,omitempty"`
+	OperationName string         `json:"operationName,omitempty"`
 }
 
 // GraphQLResponse is the JSON body received from a GraphQL server.

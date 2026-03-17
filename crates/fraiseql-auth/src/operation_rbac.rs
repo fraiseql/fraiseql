@@ -16,6 +16,7 @@ use crate::{AuthError, error::Result, middleware::AuthenticatedUser};
 /// The string representation returned by [`OperationPermission::as_str`] is used
 /// when storing role-permission mappings in configuration or databases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum OperationPermission {
     /// Create a new observer rule.
     CreateRule,
@@ -338,7 +339,7 @@ impl RBACPolicy {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
     use crate::jwt::Claims;

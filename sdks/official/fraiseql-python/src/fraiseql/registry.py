@@ -1,7 +1,7 @@
 """Global schema registry for collecting types, queries, and mutations."""
 
 import re
-from typing import Any, TypeAlias
+from typing import Any, ClassVar, TypeAlias
 
 SchemaElement: TypeAlias = dict[str, Any]
 
@@ -21,15 +21,16 @@ class SchemaRegistry:
     """
 
     # Class-level storage (singleton pattern)
-    _types: dict[str, SchemaElement] = {}
-    _enums: dict[str, SchemaElement] = {}
-    _input_types: dict[str, SchemaElement] = {}
-    _interfaces: dict[str, SchemaElement] = {}
-    _unions: dict[str, SchemaElement] = {}
-    _queries: dict[str, SchemaElement] = {}
-    _mutations: dict[str, SchemaElement] = {}
-    _subscriptions: dict[str, SchemaElement] = {}
-    _custom_scalars: dict[str, tuple[type, str | None]] = {}  # name -> (class, description)
+    _types: ClassVar[dict[str, SchemaElement]] = {}
+    _enums: ClassVar[dict[str, SchemaElement]] = {}
+    _input_types: ClassVar[dict[str, SchemaElement]] = {}
+    _interfaces: ClassVar[dict[str, SchemaElement]] = {}
+    _unions: ClassVar[dict[str, SchemaElement]] = {}
+    _queries: ClassVar[dict[str, SchemaElement]] = {}
+    _mutations: ClassVar[dict[str, SchemaElement]] = {}
+    _subscriptions: ClassVar[dict[str, SchemaElement]] = {}
+    # Maps scalar name -> (CustomScalar class, optional description)
+    _custom_scalars: ClassVar[dict[str, tuple[type, str | None]]] = {}
 
     @staticmethod
     def _build_field_def(field_name: str, field_info: SchemaElement) -> SchemaElement:
@@ -45,7 +46,7 @@ class SchemaRegistry:
         return field_def
 
     @classmethod
-    def register_type(
+    def register_type(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
         fields: dict[str, dict[str, Any]],
@@ -202,7 +203,7 @@ class SchemaRegistry:
         }
 
     @classmethod
-    def register_query(
+    def register_query(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
         return_type: str,
@@ -242,7 +243,7 @@ class SchemaRegistry:
         }
 
     @classmethod
-    def register_mutation(
+    def register_mutation(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
         return_type: str,
@@ -396,11 +397,11 @@ class SchemaRegistry:
         cls._custom_scalars.clear()
 
 
-def generate_schema_json(types: list[type] | None = None) -> dict[str, Any]:
+def generate_schema_json(_types: list[type] | None = None) -> dict[str, Any]:
     """Generate schema JSON from current registry (convenience function).
 
     Args:
-        types: List of types to include (unused for compatibility, uses full registry)
+        _types: Unused; accepted for compatibility, full registry is always used.
 
     Returns:
         Schema dictionary with federation metadata if applicable.

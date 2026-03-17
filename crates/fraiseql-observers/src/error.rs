@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// Observer error type with structured error codes.
 #[derive(Debug, Error, Clone)]
+#[non_exhaustive]
 pub enum ObserverError {
     /// OB001: Observer configuration is invalid
     #[error("OB001: Invalid observer configuration: {message}")]
@@ -177,6 +178,7 @@ pub enum ObserverError {
 
 /// Error code with classification for retry/DLQ decisions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ObserverErrorCode {
     /// OB001: Invalid observer configuration
     InvalidConfig,

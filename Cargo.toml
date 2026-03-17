@@ -81,7 +81,7 @@ hmac = "0.12"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
-jsonwebtoken = "10"
+jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 linked-hash-map = "0.5"
 # Caching
 lru = "0.16"

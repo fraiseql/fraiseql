@@ -8,6 +8,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 /// Category of operator (affects SQL generation strategy)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OperatorCategory {
     /// Basic comparison: =, !=, >, <, >=, <=
     Comparison,

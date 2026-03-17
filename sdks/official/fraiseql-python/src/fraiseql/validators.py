@@ -1,6 +1,6 @@
 """Validation engine for custom GraphQL scalars."""
 
-from typing import Any
+from typing import Any, cast
 
 from fraiseql.registry import SchemaRegistry
 from fraiseql.scalars import CustomScalar
@@ -67,7 +67,7 @@ def validate_custom_scalar(
     except ValueError as e:
         raise ScalarValidationError(scalar_name, context, str(e)) from e
     except Exception as e:
-        raise ScalarValidationError(scalar_name, context, f"{type(e).__name__}: {str(e)}") from e
+        raise ScalarValidationError(scalar_name, context, f"{type(e).__name__}: {e!s}") from e
 
 
 def get_all_custom_scalars() -> dict[str, type[CustomScalar]]:
@@ -81,4 +81,4 @@ def get_all_custom_scalars() -> dict[str, type[CustomScalar]]:
         >>> scalars = get_all_custom_scalars()
         >>> # {'Email': <class Email>, 'Phone': <class Phone>, ...}
     """
-    return SchemaRegistry.get_custom_scalars()
+    return cast("dict[str, type[CustomScalar]]", SchemaRegistry.get_custom_scalars())

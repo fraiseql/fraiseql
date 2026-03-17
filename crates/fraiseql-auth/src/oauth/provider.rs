@@ -9,6 +9,7 @@ use super::{super::error::AuthError, client::OIDCProviderConfig};
 
 /// External authentication provider type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ProviderType {
     /// OAuth2 provider
     OAuth2,

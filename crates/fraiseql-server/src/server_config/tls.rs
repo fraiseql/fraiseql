@@ -12,6 +12,7 @@ use super::defaults::{
 /// GraphQL IDE/playground tool to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum PlaygroundTool {
     /// GraphiQL - the classic GraphQL IDE.
     GraphiQL,

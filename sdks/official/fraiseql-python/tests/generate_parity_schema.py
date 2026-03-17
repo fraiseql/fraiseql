@@ -10,9 +10,9 @@ import sys
 
 sys.path.insert(0, "src")
 
-import fraiseql  # noqa: E402
-from fraiseql.registry import SchemaRegistry  # noqa: E402
-from fraiseql.scalars import ID  # noqa: E402
+import fraiseql
+from fraiseql.registry import SchemaRegistry
+from fraiseql.scalars import ID
 
 # Reset registry to avoid contamination from previous imports
 SchemaRegistry.clear()

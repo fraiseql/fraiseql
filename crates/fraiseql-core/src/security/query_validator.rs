@@ -170,6 +170,14 @@ impl QueryValidator {
     ///
     /// Returns [`QueryMetrics`] if all checks pass, or the first
     /// [`SecurityError`] encountered.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecurityError::QueryTooLarge`] if the query exceeds `max_size_bytes`.
+    /// Returns [`SecurityError::MalformedQuery`] if GraphQL syntax is invalid.
+    /// Returns [`SecurityError::QueryTooDeep`] if nesting depth exceeds `max_depth`.
+    /// Returns [`SecurityError::QueryTooComplex`] if complexity exceeds `max_complexity`.
+    /// Returns [`SecurityError::TooManyAliases`] if alias count exceeds `max_aliases`.
     pub fn validate(&self, query: &str) -> Result<QueryMetrics> {
         // Check 1: Validate query size (O(1) — pre-parse)
         let size_bytes = query.len();

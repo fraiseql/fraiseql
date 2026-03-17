@@ -36,6 +36,12 @@ pub(super) enum Token {
 }
 
 impl ConditionParser {
+    /// Tokenize a condition expression string into a list of [`Token`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidCondition`] if the expression exceeds
+    /// `MAX_CONDITION_INPUT_BYTES` or contains an unexpected character.
     pub(super) fn tokenize(&self, condition: &str) -> Result<Vec<Token>> {
         if condition.len() > MAX_CONDITION_INPUT_BYTES {
             return Err(ObserverError::InvalidCondition {

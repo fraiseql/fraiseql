@@ -713,6 +713,7 @@ impl DatabaseCapabilities {
 /// and used at runtime to choose the correct SQL comparison and cursor
 /// encoding/decoding path.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CursorValue {
     /// BIGINT primary key cursor (default, backward-compatible).
     Int64(i64),

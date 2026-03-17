@@ -41,6 +41,7 @@ use serde::{Deserialize, Serialize};
 
 /// Security profile configuration
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum SecurityProfile {
     /// STANDARD: Basic security (rate limit + audit)
     #[default]

@@ -13,6 +13,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Only acts on tables using the [`FactTableVersionStrategy::VersionTable`] strategy.
     /// `TimeBased` and `SchemaVersion` strategies are invalidated by their own mechanisms.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from calling the `bump_tf_version` database function via
+    /// the underlying [`DatabaseAdapter::execute_function_call`].
     pub(super) async fn bump_fact_table_versions_impl(&self, tables: &[String]) -> Result<()> {
         for table in tables {
             // Only act when this table uses the version-table strategy.

@@ -63,6 +63,11 @@ impl MultiListenerCoordinator {
     }
 
     /// Register a listener
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`; the `Result` return type is
+    /// reserved for future validation.
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
             listener_id:    listener_id.clone(),
@@ -76,12 +81,21 @@ impl MultiListenerCoordinator {
     }
 
     /// Deregister a listener
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`; the `Result` return type is
+    /// reserved for future validation.
     pub fn deregister_listener(&self, listener_id: &str) -> Result<()> {
         self.listeners.remove(listener_id);
         Ok(())
     }
 
     /// Get listener state
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `listener_id` is not registered.
     pub async fn get_listener_state(&self, listener_id: &str) -> Result<ListenerState> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -91,6 +105,10 @@ impl MultiListenerCoordinator {
     }
 
     /// Update listener heartbeat
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `listener_id` is not registered.
     pub async fn update_heartbeat(&self, listener_id: &str) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -105,6 +123,10 @@ impl MultiListenerCoordinator {
     /// The checkpoint is stored as its raw bit pattern in an `AtomicU64` so that
     /// negative sentinel values (e.g. `-1` for "no checkpoint yet") round-trip
     /// correctly without silent truncation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `listener_id` is not registered.
     pub fn update_checkpoint(&self, listener_id: &str, checkpoint: i64) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -119,6 +141,11 @@ impl MultiListenerCoordinator {
     }
 
     /// Get health status of all listeners
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`; the `Result` return type is
+    /// reserved for future validation.
     pub async fn check_listener_health(&self) -> Result<Vec<ListenerHealth>> {
         let mut health_statuses = Vec::new();
 
@@ -126,7 +153,7 @@ impl MultiListenerCoordinator {
             let handle = entry.value();
             let state = handle.state_machine.get_state().await;
             let last_heartbeat = *handle.last_heartbeat.lock().await;
-            #[allow(clippy::cast_possible_wrap)]
+            #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
             // Reason: intentional bit-preserving reinterpretation
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
@@ -147,6 +174,11 @@ impl MultiListenerCoordinator {
     }
 
     /// Elect leader among listeners
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if no healthy listener is available
+    /// to become leader. Propagates errors from `check_listener_health`.
     pub async fn elect_leader(&self) -> Result<String> {
         let mut leader = self.leader_id.lock().await;
 

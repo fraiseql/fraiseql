@@ -16,6 +16,7 @@ use super::{
 /// Construct via [`RateLimiter::new`] (in-memory, default) or
 /// `RateLimiter::new_redis` (distributed Redis, requires the
 /// `redis-rate-limiting` Cargo feature).
+#[non_exhaustive]
 pub enum RateLimiter {
     /// Single-node token-bucket limiter backed by `HashMap` with `RwLock`.
     InMemory(InMemoryRateLimiter),

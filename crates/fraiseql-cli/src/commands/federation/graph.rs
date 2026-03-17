@@ -11,6 +11,7 @@ use crate::output::CommandResult;
 
 /// Export format for federation graph
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GraphFormat {
     /// JSON format (machine-readable)
     Json,
@@ -80,6 +81,11 @@ pub struct Edge {
 }
 
 /// Run federation graph command
+///
+/// # Errors
+///
+/// Returns an error if the schema file cannot be read, cannot be parsed as JSON,
+/// or if JSON serialization of the graph output fails.
 pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     // Load schema file
     let schema_content = fs::read_to_string(schema_path)?;

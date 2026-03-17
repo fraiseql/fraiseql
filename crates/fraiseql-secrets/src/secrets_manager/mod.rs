@@ -19,6 +19,7 @@ pub use types::{Secret, SecretsBackend};
 
 /// Configuration for selecting and initializing a secrets backend.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum SecretsBackendConfig {
     /// Read secrets from local files (development/testing).
     File {
@@ -46,6 +47,7 @@ pub enum SecretsBackendConfig {
 /// [`Zeroizing`] so that the credential bytes are overwritten on drop rather
 /// than remaining in heap until the allocator reuses the memory.
 #[derive(Clone)]
+#[non_exhaustive]
 pub enum VaultAuth {
     /// Authenticate with a static token.
     Token(Zeroizing<String>),
@@ -129,11 +131,19 @@ impl SecretsManager {
     }
 
     /// Performs a lightweight connectivity check on the underlying backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError`] if the backend is unreachable or returns an error.
     pub async fn health_check(&self) -> Result<(), SecretsError> {
         self.backend.health_check().await
     }
 
     /// Get secret by name from backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError`] if the secret does not exist or the backend returns an error.
     pub async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         self.backend.get_secret(name).await
     }
@@ -152,6 +162,10 @@ impl SecretsManager {
     /// Rotate secret to new value.
     ///
     /// For backends that support it (e.g., Vault), generates new credential.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError`] if rotation is unsupported by the backend or the backend returns an error.
     pub async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         self.backend.rotate_secret(name).await
     }
@@ -238,6 +252,7 @@ impl LeaseRenewalTask {
 
 /// Error type for secrets operations.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum SecretsError {
     /// Secret not found in the backend.
     NotFound(String),

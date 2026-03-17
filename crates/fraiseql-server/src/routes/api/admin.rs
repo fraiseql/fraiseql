@@ -352,7 +352,7 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 // `#[cfg(not(feature = "arrow"))]` inner path. Clippy sees them as shared code, but
 // extracting it would break the `#[cfg]` conditional logic that sets a different value
 // when `arrow` is enabled.
-#[allow(clippy::branches_sharing_code)]
+#[allow(clippy::branches_sharing_code)]  // Reason: branches are logically distinct; extracting shared code would obscure intent
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<AdminConfigResponse>>, ApiError> {

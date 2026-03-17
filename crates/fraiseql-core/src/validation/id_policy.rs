@@ -40,6 +40,7 @@ use serde::{Deserialize, Serialize};
 
 /// ID Policy determines how GraphQL ID scalar type behaves
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[non_exhaustive]
 pub enum IDPolicy {
     /// IDs must be valid UUIDs (`FraiseQL`'s opinionated default)
     #[serde(rename = "uuid")]
@@ -134,6 +135,11 @@ impl std::error::Error for IDValidationError {}
 ///     "OPAQUE policy should accept empty string"
 /// );
 /// ```
+///
+/// # Errors
+///
+/// Returns [`IDValidationError`] if `id` does not conform to `policy`
+/// (e.g., not a valid UUID when `IDPolicy::UUID` is used).
 pub fn validate_id(id: &str, policy: IDPolicy) -> Result<(), IDValidationError> {
     match policy {
         IDPolicy::UUID => validate_uuid_format(id),
@@ -396,6 +402,7 @@ pub struct IDValidationProfile {
 
 /// Type of validation profile
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ValidationProfileType {
     /// UUID format validation
     Uuid(UuidIdValidator),
@@ -480,7 +487,12 @@ impl IDValidationProfile {
         }
     }
 
-    /// Validate an ID using this profile
+    /// Validate an ID using this profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IDValidationError`] if the value does not conform to this
+    /// profile's validator (e.g., not a valid UUID, ULID, or integer).
     pub fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         self.validator.as_validator().validate(value)
     }

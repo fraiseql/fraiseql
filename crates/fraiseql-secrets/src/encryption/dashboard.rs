@@ -152,6 +152,7 @@ impl MetricsTimeSeries {
 
 /// Compliance framework status
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ComplianceStatus {
     /// All requirements met
     Compliant,
@@ -239,6 +240,7 @@ impl Default for ComplianceDashboard {
 /// Alert severity level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum AlertSeverity {
     /// Informational
     Info,
@@ -394,6 +396,7 @@ impl Default for TrendAnalysis {
 
 /// Dashboard export format options
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ExportFormat {
     /// JSON format
     Json,

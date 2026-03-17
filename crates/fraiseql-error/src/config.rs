@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 /// Errors that occur while loading or validating FraiseQL configuration.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ConfigError {
     /// No configuration file was found at the expected location(s).
     #[error("Configuration file not found")]

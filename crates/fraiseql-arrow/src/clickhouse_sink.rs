@@ -222,7 +222,13 @@ impl ClickHouseSinkConfig {
         self
     }
 
-    /// Validate the configuration
+    /// Validate the configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArrowFlightError::Configuration`] if the URL is empty, targets a
+    /// private/loopback address (SSRF protection), the database or table name is
+    /// empty, batch size is out of range (1–100,000), or batch timeout is zero.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ArrowFlightError::Configuration(
@@ -283,7 +289,13 @@ pub struct ClickHouseSink {
 }
 
 impl ClickHouseSink {
-    /// Create a new `ClickHouse` sink with the given configuration
+    /// Create a new `ClickHouse` sink with the given configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArrowFlightError::Configuration`] if `config.validate()` fails.
+    /// Returns [`ArrowFlightError::External`] if the `clickhouse` feature is not
+    /// enabled at compile time.
     pub fn new(config: ClickHouseSinkConfig) -> Result<Self> {
         config.validate()?;
 

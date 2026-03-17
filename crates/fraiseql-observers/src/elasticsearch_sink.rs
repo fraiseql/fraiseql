@@ -109,6 +109,12 @@ impl ElasticsearchSinkConfig {
     ///
     /// In addition to field sanity checks, validates the URL for SSRF risks:
     /// private/loopback/link-local addresses are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if the URL is empty, fails SSRF validation,
+    /// the index prefix is empty, `bulk_size` is 0 or exceeds 100,000, or
+    /// `flush_interval_secs` is 0.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -143,6 +149,10 @@ pub struct ElasticsearchSink {
 
 impl ElasticsearchSink {
     /// Create a new Elasticsearch sink
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if the configuration fails validation.
     pub fn new(config: ElasticsearchSinkConfig) -> Result<Self> {
         config.validate()?;
 
@@ -162,6 +172,10 @@ impl ElasticsearchSink {
     }
 
     /// Create a sink without SSRF validation — for use in tests only.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be constructed.
     #[cfg(test)]
     pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Result<Self> {
         let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
@@ -172,6 +186,11 @@ impl ElasticsearchSink {
     }
 
     /// Health check - verify Elasticsearch is reachable
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if the request fails or the cluster
+    /// returns a non-success HTTP status.
     pub async fn health_check(&self) -> Result<()> {
         let response = self
             .client
@@ -193,6 +212,10 @@ impl ElasticsearchSink {
     }
 
     /// Run the sink, consuming events from the channel and indexing them
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if a bulk index request to Elasticsearch fails.
     pub async fn run(&self, mut rx: mpsc::Receiver<EntityEvent>) -> Result<()> {
         info!("Starting Elasticsearch sink");
 

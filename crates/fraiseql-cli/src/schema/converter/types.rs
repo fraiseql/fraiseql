@@ -16,6 +16,11 @@ use crate::schema::intermediate::{
 };
 
 impl SchemaConverter {
+    /// Convert an `IntermediateType` to a compiled `TypeDefinition`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any field in the type cannot be converted.
     pub(super) fn convert_type(intermediate: IntermediateType) -> Result<TypeDefinition> {
         let fields = intermediate
             .fields
@@ -63,6 +68,11 @@ impl SchemaConverter {
     }
 
     /// Convert `IntermediateScalar` to `CustomTypeDef`
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; always returns `Ok`. The `Result` return type is
+    /// reserved for future validation of scalar definitions.
     pub(super) fn convert_custom_scalar(intermediate: IntermediateScalar) -> Result<CustomTypeDef> {
         Ok(CustomTypeDef {
             name:             intermediate.name,
@@ -140,6 +150,11 @@ impl SchemaConverter {
     /// Convert `IntermediateField` to `FieldDefinition`
     ///
     /// **Key normalization**: `type` → `field_type`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the field's type string cannot be parsed into a
+    /// `FieldType`.
     pub(super) fn convert_field(intermediate: IntermediateField) -> Result<FieldDefinition> {
         let field_type = Self::parse_field_type(&intermediate.field_type)?;
 
@@ -177,7 +192,13 @@ impl SchemaConverter {
 
     /// Parse string type name to `FieldType` enum
     ///
-    /// Handles built-in scalars and custom object types
+    /// Handles built-in scalars and custom object types.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; unrecognised type names are treated as
+    /// `FieldType::Object`. The `Result` return type is reserved for future
+    /// strict validation.
     pub(super) fn parse_field_type(type_name: &str) -> Result<FieldType> {
         match type_name {
             "String" => Ok(FieldType::String),

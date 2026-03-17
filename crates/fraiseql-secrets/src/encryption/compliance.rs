@@ -9,6 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 
 /// Compliance framework
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ComplianceFramework {
     /// HIPAA (healthcare)
     HIPAA,
@@ -33,6 +34,7 @@ impl std::fmt::Display for ComplianceFramework {
 
 /// Compliance requirement status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ComplianceStatus {
     /// Compliant
     Compliant,

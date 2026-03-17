@@ -41,6 +41,7 @@ impl Default for RateLimitConfig {
 /// Rate limit key extractor.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RateLimitKey {
     /// Rate limit by IP address.
     #[default]

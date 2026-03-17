@@ -13,6 +13,7 @@ use crate::graphql::types::{
 
 /// Errors that can occur when parsing a GraphQL query.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GraphQLParseError {
     /// Failed to parse GraphQL syntax.
     #[error("Failed to parse GraphQL query: {0}")]

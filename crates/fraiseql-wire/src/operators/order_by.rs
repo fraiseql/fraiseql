@@ -92,6 +92,11 @@ impl OrderByClause {
     }
 
     /// Validate field name to prevent SQL injection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the field name is empty, contains invalid characters,
+    /// or the collation name (if set) contains invalid characters.
     pub fn validate(&self) -> Result<(), String> {
         if self.field.is_empty() {
             return Err("Field name cannot be empty".to_string());
@@ -135,6 +140,10 @@ impl OrderByClause {
     /// - JSONB with collation: `(data->'name') COLLATE "en-US" ASC`
     /// - Direct column: `created_at DESC`
     /// - With NULLS: `status ASC NULLS LAST`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the clause fails validation (see [`Self::validate`]).
     pub fn to_sql(&self) -> Result<String, String> {
         self.validate()?;
 
@@ -183,6 +192,7 @@ impl fmt::Display for OrderByClause {
 
 /// Specifies where a field comes from in ORDER BY
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FieldSource {
     /// Field is inside the JSONB `data` column: `data->>'field'`
     JsonbPayload,
@@ -202,6 +212,7 @@ impl fmt::Display for FieldSource {
 
 /// Sort direction for ORDER BY
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SortOrder {
     /// Ascending order (default)
     Asc,
@@ -221,6 +232,7 @@ impl fmt::Display for SortOrder {
 
 /// NULL handling in ORDER BY
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NullsHandling {
     /// NULL values come first
     First,
@@ -243,6 +255,7 @@ impl fmt::Display for NullsHandling {
 /// Supports common collations and custom names.
 /// When used, generates: `field COLLATE "collation_name"`
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Collation {
     /// Binary collation (fast, deterministic)
     C,

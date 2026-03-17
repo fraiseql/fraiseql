@@ -53,6 +53,7 @@ impl Default for CollationConfig {
 /// Strategy when user locale is not in allowed list.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum InvalidLocaleStrategy {
     /// Use fallback locale.
     #[default]

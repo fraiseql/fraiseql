@@ -10,6 +10,7 @@ use chrono::{DateTime, Duration, Utc};
 
 /// Recovery strategy for encryption failures
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RecoveryStrategy {
     /// Use cached value if available
     UseCache,
@@ -34,6 +35,7 @@ impl std::fmt::Display for RecoveryStrategy {
 
 /// Error category for diagnostics and recovery
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorCategory {
     /// Network connectivity issue
     NetworkError,
@@ -248,6 +250,7 @@ mod atomic {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     #[repr(usize)]
+    #[non_exhaustive]
     pub enum CircuitState {
         Closed   = 0,
         Open     = 1,

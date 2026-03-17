@@ -15,7 +15,7 @@ use crate::secrets_manager::{SecretsBackend, SecretsError};
 /// At 80% of TTL elapsed, renewal is triggered before the token expires.
 // Reason: referenced in the renew_token() doc comment; the actual scheduling logic
 // uses this constant to avoid a magic literal at the call site.
-#[allow(dead_code)]
+#[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
 const TOKEN_RENEWAL_THRESHOLD: f64 = 0.8;
 
 const VAULT_API_VERSION: &str = "v1";

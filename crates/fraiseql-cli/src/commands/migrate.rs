@@ -12,6 +12,7 @@ use crate::output::OutputFormatter;
 
 /// Migration subcommand
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum MigrateAction {
     /// Apply pending migrations
     Up {
@@ -46,6 +47,11 @@ pub enum MigrateAction {
 }
 
 /// Run the migrate command
+///
+/// # Errors
+///
+/// Returns an error if `confiture` is not installed, or if the underlying
+/// `confiture` subprocess fails (non-zero exit status or spawn failure).
 pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
     // Check if confiture is installed
     if !is_confiture_installed() {
@@ -66,6 +72,11 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
 }
 
 /// Resolve the database URL: use explicit flag, or fall back to fraiseql.toml
+///
+/// # Errors
+///
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or
+/// if no database URL can be found from any source (flag, TOML, or `DATABASE_URL`).
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
     if let Some(url) = explicit {
         return Ok(url.to_string());

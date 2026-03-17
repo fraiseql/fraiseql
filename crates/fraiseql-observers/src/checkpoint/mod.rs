@@ -202,6 +202,7 @@ pub trait CheckpointStore: Send + Sync + Clone {
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum CheckpointStrategy {
     /// At-least-once delivery (default).
     ///
@@ -394,6 +395,7 @@ impl CheckpointStrategy {
 /// [`check_checkpoint_requirement`] at startup to enforce that production
 /// environments never accidentally use the in-memory store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CheckpointMode {
     /// Explicitly acknowledged development/test mode.
     /// Checkpoint state is **not** durable — it is lost on every restart.

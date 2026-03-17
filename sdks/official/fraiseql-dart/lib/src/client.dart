@@ -48,23 +48,29 @@ class FraiseQLClient {
   Future<Map<String, Object?>> query(
     String query, {
     Map<String, Object?>? variables,
+    String? operationName,
   }) =>
-      _execute(query, variables: variables);
+      _execute(query, variables: variables, operationName: operationName);
 
   /// Execute a GraphQL mutation.
   Future<Map<String, Object?>> mutate(
     String mutation, {
     Map<String, Object?>? variables,
+    String? operationName,
   }) =>
-      _execute(mutation, variables: variables);
+      _execute(mutation, variables: variables, operationName: operationName);
 
   Future<Map<String, Object?>> _execute(
     String gqlQuery, {
     Map<String, Object?>? variables,
+    String? operationName,
   }) async {
     final body = <String, Object?>{'query': gqlQuery};
     if (variables != null && variables.isNotEmpty) {
       body['variables'] = variables;
+    }
+    if (operationName != null) {
+      body['operationName'] = operationName;
     }
 
     final headers = <String, String>{

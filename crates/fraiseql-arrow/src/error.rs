@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Errors specific to Arrow Flight operations.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ArrowFlightError {
     /// Arrow library error
     #[error("Arrow error: {0}")]

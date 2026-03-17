@@ -16,18 +16,24 @@ module FraiseQL
 
     # @param query [String] GraphQL query
     # @param variables [Hash, nil] query variables
+    # @param operation_name [String, nil] optional operation name
     # @return [Hash] parsed data from the response
     # @raise [FraiseQL::GraphQLError] if errors are present and non-null
     # @raise [FraiseQL::NetworkError] on transport failure
-    def query(query, variables: nil)
-      execute(query: query, variables: variables)
+    def query(query, variables: nil, operation_name: nil)
+      payload = { query: query, variables: variables }
+      payload[:operationName] = operation_name if operation_name
+      execute(payload)
     end
 
     # @param mutation [String]
     # @param variables [Hash, nil]
+    # @param operation_name [String, nil] optional operation name
     # @return [Hash] parsed data from the response
-    def mutate(mutation, variables: nil)
-      execute(query: mutation, variables: variables)
+    def mutate(mutation, variables: nil, operation_name: nil)
+      payload = { query: mutation, variables: variables }
+      payload[:operationName] = operation_name if operation_name
+      execute(payload)
     end
 
     private

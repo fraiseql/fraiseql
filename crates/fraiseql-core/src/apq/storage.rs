@@ -123,6 +123,7 @@ impl ApqStats {
 
 /// APQ errors
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ApqError {
     /// Query not found in storage
     #[error("Query not found")]

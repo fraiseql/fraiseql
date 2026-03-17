@@ -89,6 +89,7 @@ use serde::{Deserialize, Serialize};
 /// data freshness, and operational complexity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FactTableVersionStrategy {
     /// No caching for aggregations (always query database).
     ///

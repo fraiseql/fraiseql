@@ -81,6 +81,11 @@ impl PerformanceConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if dedup or caching is enabled without
+    /// Redis, or if `max_concurrent_actions` or `concurrent_timeout_ms` is 0.
     pub fn validate(&self, redis_configured: bool) -> Result<()> {
         // Dedup requires Redis
         if self.enable_dedup && !redis_configured {

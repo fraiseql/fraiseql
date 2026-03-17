@@ -4,6 +4,7 @@ use bytes::Bytes;
 
 /// Frontend message (client → server)
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum FrontendMessage {
     /// Startup message
     Startup {
@@ -39,6 +40,7 @@ pub enum FrontendMessage {
 
 /// Backend message (server → client)
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum BackendMessage {
     /// Authentication request
     Authentication(AuthenticationMessage),
@@ -83,6 +85,7 @@ pub enum BackendMessage {
 
 /// Authentication message types
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum AuthenticationMessage {
     /// Authentication OK
     Ok,

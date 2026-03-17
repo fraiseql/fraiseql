@@ -42,11 +42,7 @@ type HmacSha256 = Hmac<Sha256>;
 ///
 /// A 32-byte raw HMAC-SHA256 output.
 fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
-    // HMAC accepts any key length, so this expect is infallible.
-    #[allow(clippy::unwrap_used)]
-    // Reason: HmacSha256::new_from_slice accepts any key length (see HMAC spec §3),
-    // so this can only fail if the key is empty. We pass a 32-byte array, so it
-    // is always valid.
+    #[allow(clippy::unwrap_used)]  // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
     let mut mac = HmacSha256::new_from_slice(prev_hash)
         .expect("HMAC-SHA256 accepts any non-empty key length");
     mac.update(entry_json.as_bytes());
@@ -107,6 +103,7 @@ impl ChainHasher {
 
 /// Error returned by [`verify_chain`] when the chain is broken.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ChainVerifyError {
     /// A computed hash does not match the stored `chain_hash` at this entry.
     #[error(

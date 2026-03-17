@@ -2,6 +2,7 @@ use std::time::Duration;
 
 /// Errors that occur during notification delivery (email, SMS, push, etc.).
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum NotificationError {
     /// The notification provider is misconfigured (e.g. missing API key or
     /// invalid sender address).

@@ -54,6 +54,7 @@ use crate::types::{
 /// These errors indicate problems with federation directive usage that must be
 /// resolved before the schema can be deployed.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DirectiveValidationError {
     /// @requires references a field that doesn't exist
     ///

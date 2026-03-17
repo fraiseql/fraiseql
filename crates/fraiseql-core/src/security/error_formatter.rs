@@ -42,6 +42,7 @@ use crate::security::errors::SecurityError;
 ///
 /// Controls how much information is exposed to clients.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DetailLevel {
     /// Development: Full error details, stack traces, database info
     Development,

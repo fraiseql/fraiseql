@@ -65,12 +65,14 @@ class AsyncFraiseQLClient:
         self,
         query: str,
         variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
     ) -> dict[str, Any]:
         """Execute a GraphQL query.
 
         Args:
             query: GraphQL query string.
             variables: Optional query variables.
+            operation_name: Optional operation name.
 
         Returns:
             The full GraphQL response dict (``data`` key always present on
@@ -83,12 +85,13 @@ class AsyncFraiseQLClient:
             TimeoutError: When the request times out.
             NetworkError: On other transport-level failures.
         """
-        return await self._execute(query, variables)
+        return await self._execute(query, variables, operation_name)
 
     async def mutate(
         self,
         mutation: str,
         variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
     ) -> dict[str, Any]:
         """Execute a GraphQL mutation.
 
@@ -98,6 +101,7 @@ class AsyncFraiseQLClient:
         Args:
             mutation: GraphQL mutation string.
             variables: Optional mutation variables.
+            operation_name: Optional operation name.
 
         Returns:
             The full GraphQL response dict.
@@ -109,7 +113,7 @@ class AsyncFraiseQLClient:
             TimeoutError: When the request times out.
             NetworkError: On other transport-level failures.
         """
-        return await self._execute(mutation, variables)
+        return await self._execute(mutation, variables, operation_name)
 
     async def close(self) -> None:
         """Close the underlying HTTP client and release connections."""
@@ -127,10 +131,13 @@ class AsyncFraiseQLClient:
         self,
         document: str,
         variables: dict[str, Any] | None,
+        operation_name: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"query": document}
         if variables is not None:
             payload["variables"] = variables
+        if operation_name is not None:
+            payload["operationName"] = operation_name
 
         cfg = self._retry
         max_attempts = cfg.max_attempts if cfg is not None else 1
@@ -139,7 +146,7 @@ class AsyncFraiseQLClient:
         for attempt in range(max_attempts):
             try:
                 return await self._send(payload)
-            except (NetworkError, TimeoutError) as exc:
+            except (NetworkError, TimeoutError) as exc:  # noqa: PERF203 — try/except in loop is required for retry logic
                 last_exc = exc
                 if cfg is None or not cfg.should_retry(exc):
                     raise

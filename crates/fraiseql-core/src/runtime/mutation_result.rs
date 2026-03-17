@@ -20,6 +20,7 @@ const SCALAR_TYPES: &[&str] = &[
 
 /// Outcome of parsing a single `mutation_response` row.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum MutationOutcome {
     /// The mutation succeeded; the result entity is available.
     Success {

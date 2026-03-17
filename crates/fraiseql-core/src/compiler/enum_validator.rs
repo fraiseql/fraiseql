@@ -31,6 +31,12 @@ impl EnumValidator {
     ///
     /// Vec of parsed IREnum definitions
     ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `enums_value` is not an array,
+    /// any enum entry is not a JSON object, is missing a `name` field, has an
+    /// invalid name, or contains duplicate enum values.
+    ///
     /// # Example JSON Structure
     ///
     /// ```json
@@ -53,6 +59,11 @@ impl EnumValidator {
     ///   ]
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `enums_value` is not an array,
+    /// any enum definition is missing required fields, or variant names are invalid.
     pub fn parse_enums(enums_value: &Value) -> Result<Vec<IREnum>> {
         let enums_arr = enums_value.as_array().ok_or_else(|| FraiseQLError::Validation {
             message: "enums must be an array".to_string(),

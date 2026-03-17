@@ -76,6 +76,7 @@ use serde::{Deserialize, Serialize};
 /// receive the **same cached response**, potentially leaking data across tenants.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RlsEnforcement {
     /// Refuse server startup if RLS appears inactive (default, safest).
     ///

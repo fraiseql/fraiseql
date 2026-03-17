@@ -31,9 +31,9 @@ final class FraiseQLClient
      * @throws AuthenticationException on 401 or 403 responses
      * @throws RateLimitException on 429 responses
      */
-    public function query(string $query, array $variables = []): array
+    public function query(string $query, array $variables = [], ?string $operationName = null): array
     {
-        return $this->execute($query, $variables);
+        return $this->execute($query, $variables, $operationName);
     }
 
     /**
@@ -47,9 +47,9 @@ final class FraiseQLClient
      * @throws AuthenticationException on 401 or 403 responses
      * @throws RateLimitException on 429 responses
      */
-    public function mutate(string $mutation, array $variables = []): array
+    public function mutate(string $mutation, array $variables = [], ?string $operationName = null): array
     {
-        return $this->execute($mutation, $variables);
+        return $this->execute($mutation, $variables, $operationName);
     }
 
     /**
@@ -61,11 +61,14 @@ final class FraiseQLClient
      * @throws AuthenticationException
      * @throws RateLimitException
      */
-    private function execute(string $gqlQuery, array $variables): array
+    private function execute(string $gqlQuery, array $variables, ?string $operationName = null): array
     {
         $payload = ['query' => $gqlQuery];
         if (!empty($variables)) {
             $payload['variables'] = $variables;
+        }
+        if ($operationName !== null) {
+            $payload['operationName'] = $operationName;
         }
 
         $body = json_encode($payload, JSON_THROW_ON_ERROR);

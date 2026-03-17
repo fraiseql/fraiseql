@@ -33,6 +33,7 @@ static PHONE_E164_REGEX: LazyLock<Regex> =
 
 /// Provider types for async validators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum AsyncValidatorProvider {
     /// Email format validation (RFC 5321 regex)
     EmailFormatCheck,

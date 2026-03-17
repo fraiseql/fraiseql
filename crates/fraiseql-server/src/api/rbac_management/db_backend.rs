@@ -11,6 +11,7 @@ use super::{PermissionDto, RoleDto, UserRoleDto};
 
 /// Error type for RBAC database operations.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum RbacDbError {
     /// Database connection error.
     ConnectionError(String),

@@ -74,6 +74,7 @@ pub struct MeasureColumn {
 }
 
 /// SQL data types
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SqlType {
     /// SMALLINT, INT, INTEGER
@@ -200,6 +201,7 @@ pub struct FilterColumn {
 /// - **Incremental**: New records added (e.g., transaction logs)
 /// - **AccumulatingSnapshot**: Records updated with new events (e.g., order milestones)
 /// - **PeriodicSnapshot**: Complete snapshot at regular intervals (e.g., daily inventory)
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AggregationStrategy {
     /// New records are appended (e.g., transaction logs, event streams)

@@ -445,7 +445,7 @@ impl BaseKmsProvider for VaultKmsProvider {
 
 /// Encode bytes as base64.
 fn base64_encode(data: &[u8]) -> String {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.encode(data)
@@ -453,7 +453,7 @@ fn base64_encode(data: &[u8]) -> String {
 
 /// Decode base64 to bytes.
 fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.decode(s)

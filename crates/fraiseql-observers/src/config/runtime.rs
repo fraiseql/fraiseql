@@ -113,6 +113,7 @@ pub(super) fn default_shutdown_timeout() -> String {
 /// What to do when the event channel is full
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum OverflowPolicy {
     /// Drop new events when channel is full (default)
     #[default]
@@ -227,6 +228,7 @@ const fn default_max_delay() -> u64 {
 /// Backoff strategy for retries
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BackoffStrategy {
     /// Exponential backoff (2^attempt * `initial_delay`)
     #[default]
@@ -240,6 +242,7 @@ pub enum BackoffStrategy {
 /// What to do when an action fails permanently
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FailurePolicy {
     /// Log the error (default)
     #[default]
@@ -361,6 +364,11 @@ impl ActionConfig {
     }
 
     /// Validate the action configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidActionConfig`] if required fields such as
+    /// `url`, `webhook_url`, or `to` are absent or empty for the given action variant.
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Webhook {
@@ -554,6 +562,12 @@ impl MultiListenerConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `lease_duration_ms`,
+    /// `health_check_interval_ms`, or `max_listeners` is 0, or if
+    /// `failover_threshold_ms` is less than `health_check_interval_ms`.
     pub fn validate(&self) -> Result<()> {
         if self.lease_duration_ms == 0 {
             return Err(ObserverError::InvalidConfig {

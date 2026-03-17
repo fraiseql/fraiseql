@@ -173,6 +173,11 @@ pub struct MySQLChangeLogEntry {
 #[cfg(feature = "mysql")]
 impl MySQLChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `modification_type` is not one
+    /// of `INSERT`, `UPDATE`, or `DELETE`.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -345,7 +350,7 @@ impl MySQLNatsBridge {
 
     /// Fetch batch from cursor.
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<MySQLChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<MySQLChangeLogEntry> = sqlx::query_as(
             r"
@@ -396,6 +401,11 @@ impl MySQLNatsBridge {
     ///
     /// Unlike PostgreSQL, MySQL has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
+    ///
+    /// # Errors
+    ///
+    /// Propagates database query errors or NATS publish errors encountered
+    /// while fetching or forwarding change log entries.
     pub async fn run(&self) -> Result<()> {
         info!("Starting MySQL → NATS bridge: {}", self.config.transport_name);
 

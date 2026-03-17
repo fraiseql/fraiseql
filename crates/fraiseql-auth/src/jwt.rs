@@ -94,8 +94,13 @@ impl JwtValidator {
         })
     }
 
-    /// Set the audiences that this validator will accept
-    /// Recommended for production to restrict JWT usage to specific services
+    /// Set the audiences that this validator will accept.
+    ///
+    /// Recommended for production to restrict JWT usage to specific services.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::ConfigError`] if `audiences` is empty.
     pub fn with_audiences(mut self, audiences: &[&str]) -> Result<Self> {
         if audiences.is_empty() {
             return Err(AuthError::ConfigError {
@@ -260,7 +265,7 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

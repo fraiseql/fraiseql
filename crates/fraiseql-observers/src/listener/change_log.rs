@@ -132,6 +132,11 @@ pub struct ChangeLogEntry {
 
 impl ChangeLogEntry {
     /// Parse Debezium envelope to get operation code
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::TemplateRenderingFailed`] if the `op` field is
+    /// missing or empty in the Debezium envelope.
     pub fn debezium_operation(&self) -> Result<char> {
         self.object_data
             .get("op")
@@ -143,6 +148,11 @@ impl ChangeLogEntry {
     }
 
     /// Get "after" values (entity state after change)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::TemplateRenderingFailed`] if the `after` field is
+    /// absent in the Debezium envelope.
     pub fn after_values(&self) -> Result<Value> {
         self.object_data.get("after").cloned().ok_or_else(|| {
             ObserverError::TemplateRenderingFailed {
@@ -158,6 +168,12 @@ impl ChangeLogEntry {
     }
 
     /// Convert to `EntityEvent` for observer processing
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::TemplateRenderingFailed`] if the Debezium operation
+    /// code is unknown, the `object_id` is not a valid UUID, or the timestamp
+    /// cannot be parsed.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         // Map operation code to EventKind
         let event_kind = match self.debezium_operation()? {
@@ -305,6 +321,10 @@ impl ChangeLogListener {
     }
 
     /// Fetch next batch of entries from change log
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if the database query fails.
     pub async fn next_batch(&mut self) -> Result<Vec<ChangeLogEntry>> {
         // Query: SELECT * FROM tb_entity_change_log
         // WHERE pk_entity_change_log > last_processed_id
@@ -381,6 +401,11 @@ impl ChangeLogListener {
     }
 
     /// Poll indefinitely for events (for background task)
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from [`ChangeLogListener::next_batch`] if a database
+    /// query fails unrecoverably.
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting change log listener (resume from id: {})", self.last_processed_id);
 

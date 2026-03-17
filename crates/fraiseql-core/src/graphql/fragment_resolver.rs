@@ -13,6 +13,7 @@ use crate::graphql::types::{FieldSelection, FragmentDefinition};
 
 /// Errors that can occur during fragment resolution.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FragmentError {
     /// Indicates that the requested fragment was not found.
     #[error("Fragment not found: {0}")]

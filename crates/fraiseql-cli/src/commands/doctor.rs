@@ -20,6 +20,7 @@ use crate::config::toml_schema::TomlSchema;
 /// Outcome of a single diagnostic check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum CheckStatus {
     /// Check passed.
     Pass,

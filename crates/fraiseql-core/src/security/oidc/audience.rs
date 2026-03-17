@@ -55,6 +55,7 @@ pub struct JwtClaims {
 /// Audience can be a single string or array of strings.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Audience {
     /// No audience specified.
     #[default]

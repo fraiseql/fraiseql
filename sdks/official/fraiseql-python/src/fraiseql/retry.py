@@ -48,7 +48,7 @@ class RetryConfig:
         """
         delay = min(self.base_delay * (2**attempt), self.max_delay)
         if self.jitter:
-            delay += random.uniform(0, delay * 0.1)  # noqa: S311 — non-crypto use
+            delay += random.uniform(0, delay * 0.1)
         return delay
 
     def should_retry(self, exc: BaseException) -> bool:

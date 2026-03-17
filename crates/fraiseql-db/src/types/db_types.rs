@@ -97,6 +97,7 @@ impl JsonbValue {
 /// to PostgreSQL parameters, avoiding protocol errors from type mismatches.
 #[cfg(feature = "postgres")]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum QueryParam {
     /// SQL NULL value
     Null,

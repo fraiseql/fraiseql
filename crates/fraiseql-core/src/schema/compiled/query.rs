@@ -13,6 +13,7 @@ use crate::schema::{
 /// is emitted (`bigint` vs `uuid` cast).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum CursorType {
     /// BIGINT / INTEGER column (default, backward-compatible).
     /// Cursor is `base64(decimal_string)`.

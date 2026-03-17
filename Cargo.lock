@@ -2532,7 +2532,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
@@ -2546,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2559,7 +2559,7 @@ dependencies = [
  "dashmap",
  "fraiseql-core",
  "futures",
- "jsonwebtoken 9.3.1",
+ "jsonwebtoken",
  "parquet",
  "prost 0.14.3",
  "reqwest",
@@ -2580,7 +2580,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2594,7 +2594,7 @@ dependencies = [
  "hex",
  "hmac",
  "http 1.4.0",
- "jsonwebtoken 10.3.0",
+ "jsonwebtoken",
  "proptest",
  "rand 0.8.5",
  "redis",
@@ -2618,7 +2618,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2647,7 +2647,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -2671,7 +2671,7 @@ dependencies = [
  "indexmap 2.13.0",
  "insta",
  "itertools 0.13.0",
- "jsonwebtoken 10.3.0",
+ "jsonwebtoken",
  "linked-hash-map",
  "lru 0.16.3",
  "mutants",
@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "async-trait",
  "bb8",
@@ -2737,7 +2737,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "axum",
  "serde",
@@ -2749,7 +2749,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -2770,7 +2770,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "arrow",
  "async-nats",
@@ -2810,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2837,7 +2837,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2867,7 +2867,7 @@ dependencies = [
  "hmac",
  "http 1.4.0",
  "ipnet",
- "jsonwebtoken 10.3.0",
+ "jsonwebtoken",
  "metrics 0.22.4",
  "metrics-exporter-prometheus",
  "opentelemetry 0.29.1",
@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -2926,7 +2926,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -2951,7 +2951,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -2969,7 +2969,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "subtle",
  "testcontainers",
  "testcontainers-modules",
@@ -3885,21 +3885,6 @@ checksum = "14dc6f6450b3f6d4ed5b16327f38fed626d375a886159ca555bd7822c0c3a5a6"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jsonwebtoken"
-version = "9.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
-dependencies = [
- "base64 0.22.1",
- "js-sys",
- "pem",
- "ring",
- "serde",
- "serde_json",
- "simple_asn1",
 ]
 
 [[package]]

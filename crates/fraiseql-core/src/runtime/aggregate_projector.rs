@@ -78,6 +78,11 @@ impl AggregationProjector {
     /// // let result = AggregationProjector::project(rows, &plan)?;
     /// // result: [{"category": "Electronics", "count": 42, "revenue_sum": 5280.50}]
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`] if JSON serialization of the projected
+    /// rows fails (should not occur for well-formed input).
     pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
         // For simple projection: just convert rows to JSON array
         // Future improvements could include:

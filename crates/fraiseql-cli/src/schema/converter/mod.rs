@@ -40,6 +40,13 @@ impl SchemaConverter {
     /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
     /// 4. Optimization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any type, query, mutation, interface, subscription,
+    /// or directive conversion fails, if federation/security/observer config JSON
+    /// cannot be deserialized, or if compiled schema validation detects unknown
+    /// type references.
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
@@ -317,6 +324,8 @@ impl SchemaConverter {
             FieldType::Interface(name) => name.clone(),
             FieldType::Union(name) => name.clone(),
             FieldType::List(inner) => Self::extract_type_name(inner),
+            // Reason: non_exhaustive requires catch-all for cross-crate matches
+            _ => "Unknown".to_string(),
         }
     }
 

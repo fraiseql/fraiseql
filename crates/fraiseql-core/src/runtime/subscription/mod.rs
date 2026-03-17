@@ -77,6 +77,7 @@ pub type WebhookConfig = WebhookTransportConfig;
 // =============================================================================
 
 /// Errors that can occur during subscription operations.
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum SubscriptionError {
     /// Subscription type not found in schema.

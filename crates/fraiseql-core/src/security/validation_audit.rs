@@ -11,6 +11,7 @@ use tracing;
 
 /// Redaction policy for sensitive fields in audit logs
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum RedactionPolicy {
     /// No redaction - log everything
     None,

@@ -47,6 +47,7 @@ use crate::types::{FederatedType, FederationMetadata};
 /// These errors indicate problems with multi-subgraph federation that prevent
 /// the supergraph from being composed. Each error includes context for debugging.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum CompositionError {
     /// @external field has no owning subgraph
     ///
@@ -386,6 +387,7 @@ impl CrossSubgraphValidator {
 /// Determines how composition handles conflicts when multiple subgraphs define the same type or
 /// field.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum ConflictResolutionStrategy {
     /// Fail on any conflict (default)
     ///

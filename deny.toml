@@ -1,5 +1,8 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
+# Skip entries last reviewed: 2026-03-17
+# Pending resolution:
+#   rustls 0.22  — sqlx 0.8 transitively requires (tracked: sqlx 0.9 upgrade in v2.3.0)
 
 [advisories]
 db-path = "~/.cargo/advisory-db"

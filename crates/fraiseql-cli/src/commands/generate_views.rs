@@ -18,6 +18,7 @@ use crate::output::OutputFormatter;
 
 /// Refresh strategy for view updates
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RefreshStrategy {
     /// Update via database triggers on fact table changes
     TriggerBased,

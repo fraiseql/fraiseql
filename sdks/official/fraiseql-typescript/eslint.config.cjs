@@ -30,7 +30,7 @@ module.exports = [
       "@typescript-eslint": tseslint,
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -59,7 +59,7 @@ module.exports = [
         afterEach: "readonly",
         beforeAll: "readonly",
         afterAll: "readonly",
-        jest: "readonly",
+        vi: "readonly",
       },
     },
     rules: {

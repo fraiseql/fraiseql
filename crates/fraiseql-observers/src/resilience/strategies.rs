@@ -12,6 +12,7 @@ use crate::error::Result;
 
 /// Different resilience strategies for failure handling
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ResilienceStrategy {
     /// Fast fail when circuit is open
     FailFast,
@@ -43,6 +44,12 @@ impl ResilientExecutor {
     }
 
     /// Execute with resilience
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::CircuitBreakerOpen`] when the circuit is open.
+    /// Propagates errors from `f`; after exhausting retries under
+    /// `ResilienceStrategy::RetryWithBreaker`, returns the last error.
     pub async fn execute<F, T>(&self, f: F) -> Result<T>
     where
         F: Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + 'static,

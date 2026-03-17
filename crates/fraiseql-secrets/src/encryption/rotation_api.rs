@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Rotation status levels
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RotationStatus {
     /// Less than 70% TTL consumed
     Healthy,
@@ -107,6 +108,7 @@ pub struct ManualRotationRequest {
 /// Outcome of a single manual rotation attempt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ManualRotationStatus {
     /// The rotation completed successfully.
     Success,
@@ -270,6 +272,11 @@ pub struct RotationConfigUpdateRequest {
 
 impl RotationConfigUpdateRequest {
     /// Validate configuration values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `refresh_threshold_percent` is outside 1–99,
+    /// `ttl_days` is outside 1–365, or `refresh_check_interval_hours` is outside 1–720.
     pub fn validate(&self) -> Result<(), String> {
         if let Some(threshold) = self.refresh_threshold_percent {
             if !(1..=99).contains(&threshold) {
@@ -296,6 +303,7 @@ impl RotationConfigUpdateRequest {
 /// Rotation schedule types
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ScheduleType {
     /// Manual rotation only
     Manual,
@@ -431,6 +439,7 @@ impl ApiErrorResponse {
 /// Configuration preset type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ConfigPreset {
     /// HIPAA compliance preset
     Hipaa,

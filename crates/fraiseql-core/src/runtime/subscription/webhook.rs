@@ -181,7 +181,7 @@ impl WebhookAdapter {
 
         let secret = self.config.secret.as_ref()?;
 
-        #[allow(clippy::expect_used)]
+        #[allow(clippy::expect_used)]  // Reason: invariant holds at this point; panic would indicate a logic error
         // Reason: SHA-256 HMAC (FIPS 198-1) accepts keys of any size;
         //         new_from_slice only fails for fixed-block-size ciphers (e.g., AES-CMAC).
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())

@@ -37,6 +37,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
+#[non_exhaustive]
 pub enum ExtendedOperator {
     // ========================================================================
     // CONTACT/COMMUNICATION TYPES (5 types)

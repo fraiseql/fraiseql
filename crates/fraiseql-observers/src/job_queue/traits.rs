@@ -10,6 +10,7 @@ use crate::error::Result as ObserverResult;
 
 /// Job queue error type
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum JobQueueError {
     /// Job not found
     JobNotFound(Uuid),

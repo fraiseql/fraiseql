@@ -37,6 +37,11 @@ pub struct ComplexityInfo {
 }
 
 /// Run explain command
+///
+/// # Errors
+///
+/// Returns an error if the query cannot be parsed or if complexity analysis
+/// fails. Also propagates errors from JSON serialization of the response.
 pub fn run(query: &str) -> Result<CommandResult> {
     // Parse the query to validate syntax
     let parsed = parse_query(query)?;

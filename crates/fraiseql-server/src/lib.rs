@@ -200,8 +200,22 @@ pub use server_config::ServerConfig;
 pub use tls::TlsSetup;
 pub use validation::{ComplexityValidationError, RequestValidator};
 
+/// Convenience re-exports for common server types.
+///
+/// ```rust
+/// use fraiseql_server::prelude::*;
+/// ```
+pub mod prelude {
+    pub use crate::{
+        ComplexityValidationError, RequestValidator, Server, ServerConfig, ServerError,
+        TlsSetup,
+    };
+    pub use fraiseql_core::schema::CompiledSchema;
+}
+
 /// Server error type.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ServerError {
     /// Server binding error.
     #[error("Failed to bind server: {0}")]

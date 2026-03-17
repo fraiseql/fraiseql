@@ -77,6 +77,7 @@ pub trait RevocationStore: Send + Sync {
 
 /// Revocation store error.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RevocationError {
     /// Backend is unreachable or returned an error.
     #[error("revocation store error: {0}")]
@@ -344,6 +345,7 @@ impl std::fmt::Debug for TokenRevocationManager {
 
 /// Why a token was rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TokenRejection {
     /// Token has been revoked.
     Revoked,

@@ -15,6 +15,7 @@ pub struct ValidationError {
 
 /// Error severity level
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorSeverity {
     /// Critical error - schema is invalid
     Error,

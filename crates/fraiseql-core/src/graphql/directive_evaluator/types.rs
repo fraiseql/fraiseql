@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Errors that can occur during directive evaluation.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DirectiveError {
     /// Indicates that a required directive argument was missing.
     #[error("Missing directive argument: {0}")]
@@ -41,6 +42,7 @@ pub enum DirectiveError {
 ///
 /// Determines how a field should be handled after directive processing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DirectiveResult {
     /// Include the field in the response (default behavior).
     #[default]
@@ -79,6 +81,7 @@ pub struct EvaluationContext {
 
 /// GraphQL operation type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OperationType {
     /// Query operation.
     Query,

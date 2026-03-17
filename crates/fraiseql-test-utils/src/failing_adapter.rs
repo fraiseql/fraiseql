@@ -42,6 +42,7 @@ pub struct FailConfig {
 /// We can't clone `FraiseQLError` directly, so we use this enum
 /// to specify which error variant to produce.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum FailError {
     /// Database error with message and optional SQL state.
     Database {

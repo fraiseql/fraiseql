@@ -117,6 +117,7 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
 
 /// Errors produced when a required environment variable is absent.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum EnvError {
     /// A required environment variable was not set.
     #[error("Missing environment variable: {name}")]
@@ -137,6 +138,7 @@ pub enum EnvError {
 
 /// Errors produced when a configuration string cannot be parsed.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ParseError {
     /// A size string (e.g. `"10MB"`) could not be interpreted.
     #[error("Invalid size value '{value}': {reason}")]

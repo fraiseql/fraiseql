@@ -39,6 +39,7 @@ use crate::config::ActionConfig;
 /// Job state enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum JobState {
     /// Pending: waiting to execute
     Pending,

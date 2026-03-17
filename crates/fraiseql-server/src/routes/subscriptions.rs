@@ -535,6 +535,10 @@ async fn handle_client_message(
         None => {
             warn!(message_type = %client_msg.message_type, "Unknown message type");
         },
+        // Reason: non_exhaustive requires catch-all for cross-crate matches
+        _ => {
+            warn!(message_type = %client_msg.message_type, "Unrecognized message type");
+        },
     }
 
     Ok(())

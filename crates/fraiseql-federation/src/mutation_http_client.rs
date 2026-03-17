@@ -162,7 +162,12 @@ impl HttpMutationClient {
         })
     }
 
-    /// Build GraphQL variable definitions from input variables
+    /// Build GraphQL variable definitions from input variables.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible and always returns `Ok`. The
+    /// `Result` return type is reserved for future validation of variable names.
     pub fn build_variable_definitions(&self, variables: &Value) -> Result<String> {
         let mut var_defs = Vec::new();
 
@@ -247,7 +252,13 @@ impl HttpMutationClient {
         })
     }
 
-    /// Parse mutation response
+    /// Parse mutation response.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`] if the response contains GraphQL
+    /// errors, if the `data` field is absent, or if the `mutation_name` field
+    /// is not present in the response data.
     pub fn parse_response(&self, response: GraphQLResponse, mutation_name: &str) -> Result<Value> {
         // Check for GraphQL errors
         if let Some(errors) = response.errors {

@@ -44,6 +44,7 @@ mod tests;
 use lexer::Token;
 
 /// Abstract Syntax Tree for conditions
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConditionAst {
     /// Comparison: field op value

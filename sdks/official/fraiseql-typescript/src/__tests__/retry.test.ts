@@ -1,22 +1,24 @@
 import { executeWithRetry } from '../http-retry';
 import { NetworkError, TimeoutError, FraiseQLError, GraphQLError } from '../errors';
 
-jest.useFakeTimers();
+import { vi } from 'vitest';
+
+vi.useFakeTimers();
 
 describe('executeWithRetry', () => {
   beforeEach(() => {
-    jest.clearAllTimers();
+    vi.clearAllTimers();
   });
 
   it('returns immediately on success', async () => {
-    const fn = jest.fn().mockResolvedValue('ok');
+    const fn = vi.fn().mockResolvedValue('ok');
     const result = await executeWithRetry(fn, { maxAttempts: 3 });
     expect(result).toBe('ok');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('does not retry by default (maxAttempts=1)', async () => {
-    const fn = jest.fn().mockRejectedValue(new NetworkError('down'));
+    const fn = vi.fn().mockRejectedValue(new NetworkError('down'));
     await expect(executeWithRetry(fn)).rejects.toBeInstanceOf(NetworkError);
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -34,7 +36,7 @@ describe('executeWithRetry', () => {
       jitter: false,
     });
 
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toBe('success');
     expect(fn).toHaveBeenCalledTimes(3);
@@ -52,14 +54,14 @@ describe('executeWithRetry', () => {
       jitter: false,
     });
 
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toBe('data');
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT retry non-retryable errors by default', async () => {
-    const fn = jest.fn().mockRejectedValue(new GraphQLError([{ message: 'bad query' }]));
+    const fn = vi.fn().mockRejectedValue(new GraphQLError([{ message: 'bad query' }]));
     await expect(
       executeWithRetry(fn, { maxAttempts: 3 })
     ).rejects.toBeInstanceOf(GraphQLError);
@@ -67,7 +69,7 @@ describe('executeWithRetry', () => {
   });
 
   it('calls onRetry callback with attempt and error', async () => {
-    const onRetry = jest.fn();
+    const onRetry = vi.fn();
     const fn = jest
       .fn()
       .mockRejectedValueOnce(new NetworkError('err'))
@@ -80,7 +82,7 @@ describe('executeWithRetry', () => {
       onRetry,
     });
 
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     await promise;
 
     expect(onRetry).toHaveBeenCalledTimes(1);
@@ -88,8 +90,8 @@ describe('executeWithRetry', () => {
   });
 
   it('throws last error after all attempts exhausted', async () => {
-    jest.useRealTimers();
-    const fn = jest.fn().mockImplementation(() =>
+    vi.useRealTimers();
+    const fn = vi.fn().mockImplementation(() =>
       Promise.reject(new NetworkError('always fails'))
     );
 
@@ -101,7 +103,7 @@ describe('executeWithRetry', () => {
       })
     ).rejects.toBeInstanceOf(NetworkError);
     expect(fn).toHaveBeenCalledTimes(3);
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   it('respects custom retryOn list', async () => {
@@ -119,7 +121,7 @@ describe('executeWithRetry', () => {
       retryOn: [CustomError as new (...args: never[]) => FraiseQLError],
     });
 
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toBe('recovered');
   });

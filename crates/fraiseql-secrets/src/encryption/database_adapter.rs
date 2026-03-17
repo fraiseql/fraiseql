@@ -27,7 +27,7 @@ use crate::secrets_manager::{SecretsError, SecretsManager};
 // usage in this codebase. The `async_fn_in_trait` warning about Send-unbounded futures
 // is not applicable here. If `dyn` dispatch is ever needed, switch to explicit
 // `-> impl Future<Output = ...> + Send` return types or add `#[async_trait]`.
-#[allow(async_fn_in_trait)]
+#[allow(async_fn_in_trait)]  // Reason: trait is internal and not object-safe; async fn in trait is acceptable
 pub trait EncryptedFieldAdapter: Send + Sync {
     /// Get list of encrypted field names
     fn get_encrypted_fields(&self) -> Vec<String>;

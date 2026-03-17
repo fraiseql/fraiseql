@@ -5,6 +5,8 @@
  * which is then exported to schema.json for compilation.
  */
 
+import type { CustomScalar } from "./scalars";
+
 /**
  * Field metadata for access control and deprecation.
  */
@@ -240,6 +242,8 @@ export interface Schema {
   observers?: ObserverDefinition[];
   /** Apollo Federation v2 metadata, included when generateSchemaJson() is used. */
   federation?: { enabled: boolean; version: string; [key: string]: unknown };
+  /** Custom scalar definitions, included when scalars are registered. */
+  customScalars?: Record<string, { name: string; description: string; validate: boolean }>;
 }
 
 /**
@@ -300,7 +304,7 @@ export class SchemaRegistry {
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
-  private static customScalars: Map<string, { class: any; description?: string }> = new Map();
+  private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> = new Map();
 
   /**
    * Register a GraphQL type.
@@ -652,7 +656,7 @@ export class SchemaRegistry {
    *
    * @throws If scalar name is not unique
    */
-  static registerScalar(name: string, scalarClass: any, description?: string): void {
+  static registerScalar(name: string, scalarClass: typeof CustomScalar, description?: string): void {
     if (this.customScalars.has(name)) {
       throw new Error(
         `Scalar '${name}' is already registered. Each name must be unique within a schema.`
@@ -666,8 +670,8 @@ export class SchemaRegistry {
    *
    * @returns Map of scalar names to CustomScalar classes
    */
-  static getCustomScalars(): Map<string, any> {
-    const result = new Map<string, any>();
+  static getCustomScalars(): Map<string, typeof CustomScalar> {
+    const result = new Map<string, typeof CustomScalar>();
     for (const [name, { class: scalarClass }] of this.customScalars) {
       result.set(name, scalarClass);
     }
@@ -716,15 +720,17 @@ export class SchemaRegistry {
     }
 
     if (this.customScalars.size > 0) {
-      const customScalars: Record<string, any> = {};
+      const customScalars: Record<string, { name: string; description: string; validate: boolean }> = {};
       for (const [name, { class: scalarClass, description }] of this.customScalars) {
         customScalars[name] = {
           name,
-          description: description || scalarClass.__doc__ || "Custom scalar",
+          description: description ?? "Custom scalar",
           validate: true,
         };
+        // Suppress unused variable warning — scalarClass retained for future use
+        void scalarClass;
       }
-      (schema as any).customScalars = customScalars;
+      schema.customScalars = customScalars;
     }
 
     return schema;

@@ -392,6 +392,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             } => GraphQLError::validation(format!(
                 "Query exceeds maximum alias count: {actual_aliases} > {max_aliases}"
             )),
+            // Reason: non_exhaustive requires catch-all for cross-crate matches
+            _ => GraphQLError::validation("Validation error"),
         };
         return Err(ErrorResponse::from_error(graphql_error));
     }
@@ -516,7 +518,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    #[allow(unused_mut)]
+    #[allow(unused_mut)]  // Reason: mut required by conditional compilation path
     // Reason: `mut` is required by `decrypt_response(&mut …)` when the `secrets` feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(

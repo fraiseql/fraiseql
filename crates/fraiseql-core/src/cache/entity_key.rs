@@ -59,6 +59,12 @@ impl EntityKey {
     /// - `Ok(EntityKey)` - If both arguments are valid
     /// - `Err(_)` - If either argument is empty
     ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `entity_type` or `entity_id` is
+    /// empty, or if `entity_type` contains a colon character (reserved as the
+    /// cache-key separator).
+    ///
     /// # Examples
     ///
     /// ```
@@ -126,6 +132,12 @@ impl EntityKey {
     ///
     /// - `Ok(EntityKey)` - If format is valid
     /// - `Err(_)` - If format is invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `cache_key` does not contain a
+    /// colon separator or if the resulting type or id part is invalid (see
+    /// [`EntityKey::new`]).
     ///
     /// # Examples
     ///

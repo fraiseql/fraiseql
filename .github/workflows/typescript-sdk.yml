@@ -36,13 +36,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint with ESLint
-        run: npm run lint --if-present
+      - name: Lint (no-any enforced)
+        run: npx eslint src/ --max-warnings 0
 
-      - name: Type check
-        run: npm run typecheck --if-present || npx tsc --noEmit
+      - name: Type check (strict, noUncheckedIndexedAccess)
+        run: npx tsc --noEmit
 
-      - name: Run tests (vitest)
+      - name: Run tests
         run: npm test
 
       - name: Build (tsup)

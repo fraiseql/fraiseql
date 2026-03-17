@@ -16,6 +16,7 @@ use super::domain_types::{RoleName, Scope};
 /// authenticated request context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "source", content = "claim", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum InjectedParamSource {
     /// Extract a value from the JWT claims.
     ///

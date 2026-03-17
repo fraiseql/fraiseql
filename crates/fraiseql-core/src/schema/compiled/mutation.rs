@@ -152,6 +152,7 @@ impl MutationDefinition {
 /// This enum describes what kind of database operation a mutation performs.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
+#[non_exhaustive]
 pub enum MutationOperation {
     /// INSERT into a table.
     Insert {

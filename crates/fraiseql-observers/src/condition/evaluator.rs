@@ -49,6 +49,12 @@ impl ConditionParser {
         }
     }
 
+    /// Check whether `field` is present in the event data.
+    ///
+    /// # Errors
+    ///
+    /// This function currently always returns `Ok`; the `Result` return type is
+    /// reserved for future validation.
     pub(super) fn eval_has_field(&self, field: &str, event: &EntityEvent) -> Result<bool> {
         Ok(event.data.get(field).is_some())
     }
@@ -63,6 +69,11 @@ impl ConditionParser {
     ///
     /// `f` receives the `Ordering` and returns the Boolean result, e.g.
     /// `|o| o.is_gt()` for `>`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidCondition`] if either operand is not a number,
+    /// or if `partial_cmp` produces `NaN`.
     pub(super) fn compare_ordered<F>(&self, left: &Value, right: &Value, f: F) -> Result<bool>
     where
         F: Fn(Ordering) -> bool,

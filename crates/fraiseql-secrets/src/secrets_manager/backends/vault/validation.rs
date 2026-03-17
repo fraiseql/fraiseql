@@ -18,6 +18,11 @@ pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 /// - Link-local addresses (`169.254/16`) — includes AWS IMDSv1/v2
 /// - CGNAT range (`100.64/10`)
 /// - IPv6 ULA (`fc00::/7`)
+///
+/// # Errors
+///
+/// Returns [`SecretsError::ValidationError`] if the address uses a non-HTTP(S) scheme,
+/// is not a valid URL, or targets a private/loopback address (SSRF protection).
 pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
     let lower = addr.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
@@ -78,6 +83,11 @@ fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
 }
 
 /// Validate Vault secret name format.
+///
+/// # Errors
+///
+/// Returns [`SecretsError::ValidationError`] if the name is empty, exceeds
+/// [`MAX_VAULT_SECRET_NAME_BYTES`], or contains characters other than alphanumeric, `/`, `-`, `_`.
 pub fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
         return Err(SecretsError::ValidationError("Vault secret name cannot be empty".to_string()));

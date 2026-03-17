@@ -152,7 +152,7 @@ impl PoolPressureMonitorConfig {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     use super::*;
 
     #[test]
@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
+    #[allow(deprecated)]  // Reason: re-exporting deprecated alias for backward compatibility
     fn test_pool_tuning_config_alias_works() {
         // PoolTuningConfig is a deprecated alias for PoolPressureMonitorConfig
         let _cfg: PoolTuningConfig = PoolTuningConfig::default();

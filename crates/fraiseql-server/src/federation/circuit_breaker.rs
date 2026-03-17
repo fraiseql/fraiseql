@@ -30,6 +30,7 @@ pub const STATE_HALF_OPEN: u64 = 2;
 /// Summary of circuit state for health reporting.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum CircuitHealthState {
     /// Accepting requests normally.
     Closed,

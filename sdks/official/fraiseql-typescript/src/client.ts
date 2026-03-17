@@ -148,17 +148,27 @@ export class FraiseQLClient {
 
   async query<T = Record<string, unknown>>(
     query: string,
-    variables?: Record<string, unknown>
+    variables?: Record<string, unknown>,
+    operationName?: string
   ): Promise<T> {
-    const body = JSON.stringify({ query, variables });
+    const body = JSON.stringify({
+      query,
+      variables,
+      ...(operationName && { operationName }),
+    });
     return this.executeRequest(body) as Promise<T>;
   }
 
   async mutate<T = Record<string, unknown>>(
     mutation: string,
-    variables?: Record<string, unknown>
+    variables?: Record<string, unknown>,
+    operationName?: string
   ): Promise<T> {
-    const body = JSON.stringify({ query: mutation, variables });
+    const body = JSON.stringify({
+      query: mutation,
+      variables,
+      ...(operationName && { operationName }),
+    });
     return this.executeRequest(body) as Promise<T>;
   }
 }

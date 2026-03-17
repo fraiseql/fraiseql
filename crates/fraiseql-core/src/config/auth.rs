@@ -57,6 +57,7 @@ impl Default for AuthConfig {
 /// Authentication provider.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum AuthProvider {
     /// No authentication.
     #[default]

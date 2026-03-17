@@ -58,10 +58,10 @@ public final class FraiseQLClient implements Closeable {
     /**
      * Executes a GraphQL query synchronously and deserialises the {@code data} field.
      *
-     * @param <T>          the expected response type
-     * @param query        the GraphQL query string
-     * @param variables    query variables (may be {@code null})
-     * @param responseType the class to deserialise the data into
+     * @param <T>           the expected response type
+     * @param query         the GraphQL query string
+     * @param variables     query variables (may be {@code null})
+     * @param responseType  the class to deserialise the data into
      * @return the deserialised data, or {@code null} if the response contained no data
      * @throws GraphQLException        if the response contained GraphQL errors
      * @throws AuthenticationException if the server returned 401 or 403
@@ -70,7 +70,16 @@ public final class FraiseQLClient implements Closeable {
      * @throws NetworkException        for any other transport-level failure
      */
     public <T> T query(String query, Map<String, Object> variables, Class<T> responseType) {
-        return executeSync(query, variables, responseType);
+        return executeSync(query, variables, null, responseType);
+    }
+
+    /**
+     * Executes a GraphQL query synchronously with an operation name.
+     *
+     * @see #query(String, Map, Class)
+     */
+    public <T> T query(String query, Map<String, Object> variables, String operationName, Class<T> responseType) {
+        return executeSync(query, variables, operationName, responseType);
     }
 
     /**
@@ -79,7 +88,7 @@ public final class FraiseQLClient implements Closeable {
      * @see #query(String, Map, Class)
      */
     public <T> T query(String query, Class<T> responseType) {
-        return query(query, null, responseType);
+        return executeSync(query, null, null, responseType);
     }
 
     /**
@@ -88,7 +97,16 @@ public final class FraiseQLClient implements Closeable {
      * @see #query(String, Map, Class)
      */
     public <T> T mutate(String mutation, Map<String, Object> variables, Class<T> responseType) {
-        return executeSync(mutation, variables, responseType);
+        return executeSync(mutation, variables, null, responseType);
+    }
+
+    /**
+     * Executes a GraphQL mutation synchronously with an operation name.
+     *
+     * @see #mutate(String, Map, Class)
+     */
+    public <T> T mutate(String mutation, Map<String, Object> variables, String operationName, Class<T> responseType) {
+        return executeSync(mutation, variables, operationName, responseType);
     }
 
     /**
@@ -98,7 +116,7 @@ public final class FraiseQLClient implements Closeable {
      */
     public <T> CompletableFuture<T> queryAsync(String query, Map<String, Object> variables,
             Class<T> responseType) {
-        return CompletableFuture.supplyAsync(() -> executeSync(query, variables, responseType));
+        return CompletableFuture.supplyAsync(() -> executeSync(query, variables, null, responseType));
     }
 
     /**
@@ -108,16 +126,19 @@ public final class FraiseQLClient implements Closeable {
      */
     public <T> CompletableFuture<T> mutateAsync(String mutation, Map<String, Object> variables,
             Class<T> responseType) {
-        return CompletableFuture.supplyAsync(() -> executeSync(mutation, variables, responseType));
+        return CompletableFuture.supplyAsync(() -> executeSync(mutation, variables, null, responseType));
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T executeSync(String gqlQuery, Map<String, Object> variables, Class<T> responseType) {
+    private <T> T executeSync(String gqlQuery, Map<String, Object> variables, String operationName, Class<T> responseType) {
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("query", gqlQuery);
             if (variables != null) {
                 body.put("variables", variables);
+            }
+            if (operationName != null) {
+                body.put("operationName", operationName);
             }
 
             String bodyJson = mapper.writeValueAsString(body);

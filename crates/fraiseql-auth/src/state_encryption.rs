@@ -48,7 +48,12 @@ impl EncryptedState {
         bytes
     }
 
-    /// Deserialize from bytes
+    /// Deserialize from bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::InvalidState`] if `bytes` is shorter than 12 bytes
+    /// (minimum nonce size).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < 12 {
             return Err(AuthError::InvalidState);
@@ -153,13 +158,23 @@ impl StateEncryption {
         String::from_utf8(plaintext).map_err(|_| AuthError::InvalidState)
     }
 
-    /// Encrypt state and serialize to bytes
+    /// Encrypt state and serialize to bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::Internal`] if AEAD encryption fails (essentially never).
     pub fn encrypt_to_bytes(&self, state: &str) -> Result<Vec<u8>> {
         let encrypted = self.encrypt(state)?;
         Ok(encrypted.to_bytes())
     }
 
-    /// Decrypt state from serialized bytes
+    /// Decrypt state from serialized bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::InvalidState`] if `bytes` is too short, if AEAD
+    /// authentication fails (tampered or wrong key), or if decrypted bytes are
+    /// not valid UTF-8.
     pub fn decrypt_from_bytes(&self, bytes: &[u8]) -> Result<String> {
         let encrypted = EncryptedState::from_bytes(bytes)?;
         self.decrypt(&encrypted)
@@ -187,6 +202,7 @@ pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
 
 /// Errors that can occur during decryption by `StateEncryptionService`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecryptionError {
     /// Ciphertext was tampered with or encrypted with a different key.
     #[error("authentication failed — ciphertext may be tampered or key is wrong")]
@@ -198,6 +214,7 @@ pub enum DecryptionError {
 
 /// Errors that can occur when constructing a `StateEncryptionService` key.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum KeyError {
     /// Hex string was not 64 characters (32 bytes).
     #[error("hex key must be 64 chars (32 bytes); got {0} chars")]
@@ -209,6 +226,7 @@ pub enum KeyError {
 
 /// AEAD algorithm selection for `StateEncryptionService`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EncryptionAlgorithm {
     /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly).
     #[default]
@@ -420,7 +438,7 @@ impl StateEncryptionService {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod service_tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
@@ -612,7 +630,7 @@ mod service_tests {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

@@ -50,7 +50,8 @@ defmodule FraiseQL.Client do
   @spec query(t(), String.t(), keyword()) :: result()
   def query(%__MODULE__{} = client, query, opts \\ []) do
     variables = Keyword.get(opts, :variables, %{})
-    execute(client, query, variables)
+    operation_name = Keyword.get(opts, :operation_name)
+    execute(client, query, variables, operation_name)
   end
 
   @spec query!(t(), String.t(), keyword()) :: map() | no_return()
@@ -64,7 +65,8 @@ defmodule FraiseQL.Client do
   @spec mutate(t(), String.t(), keyword()) :: result()
   def mutate(%__MODULE__{} = client, mutation, opts \\ []) do
     variables = Keyword.get(opts, :variables, %{})
-    execute(client, mutation, variables)
+    operation_name = Keyword.get(opts, :operation_name)
+    execute(client, mutation, variables, operation_name)
   end
 
   @spec mutate!(t(), String.t(), keyword()) :: map() | no_return()
@@ -75,8 +77,10 @@ defmodule FraiseQL.Client do
     end
   end
 
-  defp execute(%__MODULE__{} = client, gql_query, variables) do
-    body = Jason.encode!(%{query: gql_query, variables: variables})
+  defp execute(%__MODULE__{} = client, gql_query, variables, operation_name \\ nil) do
+    payload = %{query: gql_query, variables: variables}
+    payload = if operation_name, do: Map.put(payload, :operationName, operation_name), else: payload
+    body = Jason.encode!(payload)
 
     headers = [
       {"Content-Type", "application/json"},

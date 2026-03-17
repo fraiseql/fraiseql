@@ -264,6 +264,7 @@ impl EntityRepresentation {
 
 /// Resolution strategy for entity
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ResolutionStrategy {
     /// Entity is owned by this subgraph, resolve locally
     Local {

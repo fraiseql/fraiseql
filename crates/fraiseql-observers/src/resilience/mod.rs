@@ -47,6 +47,7 @@ use crate::error::{ObserverError, Result};
 
 /// Circuit breaker state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CircuitState {
     /// Normal operation, requests pass through
     Closed,
@@ -124,6 +125,11 @@ impl CircuitBreaker {
     /// # Returns
     ///
     /// Returns the result of the function if executed, or an error if the circuit is open
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::CircuitBreakerOpen`] if the circuit is open.
+    /// Propagates any error returned by `f`.
     pub async fn call<F, T>(&self, f: F) -> Result<T>
     where
         F: FnOnce() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>,

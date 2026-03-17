@@ -16,6 +16,7 @@ pub struct OperatorInfo {
 
 /// Type of parameters the operator accepts
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ParameterType {
     /// Single string value
     String,

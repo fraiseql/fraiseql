@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 
 /// Represents the status of a saga step
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StepStatusEnum {
     /// Step is pending execution
     Pending,

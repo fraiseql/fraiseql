@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { FraiseQLClient } from '../client';
 import {
   GraphQLError,
@@ -13,9 +14,9 @@ function makeFetch(response: {
   statusText?: string;
   body?: unknown;
   headers?: Record<string, string>;
-}): jest.Mock {
+}): ReturnType<typeof vi.fn> {
   const status = response.status ?? 200;
-  return jest.fn().mockResolvedValue({
+  return vi.fn().mockResolvedValue({
     status,
     statusText: response.statusText ?? 'OK',
     ok: response.ok ?? (status >= 200 && status < 300),
@@ -191,7 +192,7 @@ describe('FraiseQLClient', () => {
     });
 
     it('throws NetworkError when fetch throws', async () => {
-      const fetchMock = jest.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
       const client = new FraiseQLClient({
         url: 'http://localhost:4000/graphql',
         fetch: fetchMock as unknown as typeof fetch,
@@ -221,7 +222,7 @@ describe('FraiseQLClient', () => {
 
   describe('timeout', () => {
     it('throws TimeoutError when AbortError is raised', async () => {
-      const fetchMock = jest.fn().mockRejectedValue(
+      const fetchMock = vi.fn().mockRejectedValue(
         Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
       );
       const client = new FraiseQLClient({

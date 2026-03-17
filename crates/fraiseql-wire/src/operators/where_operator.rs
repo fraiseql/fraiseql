@@ -512,6 +512,11 @@ impl WhereOperator {
     }
 
     /// Validate operator for basic correctness
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the field name is invalid or, for vector distance
+    /// operators, the threshold is not a finite number.
     pub fn validate(&self) -> Result<(), String> {
         match self {
             WhereOperator::Eq(f, _)

@@ -1,6 +1,8 @@
 // Mock the 'ai' module before importing the integration
-jest.mock('ai', () => ({
-  tool: jest.fn(
+import { vi } from 'vitest';
+
+vi.mock('ai', () => ({
+  tool: vi.fn(
     (config: {
       description: string;
       parameters: unknown;
@@ -18,7 +20,7 @@ import { fraiseqlTool } from '../../integrations/vercel-ai';
 import { FraiseQLClient } from '../../client';
 
 function makeMockClient(data: Record<string, unknown>): FraiseQLClient {
-  const fetchMock = jest.fn().mockResolvedValue({
+  const fetchMock = vi.fn().mockResolvedValue({
     status: 200,
     ok: true,
     statusText: 'OK',
@@ -54,7 +56,7 @@ describe('fraiseqlTool (Vercel AI)', () => {
   it('execute calls client.query with params', async () => {
     const userData = { user: { id: '1', name: 'Alice' } };
     const client = makeMockClient(userData);
-    const querySpy = jest.spyOn(client, 'query');
+    const querySpy = vi.spyOn(client, 'query');
 
     const t = fraiseqlTool(client, {
       name: 'getUser',

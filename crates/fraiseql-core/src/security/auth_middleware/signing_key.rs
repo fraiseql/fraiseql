@@ -13,6 +13,7 @@ use crate::security::errors::SecurityError;
 ///
 /// Supports both symmetric (HS256) and asymmetric (RS256/RS384/RS512) algorithms.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum SigningKey {
     /// HMAC-SHA256 symmetric key.
     ///

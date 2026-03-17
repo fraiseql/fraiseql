@@ -38,6 +38,11 @@ impl EloExpressionEvaluator {
     }
 
     /// Evaluate the ELO expression against a JSON object.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the expression references an
+    /// unknown field, uses an unsupported function, or cannot be parsed.
     pub fn evaluate(&self, context: &Value) -> Result<EloValidationResult> {
         // Parse and evaluate the expression
         self.evaluate_expression(&self.expression, context)

@@ -129,7 +129,7 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
     // Reason: Connection pool counts are bounded by `max_pool_size` which defaults to 50 and
     // is configured via `fraiseql.toml` (typically ≤1000). Truncation from usize to u32 cannot
     // occur in practice; u32::MAX (4 billion) far exceeds any realistic pool size.

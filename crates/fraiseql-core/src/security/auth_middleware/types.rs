@@ -72,11 +72,14 @@ impl AuthRequest {
         }
     }
 
-    /// Extract the bearer token from the Authorization header
+    /// Extract the bearer token from the Authorization header.
     ///
     /// Expected format: `"Bearer <token>"`
     ///
-    /// Returns Ok(token) if valid format, Err otherwise
+    /// # Errors
+    ///
+    /// Returns [`SecurityError::AuthRequired`] if the Authorization header is
+    /// absent or does not start with `"Bearer "`.
     pub fn extract_bearer_token(&self) -> Result<String> {
         let header = self.authorization_header.as_ref().ok_or(SecurityError::AuthRequired)?;
 

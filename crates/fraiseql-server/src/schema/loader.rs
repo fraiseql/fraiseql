@@ -7,6 +7,7 @@ use tracing::{debug, info};
 
 /// Error loading schema.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SchemaLoadError {
     /// Schema file not found.
     #[error("Schema file not found: {0}")]
@@ -66,11 +67,10 @@ impl CompiledSchemaLoader {
     ///
     /// # Errors
     ///
-    /// Returns error if:
-    /// - File does not exist
-    /// - File cannot be read
-    /// - JSON is invalid
-    /// - Schema validation fails
+    /// Returns [`SchemaLoadError::NotFound`] if the file does not exist.
+    /// Returns [`SchemaLoadError::IoError`] if the file cannot be read.
+    /// Returns [`SchemaLoadError::ParseError`] if the JSON is malformed.
+    /// Returns [`SchemaLoadError::ValidationError`] if schema validation fails.
     ///
     /// # Example
     ///

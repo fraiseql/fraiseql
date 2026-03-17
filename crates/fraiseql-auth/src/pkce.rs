@@ -36,6 +36,7 @@ use crate::state_encryption::StateEncryptionService;
 
 /// Errors returned by [`PkceStateStore::consume_state`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PkceError {
     /// The state token was not found — either never issued, already consumed,
     /// or (when encryption is on) tampered/decryption failed.
@@ -319,6 +320,7 @@ impl RedisPkceStateStore {
 /// Set `FRAISEQL_REQUIRE_REDIS=1` in your deployment environment to make
 /// FraiseQL refuse to start without a Redis-backed PKCE store. This is the
 /// recommended pattern for production Kubernetes deployments.
+#[non_exhaustive]
 pub enum PkceStateStore {
     /// Single-node DashMap-backed store.
     InMemory(InMemoryPkceStateStore),
@@ -447,7 +449,7 @@ impl PkceStateStore {
 mod tests {
     use std::time::Duration;
 
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
     use crate::state_encryption::{EncryptionAlgorithm, StateEncryptionService};

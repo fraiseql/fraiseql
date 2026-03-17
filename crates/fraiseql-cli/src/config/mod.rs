@@ -89,6 +89,11 @@ impl TomlProjectConfig {
     /// Load configuration from fraiseql.toml file.
     ///
     /// Supports `${VAR}` environment variable interpolation throughout the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file does not exist, cannot be read, or cannot be
+    /// parsed as valid TOML matching the `TomlProjectConfig` structure.
     pub fn from_file(path: &str) -> Result<Self> {
         info!("Loading configuration from {path}");
 
@@ -107,6 +112,11 @@ impl TomlProjectConfig {
     }
 
     /// Validate configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any security, server, or database configuration value
+    /// is invalid (e.g. unsupported algorithm, zero window, or bad port range).
     pub fn validate(&self) -> Result<()> {
         info!("Validating configuration");
         self.fraiseql.security.validate()?;

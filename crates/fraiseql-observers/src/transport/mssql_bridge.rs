@@ -200,6 +200,11 @@ pub struct MSSQLChangeLogEntry {
 #[cfg(feature = "mssql")]
 impl MSSQLChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::InvalidConfig`] if `modification_type` is not one
+    /// of `INSERT`, `UPDATE`, or `DELETE`.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -235,6 +240,11 @@ impl MSSQLChangeLogEntry {
     }
 
     /// Parse a SQL Server row into a `MSSQLChangeLogEntry`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if any required column is missing
+    /// or cannot be parsed from the row.
     pub fn from_row(row: &Row) -> Result<Self> {
         // Helper to extract values with proper error handling
         let pk: i64 = row.get(0).ok_or_else(|| ObserverError::DatabaseError {
@@ -416,7 +426,7 @@ impl MSSQLNatsBridge {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: batch_size is a small positive config value, well within i64 range
         let batch_size = self.config.batch_size as i64;
 
@@ -485,6 +495,11 @@ impl MSSQLNatsBridge {
     ///
     /// SQL Server has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
+    ///
+    /// # Errors
+    ///
+    /// Propagates SQL Server query errors or NATS publish errors encountered
+    /// while fetching or forwarding change log entries.
     pub async fn run(&self) -> Result<()> {
         info!("Starting MSSQL → NATS bridge: {}", self.config.transport_name);
 
@@ -644,6 +659,11 @@ impl MSSQLNatsBridge {
 /// # Arguments
 ///
 /// * `connection_string` - ADO.NET style connection string
+///
+/// # Errors
+///
+/// Returns [`ObserverError::TransportConnectionFailed`] if the connection string
+/// is invalid or the pool cannot be built.
 ///
 /// # Example
 ///

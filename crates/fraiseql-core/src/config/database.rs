@@ -77,6 +77,7 @@ impl Default for MutationTimingConfig {
 /// SSL mode for database connections.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum SslMode {
     /// Disable SSL.
     Disable,

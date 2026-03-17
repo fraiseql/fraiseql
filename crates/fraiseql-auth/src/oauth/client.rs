@@ -236,6 +236,11 @@ impl OAuth2Client {
     }
 
     /// Refresh access token using a refresh token.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the token endpoint request (network failure,
+    /// non-2xx HTTP status, oversized response body, or JSON parse error).
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
         let params = [
             ("grant_type", "refresh_token"),
@@ -256,7 +261,7 @@ pub struct OIDCClient {
     pub client_id:  String,
     /// Client secret — retained for token revocation and introspection endpoints.
     // Reason: needed for token revocation and introspection
-    #[allow(dead_code)]
+    #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
     client_secret:  String,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,

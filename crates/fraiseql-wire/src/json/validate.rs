@@ -5,6 +5,12 @@ use crate::util::oid::is_json_oid;
 use crate::{Result, WireError};
 
 /// Validate that `RowDescription` matches our requirements
+///
+/// # Errors
+///
+/// Returns [`WireError::Protocol`] if the message is not a `RowDescription`.
+/// Returns [`WireError::InvalidSchema`] if the description does not have exactly one column
+/// named `"data"` with a JSON or JSONB type OID.
 pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,
@@ -41,6 +47,10 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
 }
 
 /// Extract field description from `RowDescription`
+///
+/// # Errors
+///
+/// Returns [`WireError::Protocol`] if the message is not a `RowDescription`.
 pub fn extract_field_description(msg: &BackendMessage) -> Result<FieldDescription> {
     let fields = match msg {
         BackendMessage::RowDescription(fields) => fields,

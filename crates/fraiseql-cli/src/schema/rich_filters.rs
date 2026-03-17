@@ -230,6 +230,8 @@ fn operator_param_type_to_graphql_string(param_type: ParameterType) -> String {
         ParameterType::Number => "Float".to_string(),
         ParameterType::NumberRange => "FloatRange".to_string(),
         ParameterType::Boolean => "Boolean".to_string(),
+        // Reason: non_exhaustive requires catch-all for cross-crate matches
+        _ => "String".to_string(),
     }
 }
 

@@ -431,6 +431,11 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError`] if SQL generation fails or the underlying streaming query
+    /// cannot be started on the connection.
     pub async fn execute(self) -> Result<QueryStream<T>> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);
@@ -702,7 +707,7 @@ mod tests {
 
         #[derive(Deserialize, Debug)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
         struct TestUser {
             id: String,
             active: bool,

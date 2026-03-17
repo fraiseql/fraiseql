@@ -25,6 +25,7 @@ use std::fmt;
 /// let _ = Field::JsonbPath(vec!["user".to_string(), "name".to_string()]);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Field {
     /// A field extracted from the JSONB `data` column with text extraction (->>)
     ///
@@ -56,6 +57,11 @@ impl Field {
     ///
     /// Allows: alphanumeric, underscore
     /// Disallows: quotes, brackets, dashes, special characters
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any field name (or path segment) contains characters
+    /// other than alphanumeric and underscore.
     pub fn validate(&self) -> Result<(), String> {
         let name = match self {
             Field::JsonbField(n) => n,
@@ -138,6 +144,7 @@ impl fmt::Display for Field {
 /// let _ = Value::Array(vec![Value::String("a".to_string()), Value::String("b".to_string())]);
 /// ```
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Value {
     /// String value
     String(String),
