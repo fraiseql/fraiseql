@@ -39,6 +39,14 @@ pub enum FraiseQLError {
         /// Suggested retry delay, if provided by the server.
         retry_after: Option<std::time::Duration>,
     },
+
+    /// Serialization or deserialization failure.
+    #[error("Serialization error: {0}")]
+    Serialization(String),
+
+    /// An error that does not fit any other category.
+    #[error("{0}")]
+    Other(String),
 }
 
 /// Convenience type alias for FraiseQL client results.

@@ -4,7 +4,7 @@
 
 use candle_core::Tensor;
 
-use crate::{FraiseQLClient, Result};
+use crate::{FraiseQLClient, Result, error::FraiseQLError};
 
 impl FraiseQLClient {
     /// Store a flat embedding tensor via a FraiseQL mutation.
@@ -24,15 +24,7 @@ impl FraiseQLClient {
         let flat = tensor
             .flatten_all()
             .and_then(|t| t.to_vec1::<f32>())
-            .map_err(|e| {
-                crate::error::FraiseQLError::Network(
-                    // Wrap candle error as a network error (closest semantic match)
-                    reqwest::Error::from(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!("candle tensor error: {e}"),
-                    )),
-                )
-            })?;
+            .map_err(|e| FraiseQLError::Other(format!("candle tensor error: {e}")))?;
 
         variables["embedding"] = serde_json::json!(flat);
         self.mutate(mutation, Some(&variables)).await
@@ -50,17 +42,9 @@ impl FraiseQLClient {
         dims: &[usize],
     ) -> Result<Tensor> {
         let data: serde_json::Value = self.query(query, variables).await?;
-        let flat: Vec<f32> = serde_json::from_value(data).map_err(|e| {
-            crate::error::FraiseQLError::Network(reqwest::Error::from(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("failed to deserialize embeddings: {e}"),
-            )))
-        })?;
-        Tensor::from_vec(flat, dims, &candle_core::Device::Cpu).map_err(|e| {
-            crate::error::FraiseQLError::Network(reqwest::Error::from(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("failed to create tensor: {e}"),
-            )))
-        })
+        let flat: Vec<f32> = serde_json::from_value(data)
+            .map_err(|e| FraiseQLError::Serialization(format!("failed to deserialize embeddings: {e}")))?;
+        Tensor::from_vec(flat, dims, &candle_core::Device::Cpu)
+            .map_err(|e| FraiseQLError::Other(format!("failed to create tensor: {e}")))
     }
 }
