@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
-# FraiseQL v2 Ruby SDK
-#
-# Status: Not yet implemented.
-# This is a placeholder. See README.md for details.
+require_relative "fraiseql/version"
+require_relative "fraiseql/errors"
+require_relative "fraiseql/retry"
+require_relative "fraiseql/client"
+require_relative "fraiseql/authoring/type"
+
 module FraiseQL
-  VERSION = '0.0.0'
+  # Autoload integrations
+  autoload :OpenAI, "fraiseql/integrations/openai"
 end
