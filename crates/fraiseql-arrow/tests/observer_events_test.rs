@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use fraiseql_arrow::{EventStorage, HistoricalEvent};
+use fraiseql_arrow::{ArrowEventStorage as EventStorage, HistoricalEvent};
 use uuid::Uuid;
 
 /// Mock event storage for testing

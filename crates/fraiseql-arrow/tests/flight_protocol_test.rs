@@ -18,7 +18,7 @@ use arrow_flight::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use fraiseql_arrow::{DatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService};
+use fraiseql_arrow::{ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService};
 use futures::StreamExt as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
@@ -37,7 +37,10 @@ struct MockAdapter;
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
-impl DatabaseAdapter for MockAdapter {
+impl ArrowDatabaseAdapter for MockAdapter
+where
+    MockAdapter: Send + Sync,
+{
     async fn execute_raw_query(
         &self,
         _sql: &str,
@@ -62,6 +65,7 @@ impl DatabaseAdapter for MockAdapter {
         ])
     }
 }
+
 
 // ---------------------------------------------------------------------------
 // Helpers

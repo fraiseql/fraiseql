@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::missing_docs_in_private_items, missing_docs, clippy::manual_is_multiple_of)] // Reason: benchmark code
 
 //! Cache concurrency benchmark.
 //!
@@ -157,7 +157,7 @@ fn bench_cache_mixed(c: &mut Criterion) {
                     thread::spawn(move || {
                         for i in 0..OPS_PER_THREAD {
                             // 90% reads, 10% writes
-                            if (t * OPS_PER_THREAD + i) % 10 == 0 {
+                            if (t * OPS_PER_THREAD + i).is_multiple_of(10) {
                                 let _ = c.put(
                                     format!("key-{}", i % KEY_COUNT),
                                     (*r).clone(),

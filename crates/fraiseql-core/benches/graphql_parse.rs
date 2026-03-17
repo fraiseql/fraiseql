@@ -23,7 +23,7 @@ use fraiseql_core::graphql::parse_query;
 
 const SIMPLE_QUERY: &str = "{ users { id name } }";
 
-const COMPLEX_QUERY: &str = r#"
+const COMPLEX_QUERY: &str = r"
     query GetUserWithPosts($userId: Int!, $limit: Int) {
         user(id: $userId) {
             id
@@ -37,9 +37,9 @@ const COMPLEX_QUERY: &str = r#"
             }
         }
     }
-"#;
+";
 
-const FRAGMENT_QUERY: &str = r#"
+const FRAGMENT_QUERY: &str = r"
     fragment UserFields on User {
         id
         name
@@ -58,7 +58,7 @@ const FRAGMENT_QUERY: &str = r#"
             ...PostFields
         }
     }
-"#;
+";
 
 fn bench_graphql_parse(c: &mut Criterion) {
     let mut group = c.benchmark_group("graphql_parse");

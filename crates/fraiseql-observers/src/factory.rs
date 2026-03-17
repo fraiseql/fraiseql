@@ -452,7 +452,7 @@ mod tests {
             let result = ExecutorFactory::build(&config, dlq).await;
             assert!(
                 matches!(result, Err(ObserverError::InvalidConfig { .. })),
-                "dedup without redis must return InvalidConfig, got: {result:?}"
+                "dedup without redis must return InvalidConfig"
             );
         }
 
@@ -512,7 +512,7 @@ mod tests {
         let result = ExecutorFactory::build_with_queue(&config, dlq).await;
         assert!(
             matches!(result, Err(ObserverError::InvalidConfig { .. })),
-            "missing job_queue config must return InvalidConfig, got: {result:?}"
+            "missing job_queue config must return InvalidConfig"
         );
     }
 

@@ -430,6 +430,7 @@ mod tests {
         matchers::{method, path},
     };
 
+    #[allow(unused_imports)]
     use super::super::SearchBackend as _;
 
     #[tokio::test]
@@ -473,6 +474,7 @@ mod tests {
     async fn test_search_parses_hits_from_response() {
         use uuid::Uuid;
 
+        #[allow(unused_imports)]
         use super::super::IndexedEvent;
 
         let mock = MockServer::start().await;

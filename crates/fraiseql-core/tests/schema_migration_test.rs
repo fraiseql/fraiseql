@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 //! Schema backward-compatibility migration tests.
 //!
 //! Verifies that compiled schemas produced by earlier fraiseql-cli versions can be
