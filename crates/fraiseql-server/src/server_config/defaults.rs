@@ -123,3 +123,11 @@ pub const fn default_elasticsearch_https() -> bool {
 pub const fn default_verify_certs() -> bool {
     true
 }
+
+pub const fn default_otlp_timeout_secs() -> u64 {
+    10
+}
+
+pub fn default_service_name() -> String {
+    "fraiseql".to_string()
+}

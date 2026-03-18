@@ -124,13 +124,18 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Set up tracing subscriber with `RUST_LOG` env filter.
+/// Set up tracing subscriber with `RUST_LOG` env filter and optional OTLP export.
 ///
 /// When `FRAISEQL_LOG_FORMAT=json` (case-insensitive), logs are emitted as
 /// newline-delimited JSON — suitable for structured log aggregators such as
 /// Datadog, Loki, or `CloudWatch`. Otherwise the default human-readable format
 /// is used.
-fn init_tracing() {
+///
+/// If an OTLP endpoint is configured (via `TracingConfig.otlp_endpoint` or the
+/// `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable), an `OpenTelemetry` span
+/// exporter is added as an additional tracing layer.  When no endpoint is set,
+/// no gRPC connection is attempted and there is zero overhead.
+fn init_tracing(config: &ServerConfig) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into());
 
@@ -138,18 +143,89 @@ fn init_tracing() {
         .map(|v| v.eq_ignore_ascii_case("json"))
         .unwrap_or(false);
 
+    // The OTel layer's type parameter must match the subscriber it composes
+    // with, so we build it separately per branch.
     if is_json {
-        tracing_subscriber::registry()
+        let subscriber = tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer().json())
-            .init();
+            .with(tracing_subscriber::fmt::layer().json());
+
+        #[cfg(feature = "tracing-opentelemetry")]
+        let subscriber = subscriber.with(build_otlp_layer(config));
+
+        #[cfg(not(feature = "tracing-opentelemetry"))]
+        let _ = config;
+
+        subscriber.init();
     } else {
-        tracing_subscriber::registry()
+        let subscriber = tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer())
-            .init();
+            .with(tracing_subscriber::fmt::layer());
+
+        #[cfg(feature = "tracing-opentelemetry")]
+        let subscriber = subscriber.with(build_otlp_layer(config));
+
+        #[cfg(not(feature = "tracing-opentelemetry"))]
+        let _ = config;
+
+        subscriber.init();
     }
 }
+
+/// Resolve the OTLP endpoint from config or environment, returning `None` if
+/// neither is set (meaning OTLP export should be skipped entirely).
+#[cfg(feature = "tracing-opentelemetry")]
+fn resolve_otlp_endpoint(config: &ServerConfig) -> Option<String> {
+    config
+        .otlp_endpoint
+        .clone()
+        .or_else(|| std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok())
+}
+
+/// Build an optional `OpenTelemetry` tracing layer.
+///
+/// Returns `Some(layer)` when an OTLP endpoint is configured, `None` otherwise.
+/// Failures during OTLP setup are logged to stderr (tracing is not yet initialized)
+/// and result in `None` — the server continues without OTLP export.
+#[cfg(feature = "tracing-opentelemetry")]
+fn build_otlp_layer<S>(
+    config: &ServerConfig,
+) -> Option<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>>
+where
+    S: tracing::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
+{
+    use opentelemetry::trace::TracerProvider as _;
+    use opentelemetry_otlp::WithExportConfig;
+    use opentelemetry_sdk::trace::SdkTracerProvider;
+
+    let endpoint = resolve_otlp_endpoint(config)?;
+
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(&endpoint)
+        .with_timeout(std::time::Duration::from_secs(config.otlp_export_timeout_secs))
+        .build()
+        .map_err(|e| eprintln!("Failed to build OTLP exporter for {endpoint}: {e}"))
+        .ok()?;
+
+    let provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(
+            opentelemetry_sdk::Resource::builder()
+                .with_service_name(config.tracing_service_name.clone())
+                .build(),
+        )
+        .build();
+
+    let tracer = provider.tracer("fraiseql");
+    eprintln!(
+        "OTLP tracing export enabled: endpoint={endpoint}, service_name={}",
+        config.tracing_service_name
+    );
+
+    Some(tracing_opentelemetry::layer().with_tracer(tracer))
+}
+
 
 /// Load config from file/defaults, apply all env var overrides, then validate.
 ///
@@ -351,13 +427,12 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
 ///    secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
-    init_tracing();
-    // TODO: After config is loaded, initialize OpenTelemetry OTLP exporter
-    // when the `tracing-opentelemetry` feature is enabled.
-    // See TracingConfig in config/tracing.rs for OTLP settings.
-    tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
-
+    // Load config first so tracing can include the OTLP layer if configured.
+    // Tracing calls in load_and_validate_config are silently discarded (no
+    // subscriber yet); critical errors surface via the Result return.
     let config = load_and_validate_config()?;
+    init_tracing(&config);
+    tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
     tracing::info!(
         bind_addr = %config.bind_addr,
         database_url = %config.database_url,

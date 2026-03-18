@@ -20,6 +20,7 @@ This directory contains operational runbooks for managing, troubleshooting, and 
 | [12 - Incident Response](./12-incident-response.md) | General incident template | Variable |
 | [13 - Schema Hot-Reload Failure](./13-schema-hot-reload-failure.md) | Schema reload cycle failing | Medium |
 | [14 - Federation Circuit Breaker](./14-federation-circuit-breaker.md) | Circuit breaker tripped on federation entity | High |
+| [15 - Tracing / OTLP](./15-tracing-otlp.md) | No traces, OTLP export failures | Medium |
 
 ## Using These Runbooks
 
@@ -133,7 +134,9 @@ When adding new runbooks:
 
 ## Changelog
 
-- **v2.2.0** (2026-03-17) - Added federation circuit breaker runbook
+- **v2.2.0** (2026-03-18) - Added tracing/OTLP runbook
+  - Runbook 15: OTLP export troubleshooting
+- **v2.1.1** (2026-03-17) - Added federation circuit breaker runbook
   - Runbook 14: federation circuit breaker recovery and tuning
 - **v2.1.0** (2026-03-16) - Added schema hot-reload failure runbook
   - Runbook 13: schema hot-reload failure diagnosis and recovery

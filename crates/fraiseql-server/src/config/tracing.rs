@@ -21,6 +21,16 @@ pub struct TracingConfig {
     #[serde(default = "default_service_name")]
     pub service_name: String,
 
+    /// OTLP exporter endpoint.
+    ///
+    /// When set (e.g. `"http://otel-collector:4317"`), the server initializes an
+    /// OpenTelemetry OTLP exporter and pipes `tracing` spans to it.
+    /// When `None`, the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable is
+    /// checked as a fallback. If neither is set, no OTLP export occurs and there
+    /// is zero overhead (no gRPC connection attempt).
+    #[serde(default)]
+    pub otlp_endpoint: Option<String>,
+
     /// OTLP exporter timeout in seconds.
     ///
     /// Controls how long the OTLP HTTP exporter waits for a response from the
@@ -37,6 +47,7 @@ impl Default for TracingConfig {
             level:                    default_level(),
             format:                   default_format(),
             service_name:             default_service_name(),
+            otlp_endpoint:            None,
             otlp_export_timeout_secs: default_otlp_timeout_secs(),
         }
     }

@@ -53,6 +53,10 @@ spec:
             secretKeyRef:
               name: {{ include "fraiseql.fullname" . }}-db
               key: url
+        {{- if .Values.tracing.otlpEndpoint }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ .Values.tracing.otlpEndpoint | quote }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

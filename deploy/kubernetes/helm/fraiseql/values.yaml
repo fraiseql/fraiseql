@@ -126,6 +126,12 @@ application:
     path: /admin
     enabled: true
 
+# Distributed tracing (OpenTelemetry)
+tracing:
+  # Set to an OTLP collector endpoint to enable distributed tracing.
+  # When empty, no OTLP export occurs (zero overhead).
+  otlpEndpoint: ""
+
 # Monitoring and observability
 monitoring:
   enabled: true

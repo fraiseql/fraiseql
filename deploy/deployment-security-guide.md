@@ -652,6 +652,45 @@ chain after modification.
 
 ---
 
+## OpenTelemetry Distributed Tracing
+
+FraiseQL ships with OpenTelemetry support compiled in by default. OTLP export
+activates only when an endpoint is configured — there is zero overhead otherwise.
+
+### Configuration
+
+Set the OTLP endpoint via environment variable or config file:
+
+```bash
+# Environment variable (takes effect without config file changes)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+# Or in fraiseql.toml / ServerConfig
+otlp_endpoint = "http://otel-collector:4317"
+otlp_export_timeout_secs = 10
+tracing_service_name = "fraiseql"
+```
+
+### Kubernetes with OpenTelemetry Collector
+
+Deploy an OpenTelemetry Collector as a sidecar or DaemonSet, then point
+FraiseQL at it:
+
+```yaml
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://otel-collector:4317"
+```
+
+### Security Considerations
+
+- OTLP traffic should stay within the cluster network (use ClusterIP services).
+- If exporting to an external collector, use TLS (`https://`) endpoints.
+- Trace data may contain query text and field names — ensure your collector
+  and backend have appropriate access controls.
+
+---
+
 ## Additional Resources
 
 - **Security Remediation Plan**: `docs/security/vulnerability-remediation-plan.md`

@@ -73,6 +73,23 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_true")]
     pub tracing_enabled: bool,
 
+    /// OTLP exporter endpoint for distributed tracing.
+    ///
+    /// When set (e.g. `"http://otel-collector:4317"`), the server initializes an
+    /// OpenTelemetry OTLP exporter. When `None`, the `OTEL_EXPORTER_OTLP_ENDPOINT`
+    /// environment variable is checked as a fallback. If neither is set, no OTLP
+    /// export occurs (zero overhead).
+    #[serde(default)]
+    pub otlp_endpoint: Option<String>,
+
+    /// OTLP exporter timeout in seconds (default: 10).
+    #[serde(default = "defaults::default_otlp_timeout_secs")]
+    pub otlp_export_timeout_secs: u64,
+
+    /// Service name for distributed tracing (default: `"fraiseql"`).
+    #[serde(default = "defaults::default_service_name")]
+    pub tracing_service_name: String,
+
     /// Enable APQ (Automatic Persisted Queries).
     #[serde(default = "defaults::default_true")]
     pub apq_enabled: bool,
@@ -439,6 +456,9 @@ impl Default for ServerConfig {
             cors_origins: Vec::new(),
             compression_enabled: true,
             tracing_enabled: true,
+            otlp_endpoint: None,
+            otlp_export_timeout_secs: defaults::default_otlp_timeout_secs(),
+            tracing_service_name: defaults::default_service_name(),
             apq_enabled: true,
             cache_enabled: true,
             graphql_path: default_graphql_path(),
