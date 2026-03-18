@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT DATE_TRUNC('day', occurred_at) AS day, COUNT(*) FROM "tf_sales" GROUP BY DATE_TRUNC('day', occurred_at)

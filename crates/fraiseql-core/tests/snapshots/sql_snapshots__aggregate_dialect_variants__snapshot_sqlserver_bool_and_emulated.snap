@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT MIN(CAST(active AS BIT)) = 1 AS all_active FROM [v_user]

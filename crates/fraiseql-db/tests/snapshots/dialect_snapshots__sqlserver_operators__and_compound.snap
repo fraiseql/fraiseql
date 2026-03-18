@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+(JSON_VALUE(data, '$.status') = @p1 AND CAST(JSON_VALUE(data, '$.age') AS FLOAT) > @p2)

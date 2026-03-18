@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT NULL /* STDDEV not supported in SQLite */ AS stddev_revenue FROM "tf_sales"

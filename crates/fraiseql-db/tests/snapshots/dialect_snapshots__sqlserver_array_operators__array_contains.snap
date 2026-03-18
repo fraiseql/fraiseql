@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+EXISTS (SELECT 1 FROM OPENJSON(JSON_VALUE(data, '$.tags')) WHERE value = @p1)

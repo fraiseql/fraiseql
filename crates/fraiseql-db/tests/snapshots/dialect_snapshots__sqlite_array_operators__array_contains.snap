@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+EXISTS (SELECT 1 FROM json_each(json_extract(data, '$.tags')) WHERE value = json(?))

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.email')) FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.email')) = ?

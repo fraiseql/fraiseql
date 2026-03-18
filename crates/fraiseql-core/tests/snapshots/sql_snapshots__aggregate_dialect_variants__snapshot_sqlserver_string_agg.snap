@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT STRING_AGG(CAST(name AS NVARCHAR(MAX)), ', ') AS names FROM [v_user]

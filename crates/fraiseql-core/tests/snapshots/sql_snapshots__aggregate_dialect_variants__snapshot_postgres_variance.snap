@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT VAR_SAMP(revenue) AS var_revenue FROM "tf_sales"

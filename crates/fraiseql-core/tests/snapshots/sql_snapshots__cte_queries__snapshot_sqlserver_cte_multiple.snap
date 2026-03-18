@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+WITH active_users AS (SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.active') = 'true'), user_posts AS (SELECT [data] FROM [v_post] WHERE JSON_VALUE([data], '$.author_id') IN (SELECT JSON_VALUE([data], '$.id') FROM active_users)) SELECT [data] FROM user_posts ORDER BY JSON_VALUE([data], '$.created_at') DESC

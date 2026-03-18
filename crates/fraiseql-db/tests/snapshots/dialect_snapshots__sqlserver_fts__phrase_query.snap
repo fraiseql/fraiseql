@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+FREETEXT(JSON_VALUE(data, '$.content'), @p1)

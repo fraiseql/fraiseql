@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+WITH category_totals AS (SELECT data->>'category' AS category, SUM((data->>'amount')::NUMERIC) AS total FROM "tf_sales" GROUP BY data->>'category') SELECT * FROM category_totals WHERE total > 1000 ORDER BY total DESC

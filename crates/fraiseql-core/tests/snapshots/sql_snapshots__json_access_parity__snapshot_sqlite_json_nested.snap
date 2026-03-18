@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT json_extract(data, '$.address.city') FROM "v_user" WHERE json_extract(data, '$.address.city') = ?

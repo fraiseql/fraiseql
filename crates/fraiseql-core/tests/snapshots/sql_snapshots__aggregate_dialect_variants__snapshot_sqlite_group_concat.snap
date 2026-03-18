@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT GROUP_CONCAT(name, ', ') AS names FROM "v_user"

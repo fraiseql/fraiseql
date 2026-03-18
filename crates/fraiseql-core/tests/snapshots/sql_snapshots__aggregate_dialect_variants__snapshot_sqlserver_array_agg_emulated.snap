@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT '[' + STRING_AGG('"' + CAST(tag AS NVARCHAR(MAX)) + '"', ',') + ']' AS tags FROM [v_post]

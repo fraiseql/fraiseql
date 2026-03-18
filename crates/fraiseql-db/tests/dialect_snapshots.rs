@@ -563,3 +563,373 @@ mod sqlserver_operators {
         assert_snapshot!(sql);
     }
 }
+
+// =============================================================================
+// JSON nested path — 3-level deep, all dialects
+// =============================================================================
+
+mod pg_json_deep {
+    use super::*;
+
+    #[test]
+    fn three_level_path() {
+        let clause = WhereClause::Field {
+            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("@alice"),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "mysql")]
+mod mysql_json_deep {
+    use fraiseql_db::{MySqlDialect, mysql::MySqlWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn my() -> MySqlWhereGenerator {
+        MySqlWhereGenerator::new(MySqlDialect)
+    }
+
+    #[test]
+    fn three_level_path() {
+        let clause = WhereClause::Field {
+            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("@alice"),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "sqlite")]
+mod sqlite_json_deep {
+    use fraiseql_db::{SqliteDialect, sqlite::SqliteWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn sq() -> SqliteWhereGenerator {
+        SqliteWhereGenerator::new(SqliteDialect)
+    }
+
+    #[test]
+    fn three_level_path() {
+        let clause = WhereClause::Field {
+            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("@alice"),
+        };
+        let (sql, _params) = sq().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "sqlserver")]
+mod sqlserver_json_deep {
+    use fraiseql_db::{SqlServerDialect, sqlserver::SqlServerWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn ss() -> SqlServerWhereGenerator {
+        SqlServerWhereGenerator::new(SqlServerDialect)
+    }
+
+    #[test]
+    fn three_level_path() {
+        let clause = WhereClause::Field {
+            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("@alice"),
+        };
+        let (sql, _params) = ss().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+// =============================================================================
+// Array operators — PostgreSQL (native), MySQL/SQLite/SQL Server (where supported)
+// =============================================================================
+
+mod pg_array_operators {
+    use super::*;
+
+    #[test]
+    fn array_contains() {
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["rust", "graphql"]),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn array_contained_by() {
+        let clause = WhereClause::Field {
+            path:     vec!["roles".to_string()],
+            operator: WhereOperator::ArrayContainedBy,
+            value:    json!(["admin", "editor", "viewer"]),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn array_overlaps() {
+        let clause = WhereClause::Field {
+            path:     vec!["skills".to_string()],
+            operator: WhereOperator::ArrayOverlaps,
+            value:    json!(["rust", "go", "python"]),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn strictly_contains() {
+        let clause = WhereClause::Field {
+            path:     vec!["metadata".to_string()],
+            operator: WhereOperator::StrictlyContains,
+            value:    json!({"verified": true}),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "mysql")]
+mod mysql_array_operators {
+    use fraiseql_db::{MySqlDialect, mysql::MySqlWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn my() -> MySqlWhereGenerator {
+        MySqlWhereGenerator::new(MySqlDialect)
+    }
+
+    #[test]
+    fn array_contains() {
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["rust", "graphql"]),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn array_overlaps() {
+        let clause = WhereClause::Field {
+            path:     vec!["skills".to_string()],
+            operator: WhereOperator::ArrayOverlaps,
+            value:    json!(["rust", "go"]),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "sqlite")]
+mod sqlite_array_operators {
+    use fraiseql_db::{SqliteDialect, sqlite::SqliteWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn sq() -> SqliteWhereGenerator {
+        SqliteWhereGenerator::new(SqliteDialect)
+    }
+
+    #[test]
+    fn array_contains() {
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["rust", "graphql"]),
+        };
+        let (sql, _params) = sq().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "sqlserver")]
+mod sqlserver_array_operators {
+    use fraiseql_db::{SqlServerDialect, sqlserver::SqlServerWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn ss() -> SqlServerWhereGenerator {
+        SqlServerWhereGenerator::new(SqlServerDialect)
+    }
+
+    #[test]
+    fn array_contains() {
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["rust", "graphql"]),
+        };
+        let (sql, _params) = ss().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+// =============================================================================
+// Full-text search — generated SQL via WHERE generators
+// =============================================================================
+
+mod pg_fts {
+    use super::*;
+
+    #[test]
+    fn matches() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::Matches,
+            value:    json!("rust & graphql"),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn plain_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PlainQuery,
+            value:    json!("rust graphql"),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn phrase_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PhraseQuery,
+            value:    json!("compiled graphql engine"),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn websearch_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::WebsearchQuery,
+            value:    json!("rust OR graphql -slow"),
+        };
+        let (sql, _params) = pg().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "mysql")]
+mod mysql_fts {
+    use fraiseql_db::{MySqlDialect, mysql::MySqlWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn my() -> MySqlWhereGenerator {
+        MySqlWhereGenerator::new(MySqlDialect)
+    }
+
+    #[test]
+    fn matches() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::Matches,
+            value:    json!("rust graphql"),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn plain_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PlainQuery,
+            value:    json!("+rust +graphql"),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn phrase_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PhraseQuery,
+            value:    json!("compiled graphql"),
+        };
+        let (sql, _params) = my().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}
+
+#[cfg(feature = "sqlserver")]
+mod sqlserver_fts {
+    use fraiseql_db::{SqlServerDialect, sqlserver::SqlServerWhereGenerator};
+    use insta::assert_snapshot;
+    use serde_json::json;
+
+    use super::{WhereClause, WhereOperator};
+
+    const fn ss() -> SqlServerWhereGenerator {
+        SqlServerWhereGenerator::new(SqlServerDialect)
+    }
+
+    #[test]
+    fn matches() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::Matches,
+            value:    json!("rust AND graphql"),
+        };
+        let (sql, _params) = ss().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn plain_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PlainQuery,
+            value:    json!("rust graphql"),
+        };
+        let (sql, _params) = ss().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn phrase_query() {
+        let clause = WhereClause::Field {
+            path:     vec!["content".to_string()],
+            operator: WhereOperator::PhraseQuery,
+            value:    json!("compiled graphql engine"),
+        };
+        let (sql, _params) = ss().generate(&clause).unwrap();
+        assert_snapshot!(sql);
+    }
+}

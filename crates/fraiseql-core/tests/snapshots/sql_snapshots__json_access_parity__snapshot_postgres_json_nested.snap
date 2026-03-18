@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data->'address'->>'city' FROM "v_user" WHERE data->'address'->>'city' = $1

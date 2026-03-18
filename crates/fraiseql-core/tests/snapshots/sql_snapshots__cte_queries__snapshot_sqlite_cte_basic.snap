@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+WITH top_scores AS (SELECT data FROM "v_score" WHERE CAST(json_extract(data, '$.score') AS REAL) >= 80) SELECT data FROM top_scores ORDER BY json_extract(data, '$.score') DESC

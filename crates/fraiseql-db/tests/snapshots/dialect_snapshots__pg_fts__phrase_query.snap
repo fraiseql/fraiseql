@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+to_tsvector(data->>'content') @@ phraseto_tsquery($1)

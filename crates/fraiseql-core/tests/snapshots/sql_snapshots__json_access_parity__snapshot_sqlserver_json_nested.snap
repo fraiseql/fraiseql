@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT JSON_VALUE([data], '$.address.city') FROM [v_user] WHERE JSON_VALUE([data], '$.address.city') = @p1

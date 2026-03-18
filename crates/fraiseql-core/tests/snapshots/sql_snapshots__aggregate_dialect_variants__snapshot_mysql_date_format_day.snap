@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT DATE_FORMAT(occurred_at, '%Y-%m-%d') AS day, COUNT(*) FROM `tf_sales` GROUP BY DATE_FORMAT(occurred_at, '%Y-%m-%d')

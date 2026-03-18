@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-db/tests/dialect_snapshots.rs
+expression: sql
+---
+JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) IN (?, ?)

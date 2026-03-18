@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+WITH active_users AS (SELECT data FROM "v_user" WHERE data->>'active' = 'true'), user_posts AS (SELECT data FROM "v_post" WHERE data->>'author_id' IN (SELECT data->>'id' FROM active_users)) SELECT data FROM user_posts ORDER BY data->>'created_at' DESC

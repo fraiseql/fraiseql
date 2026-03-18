@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+WITH top_scores AS (SELECT data FROM "v_score" WHERE (data->>'score')::numeric >= 80) SELECT data FROM top_scores ORDER BY data->>'score' DESC

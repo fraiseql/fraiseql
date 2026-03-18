@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT [data] FROM [v_post] WHERE CONTAINS(JSON_VALUE([data], '$.content'), @p1)

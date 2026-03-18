@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT STDDEV_SAMP(revenue) AS stddev_revenue FROM `tf_sales`
