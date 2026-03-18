@@ -7,7 +7,7 @@ by the Rust-first mutation pipeline.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Self
 
 
 class MockCursor:
@@ -16,10 +16,13 @@ class MockCursor:
     def __init__(self, return_data: str | None = None) -> None:
         self._return_data = return_data or '{"status": "success"}'
 
-    async def __aenter__(self) -> MockCursor:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        pass
+
+    async def execute(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     async def fetchone(self) -> tuple[str]:
@@ -35,7 +38,7 @@ class MockConnection:
     def __init__(self, cursor: MockCursor | None = None) -> None:
         self._cursor = cursor or MockCursor()
 
-    async def __aenter__(self) -> MockConnection:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> None:
@@ -76,6 +79,9 @@ class MockDatabase:
 
     def get_pool(self) -> MockPool:
         return self._pool
+
+    async def _set_session_variables(self, cursor_or_conn: Any) -> None:
+        """No-op for tests. Session variable injection is tested separately."""
 
 
 class MockRustResponseBytes:

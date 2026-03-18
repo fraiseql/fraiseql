@@ -755,6 +755,10 @@ class MutationDefinition:
 
             # Call Rust executor with a connection from the pool
             async with pool.connection() as conn:
+                # Set session variables (started_at, tenant_id, etc.) before mutation
+                async with conn.cursor() as setup_cursor:
+                    await db._set_session_variables(setup_cursor)
+
                 logger.debug(f"Executing mutation {self.name} with function {full_function_name}")
                 logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
                 logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
