@@ -134,6 +134,8 @@ fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
         | FieldType::Input(_)
         | FieldType::Interface(_)
         | FieldType::Union(_) => serde_json::json!({ "type": "string" }),
+        // Reason: FieldType is #[non_exhaustive]; future variants map to string by default
+        &_ => serde_json::json!({ "type": "string" }),
     }
 }
 

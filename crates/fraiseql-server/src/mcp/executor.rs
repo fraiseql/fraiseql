@@ -185,6 +185,8 @@ fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::Input(_)
         | FieldType::Interface(_)
         | FieldType::Union(_) => false,
+        // Reason: FieldType is #[non_exhaustive]; future variants default to non-scalar
+        &_ => false,
     }
 }
 
