@@ -1,0 +1,101 @@
+name: Load Tests
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # Nightly at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "K6 scenario to run"
+        default: "mixed-workload"
+        type: choice
+        options:
+          - mixed-workload
+          - graphql-queries
+          - graphql-mutations
+          - auth-flow
+          - apq-cache
+
+jobs:
+  load-test:
+    name: K6 load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Build release binary
+        run: cargo build --release -p fraiseql-server
+
+      - name: Initialize test database
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Start FraiseQL server
+        run: |
+          ./target/release/fraiseql-server &
+          # Wait for health endpoint
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Server is healthy"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Server failed to start within 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run load test
+        run: |
+          SCENARIO="${{ github.event.inputs.scenario || 'mixed-workload' }}"
+          k6 run "load-tests/k6/scenarios/${SCENARIO}.js" \
+            --out json=k6-results.json \
+            --summary-export=k6-summary.json
+        env:
+          ENDPOINT: http://localhost:8000/graphql
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-results-${{ github.run_id }}
+          path: |
+            k6-results.json
+            k6-summary.json
+          retention-days: 30

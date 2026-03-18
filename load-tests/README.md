@@ -357,36 +357,24 @@ docker run \
 
 ### Continuous Integration
 
-Example GitHub Actions workflow:
+Load tests run nightly (03:00 UTC) via `.github/workflows/load-test.yml` and can also
+be triggered manually with a scenario selector via `workflow_dispatch`.
 
-```yaml
-name: Load Testing
+The workflow:
+1. Provisions a PostgreSQL 16 service container
+2. Builds `fraiseql-server` in release mode
+3. Initializes the test database with `tests/sql/postgres/init.sql`
+4. Starts the server against `docker/e2e/schema.compiled.json`
+5. Runs the selected k6 scenario (default: `mixed-workload`)
+6. Uploads k6 JSON results as a build artifact (30-day retention)
 
-on: [push, pull_request]
+Thresholds defined in `load-tests/k6/thresholds.js` determine pass/fail — a threshold
+breach fails the CI job.
 
-jobs:
-  load-test:
-    runs-on: ubuntu-latest
-
-    services:
-      fraiseql:
-        image: fraiseql:latest
-        ports:
-          - 8000:8000
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Install k6
-        run: |
-          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6-stable.list
-          sudo apt-get update && sudo apt-get install k6
-
-      - name: Run load tests
-        run: k6 run load-tests/k6/scenarios/mixed-workload.js
-        env:
-          ENDPOINT: http://localhost:8000/graphql
+```bash
+# Local usage (requires a running FraiseQL server)
+make load-test          # Run mixed-workload scenario
+make load-test-all      # Run all scenarios sequentially
 ```
 
 ## Interpreting Results

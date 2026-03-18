@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release load-test load-test-all
 
 # Default target
 help:
@@ -13,6 +13,8 @@ help:
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
 	@echo "  make coverage           - Generate test coverage report"
+	@echo "  make load-test          - Run k6 mixed-workload load test (requires running server)"
+	@echo "  make load-test-all      - Run all k6 load test scenarios"
 	@echo ""
 	@echo "Database (Docker):"
 	@echo "  make db-up              - Start all test infrastructure (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)"
@@ -391,6 +393,22 @@ bench-compare:
 bench-critical:
 	cargo bench -p fraiseql-core -- query_execution cache_lookup rls_injection
 	cargo bench -p fraiseql-server -- graphql_handler
+
+# ============================================================================
+# K6 Load Testing
+# ============================================================================
+
+## Run the mixed-workload k6 load test (requires a running FraiseQL server)
+load-test:
+	k6 run load-tests/k6/scenarios/mixed-workload.js
+
+## Run all k6 load test scenarios sequentially
+load-test-all:
+	@for scenario in mixed-workload graphql-queries graphql-mutations auth-flow apq-cache; do \
+		echo "=== Running $$scenario ==="; \
+		k6 run load-tests/k6/scenarios/$$scenario.js || exit 1; \
+		echo ""; \
+	done
 
 # Watch for changes and run tests
 watch:
