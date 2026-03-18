@@ -43,7 +43,7 @@ use std::collections::HashSet;
 
 /// Simulated `SecurityContext` representing an authenticated user
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields read selectively by field-auth test cases
 struct TestSecurityContext {
     user_id:   String,
     tenant_id: String,
@@ -120,7 +120,7 @@ impl TestSecurityContext {
 
 /// Field definition with access control requirements
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields read selectively by field-auth test cases
 struct FieldDefinition {
     type_name:            String,
     field_name:           String,
@@ -156,7 +156,7 @@ impl FieldDefinition {
     }
 
     /// Make field require wildcard scope only
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: builder method used by wildcard-scope test cases only
     fn wildcard_only(mut self) -> Self {
         self.required_read_scope = None;
         self

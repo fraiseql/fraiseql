@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 
 /// Example user entity for type-safe deserialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: example struct; fields read only in the streaming example code path
 struct User {
     id: String,
     name: String,

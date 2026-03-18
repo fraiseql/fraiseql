@@ -122,7 +122,7 @@ impl SupportsMutations for MockDatabaseAdapter {}
 
 /// Mock database adapter for mutation tests (returns empty results).
 pub struct MockMutationDatabaseAdapter {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: field held for potential state-inspection in future mutation tests
     data: HashMap<String, Vec<HashMap<String, Value>>>,
 }
 
@@ -465,7 +465,7 @@ impl TestSagaScenario {
         }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: builder method used by subset of saga tests; Clippy false-positive (multi-binary)
     pub const fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
         self.compensation_strategy = strategy;
         self

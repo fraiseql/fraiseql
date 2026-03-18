@@ -43,7 +43,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, 
 // Test Harness (Copied from federation_saga_e2e.rs)
 // ============================================================================
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: harness module used by specific bench functions; Clippy false-positive (multi-binary)
 mod harness {
     use std::{collections::HashMap, sync::Mutex, time::Instant};
 

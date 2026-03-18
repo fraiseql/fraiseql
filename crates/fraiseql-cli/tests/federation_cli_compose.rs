@@ -394,7 +394,7 @@ fn test_error_message_composition_conflict() {
 struct ComposeArgs {
     pub subgraphs:   Vec<SubgraphArg>,
     pub output_path: Option<String>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: field reserved for future config-path support; not yet wired up
     pub config_path: Option<String>,
 }
 
@@ -539,7 +539,7 @@ fn load_compose_config(config_path: Option<&str>) -> Result<ComposeConfig, Strin
 }
 
 /// Parse YAML configuration content
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of compose tests; Clippy false-positive (multi-binary tests)
 fn parse_config_yaml(content: &str) -> Result<ComposeConfig, String> {
     // Simplified parsing for testing
     // In real implementation, would use yaml crate

@@ -39,7 +39,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_core::db::types::DatabaseType;
 // Note: WhereClause and WhereOperator available for future WHERE tests
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(unused_imports)]
+#[allow(unused_imports)] // Reason: WhereClause/WhereOperator reserved for future WHERE-clause tests; feature-gated
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
 // ============================================================================
@@ -1519,13 +1519,13 @@ mod dialect_guard_error_tests {
 
 /// Trait for database-agnostic test execution
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of multi-database tests; Clippy false-positive (multi-binary)
 async fn run_basic_health_check<A: DatabaseAdapter>(adapter: &A) -> bool {
     adapter.health_check().await.is_ok()
 }
 
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of multi-database tests; Clippy false-positive (multi-binary)
 async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
     let metrics = adapter.pool_metrics();
     metrics.total_connections > 0 && metrics.idle_connections <= metrics.total_connections
@@ -1533,7 +1533,7 @@ async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
 
 // Helper to run queries and verify JSON structure
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of multi-database tests; Clippy false-positive (multi-binary)
 async fn verify_view_returns_json<A: DatabaseAdapter>(
     adapter: &A,
     view_name: &str,

@@ -23,7 +23,7 @@ pub struct DatabaseFixture {
     pub cleanup_after: bool,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: used selectively by integration test binaries via shared test harness
 impl DatabaseFixture {
     /// Create a new test database fixture
     pub fn new() -> Self {
@@ -136,7 +136,7 @@ impl GraphQLResult {
 
 /// Test user fixture data
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields accessed selectively by different integration test binaries
 pub struct UserFixture {
     pub id:     String,
     pub name:   String,
@@ -158,7 +158,7 @@ impl UserFixture {
 
 /// Test post fixture data
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields accessed selectively by different integration test binaries
 pub struct PostFixture {
     pub id:        String,
     pub title:     String,

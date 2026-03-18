@@ -549,7 +549,7 @@ mod metrics_monitoring_tests {
     // Test Helpers - Metric simulation utilities
     // ========================================================================
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: helper used by specific latency tests; not exercised by every test case
     fn measure_latency(operations: usize) -> f64 {
         let start = Instant::now();
         for _ in 0..operations {
@@ -558,7 +558,7 @@ mod metrics_monitoring_tests {
         start.elapsed().as_secs_f64()
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: helper used by specific cache-metrics tests; not exercised by every test case
     fn simulate_cache_operation(hit: bool) -> (u64, u64) {
         if hit {
             (1, 0) // 1 hit, 0 misses

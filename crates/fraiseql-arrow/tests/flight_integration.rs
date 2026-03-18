@@ -25,7 +25,7 @@ use sqlx::postgres::PgPoolOptions;
 
 /// Test database setup and teardown.
 struct TestDb {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
     pool:          sqlx::PgPool,
     database_name: String,
 }

@@ -45,7 +45,7 @@
 #![allow(clippy::iter_with_drain)] // Reason: drain used to consume Vec in test cleanup
 #![allow(clippy::needless_pass_by_ref_mut)] // Reason: test helper takes &mut for API uniformity
 #![allow(clippy::needless_collect)] // Reason: intermediate collect makes comparison clearer
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: harness module used by specific test functions; Clippy false-positive (multi-binary)
 mod harness {
     use std::collections::HashMap;
 

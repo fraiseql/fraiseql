@@ -549,7 +549,7 @@ async fn get_pool_connection_with_timeout(
 }
 
 /// Get connection ID for reuse tracking
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: helper called by specific pool tests; not used by all test cases
 async fn get_pool_connection_id(pool: &MockPool) -> Result<u64, String> {
     let id = pool.next_id.fetch_add(1, Ordering::Relaxed);
     let mut conns = pool.connections.lock().await;
@@ -574,13 +574,13 @@ struct MockPool {
     next_id:     Arc<AtomicU64>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields read by pool tests that inspect connection identity
 struct MockConnection {
     id: u64,
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields read by timeout-specific pool tests
 struct MockPoolWithTimeout {
     max_size:    u32,
     timeout:     std::time::Duration,

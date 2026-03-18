@@ -458,7 +458,7 @@ mod relay_aggregation {
 // ============================================================================
 
 mod generated_sql {
-    #[allow(unused_imports)]
+    #[allow(unused_imports)] // Reason: WhereSqlGenerator imported for future snapshot tests; not yet used
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
     use fraiseql_core::db::{
         PostgresDialect, WhereClause, WhereOperator, postgres::PostgresWhereGenerator,

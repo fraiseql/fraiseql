@@ -104,7 +104,7 @@ mod setup {
     use std::process::Command;
 
     /// Check if docker-compose is available
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: diagnostic helper; not called by every test binary
     pub fn check_docker_compose() -> bool {
         Command::new("docker-compose")
             .arg("--version")
@@ -113,7 +113,7 @@ mod setup {
     }
 
     /// Get current docker-compose status
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: diagnostic helper; not called by every test binary
     pub fn get_status() {
         let output = Command::new("docker-compose")
             .arg("ps")

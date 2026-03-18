@@ -203,7 +203,7 @@ fn demo_metrics_analysis() {
 }
 
 /// Helper function to display metric concepts
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: example helper; called only when the example binary exercises this path
 fn explain_metrics() {
     println!("=== Understanding fraiseql-wire Metrics ===\n");
 

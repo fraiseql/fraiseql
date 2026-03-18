@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 // Common test utilities
 mod common;
-#[allow(unused_imports)]
+#[allow(unused_imports)] // Reason: shared harness exports many symbols; each test uses a subset
 use common::{DatabaseFixture, FakeGraphQLExecutor, GraphQLResult, TestDataBuilder};
 
 // ============================================================================
@@ -61,13 +61,13 @@ impl GraphQLQuery {
 
 /// Mock GraphQL Response
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields used selectively across HTTP layer test cases
 struct GraphQLResponse {
     data:   Option<String>,
     errors: Vec<String>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: constructor methods used by subset of HTTP layer tests
 impl GraphQLResponse {
     /// Create success response
     fn success(data: &str) -> Self {

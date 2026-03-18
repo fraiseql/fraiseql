@@ -18,7 +18,7 @@ const SEED_SQL: &str = include_str!("../fixtures/seed_data.sql");
 static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
 pub struct TestContainer {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: container held alive to keep Docker container running for test duration
     container:    ContainerAsync<Postgres>,
     pub port:     u16,
     pub user:     String,

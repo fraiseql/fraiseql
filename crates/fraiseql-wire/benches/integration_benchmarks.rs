@@ -25,13 +25,13 @@ use std::time::Instant;
 
 // Mock Postgres connection setup
 // In real execution, this would connect to actual Postgres
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: bench helper used by specific benchmark functions only
 async fn setup_test_database() -> Result<String, Box<dyn std::error::Error>> {
     // Connection string pointing to test database
     Ok("postgres://postgres@localhost/fraiseql_bench".to_string())
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: bench helper used by specific benchmark functions only
 async fn count_rows_in_view(
     _conn_str: &str,
     _view: &str,
@@ -243,8 +243,7 @@ fn predicate_benchmarks(c: &mut Criterion) {
     ];
 
     for (name, total, ratio) in scenarios {
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: ratio is 0.0–1.0 × 100_000, result fits in i64
+        #[allow(clippy::cast_possible_truncation)] // Reason: ratio is 0.0–1.0 × 100_000, result fits in i64
         let filtered = (f64::from(total) * ratio) as i64;
         group.throughput(Throughput::Elements(filtered.cast_unsigned()));
 

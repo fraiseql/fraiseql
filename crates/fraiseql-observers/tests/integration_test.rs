@@ -52,13 +52,13 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Get Redis URL from environment or use default
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
 }
 
 /// Create a test Redis config
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn test_redis_config() -> RedisConfig {
     RedisConfig {
         url:                  redis_url(),
@@ -71,7 +71,7 @@ fn test_redis_config() -> RedisConfig {
 }
 
 /// Create a test runtime config with Redis enabled
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn test_runtime_config() -> ObserverRuntimeConfig {
     ObserverRuntimeConfig {
         transport:               TransportConfig {
@@ -99,13 +99,13 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
 }
 
 /// Create a test event
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn create_test_event(kind: EventKind, entity_type: &str, data: serde_json::Value) -> EntityEvent {
     EntityEvent::new(kind, entity_type.to_string(), Uuid::new_v4(), data)
 }
 
 /// Create a simple HTTP POST action for testing
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn create_http_action(url: &str) -> ActionConfig {
     ActionConfig::Webhook {
         url:           Some(url.to_string()),

@@ -23,7 +23,7 @@ static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
 /// Wrapper around the PostgreSQL container with connection info.
 pub struct TestContainer {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: container held alive to keep Docker container running for test duration
     container: ContainerAsync<Postgres>,
     pub port: u16,
     pub user: String,
@@ -33,7 +33,7 @@ pub struct TestContainer {
 
 impl TestContainer {
     /// Get the connection string for this container.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: utility method used by subset of wire tests; Clippy false-positive (multi-binary)
     pub fn connection_string(&self) -> String {
         format!(
             "postgres://{}:{}@127.0.0.1:{}/{}",
@@ -116,7 +116,7 @@ async fn start_postgres_container() -> TestContainer {
 }
 
 /// Helper to connect a FraiseClient to the test container.
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: utility function used by subset of wire tests; Clippy false-positive (multi-binary)
 pub async fn connect_test_client() -> fraiseql_wire::error::Result<fraiseql_wire::FraiseClient> {
     let container = get_test_container().await;
     let conn_string = container.connection_string();

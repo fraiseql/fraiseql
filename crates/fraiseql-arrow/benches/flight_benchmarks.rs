@@ -36,7 +36,7 @@ impl fraiseql_arrow::ArrowDatabaseAdapter for BenchFlightAdapter {
 
 /// Test database for benchmarks
 struct BenchDb {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
     pool: sqlx::PgPool,
 }
 

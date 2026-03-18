@@ -393,7 +393,7 @@ fn test_many_types_single_subgraph() {
 // ============================================================================
 
 /// Create a subgraph metadata with given types
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of federation tests; Clippy false-positive (multi-binary tests)
 fn create_subgraph_metadata(_name: &str, types: Vec<FederatedType>) -> FederationMetadata {
     FederationMetadata {
         enabled: true,
@@ -418,7 +418,7 @@ fn create_federated_type(name: &str, key_fields: &[&str], is_extends: bool) -> F
 }
 
 /// Create a federated type with specific fields
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of federation tests; Clippy false-positive (multi-binary tests)
 fn create_federated_type_with_fields(
     name: &str,
     key_fields: &[&str],
@@ -431,7 +431,7 @@ fn create_federated_type_with_fields(
 }
 
 /// Create an extending federated type
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: called by subset of federation tests; Clippy false-positive (multi-binary tests)
 fn create_federated_type_extends(name: &str, is_extends: bool) -> FederatedType {
     let mut type_def = FederatedType::new(name.to_string());
     type_def.is_extends = is_extends;

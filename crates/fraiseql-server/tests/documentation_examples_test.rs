@@ -27,7 +27,7 @@
 
 /// Represents a documentation example
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields used selectively by documentation validation tests
 struct DocumentationExample {
     /// Example name/title
     title: String,
