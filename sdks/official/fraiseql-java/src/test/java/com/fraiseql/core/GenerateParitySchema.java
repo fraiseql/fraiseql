@@ -150,13 +150,10 @@ public class GenerateParitySchema {
         return a;
     }
 
-    /** Build: {"<param>": {"source": "<source>", "claim": "<claim>"}} */
+    /** Build: {"<param>": "<source>:<claim>"} — matches Python SDK format. */
     private static ObjectNode makeInjectParam(String param, String source, String claim) {
         ObjectNode ip = MAPPER.createObjectNode();
-        ObjectNode entry = MAPPER.createObjectNode();
-        entry.put("source", source);
-        entry.put("claim", claim);
-        ip.set(param, entry);
+        ip.put(param, source + ":" + claim);
         return ip;
     }
 }
