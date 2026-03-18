@@ -19,6 +19,7 @@ This directory contains operational runbooks for managing, troubleshooting, and 
 | [11 - Schema Migration](./11-schema-migration.md) | Update compiled schema | Standard |
 | [12 - Incident Response](./12-incident-response.md) | General incident template | Variable |
 | [13 - Schema Hot-Reload Failure](./13-schema-hot-reload-failure.md) | Schema reload cycle failing | Medium |
+| [14 - Federation Circuit Breaker](./14-federation-circuit-breaker.md) | Circuit breaker tripped on federation entity | High |
 
 ## Using These Runbooks
 
@@ -132,6 +133,8 @@ When adding new runbooks:
 
 ## Changelog
 
+- **v2.2.0** (2026-03-17) - Added federation circuit breaker runbook
+  - Runbook 14: federation circuit breaker recovery and tuning
 - **v2.1.0** (2026-03-16) - Added schema hot-reload failure runbook
   - Runbook 13: schema hot-reload failure diagnosis and recovery
 - **v2.0.0** (2026-02-19) - Initial runbook suite for FraiseQL v2

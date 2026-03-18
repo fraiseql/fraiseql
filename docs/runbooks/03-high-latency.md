@@ -428,3 +428,7 @@ EOF
 - **High CPU usage**: Performance team (optimize algorithms)
 - **Network latency**: Infrastructure / Network team
 - **Client-side slowdown**: Client application team (optimize GraphQL queries)
+
+## Related Runbooks
+
+- [14 - Federation Circuit Breaker](./14-federation-circuit-breaker.md) — federation fan-out failures can cause latency spikes before the breaker trips
