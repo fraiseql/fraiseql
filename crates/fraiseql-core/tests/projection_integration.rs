@@ -228,18 +228,24 @@ fn test_identifier_handling() {
     assert!(sql.contains("'field123'"));
 }
 
-/// Test projection with special characters in field names (should escape safely)
+/// Test projection rejects field names with unsafe characters
 #[test]
 fn test_projection_field_escaping() {
     let pg = PostgresProjectionGenerator::new();
 
-    // Field with alphanumeric, underscore, dollar - all valid
+    // Dollar sign is not alphanumeric or underscore — must be rejected
     let fields = vec!["user_id".to_string(), "data$obj".to_string()];
-    let sql = pg.generate_projection_sql(&fields).unwrap();
+    let err = pg.generate_projection_sql(&fields).unwrap_err();
+    assert!(
+        err.to_string().contains("cannot be safely projected"),
+        "expected validation error for '$', got: {err}"
+    );
 
-    // Should include both fields
+    // Pure alphanumeric + underscore fields pass
+    let fields = vec!["user_id".to_string(), "data_obj".to_string()];
+    let sql = pg.generate_projection_sql(&fields).unwrap();
     assert!(sql.contains("'user_id'"));
-    assert!(sql.contains("'data$obj'"));
+    assert!(sql.contains("'data_obj'"));
 }
 
 /// Test that projection hints calculate correct reduction percentages

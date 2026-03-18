@@ -958,4 +958,18 @@ mod tests {
         };
         assert_eq!(query.effective_offset(), 0);
     }
+
+    #[test]
+    fn test_rotation_history_query_effective_offset_with_value() {
+        let query = RotationHistoryQuery {
+            limit:        None,
+            offset:       Some(42),
+            from:         None,
+            to:           None,
+            reason:       None,
+            triggered_by: None,
+            format:       None,
+        };
+        assert_eq!(query.effective_offset(), 42);
+    }
 }

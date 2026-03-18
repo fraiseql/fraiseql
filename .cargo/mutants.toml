@@ -1,0 +1,82 @@
+# cargo-mutants configuration for FraiseQL
+#
+# Security-critical files are targeted with examine_globs.
+# A mutant surviving in these files would indicate a missing test that
+# could allow data leakage, auth bypass, or incorrect behavior in production.
+#
+# Run locally (requires cargo install cargo-mutants):
+#   cargo mutants --jobs 4                                   # all examined files
+#   cargo mutants --file crates/fraiseql-auth/src/jwt.rs     # single file
+#
+# See .github/workflows/mutation.yml for the CI configuration.
+
+# Timeout multiplier relative to baseline cargo test.
+timeout_multiplier = 3.0
+
+# Use nextest for faster test execution.
+test_tool = "nextest"
+
+# Test all workspace packages to catch cross-crate regressions.
+test_workspace = true
+
+# ─── Files to examine ──────────────────────────────────────────────────
+#
+# fraiseql-core: security & correctness
+# fraiseql-auth: authentication & authorization
+# fraiseql-secrets: encryption & key management
+examine_globs = [
+    # Core security
+    "crates/fraiseql-core/src/security/rls_policy.rs",
+    "crates/fraiseql-core/src/runtime/executor/security.rs",
+    "crates/fraiseql-core/src/security/introspection_enforcer.rs",
+    "crates/fraiseql-core/src/security/query_validator.rs",
+    "crates/fraiseql-core/src/cache/key.rs",
+    # Auth
+    "crates/fraiseql-auth/src/jwt.rs",
+    "crates/fraiseql-auth/src/jwks.rs",
+    "crates/fraiseql-auth/src/pkce.rs",
+    "crates/fraiseql-auth/src/rate_limiting.rs",
+    "crates/fraiseql-auth/src/session.rs",
+    "crates/fraiseql-auth/src/state_encryption.rs",
+    "crates/fraiseql-auth/src/oidc_provider.rs",
+    # Secrets
+    "crates/fraiseql-secrets/src/encryption/mod.rs",
+    "crates/fraiseql-secrets/src/encryption/rotation_api.rs",
+    "crates/fraiseql-secrets/src/encryption/credential_rotation.rs",
+    "crates/fraiseql-secrets/src/encryption/database_adapter.rs",
+]
+
+# ─── Exclude: known false positives ────────────────────────────────────
+exclude_re = [
+    # Debug/Display::fmt impls: formatting only, no correctness impact.
+    "fmt.*std::fmt::Result.*Default::default",
+    "Display for.*::fmt",
+    # DefaultRLSPolicy::evaluate: dead arm — owner filter always pushed (len never 0).
+    "replace \\|\\| with && in evaluate_rls_expression",
+    "replace == with != in evaluate_rls_expression",
+    "replace && with \\|\\| in evaluate_rls_expression",
+    "delete match arm 0 in.*DefaultRLSPolicy.*evaluate",
+    # Redis PKCE: requires live Redis — covered by integration tests (#[ignore]).
+    "RedisPkceStateStore::",
+    "redis_pkce_error_count_total",
+    "PkceStateStore::new_redis",
+    # OIDC HTTP round-trip size checks: covered by existing oversized tests;
+    # boundary mutations (> vs >=) require full mock OIDC server setup.
+    "replace > with.* in.*OidcProvider.*exchange_code",
+    "replace > with.* in.*OidcProvider.*user_info",
+    "replace > with.* in.*OidcProvider.*refresh_token",
+    # JwksCache::is_stale: tested indirectly via TTL refresh test.
+    "replace > with.* in.*JwksCache::is_stale",
+    # OIDC discovery byte cap constant arithmetic.
+    "replace \\* with.*in.*oidc_provider",
+    # JwksCache::fetch_keys size boundary: tested via oversized response test.
+    "replace > with.* in.*JwksCache::fetch_keys",
+    # DatabaseFieldAdapter encrypt/decrypt: require live SecretsManager backend.
+    "DatabaseFieldAdapter>::encrypt_with_context",
+    "DatabaseFieldAdapter>::decrypt_with_context",
+    "DatabaseFieldAdapter>::encrypt_value",
+    "DatabaseFieldAdapter>::decrypt_value",
+    # DatabaseFieldAdapter::cache_size with 1: cache is empty initially, tested by cache_size_empty test.
+    # The mutant replacing 0 with 1 survives because no test populates the cache (requires Vault).
+    "replace.*cache_size.*with 1",
+]

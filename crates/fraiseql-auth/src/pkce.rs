@@ -576,12 +576,49 @@ mod tests {
         );
     }
 
+    // ── Boundary: exact TTL expiry ──────────────────────────────────────────
+
+    #[tokio::test(start_paused = true)]
+    async fn test_consume_at_exact_ttl_boundary_succeeds() {
+        let store = store_no_enc(2);
+        let (token, verifier) = store.create_state("https://example.com").await.unwrap();
+        // Advance to exactly the TTL — should still succeed (`>` not `>=`)
+        tokio::time::advance(Duration::from_secs(2)).await;
+        let result = store.consume_state(&token).await.unwrap();
+        assert_eq!(result.verifier, verifier, "state at exact TTL boundary must still be valid");
+    }
+
     // ── is_in_memory ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_is_in_memory_returns_true_for_in_memory_store() {
         let store = PkceStateStore::new(600, None);
         assert!(store.is_in_memory());
+    }
+
+    // ── is_empty / len ───────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_is_empty_true_for_fresh_store() {
+        let store = store_no_enc(600);
+        assert!(store.is_empty(), "fresh store must be empty");
+        assert_eq!(store.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_is_empty_false_after_create() {
+        let store = store_no_enc(600);
+        store.create_state("https://example.com").await.unwrap();
+        assert!(!store.is_empty(), "store with one entry must not be empty");
+        assert_eq!(store.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_is_empty_true_after_consume() {
+        let store = store_no_enc(600);
+        let (token, _) = store.create_state("https://example.com").await.unwrap();
+        store.consume_state(&token).await.unwrap();
+        assert!(store.is_empty(), "store must be empty after consuming the only entry");
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────

@@ -463,6 +463,27 @@ mod tests {
     }
 
     #[test]
+    fn test_oauth_provider_name() {
+        let provider = OidcProvider {
+            name:          "my-oidc".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "client_id".to_string(),
+            client_secret: "secret".to_string(),
+            redirect_uri:  "http://localhost:8000/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
+                authorization_endpoint: "https://example.com/auth".to_string(),
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
+            },
+            client:        reqwest::Client::new(),
+        };
+        assert_eq!(OAuthProvider::name(&provider), "my-oidc");
+    }
+
+    #[test]
     fn test_oauth_provider_debug() {
         let provider = OidcProvider {
             name:          "test".to_string(),

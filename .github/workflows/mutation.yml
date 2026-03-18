@@ -6,9 +6,7 @@ on:
     paths:
       - 'crates/fraiseql-core/src/security/**'
       - 'crates/fraiseql-core/src/runtime/executor/security.rs'
-      - 'crates/fraiseql-auth/src/jwt.rs'
-      - 'crates/fraiseql-auth/src/rate_limiting.rs'
-      - 'crates/fraiseql-auth/src/state_encryption.rs'
+      - 'crates/fraiseql-auth/src/**'
       - 'crates/fraiseql-secrets/src/encryption/**'
   schedule:
     - cron: '0 2 * * 1'  # Weekly Monday 02:00 UTC
@@ -26,12 +24,19 @@ jobs:
         file:
           - crates/fraiseql-core/src/security/rls_policy.rs
           - crates/fraiseql-core/src/runtime/executor/security.rs
-          - crates/fraiseql-auth/src/jwt.rs
-          - crates/fraiseql-auth/src/rate_limiting.rs
-          - crates/fraiseql-auth/src/state_encryption.rs
           - crates/fraiseql-core/src/security/introspection_enforcer.rs
           - crates/fraiseql-core/src/security/query_validator.rs
+          - crates/fraiseql-auth/src/jwt.rs
+          - crates/fraiseql-auth/src/jwks.rs
+          - crates/fraiseql-auth/src/pkce.rs
+          - crates/fraiseql-auth/src/rate_limiting.rs
+          - crates/fraiseql-auth/src/session.rs
+          - crates/fraiseql-auth/src/state_encryption.rs
+          - crates/fraiseql-auth/src/oidc_provider.rs
           - crates/fraiseql-secrets/src/encryption/mod.rs
+          - crates/fraiseql-secrets/src/encryption/rotation_api.rs
+          - crates/fraiseql-secrets/src/encryption/credential_rotation.rs
+          - crates/fraiseql-secrets/src/encryption/database_adapter.rs
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

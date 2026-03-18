@@ -127,7 +127,7 @@ temp/
 
 # Analysis work-in-progress
 TODO_*/
-mutants.out/
+mutants.out*/
 
 # PHP (composer vendor directories, not the Rust vendor/ at repo root)
 sdks/**/vendor/

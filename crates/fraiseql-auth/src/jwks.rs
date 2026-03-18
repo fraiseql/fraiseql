@@ -507,4 +507,136 @@ mod tests {
         );
         assert!(result.is_ok(), "http://localhost should be accepted for dev");
     }
+
+    // ── SSRF IP blocking tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_ssrf_blocks_loopback_v4() {
+        let ip: std::net::IpAddr = "127.0.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "127.0.0.1 must be blocked");
+        let ip: std::net::IpAddr = "127.255.255.255".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "127.x.x.x must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_rfc1918_10() {
+        let ip: std::net::IpAddr = "10.0.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "10.0.0.1 must be blocked");
+        let ip: std::net::IpAddr = "10.255.255.255".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "10.255.255.255 must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_rfc1918_172() {
+        let ip: std::net::IpAddr = "172.16.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "172.16.0.1 must be blocked");
+        let ip: std::net::IpAddr = "172.31.255.255".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "172.31.255.255 must be blocked");
+        // 172.15.x and 172.32.x are public
+        let ip: std::net::IpAddr = "172.15.0.1".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "172.15.0.1 must NOT be blocked");
+        let ip: std::net::IpAddr = "172.32.0.1".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "172.32.0.1 must NOT be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_rfc1918_192_168() {
+        let ip: std::net::IpAddr = "192.168.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "192.168.0.1 must be blocked");
+        let ip: std::net::IpAddr = "192.168.255.255".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "192.168.255.255 must be blocked");
+        let ip: std::net::IpAddr = "192.169.0.1".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "192.169.0.1 must NOT be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_link_local_169_254() {
+        let ip: std::net::IpAddr = "169.254.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "169.254.x.x must be blocked");
+        let ip: std::net::IpAddr = "169.254.169.254".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "AWS metadata IP must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_cgnat_100_64() {
+        let ip: std::net::IpAddr = "100.64.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "100.64.0.1 (CGNAT) must be blocked");
+        let ip: std::net::IpAddr = "100.127.255.255".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "100.127.255.255 (CGNAT) must be blocked");
+        let ip: std::net::IpAddr = "100.63.255.255".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "100.63.x.x is NOT CGNAT");
+        let ip: std::net::IpAddr = "100.128.0.1".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "100.128.x.x is NOT CGNAT");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_unspecified_v4() {
+        let ip: std::net::IpAddr = "0.0.0.0".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "0.0.0.0 must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_allows_public_ips() {
+        for addr in &["8.8.8.8", "1.1.1.1", "93.184.216.34", "203.0.113.1"] {
+            let ip: std::net::IpAddr = addr.parse().unwrap();
+            assert!(!is_ssrf_blocked_ip(&ip), "{addr} is public and must NOT be blocked");
+        }
+    }
+
+    #[test]
+    fn test_ssrf_blocks_loopback_v6() {
+        let ip: std::net::IpAddr = "::1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "::1 must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_unspecified_v6() {
+        let ip: std::net::IpAddr = "::".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), ":: must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_ipv4_mapped_v6() {
+        // ::ffff:127.0.0.1
+        let ip: std::net::IpAddr = "::ffff:127.0.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "::ffff:127.0.0.1 must be blocked");
+        // ::ffff:10.0.0.1
+        let ip: std::net::IpAddr = "::ffff:10.0.0.1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "::ffff:10.0.0.1 must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_ula_v6() {
+        // fc00::/7 — Unique Local Addresses
+        let ip: std::net::IpAddr = "fc00::1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "fc00::1 (ULA) must be blocked");
+        let ip: std::net::IpAddr = "fd00::1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "fd00::1 (ULA) must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_blocks_link_local_v6() {
+        // fe80::/10
+        let ip: std::net::IpAddr = "fe80::1".parse().unwrap();
+        assert!(is_ssrf_blocked_ip(&ip), "fe80::1 (link-local) must be blocked");
+    }
+
+    #[test]
+    fn test_ssrf_allows_public_v6() {
+        let ip: std::net::IpAddr = "2001:4860:4860::8888".parse().unwrap();
+        assert!(!is_ssrf_blocked_ip(&ip), "Google DNS v6 must NOT be blocked");
+    }
+
+    // ── Debug impl ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_jwks_cache_debug_format() {
+        let cache = JwksCache::new(
+            "https://example.com/.well-known/jwks.json",
+            Duration::from_secs(3600),
+        ).unwrap();
+        let dbg = format!("{cache:?}");
+        assert!(dbg.contains("JwksCache"), "Debug output must contain struct name");
+        assert!(dbg.contains("example.com"), "Debug output must contain jwks_uri");
+    }
 }
