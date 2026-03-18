@@ -1,0 +1,32 @@
+name: Helm Chart Validation
+on:
+  pull_request:
+    paths:
+      - 'deploy/kubernetes/helm/**'
+  push:
+    branches: [dev, main]
+    paths:
+      - 'deploy/kubernetes/helm/**'
+
+jobs:
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: 'v3.16.0'
+
+      - name: Lint chart
+        run: helm lint deploy/kubernetes/helm/fraiseql/
+
+      - name: Template rendering (default values)
+        run: helm template test-release deploy/kubernetes/helm/fraiseql/ > /dev/null
+
+      - name: Template rendering (all features enabled)
+        run: |
+          helm template test-release deploy/kubernetes/helm/fraiseql/ \
+            --set autoscaling.enabled=true \
+            --set tracing.otlpEndpoint=http://collector:4317 \
+            --set ingress.enabled=true \
+            > /dev/null

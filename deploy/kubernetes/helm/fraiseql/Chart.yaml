@@ -2,7 +2,7 @@ apiVersion: v2
 name: fraiseql
 description: FraiseQL GraphQL execution engine
 type: application
-version: 2.1.0
+version: 2.1.1
 appVersion: "2.1.0"
 keywords:
   - graphql

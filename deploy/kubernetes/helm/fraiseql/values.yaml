@@ -72,11 +72,20 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 
 # Health probes
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 2
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30    # 30 * 5s = 150s max startup time
+
 livenessProbe:
   httpGet:
     path: /health
     port: http
-  initialDelaySeconds: 10
+  initialDelaySeconds: 0
   periodSeconds: 30
   timeoutSeconds: 5
   failureThreshold: 3
