@@ -15,6 +15,10 @@
 //! - Error formatting
 
 pub mod audit;
+#[cfg(feature = "audit-syslog")]
+pub mod audit_export_syslog;
+#[cfg(feature = "audit-webhook")]
+pub mod audit_export_webhook;
 pub mod auth_middleware;
 pub mod error_formatter;
 pub mod errors;
@@ -32,7 +36,14 @@ pub mod tls_enforcer;
 pub mod validation_audit;
 
 // Re-export key types for convenience
-pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
+pub use audit::{
+    AuditEntry, AuditExportConfig, AuditExporter, AuditLevel, AuditLogger, AuditStats,
+    SyslogExportConfig, WebhookExportConfig,
+};
+#[cfg(feature = "audit-syslog")]
+pub use audit_export_syslog::SyslogAuditExporter;
+#[cfg(feature = "audit-webhook")]
+pub use audit_export_webhook::WebhookAuditExporter;
 pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser, SigningKey};
 pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::SecurityError;

@@ -56,6 +56,7 @@ futures = {workspace = true}
 graphql-parser = {workspace = true}
 hex = {workspace = true}
 hmac = {workspace = true}
+hostname = {version = "0.4", optional = true}
 indexmap = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
@@ -108,6 +109,10 @@ wiremock = "0.6"
 # Provides arrow_executor module for Arrow RecordBatch conversion.
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
+# Audit log export: RFC 5424 syslog sink for audit entries.
+audit-syslog = ["dep:hostname"]
+# Audit log export: HTTPS webhook sink for audit entries.
+audit-webhook = []
 default = ["postgres", "rich-filters"]
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]

@@ -1,13 +1,17 @@
-//! Audit logging for GraphQL operations
+//! Audit logging for GraphQL operations.
 //!
-//! Uses `PostgreSQL` `deadpool` for database operations
+//! Uses `PostgreSQL` `deadpool` for database operations. Supports optional
+//! pluggable export sinks (syslog, webhook) for streaming audit entries to
+//! external immutable stores.
 
 use std::{sync::Arc, time::SystemTime};
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tracing::error;
 
 /// Errors that can occur during audit operations.
 #[derive(Debug, thiserror::Error)]
@@ -24,6 +28,10 @@ pub enum AuditError {
     /// Failed to serialize data to JSON.
     #[error("JSON serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    /// Export to an external sink failed.
+    #[error("Audit export failed: {0}")]
+    Export(String),
 }
 
 /// Audit log levels
@@ -139,6 +147,92 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.ct_eq(b).into()
 }
 
+// ============================================================================
+// Pluggable export sinks
+// ============================================================================
+
+/// Pluggable sink for streaming audit entries to external systems.
+///
+/// Implementations can send entries to syslog, webhooks, S3, or any other
+/// external store. The caller decides whether to retry or drop entries on
+/// failure.
+///
+/// # Errors
+///
+/// Returns error if the export fails (network, serialization, etc.).
+#[async_trait]
+pub trait AuditExporter: Send + Sync {
+    /// Export a single audit entry to the external sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuditError`] if the export fails.
+    async fn export(&self, entry: &AuditEntry) -> Result<(), AuditError>;
+
+    /// Flush any buffered entries to the external sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuditError`] if the flush fails.
+    async fn flush(&self) -> Result<(), AuditError>;
+}
+
+/// Configuration for audit log export sinks.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuditExportConfig {
+    /// Syslog export configuration (requires `audit-syslog` feature).
+    #[serde(default)]
+    pub syslog: Option<SyslogExportConfig>,
+    /// Webhook export configuration (requires `audit-webhook` feature).
+    #[serde(default)]
+    pub webhook: Option<WebhookExportConfig>,
+}
+
+/// Configuration for the syslog audit exporter (RFC 5424).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyslogExportConfig {
+    /// Syslog server hostname or IP.
+    pub address: String,
+    /// Syslog server port (default: 514).
+    #[serde(default = "default_syslog_port")]
+    pub port: u16,
+    /// Transport protocol: "tcp" or "udp" (default: "udp").
+    #[serde(default = "default_syslog_protocol")]
+    pub protocol: String,
+}
+
+/// Configuration for the webhook audit exporter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookExportConfig {
+    /// Webhook URL (must be HTTPS).
+    pub url: String,
+    /// Additional HTTP headers (e.g. `Authorization: Bearer ...`).
+    #[serde(default)]
+    pub headers: std::collections::HashMap<String, String>,
+    /// Number of entries to accumulate before flushing (default: 100).
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+    /// Flush interval in seconds (default: 30).
+    #[serde(default = "default_flush_interval_secs")]
+    pub flush_interval_secs: u64,
+}
+
+const fn default_syslog_port() -> u16 {
+    514
+}
+
+fn default_syslog_protocol() -> String {
+    "udp".to_string()
+}
+
+const fn default_batch_size() -> usize {
+    100
+}
+
+const fn default_flush_interval_secs() -> u64 {
+    30
+}
+
 /// Statistics about audit events
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditStats {
@@ -148,10 +242,20 @@ pub struct AuditStats {
     pub recent_events: u64,
 }
 
-/// Audit logger with `PostgreSQL` backend
-#[derive(Clone, Debug)]
+/// Audit logger with `PostgreSQL` backend and optional export sinks.
+#[derive(Clone)]
 pub struct AuditLogger {
-    pool: Arc<Pool>,
+    pool:      Arc<Pool>,
+    exporters: Arc<Vec<Box<dyn AuditExporter>>>,
+}
+
+impl std::fmt::Debug for AuditLogger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuditLogger")
+            .field("pool", &self.pool)
+            .field("exporters_count", &self.exporters.len())
+            .finish()
+    }
 }
 
 impl AuditLogger {
@@ -161,10 +265,26 @@ impl AuditLogger {
     /// Queries that bypass `QueryValidator` (e.g. on error paths) may be arbitrarily large.
     const MAX_AUDIT_FIELD_BYTES: usize = 64 * 1024;
 
-    /// Create a new audit logger
+    /// Create a new audit logger with no export sinks.
     #[must_use]
-    pub const fn new(pool: Arc<Pool>) -> Self {
-        Self { pool }
+    pub fn new(pool: Arc<Pool>) -> Self {
+        Self {
+            pool,
+            exporters: Arc::new(Vec::new()),
+        }
+    }
+
+    /// Create a new audit logger with export sinks.
+    ///
+    /// Entries are written to PostgreSQL first, then exported to each sink
+    /// on a best-effort basis (export failures are logged but do not fail the
+    /// primary write).
+    #[must_use]
+    pub fn with_exporters(pool: Arc<Pool>, exporters: Vec<Box<dyn AuditExporter>>) -> Self {
+        Self {
+            pool,
+            exporters: Arc::new(exporters),
+        }
     }
 
     // 64 KiB
@@ -236,7 +356,41 @@ impl AuditLogger {
             .await?;
 
         let id: i64 = row.get(0);
+
+        // Fire-and-forget export to external sinks. Failures are logged but
+        // do not affect the primary PostgreSQL write path.
+        if !self.exporters.is_empty() {
+            for exporter in self.exporters.iter() {
+                if let Err(e) = exporter.export(&entry).await {
+                    error!(error = %e, "Audit exporter failed");
+                }
+            }
+        }
+
         Ok(id)
+    }
+
+    /// Flush all export sinks.
+    ///
+    /// Call this during graceful shutdown to ensure buffered entries are delivered.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first flush error encountered; remaining sinks are still flushed.
+    pub async fn flush_exporters(&self) -> Result<(), AuditError> {
+        let mut first_err = None;
+        for exporter in self.exporters.iter() {
+            if let Err(e) = exporter.flush().await {
+                error!(error = %e, "Audit exporter flush failed");
+                if first_err.is_none() {
+                    first_err = Some(e);
+                }
+            }
+        }
+        match first_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 
     /// Get recent logs for a tenant
@@ -437,5 +591,41 @@ mod tests {
         assert_eq!(AuditLevel::parse("ERROR"), AuditLevel::ERROR);
         assert_eq!(AuditLevel::parse("INFO"), AuditLevel::INFO);
         assert_eq!(AuditLevel::parse("UNKNOWN"), AuditLevel::INFO);
+    }
+
+    #[test]
+    fn test_audit_export_config_deserialization() {
+        let json = r#"{
+            "syslog": { "address": "syslog.internal", "port": 514, "protocol": "tcp" },
+            "webhook": { "url": "https://logs.example.com/ingest" }
+        }"#;
+        let config: AuditExportConfig = serde_json::from_str(json)
+            .expect("should deserialize AuditExportConfig");
+        assert!(config.syslog.is_some());
+        assert!(config.webhook.is_some());
+
+        let syslog = config.syslog.expect("syslog should be Some");
+        assert_eq!(syslog.address, "syslog.internal");
+        assert_eq!(syslog.port, 514);
+        assert_eq!(syslog.protocol, "tcp");
+
+        let webhook = config.webhook.expect("webhook should be Some");
+        assert_eq!(webhook.url, "https://logs.example.com/ingest");
+        assert_eq!(webhook.batch_size, 100);
+        assert_eq!(webhook.flush_interval_secs, 30);
+    }
+
+    #[test]
+    fn test_audit_export_config_empty() {
+        let config: AuditExportConfig =
+            serde_json::from_str("{}").expect("should deserialize empty config");
+        assert!(config.syslog.is_none());
+        assert!(config.webhook.is_none());
+    }
+
+    #[test]
+    fn test_audit_error_export_variant() {
+        let err = AuditError::Export("connection refused".to_string());
+        assert!(err.to_string().contains("connection refused"));
     }
 }

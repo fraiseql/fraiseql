@@ -648,7 +648,45 @@ chain after modification.
    tamper-evident backup
 3. Periodically verify chain integrity: `SELECT integrity_hash FROM fraiseql_audit_logs ORDER BY id`
 
-**Future**: External audit log export is tracked for a future release.
+### External Audit Log Export
+
+FraiseQL supports streaming audit entries to external systems via pluggable
+export sinks, configured in `fraiseql.toml`:
+
+```toml
+[fraiseql.security.audit_logging]
+enabled = true
+log_level = "info"
+
+# Optional: stream audit entries to syslog (requires audit-syslog feature)
+# [fraiseql.security.audit_logging.export.syslog]
+# address = "syslog.internal"
+# port = 514
+# protocol = "tcp"   # "tcp" or "udp"
+
+# Optional: stream audit entries to a webhook (requires audit-webhook feature)
+# [fraiseql.security.audit_logging.export.webhook]
+# url = "https://logs.example.com/ingest"
+# batch_size = 100
+# flush_interval_secs = 30
+# headers = { "Authorization" = "Bearer <token>" }
+```
+
+**Integration patterns for common external stores:**
+
+| Store | Method | Notes |
+|-------|--------|-------|
+| **S3 (immutable)** | Fluent Bit sidecar consuming syslog | Enable S3 Object Lock for WORM compliance |
+| **Splunk** | Webhook export → Splunk HEC endpoint | Set `url` to `https://splunk:8088/services/collector/event` |
+| **Grafana Loki** | Syslog export → Loki syslog receiver | Use TCP transport for reliable delivery |
+| **CloudWatch Logs** | Fluent Bit sidecar with CloudWatch output | Works with both syslog and webhook |
+| **Elasticsearch** | Webhook export → Elasticsearch bulk API | Use `_bulk` endpoint with NDJSON |
+
+**Recommendation for SOC2/PCI compliance:** Use the webhook exporter to push
+audit entries to an immutable store (S3 with Object Lock, or a SIEM with
+write-once retention). The PostgreSQL audit table remains the primary source;
+the external store provides a tamper-evident backup that survives database
+compromise.
 
 ---
 
