@@ -123,6 +123,13 @@ impl OidcValidator {
             discovery.jwks_uri
         };
 
+        // Validate the JWKS URI before storing it (SSRF prevention pattern).
+        let _ = reqwest::Url::parse(&jwks_uri).map_err(|e| {
+            SecurityError::SecurityConfigError(format!(
+                "OIDC jwks_uri is not a valid URL '{jwks_uri}': {e}"
+            ))
+        })?;
+
         Ok(Self {
             config,
             http_client,

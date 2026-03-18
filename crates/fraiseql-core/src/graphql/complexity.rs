@@ -202,7 +202,7 @@ impl RequestValidator {
         // Skip AST parsing only when depth, complexity, AND alias checks are all disabled.
         // The alias amplification check is a distinct DoS vector: it must run even when
         // depth and complexity validation are both turned off.
-        if !self.validate_depth && !self.validate_complexity || /* ~ changed by cargo-mutants ~ */ self.max_aliases_per_query == 0 {
+        if !self.validate_depth && !self.validate_complexity && self.max_aliases_per_query == 0 {
             return Ok(());
         }
 
@@ -766,6 +766,147 @@ mod tests {
         validator
             .validate_query(deep)
             .unwrap_or_else(|e| panic!("expected Ok when depth/complexity disabled: {e}"));
+    }
+
+    // ── Boundary / mutation-test sentinels ──
+    //
+    // Each test below is written to catch a specific surviving or predicted mutant.
+    // Do not remove or weaken these tests without running `cargo mutants` first.
+
+    // Guards: complexity > max (not >=, not ==)
+    #[test]
+    fn test_complexity_at_limit_is_allowed() {
+        // { a b c } has complexity 3. max=3 must PASS (> not >=).
+        let validator = RequestValidator::new().with_max_complexity(3);
+        validator
+            .validate_query("query { a b c }")
+            .unwrap_or_else(|e| panic!("complexity == max must be allowed: {e}"));
+    }
+
+    #[test]
+    fn test_complexity_just_over_limit_is_rejected() {
+        // { a b c d } has complexity 4 > max=3, must FAIL.
+        let validator = RequestValidator::new().with_max_complexity(3);
+        assert!(
+            matches!(
+                validator.validate_query("query { a b c d }"),
+                Err(ComplexityValidationError::QueryTooComplex { .. })
+            ),
+            "complexity > max must be rejected"
+        );
+    }
+
+    // Guards: depth > max (not >=, not ==)
+    #[test]
+    fn test_depth_at_limit_is_allowed() {
+        // { a { b { c } } } has depth 3. max_depth=3 must PASS (> not >=).
+        let validator = RequestValidator::default().with_max_depth(3);
+        validator
+            .validate_query("{ a { b { c } } }")
+            .unwrap_or_else(|e| panic!("depth == max must be allowed: {e}"));
+    }
+
+    #[test]
+    fn test_depth_just_over_limit_is_rejected() {
+        // { a { b { c { d } } } } has depth 4 > max=3, must FAIL.
+        let validator = RequestValidator::default().with_max_depth(3);
+        assert!(
+            matches!(
+                validator.validate_query("{ a { b { c { d } } } }"),
+                Err(ComplexityValidationError::QueryTooDeep { .. })
+            ),
+            "depth > max must be rejected"
+        );
+    }
+
+    // Guards: early-return condition is `&&` not `||`, and requires all three
+    #[test]
+    fn test_skip_validation_requires_aliases_also_zero() {
+        // Depth and complexity disabled but aliases still active: alias check must still run.
+        // Guards the `||` → `&&` mutation at the early-return gate.
+        let validator = RequestValidator::new()
+            .with_depth_validation(false)
+            .with_complexity_validation(false)
+            .with_max_aliases(2);
+        let query = "query { a: user { id } b: user { id } c: user { id } }";
+        assert!(
+            validator.validate_query(query).is_err(),
+            "alias check must run even when depth/complexity validation is disabled"
+        );
+    }
+
+    #[test]
+    fn test_early_return_requires_depth_disabled() {
+        // Guards `delete !` on `!self.validate_depth`: when depth is still on, the early-return
+        // must not fire even if complexity is off and aliases == 0.
+        let validator = RequestValidator::new()
+            .with_depth_validation(true)
+            .with_complexity_validation(false)
+            .with_max_aliases(0)
+            .with_max_depth(2);
+        assert!(
+            matches!(
+                validator.validate_query("{ a { b { c } } }"),
+                Err(ComplexityValidationError::QueryTooDeep { .. })
+            ),
+            "depth validation must still run when only complexity is disabled"
+        );
+    }
+
+    #[test]
+    fn test_early_return_requires_complexity_disabled() {
+        // Guards `delete !` on `!self.validate_complexity`: when complexity is still on,
+        // the early-return must not fire even if depth is off and aliases == 0.
+        let validator = RequestValidator::new()
+            .with_depth_validation(false)
+            .with_complexity_validation(true)
+            .with_max_aliases(0)
+            .with_max_complexity(2);
+        assert!(
+            matches!(
+                validator.validate_query("query { users(first: 100) { id name } }"),
+                Err(ComplexityValidationError::QueryTooComplex { .. })
+            ),
+            "complexity validation must still run when only depth is disabled"
+        );
+    }
+
+    // Guards: recursion guard `> 32` in fragment depth / complexity helpers
+    #[test]
+    fn test_deep_fragment_recursion_guard() {
+        // A chain of 34 fragment spreads exceeds the recursion guard (> 32).
+        // The guard must return max_depth+1 (not max_depth or max_depth-1),
+        // ensuring the query is rejected rather than silently allowed.
+        let validator = RequestValidator::new().with_max_depth(5);
+        let mut query = String::from("query { ...F0 }\n");
+        for i in 0..34_usize {
+            query.push_str(&format!("fragment F{i} on T {{ ...F{} }}\n", i + 1));
+        }
+        query.push_str("fragment F34 on T { id }\n");
+        assert!(
+            validator.validate_query(&query).is_err(),
+            "deeply nested fragment chain must be rejected by recursion guard"
+        );
+    }
+
+    // Guards: alias `+` not `-` in count_aliases_in_selection_set
+    #[test]
+    fn test_nested_aliases_counted_correctly() {
+        // Aliases nested inside another field's selection set must be summed, not subtracted.
+        // { a: user { id } b: user { c: name d: email } } has 4 aliases total.
+        let validator = RequestValidator::new().with_max_aliases(3);
+        assert!(
+            matches!(
+                validator.validate_query(
+                    "query { a: user { id } b: user { c: name d: email } }"
+                ),
+                Err(ComplexityValidationError::TooManyAliases {
+                    actual_aliases: 4,
+                    ..
+                })
+            ),
+            "nested aliases must be summed, not subtracted"
+        );
     }
 
     // ── from_config ──

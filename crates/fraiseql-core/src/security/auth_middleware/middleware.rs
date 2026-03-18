@@ -491,17 +491,40 @@ mod tests {
         assert!(matches!(result, Err(SecurityError::TokenExpired { .. })));
     }
 
+    /// Sentinel: a token that expired 1 second ago must be rejected.
+    ///
+    /// Kills the `<= → >` and `<= → never-expire` mutations on the expiry check:
+    /// `if expires_at <= Utc::now()`.
+    ///
+    /// Note: testing the exact `expires_at == now` boundary deterministically would
+    /// require clock injection into `AuthMiddleware`, which is not yet supported.
+    /// The ±1-second cases are tested here; the zero-offset case is inherently racy.
     #[test]
-    fn test_token_expiring_now_rejected() {
+    fn test_token_expired_one_second_ago_is_rejected() {
         let middleware = AuthMiddleware::standard();
-        // Token that expires at the current timestamp (or in past due to processing time)
-        let token = create_test_token("user123", 0, None);
+        let token = create_test_token("user123", -1, None); // expired 1 second ago
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        // May pass or fail depending on exact timing, but should be close
-        let result = middleware.validate_request(&req);
-        // We won't assert here since timing is critical
-        let _ = result;
+        assert!(
+            matches!(middleware.validate_request(&req), Err(SecurityError::TokenExpired { .. })),
+            "token expired 1s ago must be rejected"
+        );
+    }
+
+    /// Sentinel: a token expiring 60 seconds from now must be accepted.
+    ///
+    /// Complements `test_token_expired_one_second_ago_is_rejected` to pin the valid
+    /// side of the expiry boundary.
+    #[test]
+    fn test_token_expiring_soon_is_accepted() {
+        let middleware = AuthMiddleware::standard();
+        let token = create_test_token("user123", 60, None); // expires in 60 seconds
+        let req = AuthRequest::new(Some(format!("Bearer {token}")));
+
+        assert!(
+            middleware.validate_request(&req).is_ok(),
+            "token expiring in 60s must be accepted"
+        );
     }
 
     // ============================================================================

@@ -333,7 +333,7 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
 ///    secrets manager backend.
 /// 7. **Server** — construct `Server` (with optional Arrow Flight service), optionally attach
 ///    secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));

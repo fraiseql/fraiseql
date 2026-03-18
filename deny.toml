@@ -225,8 +225,8 @@ reason = "transitive via older dependency"
 
 [[bans.skip]]
 name = "lz4_flex"
-version = "=0.11.5"
-reason = "transitive via parquet/arrow dependency chain"
+version = "=0.11.6"
+reason = "transitive via clickhouse dependency chain (0.11.x); parquet uses 0.12.x"
 
 [[bans.skip]]
 name = "cpufeatures"

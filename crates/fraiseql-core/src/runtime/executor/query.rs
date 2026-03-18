@@ -722,7 +722,7 @@ mod tests {
     fn projection_reduction_result_always_in_clamp_range() {
         for n in 0_usize..=30 {
             let r = compute_projection_reduction(n);
-            assert!(r >= 10 && r <= 90, "out of [10,90] for n={n}: got {r}");
+            assert!((10..=90).contains(&r), "out of [10,90] for n={n}: got {r}");
         }
     }
 

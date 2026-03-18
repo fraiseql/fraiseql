@@ -411,7 +411,7 @@ async fn test_get_userinfo_success() {
     let mut config = test_oidc_config();
     config.userinfo_endpoint = Some(format!("{}/userinfo", mock_server.uri()));
 
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let user = client.get_userinfo("access_token_xyz").await.unwrap();
     assert_eq!(user.sub, "user_789");
     assert_eq!(user.email, Some("real@example.com".to_string()));
@@ -423,7 +423,7 @@ async fn test_get_userinfo_no_endpoint() {
     let mut config = test_oidc_config();
     config.userinfo_endpoint = None;
 
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let result = client.get_userinfo("token").await;
     assert!(result.is_err(), "expected Err when no userinfo endpoint configured, got: {result:?}");
     assert!(result.unwrap_err().contains("No userinfo endpoint"));
@@ -442,7 +442,7 @@ async fn test_get_userinfo_server_error() {
     let mut config = test_oidc_config();
     config.userinfo_endpoint = Some(format!("{}/userinfo", mock_server.uri()));
 
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let result = client.get_userinfo("token").await;
     assert!(result.is_err(), "expected Err for 500 server error, got: {result:?}");
     assert!(result.unwrap_err().contains("500"));
@@ -451,7 +451,7 @@ async fn test_get_userinfo_server_error() {
 #[tokio::test]
 async fn test_verify_id_token_rejects_missing_kid() {
     let config = test_oidc_config();
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
 
     // A JWT without a kid in the header
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
@@ -485,7 +485,7 @@ fn test_oidc_authorization_url_includes_nonce() {
         "https://idp.example.com/token".to_string(),
         "https://idp.example.com/.well-known/jwks.json".to_string(),
     );
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let req = client.authorization_url("https://app.example.com/callback");
 
     assert!(req.url.contains("nonce="), "auth URL must include nonce parameter");
@@ -502,7 +502,7 @@ fn test_oidc_authorization_url_nonce_is_unique() {
         "https://idp.example.com/token".to_string(),
         "https://idp.example.com/.well-known/jwks.json".to_string(),
     );
-    let client = OIDCClient::new(config, "client_id", "secret");
+    let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let r1 = client.authorization_url("https://app.example.com/callback");
     let r2 = client.authorization_url("https://app.example.com/callback");
     assert_ne!(

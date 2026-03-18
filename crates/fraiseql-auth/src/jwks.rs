@@ -23,6 +23,29 @@ use jsonwebtoken::DecodingKey;
 use serde::Deserialize;
 use tracing::debug;
 
+/// Errors that can occur when constructing a JWKS cache.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum JwksError {
+    /// The provided `jwks_uri` is not a valid URL.
+    #[error("Invalid jwks_uri '{uri}': {source}")]
+    InvalidUrl {
+        /// The URI that failed to parse.
+        uri: String,
+        /// The underlying parse error.
+        source: url::ParseError,
+    },
+    /// The URL scheme is not HTTPS (or HTTP on localhost for dev).
+    #[error("Invalid jwks_uri scheme '{scheme}': must be https (or http on localhost)")]
+    InvalidScheme {
+        /// The rejected scheme.
+        scheme: String,
+    },
+    /// Failed to build the HTTP client.
+    #[error("Failed to build HTTP client: {0}")]
+    HttpClient(#[from] reqwest::Error),
+}
+
 /// JWKS document returned by the provider.
 #[derive(Debug, Deserialize)]
 struct JwksDocument {
@@ -56,21 +79,48 @@ pub struct JwksCache {
 }
 
 impl JwksCache {
-    /// Create a new JWKS cache.
+    /// Create a new JWKS cache, validating `jwks_uri` before storing it.
     ///
     /// Keys are lazily fetched on first access.
-    pub fn new(jwks_uri: &str, ttl: Duration) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwksError`] if `jwks_uri` is not a valid URL, uses a
+    /// non-HTTPS scheme (HTTP is allowed only for localhost), or if the
+    /// HTTP client cannot be built.
+    pub fn new(jwks_uri: &str, ttl: Duration) -> Result<Self, JwksError> {
+        // Validate the URI at construction time (SSRF prevention pattern).
+        let parsed = reqwest::Url::parse(jwks_uri).map_err(|e| JwksError::InvalidUrl {
+            uri: jwks_uri.to_string(),
+            source: e,
+        })?;
+
+        // OIDC Core 1.0 Section 3 requires HTTPS for jwks_uri. Allow HTTP only
+        // for local development (e.g., http://localhost mock OIDC providers).
+        let allowed = match parsed.scheme() {
+            "https" => true,
+            "http" => parsed.host_str().is_some_and(|h| {
+                h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1"
+            }),
+            _ => false,
+        };
+        if !allowed {
+            return Err(JwksError::InvalidScheme {
+                scheme: parsed.scheme().to_string(),
+            });
+        }
+
         let client = reqwest::Client::builder()
             .timeout(JWKS_FETCH_TIMEOUT)
-            .build()
-            .unwrap_or_default();
-        Self {
+            .build()?;
+
+        Ok(Self {
             keys: RwLock::new(HashMap::new()),
             jwks_uri: jwks_uri.to_string(),
             last_fetched: RwLock::new(None),
             ttl,
             client,
-        }
+        })
     }
 
     /// Get a decoding key by `kid`, fetching from the remote JWKS endpoint if
@@ -215,7 +265,7 @@ mod tests {
     #[tokio::test]
     async fn test_jwks_cache_empty() {
         let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600));
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600)).unwrap();
         assert!(cache.get_key_from_cache("nonexistent_kid").is_none());
     }
 
@@ -231,7 +281,7 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        );
+        ).unwrap();
 
         let key = cache.get_key("test-key-1").await.unwrap();
         assert!(key.is_some());
@@ -249,7 +299,7 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        );
+        ).unwrap();
 
         let key = cache.get_key("nonexistent-kid").await.unwrap();
         assert!(key.is_none());
@@ -269,7 +319,7 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(0),
-        );
+        ).unwrap();
 
         // First fetch
         let _ = cache.get_key("test-key-1").await.unwrap();
@@ -289,7 +339,7 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        );
+        ).unwrap();
 
         cache.force_refresh().await.unwrap();
         assert!(cache.get_key_from_cache("test-key-1").is_some());
@@ -297,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_jwks_cache_network_error() {
-        let cache = JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600));
+        let cache = JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600)).unwrap();
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err(), "expected Err for network error (connection refused)");
     }
@@ -323,7 +373,7 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        );
+        ).unwrap();
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err(), "oversized JWKS response must be rejected");
         let msg = result.err().unwrap();
@@ -342,11 +392,50 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        );
+        ).unwrap();
         let key = cache
             .get_key("test-key-1")
             .await
             .unwrap_or_else(|e| panic!("normal JWKS response must be accepted, got: {e}"));
         assert!(key.is_some(), "expected key 'test-key-1' to be present in JWKS response");
+    }
+
+    // ── URL validation tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_jwks_cache_rejects_invalid_url() {
+        let result = JwksCache::new("not-a-url", Duration::from_secs(3600));
+        assert!(result.is_err(), "invalid URL should be rejected at construction");
+        assert!(matches!(result.unwrap_err(), JwksError::InvalidUrl { .. }));
+    }
+
+    #[test]
+    fn test_jwks_cache_rejects_non_http_scheme() {
+        let result = JwksCache::new("ftp://example.com/jwks.json", Duration::from_secs(3600));
+        assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
+    }
+
+    #[test]
+    fn test_jwks_cache_rejects_http_non_localhost() {
+        let result = JwksCache::new("http://example.com/jwks.json", Duration::from_secs(3600));
+        assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
+    }
+
+    #[test]
+    fn test_jwks_cache_accepts_https() {
+        let result = JwksCache::new(
+            "https://example.com/.well-known/jwks.json",
+            Duration::from_secs(3600),
+        );
+        assert!(result.is_ok(), "valid https:// URL should be accepted");
+    }
+
+    #[test]
+    fn test_jwks_cache_accepts_http_localhost() {
+        let result = JwksCache::new(
+            "http://localhost:8080/.well-known/jwks.json",
+            Duration::from_secs(3600),
+        );
+        assert!(result.is_ok(), "http://localhost should be accepted for dev");
     }
 }

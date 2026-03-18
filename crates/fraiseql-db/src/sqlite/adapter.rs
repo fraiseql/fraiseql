@@ -1,7 +1,7 @@
 //! SQLite database adapter — **read-only** (queries only, no mutations).
 //!
 //! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
-//! but does **not** implement [`MutationCapable`](crate::MutationCapable). Attempting
+//! but does **not** implement [`SupportsMutations`](crate::SupportsMutations). Attempting
 //! to compile a schema with mutations and run it against SQLite will produce a
 //! **compile-time error** at the mutation executor call site.
 //!
@@ -647,7 +647,7 @@ mod tests {
     #[tokio::test]
     async fn test_function_call_returns_unsupported_error() {
         // Primary enforcement is at compile time: `SqliteAdapter` does not implement
-        // `MutationCapable`, so the mutation executor won't accept it as a type parameter.
+        // `SupportsMutations`, so the mutation executor won't accept it as a type parameter.
         // This test verifies the runtime fallback for the rare case where
         // `execute_function_call` is called directly on the `DatabaseAdapter` trait object.
         let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");

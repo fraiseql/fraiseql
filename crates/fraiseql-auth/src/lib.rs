@@ -98,7 +98,7 @@ pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
     auth_callback, auth_logout, auth_refresh, auth_start,
 };
-pub use jwks::JwksCache;
+pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};

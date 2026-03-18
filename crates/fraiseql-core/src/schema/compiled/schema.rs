@@ -749,6 +749,7 @@ fn is_builtin_type(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
     use super::*;
     use crate::schema::{
         config_types::{FederationConfig, FederationEntity},

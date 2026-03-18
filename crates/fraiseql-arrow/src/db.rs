@@ -100,7 +100,3 @@ pub trait ArrowDatabaseAdapter: Send + Sync {
         sql: &str,
     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>>;
 }
-
-/// Deprecated alias — use [`ArrowDatabaseAdapter`] instead.
-#[deprecated(since = "2.2.0", note = "Use `ArrowDatabaseAdapter` instead")]
-pub trait DatabaseAdapter: ArrowDatabaseAdapter {}

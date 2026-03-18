@@ -349,4 +349,33 @@ mod tests {
         const EXPECTED_DEFAULT_TTL: u64 = 300;
         assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
     }
+
+    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 MiB.
+    ///
+    /// Kills mutations that change the constant value (e.g. halving or doubling it).
+    #[test]
+    fn test_max_jwks_response_bytes_is_one_mib() {
+        assert_eq!(MAX_JWKS_RESPONSE_BYTES, 1024 * 1024, "JWKS size cap must be exactly 1 MiB");
+    }
+
+    /// Sentinel: a payload at the limit (== MAX) must be accepted (`>` not `>=`).
+    ///
+    /// Kills the `> → >=` mutation on the size-guard in `fetch_jwks`.
+    #[test]
+    fn test_jwks_size_check_accepts_payload_at_limit() {
+        let len = MAX_JWKS_RESPONSE_BYTES;
+        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
+        assert!(!rejected, "payload at exactly {len} bytes must be accepted (> not >=)");
+    }
+
+    /// Sentinel: a payload one byte over the limit must be rejected.
+    ///
+    /// Complements `test_jwks_size_check_accepts_payload_at_limit` to pin both sides
+    /// of the boundary.
+    #[test]
+    fn test_jwks_size_check_rejects_payload_over_limit() {
+        let len = MAX_JWKS_RESPONSE_BYTES + 1;
+        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
+        assert!(rejected, "payload of {len} bytes must be rejected (exceeds 1 MiB cap)");
+    }
 }

@@ -86,10 +86,6 @@ pub trait ArrowEventStorage: Send + Sync {
     ) -> Result<usize, String>;
 }
 
-/// Deprecated alias — use [`ArrowEventStorage`] instead.
-#[deprecated(since = "2.2.0", note = "Use `ArrowEventStorage` instead")]
-pub trait EventStorage: ArrowEventStorage {}
-
 #[cfg(test)]
 mod tests {
     use super::*;

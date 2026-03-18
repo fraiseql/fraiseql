@@ -24,6 +24,7 @@ thiserror = "2.0"
 tokio = {workspace = true}
 tower = {version = "0.5"}
 tracing = "0.1"
+url = "2"
 urlencoding = "2.1"
 uuid = {version = "1.21", features = ["v4", "serde"]}
 zeroize = "1.8"

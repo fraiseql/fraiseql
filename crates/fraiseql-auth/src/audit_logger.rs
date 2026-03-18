@@ -374,10 +374,6 @@ pub trait AuditExt<T, E> {
     ) -> Result<T, E>;
 }
 
-/// Deprecated alias — use [`AuditExt`] instead.
-#[deprecated(since = "2.2.0", note = "Use `AuditExt` instead")]
-pub trait AuditableResult<T, E>: AuditExt<T, E> {}
-
 impl<T, E: std::fmt::Display> AuditExt<T, E> for Result<T, E> {
     fn audit_log(
         self,

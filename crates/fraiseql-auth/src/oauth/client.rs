@@ -8,7 +8,7 @@ const OAUTH_REQUEST_TIMEOUT: StdDuration = StdDuration::from_secs(30);
 use serde::{Deserialize, Serialize};
 
 use super::{
-    super::jwks::JwksCache,
+    super::jwks::{JwksCache, JwksError},
     pkce::PKCEChallenge,
     types::{IdTokenClaims, TokenResponse, UserInfo},
 };
@@ -281,13 +281,18 @@ impl OIDCClient {
     /// Create new OIDC client with JWKS caching.
     ///
     /// The JWKS cache TTL defaults to 1 hour.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwksError`] if `config.jwks_uri` is not a valid HTTPS URL
+    /// (HTTP is allowed only for localhost).
     pub fn new(
         config: OIDCProviderConfig,
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
-    ) -> Self {
-        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_secs(3600)));
-        Self {
+    ) -> Result<Self, JwksError> {
+        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_secs(3600))?);
+        Ok(Self {
             config,
             client_id: client_id.into(),
             client_secret: client_secret.into(),
@@ -296,7 +301,7 @@ impl OIDCClient {
                 .timeout(OAUTH_REQUEST_TIMEOUT)
                 .build()
                 .unwrap_or_default(),
-        }
+        })
     }
 
     /// Create OIDC client with a pre-built JWKS cache (for testing).
@@ -516,7 +521,7 @@ mod tests {
             scopes_supported:         vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
-        let client = OIDCClient::new(config, "client_id", "client_secret");
+        let client = OIDCClient::new(config, "client_id", "client_secret").unwrap();
         assert_eq!(client.client_id, "client_id");
     }
 
@@ -552,7 +557,7 @@ mod tests {
             scopes_supported:         vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
-        let client = OIDCClient::new(config, "client_id", "secret");
+        let client = OIDCClient::new(config, "client_id", "secret").unwrap();
 
         let result = client.get_userinfo("dummy_token").await;
         assert!(result.is_err(), "oversized userinfo response must be rejected, got: {result:?}");
@@ -585,7 +590,7 @@ mod tests {
             scopes_supported:         vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
-        let client = OIDCClient::new(config, "client_id", "secret");
+        let client = OIDCClient::new(config, "client_id", "secret").unwrap();
 
         let result = client.get_userinfo("dummy_token").await;
         // Must fail at JSON parse (missing required fields), not at size gate

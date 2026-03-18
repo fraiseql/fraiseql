@@ -491,7 +491,7 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// Returns `FraiseQLError::Database` on query execution failure.
     /// Returns `FraiseQLError::Unsupported` on adapters that do not support mutations
-    /// (default implementation — see [`MutationCapable`]).
+    /// (default implementation — see [`SupportsMutations`]).
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -514,7 +514,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// of silently calling the unsupported `execute_function_call` default.
     ///
     /// Override to return `false` for read-only adapters (e.g., `SqliteAdapter`,
-    /// `FraiseWireAdapter`). The compile-time [`MutationCapable`] marker trait
+    /// `FraiseWireAdapter`). The compile-time [`SupportsMutations`] marker trait
     /// complements this runtime check — see its documentation for the distinction.
     ///
     /// # Default
@@ -800,10 +800,6 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// | `FraiseWireAdapter` | ❌ No — read-only wire protocol |
 /// | `CachedDatabaseAdapter<A>` | ✅ When `A: SupportsMutations` |
 pub trait SupportsMutations: DatabaseAdapter {}
-
-/// Deprecated alias — use [`SupportsMutations`] instead.
-#[deprecated(since = "2.2.0", note = "Use `SupportsMutations` instead")]
-pub trait MutationCapable: SupportsMutations {}
 
 /// Type alias for boxed dynamic database adapters.
 ///

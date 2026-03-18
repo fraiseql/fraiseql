@@ -404,4 +404,75 @@ mod tests {
 
         limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok after window rollover: {e}")); // new window, limit reset
     }
+
+    /// Sentinel: advancing by exactly `window_secs` must reset the window.
+    ///
+    /// Kills the `>= → >` mutation on the window-expiry check:
+    /// `now >= record.window_start + self.dimension.window_secs`
+    #[test]
+    fn test_window_exact_boundary_triggers_rollover() {
+        use std::time::Duration;
+
+        use crate::utils::clock::ManualClock;
+
+        let clock = ManualClock::new();
+        let clock_arc: Arc<dyn Clock> = Arc::new(clock.clone());
+        let window_secs = 60u64;
+        let max = 2u32;
+        let limiter = DimensionRateLimiter::new_with_clock(max, window_secs, clock_arc);
+
+        // Fill to limit
+        for _ in 0..max {
+            limiter.check("u").unwrap_or_else(|e| panic!("expected Ok filling window: {e}"));
+        }
+        assert!(
+            matches!(limiter.check("u"), Err(FraiseQLError::RateLimited { .. })),
+            "expected RateLimited when over limit"
+        );
+
+        // Advance by EXACTLY window_secs — the `>=` boundary must trigger a reset
+        clock.advance(Duration::from_secs(window_secs));
+
+        limiter
+            .check("u")
+            .unwrap_or_else(|e| panic!("expected Ok at exact window boundary (>= not >): {e}"));
+    }
+
+    /// Sentinel: `max_requests = 0` must disable the limiter (every request allowed).
+    ///
+    /// Kills the `== 0 → != 0` and `== 0 → > 0` mutations on `is_rate_limited()`.
+    #[test]
+    fn test_max_requests_zero_disables_limiter() {
+        let limiter = DimensionRateLimiter::new(0, 60);
+
+        for i in 0..10u32 {
+            limiter
+                .check("key")
+                .unwrap_or_else(|e| panic!("expected Ok with max_requests=0 on request {i}: {e}"));
+        }
+    }
+
+    /// Sentinel: `window_secs = 0` must not panic.
+    ///
+    /// With a zero-length window `now >= window_start + 0` is always true, so
+    /// every call resets the counter and the limiter never triggers.
+    #[test]
+    fn test_window_secs_zero_does_not_panic() {
+        use crate::utils::clock::ManualClock;
+
+        let clock_arc: Arc<dyn Clock> = Arc::new(ManualClock::new());
+        // max_requests > 0 so the limiter is "active", but window_secs = 0
+        let limiter = DimensionRateLimiter::new_with_clock(5, 0, clock_arc);
+
+        // Every request resets the window because now >= window_start + 0 is always true
+        limiter
+            .check("key")
+            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (1st): {e}"));
+        limiter
+            .check("key")
+            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (2nd): {e}"));
+        limiter
+            .check("key")
+            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (3rd): {e}"));
+    }
 }

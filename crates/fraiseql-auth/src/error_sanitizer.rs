@@ -62,10 +62,6 @@ impl<E: fmt::Display> Sanitize for E {
     }
 }
 
-/// Deprecated alias — use [`Sanitize`] instead.
-#[deprecated(since = "2.2.0", note = "Use `Sanitize` instead")]
-pub trait Sanitizable: Sanitize {}
-
 /// Pre-defined error messages for common authentication scenarios
 pub mod messages {
     /// Generic authentication failure message
