@@ -153,6 +153,11 @@ impl ObserverExecutor {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the transport subscription fails or an unrecoverable
+    /// processing error occurs.
     pub async fn run_with_transport(
         &self,
         transport: Arc<dyn crate::transport::EventTransport>,
@@ -237,6 +242,11 @@ impl ObserverExecutor {
     /// - Continues indefinitely until listener stops or error occurs
     ///
     /// **Requires the `postgres` Cargo feature.**
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the listener encounters an unrecoverable database error
+    /// after exhausting retry attempts.
     #[cfg(feature = "postgres")]
     pub async fn run_listener_loop(
         &self,

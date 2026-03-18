@@ -32,6 +32,11 @@ impl Default for RichFilterConfig {
 }
 
 /// Compile rich filters: generate artifacts for rich scalar types
+///
+/// # Errors
+///
+/// Returns an error if serializing the lookup data or injecting filter types
+/// into the schema fails.
 pub fn compile_rich_filters(
     schema: &mut CompiledSchema,
     config: &RichFilterConfig,

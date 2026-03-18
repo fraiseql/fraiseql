@@ -5,7 +5,12 @@ use serde_json::json;
 
 use crate::error::Result;
 
-/// Execute status command
+/// Execute status command.
+///
+/// # Errors
+///
+/// Returns an error if the observer runtime cannot be queried or output
+/// serialization fails.
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _listener: Option<String>,

@@ -398,6 +398,20 @@ pub struct ServerConfig {
     #[serde(default)]
     pub admission_control: Option<AdmissionConfig>,
 
+    /// Security contact email for `/.well-known/security.txt` (RFC 9116).
+    ///
+    /// When set, the server exposes a `/.well-known/security.txt` endpoint
+    /// with this email address as the security contact. This helps security
+    /// researchers report vulnerabilities responsibly.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// security_contact = "security@example.com"
+    /// ```
+    #[serde(default)]
+    pub security_contact: Option<String>,
+
     /// Graceful shutdown drain timeout in seconds (default: 30).
     ///
     /// After a SIGTERM or Ctrl+C signal, the server stops accepting new connections and
@@ -462,6 +476,7 @@ impl Default for ServerConfig {
             observers: None, // Observers disabled by default
             pool_tuning: None,               // Pool pressure monitoring disabled by default
             admission_control: None,         // Admission control disabled by default
+            security_contact: None,              // No security.txt by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),

@@ -63,7 +63,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 // Pedantic allows — workspace sets pedantic = deny. Suppressed for Arrow Flight crate.
-#![allow(clippy::missing_errors_doc)] // Reason: Flight errors described in module docs
 #![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for Arrow column indices
 #![allow(clippy::format_push_string)] // Reason: incremental schema/query string building
 #![allow(clippy::implicit_hasher)] // Reason: HashMap params explicit at call sites

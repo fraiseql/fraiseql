@@ -300,6 +300,10 @@ impl SagaRecoveryManager {
     /// let stats = manager.get_stats();
     /// assert!(stats.iterations > 0);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if the saga store query or recovery operation fails.
     pub async fn run_iteration(&self) -> SagaStoreResult<()> {
         Self::run_recovery_iteration(&self.store, self.config, &self.stats).await
     }

@@ -103,6 +103,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Expected improvement:
     /// - **View-level**: 60-70% hit rate (many false positives)
     /// - **Entity-level**: 90-95% hit rate (only true positives)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the cascade response cannot be parsed.
     pub fn invalidate_cascade_entities(
         &self,
         cascade_response: &serde_json::Value,

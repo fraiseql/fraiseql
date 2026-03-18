@@ -27,6 +27,10 @@ pub struct OneOfValidator;
 
 impl OneOfValidator {
     /// Validate that exactly one field from the set is present and non-null.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if zero or more than one field is present.
     pub fn validate(
         input: &Value,
         field_names: &[String],
@@ -78,6 +82,10 @@ pub struct AnyOfValidator;
 
 impl AnyOfValidator {
     /// Validate that at least one field from the set is present and non-null.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if none of the specified fields are present.
     pub fn validate(
         input: &Value,
         field_names: &[String],
@@ -121,6 +129,11 @@ pub struct ConditionalRequiredValidator;
 
 impl ConditionalRequiredValidator {
     /// Validate that if `if_field_present` is present, all `then_required` fields must be too.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the condition field is present but any
+    /// required field is missing.
     pub fn validate(
         input: &Value,
         if_field_present: &str,
@@ -180,6 +193,11 @@ pub struct RequiredIfAbsentValidator;
 
 impl RequiredIfAbsentValidator {
     /// Validate that if `absent_field` is absent/null, all `then_required` fields must be provided.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the condition field is absent and any
+    /// required field is also missing.
     pub fn validate(
         input: &Value,
         absent_field: &str,

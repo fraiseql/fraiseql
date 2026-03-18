@@ -111,6 +111,12 @@ pub struct AuthLogoutRequest {
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
 /// The limit is configurable via FRAISEQL_AUTH_START_MAX_REQUESTS and
 /// FRAISEQL_AUTH_START_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the per-IP rate limit is exceeded.
+/// Returns `AuthError::SystemTimeError` if the system clock is unavailable.
+/// Returns `AuthError` if the state store write fails.
 pub async fn auth_start(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -157,6 +163,13 @@ pub async fn auth_start(
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
 /// The limit is configurable via FRAISEQL_AUTH_CALLBACK_MAX_REQUESTS and
 /// FRAISEQL_AUTH_CALLBACK_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the per-IP rate limit is exceeded.
+/// Returns `AuthError::OAuthError` if the provider returned an error.
+/// Returns `AuthError::InvalidState` if the CSRF state token is expired or invalid.
+/// Returns `AuthError` if the token exchange or session creation fails.
 pub async fn auth_callback(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -275,6 +288,12 @@ pub async fn auth_callback(
 /// This endpoint is rate-limited per user ID to prevent token refresh attacks.
 /// The limit is configurable via FRAISEQL_AUTH_REFRESH_MAX_REQUESTS and
 /// FRAISEQL_AUTH_REFRESH_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::TokenExpired` if the session has expired.
+/// Returns `AuthError::RateLimited` if the per-user rate limit is exceeded.
+/// Returns `AuthError::Internal` if JWT signing is not yet configured.
 pub async fn auth_refresh(
     State(state): State<AuthState>,
     Json(req): Json<AuthRefreshRequest>,
@@ -332,6 +351,11 @@ pub async fn auth_refresh(
 /// This endpoint is rate-limited per user ID to prevent logout token exhaustion attacks.
 /// The limit is configurable via FRAISEQL_AUTH_LOGOUT_MAX_REQUESTS and
 /// FRAISEQL_AUTH_LOGOUT_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the per-user rate limit is exceeded.
+/// Returns `AuthError` if the session lookup or deletion fails.
 pub async fn auth_logout(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

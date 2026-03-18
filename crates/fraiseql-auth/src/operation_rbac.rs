@@ -228,6 +228,10 @@ impl RBACPolicy {
     }
 
     /// Check if a user has permission to perform an operation
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if the user lacks the required permission.
     pub fn authorize(
         &self,
         user: &AuthenticatedUser,
@@ -255,6 +259,10 @@ impl RBACPolicy {
     }
 
     /// Check multiple permissions at once
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if the user lacks all of the given permissions.
     pub fn authorize_any(
         &self,
         user: &AuthenticatedUser,
@@ -272,6 +280,10 @@ impl RBACPolicy {
     }
 
     /// Check that user has all permissions
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if the user lacks any of the required permissions.
     pub fn authorize_all(
         &self,
         user: &AuthenticatedUser,

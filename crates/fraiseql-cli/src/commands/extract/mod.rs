@@ -55,6 +55,11 @@ trait SchemaExtractor {
 // =============================================================================
 
 /// Run the extract command.
+///
+/// # Errors
+///
+/// Returns an error if no source files are found, file I/O fails, or schema extraction
+/// encounters invalid syntax in the input files.
 pub fn run(
     inputs: &[String],
     language_override: Option<&str>,

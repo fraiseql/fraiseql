@@ -90,6 +90,11 @@ impl HttpMutationClient {
     }
 
     /// Execute a mutation on a remote subgraph
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if URL validation fails, the HTTP request fails,
+    /// or the response contains GraphQL errors.
     pub async fn execute_mutation(
         &self,
         subgraph_url: &str,
@@ -120,6 +125,10 @@ impl HttpMutationClient {
     }
 
     /// Build a GraphQL mutation query
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the variables are not a JSON object.
     pub fn build_mutation_query(
         &self,
         _typename: &str,

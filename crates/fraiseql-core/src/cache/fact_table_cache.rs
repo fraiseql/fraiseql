@@ -118,6 +118,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the underlying database query fails.
     pub async fn execute_aggregation_query(
         &self,
         sql: &str,

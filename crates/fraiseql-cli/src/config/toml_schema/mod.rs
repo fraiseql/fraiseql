@@ -17,6 +17,15 @@ pub mod types;
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
+
+/// Format "Did you mean?" suggestions from `suggest_similar` results.
+fn format_suggestions(suggestions: Vec<&str>) -> String {
+    if suggestions.is_empty() {
+        String::new()
+    } else {
+        format!(". Did you mean: {}?", suggestions.join(", "))
+    }
+}
 pub use caching::{AnalyticsConfig, AnalyticsQuery, CacheRule, CachingConfig};
 pub use domain::{Domain, DomainDiscovery, ResolvedIncludes, SchemaIncludes};
 pub use federation::{
@@ -176,11 +185,16 @@ impl TomlSchema {
     /// entity references an undefined type, or if server/database/circuit-breaker
     /// configuration values are invalid.
     pub fn validate(&self) -> Result<()> {
+        use fraiseql_core::runtime::suggest_similar;
+
+        let type_names: Vec<&str> = self.types.keys().map(String::as_str).collect();
+
         // Validate that all query return types exist
         for (query_name, query_def) in &self.queries {
             if !self.types.contains_key(&query_def.return_type) {
+                let hint = format_suggestions(suggest_similar(&query_def.return_type, &type_names));
                 anyhow::bail!(
-                    "Query '{query_name}' references undefined type '{}'",
+                    "Query '{query_name}' references undefined type '{}'{hint}",
                     query_def.return_type
                 );
             }
@@ -189,8 +203,9 @@ impl TomlSchema {
         // Validate that all mutation return types exist
         for (mut_name, mut_def) in &self.mutations {
             if !self.types.contains_key(&mut_def.return_type) {
+                let hint = format_suggestions(suggest_similar(&mut_def.return_type, &type_names));
                 anyhow::bail!(
-                    "Mutation '{mut_name}' references undefined type '{}'",
+                    "Mutation '{mut_name}' references undefined type '{}'{hint}",
                     mut_def.return_type
                 );
             }
@@ -200,14 +215,24 @@ impl TomlSchema {
         for field_auth in &self.security.field_auth {
             let policy_exists = self.security.policies.iter().any(|p| p.name == field_auth.policy);
             if !policy_exists {
-                anyhow::bail!("Field auth references undefined policy '{}'", field_auth.policy);
+                let policy_names: Vec<&str> =
+                    self.security.policies.iter().map(|p| p.name.as_str()).collect();
+                let hint = format_suggestions(suggest_similar(&field_auth.policy, &policy_names));
+                anyhow::bail!(
+                    "Field auth references undefined policy '{}'{hint}",
+                    field_auth.policy
+                );
             }
         }
 
         // Validate federation entities reference existing types
         for entity in &self.federation.entities {
             if !self.types.contains_key(&entity.name) {
-                anyhow::bail!("Federation entity '{}' references undefined type", entity.name);
+                let hint = format_suggestions(suggest_similar(&entity.name, &type_names));
+                anyhow::bail!(
+                    "Federation entity '{}' references undefined type{hint}",
+                    entity.name
+                );
             }
         }
 

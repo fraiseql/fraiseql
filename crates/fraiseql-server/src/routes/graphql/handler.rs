@@ -41,6 +41,7 @@ use crate::{
 /// # Errors
 ///
 /// Returns appropriate HTTP status codes based on error type.
+#[tracing::instrument(skip_all, fields(operation_name))]
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
@@ -87,6 +88,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// Per GraphQL over HTTP spec, GET requests should only be used for queries,
 /// not mutations (which should use POST). This handler does not enforce that
 /// restriction but logs a warning for mutation-like queries.
+#[tracing::instrument(skip_all, fields(operation_name))]
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
@@ -255,6 +257,7 @@ pub(crate) async fn resolve_apq(
 }
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
+#[tracing::instrument(skip_all, fields(operation_name = request.operation_name.as_deref().unwrap_or("anonymous")))]
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
     mut request: GraphQLRequest,

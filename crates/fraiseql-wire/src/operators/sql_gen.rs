@@ -59,6 +59,11 @@ const fn infer_type_cast(value: &Value) -> &'static str {
 ///
 /// SQL string with parameter placeholders ($1, $2, etc.)
 ///
+/// # Errors
+///
+/// Returns `WireError::InvalidSchema` if the operator fails validation (e.g., invalid
+/// field names or unsupported value types for the given operator).
+///
 /// # Examples
 ///
 /// ```no_run

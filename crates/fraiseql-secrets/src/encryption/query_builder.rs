@@ -197,6 +197,11 @@ impl QueryBuilderIntegration {
     }
 
     /// Validate clause type contains allowed fields
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptedFieldViolation` if an encrypted field is used
+    /// in a clause that does not support encrypted values (e.g., WHERE, ORDER BY).
     pub fn validate_clause(
         &self,
         clause_type: ClauseType,
@@ -232,6 +237,11 @@ impl QueryBuilderIntegration {
     /// Validate entire query structure
     ///
     /// Performs comprehensive validation across multiple clauses.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptedFieldViolation` if any clause uses an
+    /// encrypted field in an unsupported context.
     pub fn validate_query(
         &self,
         query_type: QueryType,

@@ -138,9 +138,9 @@ impl InputObjectValidationResult {
 /// * `rules` - Rules to apply at the object level
 /// * `object_path` - Optional path to the object for error reporting
 ///
-/// # Returns
-/// - `Ok(())` if all rules pass
-/// - `Err` containing all error messages if any rule fails
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if any input object rule fails.
 pub fn validate_input_object(
     input: &Value,
     rules: &[InputObjectRule],

@@ -173,9 +173,9 @@ impl CompilationCache {
     /// * `compiler` - Schema compiler
     /// * `schema_json` - JSON schema emitted by the authoring-language decorators
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Compiled schema (cached if possible)
+    /// Returns `FraiseQLError` if schema compilation fails.
     pub fn compile(
         &self,
         compiler: &crate::compiler::Compiler,

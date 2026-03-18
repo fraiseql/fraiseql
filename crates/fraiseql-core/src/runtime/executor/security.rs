@@ -248,6 +248,11 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Returns
     ///
     /// `Ok(())` if access is allowed, `Err(FieldAccessError)` if denied
+    ///
+    /// # Errors
+    ///
+    /// Returns `FieldAccessError::AccessDenied` if the user's scopes do not include the
+    /// required scope for the field.
     pub fn check_field_access(
         &self,
         type_name: &str,

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+Query 'getItems' references undefined type 'Item'

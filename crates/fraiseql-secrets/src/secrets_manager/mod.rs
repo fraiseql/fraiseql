@@ -152,6 +152,10 @@ impl SecretsManager {
     ///
     /// Returns tuple of (secret_value, expiry_datetime).
     /// Useful for dynamic credentials with lease durations.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretsError`] if the secret does not exist or the backend returns an error.
     pub async fn get_secret_with_expiry(
         &self,
         name: &str,

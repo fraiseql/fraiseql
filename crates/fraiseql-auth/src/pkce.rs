@@ -389,6 +389,11 @@ impl PkceStateStore {
     /// Returns [`PkceError::StateExpired`] when the in-memory token is valid
     /// but its TTL has elapsed. The Redis backend returns `StateNotFound` for
     /// expired tokens (Redis TTL handles expiry).
+    ///
+    /// # Errors
+    ///
+    /// Returns `PkceError::StateNotFound` if the token is unknown, already consumed,
+    /// or fails decryption. Returns `PkceError::StateExpired` if the token's TTL has elapsed.
     pub async fn consume_state(
         &self,
         outbound_token: &str,

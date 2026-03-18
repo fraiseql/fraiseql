@@ -25,6 +25,10 @@ pub trait SignatureVerifier: Send + Sync {
     /// * `timestamp` - Optional timestamp from headers (for replay protection)
     /// * `url` - Full request URL (required by Twilio; ignored by most providers)
     ///
+    /// # Errors
+    ///
+    /// Returns `SignatureError` if the signature format is invalid or cannot be parsed.
+    ///
     /// # Returns
     ///
     /// `Ok(true)` if signature is valid, `Ok(false)` if invalid, `Err` for format errors

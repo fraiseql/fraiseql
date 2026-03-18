@@ -11,6 +11,10 @@ use crate::error::{FraiseQLError, Result, ValidationFieldError};
 /// Basic validator trait for field validation.
 pub trait Validator {
     /// Validate a value and return an error if validation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the value does not pass the validation check.
     fn validate(&self, value: &str, field: &str) -> Result<()>;
 }
 
@@ -36,6 +40,10 @@ impl PatternValidator {
     }
 
     /// Create a new pattern validator with default message.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the regex pattern is invalid.
     pub fn new_default_message(pattern: impl Into<String>) -> Result<Self> {
         let pattern_str = pattern.into();
         Self::new(pattern_str.clone(), format!("Value must match pattern: {}", pattern_str))

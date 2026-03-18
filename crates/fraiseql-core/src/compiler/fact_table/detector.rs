@@ -562,6 +562,10 @@ impl FactTableDetector {
     }
 
     /// Create metadata from column definitions (for testing)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if no time dimension column is found.
     pub fn from_columns(
         table_name: String,
         columns: Vec<(&str, SqlType, bool)>,

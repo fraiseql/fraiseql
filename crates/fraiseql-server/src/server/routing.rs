@@ -201,6 +201,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(playground_router);
         }
 
+        // Conditionally add /.well-known/security.txt (RFC 9116)
+        if let Some(ref contact) = self.config.security_contact {
+            info!(
+                contact = %contact,
+                "/.well-known/security.txt endpoint enabled"
+            );
+            let security_router = Router::new()
+                .route(
+                    "/.well-known/security.txt",
+                    get(crate::routes::well_known::security_txt_handler),
+                )
+                .with_state(contact.clone());
+            app = app.merge(security_router);
+        }
+
         // Conditionally add subscription route (WebSocket)
         if self.config.subscriptions_enabled {
             let subscription_state = SubscriptionState::new(self.subscription_manager.clone())

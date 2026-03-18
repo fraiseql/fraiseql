@@ -51,10 +51,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             let reload_state = app_state.clone();
             let reload_path = schema_path.clone();
             tokio::spawn(async move {
-                let mut sigusr1 = tokio::signal::unix::signal(
+                let mut sigusr1 = match tokio::signal::unix::signal(
                     tokio::signal::unix::SignalKind::user_defined1(),
-                )
-                .expect("Failed to install SIGUSR1 handler");
+                ) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!(error = %e, "Failed to install SIGUSR1 handler — schema hot-reload disabled");
+                        return;
+                    }
+                };
                 loop {
                     sigusr1.recv().await;
                     info!(
@@ -275,15 +280,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         use tokio::signal;
 
         let ctrl_c = async {
-            signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
+            match signal::ctrl_c().await {
+                Ok(()) => {},
+                Err(e) => {
+                    warn!(error = %e, "Failed to install Ctrl+C handler");
+                    std::future::pending::<()>().await;
+                },
+            }
         };
 
         #[cfg(unix)]
         let terminate = async {
-            signal::unix::signal(signal::unix::SignalKind::terminate())
-                .expect("Failed to install SIGTERM handler")
-                .recv()
-                .await;
+            match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+                Ok(mut s) => {
+                    s.recv().await;
+                },
+                Err(e) => {
+                    warn!(error = %e, "Failed to install SIGTERM handler");
+                    std::future::pending::<()>().await;
+                },
+            }
         };
 
         #[cfg(not(unix))]

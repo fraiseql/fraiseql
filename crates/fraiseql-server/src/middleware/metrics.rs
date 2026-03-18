@@ -2,7 +2,10 @@
 //!
 //! Tracks HTTP request counts and response status codes.
 
-use std::sync::{Arc, atomic::Ordering};
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Instant,
+};
 
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 
@@ -36,8 +39,11 @@ pub async fn metrics_middleware(
     // Increment total requests counter
     metrics.http_requests_total.fetch_add(1, Ordering::Relaxed);
 
-    // Execute the request
+    // Execute the request with timing
+    let start = Instant::now();
     let response = next.run(request).await;
+    let elapsed_us = start.elapsed().as_micros() as u64;
+    metrics.http_request_duration.observe_us(elapsed_us);
 
     // Record response status
     let status = response.status();

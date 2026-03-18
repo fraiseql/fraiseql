@@ -109,6 +109,12 @@ pub struct MetricsCollector {
     /// Per-operation metrics (histogram + error counter)
     pub operation_metrics: Arc<OperationMetricsRegistry>,
 
+    /// HTTP request duration histogram
+    pub http_request_duration: Arc<Histogram>,
+
+    /// Database query duration histogram
+    pub db_query_duration: Arc<Histogram>,
+
     /// Total successful schema reloads
     pub schema_reloads_total: Arc<AtomicU64>,
 
@@ -149,6 +155,8 @@ impl MetricsCollector {
             federation_entity_cache_misses: Arc::new(AtomicU64::new(0)),
             federation_errors_total: Arc::new(AtomicU64::new(0)),
             operation_metrics: Arc::new(OperationMetricsRegistry::default()),
+            http_request_duration: Arc::new(Histogram::new()),
+            db_query_duration: Arc::new(Histogram::new()),
             schema_reloads_total: Arc::new(AtomicU64::new(0)),
             schema_reload_errors_total: Arc::new(AtomicU64::new(0)),
         }
@@ -409,6 +417,66 @@ impl OperationMetricsRegistry {
 impl Default for OperationMetricsRegistry {
     fn default() -> Self {
         Self::new(500)
+    }
+}
+
+/// General-purpose histogram using the standard 11-bucket scheme.
+#[derive(Debug)]
+pub struct Histogram {
+    count: AtomicU64,
+    sum_us: AtomicU64,
+    bucket_counts: [AtomicU64; 11],
+}
+
+impl Histogram {
+    /// Create a new empty histogram.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            count: AtomicU64::new(0),
+            sum_us: AtomicU64::new(0),
+            bucket_counts: std::array::from_fn(|_| AtomicU64::new(0)),
+        }
+    }
+
+    /// Observe a duration in microseconds.
+    pub fn observe_us(&self, duration_us: u64) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+        self.sum_us.fetch_add(duration_us, Ordering::Relaxed);
+        for (i, &bound) in HISTOGRAM_BUCKET_BOUNDS_US.iter().enumerate() {
+            if duration_us <= bound {
+                self.bucket_counts[i].fetch_add(1, Ordering::Relaxed);
+                return;
+            }
+        }
+    }
+
+    /// Render as Prometheus text format with the given metric name.
+    // Reason: microsecond precision loss at >2^53 us (~285 years) is acceptable
+    #[allow(clippy::cast_precision_loss)]
+    #[must_use]
+    pub fn to_prometheus_lines(&self, name: &str, help: &str) -> String {
+        let mut out = String::new();
+        let _ = writeln!(out, "\n# HELP {name} {help}");
+        let _ = writeln!(out, "# TYPE {name} histogram");
+        let count = self.count.load(Ordering::Relaxed);
+        let sum_us = self.sum_us.load(Ordering::Relaxed);
+        let mut cumulative = 0u64;
+        for (i, le) in HISTOGRAM_LE_LABELS.iter().enumerate() {
+            cumulative += self.bucket_counts[i].load(Ordering::Relaxed);
+            let _ = writeln!(out, "{name}_bucket{{le=\"{le}\"}} {cumulative}");
+        }
+        let _ = writeln!(out, "{name}_bucket{{le=\"+Inf\"}} {count}");
+        let sum_secs = sum_us as f64 / 1_000_000.0;
+        let _ = writeln!(out, "{name}_sum {sum_secs:.6}");
+        let _ = writeln!(out, "{name}_count {count}");
+        out
+    }
+}
+
+impl Default for Histogram {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

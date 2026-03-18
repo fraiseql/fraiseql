@@ -482,6 +482,12 @@ impl MySQLNatsBridge {
     }
 
     /// Run with graceful shutdown support.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the MySQL polling connection fails, cursor
+    /// loading/saving fails, or NATS publishing encounters an unrecoverable
+    /// error.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

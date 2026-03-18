@@ -124,8 +124,10 @@ pub trait ConditionEvaluator: Send + Sync {
     /// * `condition` - The condition expression (e.g., "status == 'shipped'")
     /// * `event` - The event to evaluate against
     ///
-    /// # Returns
-    /// true if condition is met, false otherwise
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the condition expression is syntactically invalid
+    /// or references a non-existent field.
     fn evaluate(&self, condition: &str, event: &EntityEvent) -> Result<bool>;
 }
 
@@ -139,8 +141,9 @@ pub trait TemplateRenderer: Send + Sync {
     /// * `template` - The template string (Jinja-style: {{ field }})
     /// * `data` - The data to render with
     ///
-    /// # Returns
-    /// Rendered template string
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the template syntax is invalid or rendering fails.
     fn render(&self, template: &str, data: &serde_json::Value) -> Result<String>;
 }
 

@@ -143,6 +143,10 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// 2. Build GraphQL mutation query with proper field selection
     /// 3. Execute via HTTP to remote subgraph
     /// 4. Return the mutation response with resolved entity fields
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the variables are not a JSON object.
     pub async fn execute_extended_mutation(
         &self,
         typename: &str,

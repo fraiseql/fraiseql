@@ -149,6 +149,9 @@ impl ExecutorFactory {
     ///
     /// This is a fallback when features are not enabled. It returns a simple
     /// `ObserverExecutor` without any wrappers.
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the event matcher configuration is invalid.
     #[cfg(not(all(feature = "dedup", feature = "caching")))]
     pub async fn build(
         config: &ObserverRuntimeConfig,
@@ -182,7 +185,12 @@ impl ExecutorFactory {
         Ok(RedisDeduplicationStore::new(conn, redis_config.dedup_window_secs))
     }
 
-    /// Build Redis job queue from config
+    /// Build Redis job queue from config.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the job queue configuration is invalid or the Redis
+    /// connection cannot be established.
     #[cfg(feature = "queue")]
     pub async fn build_job_queue(
         job_queue_config: &crate::config::JobQueueConfig,
@@ -275,6 +283,11 @@ impl ExecutorFactory {
     /// - Simple in-process execution
     ///
     /// Best for: Single DB, low volume, simple deployment
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if dedup or caching features are enabled
+    /// (they require Redis). Returns `ObserverError` if the event matcher build fails.
     pub async fn build_postgres_only(
         config: &ObserverRuntimeConfig,
         dlq: Arc<dyn DeadLetterQueue>,
@@ -298,6 +311,11 @@ impl ExecutorFactory {
     /// - Redis for action caching (100x performance)
     ///
     /// Best for: Single DB, medium volume, needs reliability + performance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Redis is not configured, the connection fails, or
+    /// the underlying executor cannot be built.
     #[cfg(all(feature = "dedup", feature = "caching"))]
     pub async fn build_postgres_redis(
         config: &ObserverRuntimeConfig,
@@ -321,6 +339,11 @@ impl ExecutorFactory {
     /// - Horizontal scaling with load balancing
     ///
     /// Best for: High volume, HA required, distributed workers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transport is not set to NATS, deduplication is
+    /// disabled, or the underlying executor cannot be built.
     #[cfg(all(feature = "nats", feature = "dedup", feature = "caching"))]
     pub async fn build_nats_distributed(
         config: &ObserverRuntimeConfig,
@@ -352,7 +375,7 @@ impl ExecutorFactory {
         Self::build(config, dlq).await
     }
 
-    /// Build executor with queued (async) action execution
+    /// Build executor with queued (async) action execution.
     ///
     /// This wraps any executor with `QueuedObserverExecutor` to enable:
     /// - Non-blocking event processing (returns immediately)
@@ -360,6 +383,11 @@ impl ExecutorFactory {
     /// - Automatic job queueing and retry logic
     ///
     /// Requires: `job_queue` configuration with Redis URL
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if job queue configuration is missing, invalid, or the
+    /// Redis connection for the queue cannot be established.
     #[cfg(feature = "queue")]
     pub async fn build_with_queue(
         config: &ObserverRuntimeConfig,

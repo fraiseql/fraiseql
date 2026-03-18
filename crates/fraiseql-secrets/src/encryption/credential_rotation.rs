@@ -383,6 +383,10 @@ impl VersionedKeyStorage {
     }
 
     /// Get version metadata by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns `RotationError::LockPoisoned` if the mutex is poisoned.
     pub fn get_version(
         &self,
         version: KeyVersion,
@@ -642,6 +646,11 @@ impl CredentialRotationManager {
     }
 
     /// Mark specific version as compromised
+    ///
+    /// # Errors
+    ///
+    /// Returns `RotationError::VersionNotFound` if the version does not exist.
+    /// Returns `RotationError::LockPoisoned` if the mutex is poisoned.
     pub fn mark_version_compromised(
         &self,
         version: KeyVersion,

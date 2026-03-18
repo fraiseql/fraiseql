@@ -80,6 +80,10 @@ pub fn group_entities_by_typename(
 }
 
 /// Construct WHERE clause for batch query
+///
+/// # Errors
+///
+/// This function is infallible in practice but returns `Result` for API consistency.
 pub fn construct_batch_where_clause(
     representations: &[EntityRepresentation],
     key_columns: &[String],
@@ -168,6 +172,11 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
 }
 
 /// Batch load entities from database
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
+/// Returns `FraiseQLError` if the database query fails.
 pub async fn batch_load_entities<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -178,6 +187,11 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
 }
 
 /// Batch load entities from database with optional distributed tracing and metrics.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
+/// Returns `FraiseQLError` if the database query fails.
 pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -199,6 +213,11 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 /// Batch load entities with full metrics for observability.
 ///
 /// Returns both entities and timing information for metrics recording.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
+/// Returns `FraiseQLError` if the database query fails.
 pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,

@@ -258,6 +258,10 @@ pub fn generate_hs256_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 }
 
 /// Generate a JWT token (for testing and token creation)
+///
+/// # Errors
+///
+/// Returns `AuthError::Internal` if token encoding fails.
 #[cfg(test)]
 pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
     generate_hs256_token(claims, secret)

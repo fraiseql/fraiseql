@@ -166,6 +166,12 @@ impl ScramClient {
     }
 
     /// Verify server final message and confirm authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns `ScramError::InvalidServerMessage` if the server final message is malformed.
+    /// Returns `ScramError::Base64Error` if the server signature is not valid base64.
+    /// Returns `ScramError::AuthenticationFailed` if the server signature does not match.
     pub fn verify_server_final(
         &self,
         server_final: &str,

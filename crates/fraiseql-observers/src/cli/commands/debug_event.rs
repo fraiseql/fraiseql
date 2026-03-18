@@ -5,7 +5,11 @@ use serde_json::json;
 
 use crate::error::Result;
 
-/// Execute debug-event command
+/// Execute debug-event command.
+///
+/// # Errors
+///
+/// Returns an error if the output format serialization fails.
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _event_id: Option<String>,

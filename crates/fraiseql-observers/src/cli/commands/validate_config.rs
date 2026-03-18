@@ -7,7 +7,12 @@ use serde_json::json;
 
 use crate::error::Result;
 
-/// Execute validate-config command
+/// Execute validate-config command.
+///
+/// # Errors
+///
+/// Returns an error if the configuration file cannot be loaded, parsed, or
+/// validated.
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _file: Option<PathBuf>,

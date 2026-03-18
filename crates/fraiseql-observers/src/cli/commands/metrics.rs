@@ -5,7 +5,12 @@ use serde_json::json;
 
 use crate::error::Result;
 
-/// Execute metrics command
+/// Execute metrics command.
+///
+/// # Errors
+///
+/// Returns an error if the metrics endpoint cannot be reached or output
+/// serialization fails.
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _metric: Option<String>,

@@ -258,6 +258,10 @@ impl FieldFilter {
     /// * `type_name` - The GraphQL type containing the field
     /// * `field_name` - The field being accessed
     /// * `scopes` - The user's scopes (from JWT token)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FieldAccessError::AccessDenied` if the user lacks the required scope.
     pub fn can_access(
         &self,
         type_name: &str,

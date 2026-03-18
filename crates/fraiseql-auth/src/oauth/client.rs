@@ -220,6 +220,11 @@ impl OAuth2Client {
     }
 
     /// Exchange authorization code for tokens.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP request to the token endpoint fails or the response
+    /// cannot be parsed as a `TokenResponse`.
     pub async fn exchange_code(
         &self,
         code: &str,

@@ -510,6 +510,12 @@ impl PostgresNatsBridge {
     /// Run the bridge with graceful shutdown support.
     ///
     /// Stops when the shutdown signal is received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PostgreSQL LISTEN connection fails, cursor
+    /// loading/saving fails, or NATS publishing encounters an unrecoverable
+    /// error.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

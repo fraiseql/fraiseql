@@ -53,6 +53,10 @@ impl GoogleOAuth {
     /// * `client_id` - Google OAuth client ID (from Google Cloud Console)
     /// * `client_secret` - Google OAuth client secret
     /// * `redirect_uri` - Redirect URI after authentication (e.g., "http://localhost:8000/auth/callback")
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError` if OIDC discovery against Google fails.
     pub async fn new(
         client_id: String,
         client_secret: String,

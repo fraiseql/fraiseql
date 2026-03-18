@@ -188,6 +188,53 @@ pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     }
 }
 
+/// Resolve the host via DNS and reject if any address is private/reserved.
+///
+/// Prevents DNS rebinding attacks where an attacker-controlled domain initially
+/// resolves to a public IP (passing URL validation) but later resolves to a
+/// private IP during the actual HTTP request.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Internal` if DNS resolution fails, returns no
+/// addresses, or any resolved address is in a private/reserved range.
+async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
+        message: format!("Invalid URL '{url}': {e}"),
+        source:  None,
+    })?;
+    let host = parsed.host_str().ok_or_else(|| fraiseql_error::FraiseQLError::Internal {
+        message: format!("URL has no host: {url}"),
+        source:  None,
+    })?;
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+            message: format!("DNS resolution failed for host '{host}': {e}"),
+            source:  None,
+        })?
+        .collect();
+    if addrs.is_empty() {
+        return Err(fraiseql_error::FraiseQLError::Internal {
+            message: format!("DNS resolved to no addresses for host '{host}'"),
+            source:  None,
+        });
+    }
+    for addr in &addrs {
+        if is_ssrf_blocked_ip(&addr.ip()) {
+            return Err(fraiseql_error::FraiseQLError::Internal {
+                message: format!(
+                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {}",
+                    addr.ip()
+                ),
+                source:  None,
+            });
+        }
+    }
+    Ok(())
+}
+
 impl HttpEntityResolver {
     /// Create a new HTTP entity resolver.
     ///
@@ -224,6 +271,10 @@ impl HttpEntityResolver {
     /// process-global environment variables.
     ///
     /// **Never use in production** — this bypasses all SSRF protections.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the HTTP client fails to initialize.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
         // No https_only in test mode to allow contacting loopback mock servers over HTTP.
@@ -243,6 +294,10 @@ impl HttpEntityResolver {
     }
 
     /// Resolve entities via HTTP _entities query
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the HTTP request fails or the response cannot be parsed.
     pub async fn resolve_entities(
         &self,
         subgraph_url: &str,
@@ -254,6 +309,11 @@ impl HttpEntityResolver {
     }
 
     /// Resolve entities via HTTP _entities query with optional distributed tracing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if URL validation, the HTTP request, or response parsing fails.
+    #[tracing::instrument(skip_all, fields(subgraph.url = subgraph_url))]
     pub async fn resolve_entities_with_tracing(
         &self,
         subgraph_url: &str,
@@ -268,10 +328,14 @@ impl HttpEntityResolver {
         // SECURITY: Validate URL before any network contact to prevent SSRF.
         // In test/test-utils builds, `skip_ssrf` allows contacting local mock servers.
         #[cfg(not(any(test, feature = "test-utils")))]
-        validate_subgraph_url(subgraph_url)?;
+        {
+            validate_subgraph_url(subgraph_url)?;
+            dns_resolve_and_check(subgraph_url).await?;
+        }
         #[cfg(any(test, feature = "test-utils"))]
         if !self.skip_ssrf {
             validate_subgraph_url(subgraph_url)?;
+            dns_resolve_and_check(subgraph_url).await?;
         }
 
         // Build GraphQL _entities query

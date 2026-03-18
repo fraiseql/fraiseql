@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+Query 'getUser' references undefined type 'Usar'. Did you mean: User?

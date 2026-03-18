@@ -26,6 +26,11 @@ fn quote_table_name(typename: &str) -> String {
 ///
 /// Variables: `{ "id": "123", "name": "John", "email": "john@example.com" }`
 /// Returns: `UPDATE "users" SET "name" = 'John', "email" = 'john@example.com' WHERE "id" = '123'`
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the type is not found in metadata, variables are
+/// not a JSON object, the key field is missing, or no non-key fields are provided.
 pub fn build_update_query(
     typename: &str,
     variables: &Value,
@@ -83,6 +88,10 @@ pub fn build_update_query(
 /// Variables: `{ "id": "123", "name": "John", "email": "john@example.com" }`
 /// Returns: `INSERT INTO "users" ("id", "name", "email") VALUES ('123', 'John',
 /// 'john@example.com')`
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if variables are not a JSON object or are empty.
 pub fn build_insert_query(
     typename: &str,
     variables: &Value,
@@ -132,6 +141,11 @@ pub fn build_insert_query(
 ///
 /// Variables: `{ "id": "123" }`
 /// Returns: `DELETE FROM "users" WHERE "id" = '123'`
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the type is not found in metadata, variables are
+/// not a JSON object, or the key field is missing.
 pub fn build_delete_query(
     typename: &str,
     variables: &Value,

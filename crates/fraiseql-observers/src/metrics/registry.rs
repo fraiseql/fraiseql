@@ -66,6 +66,11 @@ impl MetricsRegistry {
     /// Registration with the Prometheus global registry happens exactly once per
     /// process, so calling this (or `new()` / `Default::default()`) any number of
     /// times is safe.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Prometheus error if metric registration with the global
+    /// registry fails (e.g., duplicate metric names from another library).
     pub fn global() -> PrometheusResult<Self> {
         Ok(GLOBAL_REGISTRY
             .get_or_init(|| Self::register_metrics().expect("Failed to initialize global metrics registry"))
@@ -76,6 +81,11 @@ impl MetricsRegistry {
     ///
     /// This always returns the same instance so that Prometheus metrics are
     /// registered exactly once.  Calling `new()` multiple times is safe.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Prometheus error if metric registration with the global
+    /// registry fails on first initialization.
     pub fn new() -> PrometheusResult<Self> {
         Self::global()
     }

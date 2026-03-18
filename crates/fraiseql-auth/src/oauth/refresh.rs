@@ -24,6 +24,10 @@ impl TokenRefreshScheduler {
     }
 
     /// Schedule token refresh for session
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn schedule_refresh(
         &self,
         session_id: String,
@@ -38,6 +42,10 @@ impl TokenRefreshScheduler {
     }
 
     /// Get next session to refresh
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn get_next_refresh(&self) -> std::result::Result<Option<String>, AuthError> {
         let mut queue = self.refresh_queue.lock().map_err(|_| AuthError::Internal {
             message: "token refresh scheduler mutex poisoned".to_string(),
@@ -52,6 +60,10 @@ impl TokenRefreshScheduler {
     }
 
     /// Cancel scheduled refresh
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn cancel_refresh(&self, session_id: &str) -> std::result::Result<bool, AuthError> {
         let mut queue = self.refresh_queue.lock().map_err(|_| AuthError::Internal {
             message: "token refresh scheduler mutex poisoned".to_string(),

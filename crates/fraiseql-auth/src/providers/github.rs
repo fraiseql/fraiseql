@@ -81,6 +81,10 @@ impl GitHubOAuth {
     /// * `client_id` - GitHub OAuth app client ID
     /// * `client_secret` - GitHub OAuth app client secret
     /// * `redirect_uri` - Redirect URI after authentication (e.g., "http://localhost:8000/auth/callback")
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError` if OIDC discovery against GitHub fails.
     pub async fn new(
         client_id: String,
         client_secret: String,
@@ -129,6 +133,11 @@ impl GitHubOAuth {
     ///
     /// # Arguments
     /// * `access_token` - GitHub access token
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::OAuthError` if the GitHub API request fails or returns
+    /// a non-success status code.
     pub async fn get_user_with_teams(
         &self,
         access_token: &str,

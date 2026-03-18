@@ -94,9 +94,10 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// * `database_url` - Database connection string
 /// * `formatter` - Output formatter controlling verbosity and format
 ///
-/// # Returns
+/// # Errors
 ///
-/// Success if all validations pass, error otherwise
+/// Returns an error if the schema file cannot be read, the database connection fails,
+/// or any fact table validation check fails.
 ///
 /// # Example
 ///

@@ -55,6 +55,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Checks the cache first; on miss, delegates to the underlying adapter
     /// and stores the result.
+    #[tracing::instrument(skip_all, fields(cache.view = view))]
     pub(super) async fn execute_with_projection_impl(
         &self,
         view: &str,
@@ -111,6 +112,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Checks the cache first; on miss, delegates to the underlying adapter
     /// and stores the result.
+    #[tracing::instrument(skip_all, fields(cache.view = view))]
     pub(super) async fn execute_where_query_impl(
         &self,
         view: &str,

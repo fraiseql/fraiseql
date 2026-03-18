@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT [data] FROM [v_post] WHERE JSON_VALUE([data], '$.tenant_id') = @p1 AND (JSON_VALUE([data], '$.published') = @p2)

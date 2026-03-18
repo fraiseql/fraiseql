@@ -2,7 +2,6 @@
 // Reason: pedantic lints applied to existing federation module code.
 #![warn(missing_docs)]
 #![allow(clippy::doc_markdown)]
-#![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::match_same_arms)]
 #![allow(clippy::cast_possible_truncation)]
@@ -132,6 +131,11 @@ pub use types::*;
 pub use crate::tracing::{FederationSpan, FederationTraceContext};
 
 /// Handle federation queries (federation introspection)
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the query name is unknown or requires
+/// executor context (e.g., `_entities`).
 pub async fn handle_federation_query(
     query_name: &str,
     _args: &std::collections::BTreeMap<String, Value>,

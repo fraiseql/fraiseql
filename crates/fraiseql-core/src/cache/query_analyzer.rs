@@ -193,6 +193,10 @@ impl QueryAnalyzer {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the query definition cannot be analyzed.
     pub fn analyze_query(
         &self,
         query_def: &IRQuery,

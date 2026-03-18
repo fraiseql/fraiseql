@@ -148,8 +148,8 @@ cargo test test_schema
 ### 1. Create a Feature Branch
 
 ```bash
-git checkout v2-development
-git pull upstream v2-development
+git checkout dev
+git pull upstream dev
 git checkout -b feature/my-feature
 ```
 
@@ -387,18 +387,71 @@ Before submitting a PR, ensure:
 
 ### After Merge
 
-The PR will be merged into `v2-development`. Your contribution will be included in the next release!
+The PR will be merged into `dev`. Your contribution will be included in the next release!
 
 ---
 
 ## Release Process
 
-Releases are managed by maintainers:
+Releases are managed by maintainers following this workflow:
 
-1. Version bump in `Cargo.toml`
-2. Update `CHANGELOG.md`
-3. Create git tag (`v2.x.x`)
-4. CI builds and publishes to crates.io and PyPI
+### 1. Create Release Branch
+
+```bash
+git checkout dev && git pull
+git checkout -b chore/release-prep
+```
+
+### 2. Version Bump
+
+Update the version in all locations:
+
+- **Workspace**: `Cargo.toml` (workspace `package.version`)
+- **All crates**: version is inherited from workspace
+- **TypeScript SDK**: `sdks/official/fraiseql-typescript/package.json`
+- **Python SDK**: version in `sdks/official/fraiseql-python/pyproject.toml`
+
+### 3. Update CHANGELOG
+
+Add a release section to `CHANGELOG.md` with notable changes, grouped by category (features, fixes, breaking changes).
+
+### 4. Create & Merge PR
+
+```bash
+git push -u origin chore/release-prep
+gh pr create --base dev --title "chore(release): bump version to vX.Y.Z"
+```
+
+Get review, ensure CI passes, then merge.
+
+### 5. Tag & Push
+
+```bash
+git checkout dev && git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+### 6. Automated CI Pipeline
+
+Pushing the tag triggers the release workflow which automatically:
+
+- Validates required secrets
+- Creates a GitHub release with release notes
+- Builds binaries for 5 platforms (Linux x86_64/ARM64, macOS x86_64/ARM64, Windows)
+- Generates SBOM (CycloneDX)
+- Publishes crates to crates.io (7 tiers with dependency ordering)
+- Publishes Python SDK to PyPI
+- Publishes TypeScript SDK to npm
+- Verifies all published packages
+
+### Required Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `CARGO_TOKEN` | crates.io publish |
+| `PYPI_TOKEN` | PyPI publish |
+| `NPM_TOKEN` | npm publish |
 
 ---
 

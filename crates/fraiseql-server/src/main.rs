@@ -125,14 +125,30 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
 }
 
 /// Set up tracing subscriber with `RUST_LOG` env filter.
+///
+/// When `FRAISEQL_LOG_FORMAT=json` (case-insensitive), logs are emitted as
+/// newline-delimited JSON — suitable for structured log aggregators such as
+/// Datadog, Loki, or `CloudWatch`. Otherwise the default human-readable format
+/// is used.
 fn init_tracing() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into());
+
+    let is_json = std::env::var("FRAISEQL_LOG_FORMAT")
+        .map(|v| v.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+
+    if is_json {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer().json())
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
 }
 
 /// Load config from file/defaults, apply all env var overrides, then validate.
@@ -336,6 +352,9 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
+    // TODO: After config is loaded, initialize OpenTelemetry OTLP exporter
+    // when the `tracing-opentelemetry` feature is enabled.
+    // See TracingConfig in config/tracing.rs for OTLP settings.
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
 
     let config = load_and_validate_config()?;

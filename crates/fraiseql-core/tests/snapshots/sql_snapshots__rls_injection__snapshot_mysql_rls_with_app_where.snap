@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT `data` FROM `v_post` WHERE JSON_EXTRACT(`data`, '$.tenant_id') = ? AND (JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.published')) = ?)

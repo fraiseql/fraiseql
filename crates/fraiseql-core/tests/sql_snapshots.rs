@@ -1331,3 +1331,151 @@ mod sqlserver_keyset_pagination {
         assert_snapshot!(sql);
     }
 }
+
+// ============================================================================
+// Mutation Function Calls — MySQL and SQL Server syntax
+// ============================================================================
+
+mod mutation_calls {
+    use insta::assert_snapshot;
+
+    // MySQL uses CALL syntax for stored procedures
+    #[test]
+    fn snapshot_mysql_function_call_create() {
+        let sql = "CALL `fn_create_post`(?, ?, ?, ?)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_mysql_function_call_update() {
+        let sql = "CALL `fn_update_post`(?, ?, ?, ?, ?, ?)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_mysql_function_call_delete() {
+        let sql = "CALL `fn_delete_post`(?, ?)";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server uses SELECT * FROM table-valued function
+    #[test]
+    fn snapshot_sqlserver_function_call_create() {
+        let sql = "SELECT * FROM [fn_create_post](@p1, @p2, @p3, @p4)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_sqlserver_function_call_update() {
+        let sql = "SELECT * FROM [fn_update_post](@p1, @p2, @p3, @p4, @p5, @p6)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_sqlserver_function_call_delete() {
+        let sql = "SELECT * FROM [fn_delete_post](@p1, @p2)";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// RLS WHERE Clause Injection — MySQL, SQLite, SQL Server
+// ============================================================================
+
+mod rls_injection {
+    use insta::assert_snapshot;
+
+    // MySQL: JSON_EXTRACT for RLS tenant isolation
+    #[test]
+    fn snapshot_mysql_rls_only() {
+        let sql = "SELECT `data` FROM `v_user` WHERE JSON_EXTRACT(`data`, '$.tenant_id') = ?";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_mysql_rls_with_app_where() {
+        let sql = "SELECT `data` FROM `v_post` WHERE JSON_EXTRACT(`data`, '$.tenant_id') = ? \
+                   AND (JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.published')) = ?)";
+        assert_snapshot!(sql);
+    }
+
+    // SQLite: json_extract for RLS tenant isolation
+    #[test]
+    fn snapshot_sqlite_rls_only() {
+        let sql = r#"SELECT "data" FROM "v_user" WHERE json_extract("data", '$.tenant_id') = ?"#;
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_sqlite_rls_with_app_where() {
+        let sql = r#"SELECT "data" FROM "v_post" WHERE json_extract("data", '$.tenant_id') = ? AND (json_extract("data", '$.published') = ?)"#;
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: JSON_VALUE for RLS tenant isolation
+    #[test]
+    fn snapshot_sqlserver_rls_only() {
+        let sql = "SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.tenant_id') = @p1";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_sqlserver_rls_with_app_where() {
+        let sql = "SELECT [data] FROM [v_post] WHERE JSON_VALUE([data], '$.tenant_id') = @p1 \
+                   AND (JSON_VALUE([data], '$.published') = @p2)";
+        assert_snapshot!(sql);
+    }
+}
+
+// ============================================================================
+// Combined Mutation + RLS Context — all dialects
+// ============================================================================
+
+mod mutation_rls_combined {
+    use insta::assert_snapshot;
+
+    // PostgreSQL: function call with RLS tenant_id parameter appended
+    #[test]
+    fn snapshot_postgres_mutation_create_with_rls_context() {
+        let sql = r#"SELECT * FROM "fn_create_post"($1, $2, $3, $4, $5)"#;
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_postgres_mutation_update_with_rls_context() {
+        let sql = r#"SELECT * FROM "fn_update_post"($1, $2, $3, $4, $5, $6, $7)"#;
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_postgres_mutation_delete_with_rls_context() {
+        let sql = r#"SELECT * FROM "fn_delete_post"($1, $2, $3)"#;
+        assert_snapshot!(sql);
+    }
+
+    // MySQL: CALL with RLS tenant_id parameter appended
+    #[test]
+    fn snapshot_mysql_mutation_create_with_rls_context() {
+        let sql = "CALL `fn_create_post`(?, ?, ?, ?, ?)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_mysql_mutation_delete_with_rls_context() {
+        let sql = "CALL `fn_delete_post`(?, ?, ?)";
+        assert_snapshot!(sql);
+    }
+
+    // SQL Server: table-valued function with RLS tenant_id parameter appended
+    #[test]
+    fn snapshot_sqlserver_mutation_create_with_rls_context() {
+        let sql = "SELECT * FROM [fn_create_post](@p1, @p2, @p3, @p4, @p5)";
+        assert_snapshot!(sql);
+    }
+
+    #[test]
+    fn snapshot_sqlserver_mutation_delete_with_rls_context() {
+        let sql = "SELECT * FROM [fn_delete_post](@p1, @p2, @p3)";
+        assert_snapshot!(sql);
+    }
+}

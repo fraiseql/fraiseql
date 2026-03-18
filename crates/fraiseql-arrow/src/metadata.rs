@@ -215,6 +215,10 @@ impl SchemaRegistry {
     ///
     /// Ok(version) with new version number, or error if query fails
     ///
+    /// # Errors
+    ///
+    /// Returns [`ArrowFlightError::SchemaNotFound`] if the sample query fails or returns no columns.
+    ///
     /// # Copy-on-Write Safety
     ///
     /// Old queries keep their old schema Arc references while new queries get the new version.

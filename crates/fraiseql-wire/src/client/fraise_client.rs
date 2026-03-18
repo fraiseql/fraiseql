@@ -77,6 +77,12 @@ impl FraiseClient {
     /// should contain the hostname and credentials (user/password), while TLS configuration
     /// is provided separately via `TlsConfig`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the connection string is invalid, TLS is requested
+    /// over a Unix socket, or required fields are missing. Returns [`WireError::Io`] if the
+    /// TLS handshake or TCP connection fails.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -130,6 +136,12 @@ impl FraiseClient {
     /// This method allows you to configure timeouts, keepalive intervals, and other
     /// connection options. The connection configuration is merged with parameters from
     /// the connection string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the connection string is invalid or missing required
+    /// fields. Returns [`WireError::Io`] if the TCP or Unix socket connection fails, or if
+    /// startup/authentication is rejected by the server.
     ///
     /// # Examples
     ///
@@ -194,6 +206,12 @@ impl FraiseClient {
     ///
     /// This method combines connection configuration (timeouts, keepalive, etc.)
     /// with TLS encryption for secure connections with advanced options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WireError::Config`] if the connection string is invalid, TLS is requested
+    /// over a Unix socket, or required fields are missing. Returns [`WireError::Io`] if the
+    /// TLS handshake or TCP connection fails.
     ///
     /// # Examples
     ///

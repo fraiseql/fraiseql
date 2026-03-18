@@ -365,6 +365,10 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
 /// ```
 pub trait AuditExt<T, E> {
     /// Log success or failure of a result
+    ///
+    /// # Errors
+    ///
+    /// Returns the original error `E` unchanged after logging the failure.
     fn audit_log(
         self,
         event_type: AuditEventType,

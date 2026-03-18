@@ -247,6 +247,10 @@ impl SchemaRegistry {
     }
 
     /// Get encrypted fields for type
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the type name is not registered.
     pub fn get_encrypted_fields(
         &self,
         type_name: &str,

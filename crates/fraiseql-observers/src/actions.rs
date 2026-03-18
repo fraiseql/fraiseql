@@ -220,6 +220,10 @@ impl WebhookAction {
     }
 
     /// Execute webhook action
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the HTTP request fails or the response is not 2xx.
     pub async fn execute(
         &self,
         url: &str,
@@ -236,6 +240,8 @@ impl WebhookAction {
 
         // SECURITY: Reject URLs that target private/loopback addresses (SSRF protection).
         validate_outbound_url(url)?;
+        // SECURITY: DNS rebinding prevention — resolve and reject private IPs.
+        crate::ssrf::dns_resolve_and_check(url).await?;
         // SECURITY: Reject headers that contain CR/LF to prevent header injection.
         validate_headers(headers)?;
 
@@ -335,6 +341,11 @@ impl SlackAction {
     }
 
     /// Execute Slack action
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the webhook URL is invalid, the HTTP request fails,
+    /// or the Slack API returns a non-success response.
     pub async fn execute(
         &self,
         webhook_url: &str,
@@ -368,6 +379,8 @@ impl SlackAction {
 
         // SECURITY: Reject URLs that target private/loopback addresses (SSRF protection).
         validate_outbound_url(webhook_url)?;
+        // SECURITY: DNS rebinding prevention — resolve and reject private IPs.
+        crate::ssrf::dns_resolve_and_check(webhook_url).await?;
 
         // Send request
         let response = self.client.post(webhook_url).json(&payload).send().await.map_err(|e| {
@@ -444,6 +457,10 @@ impl EmailAction {
     }
 
     /// Execute email action (stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError` if the email delivery fails.
     pub async fn execute(
         &self,
         _to: &str,

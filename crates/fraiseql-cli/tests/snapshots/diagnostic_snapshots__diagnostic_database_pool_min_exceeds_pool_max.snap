@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+[database] pool_min (50) must be <= pool_max (10)

@@ -194,6 +194,10 @@ pub trait DirectiveHandler: Send + Sync {
     /// # Returns
     ///
     /// A `DirectiveResult` indicating how to handle the field, or an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError` if the directive arguments are invalid or evaluation fails.
     fn evaluate(
         &self,
         args: &HashMap<String, JsonValue>,
@@ -206,6 +210,10 @@ pub trait DirectiveHandler: Send + Sync {
     /// arguments are valid.
     ///
     /// Default implementation accepts all arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError` if the arguments are invalid for this directive.
     fn validate_args(&self, _args: &HashMap<String, JsonValue>) -> Result<(), DirectiveError> {
         Ok(())
     }

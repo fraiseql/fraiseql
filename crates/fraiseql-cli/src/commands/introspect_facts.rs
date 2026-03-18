@@ -30,6 +30,10 @@ pub enum OutputFormat {
 
 impl OutputFormat {
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string does not match a known output format.
     pub fn parse(s: &str) -> std::result::Result<Self, String> {
         match s.to_lowercase().as_str() {
             "python" | "py" => Ok(Self::Python),
@@ -68,9 +72,10 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// * `database_url` - Database connection string (e.g., "postgresql://...")
 /// * `format` - Output format (Python or JSON)
 ///
-/// # Returns
+/// # Errors
 ///
-/// Success or error
+/// Returns an error if the database connection fails or introspection encounters
+/// unexpected schema structures.
 ///
 /// # Example
 ///

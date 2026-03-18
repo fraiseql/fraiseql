@@ -6,12 +6,25 @@ use std::io;
 /// Extension trait for Bytes operations
 pub trait BytesExt {
     /// Read a null-terminated string
+    ///
+    /// # Errors
+    ///
+    /// Returns `io::Error` with `InvalidData` if no null terminator is found or
+    /// the bytes before the terminator are not valid UTF-8.
     fn read_cstr(&mut self) -> io::Result<String>;
 
     /// Read a 32-bit big-endian integer
+    ///
+    /// # Errors
+    ///
+    /// Returns `io::Error` with `UnexpectedEof` if fewer than 4 bytes remain.
     fn read_i32_be(&mut self) -> io::Result<i32>;
 
     /// Read a 16-bit big-endian integer
+    ///
+    /// # Errors
+    ///
+    /// Returns `io::Error` with `UnexpectedEof` if fewer than 2 bytes remain.
     fn read_i16_be(&mut self) -> io::Result<i16>;
 }
 

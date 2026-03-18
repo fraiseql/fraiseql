@@ -69,6 +69,60 @@ struct JwkKey {
     y:   Option<String>,
 }
 
+/// Returns `true` for IP addresses that JWKS fetches must not contact.
+fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            o[0] == 127
+                || o[0] == 10
+                || (o[0] == 172 && (16..=31).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 168)
+                || (o[0] == 169 && o[1] == 254)
+                || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000)
+                || o[0] == 0
+        },
+        std::net::IpAddr::V6(v6) => {
+            let s = v6.segments();
+            *v6 == std::net::Ipv6Addr::LOCALHOST
+                || *v6 == std::net::Ipv6Addr::UNSPECIFIED
+                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
+                    && s[4] == 0 && s[5] == 0xffff)
+                || (s[0] & 0xfe00) == 0xfc00
+                || (s[0] & 0xffc0) == 0xfe80
+        },
+    }
+}
+
+/// Resolve the host via DNS and reject if any address is private/reserved.
+///
+/// Prevents DNS rebinding attacks where an attacker-controlled domain initially
+/// resolves to a public IP (passing URL validation) but later resolves to a
+/// private IP during the actual HTTP request.
+///
+/// # Errors
+///
+/// Returns a `String` error if DNS resolution fails, returns no addresses, or
+/// any resolved address is in a private/reserved range.
+async fn dns_resolve_and_check(host: &str, port: u16) -> Result<(), String> {
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| format!("DNS resolution failed for JWKS host '{host}': {e}"))?
+        .collect();
+    if addrs.is_empty() {
+        return Err(format!("DNS resolved to no addresses for JWKS host '{host}'"));
+    }
+    for addr in &addrs {
+        if is_ssrf_blocked_ip(&addr.ip()) {
+            return Err(format!(
+                "DNS rebinding attack blocked: JWKS host '{host}' resolved to private/reserved IP {}",
+                addr.ip()
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Cached JWKS keys with TTL-based refresh.
 pub struct JwksCache {
     keys:         RwLock<HashMap<String, DecodingKey>>,
@@ -170,6 +224,21 @@ impl JwksCache {
     /// Fetch the JWKS document and populate the cache.
     async fn fetch_keys(&self) -> Result<(), String> {
         debug!(uri = %self.jwks_uri, "Fetching JWKS keys");
+
+        // DNS rebinding prevention: resolve the host and reject private/reserved IPs
+        // before making the HTTP request. Skip for localhost URLs (dev/test only).
+        if let Ok(parsed) = reqwest::Url::parse(&self.jwks_uri) {
+            if let Some(host) = parsed.host_str() {
+                let is_localhost = {
+                    let h = host.to_ascii_lowercase();
+                    h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1"
+                };
+                if !is_localhost {
+                    let port = parsed.port_or_known_default().unwrap_or(443);
+                    dns_resolve_and_check(host, port).await?;
+                }
+            }
+        }
 
         let body = self
             .client

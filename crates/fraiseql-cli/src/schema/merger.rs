@@ -157,6 +157,11 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML file cannot be loaded or validated, or if any
+    /// of the type/query/mutation files fail to load or parse.
     pub fn merge_explicit_files(
         toml_path: &str,
         type_files: &[String],

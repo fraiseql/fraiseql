@@ -37,6 +37,11 @@ use crate::{error::Result, provider::OAuthProvider};
 ///
 /// # Returns
 /// A boxed OAuthProvider implementation
+///
+/// # Errors
+///
+/// Returns `AuthError::ConfigError` if the provider type is unknown or the configuration
+/// is missing required fields. Returns `AuthError` if OIDC discovery fails.
 pub async fn create_provider(
     provider_type: &str,
     client_id: String,

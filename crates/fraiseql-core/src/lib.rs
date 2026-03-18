@@ -79,9 +79,6 @@
 // Reason: ~300+ existing doc comments use backticks without code fencing; converting
 //         all of them is a separate cleanup tracked in the v2.2.0 backlog.
 #![allow(clippy::doc_markdown)]
-// Reason: ~300+ public fallible functions lack `# Errors` sections; doc coverage
-//         is a separate effort tracked in the v2.2.0 backlog.
-#![allow(clippy::missing_errors_doc)]
 // Reason: explicit duplicate match arms clarify intent in complex match expressions
 //         throughout the compiler; collapsing them would harm readability.
 #![allow(clippy::match_same_arms)]

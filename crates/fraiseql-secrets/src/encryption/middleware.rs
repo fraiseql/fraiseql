@@ -125,6 +125,10 @@ impl FieldEncryptionService {
     /// Walks the `{"data": { "<operation>": ... }}` structure, resolves each
     /// operation to its return type, and decrypts base64-encoded ciphertext
     /// back to plaintext for encrypted fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if base64 decoding or decryption fails.
     pub async fn decrypt_response(
         &self,
         response: &mut serde_json::Value,
@@ -194,6 +198,10 @@ impl FieldEncryptionService {
     ///
     /// Walks the variables object and encrypts fields that match the
     /// target type's encrypted field list, base64-encoding the ciphertext.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if encryption of any field fails.
     pub async fn encrypt_variables(
         &self,
         variables: &mut serde_json::Value,

@@ -116,6 +116,10 @@ pub struct VaultKmsProvider {
 
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KmsError::InvalidConfiguration` if the HTTP client fails to build.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
         let client = build_ssrf_safe_client(VAULT_REQUEST_TIMEOUT).map_err(|e| {
             KmsError::InvalidConfiguration {

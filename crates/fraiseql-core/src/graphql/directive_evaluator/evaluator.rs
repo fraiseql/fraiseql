@@ -90,6 +90,11 @@ impl DirectiveEvaluator {
     /// Evaluate @skip(if: condition) directive.
     ///
     /// Returns true if the field should be SKIPPED (condition is true).
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError::MissingDirectiveArgument` if the `if` argument is missing.
+    /// Returns `DirectiveError` if the condition cannot be resolved to a boolean.
     pub fn evaluate_skip(
         directive: &Directive,
         variables: &HashMap<String, JsonValue>,
@@ -106,6 +111,11 @@ impl DirectiveEvaluator {
     /// Evaluate @include(if: condition) directive.
     ///
     /// Returns true if the field should be INCLUDED (condition is true).
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError::MissingDirectiveArgument` if the `if` argument is missing.
+    /// Returns `DirectiveError` if the condition cannot be resolved to a boolean.
     pub fn evaluate_include(
         directive: &Directive,
         variables: &HashMap<String, JsonValue>,
@@ -194,6 +204,10 @@ impl DirectiveEvaluator {
     /// Parse directive arguments into a HashMap.
     ///
     /// Converts the directive argument list into a map with resolved values.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError` if any argument value cannot be resolved.
     pub fn parse_directive_args(
         directive: &Directive,
         variables: &HashMap<String, JsonValue>,

@@ -217,8 +217,9 @@ pub fn inherit_validation_rules(
 /// * `parent_name` - Name of the parent type
 /// * `registry` - The validation rule registry
 ///
-/// # Returns
-/// Ok(()) if inheritance is valid, Err with message if invalid
+/// # Errors
+///
+/// Returns an error string if the parent type is not found or contains circular inheritance.
 pub fn validate_inheritance(
     _child_name: &str,
     parent_name: &str,

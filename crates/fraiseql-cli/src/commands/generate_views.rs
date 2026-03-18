@@ -28,6 +28,10 @@ pub enum RefreshStrategy {
 
 impl RefreshStrategy {
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string does not match a known refresh strategy.
     pub fn parse(s: &str) -> std::result::Result<Self, String> {
         match s.to_lowercase().as_str() {
             "trigger-based" | "trigger" => Ok(Self::TriggerBased),

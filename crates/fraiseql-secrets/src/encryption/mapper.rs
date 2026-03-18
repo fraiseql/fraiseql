@@ -145,9 +145,10 @@ impl FieldMapper {
     /// * `field_name` - Name of field to encrypt
     /// * `plaintext` - Plaintext value to encrypt
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Encrypted bytes in format: \[nonce\]\[ciphertext\]\[tag\]
+    /// Returns `SecretsError::ValidationError` if the field is not configured for encryption.
+    /// Returns `SecretsError::EncryptionError` if encryption fails.
     pub async fn encrypt_field(
         &self,
         field_name: &str,
@@ -175,9 +176,10 @@ impl FieldMapper {
     /// * `field_name` - Name of field to decrypt
     /// * `ciphertext` - Encrypted bytes from database
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Decrypted plaintext string
+    /// Returns `SecretsError::ValidationError` if the field is not configured for decryption.
+    /// Returns `SecretsError::EncryptionError` if decryption fails.
     pub async fn decrypt_field(
         &self,
         field_name: &str,
@@ -201,6 +203,10 @@ impl FieldMapper {
     /// Encrypt multiple fields (batch operation)
     ///
     /// Returns FieldMapping objects with encryption status.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if any field encryption fails.
     pub async fn encrypt_fields(
         &self,
         fields: &[(String, String)],
@@ -227,6 +233,10 @@ impl FieldMapper {
     /// Decrypt multiple fields (batch operation)
     ///
     /// Returns FieldMapping objects with decrypted values.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if any field decryption fails.
     pub async fn decrypt_fields(
         &self,
         fields: &[(String, Vec<u8>)],

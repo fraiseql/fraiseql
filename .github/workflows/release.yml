@@ -368,10 +368,52 @@ jobs:
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ PyPI upload: FAILED" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
 
+  # Publish TypeScript SDK to npm
+  publish-typescript:
+    name: Publish TypeScript SDK
+    needs: [create-github-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: sdks/official/fraiseql-typescript
+        run: npm ci
+
+      - name: Run tests
+        working-directory: sdks/official/fraiseql-typescript
+        run: npm test
+
+      - name: Build
+        working-directory: sdks/official/fraiseql-typescript
+        run: npm run build
+
+      - name: Publish to npm
+        id: publish-npm
+        working-directory: sdks/official/fraiseql-typescript
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm publication
+        if: steps.publish-npm.outcome == 'success'
+        run: |
+          sleep 10
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          npm info fraiseql@"$VERSION" version
+
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, build-binaries]
+    needs: [create-github-release, publish-crates, build-binaries, publish-typescript]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: always()
@@ -395,6 +437,17 @@ jobs:
             echo "✅ fraiseql v$VERSION on crates.io" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏳ fraiseql v$VERSION (crates.io indexing in progress)" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+      - name: Check npm package
+        id: verify-npm
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if npm info fraiseql@"$VERSION" version 2>/dev/null | grep -q "$VERSION"; then
+            echo "✅ fraiseql v$VERSION on npm" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏳ fraiseql v$VERSION (npm indexing in progress)" >> $GITHUB_STEP_SUMMARY
           fi
         continue-on-error: true
 

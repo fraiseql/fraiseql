@@ -51,6 +51,11 @@ impl WindowFunctionPlanner {
     ///   "limit": 10
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the window function specification is invalid
+    /// (e.g., missing required fields, disallowed characters, or unsupported function names).
     pub fn plan(
         query: &serde_json::Value,
         metadata: &FactTableMetadata,
@@ -270,6 +275,11 @@ impl WindowFunctionPlanner {
     }
 
     /// Validate window function plan
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the plan uses features unsupported by the
+    /// target database (e.g., RANGE frames on MySQL/SQLite).
     pub fn validate(
         plan: &WindowExecutionPlan,
         _metadata: &FactTableMetadata,

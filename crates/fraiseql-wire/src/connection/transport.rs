@@ -138,6 +138,11 @@ impl Transport {
     /// 1. Send `SSLRequest` message (8 bytes)
     /// 2. Server responds with 'S' (accept) or 'N' (reject)
     /// 3. If accepted, perform TLS handshake
+    ///
+    /// # Errors
+    ///
+    /// Returns `WireError::Io` if the TCP connection or TLS handshake fails.
+    /// Returns `WireError::Config` if the server rejects the SSL request.
     pub async fn connect_tcp_tls(
         host: &str,
         port: u16,

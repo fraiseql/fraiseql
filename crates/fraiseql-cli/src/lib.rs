@@ -7,7 +7,6 @@
 #![allow(clippy::needless_pass_by_value)] // Reason: API consistency; command handler functions receive owned values from clap
 #![allow(clippy::must_use_candidate)] // Reason: output/builder methods don't require #[must_use] in CLI context
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style (e.g. CliError, CliConfig, CliOutput)
-#![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting via thiserror display messages
 #![allow(clippy::doc_markdown)] // Reason: CLI help text uses backtick-free prose intentionally for readability
 #![allow(clippy::too_many_lines)] // Reason: some command handlers are inherently long (e.g. generate.rs)
 #![allow(clippy::unnecessary_wraps)] // Reason: API consistency — some fns return Result for future extensibility

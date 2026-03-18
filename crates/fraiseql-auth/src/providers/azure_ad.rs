@@ -50,6 +50,10 @@ impl AzureADOAuth {
     /// * `tenant` - Azure AD tenant ID or domain (e.g., "contoso.onmicrosoft.com" or
     ///   "12345678-1234-1234-1234-123456789012")
     /// * `redirect_uri` - Redirect URI after authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError` if OIDC discovery against the Azure AD tenant fails.
     pub async fn new(
         client_id: String,
         client_secret: String,

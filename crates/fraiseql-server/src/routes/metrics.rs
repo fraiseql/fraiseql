@@ -262,6 +262,17 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     // Append per-operation histogram metrics
     output.push_str(&state.metrics.operation_metrics.to_prometheus_format());
 
+    // HTTP request duration histogram
+    output.push_str(&state.metrics.http_request_duration.to_prometheus_lines(
+        "fraiseql_http_request_duration_seconds",
+        "HTTP request duration in seconds",
+    ));
+    // Database query duration histogram
+    output.push_str(&state.metrics.db_query_duration.to_prometheus_lines(
+        "fraiseql_database_query_duration_seconds",
+        "Database query duration in seconds",
+    ));
+
     // Multi-root parallel query counter.
     {
         let multi_root = fraiseql_core::runtime::multi_root_queries_total();

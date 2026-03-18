@@ -9,6 +9,7 @@ pub mod introspection;
 pub mod metrics;
 pub mod playground;
 pub mod subscriptions;
+pub mod well_known;
 
 #[cfg(feature = "auth")]
 pub use auth::{
@@ -20,3 +21,4 @@ pub use introspection::introspection_handler;
 pub use metrics::{metrics_handler, metrics_json_handler};
 pub use playground::{PlaygroundState, playground_handler};
 pub use subscriptions::{SubscriptionState, subscription_handler, subscription_metrics};
+pub use well_known::security_txt_handler;

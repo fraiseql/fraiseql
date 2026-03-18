@@ -49,6 +49,48 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
     Ok(())
 }
 
+/// Resolve the host via DNS and reject if any address is private/reserved.
+///
+/// Prevents DNS rebinding attacks where an attacker-controlled domain initially
+/// resolves to a public IP (passing URL validation) but later resolves to a
+/// private IP during the actual HTTP request.
+///
+/// # Errors
+///
+/// Returns `ObserverError::InvalidConfig` if DNS resolution fails, returns no
+/// addresses, or any resolved address is in a private/reserved range.
+pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
+        message: format!("Invalid URL '{url}': {e}"),
+    })?;
+    let host = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
+        message: format!("URL has no host: {url}"),
+    })?;
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| ObserverError::InvalidConfig {
+            message: format!("DNS resolution failed for host '{host}': {e}"),
+        })?
+        .collect();
+    if addrs.is_empty() {
+        return Err(ObserverError::InvalidConfig {
+            message: format!("DNS resolved to no addresses for host '{host}'"),
+        });
+    }
+    for addr in &addrs {
+        if is_ssrf_blocked_ip(&addr.ip()) {
+            return Err(ObserverError::InvalidConfig {
+                message: format!(
+                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {}",
+                    addr.ip()
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Validate that a NATS URL is safe to connect to.
 ///
 /// Accepts `nats://` and `tls://` schemes only; rejects private/loopback hosts.

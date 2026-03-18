@@ -41,6 +41,11 @@ const MAX_PARAMETER_VALUE_BYTES: usize = 64 * 1024; // 64 KiB
 /// This version decodes in-place from a mutable `BytesMut` buffer and returns
 /// the number of bytes consumed. The caller must advance the buffer after calling this.
 ///
+/// # Errors
+///
+/// Returns `io::Error` with `UnexpectedEof` if the buffer does not contain a complete
+/// message. Returns `io::Error` with `InvalidData` if the message tag or length is invalid.
+///
 /// # Returns
 /// `Ok((msg, consumed))` - Message and number of bytes consumed
 /// `Err(e)` - IO error if message is incomplete or invalid
