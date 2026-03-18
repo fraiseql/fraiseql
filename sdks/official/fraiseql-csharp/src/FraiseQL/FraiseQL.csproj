@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>FraiseQL</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Authors>FraiseQL Contributors</Authors>
     <Description>C# schema authoring SDK for FraiseQL — produces schema.json for the fraiseql compile CLI.</Description>
     <PackageTags>graphql;fraiseql;schema;codegen;compile-time</PackageTags>

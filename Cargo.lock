@@ -1554,7 +1554,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.8.1",
  "hyper-util",
- "lz4_flex 0.11.5",
+ "lz4_flex 0.11.6",
  "polonius-the-crab",
  "quanta",
  "serde",
@@ -2532,7 +2532,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
@@ -2546,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2580,7 +2580,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2610,6 +2610,7 @@ dependencies = [
  "tokio-test",
  "tower",
  "tracing",
+ "url",
  "urlencoding",
  "uuid",
  "wiremock",
@@ -2618,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2647,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -2706,7 +2707,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "bb8",
@@ -2737,7 +2738,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "axum",
  "serde",
@@ -2749,7 +2750,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -2770,7 +2771,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "async-nats",
@@ -2810,7 +2811,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2837,7 +2838,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2914,7 +2915,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -2926,7 +2927,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -2951,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.2.0"
+version = "2.1.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -4107,15 +4108,15 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "lz4_flex"
-version = "0.11.5"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08ab2867e3eeeca90e844d1940eab391c9dc5228783db2ed999acbc0a9ed375a"
+checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
 
 [[package]]
 name = "lz4_flex"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab6473172471198271ff72e9379150e9dfd70d8e533e0752a27e515b48dd375e"
+checksum = "98c23545df7ecf1b16c303910a69b079e8e251d60f7dd2cc9b4177f2afaf1746"
 dependencies = [
  "twox-hash",
 ]
@@ -4772,7 +4773,7 @@ dependencies = [
  "flate2",
  "half",
  "hashbrown 0.16.1",
- "lz4_flex 0.12.0",
+ "lz4_flex 0.12.1",
  "num-bigint",
  "num-integer",
  "num-traits",

@@ -1,6 +1,6 @@
 name: fraiseql
 description: FraiseQL Dart/Flutter SDK - Compiled GraphQL client
-version: 2.2.0
+version: 2.1.0
 repository: https://github.com/fraiseql/fraiseql
 
 environment:

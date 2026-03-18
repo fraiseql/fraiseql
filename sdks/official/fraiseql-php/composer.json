@@ -2,6 +2,7 @@
     "name": "fraiseql/fraiseql",
     "description": "FraiseQL PHP SDK — schema authoring and client library",
     "type": "library",
+    "version": "2.1.0",
     "license": "MIT",
     "authors": [
         {

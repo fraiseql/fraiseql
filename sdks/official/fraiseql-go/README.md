@@ -360,6 +360,15 @@ make build
 make examples
 ```
 
+## Versioning
+
+The Go SDK uses its own semantic versioning, independent of the FraiseQL
+product version. The current release is `v1.0.0`, corresponding to FraiseQL
+server v2.1.0.
+
+The FraiseQL API version (v2.x) refers to the server/schema compilation
+protocol, not the Go module major version.
+
 ## Integration with FraiseQL Ecosystem
 
 After exporting `schema.json`:

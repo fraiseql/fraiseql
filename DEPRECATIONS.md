@@ -13,11 +13,6 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 | Item | Crate | Since | Replacement | Removal Target |
 |------|-------|-------|-------------|----------------|
 | `PoolTuningConfig` | `fraiseql-server` | v2.0.1 | `PoolPressureMonitorConfig` | v3.0 |
-| `DatabaseAdapter` (trait) | `fraiseql-arrow` | v2.2.0 | `ArrowDatabaseAdapter` | v2.4.0 |
-| `EventStorage` (trait) | `fraiseql-arrow` | v2.2.0 | `ArrowEventStorage` | v2.4.0 |
-| `Sanitizable` (trait) | `fraiseql-auth` | v2.2.0 | `Sanitize` | v2.4.0 |
-| `AuditableResult` (trait) | `fraiseql-auth` | v2.2.0 | `AuditExt` | v2.4.0 |
-| `MutationCapable` (trait) | `fraiseql-db` | v2.2.0 | `SupportsMutations` | v2.4.0 |
 
 ### `PoolTuningConfig` (v2.0.1)
 
@@ -27,25 +22,14 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 
 **Migration**: Replace `PoolTuningConfig` with `PoolPressureMonitorConfig` in your configuration code. The field names and semantics are identical.
 
-### v2.2.0 Trait Aliases
-
-These traits are zero-content aliases created during the crate extraction refactor. They exist solely for backward compatibility.
-
-**`DatabaseAdapter` → `ArrowDatabaseAdapter`** (`fraiseql-arrow`)
-Replace `impl DatabaseAdapter for T` with `impl ArrowDatabaseAdapter for T`.
-
-**`EventStorage` → `ArrowEventStorage`** (`fraiseql-arrow`)
-Replace `impl EventStorage for T` with `impl ArrowEventStorage for T`.
-
-**`Sanitizable` → `Sanitize`** (`fraiseql-auth`)
-Replace `impl Sanitizable for T` with `impl Sanitize for T`.
-
-**`AuditableResult` → `AuditExt`** (`fraiseql-auth`)
-Replace `impl AuditableResult<T, E> for T` with `impl AuditExt<T, E> for T`.
-
-**`MutationCapable` → `SupportsMutations`** (`fraiseql-db`)
-Replace `impl MutationCapable for T` with `impl SupportsMutations for T`.
-
 ## Previously Removed
 
-_None yet._
+| Item | Crate | Deprecated In | Replacement | Removed In |
+|------|-------|---------------|-------------|------------|
+| `DatabaseAdapter` (trait) | `fraiseql-arrow` | — | `ArrowDatabaseAdapter` | v2.1.0 |
+| `EventStorage` (trait) | `fraiseql-arrow` | — | `ArrowEventStorage` | v2.1.0 |
+| `Sanitizable` (trait) | `fraiseql-auth` | — | `Sanitize` | v2.1.0 |
+| `AuditableResult` (trait) | `fraiseql-auth` | — | `AuditExt` | v2.1.0 |
+| `MutationCapable` (trait) | `fraiseql-db` | — | `SupportsMutations` | v2.1.0 |
+
+These were zero-content supertrait aliases created during the crate extraction refactor. Removed in v2.1.0 (first public release; no external consumers existed).
