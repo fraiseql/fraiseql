@@ -853,3 +853,5 @@ The layered optionality pattern allows users to start minimal and grow as needed
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
 **Unsafe Code**: Zero (forbidden at compile time)
+
+**See also**: [Database Compatibility Matrix](../database-compatibility.md) for per-operation dialect support across PostgreSQL, MySQL, SQL Server, and SQLite.
