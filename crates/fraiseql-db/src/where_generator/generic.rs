@@ -208,7 +208,8 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 };
                 let cast = self.dialect.cast_to_numeric(&field_expr);
                 let p = self.push_param(params, value.clone());
-                Ok(format!("{cast} {op} {p}"))
+                let rhs = self.dialect.cast_param_numeric(&p);
+                Ok(format!("{cast} {op} {rhs}"))
             },
 
             // ── Containment ───────────────────────────────────────────────────

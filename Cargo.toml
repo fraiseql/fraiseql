@@ -82,7 +82,7 @@ hex = "0.4"
 hmac = "0.12"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
-itertools = "0.13"
+itertools = "0.14"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 linked-hash-map = "0.5"
 # Caching

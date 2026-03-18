@@ -1,6 +1,6 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
-# Skip entries last reviewed: 2026-03-17
+# Skip entries last reviewed: 2026-03-18
 # Pending resolution:
 #   rustls 0.22  — sqlx 0.8 transitively requires (tracked: sqlx 0.9 upgrade in v2.3.0)
 
@@ -40,11 +40,6 @@ reason = "rustls 0.22 required by sqlx 0.8; upgrade tracked for v2.3.0"
 name = "p256"
 version = "=0.11.1"
 reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
-
-[[bans.skip-tree]]
-name = "prost"
-version = "=0.13.5"
-reason = "prost 0.13 required by tonic 0.12 (opentelemetry-otlp transitive)"
 
 # --- Individual duplicate skips ---
 
@@ -194,11 +189,6 @@ version = "=0.11.1+wasi-snapshot-preview1"
 reason = "transitive via getrandom 0.2"
 
 [[bans.skip]]
-name = "opentelemetry"
-version = "=0.29.1"
-reason = "transitive via tracing-opentelemetry; upgrade tracked"
-
-[[bans.skip]]
 name = "metrics"
 version = "=0.22.4"
 reason = "transitive via metrics-exporter-prometheus older version"
@@ -212,11 +202,6 @@ reason = "transitive via toml_edit 0.22"
 name = "toml_edit"
 version = "=0.22.27"
 reason = "transitive via cargo-manifest or similar"
-
-[[bans.skip]]
-name = "tonic"
-version = "=0.12.3"
-reason = "transitive via opentelemetry-otlp; upgrade tracked"
 
 [[bans.skip]]
 name = "lru"
