@@ -1,24 +1,39 @@
 //! Query result caching with LRU eviction and TTL expiry.
 //!
-//! This module provides thread-safe in-memory caching for GraphQL query results
-//! with automatic least-recently-used (LRU) eviction and time-to-live (TTL) expiry.
+//! This module provides a 64-shard striped LRU cache for GraphQL query results.
+//! Each shard holds `capacity / NUM_SHARDS` entries behind its own
+//! [`parking_lot::Mutex`], eliminating the single-lock bottleneck under high
+//! concurrency.
+//!
+//! ## Performance characteristics
+//!
+//! - **`get()` hot path** (cache hit): one shard lock, O(1) LRU promotion,
+//!   `Arc` clone (single atomic increment), one atomic counter bump.
+//! - **`put()` path**: early-exit guards (disabled / list / size / TTL=0)
+//!   before touching any lock. Entity-ID index is built outside the lock.
+//!   Shard lock held only for the `push()` call.
+//! - **`metrics()`**: lazily computes `size` by scanning all shards. Called
+//!   rarely (monitoring), never on the query hot path.
+//! - **Invalidation**: iterates all shards (acceptable — mutations are rare).
 
 use std::{
     collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
     num::NonZeroUsize,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
 
 use lru::LruCache;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use super::config::CacheConfig;
 use crate::{
     db::types::JsonbValue,
-    error::{FraiseQLError, Result},
+    error::Result,
     utils::clock::{Clock, SystemClock},
 };
 
@@ -37,8 +52,11 @@ pub struct CachedResult {
     ///
     /// Format: `vec!["v_user", "v_post"]`
     ///
+    /// Stored as a boxed slice (no excess capacity) since views are fixed
+    /// at `put()` time and never modified.
+    ///
     /// Used for view-based invalidation when mutations modify these views.
-    pub accessed_views: Vec<String>,
+    pub accessed_views: Box<[String]>,
 
     /// When this entry was cached (Unix timestamp in seconds).
     ///
@@ -68,22 +86,33 @@ pub struct CachedResult {
     pub entity_ids: HashMap<String, HashSet<String>>,
 }
 
-/// Thread-safe LRU cache for query results.
+/// Number of shards for the striped LRU cache.
+///
+/// 64 shards reduce mutex contention to ~1/64 under uniform key distribution.
+const NUM_SHARDS: usize = 64;
+
+/// Thread-safe 64-shard striped LRU cache for query results.
 ///
 /// # Thread Safety
 ///
-/// The LRU structure uses a single `Mutex` for correctness. Metrics counters
-/// use `AtomicU64` / `AtomicUsize` so no second lock is acquired in the hot path.
-/// Under high concurrency this eliminates the double-lock contention that caused
-/// cache hits to be slower than cache misses.
+/// Each shard is an independent `parking_lot::Mutex<LruCache>` holding
+/// `capacity / 64` entries. Concurrent requests that hash to different shards
+/// never contend on the same lock. `parking_lot::Mutex` is used over
+/// `std::sync::Mutex` for:
+/// - **No poisoning**: a panic in one thread does not permanently break the cache
+/// - **Smaller footprint**: 1 byte vs 40 bytes per mutex on Linux
+/// - **Faster lock/unlock**: optimized futex-based implementation
+///
+/// Metrics counters use `AtomicU64` / `AtomicUsize` so no second lock is
+/// acquired in the hot path.
 ///
 /// # Memory Safety
 ///
-/// - **Hard LRU limit**: Configured via `max_entries`, automatically evicts least-recently-used
-///   entries when limit is reached
+/// - **Hard LRU limit**: Each shard evicts least-recently-used entries independently
 /// - **TTL expiry**: Entries older than `ttl_seconds` are considered expired and removed on next
 ///   access
-/// - **Memory tracking**: Metrics include estimated memory usage
+/// - **Memory tracking**: `memory_bytes` tracked via atomic add/sub; `size` computed lazily in
+///   `metrics()`
 ///
 /// # Example
 ///
@@ -110,10 +139,8 @@ pub struct CachedResult {
 /// }
 /// ```
 pub struct QueryResultCache {
-    /// LRU cache: key -> cached result.
-    ///
-    /// Automatically evicts least-recently-used entries above `max_entries`.
-    cache: Arc<Mutex<LruCache<String, CachedResult>>>,
+    /// Striped LRU shards: key is routed to `shards[hash(key) % len]`.
+    shards: Box<[Mutex<LruCache<String, CachedResult>>]>,
 
     /// Configuration (immutable after creation).
     config: CacheConfig,
@@ -121,14 +148,13 @@ pub struct QueryResultCache {
     /// Clock for TTL expiry checks. Injectable for deterministic testing.
     clock: Arc<dyn Clock>,
 
-    // Metrics counters — atomic so the hot `get()` path acquires only ONE lock
-    // (the LRU), not two. `Relaxed` ordering is sufficient: these counters are
+    // Metrics counters — atomic so the hot `get()` path acquires only ONE shard
+    // lock, not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
     hits:          AtomicU64,
     misses:        AtomicU64,
     total_cached:  AtomicU64,
     invalidations: AtomicU64,
-    size:          AtomicUsize,
     memory_bytes:  AtomicUsize,
 }
 
@@ -159,6 +185,14 @@ pub struct CacheMetrics {
     pub memory_bytes: usize,
 }
 
+/// Estimate the accounting overhead of one cache entry.
+///
+/// The LRU crate stores the key twice (once in the `HashMap`, once in the
+/// linked-list node). We add the `CachedResult` struct size.
+const fn entry_overhead(key_len: usize) -> usize {
+    std::mem::size_of::<CachedResult>() + key_len * 2
+}
+
 impl QueryResultCache {
     /// Create new cache with configuration.
     ///
@@ -185,48 +219,30 @@ impl QueryResultCache {
     /// Panics if `config.max_entries` is 0.
     #[must_use]
     pub fn new_with_clock(config: CacheConfig, clock: Arc<dyn Clock>) -> Self {
-        let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
+        assert!(config.max_entries > 0, "max_entries must be > 0");
+
+        // Use full sharding only when capacity is large enough (≥ NUM_SHARDS).
+        // Below that threshold, a single shard preserves exact global LRU ordering.
+        let num_shards = if config.max_entries >= NUM_SHARDS { NUM_SHARDS } else { 1 };
+        let per_shard = config.max_entries.div_ceil(num_shards);
+        let per_shard_nz = NonZeroUsize::new(per_shard).expect("per_shard > 0");
+
+        let shards: Box<[_]> = (0..num_shards)
+            .map(|_| Mutex::new(LruCache::new(per_shard_nz)))
+            .collect();
 
         Self {
-            cache: Arc::new(Mutex::new(LruCache::new(max))),
+            shards,
             config,
             clock,
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             total_cached: AtomicU64::new(0),
             invalidations: AtomicU64::new(0),
-            size: AtomicUsize::new(0),
             memory_bytes: AtomicUsize::new(0),
         }
     }
 
-    /// Get cached result by key.
-    ///
-    /// Returns `None` if:
-    /// - Caching is disabled (`config.enabled = false`)
-    /// - Entry not in cache (cache miss)
-    /// - Entry expired (TTL exceeded)
-    ///
-    /// # Errors
-    ///
-    /// Returns error if cache mutex is poisoned (should never happen).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use fraiseql_core::cache::{QueryResultCache, CacheConfig};
-    ///
-    /// let cache = QueryResultCache::new(CacheConfig::default());
-    ///
-    /// if let Some(result) = cache.get("cache_key_abc123")? {
-    ///     // Cache hit - use result
-    ///     println!("Found {} results in cache", result.len());
-    /// } else {
-    ///     // Cache miss - execute query
-    ///     println!("Cache miss, executing query");
-    /// }
-    /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
-    /// ```
     /// Returns whether caching is enabled.
     ///
     /// Used by `CachedDatabaseAdapter` to short-circuit the SHA-256 key generation
@@ -236,44 +252,54 @@ impl QueryResultCache {
         self.config.enabled
     }
 
+    /// Select the shard for a given cache key.
+    #[inline]
+    fn shard_for(&self, key: &str) -> &Mutex<LruCache<String, CachedResult>> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        // Truncation is intentional: we only need the low bits for modular indexing.
+        #[allow(clippy::cast_possible_truncation)]
+        let idx = hasher.finish() as usize % self.shards.len();
+        &self.shards[idx]
+    }
+
     /// Look up a cached result by its cache key.
     ///
     /// Returns `None` when caching is disabled or the key is not present or expired.
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Internal`] if the cache `Mutex` is poisoned.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);
         }
 
-        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Cache lock poisoned: {e}"),
-            source:  None,
-        })?;
+        let mut cache = self.shard_for(cache_key).lock();
 
         if let Some(cached) = cache.get_mut(cache_key) {
             // Check TTL: use per-entry override, fall back to global config.
             let now = self.clock.now_secs();
             if now - cached.cached_at > cached.ttl_seconds {
-                // Expired: remove and count as miss
+                // Expired: remove and count as miss.
+                let key_len = cache_key.len();
                 cache.pop(cache_key);
-                let new_size = cache.len();
-                drop(cache); // Release LRU lock before atomic updates
-                self.size.store(new_size, Ordering::Relaxed);
+                drop(cache); // Release shard lock before atomic updates
+
+                self.memory_bytes.fetch_sub(entry_overhead(key_len), Ordering::Relaxed);
                 self.misses.fetch_add(1, Ordering::Relaxed);
                 return Ok(None);
             }
 
-            // Cache hit: clone the Arc (zero-copy) while still holding the LRU lock
+            // Cache hit: clone the Arc (zero-copy) while still holding the shard lock.
             cached.hit_count += 1;
             let result = cached.result.clone();
-            drop(cache); // Release LRU lock before atomic update
+            drop(cache); // Release shard lock before atomic update
             self.hits.fetch_add(1, Ordering::Relaxed);
             Ok(Some(result))
         } else {
-            drop(cache); // Release LRU lock before atomic update
+            drop(cache); // Release shard lock before atomic update
             self.misses.fetch_add(1, Ordering::Relaxed);
             Ok(None)
         }
@@ -295,7 +321,8 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache mutex is poisoned.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     ///
     /// # Example
     ///
@@ -343,8 +370,6 @@ impl QueryResultCache {
             }
         }
 
-        let now = self.clock.now_secs();
-        let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
 
         // TTL=0 means "never cache this entry" — skip storing it entirely.
@@ -352,7 +377,10 @@ impl QueryResultCache {
             return Ok(());
         }
 
-        // Build entity-ID index: scan rows for "id" fields keyed by entity type.
+        let now = self.clock.now_secs();
+        let new_overhead = entry_overhead(cache_key.len());
+
+        // Build entity-ID index outside the lock: scan rows for "id" fields.
         let entity_ids = if let Some(etype) = entity_type {
             let ids: HashSet<String> = result
                 .iter()
@@ -371,24 +399,37 @@ impl QueryResultCache {
 
         let cached = CachedResult {
             result: Arc::new(result),
-            accessed_views,
+            accessed_views: accessed_views.into_boxed_slice(),
             cached_at: now,
             ttl_seconds,
             hit_count: 0,
             entity_ids,
         };
 
-        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Cache lock poisoned: {e}"),
-            source:  None,
-        })?;
-        cache.put(cache_key, cached);
-        let new_size = cache.len();
-        drop(cache); // Release LRU lock before atomic updates
+        // --- Critical section: hold shard lock only for the insert ---
+        let mut guard = self.shard_for(&cache_key).lock();
+        let evicted = guard.push(cache_key, cached);
+        drop(guard);
+        // --- End critical section ---
 
         self.total_cached.fetch_add(1, Ordering::Relaxed);
-        self.size.store(new_size, Ordering::Relaxed);
-        self.memory_bytes.fetch_add(memory_size, Ordering::Relaxed);
+
+        // Adjust memory_bytes: add new entry, subtract evicted entry if any.
+        // push() returns Some((key, value)) when it evicts the LRU tail OR
+        // when the key already existed (replacement). Either way, we subtract.
+        match evicted {
+            Some((evicted_key, _)) => {
+                let evicted_overhead = entry_overhead(evicted_key.len());
+                if new_overhead >= evicted_overhead {
+                    self.memory_bytes.fetch_add(new_overhead - evicted_overhead, Ordering::Relaxed);
+                } else {
+                    self.memory_bytes.fetch_sub(evicted_overhead - new_overhead, Ordering::Relaxed);
+                }
+            }
+            None => {
+                self.memory_bytes.fetch_add(new_overhead, Ordering::Relaxed);
+            }
+        }
 
         Ok(())
     }
@@ -407,7 +448,8 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache mutex is poisoned.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     ///
     /// # Example
     ///
@@ -422,40 +464,37 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
-        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Cache lock poisoned: {e}"),
-            source:  None,
-        })?;
+        let mut total_invalidated: u64 = 0;
+        let mut total_freed: usize = 0;
 
-        // Collect keys to remove (can't modify during iteration)
-        let keys_to_remove: Vec<String> = cache
-            .iter()
-            .filter(|(_, cached)| cached.accessed_views.iter().any(|v| views.contains(v)))
-            .map(|(k, _)| k.clone())
-            .collect();
+        for shard in &*self.shards {
+            let mut cache = shard.lock();
 
-        // Estimate freed bytes using the same formula as put(): size_of::<CachedResult>()
-        // + key.len() * 2 (key stored twice in the LRU map).
-        let freed_bytes: usize = keys_to_remove
-            .iter()
-            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
-            .sum();
+            let keys_to_remove: Vec<String> = cache
+                .iter()
+                .filter(|(_, cached)| cached.accessed_views.iter().any(|v| views.contains(v)))
+                .map(|(k, _)| k.clone())
+                .collect();
 
-        for key in &keys_to_remove {
-            cache.pop(key);
+            let freed_bytes: usize = keys_to_remove.iter().map(|k| entry_overhead(k.len())).sum();
+
+            for key in &keys_to_remove {
+                cache.pop(key);
+            }
+
+            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
+            let count = keys_to_remove.len() as u64;
+            total_invalidated += count;
+            total_freed += freed_bytes;
         }
 
-        let new_size = cache.len();
-        let invalidated_count = keys_to_remove.len() as u64;
-        drop(cache); // Release LRU lock before atomic updates
+        self.invalidations.fetch_add(total_invalidated, Ordering::Relaxed);
+        self.memory_bytes.fetch_sub(
+            total_freed.min(self.memory_bytes.load(Ordering::Relaxed)),
+            Ordering::Relaxed,
+        );
 
-        self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
-        self.size.store(new_size, Ordering::Relaxed);
-        // Decrement memory counter; saturating to guard against any accounting skew.
-        let prev = self.memory_bytes.load(Ordering::Relaxed);
-        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
-
-        Ok(invalidated_count)
+        Ok(total_invalidated)
     }
 
     /// Evict cache entries that contain a specific entity UUID.
@@ -475,40 +514,42 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache mutex is poisoned.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
-        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Cache lock poisoned: {e}"),
-            source:  None,
-        })?;
+        let mut total_invalidated: u64 = 0;
+        let mut total_freed: usize = 0;
 
-        let keys_to_remove: Vec<String> = cache
-            .iter()
-            .filter(|(_, cached)| {
-                cached.entity_ids.get(entity_type).is_some_and(|ids| ids.contains(entity_id))
-            })
-            .map(|(k, _)| k.clone())
-            .collect();
+        for shard in &*self.shards {
+            let mut cache = shard.lock();
 
-        let freed_bytes: usize = keys_to_remove
-            .iter()
-            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
-            .sum();
+            let keys_to_remove: Vec<String> = cache
+                .iter()
+                .filter(|(_, cached)| {
+                    cached.entity_ids.get(entity_type).is_some_and(|ids| ids.contains(entity_id))
+                })
+                .map(|(k, _)| k.clone())
+                .collect();
 
-        for key in &keys_to_remove {
-            cache.pop(key);
+            let freed_bytes: usize = keys_to_remove.iter().map(|k| entry_overhead(k.len())).sum();
+
+            for key in &keys_to_remove {
+                cache.pop(key);
+            }
+
+            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
+            let count = keys_to_remove.len() as u64;
+            total_invalidated += count;
+            total_freed += freed_bytes;
         }
 
-        let new_size = cache.len();
-        let invalidated_count = keys_to_remove.len() as u64;
-        drop(cache);
+        self.invalidations.fetch_add(total_invalidated, Ordering::Relaxed);
+        self.memory_bytes.fetch_sub(
+            total_freed.min(self.memory_bytes.load(Ordering::Relaxed)),
+            Ordering::Relaxed,
+        );
 
-        self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
-        self.size.store(new_size, Ordering::Relaxed);
-        let prev = self.memory_bytes.load(Ordering::Relaxed);
-        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
-
-        Ok(invalidated_count)
+        Ok(total_invalidated)
     }
 
     /// Get cache metrics snapshot.
@@ -517,9 +558,13 @@ impl QueryResultCache {
     /// be updated independently (atomics), so the snapshot is not a single
     /// atomic transaction, but is accurate enough for monitoring.
     ///
+    /// `size` is computed lazily by scanning all shards — this keeps the
+    /// `get()`/`put()` hot paths free of cross-shard coordination.
+    ///
     /// # Errors
     ///
-    /// Always returns `Ok`. The `Result` return type is kept for API compatibility.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     ///
     /// # Example
     ///
@@ -534,12 +579,17 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn metrics(&self) -> Result<CacheMetrics> {
+        // Compute size by scanning all shards. This is O(NUM_SHARDS) lock
+        // acquisitions but metrics() is called rarely (monitoring endpoints),
+        // never on the query hot path.
+        let size: usize = self.shards.iter().map(|s| s.lock().len()).sum();
+
         Ok(CacheMetrics {
             hits:          self.hits.load(Ordering::Relaxed),
             misses:        self.misses.load(Ordering::Relaxed),
             total_cached:  self.total_cached.load(Ordering::Relaxed),
             invalidations: self.invalidations.load(Ordering::Relaxed),
-            size:          self.size.load(Ordering::Relaxed),
+            size,
             memory_bytes:  self.memory_bytes.load(Ordering::Relaxed),
         })
     }
@@ -550,7 +600,8 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache mutex is poisoned.
+    /// This method is infallible with `parking_lot::Mutex` (no poisoning).
+    /// The `Result` return type is kept for API compatibility.
     ///
     /// # Example
     ///
@@ -562,15 +613,10 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn clear(&self) -> Result<()> {
-        self.cache
-            .lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Cache lock poisoned: {e}"),
-                source:  None,
-            })?
-            .clear();
+        for shard in &*self.shards {
+            shard.lock().clear();
+        }
 
-        self.size.store(0, Ordering::Relaxed);
         self.memory_bytes.store(0, Ordering::Relaxed);
 
         Ok(())
@@ -1235,5 +1281,303 @@ mod tests {
         let metrics = cache.metrics().unwrap();
         assert_eq!(metrics.total_cached, 10);
         assert_eq!(metrics.hits, 10);
+    }
+
+    // ========================================================================
+    // Sentinel tests — boundary guards for mutation testing
+    // ========================================================================
+
+    /// Sentinel: `cache_list_queries = false` must skip results with >1 row.
+    ///
+    /// Kills the `> → >=` mutation at the list-query guard: `result.len() > 1`.
+    #[test]
+    fn test_cache_list_queries_false_skips_multi_row() {
+        let config = CacheConfig {
+            enabled:            true,
+            cache_list_queries: false,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        // Two-row result: must be skipped (killed by > → >= mutant)
+        let two_rows = vec![
+            JsonbValue::new(json!({"id": 1})),
+            JsonbValue::new(json!({"id": 2})),
+        ];
+        cache
+            .put("list_key".to_string(), two_rows, vec!["v_user".to_string()], None, None)
+            .unwrap();
+        assert!(
+            cache.get("list_key").unwrap().is_none(),
+            "multi-row result must not be cached when cache_list_queries=false"
+        );
+    }
+
+    /// Sentinel: `cache_list_queries = false` must still store single-row results.
+    ///
+    /// Complements the above: the single-row path must remain unaffected.
+    #[test]
+    fn test_cache_list_queries_false_allows_single_row() {
+        let config = CacheConfig {
+            enabled:            true,
+            cache_list_queries: false,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        // One-row result: must be stored
+        let one_row = vec![JsonbValue::new(json!({"id": 1}))];
+        cache
+            .put("single_key".to_string(), one_row, vec!["v_user".to_string()], None, None)
+            .unwrap();
+        assert!(
+            cache.get("single_key").unwrap().is_some(),
+            "single-row result must be cached even when cache_list_queries=false"
+        );
+    }
+
+    /// Sentinel: entries exceeding `max_entry_bytes` must be silently skipped.
+    ///
+    /// Kills mutations on the `estimated > max_entry` guard.
+    #[test]
+    fn test_max_entry_bytes_skips_oversized_entry() {
+        let config = CacheConfig {
+            enabled:         true,
+            max_entry_bytes: Some(10), // 10 bytes — smaller than any JSON row
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        // A typical row serialises to far more than 10 bytes
+        cache
+            .put("big_key".to_string(), test_result(), vec!["v_user".to_string()], None, None)
+            .unwrap();
+        assert!(
+            cache.get("big_key").unwrap().is_none(),
+            "oversized entry must be silently skipped"
+        );
+    }
+
+    /// Sentinel: entries within `max_entry_bytes` must be stored normally.
+    ///
+    /// Complements the above to pin both sides of the size boundary.
+    #[test]
+    fn test_max_entry_bytes_allows_small_entry() {
+        let config = CacheConfig {
+            enabled:         true,
+            max_entry_bytes: Some(100_000), // 100 KB — plenty for a test row
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        cache
+            .put("small_key".to_string(), test_result(), vec!["v_user".to_string()], None, None)
+            .unwrap();
+        assert!(
+            cache.get("small_key").unwrap().is_some(),
+            "small entry must be cached when within max_entry_bytes"
+        );
+    }
+
+    /// Sentinel: `put()` must skip new entries when `max_total_bytes` budget is exhausted.
+    ///
+    /// Kills mutations on the `current >= max_total` guard.
+    #[test]
+    fn test_max_total_bytes_skips_when_budget_exhausted() {
+        let config = CacheConfig {
+            enabled:        true,
+            max_total_bytes: Some(0), // 0 bytes — always exhausted
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        cache
+            .put("any_key".to_string(), test_result(), vec!["v_user".to_string()], None, None)
+            .unwrap();
+        assert!(
+            cache.get("any_key").unwrap().is_none(),
+            "entry must be skipped when max_total_bytes budget is already exhausted"
+        );
+    }
+
+    // ========================================================================
+    // Sharding Tests
+    // ========================================================================
+
+    /// Verify that a large cache uses 64 shards.
+    #[test]
+    fn test_sharded_cache_has_64_shards() {
+        let config = CacheConfig {
+            max_entries: 10_000,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+        assert_eq!(cache.shards.len(), NUM_SHARDS);
+    }
+
+    /// Small capacities (< 64) fall back to 1 shard for exact LRU ordering.
+    #[test]
+    fn test_small_capacity_uses_single_shard() {
+        let config = CacheConfig {
+            max_entries: 10,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+        assert_eq!(cache.shards.len(), 1);
+    }
+
+    /// Cross-shard invalidation: `invalidate_views` clears matching entries
+    /// regardless of which shard they reside in.
+    #[test]
+    fn test_cross_shard_view_invalidation() {
+        let config = CacheConfig {
+            max_entries: 10_000,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        // Insert many entries across different shards
+        for i in 0..200 {
+            let key = format!("key_{i}");
+            let view = if i % 2 == 0 { "v_user" } else { "v_post" };
+            cache
+                .put(key, test_result(), vec![view.to_string()], None, None)
+                .unwrap();
+        }
+
+        // Invalidate v_user — should remove exactly 100 entries
+        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        assert_eq!(invalidated, 100);
+
+        // All v_user entries gone, all v_post entries remain
+        for i in 0..200 {
+            let key = format!("key_{i}");
+            if i % 2 == 0 {
+                assert!(cache.get(&key).unwrap().is_none(), "v_user entry should be invalidated");
+            } else {
+                assert!(cache.get(&key).unwrap().is_some(), "v_post entry should remain");
+            }
+        }
+    }
+
+    /// Cross-shard entity invalidation works across all shards.
+    #[test]
+    fn test_cross_shard_entity_invalidation() {
+        let config = CacheConfig {
+            max_entries: 10_000,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        // Insert entries for the same entity across different cache keys
+        for i in 0..50 {
+            let key = format!("user_query_{i}");
+            cache
+                .put(
+                    key,
+                    entity_result("uuid-target"),
+                    vec!["v_user".to_string()],
+                    None,
+                    Some("User"),
+                )
+                .unwrap();
+        }
+
+        // Also insert an unrelated entry
+        cache
+            .put(
+                "other".to_string(),
+                entity_result("uuid-other"),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+            )
+            .unwrap();
+
+        let evicted = cache.invalidate_by_entity("User", "uuid-target").unwrap();
+        assert_eq!(evicted, 50);
+        assert!(cache.get("other").unwrap().is_some(), "unrelated entity should remain");
+    }
+
+    /// Clear works across all shards.
+    #[test]
+    fn test_clear_all_shards() {
+        let config = CacheConfig {
+            max_entries: 10_000,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        for i in 0..200 {
+            cache
+                .put(
+                    format!("k{i}"),
+                    test_result(),
+                    vec!["v_user".to_string()],
+                    None,
+                    None,
+                )
+                .unwrap();
+        }
+
+        cache.clear().unwrap();
+        let metrics = cache.metrics().unwrap();
+        assert_eq!(metrics.size, 0);
+
+        for i in 0..200 {
+            assert!(cache.get(&format!("k{i}")).unwrap().is_none());
+        }
+    }
+
+    /// Verify `push()` returns evicted entries for correct memory accounting.
+    #[test]
+    fn test_memory_bytes_tracked_on_eviction() {
+        let config = CacheConfig {
+            max_entries: 2,
+            enabled: true,
+            ..CacheConfig::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        cache
+            .put("k1".to_string(), test_result(), vec!["v".to_string()], None, None)
+            .unwrap();
+        cache
+            .put("k2".to_string(), test_result(), vec!["v".to_string()], None, None)
+            .unwrap();
+
+        let before = cache.memory_bytes.load(Ordering::Relaxed);
+        assert!(before > 0, "memory_bytes should be tracked");
+
+        // Evict k1 by adding k3 (same key length → memory_bytes unchanged)
+        cache
+            .put("k3".to_string(), test_result(), vec!["v".to_string()], None, None)
+            .unwrap();
+
+        let after = cache.memory_bytes.load(Ordering::Relaxed);
+        assert_eq!(before, after, "memory_bytes should remain stable after same-size eviction");
+    }
+
+    /// Verify memory_bytes decreases after invalidation.
+    #[test]
+    fn test_memory_bytes_decreases_on_invalidation() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None, None)
+            .unwrap();
+
+        let before = cache.memory_bytes.load(Ordering::Relaxed);
+        assert!(before > 0);
+
+        cache.invalidate_views(&["v_user".to_string()]).unwrap();
+
+        let after = cache.memory_bytes.load(Ordering::Relaxed);
+        assert_eq!(after, 0, "memory_bytes should be zero after invalidating all entries");
     }
 }
