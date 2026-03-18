@@ -2,14 +2,17 @@ package fraiseql
 
 // generate_parity_schema_test.go — Cross-SDK parity schema generator.
 //
-// Outputs the parity schema as a single JSON object on stdout.
-// Used by `make parity-generate`:
+// Writes the parity schema to the file specified by SCHEMA_OUTPUT_FILE,
+// or prints it to stdout if the variable is unset.
 //
-//	go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | grep '^{'
+// Usage:
+//
+//	SCHEMA_OUTPUT_FILE=/tmp/schema_go.json go test -run TestGenerateParitySchema -v ./fraiseql/
 
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -86,7 +89,7 @@ func TestGenerateParitySchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Emit schema as a single JSON line (grep '^{' in the Makefile captures it)
+	// Emit schema as JSON
 	schema := GetSchema()
 	output := map[string]interface{}{
 		"types":     schema.Types,
@@ -97,5 +100,13 @@ func TestGenerateParitySchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(string(data))
+
+	if outPath := os.Getenv("SCHEMA_OUTPUT_FILE"); outPath != "" {
+		if err := os.WriteFile(outPath, data, 0o644); err != nil {
+			t.Fatalf("writing schema to %s: %v", outPath, err)
+		}
+		fmt.Printf("Schema written to %s\n", outPath)
+	} else {
+		fmt.Println(string(data))
+	}
 }

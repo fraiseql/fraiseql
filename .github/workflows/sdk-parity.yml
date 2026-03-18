@@ -5,10 +5,16 @@ on:
     paths:
       - 'sdks/official/fraiseql-python/**'
       - 'sdks/official/fraiseql-typescript/**'
+      - 'sdks/official/fraiseql-go/**'
+      - 'sdks/official/fraiseql-java/**'
+      - 'tools/compare_parity_schemas.py'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-python/**'
       - 'sdks/official/fraiseql-typescript/**'
+      - 'sdks/official/fraiseql-go/**'
+      - 'sdks/official/fraiseql-java/**'
+      - 'tools/compare_parity_schemas.py'
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -16,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  parity:
+  python-typescript-parity:
     name: Python ↔ TypeScript schema parity
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -65,72 +71,129 @@ jobs:
       # Structural comparison
       # -----------------------------------------------------------------------
       - name: Compare Python and TypeScript schema outputs
-        run: |
-          python3 - <<'EOF'
-          import json
-          import sys
-
-          with open("/tmp/schema_python.json") as f:
-              python_schema = json.load(f)
-
-          with open("/tmp/schema_ts.json") as f:
-              ts_schema = json.load(f)
-
-          errors = []
-
-          # Compare top-level keys
-          py_keys = set(python_schema.keys())
-          ts_keys = set(ts_schema.keys())
-          if py_keys != ts_keys:
-              errors.append(f"Top-level keys differ: Python={sorted(py_keys)}, TS={sorted(ts_keys)}")
-
-          # Compare type names
-          py_type_names = {t["name"] for t in python_schema.get("types", [])}
-          ts_type_names = {t["name"] for t in ts_schema.get("types", [])}
-          if py_type_names != ts_type_names:
-              errors.append(f"Type names differ: Python={sorted(py_type_names)}, TS={sorted(ts_type_names)}")
-
-          # Compare query names
-          py_query_names = {q["name"] for q in python_schema.get("queries", [])}
-          ts_query_names = {q["name"] for q in ts_schema.get("queries", [])}
-          if py_query_names != ts_query_names:
-              errors.append(f"Query names differ: Python={sorted(py_query_names)}, TS={sorted(ts_query_names)}")
-
-          # Compare mutation names
-          py_mut_names = {m["name"] for m in python_schema.get("mutations", [])}
-          ts_mut_names = {m["name"] for m in ts_schema.get("mutations", [])}
-          if py_mut_names != ts_mut_names:
-              errors.append(f"Mutation names differ: Python={sorted(py_mut_names)}, TS={sorted(ts_mut_names)}")
-
-          # Compare field names per type
-          py_types_by_name = {t["name"]: t for t in python_schema.get("types", [])}
-          ts_types_by_name = {t["name"]: t for t in ts_schema.get("types", [])}
-          for type_name in py_type_names & ts_type_names:
-              py_fields = {f["name"] for f in py_types_by_name[type_name].get("fields", [])}
-              ts_fields = {f["name"] for f in ts_types_by_name[type_name].get("fields", [])}
-              if py_fields != ts_fields:
-                  errors.append(
-                      f"Fields for {type_name} differ: Python={sorted(py_fields)}, TS={sorted(ts_fields)}"
-                  )
-
-          if errors:
-              print("❌ SDK parity check FAILED:")
-              for err in errors:
-                  print(f"  - {err}")
-              sys.exit(1)
-
-          print("✅ SDK parity check passed:")
-          print(f"  Types:     {sorted(py_type_names)}")
-          print(f"  Queries:   {sorted(py_query_names)}")
-          print(f"  Mutations: {sorted(py_mut_names)}")
-          EOF
+        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_ts.json
 
       - name: Upload schema artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: parity-schemas
+          name: parity-schemas-python-ts
           path: |
             /tmp/schema_python.json
             /tmp/schema_ts.json
+          retention-days: 7
+
+  python-go-parity:
+    name: Python ↔ Go schema parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Python SDK
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install Python SDK dependencies
+        working-directory: sdks/official/fraiseql-python
+        run: uv sync
+
+      - name: Generate schema via Python SDK
+        working-directory: sdks/official/fraiseql-python
+        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
+
+      # -----------------------------------------------------------------------
+      # Go SDK
+      # -----------------------------------------------------------------------
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: sdks/official/fraiseql-go/go.sum
+
+      - name: Generate schema via Go SDK
+        working-directory: sdks/official/fraiseql-go
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_go.json
+        run: go test -run TestGenerateParitySchema -v ./fraiseql/
+
+      # -----------------------------------------------------------------------
+      # Structural comparison
+      # -----------------------------------------------------------------------
+      - name: Compare Python and Go schema outputs
+        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_go.json
+
+      - name: Upload schema artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-schemas-python-go
+          path: |
+            /tmp/schema_python.json
+            /tmp/schema_go.json
+          retention-days: 7
+
+  python-java-parity:
+    name: Python ↔ Java schema parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Python SDK
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install Python SDK dependencies
+        working-directory: sdks/official/fraiseql-python
+        run: uv sync
+
+      - name: Generate schema via Python SDK
+        working-directory: sdks/official/fraiseql-python
+        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
+
+      # -----------------------------------------------------------------------
+      # Java SDK
+      # -----------------------------------------------------------------------
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Generate schema via Java SDK
+        working-directory: sdks/official/fraiseql-java
+        run: mvn -q test -Dtest=GenerateParitySchema -DschemaOutputFile=/tmp/schema_java.json
+
+      # -----------------------------------------------------------------------
+      # Structural comparison
+      # -----------------------------------------------------------------------
+      - name: Compare Python and Java schema outputs
+        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_java.json
+
+      - name: Upload schema artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-schemas-python-java
+          path: |
+            /tmp/schema_python.json
+            /tmp/schema_java.json
           retention-days: 7
