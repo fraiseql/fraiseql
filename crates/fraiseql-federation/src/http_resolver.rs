@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use fraiseql_error::{GraphQLError, Result};
 use serde_json::{Value, json};
+use tracing::warn;
 
 use crate::{
     selection_parser::FieldSelection, tracing::FederationTraceContext, types::EntityRepresentation,
@@ -255,6 +256,16 @@ impl HttpEntityResolver {
                 message: format!("HTTP client initialisation failed for federation resolver: {e}"),
                 source:  None,
             })?;
+
+        let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+        if allow_insecure {
+            warn!(
+                "FRAISEQL_FEDERATION_ALLOW_INSECURE=true — HTTPS enforcement disabled for \
+                 subgraph calls. This should ONLY be used in development environments."
+            );
+        }
 
         Ok(Self {
             client,

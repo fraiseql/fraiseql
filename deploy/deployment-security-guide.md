@@ -614,6 +614,44 @@ kubectl run -n fraiseql-production test-pod \
 
 ---
 
+## Rate Limiter Degradation Mode
+
+When Redis is unavailable, the rate limiter operates in **fail-open** mode:
+all requests are allowed through, and a cumulative error counter is incremented.
+
+**Why fail-open**: A fail-closed rate limiter would cause a total service outage
+whenever Redis is unavailable, which is worse than temporarily allowing unthrottled
+traffic. The trade-off is explicitly chosen.
+
+**Monitoring**: Watch the `fraiseql_rate_limit_redis_errors_total` Prometheus metric.
+Alert when this counter increases, indicating Redis connectivity issues.
+
+**Mitigation**: Deploy Redis with high availability (Sentinel or Cluster) to minimize
+fail-open windows. Consider adding a local in-memory fallback rate limiter for
+critical endpoints.
+
+---
+
+## Audit Log Integrity
+
+Audit entries form a SHA256 hash chain: each entry includes the hash of the
+previous entry, providing tamper detection within the PostgreSQL table.
+
+**Limitation**: The integrity chain is stored in the same database as the audit
+data. An attacker with direct database write access could recompute the entire
+chain after modification.
+
+**Recommendation for high-compliance environments** (SOC2, PCI-DSS):
+1. Stream audit logs to an external immutable store (S3 with Object Lock, CloudWatch
+   Logs, or a SIEM like Splunk/Loki)
+2. Use the `fraiseql_audit_logs` table as the primary source, external store as
+   tamper-evident backup
+3. Periodically verify chain integrity: `SELECT integrity_hash FROM fraiseql_audit_logs ORDER BY id`
+
+**Future**: External audit log export is tracked for a future release.
+
+---
+
 ## Additional Resources
 
 - **Security Remediation Plan**: `docs/security/vulnerability-remediation-plan.md`

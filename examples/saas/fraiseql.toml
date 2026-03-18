@@ -18,6 +18,10 @@ description = "SaaS platform with account management, billing, teams, and integr
 name = "saas"
 version = "1.0.0"
 
+[validation]
+max_query_depth = 10          # Default: 10. Maximum nesting depth for GraphQL queries.
+max_query_complexity = 100    # Default: 100. Maximum computed complexity score.
+
 [security]
 default_policy = "authenticated"
 

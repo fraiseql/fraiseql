@@ -644,3 +644,4 @@ cat /tmp/incident-response-checklist.txt
 ## Related Runbooks
 
 - [14 - Federation Circuit Breaker](./14-federation-circuit-breaker.md) — circuit breaker incidents may trigger the escalation procedures above
+- [Deployment Security Guide — Audit Log Integrity](../../deploy/deployment-security-guide.md#audit-log-integrity) — tamper-evidence limitations and external store recommendations

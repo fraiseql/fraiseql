@@ -54,6 +54,25 @@ v2.0.0 / v2.1.0 note in `roadmap.md` for an example.
 
 ---
 
+## Branch Convention
+
+All release preparation work is done on a `chore/release-prep` branch based on `dev`:
+
+```bash
+git checkout dev && git pull
+git checkout -b chore/release-prep
+```
+
+This branch accumulates:
+- Version bumps across all `Cargo.toml` files
+- CHANGELOG.md updates
+- Any final quality fixes identified during pre-release review
+
+Once ready, the branch is merged to `dev`, then `dev` is merged to `main`,
+and the release workflow is triggered by tagging `main`.
+
+---
+
 ## Release Process
 
 ### Step 1: Prepare Release
