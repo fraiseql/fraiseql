@@ -46,6 +46,8 @@ resolver = "2"
 # Encryption
 aes-gcm = "0.10"
 anyhow = "1.0"
+# Atomic pointer swap (wait-free reads for schema hot-reload)
+arc-swap = "1"
 async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.8"}

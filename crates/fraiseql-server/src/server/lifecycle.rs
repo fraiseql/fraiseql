@@ -1,9 +1,13 @@
 //! Server lifecycle: serve, serve_with_shutdown, and shutdown_signal.
 
 use super::*;
+use tracing::error;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Start server and listen for requests.
+    ///
+    /// Uses SIGUSR1-aware shutdown signal when a schema path is configured,
+    /// enabling zero-downtime schema reloads via `kill -USR1 <pid>`.
     ///
     /// # Errors
     ///
@@ -37,7 +41,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        let app = self.build_router();
+        let (app, app_state) = self.build_router();
+
+        // Spawn SIGUSR1 schema reload handler when running on Unix.
+        // The handler loops forever, reloading on each signal, until the
+        // server process exits.
+        #[cfg(unix)]
+        if let Some(ref schema_path) = app_state.schema_path {
+            let reload_state = app_state.clone();
+            let reload_path = schema_path.clone();
+            tokio::spawn(async move {
+                let mut sigusr1 = tokio::signal::unix::signal(
+                    tokio::signal::unix::SignalKind::user_defined1(),
+                )
+                .expect("Failed to install SIGUSR1 handler");
+                loop {
+                    sigusr1.recv().await;
+                    info!(
+                        path = %reload_path.display(),
+                        "Received SIGUSR1 — reloading schema"
+                    );
+                    match reload_state.reload_schema(&reload_path).await {
+                        Ok(()) => {
+                            let hash = reload_state.executor().schema().content_hash();
+                            reload_state
+                                .metrics
+                                .schema_reloads_total
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            info!(schema_hash = %hash, "Schema reloaded successfully via SIGUSR1");
+                        },
+                        Err(e) => {
+                            reload_state
+                                .metrics
+                                .schema_reload_errors_total
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            error!(
+                                error = %e,
+                                path = %reload_path.display(),
+                                "Schema reload failed via SIGUSR1 — keeping previous schema"
+                            );
+                        },
+                    }
+                }
+            });
+            info!(
+                path = %schema_path.display(),
+                "SIGUSR1 schema reload handler installed"
+            );
+        }
 
         // Initialize TLS setup
         let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone())?;
@@ -211,7 +262,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        let app = self.build_router();
+        let (app, _app_state) = self.build_router();
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown)
             .await
@@ -243,4 +294,5 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             _ = terminate => info!("Received SIGTERM"),
         }
     }
+
 }

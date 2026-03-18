@@ -7,6 +7,8 @@ name = "performance_benchmarks"
 aes-gcm = "0.10"
 # Error handling
 anyhow = "1.0"
+# Atomic pointer swap (wait-free reads for schema hot-reload)
+arc-swap = { workspace = true }
 async-trait = "0.1"
 aws-config = {version = "1", optional = true}
 # AWS S3 (optional)

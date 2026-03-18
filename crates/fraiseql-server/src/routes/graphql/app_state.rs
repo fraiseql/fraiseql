@@ -1,12 +1,15 @@
 //! AppState — server state passed to all GraphQL route handlers.
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
+use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
     runtime::Executor,
+    schema::CompiledSchema,
 };
+use tracing::info;
 
 #[cfg(feature = "auth")]
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
@@ -18,8 +21,8 @@ use crate::{
 /// Server state containing executor and configuration.
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
-    /// Query executor.
-    pub executor:              Arc<Executor<A>>,
+    /// Query executor (atomically swappable for schema hot-reload).
+    pub executor:              Arc<ArcSwap<Executor<A>>>,
     /// Metrics collector.
     pub metrics:               Arc<MetricsCollector>,
     /// Query result cache (optional).
@@ -67,6 +70,12 @@ pub struct AppState<A: DatabaseAdapter> {
     #[cfg(feature = "observers")]
     pub observer_runtime:
         Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
+    /// Schema file path for reload operations.
+    pub schema_path:           Option<PathBuf>,
+    /// Database adapter reference for constructing new executors on reload.
+    pub(crate) reload_adapter: Option<Arc<A>>,
+    /// Reload mutex to serialize concurrent reload attempts.
+    pub(crate) reload_lock:    Arc<tokio::sync::Mutex<()>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -74,7 +83,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor,
+            executor: Arc::new(ArcSwap::from(executor)),
             metrics: Arc::new(MetricsCollector::new()),
             #[cfg(feature = "arrow")]
             cache: None,
@@ -101,7 +110,93 @@ impl<A: DatabaseAdapter> AppState<A> {
             #[cfg(feature = "observers")]
             observer_runtime: None,
             max_get_query_bytes: 100_000,
+            schema_path: None,
+            reload_adapter: None,
+            reload_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
+    }
+
+    /// Load the current executor.
+    ///
+    /// Returns a guard that keeps the executor alive for the duration of the
+    /// request. This is wait-free (no lock).
+    pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
+        self.executor.load()
+    }
+
+    /// Atomically swap the executor.
+    ///
+    /// In-flight requests that already called `executor()` continue using
+    /// the old executor until their guard is dropped.
+    pub fn swap_executor(&self, new_executor: Arc<Executor<A>>) {
+        self.executor.store(new_executor);
+    }
+
+    /// Configure reload support with a schema file path and database adapter.
+    #[must_use]
+    pub fn with_reload_config(mut self, schema_path: PathBuf, adapter: Arc<A>) -> Self {
+        self.schema_path = Some(schema_path);
+        self.reload_adapter = Some(adapter);
+        self
+    }
+
+    /// Reload the compiled schema from a file path.
+    ///
+    /// Reads the schema file, validates it, constructs a new `Executor<A>`,
+    /// and atomically swaps it into the shared state. In-flight requests
+    /// continue using the previous executor until their handler returns.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, the JSON is invalid, or
+    /// schema validation fails. On error, the current executor is unchanged.
+    pub async fn reload_schema(&self, path: &std::path::Path) -> Result<(), String> {
+        // Serialize concurrent reloads
+        let _guard = self
+            .reload_lock
+            .try_lock()
+            .map_err(|_| "Reload already in progress".to_string())?;
+
+        let adapter = self
+            .reload_adapter
+            .as_ref()
+            .ok_or_else(|| "Reload not configured: no adapter available".to_string())?;
+
+        // 1. Read schema file
+        let json = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| format!("Failed to read schema file {}: {e}", path.display()))?;
+
+        // 2. Parse and validate
+        let schema = CompiledSchema::from_json(&json)
+            .map_err(|e| format!("Invalid schema JSON: {e}"))?;
+
+        // 3. Validate format version
+        schema
+            .validate_format_version()
+            .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
+
+        // 4. Check if schema actually changed
+        let current = self.executor.load();
+        if current.schema().content_hash() == schema.content_hash() {
+            return Ok(()); // Same schema, no-op
+        }
+
+        // 5. Construct new executor (reuses same adapter/connection pool)
+        let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
+
+        // 6. Atomic swap
+        self.executor.store(new_executor);
+
+        // 7. Clear caches (query plans reference old schema)
+        #[cfg(feature = "arrow")]
+        if let Some(cache) = &self.cache {
+            cache.clear();
+        }
+
+        info!("Schema executor swapped successfully");
+
+        Ok(())
     }
 
     /// Create new application state with custom metrics collector.
@@ -277,5 +372,174 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// Sanitize a batch of errors before sending them to the client.
     pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
         self.error_sanitizer.sanitize_all(errors)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use fraiseql_core::{
+        db::{
+            WhereClause,
+            traits::DatabaseAdapter,
+            types::{DatabaseType, JsonbValue, PoolMetrics},
+        },
+        error::Result as FraiseQLResult,
+        runtime::Executor,
+        schema::CompiledSchema,
+    };
+
+    use super::*;
+
+    /// Minimal no-op database adapter for unit tests.
+    #[derive(Debug, Clone)]
+    struct StubAdapter;
+
+    // Reason: async_trait required by DatabaseAdapter trait definition
+    #[async_trait]
+    impl DatabaseAdapter for StubAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::SQLite
+        }
+
+        async fn health_check(&self) -> FraiseQLResult<()> {
+            Ok(())
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics::default()
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    fn make_state() -> AppState<StubAdapter> {
+        let schema = CompiledSchema::default();
+        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        AppState::new(executor)
+    }
+
+    #[test]
+    fn test_arcswap_executor_load() {
+        let state = make_state();
+        let guard = state.executor();
+        assert_eq!(guard.schema().types.len(), 0);
+    }
+
+    #[test]
+    fn test_arcswap_executor_swap() {
+        let state = make_state();
+        let hash_before = state.executor().schema().content_hash();
+
+        // Create a schema with a different content hash by adding a query
+        let mut new_schema = CompiledSchema::default();
+        new_schema
+            .queries
+            .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
+        let new_executor = Arc::new(Executor::new(new_schema, Arc::new(StubAdapter)));
+
+        state.swap_executor(new_executor);
+
+        let guard = state.executor();
+        assert_ne!(guard.schema().content_hash(), hash_before);
+        assert_eq!(guard.schema().queries.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_reload_schema_no_adapter_returns_error() {
+        let state = make_state();
+        let result = state
+            .reload_schema(std::path::Path::new("/nonexistent"))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no adapter available"));
+    }
+
+    #[tokio::test]
+    async fn test_reload_schema_nonexistent_file_returns_error() {
+        let state = make_state().with_reload_config(
+            "/nonexistent/schema.json".into(),
+            Arc::new(StubAdapter),
+        );
+        let result = state
+            .reload_schema(std::path::Path::new("/nonexistent/schema.json"))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to read schema file"));
+    }
+
+    #[tokio::test]
+    async fn test_reload_same_hash_is_noop() {
+        let schema = CompiledSchema::default();
+        let hash_before = schema.content_hash();
+        let adapter = Arc::new(StubAdapter);
+        let executor = Arc::new(Executor::new(schema, adapter.clone()));
+        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.json");
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&path).await;
+        assert!(result.is_ok());
+        assert_eq!(state.executor().schema().content_hash(), hash_before);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_reload_serialized() {
+        let adapter = Arc::new(StubAdapter);
+        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+
+        // Manually acquire the reload lock
+        let _guard = state.reload_lock.lock().await;
+
+        // A second reload should fail immediately with "Reload already in progress"
+        let result = state
+            .reload_schema(std::path::Path::new("/tmp/test.json"))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already in progress"));
     }
 }

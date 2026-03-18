@@ -3,9 +3,16 @@
 use super::*;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router.
-    pub(super) fn build_router(&self) -> Router {
-        let mut state = AppState::new(self.executor.clone());
+    /// Build application router and return the shared `AppState`.
+    ///
+    /// The returned `AppState` is needed by the lifecycle module for
+    /// SIGUSR1 schema reload handling.
+    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+        let mut state = AppState::new(self.executor.clone())
+            .with_reload_config(
+                self.config.schema_path.clone(),
+                self.executor.adapter().clone(),
+            );
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]
@@ -480,14 +487,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         streamable_http_server::session::local::LocalSessionManager,
                     };
 
-                    let schema = Arc::new(self.executor.schema().clone());
-                    let executor = self.executor.clone();
+                    // Capture ArcSwap so new MCP sessions get the current executor
+                    let executor_swap = state.executor.clone();
                     let cfg = mcp_cfg.clone();
                     let mcp_service = StreamableHttpService::new(
                         move || {
+                            let executor = executor_swap.load_full();
+                            let schema = Arc::new(executor.schema().clone());
                             Ok(crate::mcp::handler::FraiseQLMcpService::new(
-                                schema.clone(),
-                                executor.clone(),
+                                schema,
+                                executor,
                                 cfg.clone(),
                             ))
                         },
@@ -644,7 +653,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.layer(Extension(controller));
         }
 
-        app
+        (app, state)
     }
 
     /// Add observer-related routes to the router.

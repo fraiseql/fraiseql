@@ -108,6 +108,12 @@ pub struct MetricsCollector {
 
     /// Per-operation metrics (histogram + error counter)
     pub operation_metrics: Arc<OperationMetricsRegistry>,
+
+    /// Total successful schema reloads
+    pub schema_reloads_total: Arc<AtomicU64>,
+
+    /// Total failed schema reload attempts
+    pub schema_reload_errors_total: Arc<AtomicU64>,
 }
 
 impl MetricsCollector {
@@ -143,6 +149,8 @@ impl MetricsCollector {
             federation_entity_cache_misses: Arc::new(AtomicU64::new(0)),
             federation_errors_total: Arc::new(AtomicU64::new(0)),
             operation_metrics: Arc::new(OperationMetricsRegistry::default()),
+            schema_reloads_total: Arc::new(AtomicU64::new(0)),
+            schema_reload_errors_total: Arc::new(AtomicU64::new(0)),
         }
     }
 }

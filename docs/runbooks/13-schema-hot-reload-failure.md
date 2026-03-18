@@ -2,7 +2,8 @@
 
 ## Symptoms
 
-- Log message: `WARN fraiseql_server::schema::hot_reload: schema reload failed`
+- Log message: `ERROR Schema reload failed via SIGUSR1 — keeping previous schema`
+  or `ERROR Schema reload failed` (admin endpoint)
 - Metric: `fraiseql_schema_reload_errors_total` counter incrementing
 - Schema-dependent behavior: the server continues serving requests using the
   **previously loaded schema version** — new type definitions, fields, or SQL
@@ -57,26 +58,33 @@ Compare with the expected compiled schema version.
 
 ### Step 1: Find the error message
 
-Hot-reload failures log the underlying error at `WARN` level with structured fields:
+Hot-reload failures are logged at `ERROR` level with structured fields:
 
 ```
-WARN fraiseql_server::schema::hot_reload: schema reload failed
+ERROR Schema reload failed via SIGUSR1 — keeping previous schema
   error="<error message here>"
   path="/etc/fraiseql/schema.compiled.json"
-  attempt=3
+```
+
+Or from the admin endpoint:
+
+```
+ERROR Schema reload failed
+  operation="admin.reload_schema"
+  schema_path="/etc/fraiseql/schema.compiled.json"
+  error="<error message here>"
 ```
 
 ### Step 2: Identify the failure cause
 
 | Error pattern | Likely cause | Resolution |
 |---|---|---|
-| `io error: permission denied` | Schema file permissions changed | `chmod 644 schema.compiled.json` |
-| `io error: no such file or directory` | Schema file deleted or moved | Restore or redeploy `schema.compiled.json` |
-| `JSON parse error` | Malformed `schema.compiled.json` | Rerun `fraiseql compile` (see Step 3) |
-| `Schema format version mismatch` | Schema compiled with incompatible CLI version | Recompile with matching `fraiseql-cli` |
-| `validation error: unknown type` | Schema references a type not yet defined | Fix the schema definition and recompile |
-| `timeout` | Disk I/O timeout or NFS stall | Check filesystem health (`df -h`, `dmesg`) |
-| `connection refused` | Remote schema source unavailable | Check network connectivity to schema source |
+| `Failed to read schema file ... permission denied` | Schema file permissions changed | `chmod 644 schema.compiled.json` |
+| `Failed to read schema file ... No such file` | Schema file deleted or moved | Restore or redeploy `schema.compiled.json` |
+| `Invalid schema JSON` | Malformed `schema.compiled.json` | Rerun `fraiseql compile` (see Step 3) |
+| `Incompatible compiled schema` | Schema compiled with incompatible CLI version | Recompile with matching `fraiseql-cli` |
+| `Reload already in progress` | Concurrent reload attempted | Wait for current reload to finish |
+| `Reload not configured: no adapter` | Server started without reload config | Restart server (configuration issue) |
 
 ### Step 3: Verify the compiled schema
 
@@ -115,27 +123,16 @@ fraiseql validate /etc/fraiseql/schema.compiled.json
 
 ## Recovery
 
-### Option A: Fix the file and wait for the next reload cycle
+### Option A: Fix the file and trigger reload
 
-The hot-reload interval defaults to 30 seconds (configurable via
-`[hot_reload] interval_secs` in `fraiseql.toml`). Once the file is corrected,
-the next reload cycle picks it up automatically.
-
-```toml
-# fraiseql.toml
-[hot_reload]
-interval_secs = 30        # How often to check for schema changes
-enabled = true
-```
+Schema reload is on-demand, not polling-based. Fix the file and then trigger
+a reload via SIGUSR1 or the admin endpoint.
 
 Monitor the logs for the success message:
 
 ```
-INFO fraiseql_server::schema::hot_reload: schema reloaded successfully
-  version=1
-  types=12
-  queries=8
-  mutations=5
+INFO Schema reloaded successfully via SIGUSR1
+  schema_hash="abc123..."
 ```
 
 ### Option B: Trigger a reload via SIGUSR1
@@ -151,9 +148,29 @@ kill -SIGUSR1 $(pgrep fraiseql-server)
 ```
 
 The server attempts to reload the schema immediately without interrupting
-in-flight requests.
+in-flight requests. The reload uses `ArcSwap` for a wait-free atomic pointer
+swap — new requests see the new schema instantly while in-flight requests
+complete against the old schema.
 
-### Option C: Graceful restart (zero-downtime)
+### Option C: Trigger a reload via admin endpoint
+
+```bash
+curl -X POST http://localhost:4000/api/v1/admin/reload-schema \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"schema_path": "/etc/fraiseql/schema.compiled.json"}'
+```
+
+Set `validate_only: true` to validate without applying:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/admin/reload-schema \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"schema_path": "/etc/fraiseql/schema.compiled.json", "validate_only": true}'
+```
+
+### Option D: Graceful restart (zero-downtime)
 
 If the process needs to be fully restarted:
 
@@ -171,6 +188,22 @@ kubectl rollout restart deployment/fraiseql-server
 # Verify rollout
 kubectl rollout status deployment/fraiseql-server
 ```
+
+---
+
+## Reload Scope
+
+Schema reload **only updates the query execution schema** (types, queries,
+mutations, SQL templates). The following require a full process restart:
+
+- OIDC validator configuration
+- Rate limiter thresholds
+- Circuit breaker settings
+- Error sanitizer config
+- `RequestValidator` settings (`max_query_depth`, `max_complexity`)
+- Trusted documents manifest
+- API key authenticator
+- MCP sessions (existing sessions keep their snapshot; new sessions get the latest)
 
 ---
 

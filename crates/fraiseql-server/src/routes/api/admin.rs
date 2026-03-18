@@ -10,7 +10,7 @@ use std::{collections::HashMap, fs};
 use axum::{Json, extract::State};
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::routes::{
     api::types::{ApiError, ApiResponse},
@@ -113,42 +113,50 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
             data:   response,
         }))
     } else {
-        // Step 3: Apply the schema (invalidate cache after swap if configured)
-        #[cfg(feature = "arrow")]
-        if let Some(cache) = state.cache() {
-            cache.clear();
-            info!(
-                operation = "admin.reload_schema",
-                schema_path = %req.schema_path,
-                validate_only = false,
-                cache_cleared = true,
-                success = true,
-                "Admin: schema reloaded and cache cleared"
-            );
-            let response = ReloadSchemaResponse {
-                success: true,
-                message: format!("Schema reloaded from {} and cache cleared", req.schema_path),
-            };
-            return Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data:   response,
-            }));
+        // Step 3: Atomically swap the executor with the new schema
+        let start = std::time::Instant::now();
+        let schema_path = std::path::Path::new(&req.schema_path);
+
+        match state.reload_schema(schema_path).await {
+            Ok(()) => {
+                let duration_ms = start.elapsed().as_millis();
+                state
+                    .metrics
+                    .schema_reloads_total
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                info!(
+                    operation = "admin.reload_schema",
+                    schema_path = %req.schema_path,
+                    duration_ms,
+                    "Schema reloaded successfully"
+                );
+
+                let response = ReloadSchemaResponse {
+                    success: true,
+                    message: format!(
+                        "Schema reloaded from {} in {duration_ms}ms",
+                        req.schema_path
+                    ),
+                };
+                Ok(Json(ApiResponse {
+                    status: "success".to_string(),
+                    data:   response,
+                }))
+            },
+            Err(e) => {
+                state
+                    .metrics
+                    .schema_reload_errors_total
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                error!(
+                    operation = "admin.reload_schema",
+                    schema_path = %req.schema_path,
+                    error = %e,
+                    "Schema reload failed"
+                );
+                Err(ApiError::internal_error(format!("Schema reload failed: {e}")))
+            },
         }
-        info!(
-            operation = "admin.reload_schema",
-            schema_path = %req.schema_path,
-            validate_only = false,
-            success = true,
-            "Admin: schema reloaded"
-        );
-        let response = ReloadSchemaResponse {
-            success: true,
-            message: format!("Schema reloaded from {}", req.schema_path),
-        };
-        Ok(Json(ApiResponse {
-            status: "success".to_string(),
-            data:   response,
-        }))
     }
 }
 
@@ -471,7 +479,7 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
     }
 
     state
-        .executor
+        .executor()
         .explain(&req.query, req.variables.as_ref(), req.limit, req.offset)
         .await
         .map(ApiResponse::success)
