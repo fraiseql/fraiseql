@@ -1,0 +1,33 @@
+name: Changelog Check
+
+on:
+  pull_request:
+    branches: [dev]
+
+jobs:
+  changelog-check:
+    name: Changelog Up-to-Date
+    if: startsWith(github.head_ref, 'chore/release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Check for unreleased changes
+        run: |
+          UNRELEASED=$(git cliff --unreleased --strip header)
+          if [ -z "$UNRELEASED" ]; then
+            echo "No unreleased changelog entries found"
+            exit 0
+          fi
+          # Check that CHANGELOG.md contains recent changes
+          if ! grep -q "Unreleased\|$(date +%Y-%m)" CHANGELOG.md; then
+            echo "::warning::CHANGELOG.md may not be up to date — run 'make changelog' to preview entries"
+          fi

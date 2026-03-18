@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release load-test load-test-all helm-lint
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -31,6 +31,8 @@ help:
 	@echo "  make fmt                - Format code with rustfmt"
 	@echo "  make check              - Run all checks (fmt + clippy + test)"
 	@echo "  make helm-lint          - Lint and template-test the Helm chart"
+	@echo "  make changelog          - Preview unreleased changelog entries (git-cliff)"
+	@echo "  make changelog-full     - Generate full changelog (overwrites CHANGELOG.md)"
 	@echo "  make clean              - Clean build artifacts"
 	@echo "  make clean-test-containers - Remove leaked testcontainers postgres instances"
 	@echo ""
@@ -191,6 +193,18 @@ test-all-ignored: db-up
 # Run end-to-end tests
 test-e2e:
 	cargo test --test 'test_*' --all-features -- --ignored
+
+# ============================================================================
+# Changelog (git-cliff)
+# ============================================================================
+
+## Preview unreleased changelog entries
+changelog:
+	git cliff --unreleased --strip header
+
+## Generate full changelog (overwrites CHANGELOG.md)
+changelog-full:
+	git cliff --output CHANGELOG.md
 
 # Run Clippy
 clippy:

@@ -82,8 +82,15 @@ and the release workflow is triggered by tagging `main`.
 # Current: 2.0.0-alpha.5
 # Next: 2.0.0-alpha.6
 
-# 2. Update CHANGELOG.md
-# Add entry with all changes
+# 2. Generate CHANGELOG entries from conventional commits
+# Preview unreleased changes
+make changelog
+
+# Generate full changelog for a tagged release
+git cliff --tag v2.1.0 --output CHANGELOG.md
+
+# Review and manually edit if needed (git-cliff output is a starting point)
+$EDITOR CHANGELOG.md
 
 # 3. Update README.md if needed
 # Ensure version numbers match
@@ -93,6 +100,9 @@ git add -A
 git commit -m "chore(release): Prepare v2.0.0-alpha.6"
 git push origin dev
 ```
+
+> **Note:** `git-cliff` generates entries from conventional commits. Always review
+> and edit the output — automated changelog is a starting point, not final copy.
 
 ### Step 2: Create Release Tag
 
