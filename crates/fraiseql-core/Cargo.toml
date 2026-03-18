@@ -33,6 +33,11 @@ name = "cache_concurrent_bench"
 harness = false
 name = "federation_bench"
 
+[[bench]]
+harness = true
+name = "memory_profile"
+required-features = ["dhat-heap"]
+
 [dependencies]
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
@@ -46,6 +51,7 @@ bytes = {workspace = true}
 chrono = {workspace = true}
 dashmap = {workspace = true}
 deadpool = {workspace = true}
+dhat = {version = "0.3", optional = true}
 # Database abstraction layer (adapters, collation, introspector, filters)
 fraiseql-db = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
@@ -114,6 +120,7 @@ audit-syslog = ["dep:hostname"]
 # Audit log export: HTTPS webhook sink for audit entries.
 audit-webhook = []
 default = ["postgres", "rich-filters"]
+dhat-heap = ["dhat"]
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]

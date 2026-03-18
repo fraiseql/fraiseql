@@ -120,3 +120,38 @@ jobs:
         with:
           name: criterion-results
           path: target/criterion/
+
+  memory-profile:
+    name: Memory profiling (dhat)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run memory profiles
+        run: |
+          cargo test --bench memory_profile -p fraiseql-core \
+            --features dhat-heap -- --nocapture --test-threads=1 2>&1 | tee memory-profile.txt
+
+      - name: Check regression
+        run: |
+          # Extract peak heap from output
+          PEAK=$(grep "DHAT\[" memory-profile.txt | sed 's/.*peak_heap=\([0-9]*\).*/\1/' | sort -rn | head -1)
+          echo "Peak heap: ${PEAK} bytes"
+
+          # Enforce absolute ceiling (100 MB)
+          if [ "$PEAK" -gt 100000000 ]; then
+            echo "::error::Peak heap ${PEAK} exceeds 100MB ceiling"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: memory-profile
+          path: memory-profile.txt
