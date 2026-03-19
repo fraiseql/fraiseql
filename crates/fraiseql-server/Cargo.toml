@@ -175,5 +175,9 @@ rust-version.workspace = true
 version.workspace = true
 
 [[test]]
+name = "rest_transport_e2e_test"
+required-features = ["rest"]
+
+[[test]]
 name = "secrets_manager_integration_test"
 required-features = ["secrets"]

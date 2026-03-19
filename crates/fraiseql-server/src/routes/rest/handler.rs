@@ -873,15 +873,33 @@ fn extract_delete_entity(
     mutation_name: &str,
 ) -> Option<serde_json::Value> {
     let parsed: serde_json::Value = serde_json::from_str(result).ok()?;
-    let entity = parsed
-        .get("data")?
-        .get(mutation_name)?
-        .get("entity")?;
+    let mutation_result = parsed.get("data")?.get(mutation_name)?;
 
-    if entity.is_null() {
+    // The executor flattens entity fields directly under `data.{mutation_name}`.
+    // If an `entity` key exists, use it (raw mutation_response format).
+    // Otherwise, treat the mutation result itself as the entity (executor output format).
+    let entity = if mutation_result.get("entity").is_some() {
+        // Raw format: extract nested entity (returns None if null)
+        let e = mutation_result.get("entity")?;
+        if e.is_null() { return None; }
+        e
+    } else if mutation_result.is_object() && !mutation_result.as_object()?.is_empty() {
+        // Executor format: entity fields + __typename at top level
+        mutation_result
+    } else {
+        return None;
+    };
+
+    // Strip internal __typename from the REST response
+    let mut cleaned = entity.clone();
+    if let Some(obj) = cleaned.as_object_mut() {
+        obj.remove("__typename");
+    }
+
+    if cleaned.is_null() || cleaned.as_object().is_some_and(serde_json::Map::is_empty) {
         None
     } else {
-        Some(entity.clone())
+        Some(cleaned)
     }
 }
 
@@ -1356,11 +1374,22 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn extract_entity_present() {
+    fn extract_entity_nested_format() {
         let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
         let entity = extract_delete_entity(result, "deleteUser").unwrap();
         assert_eq!(entity["id"], 1);
         assert_eq!(entity["name"], "Alice");
+    }
+
+    #[test]
+    fn extract_entity_executor_format() {
+        // Executor flattens entity fields + __typename directly under mutation name
+        let result = r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#;
+        let entity = extract_delete_entity(result, "delete_user").unwrap();
+        assert_eq!(entity["pk_user_id"], 42);
+        assert_eq!(entity["name"], "Alice");
+        // __typename should be stripped
+        assert!(entity.get("__typename").is_none());
     }
 
     #[test]
@@ -1371,7 +1400,7 @@ mod tests {
 
     #[test]
     fn extract_entity_missing() {
-        let result = r#"{"data":{"deleteUser":{"success":true}}}"#;
+        let result = r#"{"data":{"deleteUser":{}}}"#;
         assert!(extract_delete_entity(result, "deleteUser").is_none());
     }
 

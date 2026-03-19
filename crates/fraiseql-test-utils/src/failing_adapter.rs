@@ -15,8 +15,10 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        DatabaseAdapter, DatabaseType, MutationCapable, WhereClause,
+        CursorValue, DatabaseAdapter, DatabaseType, MutationCapable, RelayDatabaseAdapter,
+        WhereClause,
         types::{JsonbValue, PoolMetrics},
+        traits::RelayPageResult,
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
@@ -98,13 +100,15 @@ impl FailError {
 #[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
-    responses:   Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    /// Canned function call responses per function name.
+    function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
     /// Failure injection configuration.
-    fail_config: Arc<Mutex<FailConfig>>,
+    fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count: Arc<AtomicU64>,
+    query_count:        Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log:   Arc<Mutex<Vec<String>>>,
+    query_log:          Arc<Mutex<Vec<String>>>,
 }
 
 impl FailingAdapter {
@@ -112,10 +116,11 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:   Arc::new(Mutex::new(HashMap::new())),
-            fail_config: Arc::new(Mutex::new(FailConfig::default())),
-            query_count: Arc::new(AtomicU64::new(0)),
-            query_log:   Arc::new(Mutex::new(Vec::new())),
+            responses:          Arc::new(Mutex::new(HashMap::new())),
+            function_responses: Arc::new(Mutex::new(HashMap::new())),
+            fail_config:        Arc::new(Mutex::new(FailConfig::default())),
+            query_count:        Arc::new(AtomicU64::new(0)),
+            query_log:          Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -127,6 +132,24 @@ impl FailingAdapter {
     #[must_use]
     pub fn with_response(self, view: &str, data: Vec<JsonbValue>) -> Self {
         self.responses.lock().unwrap().insert(view.to_string(), data);
+        self
+    }
+
+    /// Set a canned response for a specific database function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal function responses mutex is poisoned.
+    #[must_use]
+    pub fn with_function_response(
+        self,
+        function_name: &str,
+        data: Vec<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.function_responses
+            .lock()
+            .unwrap()
+            .insert(function_name.to_string(), data);
         self
     }
 
@@ -183,6 +206,7 @@ impl FailingAdapter {
         *self.fail_config.lock().unwrap() = FailConfig::default();
         self.query_count.store(0, Ordering::SeqCst);
         self.query_log.lock().unwrap().clear();
+        self.function_responses.lock().unwrap().clear();
     }
 
     /// Get all recorded query view names.
@@ -355,11 +379,35 @@ impl DatabaseAdapter for FailingAdapter {
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
-        Ok(vec![])
+        let responses = self.function_responses.lock().unwrap();
+        Ok(responses.get(function_name).cloned().unwrap_or_default())
     }
 }
 
 impl MutationCapable for FailingAdapter {}
+
+impl RelayDatabaseAdapter for FailingAdapter {
+    async fn execute_relay_page<'a>(
+        &'a self,
+        view: &'a str,
+        _cursor_column: &'a str,
+        _after: Option<CursorValue>,
+        _before: Option<CursorValue>,
+        limit: u32,
+        _forward: bool,
+        _where_clause: Option<&'a WhereClause>,
+        _order_by: Option<&'a [fraiseql_core::db::types::sql_hints::OrderByClause]>,
+        _include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        self.check_failure(view)?;
+        let all_rows = self.get_response(view);
+        let rows: Vec<JsonbValue> = all_rows.into_iter().take(limit as usize).collect();
+        Ok(RelayPageResult {
+            rows,
+            total_count: None,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
