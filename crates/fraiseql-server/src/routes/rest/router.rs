@@ -240,14 +240,9 @@ where
     if super::streaming::accepts_ndjson(&parts.headers) {
         let schema = rest.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist");
-        let ndjson_ctx = super::streaming::NdjsonRequest {
-            executor: &rest.executor,
-            schema,
-            config,
-            route_table: &rest.route_table,
-        };
+        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
         let result = super::streaming::handle_ndjson_get(
-            &ndjson_ctx,
+            &handler,
             &relative_path,
             &query_refs,
             &parts.headers,

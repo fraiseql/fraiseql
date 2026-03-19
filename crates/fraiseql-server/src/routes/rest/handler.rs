@@ -311,6 +311,21 @@ fn match_route_path(route_path: &str, segments: &[&str]) -> Option<Vec<(String, 
 // REST Handler
 // ---------------------------------------------------------------------------
 
+/// Pre-resolved GET query context, ready for execution.
+///
+/// Produced by [`RestHandler::resolve_get_query`] and consumed by both
+/// `handle_get` (JSON envelope) and NDJSON streaming.
+pub struct ResolvedGetQuery {
+    /// Name of the matched query.
+    pub query_name: String,
+    /// Pre-built query match with field selection and arguments.
+    pub query_match: QueryMatch,
+    /// Variables for relay pagination.
+    pub variables: serde_json::Value,
+    /// Extracted request parameters (pagination, embeddings, etc.).
+    pub params: super::params::ExtractedParams,
+}
+
 /// REST request handler — translates HTTP requests to direct executor calls.
 ///
 /// This handler does NOT construct GraphQL strings. It builds typed
@@ -341,6 +356,12 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         }
     }
 
+    /// Access the underlying executor.
+    #[must_use]
+    pub const fn executor(&self) -> &Arc<Executor<A>> {
+        self.executor
+    }
+
     /// Set the idempotency store for POST mutation replay.
     #[must_use]
     pub const fn with_idempotency_store(
@@ -351,19 +372,22 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         self
     }
 
-    /// Handle a GET request (query execution).
+    /// Resolve a GET request path into a prepared query match and extracted params.
+    ///
+    /// Shared by `handle_get` (JSON envelope) and NDJSON streaming. Performs
+    /// route resolution, role checking, parameter extraction, and builds the
+    /// `QueryMatch` + variables.
     ///
     /// # Errors
     ///
-    /// Returns `RestError` on route not found, parameter validation failure,
-    /// or query execution error.
-    pub async fn handle_get(
+    /// Returns `RestError` on route not found, role check failure, or
+    /// parameter extraction error.
+    pub fn resolve_get_query(
         &self,
         relative_path: &str,
         query_pairs: &[(&str, &str)],
-        headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
-    ) -> Result<RestResponse, RestError> {
+    ) -> Result<ResolvedGetQuery, RestError> {
         let resolved = self
             .route_table
             .resolve(relative_path, HttpMethod::Get)
@@ -470,6 +494,32 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             type_def,
         )?;
 
+        Ok(ResolvedGetQuery {
+            query_name: query_name.to_string(),
+            query_match,
+            variables: variables_json,
+            params,
+        })
+    }
+
+    /// Handle a GET request (query execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns `RestError` on route not found, parameter validation failure,
+    /// or query execution error.
+    pub async fn handle_get(
+        &self,
+        relative_path: &str,
+        query_pairs: &[(&str, &str)],
+        headers: &HeaderMap,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<RestResponse, RestError> {
+        let resolved_query = self.resolve_get_query(relative_path, query_pairs, security_context)?;
+        let query_match = &resolved_query.query_match;
+        let variables_json = &resolved_query.variables;
+        let params = &resolved_query.params;
+
         // Parse Prefer header
         let prefer = PreferHeader::from_headers(headers);
 
@@ -477,16 +527,16 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         let vars_ref = if variables_json.as_object().is_none_or(|m| m.is_empty()) {
             None
         } else {
-            Some(&variables_json)
+            Some(variables_json)
         };
 
         let (result, total, count_applied) = match prefer.count_preference() {
             Some(CountPreference::Exact) => {
                 let (r, c) = tokio::join!(
                     self.executor
-                        .execute_query_direct(&query_match, vars_ref, security_context),
+                        .execute_query_direct(query_match, vars_ref, security_context),
                     self.executor
-                        .count_rows(&query_match, vars_ref, security_context),
+                        .count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
             }
@@ -494,9 +544,9 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
                 // count=planned falls back to count=exact on non-PostgreSQL
                 let (r, c) = tokio::join!(
                     self.executor
-                        .execute_query_direct(&query_match, vars_ref, security_context),
+                        .execute_query_direct(query_match, vars_ref, security_context),
                     self.executor
-                        .count_rows(&query_match, vars_ref, security_context),
+                        .count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
             }
@@ -504,16 +554,16 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
                 // count=estimated falls back to count=exact on non-PostgreSQL
                 let (r, c) = tokio::join!(
                     self.executor
-                        .execute_query_direct(&query_match, vars_ref, security_context),
+                        .execute_query_direct(query_match, vars_ref, security_context),
                     self.executor
-                        .count_rows(&query_match, vars_ref, security_context),
+                        .count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
             }
             None => {
                 let r = self
                     .executor
-                    .execute_query_direct(&query_match, vars_ref, security_context)
+                    .execute_query_direct(query_match, vars_ref, security_context)
                     .await?;
                 (r, None, None)
             }
@@ -550,7 +600,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             &super::cache_control::CacheContext {
                 is_get: true,
                 has_auth,
-                query_ttl: query_def.cache_ttl_seconds,
+                query_ttl: query_match.query_def.cache_ttl_seconds,
                 default_ttl: self.config.default_cache_ttl,
             },
         );
@@ -565,7 +615,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
                     executor: self.executor,
                     schema: self.schema,
                     config: self.config,
-                    parent_type_name: &query_def.return_type,
+                    parent_type_name: &query_match.query_def.return_type,
                     security_context,
                 };
 

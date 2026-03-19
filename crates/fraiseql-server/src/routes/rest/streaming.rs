@@ -5,19 +5,13 @@
 //! envelope (`data`/`meta`/`links`), enabling constant-memory streaming for
 //! large result sets.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::runtime::{Executor, QueryMatch};
-use fraiseql_core::schema::{CompiledSchema, RestConfig};
 use fraiseql_core::security::SecurityContext;
 
-use super::handler::{PreferHeader, RestError, set_request_id};
-use super::params::{PaginationParams, RestFieldSpec, RestParamExtractor};
-use super::resource::{HttpMethod, RestRouteTable, RouteSource};
+use super::handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id};
+use super::params::PaginationParams;
 
 /// Content type for NDJSON responses.
 pub const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
@@ -72,119 +66,47 @@ pub fn validate_ndjson_request(
     Ok(())
 }
 
-/// Request context for NDJSON streaming.
-pub struct NdjsonRequest<'a, A: DatabaseAdapter> {
-    /// Executor for query execution.
-    pub executor: &'a Arc<Executor<A>>,
-    /// Compiled schema reference.
-    pub schema: &'a CompiledSchema,
-    /// REST configuration.
-    pub config: &'a RestConfig,
-    /// REST route table.
-    pub route_table: &'a RestRouteTable,
-}
-
 /// Execute a query and return results as an NDJSON byte stream.
 ///
 /// Each row is serialized as a JSON object followed by a newline (`\n`).
 /// The response uses `Transfer-Encoding: chunked` and has no envelope.
+///
+/// Delegates route resolution and query building to
+/// [`RestHandler::resolve_get_query`].
 ///
 /// # Errors
 ///
 /// Returns `RestError` on route resolution, parameter extraction, or query
 /// execution failure.
 pub async fn handle_ndjson_get<A: DatabaseAdapter>(
-    ctx: &NdjsonRequest<'_, A>,
+    handler: &RestHandler<'_, A>,
     relative_path: &str,
     query_pairs: &[(&str, &str)],
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<NdjsonResponse, RestError> {
-    let resolved = ctx
-        .route_table
-        .resolve(relative_path, HttpMethod::Get)
-        .ok_or_else(|| RestError::not_found("Route not found"))?;
-
-    let query_name = match &resolved.route.source {
-        RouteSource::Query { name } => name.as_str(),
-        RouteSource::Mutation { .. } => {
-            return Err(RestError::internal("GET route backed by mutation"));
-        }
-    };
-
-    let query_def = ctx
-        .schema
-        .find_query(query_name)
-        .ok_or_else(|| RestError::not_found(format!("Query not found: {query_name}")))?;
-
-    // Check requires_role
-    if let Some(ref required_role) = query_def.requires_role {
-        match security_context {
-            Some(sec) if sec.scopes.contains(required_role) => {}
-            _ => return Err(RestError::forbidden()),
-        }
-    }
-
-    let type_def = ctx.schema.find_type(&query_def.return_type);
-
-    let extractor = RestParamExtractor::new(ctx.config, query_def, type_def);
-    let path_pairs: Vec<(&str, &str)> = resolved
-        .path_params
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
-
-    let params = extractor.extract(&path_pairs, query_pairs)?;
+    let resolved = handler.resolve_get_query(relative_path, query_pairs, security_context)?;
 
     let prefer = PreferHeader::from_headers(headers);
-    validate_ndjson_request(&prefer, &params.pagination)?;
+    validate_ndjson_request(&prefer, &resolved.params.pagination)?;
 
-    // Build field names
-    let field_names = match &params.field_selection {
-        RestFieldSpec::All => Vec::new(),
-        RestFieldSpec::Fields(fields) => fields.clone(),
-    };
+    let ResolvedGetQuery {
+        query_name,
+        query_match,
+        variables,
+        ..
+    } = &resolved;
 
-    // Build arguments
-    let mut arguments: HashMap<String, serde_json::Value> = HashMap::new();
-    for (key, value) in &params.path_params {
-        arguments.insert(key.clone(), value.clone());
-    }
-    if let Some(ref where_clause) = params.where_clause {
-        arguments.insert("where".to_string(), where_clause.clone());
-    }
-    if let Some(ref order_by) = params.order_by {
-        arguments.insert("orderBy".to_string(), order_by.clone());
-    }
-
-    // Build variables
-    let mut variables = serde_json::Map::new();
-    for (k, v) in &arguments {
-        variables.insert(k.clone(), v.clone());
-    }
-    let variables_json = serde_json::Value::Object(variables);
-
-    // Build QueryMatch
-    let query_match = QueryMatch::from_operation(
-        query_def.clone(),
-        field_names,
-        arguments,
-        type_def,
-    )?;
-
-    let vars_ref = if variables_json
-        .as_object()
-        .is_none_or(|m| m.is_empty())
-    {
+    let vars_ref = if variables.as_object().is_none_or(|m| m.is_empty()) {
         None
     } else {
-        Some(&variables_json)
+        Some(variables)
     };
 
     // Execute the query — we get the full result and stream row-by-row
-    let result = ctx
-        .executor
-        .execute_query_direct(&query_match, vars_ref, security_context)
+    let result = handler
+        .executor()
+        .execute_query_direct(query_match, vars_ref, security_context)
         .await
         .map_err(RestError::from)?;
 
