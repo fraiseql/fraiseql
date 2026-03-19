@@ -1,4 +1,4 @@
-//! GraphQL playground routes (GraphiQL and Apollo Sandbox).
+//! GraphQL playground routes (`GraphiQL` and Apollo Sandbox).
 
 use axum::{
     extract::State,
@@ -29,7 +29,7 @@ impl PlaygroundState {
 
 /// Playground HTTP handler.
 ///
-/// Serves the configured GraphQL IDE (GraphiQL or Apollo Sandbox).
+/// Serves the configured GraphQL IDE (`GraphiQL` or Apollo Sandbox).
 pub async fn playground_handler(State(state): State<PlaygroundState>) -> impl IntoResponse {
     let html = match state.tool {
         PlaygroundTool::GraphiQL => graphiql_html(&state.graphql_endpoint),
@@ -38,7 +38,7 @@ pub async fn playground_handler(State(state): State<PlaygroundState>) -> impl In
     Html(html)
 }
 
-/// Generate GraphiQL HTML page.
+/// Generate `GraphiQL` HTML page.
 fn graphiql_html(endpoint: &str) -> String {
     format!(
         r#"<!DOCTYPE html>

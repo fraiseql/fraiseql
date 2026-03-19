@@ -366,7 +366,7 @@ impl RbacDbBackend {
         self.get_role(role_id).await
     }
 
-    /// Delete a role by ID (cascades to role_permissions and user_roles).
+    /// Delete a role by ID (cascades to `role_permissions` and `user_roles`).
     ///
     /// # Errors
     ///

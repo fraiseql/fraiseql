@@ -48,16 +48,15 @@ impl AdmissionController {
         }
 
         // Try to acquire permit
-        match self.semaphore.clone().try_acquire_owned() {
-            Ok(permit) => Some(AdmissionPermit {
+        if let Ok(permit) = self.semaphore.clone().try_acquire_owned() {
+            Some(AdmissionPermit {
                 _permit:  permit,
                 _phantom: std::marker::PhantomData,
-            }),
-            Err(_) => {
-                // No permits available, increment queue depth
-                self.queue_depth.fetch_add(1, Ordering::Relaxed);
-                None
-            },
+            })
+        } else {
+            // No permits available, increment queue depth
+            self.queue_depth.fetch_add(1, Ordering::Relaxed);
+            None
         }
     }
 
@@ -76,18 +75,16 @@ impl AdmissionController {
         self.queue_depth.fetch_add(1, Ordering::Relaxed);
 
         // Try to acquire with timeout
-        match tokio::time::timeout(timeout, self.semaphore.clone().acquire_owned()).await {
-            Ok(Ok(permit)) => {
-                self.queue_depth.fetch_sub(1, Ordering::Relaxed);
-                Some(AdmissionPermit {
-                    _permit:  permit,
-                    _phantom: std::marker::PhantomData,
-                })
-            },
-            _ => {
-                self.queue_depth.fetch_sub(1, Ordering::Relaxed);
-                None
-            },
+        let result =
+            tokio::time::timeout(timeout, self.semaphore.clone().acquire_owned()).await;
+        self.queue_depth.fetch_sub(1, Ordering::Relaxed);
+        if let Ok(Ok(permit)) = result {
+            Some(AdmissionPermit {
+                _permit:  permit,
+                _phantom: std::marker::PhantomData,
+            })
+        } else {
+            None
         }
     }
 

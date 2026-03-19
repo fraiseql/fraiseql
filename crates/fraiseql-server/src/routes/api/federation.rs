@@ -169,6 +169,8 @@ fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConf
 }
 
 fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+    use std::fmt::Write as _;
+
     let mut dot =
         "digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n".to_string();
 
@@ -177,7 +179,7 @@ fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfi
             let name = fed.service_name.clone().unwrap_or_else(|| "this_service".to_string());
             let entities: Vec<_> = fed.entities.iter().map(|e| e.name.as_str()).collect();
             let label = format!("{}\\n[{}]", name, entities.join(", "));
-            dot.push_str(&format!("  {name} [label=\"{label}\"];\n"));
+            let _ = writeln!(dot, "  {name} [label=\"{label}\"];");
         }
     }
 
@@ -186,13 +188,15 @@ fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfi
 }
 
 fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+    use std::fmt::Write as _;
+
     let mut mermaid = "graph LR\n".to_string();
 
     if let Some(fed) = federation {
         if fed.enabled {
             let name = fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
             let entities: Vec<_> = fed.entities.iter().map(|e| e.name.as_str()).collect();
-            mermaid.push_str(&format!("    {name}[\"{name}<br/>[{}]\"]\n", entities.join(", ")));
+            let _ = writeln!(mermaid, "    {name}[\"{name}<br/>[{}]\"]", entities.join(", "));
         }
     }
 

@@ -22,7 +22,6 @@ use tower_http::cors::{Any, CorsLayer};
 ///
 /// For production deployments, use `cors_layer_restricted()` with specific allowed origins.
 /// See server configuration `cors_origins` setting.
-#[must_use]
 pub fn cors_layer() -> CorsLayer {
     tracing::warn!(
         "Using permissive CORS settings (allows all origins). \
@@ -50,10 +49,9 @@ pub fn cors_layer() -> CorsLayer {
 ///
 /// ```text
 /// // Typically called from ServerConfig::cors_origins during server startup.
-/// let layer = cors_layer_restricted(vec!["https://app.example.com".to_string()]);
+/// let layer = cors_layer_restricted(&["https://app.example.com".to_string()]);
 /// ```
-#[must_use]
-pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
+pub fn cors_layer_restricted(allowed_origins: &[String]) -> CorsLayer {
     let origins: Vec<_> = allowed_origins.iter().filter_map(|origin| origin.parse().ok()).collect();
 
     CorsLayer::new()
@@ -158,13 +156,13 @@ mod tests {
     #[test]
     fn test_cors_layer_restricted() {
         let origins = vec!["https://example.com".to_string()];
-        let _layer = cors_layer_restricted(origins);
+        let _layer = cors_layer_restricted(&origins);
     }
 
     #[test]
     fn test_cors_layer_restricted_empty_origins() {
         let origins = vec![];
-        let _layer = cors_layer_restricted(origins);
+        let _layer = cors_layer_restricted(&origins);
     }
 
     #[test]
@@ -173,7 +171,7 @@ mod tests {
             "not-a-valid-url".to_string(),
             "https://valid.com".to_string(),
         ];
-        let layer = cors_layer_restricted(origins);
+        let layer = cors_layer_restricted(&origins);
         // Layer creation should handle invalid origins gracefully
         let _ = layer;
     }
@@ -230,6 +228,6 @@ mod tests {
             "https://example.com".to_string(),
             "https://app.example.com".to_string(),
         ];
-        let _ = cors_layer_restricted(origins);
+        let _ = cors_layer_restricted(&origins);
     }
 }

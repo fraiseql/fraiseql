@@ -1,4 +1,4 @@
-//! AppState — server state passed to all GraphQL route handlers.
+//! `AppState` — server state passed to all GraphQL route handlers.
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -61,7 +61,7 @@ pub struct AppState<A: DatabaseAdapter> {
     pub debug_config:          Option<fraiseql_core::schema::DebugConfig>,
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
-    /// Defaults to `100_000` (100 KiB).  Configurable via
+    /// Defaults to `100_000` (100 `KiB`).  Configurable via
     /// `ServerConfig::max_get_query_bytes`.
     pub max_get_query_bytes:   usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).

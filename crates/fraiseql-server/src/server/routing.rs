@@ -1,6 +1,25 @@
 //! Application router construction and route registration.
 
-use super::*;
+use std::sync::Arc;
+
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
+    routing::{get, post},
+};
+use fraiseql_core::db::traits::DatabaseAdapter;
+use tracing::{info, warn};
+
+#[cfg(feature = "auth")]
+use super::{auth_callback, auth_start, AuthPkceState};
+use super::{
+    AppState, BearerAuthState, OidcAuthState, PlaygroundState, Server, SubscriptionState, api,
+    bearer_auth_middleware, cors_layer_restricted, graphql_get_handler, graphql_handler,
+    health_handler, introspection_handler, metrics_handler, metrics_json_handler,
+    metrics_middleware, oidc_auth_middleware, playground_handler, readiness_handler,
+    require_json_content_type, subscription_handler, trace_layer,
+};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build application router and return the shared `AppState`.
@@ -479,7 +498,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         true
                     } else {
                         // SECURITY: require_auth=true but no OIDC — fail closed.
-                        error!(
+                        tracing::error!(
                             path = %mcp_cfg.path,
                             "MCP HTTP endpoint NOT mounted — require_auth=true but no OIDC \
                              validator is configured. Configure an OIDC validator or set \
@@ -548,7 +567,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 app = app.merge(rbac_router);
             } else {
                 // SECURITY: Refuse to mount RBAC endpoints without authentication.
-                error!(
+                tracing::error!(
                     "RBAC Management API disabled — admin_token is not set. \
                      Set admin_token in server configuration to enable RBAC management endpoints."
                 );
@@ -582,7 +601,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 self.config.cors_origins.clone()
             };
-            app = app.layer(cors_layer_restricted(origins));
+            app = app.layer(cors_layer_restricted(&origins));
         }
 
         // Add request body size limit (default 1 MB — prevents memory exhaustion)
@@ -692,7 +711,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // than panicking. Callers should pass `Some(db_pool)` to `Server::new()`
         // when the `observers` feature is compiled in.
         let Some(db_pool) = self.db_pool.clone() else {
-            error!(
+            tracing::error!(
                 "Observer management routes not mounted: \
                  the `observers` feature requires a PostgreSQL pool (`db_pool`). \
                  Pass `Some(sqlx::PgPool)` to Server::new() to enable observer endpoints."

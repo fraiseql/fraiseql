@@ -210,13 +210,13 @@ impl<'a> ConfigValidator<'a> {
             if !tls.cert_file.exists() {
                 self.result.add_error(ConfigError::ValidationError {
                     field:   "server.tls.cert_file".to_string(),
-                    message: format!("Certificate file not found: {:?}", tls.cert_file),
+                    message: format!("Certificate file not found: {}", tls.cert_file.display()),
                 });
             }
             if !tls.key_file.exists() {
                 self.result.add_error(ConfigError::ValidationError {
                     field:   "server.tls.key_file".to_string(),
-                    message: format!("Key file not found: {:?}", tls.key_file),
+                    message: format!("Key file not found: {}", tls.key_file.display()),
                 });
             }
         }
@@ -504,7 +504,7 @@ mod tests {
 
     // ─── ConfigValidator — server validation ────────────────────────────────
 
-    /// Minimal valid TOML for constructing a RuntimeConfig.
+    /// Minimal valid TOML for constructing a `RuntimeConfig`.
     fn minimal_config(toml_override: &str) -> RuntimeConfig {
         let toml = format!(
             r#"

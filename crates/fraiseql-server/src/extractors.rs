@@ -1,6 +1,6 @@
 //! Custom extractors for GraphQL handlers.
 //!
-//! Provides extractors for SecurityContext and other request-level data.
+//! Provides extractors for `SecurityContext` and other request-level data.
 
 use std::future::Future;
 
@@ -12,12 +12,12 @@ use fraiseql_core::security::SecurityContext;
 
 use crate::middleware::AuthUser;
 
-/// Extractor for optional SecurityContext from authenticated user and headers.
+/// Extractor for optional `SecurityContext` from authenticated user and headers.
 ///
 /// When used in a handler, automatically extracts:
-/// 1. AuthUser from request extensions (if present)
+/// 1. `AuthUser` from request extensions (if present)
 /// 2. Request metadata from HTTP headers (request ID, IP, tenant ID)
-/// 3. Creates SecurityContext from both
+/// 3. Creates `SecurityContext` from both
 ///
 /// If authentication is not present, returns `None` (optional extraction).
 ///
@@ -76,8 +76,7 @@ fn extract_request_id(headers: &axum::http::HeaderMap) -> String {
     headers
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("req-{}", uuid::Uuid::new_v4()))
+        .map_or_else(|| format!("req-{}", uuid::Uuid::new_v4()), |s| s.to_string())
 }
 
 /// Extract client IP address.

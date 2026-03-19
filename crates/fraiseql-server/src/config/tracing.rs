@@ -24,7 +24,7 @@ pub struct TracingConfig {
     /// OTLP exporter endpoint.
     ///
     /// When set (e.g. `"http://otel-collector:4317"`), the server initializes an
-    /// OpenTelemetry OTLP exporter and pipes `tracing` spans to it.
+    /// `OpenTelemetry` OTLP exporter and pipes `tracing` spans to it.
     /// When `None`, the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable is
     /// checked as a fallback. If neither is set, no OTLP export occurs and there
     /// is zero overhead (no gRPC connection attempt).

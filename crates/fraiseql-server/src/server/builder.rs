@@ -1,6 +1,18 @@
 //! Server constructors and builder methods.
 
-use super::*;
+use std::sync::Arc;
+
+#[cfg(feature = "arrow")]
+use fraiseql_arrow::FraiseQLFlightService;
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    runtime::{Executor, SubscriptionManager},
+    schema::CompiledSchema,
+    security::OidcValidator,
+};
+use tracing::{info, warn};
+
+use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create new server.
@@ -322,7 +334,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         })
     }
 
-    /// Set lifecycle hooks for WebSocket subscriptions.
+    /// Set lifecycle hooks for `WebSocket` subscriptions.
     #[must_use]
     pub fn with_subscription_lifecycle(
         mut self,
@@ -332,7 +344,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self
     }
 
-    /// Set maximum subscriptions allowed per WebSocket connection.
+    /// Set maximum subscriptions allowed per `WebSocket` connection.
     #[must_use]
     pub const fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
@@ -376,6 +388,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Returns an error if MCP is not configured or the stdio transport fails.
     #[cfg(feature = "mcp")]
     pub async fn serve_mcp_stdio(self) -> Result<()> {
+        use rmcp::ServiceExt;
+
         let mcp_cfg = self.mcp_config.ok_or_else(|| {
             ServerError::ConfigError(
                 "FRAISEQL_MCP_STDIO=1 but MCP is not configured. \
@@ -391,7 +405,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");
 
-        use rmcp::ServiceExt;
         let running = service
             .serve((tokio::io::stdin(), tokio::io::stdout()))
             .await

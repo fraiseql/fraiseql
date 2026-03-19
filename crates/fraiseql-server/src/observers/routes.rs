@@ -41,7 +41,7 @@ pub fn observer_routes(state: ObserverState) -> Router {
         .with_state(state)
 }
 
-/// Get stats for all observers (wrapper to pass None for observer_id).
+/// Get stats for all observers (wrapper to pass None for `observer_id`).
 async fn get_all_stats(
     state: axum::extract::State<ObserverState>,
 ) -> impl axum::response::IntoResponse {

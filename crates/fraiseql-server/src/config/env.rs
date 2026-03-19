@@ -13,7 +13,7 @@ use std::{env, time::Duration};
 /// Returns `EnvError::MissingVar` if the referenced environment variable is not set.
 /// Returns `EnvError::MissingVarWithMessage` if the variable uses the `:?` syntax and is not set.
 pub fn resolve_env_value(value: &str) -> Result<String, EnvError> {
-    if value.starts_with("${") && value.ends_with("}") {
+    if value.starts_with("${") && value.ends_with('}') {
         let var_name = &value[2..value.len() - 1];
 
         // Support default values: ${VAR:-default}
@@ -63,7 +63,7 @@ pub fn parse_size(s: &str) -> Result<usize, ParseError> {
         (&s[..s.len() - 2], 1024 * 1024)
     } else if s_upper.ends_with("KB") {
         (&s[..s.len() - 2], 1024)
-    } else if s_upper.ends_with("B") {
+    } else if s_upper.ends_with('B') {
         (&s[..s.len() - 1], 1)
     } else {
         // Assume bytes if no unit

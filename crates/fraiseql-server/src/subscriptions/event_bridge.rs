@@ -1,10 +1,10 @@
-//! EventBridge that connects ChangeLogListener with SubscriptionManager.
+//! `EventBridge` that connects `ChangeLogListener` with `SubscriptionManager`.
 //!
-//! The EventBridge is responsible for:
-//! 1. Spawning ChangeLogListener in background
-//! 2. Receiving EntityEvent via mpsc::channel
-//! 3. Converting EntityEvent to SubscriptionEvent
-//! 4. Publishing events to SubscriptionManager
+//! The `EventBridge` is responsible for:
+//! 1. Spawning `ChangeLogListener` in background
+//! 2. Receiving `EntityEvent` via `mpsc::channel`
+//! 3. Converting `EntityEvent` to `SubscriptionEvent`
+//! 4. Publishing events to `SubscriptionManager`
 //!
 //! Architecture:
 //! ```text
@@ -27,8 +27,8 @@ use fraiseql_core::runtime::subscription::{
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
-/// Configuration for the EventBridge
-#[derive(Debug, Clone)]
+/// Configuration for the `EventBridge`
+#[derive(Debug, Clone, Copy)]
 pub struct EventBridgeConfig {
     /// Channel capacity for event routing
     pub channel_capacity: usize,
@@ -57,7 +57,7 @@ impl Default for EventBridgeConfig {
     }
 }
 
-/// A simple event that EventBridge receives from ChangeLogListener
+/// A simple event that `EventBridge` receives from `ChangeLogListener`
 #[derive(Debug, Clone)]
 pub struct EntityEvent {
     /// Entity type (e.g., "Order", "User")
@@ -102,12 +102,12 @@ impl EntityEvent {
     }
 }
 
-/// EventBridge that connects ChangeLogListener with SubscriptionManager
+/// `EventBridge` that connects `ChangeLogListener` with `SubscriptionManager`
 pub struct EventBridge {
     /// Subscription manager for broadcasting events
     manager: Arc<SubscriptionManager>,
 
-    /// Receiver for entity events from ChangeLogListener
+    /// Receiver for entity events from `ChangeLogListener`
     receiver: mpsc::Receiver<EntityEvent>,
 
     /// Sender for entity events (used to send events to bridge)
@@ -115,7 +115,7 @@ pub struct EventBridge {
 }
 
 impl EventBridge {
-    /// Create a new EventBridge
+    /// Create a new `EventBridge`
     #[must_use]
     pub fn new(manager: Arc<SubscriptionManager>, config: EventBridgeConfig) -> Self {
         let (sender, receiver) = mpsc::channel(config.channel_capacity);
@@ -133,7 +133,7 @@ impl EventBridge {
         self.sender.clone()
     }
 
-    /// Convert EntityEvent to SubscriptionEvent
+    /// Convert `EntityEvent` to `SubscriptionEvent`
     fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
         // Convert operation string to SubscriptionOperation
         let operation = match entity_event.operation.to_uppercase().as_str() {
@@ -183,7 +183,7 @@ impl EventBridge {
         info!("EventBridge stopped");
     }
 
-    /// Spawn EventBridge as a background task
+    /// Spawn `EventBridge` as a background task
     pub fn spawn(self) -> tokio::task::JoinHandle<()> {
         tokio::spawn(self.run())
     }

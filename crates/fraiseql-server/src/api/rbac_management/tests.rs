@@ -165,13 +165,13 @@ fn test_list_user_roles_success() {
     // GET /api/user-roles should return 200 OK with array of UserRoleDto
 }
 
-/// Test filtering user-roles by user_id
+/// Test filtering user-roles by `user_id`
 #[test]
 fn test_list_user_roles_filter_by_user() {
     // GET /api/user-roles?user_id={user_id} should return only that user's roles
 }
 
-/// Test filtering user-roles by role_id
+/// Test filtering user-roles by `role_id`
 #[test]
 fn test_list_user_roles_filter_by_role() {
     // GET /api/user-roles?role_id={role_id} should return only that role's users
@@ -199,7 +199,7 @@ fn test_query_permission_audit_success() {
     // GET /api/audit/permissions should return 200 OK with array of audit events
 }
 
-/// Test filtering audit logs by user_id
+/// Test filtering audit logs by `user_id`
 #[test]
 fn test_query_permission_audit_filter_by_user() {
     // GET /api/audit/permissions?user_id={user_id} should return only that user's accesses
@@ -268,7 +268,7 @@ fn test_query_audit_requires_permission() {
 // Test 6: Multi-Tenancy
 // ============================================================================
 
-/// Test creating role respects tenant_id
+/// Test creating role respects `tenant_id`
 #[test]
 fn test_create_role_respects_tenant() {
     // Role created in tenant A should not be visible to tenant B

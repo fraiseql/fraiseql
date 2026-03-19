@@ -13,7 +13,7 @@ use super::lifecycle::SubscriptionLifecycle;
 
 /// Maximum byte size accepted from a webhook response body.
 ///
-/// Webhook responses are used only as rejection error messages, so 64 KiB is
+/// Webhook responses are used only as rejection error messages, so 64 `KiB` is
 /// more than sufficient for any human-readable reason string.  Capping here
 /// prevents a misbehaving or malicious webhook server from sending a multi-GB
 /// body that exhausts server memory.

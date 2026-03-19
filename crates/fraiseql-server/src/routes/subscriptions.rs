@@ -1,8 +1,8 @@
-//! WebSocket subscription handler with protocol negotiation.
+//! `WebSocket` subscription handler with protocol negotiation.
 //!
 //! Supports both the modern `graphql-transport-ws` protocol and the legacy
 //! `graphql-ws` (Apollo subscriptions-transport-ws) protocol. Protocol
-//! selection happens during the WebSocket upgrade via the `Sec-WebSocket-Protocol`
+//! selection happens during the `WebSocket` upgrade via the `Sec-WebSocket-Protocol`
 //! header.
 //!
 //! # Lifecycle Hooks
@@ -87,11 +87,11 @@ pub fn reset_metrics_for_test() {
 
 /// Snapshot of subscription counters.
 pub struct SubscriptionMetrics {
-    /// Total WebSocket connections accepted (after on_connect).
+    /// Total `WebSocket` connections accepted (after `on_connect`).
     pub connections_accepted:   u64,
-    /// Total WebSocket connections rejected by lifecycle hook.
+    /// Total `WebSocket` connections rejected by lifecycle hook.
     pub connections_rejected:   u64,
-    /// Total subscriptions accepted (after on_subscribe).
+    /// Total subscriptions accepted (after `on_subscribe`).
     pub subscriptions_accepted: u64,
     /// Total subscriptions rejected (by hook or limit).
     pub subscriptions_rejected: u64,
@@ -103,7 +103,7 @@ const CONNECTION_INIT_TIMEOUT: Duration = Duration::from_secs(5);
 /// Ping/keepalive interval.
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
-/// State for subscription WebSocket handler.
+/// State for subscription `WebSocket` handler.
 #[derive(Clone)]
 pub struct SubscriptionState {
     /// Subscription manager.
@@ -139,9 +139,9 @@ impl SubscriptionState {
     }
 }
 
-/// WebSocket upgrade handler for subscriptions.
+/// `WebSocket` upgrade handler for subscriptions.
 ///
-/// Negotiates the WebSocket sub-protocol from the `Sec-WebSocket-Protocol`
+/// Negotiates the `WebSocket` sub-protocol from the `Sec-WebSocket-Protocol`
 /// header. Supports `graphql-transport-ws` (modern) and `graphql-ws` (legacy).
 /// Defaults to `graphql-transport-ws` when no header is present.
 /// Returns `400 Bad Request` for unrecognised protocols.
@@ -154,12 +154,13 @@ pub async fn subscription_handler(
 
     let protocol = match protocol_header {
         None => WsProtocol::GraphqlTransportWs,
-        Some(header) => match WsProtocol::from_header(Some(header)) {
-            Some(p) => p,
-            None => {
+        Some(header) => {
+            if let Some(p) = WsProtocol::from_header(Some(header)) {
+                p
+            } else {
                 warn!(header = %header, "Unknown WebSocket sub-protocol requested");
                 return axum::http::StatusCode::BAD_REQUEST.into_response();
-            },
+            }
         },
     };
 
@@ -168,7 +169,7 @@ pub async fn subscription_handler(
         .into_response()
 }
 
-/// Handle a WebSocket subscription connection.
+/// Handle a `WebSocket` subscription connection.
 async fn handle_subscription_connection(
     socket: WebSocket,
     state: SubscriptionState,
@@ -310,7 +311,6 @@ async fn handle_subscription_connection(
                         // Best-effort: if the connection is already dead the pong will fail.
                         let _ = sender.send(Message::Pong(data)).await;
                     }
-                    Some(Ok(Message::Pong(_))) => {}
                     Some(Ok(Message::Close(_))) => {
                         info!(connection_id = %connection_id, "Client closed connection");
                         break;
@@ -436,21 +436,18 @@ async fn handle_client_message(
             }
 
             // Extract subscription name from query
-            let subscription_name = match extract_subscription_name(&payload.query) {
-                Some(name) => name,
-                None => {
-                    let error = ServerMessage::error(
-                        &op_id,
-                        vec![GraphQLError::with_code(
-                            "Could not parse subscription query",
-                            "PARSE_ERROR",
-                        )],
-                    );
-                    if let Err(e) = send_server_message(codec, sender, error).await {
-                        debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
-                    }
-                    return Ok(());
-                },
+            let Some(subscription_name) = extract_subscription_name(&payload.query) else {
+                let error = ServerMessage::error(
+                    &op_id,
+                    vec![GraphQLError::with_code(
+                        "Could not parse subscription query",
+                        "PARSE_ERROR",
+                    )],
+                );
+                if let Err(e) = send_server_message(codec, sender, error).await {
+                    debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
+                }
+                return Ok(());
             };
 
             // Call lifecycle on_subscribe hook
@@ -550,7 +547,7 @@ async fn send_server_message(
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     msg: ServerMessage,
 ) -> Result<(), String> {
-    match codec.encode(msg) {
+    match codec.encode(&msg) {
         Ok(Some(json)) => sender.send(Message::Text(json.into())).await.map_err(|e| e.to_string()),
         Ok(None) => Ok(()), // Message suppressed by codec (e.g. pong in legacy mode)
         Err(e) => Err(e.to_string()),

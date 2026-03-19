@@ -181,12 +181,12 @@ fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::Scalar(_)
         | FieldType::Enum(_) => true,
         FieldType::List(inner) => is_scalar_field_type(inner),
+        // Reason: FieldType is #[non_exhaustive]; future variants also default to non-scalar
         FieldType::Object(_)
         | FieldType::Input(_)
         | FieldType::Interface(_)
-        | FieldType::Union(_) => false,
-        // Reason: FieldType is #[non_exhaustive]; future variants default to non-scalar
-        &_ => false,
+        | FieldType::Union(_)
+        | _ => false,
     }
 }
 

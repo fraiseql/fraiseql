@@ -50,7 +50,7 @@ pub struct RateLimitRule {
     /// Limit (e.g., "10/minute", "100/hour")
     pub limit: String,
 
-    /// Key extraction: ip, user, api_key, composite
+    /// Key extraction: ip, user, `api_key`, composite
     #[serde(default = "default_key_by")]
     pub by: String,
 

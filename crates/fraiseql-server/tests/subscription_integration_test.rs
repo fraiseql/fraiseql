@@ -426,7 +426,7 @@ async fn test_listener_recovery_after_restart() {
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
-    let bridge1 = EventBridge::new(manager.clone(), config.clone());
+    let bridge1 = EventBridge::new(manager.clone(), config);
     let handle1 = bridge1.spawn();
 
     // Simulate listener crash

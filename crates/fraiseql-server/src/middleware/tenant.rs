@@ -9,7 +9,7 @@ use tracing::debug;
 
 use crate::middleware::oidc_auth::AuthUser;
 
-/// Extract org_id from request and add to context
+/// Extract `org_id` from request and add to context
 ///
 /// # Security
 ///

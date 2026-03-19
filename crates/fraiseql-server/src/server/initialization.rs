@@ -1,7 +1,12 @@
 //! Private helper functions for reading security/config from the compiled schema
 //! and building subsystem objects during server construction.
 
-use super::*;
+use std::sync::Arc;
+
+use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use tracing::{info, warn};
+
+use super::{RateLimiter, Server, ServerError};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[cfg(feature = "auth")]
@@ -40,6 +45,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let security = schema.security.as_ref()?;
         let pkce_cfg = security.additional.get("pkce")?;
 
+        #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
         #[derive(serde::Deserialize)]
         struct PkceCfgMinimal {
             #[serde(default)]
@@ -50,9 +56,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             code_challenge_method: String,
             redis_url:             Option<String>,
         }
+        #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
         const fn default_ttl() -> u64 {
             600
         }
+        #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
         fn default_method() -> String {
             "S256".into()
         }
@@ -93,7 +101,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     return Some(Arc::new(store));
                 },
                 Err(e) => {
-                    error!(
+                    tracing::error!(
                         error = %e,
                         redis_url = %url,
                         "Failed to connect to Redis PKCE store — falling back to in-memory"
@@ -218,7 +226,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         rl.with_path_rules_from_security(&sec)
                     },
                     Err(e) => {
-                        error!(
+                        tracing::error!(
                             error = %e,
                             "Failed to connect to Redis for rate limiting — \
                              falling back to in-memory backend"
@@ -263,8 +271,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 >(v.clone())
                 .ok()
             })
-            .map(crate::config::error_sanitization::ErrorSanitizer::new)
-            .unwrap_or_else(crate::config::error_sanitization::ErrorSanitizer::disabled);
+            .map_or_else(
+                crate::config::error_sanitization::ErrorSanitizer::disabled,
+                crate::config::error_sanitization::ErrorSanitizer::new,
+            );
         Arc::new(sanitizer)
     }
 
@@ -276,6 +286,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let security = schema.security.as_ref()?;
         let td_cfg = security.additional.get("trusted_documents")?;
 
+        #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
         #[derive(serde::Deserialize)]
         struct TdCfgMinimal {
             #[serde(default)]
@@ -363,19 +374,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         tokio::spawn(async move {
+            const MANIFEST_FETCH_TIMEOUT: std::time::Duration =
+                std::time::Duration::from_secs(30);
+            /// Maximum byte size accepted for a hot-reloaded trusted-documents manifest.
+            /// Matches the cap enforced for file-based manifests in `trusted_documents.rs`.
+            const MAX_TRUSTED_DOCS_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 ticker.tick().await;
-                const MANIFEST_FETCH_TIMEOUT: std::time::Duration =
-                    std::time::Duration::from_secs(30);
                 let client = reqwest::Client::builder()
                     .timeout(MANIFEST_FETCH_TIMEOUT)
                     .build()
                     .expect("reqwest client with timeout should always build");
-                /// Maximum byte size accepted for a hot-reloaded trusted-documents manifest.
-                /// Matches the cap enforced for file-based manifests in `trusted_documents.rs`.
-                const MAX_TRUSTED_DOCS_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
 
                 match client.get(&url).send().await {
                     Ok(resp) => {
@@ -433,7 +445,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 /// address that the server must not fetch (SSRF protection).
 ///
 /// This uses the same URL-parser + bracket-strip pattern used in the federation
-/// and Vault SSRF guards (S18-H3, S19-I2b) to correctly handle IPv6 literals.
+/// and Vault SSRF guards (S18-H3, S19-I2b) to correctly handle `IPv6` literals.
 fn is_manifest_url_ssrf_blocked(url: &str) -> bool {
     let Ok(parsed) = reqwest::Url::parse(url) else {
         // Unparseable URL — block it; the actual fetch would fail anyway.

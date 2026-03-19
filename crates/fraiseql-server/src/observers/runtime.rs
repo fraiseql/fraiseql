@@ -1,9 +1,9 @@
 //! Observer runtime for executing observers in response to database changes.
 //!
 //! This module integrates the fraiseql-observers crate with the server:
-//! 1. Loads observer definitions from tb_observer
-//! 2. Starts the ChangeLogListener to poll tb_entity_change_log
-//! 3. Routes events through the ObserverExecutor
+//! 1. Loads observer definitions from `tb_observer`
+//! 2. Starts the `ChangeLogListener` to poll `tb_entity_change_log`
+//! 3. Routes events through the `ObserverExecutor`
 //! 4. Manages lifecycle (startup/shutdown)
 
 use std::{
@@ -149,9 +149,9 @@ impl ObserverRuntime {
         }
     }
 
-    /// Load observers from the database and convert to ObserverDefinitions
-    /// Returns (definitions, entity_type_index) tuple
-    /// entity_type_index maps (entity_type, event_type) -> observer_id for logging
+    /// Load observers from the database and convert to `ObserverDefinitions`.
+    /// Returns (definitions, `entity_type_index`) tuple.
+    /// `entity_type_index` maps (`entity_type`, `event_type`) -> `observer_id` for logging.
     async fn load_observers(
         &self,
     ) -> Result<
@@ -198,7 +198,7 @@ impl ObserverRuntime {
         Ok((definitions, entity_type_index))
     }
 
-    /// Convert database Observer to ObserverDefinition
+    /// Convert database Observer to `ObserverDefinition`.
     fn convert_observer(observer: &Observer) -> Result<ObserverDefinition, ServerError> {
         // Parse actions from JSONB
         let actions: Vec<ObserverActionConfig> = serde_json::from_value(observer.actions.clone())
@@ -406,7 +406,10 @@ impl ObserverRuntime {
                                                 let duration_ms = if matching_observers.is_empty() {
                                                     0
                                                 } else {
-                                                    (summary.total_duration_ms / matching_observers.len() as f64) as i32
+                                                    // Reason: observer count is small (< thousands) so no precision loss;
+                                                    // duration_ms fits comfortably in i32 range for per-observer averages.
+                                                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                                                    { (summary.total_duration_ms / matching_observers.len() as f64) as i32 }
                                                 };
 
                                                 // Write a log entry for each matched observer
@@ -466,7 +469,7 @@ impl ObserverRuntime {
                                     // Persist checkpoint to database
                                     // Use entity_type as listener_id for now
                                     let listener_id = last_entry.object_type.clone();
-                                    let batch_count = entries.len() as i32;
+                                    let batch_count = i32::try_from(entries.len()).unwrap_or(i32::MAX);
 
                                     match sqlx::query(
                                         "INSERT INTO observer_checkpoints
@@ -650,7 +653,11 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
         let items = self.items.lock().expect("items mutex poisoned");
-        Ok(items.iter().take(limit as usize).cloned().collect())
+        // Reason: limit comes from a user-supplied i64 clamped to a small positive range;
+        // negative values saturate to 0 via wrapping, which is safe (take(0) returns nothing).
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        let limit_usize = limit as usize;
+        Ok(items.iter().take(limit_usize).cloned().collect())
     }
 
     async fn mark_success(&self, id: uuid::Uuid) -> fraiseql_observers::Result<()> {

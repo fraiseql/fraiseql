@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod schema_verification {
-    /// Test that audit_log table has all required columns
+    /// Test that `audit_log` table has all required columns
     #[test]
     fn test_audit_log_table_structure() {
         // When migrations run, audit_log table should have:
@@ -24,7 +24,7 @@ mod schema_verification {
         // - created_at (TIMESTAMPTZ, NOT NULL, DEFAULT NOW())
     }
 
-    /// Test that audit_log has proper indexes for common queries
+    /// Test that `audit_log` has proper indexes for common queries
     #[test]
     fn test_audit_log_indexes() {
         // Indexes should include:
@@ -60,7 +60,7 @@ mod schema_verification {
         // - idx_tenants_is_active (is_active)
     }
 
-    /// Test that users table has tenant_id column after migrations
+    /// Test that users table has `tenant_id` column after migrations
     #[test]
     fn test_users_table_tenant_id_column() {
         // After migrations, users table should have:
@@ -68,7 +68,7 @@ mod schema_verification {
         // - idx_users_tenant_id index
     }
 
-    /// Test that audit_log table has tenant_id column
+    /// Test that `audit_log` table has `tenant_id` column
     #[test]
     fn test_audit_log_table_tenant_id_column() {
         // audit_log should have:
@@ -133,7 +133,7 @@ mod schema_verification {
         // - federation:read, federation:write
     }
 
-    /// Test that role_permissions table (junction table) exists
+    /// Test that `role_permissions` table (junction table) exists
     #[test]
     fn test_role_permissions_junction_table() {
         // role_permissions table should have:
@@ -144,7 +144,7 @@ mod schema_verification {
         // - Indexes: idx_role_permissions_role_id, idx_role_permissions_permission_id
     }
 
-    /// Test that user_roles table (junction table) exists
+    /// Test that `user_roles` table (junction table) exists
     #[test]
     fn test_user_roles_junction_table() {
         // user_roles table should have:

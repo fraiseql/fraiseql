@@ -114,28 +114,29 @@ fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
 /// Map a `FieldType` to a JSON Schema value.
 fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
     match field_type {
-        FieldType::String | FieldType::Id | FieldType::Uuid | FieldType::Decimal => {
-            serde_json::json!({ "type": "string" })
-        },
         FieldType::Int => serde_json::json!({ "type": "integer" }),
         FieldType::Float => serde_json::json!({ "type": "number" }),
         FieldType::Boolean => serde_json::json!({ "type": "boolean" }),
-        FieldType::DateTime | FieldType::Date | FieldType::Time => {
-            serde_json::json!({ "type": "string" })
-        },
         FieldType::Json => serde_json::json!({ "type": "object" }),
         FieldType::Vector => serde_json::json!({ "type": "array", "items": { "type": "number" } }),
-        FieldType::Scalar(_) => serde_json::json!({ "type": "string" }),
         FieldType::List(inner) => {
             serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) })
         },
-        FieldType::Object(_)
+        // Reason: FieldType is #[non_exhaustive]; all other variants (including future ones) map to string
+        FieldType::String
+        | FieldType::Id
+        | FieldType::Uuid
+        | FieldType::Decimal
+        | FieldType::DateTime
+        | FieldType::Date
+        | FieldType::Time
+        | FieldType::Scalar(_)
+        | FieldType::Object(_)
         | FieldType::Enum(_)
         | FieldType::Input(_)
         | FieldType::Interface(_)
-        | FieldType::Union(_) => serde_json::json!({ "type": "string" }),
-        // Reason: FieldType is #[non_exhaustive]; future variants map to string by default
-        &_ => serde_json::json!({ "type": "string" }),
+        | FieldType::Union(_)
+        | _ => serde_json::json!({ "type": "string" }),
     }
 }
 

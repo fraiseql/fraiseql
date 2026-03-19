@@ -1,7 +1,7 @@
 //! Subscription lifecycle hooks.
 //!
 //! The [`SubscriptionLifecycle`] trait provides callbacks invoked at key points
-//! in the WebSocket subscription lifecycle. Implementations can perform
+//! in the `WebSocket` subscription lifecycle. Implementations can perform
 //! authentication, rate limiting, audit logging, or custom authorisation.
 
 use async_trait::async_trait;
@@ -32,7 +32,7 @@ pub trait SubscriptionLifecycle: Send + Sync + 'static {
         Ok(())
     }
 
-    /// Called when the WebSocket connection closes (for any reason).
+    /// Called when the `WebSocket` connection closes (for any reason).
     async fn on_disconnect(&self, _connection_id: &str) {}
 
     /// Called before a subscription is registered with the manager.

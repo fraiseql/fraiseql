@@ -20,7 +20,7 @@ use std::{
 /// Maximum byte size accepted for a trusted-documents manifest file.
 ///
 /// A manifest with 50 000 pre-registered queries at ~200 bytes each is roughly
-/// 10 MiB — already an unusually large deployment.  Capping at 10 MiB prevents
+/// 10 `MiB` — already an unusually large deployment.  Capping at 10 `MiB` prevents
 /// accidental or malicious loading of a gigabyte-sized file at server startup.
 const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 

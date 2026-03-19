@@ -1,6 +1,6 @@
-//! PKCE OAuth2 route handlers: `/auth/start` and `/auth/callback`.
+//! PKCE `OAuth2` route handlers: `/auth/start` and `/auth/callback`.
 //!
-//! These routes implement the OAuth2 Authorization Code flow with PKCE
+//! These routes implement the `OAuth2` Authorization Code flow with PKCE
 //! (RFC 7636) for server-side relying-party use.  FraiseQL acts as the
 //! OAuth client; the OIDC provider performs the actual authentication.
 //!
@@ -186,9 +186,8 @@ pub async fn auth_callback(
     }
 
     // ── Validate required parameters ──────────────────────────────────────
-    let (code, state_token) = match (q.code, q.state) {
-        (Some(c), Some(s)) => (c, s),
-        _ => return auth_error(StatusCode::BAD_REQUEST, "missing code or state parameter"),
+    let (Some(code), Some(state_token)) = (q.code, q.state) else {
+        return auth_error(StatusCode::BAD_REQUEST, "missing code or state parameter");
     };
 
     // ── Consume PKCE state (atomic remove) ───────────────────────────────
@@ -327,7 +326,7 @@ pub async fn revoke_token(
     let ttl_secs = claims
         .exp
         .and_then(|exp| {
-            let now = chrono::Utc::now().timestamp() as u64;
+            let now = chrono::Utc::now().timestamp().cast_unsigned();
             exp.checked_sub(now)
         })
         .unwrap_or(86400);
@@ -338,7 +337,7 @@ pub async fn revoke_token(
     }
 
     let expires_at = claims.exp.map(|exp| {
-        chrono::DateTime::from_timestamp(exp as i64, 0)
+        chrono::DateTime::from_timestamp(exp.cast_signed(), 0)
             .map_or_else(|| exp.to_string(), |dt| dt.to_rfc3339())
     });
 

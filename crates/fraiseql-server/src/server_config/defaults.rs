@@ -31,20 +31,20 @@ pub const fn default_max_request_body_bytes() -> usize {
     1_048_576
 }
 
-/// 100 KiB default GET query size limit.
+/// 100 `KiB` default GET query size limit.
 pub const fn default_max_get_query_bytes() -> usize {
     100_000
 }
 
 /// Default maximum number of HTTP headers per request.
 ///
-/// Prevents header-flooding DoS attacks that exhaust memory by sending
+/// Prevents header-flooding `DoS` attacks that exhaust memory by sending
 /// thousands of unique headers.
 pub const fn default_max_header_count() -> usize {
     100
 }
 
-/// Default maximum total size of all HTTP headers in bytes (32 KiB).
+/// Default maximum total size of all HTTP headers in bytes (32 `KiB`).
 ///
 /// Prevents memory exhaustion from oversized header values (e.g. huge cookies
 /// or authorization tokens).

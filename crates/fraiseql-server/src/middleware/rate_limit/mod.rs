@@ -44,9 +44,9 @@ mod tests {
     #[test]
     fn test_token_bucket_creation() {
         let bucket = token_bucket::TokenBucket::new(10.0, 5.0);
-        assert_eq!(bucket.tokens, 10.0);
-        assert_eq!(bucket.capacity, 10.0);
-        assert_eq!(bucket.refill_rate, 5.0);
+        assert!((bucket.tokens - 10.0).abs() < f64::EPSILON);
+        assert!((bucket.capacity - 10.0).abs() < f64::EPSILON);
+        assert!((bucket.refill_rate - 5.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -66,7 +66,7 @@ mod tests {
             tokens:      0.0,
             capacity:    10.0,
             refill_rate: 5.0,
-            last_refill: std::time::Instant::now() - std::time::Duration::from_millis(200),
+            last_refill: std::time::Instant::now().checked_sub(std::time::Duration::from_millis(200)).unwrap(),
         };
         // After 0.2 s at 5 tokens/s → 1 token refilled; should allow one consume.
         assert!(bucket.try_consume(1.0));

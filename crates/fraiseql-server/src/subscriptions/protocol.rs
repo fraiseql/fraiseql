@@ -1,4 +1,4 @@
-//! WebSocket protocol negotiation for GraphQL subscriptions.
+//! `WebSocket` protocol negotiation for GraphQL subscriptions.
 //!
 //! Supports both the modern `graphql-transport-ws` protocol and the legacy
 //! `graphql-ws` (Apollo subscriptions-transport-ws) protocol. Messages are
@@ -7,7 +7,7 @@
 
 use fraiseql_core::runtime::protocol::{ClientMessage, ServerMessage};
 
-/// Supported WebSocket sub-protocols for GraphQL subscriptions.
+/// Supported `WebSocket` sub-protocols for GraphQL subscriptions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum WsProtocol {
@@ -42,7 +42,7 @@ impl WsProtocol {
         None
     }
 
-    /// The protocol name to echo back in the WebSocket upgrade response.
+    /// The protocol name to echo back in the `WebSocket` upgrade response.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -71,7 +71,7 @@ impl ProtocolCodec {
         self.protocol
     }
 
-    /// Decode a raw JSON string from the WebSocket into a [`ClientMessage`].
+    /// Decode a raw JSON string from the `WebSocket` into a [`ClientMessage`].
     ///
     /// For `graphql-transport-ws` this is a passthrough deserialisation.
     /// For the legacy `graphql-ws` protocol, message types are translated:
@@ -96,7 +96,7 @@ impl ProtocolCodec {
         }
     }
 
-    /// Encode a [`ServerMessage`] to a JSON string for sending over the WebSocket.
+    /// Encode a [`ServerMessage`] to a JSON string for sending over the `WebSocket`.
     ///
     /// For `graphql-transport-ws` this serialises directly.
     /// For the legacy `graphql-ws` protocol, message types are translated:
@@ -114,7 +114,7 @@ impl ProtocolCodec {
     ///
     /// Cannot panic in practice — the `expect` on `wire_type` is guarded
     /// by an `is_none()` early-return immediately above.
-    pub fn encode(&self, msg: ServerMessage) -> Result<Option<String>, ProtocolError> {
+    pub fn encode(&self, msg: &ServerMessage) -> Result<Option<String>, ProtocolError> {
         match self.protocol {
             WsProtocol::GraphqlTransportWs => {
                 let json =
@@ -136,7 +136,7 @@ impl ProtocolCodec {
                     return Ok(Some(ka.to_string()));
                 }
 
-                let mut value = serde_json::to_value(&msg)
+                let mut value = serde_json::to_value(msg)
                     .map_err(|e| ProtocolError::SerializationFailed(e.to_string()))?;
                 if let Some(obj) = value.as_object_mut() {
                     obj.insert(
@@ -310,7 +310,7 @@ mod tests {
     fn encode_transport_ws_next() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlTransportWs);
         let msg = ServerMessage::next("1", serde_json::json!({"x": 1}));
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         assert!(json.contains("\"next\""));
     }
 
@@ -318,7 +318,7 @@ mod tests {
     fn encode_transport_ws_ping() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlTransportWs);
         let msg = ServerMessage::ping(None);
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         assert!(json.contains("\"ping\""));
     }
 
@@ -328,7 +328,7 @@ mod tests {
     fn encode_legacy_next_becomes_data() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlWs);
         let msg = ServerMessage::next("1", serde_json::json!({"x": 1}));
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["type"], "data");
     }
@@ -337,7 +337,7 @@ mod tests {
     fn encode_legacy_ping_becomes_ka() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlWs);
         let msg = ServerMessage::ping(None);
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["type"], "ka");
         // ka has no payload or id
@@ -348,7 +348,7 @@ mod tests {
     fn encode_legacy_pong_is_suppressed() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlWs);
         let msg = ServerMessage::pong(None);
-        let result = codec.encode(msg).unwrap();
+        let result = codec.encode(&msg).unwrap();
         assert!(result.is_none());
     }
 
@@ -356,7 +356,7 @@ mod tests {
     fn encode_legacy_connection_ack_unchanged() {
         let codec = ProtocolCodec::new(WsProtocol::GraphqlWs);
         let msg = ServerMessage::connection_ack(None);
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["type"], "connection_ack");
     }
@@ -368,7 +368,7 @@ mod tests {
             "1",
             vec![fraiseql_core::runtime::protocol::GraphQLError::new("test")],
         );
-        let json = codec.encode(msg).unwrap().unwrap();
+        let json = codec.encode(&msg).unwrap().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["type"], "error");
     }

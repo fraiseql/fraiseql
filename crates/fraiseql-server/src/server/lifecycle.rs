@@ -1,7 +1,9 @@
-//! Server lifecycle: serve, serve_with_shutdown, and shutdown_signal.
+//! Server lifecycle: serve, `serve_with_shutdown`, and `shutdown_signal`.
 
-use super::*;
-use tracing::error;
+use tokio::net::TcpListener;
+use tracing::{error, info, warn};
+
+use super::{DatabaseAdapter, Result, Server, ServerError, TlsSetup};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Start server and listen for requests.
@@ -243,12 +245,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             })
             .await;
 
-            match drain {
-                Ok(()) => info!("Graceful shutdown complete"),
-                Err(_) => warn!(
+            if drain.is_err() {
+                warn!(
                     timeout_secs = self.config.shutdown_timeout_secs,
                     "Shutdown drain timed out; forcing exit"
-                ),
+                );
+            } else {
+                info!("Graceful shutdown complete");
             }
         }
 
@@ -306,8 +309,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let terminate = std::future::pending::<()>();
 
         tokio::select! {
-            _ = ctrl_c => info!("Received Ctrl+C"),
-            _ = terminate => info!("Received SIGTERM"),
+            () = ctrl_c => info!("Received Ctrl+C"),
+            () = terminate => info!("Received SIGTERM"),
         }
     }
 

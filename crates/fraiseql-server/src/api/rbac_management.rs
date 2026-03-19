@@ -103,13 +103,13 @@ pub struct RbacManagementState {
 /// Routes:
 /// - POST   /api/roles                           - Create role
 /// - GET    /api/roles                           - List roles
-/// - GET    /api/roles/{role_id}                 - Get role details
-/// - PUT    /api/roles/{role_id}                 - Update role
-/// - DELETE /api/roles/{role_id}                 - Delete role
+/// - GET    `/api/roles/{role_id}`                 - Get role details
+/// - PUT    `/api/roles/{role_id}`                 - Update role
+/// - DELETE `/api/roles/{role_id}`                 - Delete role
 /// - POST   /api/permissions                     - Create permission
 /// - GET    /api/permissions                     - List permissions
-/// - GET    /api/permissions/{permission_id}    - Get permission details
-/// - DELETE /api/permissions/{permission_id}    - Delete permission
+/// - GET    `/api/permissions/{permission_id}`    - Get permission details
+/// - DELETE `/api/permissions/{permission_id}`    - Delete permission
 /// - POST   /api/user-roles                      - Assign role to user
 /// - GET    /api/user-roles                      - List user-role assignments
 /// - DELETE /api/user-roles/{user_id}/{role_id} - Revoke role from user
@@ -172,7 +172,7 @@ async fn list_roles(State(state): State<Arc<RbacManagementState>>) -> impl IntoR
 }
 
 /// Get role details
-/// GET /api/roles/{role_id}
+/// GET `/api/roles/{role_id}`
 async fn get_role(
     State(state): State<Arc<RbacManagementState>>,
     Path(role_id): Path<String>,
@@ -185,7 +185,7 @@ async fn get_role(
 }
 
 /// Update role
-/// PUT /api/roles/{role_id}
+/// PUT `/api/roles/{role_id}`
 async fn update_role(
     State(state): State<Arc<RbacManagementState>>,
     Path(role_id): Path<String>,
@@ -207,7 +207,7 @@ async fn update_role(
 }
 
 /// Delete role
-/// DELETE /api/roles/{role_id}
+/// DELETE `/api/roles/{role_id}`
 async fn delete_role(
     State(state): State<Arc<RbacManagementState>>,
     Path(role_id): Path<String>,
@@ -256,7 +256,7 @@ async fn list_permissions(State(state): State<Arc<RbacManagementState>>) -> impl
 }
 
 /// Get permission details
-/// GET /api/permissions/{permission_id}
+/// GET `/api/permissions/{permission_id}`
 async fn get_permission(
     State(state): State<Arc<RbacManagementState>>,
     Path(permission_id): Path<String>,
@@ -272,7 +272,7 @@ async fn get_permission(
 }
 
 /// Delete permission
-/// DELETE /api/permissions/{permission_id}
+/// DELETE `/api/permissions/{permission_id}`
 async fn delete_permission(
     State(state): State<Arc<RbacManagementState>>,
     Path(permission_id): Path<String>,
@@ -310,7 +310,7 @@ async fn list_user_roles(
     State(state): State<Arc<RbacManagementState>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
-    let user_id = params.get("user_id").map(String::as_str).unwrap_or("");
+    let user_id = params.get("user_id").map_or("", String::as_str);
     if user_id.is_empty() {
         return (StatusCode::OK, Json(serde_json::json!([]))).into_response();
     }
@@ -331,7 +331,7 @@ async fn revoke_role(
     Path((user_id, role_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     match state.db.revoke_role_from_user(&user_id, &role_id).await {
-        Ok(_) => StatusCode::NO_CONTENT,
+        Ok(()) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::NOT_FOUND,
     }
 }
@@ -341,7 +341,7 @@ async fn revoke_role(
 // =============================================================================
 
 /// Query permission access audit logs
-/// GET /api/audit/permissions?user_id=...&start_time=...&end_time=...
+/// GET `/api/audit/permissions?user_id=...&start_time=...&end_time=...`
 async fn query_permission_audit(
     State(_state): State<Arc<RbacManagementState>>,
 ) -> impl IntoResponse {

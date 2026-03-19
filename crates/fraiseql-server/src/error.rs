@@ -65,12 +65,18 @@ impl ErrorCode {
     #[must_use]
     pub const fn status_code(self) -> StatusCode {
         match self {
-            // Spec §7.1.2: well-formed requests that fail GraphQL validation or parsing
-            // MUST return 2xx.  200 is the correct status — the request was received and
-            // processed; it just failed at the GraphQL layer.
-            Self::ValidationError | Self::ParseError => StatusCode::OK,
-            // Truly malformed HTTP request (missing `query` field, unparseable JSON body).
-            Self::RequestError => StatusCode::BAD_REQUEST,
+            // Spec §7.1.2: well-formed requests that fail GraphQL validation, parsing,
+            // or APQ "not found" (signal for client to re-send with query body)
+            // MUST return 2xx.
+            Self::ValidationError | Self::ParseError | Self::PersistedQueryNotFound => {
+                StatusCode::OK
+            }
+            // Truly malformed HTTP request (missing `query` field, unparseable JSON body),
+            // APQ hash mismatch, forbidden queries, or missing trusted documents.
+            Self::RequestError
+            | Self::PersistedQueryMismatch
+            | Self::ForbiddenQuery
+            | Self::DocumentNotFound => StatusCode::BAD_REQUEST,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
@@ -79,10 +85,6 @@ impl ErrorCode {
             Self::Timeout => StatusCode::REQUEST_TIMEOUT,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen => StatusCode::SERVICE_UNAVAILABLE,
-            // APQ protocol: "not found" is a signal for the client to re-send with query body.
-            Self::PersistedQueryNotFound => StatusCode::OK,
-            Self::PersistedQueryMismatch => StatusCode::BAD_REQUEST,
-            Self::ForbiddenQuery | Self::DocumentNotFound => StatusCode::BAD_REQUEST,
         }
     }
 }

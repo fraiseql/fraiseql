@@ -56,6 +56,8 @@ impl TokenBucket {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
     use std::time::{Duration, Instant};
 
@@ -79,7 +81,7 @@ mod tests {
             tokens:      50.0,
             capacity:    100.0,
             refill_rate: 1000.0,
-            last_refill: Instant::now() - Duration::from_secs(1000),
+            last_refill: Instant::now().checked_sub(Duration::from_secs(1000)).unwrap(),
         };
         // Even with 1_000_000 tokens of potential refill, count is capped at 100
         assert!(
@@ -94,7 +96,7 @@ mod tests {
             tokens:      0.0,
             capacity:    10.0,
             refill_rate: 100.0, // 100 tokens/sec
-            last_refill: Instant::now() - Duration::from_millis(100),
+            last_refill: Instant::now().checked_sub(Duration::from_millis(100)).unwrap(),
         };
         // 100ms at 100 tok/s = 10 tokens refilled → full capacity
         assert!(bucket.try_consume(1.0), "refilled bucket must allow consumption");
@@ -106,7 +108,7 @@ mod tests {
             tokens:      0.0,
             capacity:    10.0,
             refill_rate: 0.0,
-            last_refill: Instant::now() - Duration::from_secs(60),
+            last_refill: Instant::now().checked_sub(Duration::from_secs(60)).unwrap(),
         };
         assert!(!bucket.try_consume(1.0), "zero refill rate means no refill ever");
     }

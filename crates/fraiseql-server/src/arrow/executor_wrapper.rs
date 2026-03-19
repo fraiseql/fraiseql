@@ -1,8 +1,8 @@
-//! Executor wrapper that implements QueryExecutor trait for Arrow Flight.
+//! Executor wrapper that implements `QueryExecutor` trait for Arrow Flight.
 //!
 //! This module provides a wrapper around the generic `Executor<A>` type
 //! that implements the `QueryExecutor` trait for type erasure, allowing
-//! the executor to be used with FraiseQLFlightService.
+//! the executor to be used with `FraiseQLFlightService`.
 
 use std::sync::Arc;
 

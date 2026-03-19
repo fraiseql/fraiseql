@@ -89,7 +89,7 @@ pub struct SecretsHealth {
     pub backend:   String,
 }
 
-/// Readiness response (subset of HealthResponse).
+/// Readiness response (subset of `HealthResponse`).
 #[derive(Debug, Serialize)]
 pub struct ReadinessResponse {
     /// `"ready"` or `"not_ready"`.
@@ -183,9 +183,12 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let observers = if let Some(ref runtime) = state.observer_runtime {
         let rt = runtime.read().await;
         let health = rt.health();
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: events_processed is a counter that won't realistically exceed usize on any target
+        let pending = health.events_processed as usize;
         Some(ObserverHealth {
             running:        health.running,
-            pending_events: health.events_processed as usize,
+            pending_events: pending,
             last_error:     if health.errors > 0 {
                 Some(format!("{} errors encountered", health.errors))
             } else {

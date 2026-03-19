@@ -41,7 +41,7 @@ fn connection_init_produces_connection_ack_modern() {
 
     // Server → client: acknowledge the connection
     let ack = ServerMessage::connection_ack(None);
-    let wire = codec.encode(ack).unwrap().unwrap();
+    let wire = codec.encode(&ack).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
     assert_eq!(parsed["type"], "connection_ack");
     assert!(parsed.get("id").is_none() || parsed["id"].is_null());
@@ -55,7 +55,7 @@ fn connection_ack_with_payload_round_trips_correctly() {
 
     let server_info = serde_json::json!({"version": "2.0", "extensions": ["persisted-queries"]});
     let ack = ServerMessage::connection_ack(Some(server_info));
-    let wire = codec.encode(ack).unwrap().unwrap();
+    let wire = codec.encode(&ack).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     assert_eq!(parsed["type"], "connection_ack");
@@ -72,7 +72,7 @@ fn connection_init_produces_connection_ack_legacy() {
     assert_eq!(client_msg.parsed_type(), Some(ClientMessageType::ConnectionInit));
 
     let ack = ServerMessage::connection_ack(None);
-    let wire = codec.encode(ack).unwrap().unwrap();
+    let wire = codec.encode(&ack).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
     assert_eq!(
         parsed["type"], "connection_ack",
@@ -101,7 +101,7 @@ fn error_frame_delivered_without_prior_next_modern() {
         "GRAPHQL_VALIDATION_FAILED",
     )];
     let err_msg = ServerMessage::error(op_id, errors);
-    let wire = codec.encode(err_msg).unwrap().unwrap();
+    let wire = codec.encode(&err_msg).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     assert_eq!(parsed["type"], "error");
@@ -121,7 +121,7 @@ fn error_frame_carries_multiple_errors() {
         GraphQLError::with_code("Argument 'limit' is required", "ARGUMENT_REQUIRED"),
     ];
     let err_msg = ServerMessage::error("op_2", errors);
-    let wire = codec.encode(err_msg).unwrap().unwrap();
+    let wire = codec.encode(&err_msg).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     let payload = parsed["payload"].as_array().unwrap();
@@ -134,7 +134,7 @@ fn error_frame_type_unchanged_in_legacy_protocol() {
     let codec = ProtocolCodec::new(WsProtocol::GraphqlWs);
 
     let err_msg = ServerMessage::error("op_1", vec![GraphQLError::new("something went wrong")]);
-    let wire = codec.encode(err_msg).unwrap().unwrap();
+    let wire = codec.encode(&err_msg).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     assert_eq!(parsed["type"], "error", "legacy protocol does not rename `error`");
@@ -157,7 +157,7 @@ fn complete_handshake_client_then_server_modern() {
 
     // Server echoes complete for the same operation.
     let server_complete = ServerMessage::complete(op_id);
-    let wire = codec.encode(server_complete).unwrap().unwrap();
+    let wire = codec.encode(&server_complete).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     assert_eq!(parsed["type"], "complete");
@@ -184,7 +184,7 @@ fn complete_handshake_legacy_stop_becomes_complete() {
 
     // Server echoes complete.
     let server_complete = ServerMessage::complete("op_x");
-    let wire = codec.encode(server_complete).unwrap().unwrap();
+    let wire = codec.encode(&server_complete).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
     assert_eq!(parsed["type"], "complete");
 }
@@ -212,7 +212,7 @@ fn ping_pong_round_trip_modern() {
 
     // Server → client: keepalive ping.
     let ping = ServerMessage::ping(None);
-    let server_wire = codec.encode(ping).unwrap().unwrap();
+    let server_wire = codec.encode(&ping).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&server_wire).unwrap();
     assert_eq!(parsed["type"], "ping");
 
@@ -223,7 +223,7 @@ fn ping_pong_round_trip_modern() {
 
     // Server encodes its own pong reply (echo).
     let server_pong = ServerMessage::pong(None);
-    let pong_wire = codec.encode(server_pong).unwrap().unwrap();
+    let pong_wire = codec.encode(&server_pong).unwrap().unwrap();
     let parsed_pong: serde_json::Value = serde_json::from_str(&pong_wire).unwrap();
     assert_eq!(parsed_pong["type"], "pong");
 }
@@ -235,7 +235,7 @@ fn ping_with_payload_modern() {
 
     let payload = serde_json::json!({"timestamp": 1_700_000_000u64});
     let ping = ServerMessage::ping(Some(payload));
-    let wire = codec.encode(ping).unwrap().unwrap();
+    let wire = codec.encode(&ping).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
     assert_eq!(parsed["type"], "ping");
@@ -249,7 +249,7 @@ fn ping_becomes_ka_and_pong_suppressed_legacy() {
 
     // Ping → ka
     let ping = ServerMessage::ping(None);
-    let wire = codec.encode(ping).unwrap().unwrap();
+    let wire = codec.encode(&ping).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
     assert_eq!(parsed["type"], "ka", "legacy protocol must translate `ping` to `ka`");
     // ka carries no payload or id.
@@ -260,7 +260,7 @@ fn ping_becomes_ka_and_pong_suppressed_legacy() {
 
     // Pong → suppressed (None)
     let pong = ServerMessage::pong(None);
-    let result = codec.encode(pong).unwrap();
+    let result = codec.encode(&pong).unwrap();
     assert!(result.is_none(), "legacy protocol must suppress `pong`");
 }
 

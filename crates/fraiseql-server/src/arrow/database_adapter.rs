@@ -1,7 +1,7 @@
 //! Database adapter wrapper for Arrow Flight service.
 //!
 //! This module provides a wrapper that adapts fraiseql-core's database adapters
-//! to fraiseql-arrow's DatabaseAdapter trait, enabling the Arrow Flight service
+//! to fraiseql-arrow's `DatabaseAdapter` trait, enabling the Arrow Flight service
 //! to execute queries against real databases.
 //!
 //! Supports multiple backends:
@@ -149,7 +149,7 @@ mod tests {
 
     use super::*;
 
-    /// Test that adapter can be created from PostgresAdapter
+    /// Test that adapter can be created from `PostgresAdapter`
     #[test]
     fn test_adapter_creation() {
         // This test verifies the adapter can be created

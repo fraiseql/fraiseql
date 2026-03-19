@@ -30,7 +30,7 @@ use crate::{
 /// 1. Extract W3C trace context from traceparent header (if present)
 /// 2. Validate GraphQL request (depth, complexity)
 /// 3. Parse GraphQL request body
-/// 4. Execute query via Executor with optional SecurityContext
+/// 4. Execute query via Executor with optional `SecurityContext`
 /// 5. Return GraphQL response with proper error formatting
 ///
 /// Tracks execution timing and operation name for monitoring.
@@ -79,7 +79,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// # Errors
 ///
 /// Returns `413 Payload Too Large` (via `ErrorResponse`) when the query string
-/// exceeds `AppState::max_get_query_bytes` (default 100 KiB, configurable via
+/// exceeds `AppState::max_get_query_bytes` (default 100 `KiB`, configurable via
 /// `ServerConfig::max_get_query_bytes`). Returns other HTTP status codes for
 /// additional error conditions.
 ///
@@ -482,6 +482,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let op_name = request.operation_name.as_deref().unwrap_or("");
     let result = exec_result.map_err(|e| {
         let elapsed = start_time.elapsed();
+        // Reason: microsecond counter cannot exceed u64 in any practical uptime
+        #[allow(clippy::cast_possible_truncation)]
         let elapsed_us = elapsed.as_micros() as u64;
         error!(
             error = %e,
@@ -499,6 +501,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     })?;
 
     let elapsed = start_time.elapsed();
+    // Reason: microsecond counter cannot exceed u64 in any practical uptime
+    #[allow(clippy::cast_possible_truncation)]
     let elapsed_us = elapsed.as_micros() as u64;
 
     // Record successful query metrics

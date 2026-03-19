@@ -1,7 +1,7 @@
 //! HTTP header count and size limit middleware.
 //!
 //! Rejects requests that exceed configured header count or total header byte
-//! limits, preventing header-flooding DoS attacks that exhaust memory.
+//! limits, preventing header-flooding `DoS` attacks that exhaust memory.
 
 use axum::{
     body::Body,

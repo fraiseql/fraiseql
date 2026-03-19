@@ -22,52 +22,6 @@
 //! - Authentication middleware (optional)
 
 #![forbid(unsafe_code)]
-// missing_docs: all public items must be documented (workspace lint enforces this)
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-// Reason: module-level allows for pedantic lints that are too noisy across this crate.
-// Each allow has a justification. Prefer per-function allows for new code.
-#![allow(clippy::struct_excessive_bools)] // Reason: ServerConfig uses bools for independent feature flags
-#![allow(clippy::cast_possible_truncation)] // Reason: intentional u128->u64 casts for metrics counters
-#![allow(clippy::cast_precision_loss)] // Reason: intentional f64 conversions for averaging metrics
-#![allow(clippy::doc_markdown)] // Reason: backtick-wrapping all technical terms would reduce readability
-#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style (e.g., ServerConfig in server mod)
-#![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain, not inspect
-#![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types in handler signatures
-#![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn even for sync operations
-#![allow(clippy::similar_names)] // Reason: domain terms (e.g., req/res, row/col) are conventional pairs
-#![allow(clippy::unused_self)] // Reason: trait implementations require &self for interface consistency
-#![allow(clippy::match_same_arms)] // Reason: explicit arms document each variant's intent in state machines
-#![allow(clippy::double_must_use)] // Reason: CorsLayer from tower-http already carries #[must_use]
-#![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result for axum compatibility
-#![allow(clippy::return_self_not_must_use)] // Reason: builder pattern methods are always chained, never discarded
-#![allow(clippy::too_many_lines)] // Reason: route setup and middleware composition are inherently verbose
-#![allow(clippy::cast_sign_loss)] // Reason: intentional signed->unsigned for timestamp/duration conversions
-#![allow(clippy::missing_fields_in_debug)] // Reason: connection pools and secrets excluded from Debug for safety
-#![allow(clippy::default_trait_access)] // Reason: Default::default() is clearer than type inference in structs
-#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for concise test setup
-#![allow(clippy::items_after_statements)] // Reason: helper structs near point of use improves test readability
-#![allow(clippy::no_effect_underscore_binding)] // Reason: placeholder bindings for future middleware hooks
-#![allow(clippy::cast_possible_wrap)] // Reason: timestamp and duration values are positive, within i64 range
-#![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology (e.g., auth_token)
-#![allow(clippy::single_char_pattern)] // Reason: string patterns like "/" are clearer than char '/' in routes
-#![allow(clippy::elidable_lifetime_names)] // Reason: explicit lifetimes document borrow relationships
-#![allow(clippy::manual_let_else)] // Reason: match with early return is clearer for multi-line extraction
-#![allow(clippy::redundant_closure)] // Reason: explicit closures clarify argument transformation in map chains
-#![allow(clippy::unchecked_time_subtraction)] // Reason: duration arithmetic on SystemTime is infallible for metrics
-#![allow(clippy::uninlined_format_args)] // Reason: named variables in format strings improve readability
-#![allow(clippy::unnested_or_patterns)] // Reason: flat patterns with comments are clearer for state transitions
-#![allow(clippy::used_underscore_binding)] // Reason: underscore-prefixed bindings used intentionally in destructuring
-#![allow(clippy::cast_lossless)] // Reason: explicit as casts make type conversion visible at call site
-#![allow(clippy::format_push_string)] // Reason: format!+push_str is clearer than write! for SQL query building
-#![allow(clippy::if_same_then_else)] // Reason: separate branches document distinct code paths for maintenance
-#![allow(clippy::ignored_unit_patterns)] // Reason: explicit _ in pattern matches documents intentional discard
-#![allow(clippy::map_unwrap_or)] // Reason: map().unwrap_or() reads left-to-right; clearer for chains
-#![allow(clippy::redundant_closure_for_method_calls)] // Reason: explicit closures clarify intent in higher-order functions
-#![allow(clippy::single_match_else)] // Reason: match with else is clearer than if-let for variant extraction
-#![allow(clippy::unnecessary_debug_formatting)] // Reason: Debug formatting in log messages provides diagnostic detail
-#![allow(clippy::useless_format)] // Reason: format!() used to satisfy String type requirements in some APIs
-#![allow(clippy::float_cmp)] // Reason: test assertions compare exact metric values, not computed floats
 
 // API key authentication
 pub mod api_key;

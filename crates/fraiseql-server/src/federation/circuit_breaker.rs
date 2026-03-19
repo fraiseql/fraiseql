@@ -5,7 +5,7 @@
 //!
 //! - **Closed**: Normal operation; all requests pass through.
 //! - **Open**: Circuit tripped after consecutive failures; requests rejected with HTTP 503.
-//! - **HalfOpen**: Recovery probe phase; a threshold of successes closes the circuit.
+//! - **`HalfOpen`**: Recovery probe phase; a threshold of successes closes the circuit.
 //!
 //! The manager is initialized from the `federation.circuit_breaker` section of the
 //! compiled schema JSON and holds one independent breaker per entity type name.
@@ -79,9 +79,9 @@ enum CircuitState {
 pub struct CircuitBreakerConfig {
     /// Consecutive failures required to trip the circuit open.
     pub failure_threshold:     u32,
-    /// Seconds to hold the circuit open before transitioning to HalfOpen.
+    /// Seconds to hold the circuit open before transitioning to `HalfOpen`.
     pub recovery_timeout_secs: u64,
-    /// Consecutive successes in HalfOpen required to close the circuit.
+    /// Consecutive successes in `HalfOpen` required to close the circuit.
     pub success_threshold:     u32,
 }
 
@@ -270,7 +270,7 @@ impl EntityCircuitBreaker {
 
     /// Returns the numeric state code for Prometheus export.
     ///
-    /// `0` = Closed, `1` = Open, `2` = HalfOpen.
+    /// `0` = Closed, `1` = Open, `2` = `HalfOpen`.
     fn state_code(&self) -> u64 {
         let state = self.state.lock();
         match &*state {
@@ -460,8 +460,7 @@ impl FederationCircuitBreakerManager {
                 let config = self
                     .per_entity_config
                     .get(entity)
-                    .map(|r| r.value().clone())
-                    .unwrap_or_else(|| self.default_config.clone());
+                    .map_or_else(|| self.default_config.clone(), |r| r.value().clone());
                 Arc::new(EntityCircuitBreaker::new(config))
             })
             .clone()
@@ -486,7 +485,7 @@ impl FederationCircuitBreakerManager {
 
     /// Collect `(entity_name, state_code)` pairs for Prometheus export.
     ///
-    /// State codes: `0` = Closed, `1` = Open, `2` = HalfOpen.
+    /// State codes: `0` = Closed, `1` = Open, `2` = `HalfOpen`.
     #[must_use]
     pub fn collect_states(&self) -> Vec<(String, u64)> {
         self.breakers

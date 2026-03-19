@@ -42,6 +42,8 @@ pub async fn metrics_middleware(
     // Execute the request with timing
     let start = Instant::now();
     let response = next.run(request).await;
+    // Reason: microsecond counter cannot exceed u64 in any practical uptime
+    #[allow(clippy::cast_possible_truncation)]
     let elapsed_us = start.elapsed().as_micros() as u64;
     metrics.http_request_duration.observe_us(elapsed_us);
 

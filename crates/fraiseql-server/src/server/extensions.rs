@@ -1,7 +1,28 @@
 //! Server extensions: relay pagination, Arrow Flight service, and observer runtime
 //! initialization.
 
-use super::*;
+use std::sync::Arc;
+
+#[cfg(feature = "arrow")]
+use fraiseql_arrow::FraiseQLFlightService;
+use fraiseql_core::{
+    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    runtime::{Executor, SubscriptionManager},
+    schema::CompiledSchema,
+};
+#[cfg(all(feature = "arrow", feature = "auth"))]
+use fraiseql_core::security::OidcValidator;
+#[cfg(feature = "observers")]
+use tokio::sync::RwLock;
+use tracing::info;
+#[cfg(feature = "observers")]
+use tracing::warn;
+
+use super::{Result, Server, ServerConfig};
+#[cfg(feature = "arrow")]
+use super::{RateLimiter, ServerError};
+#[cfg(feature = "observers")]
+use super::{ObserverRuntime, ObserverRuntimeConfig};
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create a server with relay pagination support enabled.
@@ -284,12 +305,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             },
         };
 
-        let pool = match pool {
-            Some(p) => p,
-            None => {
-                warn!("No database pool provided for observers");
-                return None;
-            },
+        let Some(pool) = pool else {
+            warn!("No database pool provided for observers");
+            return None;
         };
 
         info!("Initializing observer runtime");

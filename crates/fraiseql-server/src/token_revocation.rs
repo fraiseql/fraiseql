@@ -90,7 +90,7 @@ pub enum RevocationError {
 
 /// In-memory revocation store for testing and single-instance dev.
 pub struct InMemoryRevocationStore {
-    /// Map of JTI → (sub, expires_at).
+    /// Map of JTI → (sub, `expires_at`).
     entries: DashMap<String, (String, DateTime<Utc>)>,
 }
 
@@ -135,7 +135,7 @@ impl RevocationStore for InMemoryRevocationStore {
     }
 
     async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
-        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs as i64);
+        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs.cast_signed());
         // We store an empty sub — single-JTI revocation doesn't need sub.
         self.entries.insert(jti.to_string(), (String::new(), expires_at));
         Ok(())
@@ -339,7 +339,7 @@ impl std::fmt::Debug for TokenRevocationManager {
         f.debug_struct("TokenRevocationManager")
             .field("require_jti", &self.require_jti)
             .field("fail_open", &self.fail_open)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

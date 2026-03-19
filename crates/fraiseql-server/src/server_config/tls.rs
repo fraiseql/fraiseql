@@ -14,7 +14,7 @@ use super::defaults::{
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum PlaygroundTool {
-    /// GraphiQL - the classic GraphQL IDE.
+    /// `GraphiQL` - the classic GraphQL IDE.
     GraphiQL,
     /// Apollo Sandbox - Apollo's embeddable GraphQL IDE (default).
     ///
@@ -63,7 +63,7 @@ pub struct DatabaseTlsConfig {
     #[serde(default = "default_redis_ssl")]
     pub redis_ssl: bool,
 
-    /// Enable HTTPS for ClickHouse connections.
+    /// Enable HTTPS for `ClickHouse` connections.
     #[serde(default = "default_clickhouse_https")]
     pub clickhouse_https: bool,
 

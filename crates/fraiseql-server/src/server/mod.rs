@@ -2,29 +2,13 @@
 
 use std::sync::Arc;
 
-use axum::{
-    Router,
-    extract::DefaultBodyLimit,
-    middleware,
-    routing::{get, post},
-};
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
-    schema::CompiledSchema,
     security::OidcValidator,
 };
-use tokio::net::TcpListener;
-#[cfg(any(
-    feature = "mcp",
-    feature = "observers",
-    feature = "redis-rate-limiting",
-    feature = "redis-pkce"
-))]
-use tracing::error;
-use tracing::{info, warn};
 #[cfg(feature = "observers")]
 use {
     crate::observers::{ObserverRuntime, ObserverRuntimeConfig},

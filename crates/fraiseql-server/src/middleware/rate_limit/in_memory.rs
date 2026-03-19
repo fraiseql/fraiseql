@@ -39,6 +39,8 @@ impl InMemoryRateLimiter {
     /// Attach per-path rules derived from `[security.rate_limiting]` auth endpoint fields.
     ///
     /// Converts max-requests-per-window into token-per-second refill rates.
+    // Reason: precision loss is acceptable for rate-limit window calculations
+    #[allow(clippy::cast_precision_loss)]
     #[must_use]
     pub(super) fn with_path_rules_from_security(
         mut self,
@@ -105,6 +107,8 @@ impl InMemoryRateLimiter {
             CheckResult::allow(remaining)
         } else {
             debug!(ip = ip, path = path, "Per-path rate limit exceeded");
+            // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let retry = if tokens_per_sec > 0.0 {
                 ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
             } else {
@@ -139,6 +143,8 @@ impl InMemoryRateLimiter {
         } else {
             debug!(ip = ip, "Rate limit exceeded for IP");
             let rps = self.config.rps_per_ip;
+            // Reason: ceil(1/rps) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let retry = if rps == 0 {
                 1
             } else {
@@ -168,6 +174,8 @@ impl InMemoryRateLimiter {
         } else {
             debug!(user_id = user_id, "Rate limit exceeded for user");
             let rps = self.config.rps_per_user;
+            // Reason: ceil(1/rps) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let retry = if rps == 0 {
                 1
             } else {
@@ -183,6 +191,8 @@ impl InMemoryRateLimiter {
     /// to fully refill from empty (`burst_size / rps_per_ip`).  At that point the
     /// next request would start a fresh full bucket anyway, so the entry is safe
     /// to remove.
+    // Reason: precision loss is acceptable for rate-limit cleanup interval calculations
+    #[allow(clippy::cast_precision_loss)]
     pub(super) async fn cleanup(&self) {
         let ip_refill_secs = if self.config.rps_per_ip == 0 {
             self.config.cleanup_interval_secs as f64
@@ -236,6 +246,8 @@ impl InMemoryRateLimiter {
         if let Some(rule) = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
         {
             if rule.tokens_per_sec > 0.0 {
+                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
             }
         }

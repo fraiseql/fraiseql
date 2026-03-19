@@ -73,8 +73,7 @@ impl IntoResponse for ApiError {
         let status = match self.code.as_str() {
             "UNAUTHORIZED" => StatusCode::UNAUTHORIZED,
             "NOT_FOUND" => StatusCode::NOT_FOUND,
-            "VALIDATION_ERROR" => StatusCode::BAD_REQUEST,
-            "PARSE_ERROR" => StatusCode::BAD_REQUEST,
+            "VALIDATION_ERROR" | "PARSE_ERROR" => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -124,7 +123,7 @@ pub struct SanitizedConfig {
 }
 
 impl SanitizedConfig {
-    /// Create sanitized configuration from ServerConfig.
+    /// Create sanitized configuration from `ServerConfig`.
     ///
     /// Removes sensitive fields:
     /// - TLS private keys and certificates (replaced with boolean flag)

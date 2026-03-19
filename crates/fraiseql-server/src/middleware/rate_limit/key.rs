@@ -29,15 +29,14 @@ pub(super) const fn is_private_or_loopback(ip: std::net::IpAddr) -> bool {
 ///
 /// Requires that `path` equals `prefix` exactly, or that it is followed
 /// immediately by `/` or `?`. This prevents `/auth/start` from matching
-/// `/auth/startover` (DoS vector: exhausting the `/auth/start` bucket via an
+/// `/auth/startover` (`DoS` vector: exhausting the `/auth/start` bucket via an
 /// unrelated path).
 pub(super) fn path_matches_rule(path: &str, prefix: &str) -> bool {
     if path == prefix {
         return true;
     }
-    let rest = match path.strip_prefix(prefix) {
-        Some(r) => r,
-        None => return false,
+    let Some(rest) = path.strip_prefix(prefix) else {
+        return false;
     };
     rest.starts_with('/') || rest.starts_with('?')
 }
@@ -47,9 +46,9 @@ pub(super) fn path_matches_rule(path: &str, prefix: &str) -> bool {
 pub(super) struct PathRateLimit {
     /// Path prefix to match (exact prefix, e.g., `/auth/start`).
     pub(super) path_prefix:    String,
-    /// Token refill rate (tokens per second = max_requests / window_secs).
+    /// Token refill rate (tokens per second = `max_requests` / `window_secs`).
     pub(super) tokens_per_sec: f64,
-    /// Maximum burst (= max_requests).
+    /// Maximum burst (= `max_requests`).
     pub(super) burst:          f64,
 }
 

@@ -76,7 +76,7 @@ pub struct ServerConfig {
     /// OTLP exporter endpoint for distributed tracing.
     ///
     /// When set (e.g. `"http://otel-collector:4317"`), the server initializes an
-    /// OpenTelemetry OTLP exporter. When `None`, the `OTEL_EXPORTER_OTLP_ENDPOINT`
+    /// `OpenTelemetry` OTLP exporter. When `None`, the `OTEL_EXPORTER_OTLP_ENDPOINT`
     /// environment variable is checked as a fallback. If neither is set, no OTLP
     /// export occurs (zero overhead).
     #[serde(default)]
@@ -133,7 +133,7 @@ pub struct ServerConfig {
 
     /// Enable GraphQL playground/IDE (default: false for production safety).
     ///
-    /// When enabled, serves a GraphQL IDE (GraphiQL or Apollo Sandbox)
+    /// When enabled, serves a GraphQL IDE (`GraphiQL` or Apollo Sandbox)
     /// at the configured `playground_path`.
     ///
     /// **Security**: Disabled by default for production safety. Set to true for development
@@ -149,11 +149,11 @@ pub struct ServerConfig {
     #[serde(default)]
     pub playground_tool: PlaygroundTool,
 
-    /// WebSocket endpoint path for GraphQL subscriptions.
+    /// `WebSocket` endpoint path for GraphQL subscriptions.
     #[serde(default = "defaults::default_subscription_path")]
     pub subscription_path: String,
 
-    /// Enable GraphQL subscriptions over WebSocket.
+    /// Enable GraphQL subscriptions over `WebSocket`.
     ///
     /// When enabled, provides graphql-ws (graphql-transport-ws) protocol
     /// support for real-time subscription events.
@@ -284,7 +284,7 @@ pub struct ServerConfig {
     /// Database TLS configuration.
     ///
     /// Enables TLS for database connections and configures
-    /// per-database TLS settings (PostgreSQL, Redis, ClickHouse, etc.).
+    /// per-database TLS settings (PostgreSQL, Redis, `ClickHouse`, etc.).
     ///
     /// # Example (TOML)
     ///
@@ -316,11 +316,11 @@ pub struct ServerConfig {
     /// Maximum number of HTTP headers per request (default: 100).
     ///
     /// Requests with more headers than this limit receive 431 Request Header Fields Too Large.
-    /// Prevents header-flooding DoS attacks that exhaust memory.
+    /// Prevents header-flooding `DoS` attacks that exhaust memory.
     #[serde(default = "defaults::default_max_header_count")]
     pub max_header_count: usize,
 
-    /// Maximum total size of all HTTP headers in bytes (default: 32 KiB).
+    /// Maximum total size of all HTTP headers in bytes (default: 32 `KiB`).
     ///
     /// Requests whose combined header name+value bytes exceed this limit receive
     /// 431 Request Header Fields Too Large. Prevents memory exhaustion from
@@ -347,8 +347,8 @@ pub struct ServerConfig {
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
     /// GET queries are URL-encoded and passed as a query parameter. Very long
-    /// strings are either a DoS attempt or a sign that the caller should use
-    /// POST instead. Default: `100_000` (100 KiB).
+    /// strings are either a `DoS` attempt or a sign that the caller should use
+    /// POST instead. Default: `100_000` (100 `KiB`).
     ///
     /// # Example (TOML)
     ///

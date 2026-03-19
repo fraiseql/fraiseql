@@ -137,7 +137,11 @@ impl RateLimiter {
         if rps == 0 {
             return 1;
         }
-        ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
+        // Reason: ceil(1/rps) is always a small positive integer
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
+        }
     }
 }
 

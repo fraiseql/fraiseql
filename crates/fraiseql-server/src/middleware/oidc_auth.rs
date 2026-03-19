@@ -45,7 +45,7 @@ pub struct AuthUser(pub AuthenticatedUser);
 /// - If auth is required and no token: returns 401 Unauthorized
 /// - If token is invalid/expired: returns 401 Unauthorized
 /// - If token is valid: adds `AuthUser` to request extensions
-/// - If auth is optional and no token: allows request through (no AuthUser)
+/// - If auth is optional and no token: allows request through (no `AuthUser`)
 ///
 /// # Example
 ///

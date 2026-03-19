@@ -44,7 +44,7 @@ pub struct ExplainResponse {
     pub views_accessed: Vec<String>,
     /// Query type classification
     pub query_type:     String,
-    /// Database-level EXPLAIN output (only when debug.database_explain is enabled)
+    /// Database-level EXPLAIN output (only when `debug.database_explain` is enabled)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub database_plan:  Option<serde_json::Value>,
 }
@@ -242,12 +242,17 @@ pub async fn stats_handler<A: DatabaseAdapter>(
         state.metrics.queries_duration_us.load(std::sync::atomic::Ordering::Relaxed);
 
     // Calculate average latency in milliseconds
+    // Reason: precision loss is acceptable for metrics/statistics
+    #[allow(clippy::cast_precision_loss)]
     let average_latency_ms = if total_queries > 0 {
         (total_duration_us as f64 / total_queries as f64) / 1000.0
     } else {
         0.0
     };
 
+    // Reason: counters loaded from AtomicU64 will not exceed usize on 64-bit targets;
+    // on hypothetical 32-bit targets, saturating is acceptable for display stats.
+    #[allow(clippy::cast_possible_truncation)]
     let response = StatsResponse {
         total_queries: total_queries as usize,
         successful_queries: successful_queries as usize,

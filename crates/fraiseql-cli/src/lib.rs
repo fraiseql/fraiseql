@@ -1,7 +1,5 @@
 //! FraiseQL CLI library - exposes internal modules for testing and reuse
 
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
 #![allow(clippy::format_push_string)] // Reason: push_str + format! is clearer for incremental SQL/query string building
 #![allow(clippy::option_if_let_else)] // Reason: style preference — if let chains are more readable in command handlers
 #![allow(clippy::needless_pass_by_value)] // Reason: API consistency; command handler functions receive owned values from clap

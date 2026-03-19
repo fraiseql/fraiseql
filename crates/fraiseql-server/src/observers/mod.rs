@@ -340,7 +340,7 @@ pub struct ObserverLog {
     pub created_at: DateTime<Utc>,
 }
 
-/// Observer statistics from vw_observer_stats view.
+/// Observer statistics from `vw_observer_stats` view.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ObserverStats {
     /// Internal primary key of the observer.

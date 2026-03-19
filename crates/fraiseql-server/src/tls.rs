@@ -5,9 +5,9 @@
 //! - Building TLS acceptance profiles for servers
 //! - Configuring mTLS (client certificate requirements)
 //! - Database connection TLS settings
-//! - Per-connection TLS enforcement using the TlsEnforcer
+//! - Per-connection TLS enforcement using the `TlsEnforcer`
 
-use std::{path::Path, sync::Arc};
+use std::{fmt::Write as _, path::Path, sync::Arc};
 
 use fraiseql_core::security::{TlsConfig, TlsEnforcer, TlsVersion};
 use rustls::{ServerConfig, pki_types::CertificateDer};
@@ -148,8 +148,7 @@ impl TlsSetup {
     pub fn postgres_ssl_mode(&self) -> &str {
         self.db_config
             .as_ref()
-            .map(|c| c.postgres_ssl_mode.as_str())
-            .unwrap_or("prefer")
+            .map_or("prefer", |c| c.postgres_ssl_mode.as_str())
     }
 
     /// Check if Redis TLS is enabled.
@@ -158,7 +157,7 @@ impl TlsSetup {
         self.db_config.as_ref().is_some_and(|c| c.redis_ssl)
     }
 
-    /// Check if ClickHouse HTTPS is enabled.
+    /// Check if `ClickHouse` HTTPS is enabled.
     #[must_use]
     pub fn clickhouse_https_enabled(&self) -> bool {
         self.db_config.as_ref().is_some_and(|c| c.clickhouse_https)
@@ -193,10 +192,10 @@ impl TlsSetup {
         let ssl_mode = self.postgres_ssl_mode();
         if !ssl_mode.is_empty() && ssl_mode != "prefer" {
             // Add or update sslmode parameter
-            if url.contains("?") {
-                url.push_str(&format!("&sslmode={}", ssl_mode));
+            if url.contains('?') {
+                let _ = write!(url, "&sslmode={ssl_mode}");
             } else {
-                url.push_str(&format!("?sslmode={}", ssl_mode));
+                let _ = write!(url, "?sslmode={ssl_mode}");
             }
         }
 
@@ -213,7 +212,7 @@ impl TlsSetup {
         }
     }
 
-    /// Get ClickHouse URL with TLS applied.
+    /// Get `ClickHouse` URL with TLS applied.
     pub fn apply_clickhouse_tls(&self, ch_url: &str) -> String {
         if self.clickhouse_https_enabled() {
             // Replace http:// with https://
@@ -288,7 +287,7 @@ impl TlsSetup {
         Err(ServerError::ConfigError("No private key found in key file".to_string()))
     }
 
-    /// Create a rustls ServerConfig for TLS.
+    /// Create a rustls `ServerConfig` for TLS.
     ///
     /// # Errors
     ///

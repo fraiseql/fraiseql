@@ -345,7 +345,7 @@ use tokio::sync::RwLock;
 /// State for runtime health checks
 #[derive(Clone)]
 pub struct RuntimeHealthState {
-    /// Reference to the observer runtime (wrapped in RwLock for thread safety)
+    /// Reference to the observer runtime (wrapped in `RwLock` for thread safety)
     pub runtime: Arc<RwLock<super::ObserverRuntime>>,
 }
 
@@ -408,10 +408,10 @@ pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl I
 /// Extract customer/tenant organization ID from request context.
 ///
 /// In a full implementation, this would use Axum extractors to pull from
-/// the SecurityContext middleware. For now, returns None as a safe default.
+/// the `SecurityContext` middleware. For now, returns None as a safe default.
 /// In production, integrate with your auth middleware to extract from:
 /// - X-Tenant-Id header
-/// - JWT claims (tenant_id field)
+/// - JWT claims (`tenant_id` field)
 /// - Session context
 ///
 /// # Returns

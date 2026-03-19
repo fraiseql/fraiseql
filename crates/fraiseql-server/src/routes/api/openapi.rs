@@ -1,9 +1,9 @@
-//! OpenAPI specification for FraiseQL REST APIs.
+//! `OpenAPI` specification for FraiseQL REST APIs.
 //!
-//! Provides a static OpenAPI 3.0.0 specification documenting all API endpoints,
+//! Provides a static `OpenAPI` 3.0.0 specification documenting all API endpoints,
 //! request/response schemas, and authentication requirements.
 
-/// Get complete OpenAPI 3.0.0 specification as JSON string.
+/// Get complete `OpenAPI` 3.0.0 specification as JSON string.
 pub fn get_openapi_spec() -> String {
     serde_json::json!({
         "openapi": "3.0.0",
@@ -739,7 +739,7 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let paths = &parsed["paths"];
-        let count = paths.as_object().map(|m| m.len()).unwrap_or(0);
+        let count = paths.as_object().map_or(0, |m| m.len());
 
         assert_eq!(count, 10, "Should document all 10 API endpoint paths");
     }

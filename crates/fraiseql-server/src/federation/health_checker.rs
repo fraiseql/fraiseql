@@ -140,7 +140,7 @@ impl RollingErrorWindow {
         if total_checks == 0 {
             0.0
         } else {
-            (total_errors as f64 / total_checks as f64) * 100.0
+            (f64::from(total_errors) / f64::from(total_checks)) * 100.0
         }
     }
 
@@ -355,7 +355,7 @@ mod tests {
     fn test_rolling_error_window_creation() {
         let window = RollingErrorWindow::new();
         assert_eq!(window.error_count(), 0);
-        assert_eq!(window.error_rate_percent(), 0.0);
+        assert!((window.error_rate_percent() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -365,7 +365,7 @@ mod tests {
         window.record_success();
 
         assert_eq!(window.error_count(), 0);
-        assert_eq!(window.error_rate_percent(), 0.0);
+        assert!((window.error_rate_percent() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]

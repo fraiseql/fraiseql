@@ -11,6 +11,8 @@
 //! - HTTP responses (2xx, 4xx, 5xx)
 //! - Cache hit ratio
 
+use std::fmt::Write as _;
+
 use axum::{Json, extract::State, response::IntoResponse};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
@@ -79,10 +81,11 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "# TYPE fraiseql_federation_circuit_breaker_state gauge\n",
             ));
             for (entity, state_code) in states {
-                output.push_str(&format!(
+                let _ = writeln!(
+                    output,
                     "fraiseql_federation_circuit_breaker_state{{entity=\"{entity}\"}} \
-                     {state_code}\n"
-                ));
+                     {state_code}"
+                );
             }
         }
     }
@@ -91,7 +94,8 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     #[cfg(feature = "redis-rate-limiting")]
     {
         let errors = crate::middleware::rate_limit::redis_error_count_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_rate_limit_redis_errors_total ",
                 "Total Redis rate limiter fail-open events (Redis unreachable)\n",
@@ -99,14 +103,15 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "fraiseql_rate_limit_redis_errors_total {errors}\n",
             ),
             errors = errors
-        ));
+        );
     }
 
     // Append Redis PKCE store error counter when the feature is compiled in.
     #[cfg(feature = "redis-pkce")]
     {
         let errors = fraiseql_auth::pkce::redis_pkce_error_count_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_pkce_redis_errors_total ",
                 "Total Redis PKCE store errors (connection failures, etc.)\n",
@@ -114,13 +119,14 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "fraiseql_pkce_redis_errors_total {errors}\n",
             ),
             errors = errors
-        ));
+        );
     }
 
     // Append APQ (Automatic Persisted Queries) counters.
     {
         let apq = &state.apq_metrics;
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_apq_hits_total Total APQ cache hits\n",
                 "# TYPE fraiseql_apq_hits_total counter\n",
@@ -135,14 +141,15 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             hits = apq.get_hits(),
             misses = apq.get_misses(),
             stored = apq.get_stored(),
-        ));
+        );
     }
 
     // Append Redis APQ error counter when the feature is compiled in.
     #[cfg(feature = "redis-apq")]
     {
         let errors = fraiseql_core::apq::redis_storage::redis_apq_error_count_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_apq_redis_errors_total ",
                 "Total Redis APQ fail-open events\n",
@@ -150,7 +157,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "fraiseql_apq_redis_errors_total {errors}\n",
             ),
             errors = errors
-        ));
+        );
     }
 
     // Append MCP tool call counters when the feature is compiled in.
@@ -158,7 +165,8 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     {
         let calls = crate::mcp::handler::mcp_tool_calls_total();
         let errors = crate::mcp::handler::mcp_tool_errors_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_mcp_tool_calls_total Total MCP tool calls\n",
                 "# TYPE fraiseql_mcp_tool_calls_total counter\n",
@@ -169,7 +177,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             ),
             calls = calls,
             errors = errors,
-        ));
+        );
     }
 
     // Append trusted document counters.
@@ -177,7 +185,8 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         let hits = crate::trusted_documents::hits_total();
         let misses = crate::trusted_documents::misses_total();
         let rejected = crate::trusted_documents::rejected_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_trusted_documents_hits_total Trusted document lookups resolved from manifest\n",
                 "# TYPE fraiseql_trusted_documents_hits_total counter\n",
@@ -192,13 +201,14 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             hits = hits,
             misses = misses,
             rejected = rejected,
-        ));
+        );
     }
 
     // Pool health metrics (sampled live from adapter on each request)
     {
         let pool = state.executor().pool_metrics();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_db_pool_connections_total Total connections in pool\n",
                 "# TYPE fraiseql_db_pool_connections_total gauge\n",
@@ -217,14 +227,15 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             idle = pool.idle_connections,
             active = pool.active_connections,
             waiting = pool.waiting_requests,
-        ));
+        );
     }
 
     // Pool auto-tuner metrics (when enabled)
     if let Some(ref tuner) = state.pool_tuner {
         let adjustments = tuner.adjustments_total();
         let recommended = tuner.recommended_size();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_pool_tuning_adjustments_total ",
                 "Total pool resize operations applied or recommended\n",
@@ -237,7 +248,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             ),
             adjustments = adjustments,
             recommended = recommended,
-        ));
+        );
     }
 
     // Schema reload counters
@@ -245,7 +256,8 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         let reloads = state.metrics.schema_reloads_total.load(std::sync::atomic::Ordering::Relaxed);
         let errors =
             state.metrics.schema_reload_errors_total.load(std::sync::atomic::Ordering::Relaxed);
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_schema_reloads_total Total successful schema reloads\n",
                 "# TYPE fraiseql_schema_reloads_total counter\n",
@@ -256,7 +268,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             ),
             reloads = reloads,
             errors = errors,
-        ));
+        );
     }
 
     // Append per-operation histogram metrics
@@ -276,7 +288,8 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     // Multi-root parallel query counter.
     {
         let multi_root = fraiseql_core::runtime::multi_root_queries_total();
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             concat!(
                 "\n# HELP fraiseql_multi_root_queries_total ",
                 "Total multi-root GraphQL queries dispatched via parallel execution\n",
@@ -284,12 +297,13 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "fraiseql_multi_root_queries_total {multi_root}\n",
             ),
             multi_root = multi_root,
-        ));
+        );
     }
 
     // Append subscription counters.
     let subs = crate::routes::subscription_metrics();
-    output.push_str(&format!(
+    let _ = write!(
+        output,
         concat!(
             "\n# HELP fraiseql_ws_connections_total Total WebSocket subscription connections\n",
             "# TYPE fraiseql_ws_connections_total counter\n",
@@ -304,7 +318,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         rejected = subs.connections_rejected,
         sub_accepted = subs.subscriptions_accepted,
         sub_rejected = subs.subscriptions_rejected,
-    ));
+    );
 
     (
         axum::http::StatusCode::OK,
