@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
     /// Build application router.
     pub(super) fn build_router(&self) -> Router {
         let mut state = AppState::new(self.executor.clone());
@@ -498,6 +498,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // REST transport — resource-centric HTTP API (feature-gated)
+        #[cfg(feature = "rest")]
+        {
+            app = self.add_rest_routes(app, state.clone());
+        }
+
         // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
@@ -631,6 +637,63 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         app
+    }
+
+    /// Add REST transport routes to the router.
+    ///
+    /// Derives REST resources from the compiled schema and mounts them under
+    /// the configured base path (default `/rest/v1`).  When `require_auth` is
+    /// `true`, OIDC authentication middleware is applied.  Returns the router
+    /// unchanged if REST is not configured or derivation fails.
+    #[cfg(feature = "rest")]
+    fn add_rest_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
+        use crate::routes::rest::rest_router;
+
+        let rest_config = self.executor.schema().rest_config.as_ref();
+
+        // Check require_auth before mounting.
+        if let Some(cfg) = rest_config {
+            if cfg.require_auth && self.oidc_validator.is_none() {
+                tracing::error!(
+                    path = %cfg.path,
+                    "REST transport NOT mounted — require_auth=true but no OIDC \
+                     validator is configured. Configure an OIDC validator or set \
+                     require_auth=false (development only)."
+                );
+                return app;
+            }
+        }
+
+        let Some(rest) = rest_router(state) else {
+            return app;
+        };
+
+        // Optionally apply OIDC auth middleware to REST routes.
+        let rest = if let Some(cfg) = rest_config {
+            if cfg.require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!(
+                        path = %cfg.path,
+                        "REST transport protected by OIDC authentication"
+                    );
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    rest.route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                } else {
+                    rest
+                }
+            } else {
+                tracing::warn!(
+                    path = %cfg.path,
+                    "REST transport mounted without authentication (require_auth=false). \
+                     Enable require_auth in production."
+                );
+                rest
+            }
+        } else {
+            rest
+        };
+
+        app.merge(rest)
     }
 
     /// Add observer-related routes to the router.

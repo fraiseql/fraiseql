@@ -11,7 +11,7 @@ use axum::{
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    db::traits::{DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::OidcValidator,

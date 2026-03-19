@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
     /// Start server and listen for requests.
     ///
     /// # Errors
