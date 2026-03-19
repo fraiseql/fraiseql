@@ -3,44 +3,10 @@
 //! Handles JWT validation, OAuth/OIDC flows, session management, and authorization.
 
 #![forbid(unsafe_code)]
-// module_name_repetitions, must_use_candidate, similar_names, unnecessary_wraps:
-// allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
-#![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
-#![allow(clippy::unused_self)]
-// Reason: trait implementations require &self
-//  clippy::too_many_lines — removed from module level; applied per-function where warranted.
-//  clippy::wildcard_imports — removed from module level; applied per-site on `use super::*`.
-#![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags
-#![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
-#![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
-#![allow(clippy::return_self_not_must_use)] // Reason: builder pattern compatibility
-#![allow(clippy::items_after_statements)] // Reason: helper structs near point of use in tests
-#![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for metrics
-#![allow(clippy::cast_sign_loss)] // Reason: timestamp values are positive
-#![allow(clippy::uninlined_format_args)] // Reason: named variables improve readability
-#![allow(clippy::redundant_closure_for_method_calls)] // Reason: explicit closures clarify intent
-#![allow(clippy::single_match_else)] // Reason: match with else clearer for variant extraction
-#![allow(clippy::manual_let_else)] // Reason: match with early return clearer for multi-line extraction
-#![allow(clippy::redundant_closure)] // Reason: explicit closures clarify argument transformation
-#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
-#![allow(clippy::format_push_string)] // Reason: format! with push_str clearer than write!
-#![allow(clippy::match_same_arms)] // Reason: explicit arms document per-variant intent
-#![allow(clippy::cast_possible_wrap)] // Reason: values are within i64 range by design
-#![allow(clippy::useless_format)] // Reason: format! used for consistency with other branches
-#![allow(clippy::cast_precision_loss)] // Reason: acceptable precision for metrics/timing
-#![allow(clippy::redundant_clone)] // Reason: explicit clone at API boundaries for clarity
-#![allow(clippy::missing_fields_in_debug)] // Reason: sensitive fields excluded from Debug
-#![allow(clippy::map_unwrap_or)] // Reason: map().unwrap_or() reads left-to-right
-#![allow(clippy::cast_lossless)] // Reason: explicit cast preferred for readability
-#![allow(clippy::unnecessary_map_or)] // Reason: map_or reads left-to-right at call site
-#![allow(clippy::single_char_pattern)] // Reason: single-char str patterns are conventional
-#![allow(clippy::float_cmp)] // Reason: exact float comparison intentional in timing tests
-#![allow(clippy::ignored_unit_patterns)] // Reason: _ pattern in Ok(()) destructuring
-#![allow(clippy::default_trait_access)] // Reason: Type::default() clearer than Default::default()
+#![allow(clippy::doc_markdown)] // Reason: technical terms (OAuth2, PKCE, OIDC, HMAC) throughout docs
 
-pub mod audit_chain;
-pub mod audit_logger;
+pub mod audit;
 pub mod constant_time;
 pub mod error;
 pub mod error_sanitizer;
@@ -83,7 +49,7 @@ mod rate_limiting_tests;
 #[cfg(test)]
 mod integration_security_tests;
 
-pub use audit_logger::{
+pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,
 };

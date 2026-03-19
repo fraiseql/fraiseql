@@ -1,4 +1,5 @@
 //! Generic OIDC provider implementation using RFC 8414 discovery.
+use std::fmt::Write as _;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -164,15 +165,19 @@ impl OidcProvider {
     /// Add authorization URL parameter
     fn add_auth_params(&self, url: &mut String, state: &str, pkce_challenge: Option<&str>) {
         url.push('?');
-        url.push_str(&format!("client_id={}", urlencoding::encode(&self.client_id)));
-        url.push_str(&format!("&redirect_uri={}", urlencoding::encode(&self.redirect_uri)));
-        url.push_str(&format!("&response_type=code"));
-        url.push_str(&format!("&state={}", urlencoding::encode(state)));
-        url.push_str(&format!("&scope=openid+email+profile"));
+        write!(url, "client_id={}", urlencoding::encode(&self.client_id))
+            .expect("write to String is infallible");
+        write!(url, "&redirect_uri={}", urlencoding::encode(&self.redirect_uri))
+            .expect("write to String is infallible");
+        url.push_str("&response_type=code");
+        write!(url, "&state={}", urlencoding::encode(state))
+            .expect("write to String is infallible");
+        url.push_str("&scope=openid+email+profile");
 
         if let Some(challenge) = pkce_challenge {
-            url.push_str(&format!("&code_challenge={}", urlencoding::encode(challenge)));
-            url.push_str(&format!("&code_challenge_method=S256"));
+            write!(url, "&code_challenge={}", urlencoding::encode(challenge))
+                .expect("write to String is infallible");
+            url.push_str("&code_challenge_method=S256");
         }
     }
 }
@@ -364,7 +369,7 @@ impl std::fmt::Debug for OidcProvider {
             .field("issuer_url", &self.issuer_url)
             .field("client_id", &self.client_id)
             .field("redirect_uri", &self.redirect_uri)
-            .finish()
+            .finish_non_exhaustive() // client_secret and client omitted for security
     }
 }
 

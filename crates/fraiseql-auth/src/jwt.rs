@@ -5,7 +5,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    audit_logger::{AuditEventType, SecretType, get_audit_logger},
+    audit::logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
 };
 
@@ -165,7 +165,7 @@ impl JwtValidator {
             audit_logger.log_failure(
                 AuditEventType::JwtValidation,
                 SecretType::JwtToken,
-                Some(claims.sub.clone()),
+                Some(claims.sub),
                 "validate",
                 "Token expired",
             );

@@ -159,10 +159,14 @@ impl SecurityConfigFromSchema {
                 audit.get("includeSensitiveData").and_then(|v| v.as_bool()).unwrap_or(false);
             config.audit_logging.async_logging =
                 audit.get("asyncLogging").and_then(|v| v.as_bool()).unwrap_or(true);
-            config.audit_logging.buffer_size =
-                audit.get("bufferSize").and_then(|v| v.as_u64()).unwrap_or(1000) as u32;
-            config.audit_logging.flush_interval_secs =
-                audit.get("flushIntervalSecs").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: buffer_size is a config value bounded well within u32 range
+            {
+                config.audit_logging.buffer_size =
+                    audit.get("bufferSize").and_then(|v| v.as_u64()).unwrap_or(1000) as u32;
+                config.audit_logging.flush_interval_secs =
+                    audit.get("flushIntervalSecs").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
+            }
         }
 
         if let Some(error_san) = value.get("errorSanitization").and_then(|v| v.as_object()) {
@@ -185,6 +189,8 @@ impl SecurityConfigFromSchema {
             config.rate_limiting.enabled =
                 rate_limit.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
 
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: rate-limit maxRequests values are config-bounded integers well within u32
             if let Some(auth_start) = rate_limit.get("authStart").and_then(|v| v.as_object()) {
                 config.rate_limiting.auth_start_max_requests =
                     auth_start.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
@@ -192,6 +198,8 @@ impl SecurityConfigFromSchema {
                     auth_start.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: rate-limit maxRequests values are config-bounded integers well within u32
             if let Some(auth_callback) = rate_limit.get("authCallback").and_then(|v| v.as_object())
             {
                 config.rate_limiting.auth_callback_max_requests =
@@ -200,6 +208,8 @@ impl SecurityConfigFromSchema {
                     auth_callback.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: rate-limit maxRequests values are config-bounded integers well within u32
             if let Some(auth_refresh) = rate_limit.get("authRefresh").and_then(|v| v.as_object()) {
                 config.rate_limiting.auth_refresh_max_requests =
                     auth_refresh.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(10) as u32;
@@ -207,6 +217,8 @@ impl SecurityConfigFromSchema {
                     auth_refresh.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: rate-limit maxRequests values are config-bounded integers well within u32
             if let Some(auth_logout) = rate_limit.get("authLogout").and_then(|v| v.as_object()) {
                 config.rate_limiting.auth_logout_max_requests =
                     auth_logout.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
@@ -214,6 +226,8 @@ impl SecurityConfigFromSchema {
                     auth_logout.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: rate-limit maxRequests values are config-bounded integers well within u32
             if let Some(failed_login) = rate_limit.get("failedLogin").and_then(|v| v.as_object()) {
                 config.rate_limiting.failed_login_max_requests =
                     failed_login.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
@@ -232,10 +246,14 @@ impl SecurityConfigFromSchema {
                 .to_string();
             config.state_encryption.key_rotation_enabled =
                 state_enc.get("keyRotationEnabled").and_then(|v| v.as_bool()).unwrap_or(false);
-            config.state_encryption.nonce_size =
-                state_enc.get("nonceSize").and_then(|v| v.as_u64()).unwrap_or(12) as u32;
-            config.state_encryption.key_size =
-                state_enc.get("keySize").and_then(|v| v.as_u64()).unwrap_or(32) as u32;
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: nonce/key sizes are small constants (12, 32) well within u32 range
+            {
+                config.state_encryption.nonce_size =
+                    state_enc.get("nonceSize").and_then(|v| v.as_u64()).unwrap_or(12) as u32;
+                config.state_encryption.key_size =
+                    state_enc.get("keySize").and_then(|v| v.as_u64()).unwrap_or(32) as u32;
+            }
         }
 
         Ok(config)

@@ -19,7 +19,7 @@ impl PostgresSessionStore {
     ///
     /// # Errors
     /// Returns error if database connection fails
-    pub fn new(db: PgPool) -> Self {
+    pub const fn new(db: PgPool) -> Self {
         Self {
             db,
             signing_key: None,
@@ -31,7 +31,7 @@ impl PostgresSessionStore {
     /// # Arguments
     /// * `db` - PostgreSQL connection pool
     /// * `private_key_pem` - RSA private key in PEM format
-    pub fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
+    pub const fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
         Self {
             db,
             signing_key: Some(private_key_pem),
@@ -97,13 +97,12 @@ impl PostgresSessionStore {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        match &self.signing_key {
-            Some(private_key) => crate::jwt::generate_rs256_token(&claims, private_key),
-            None => {
-                // Fallback: use deterministic HMAC secret (for testing/dev environments)
-                let secret = format!("fraiseql_session_{}", user_id).into_bytes();
-                crate::jwt::generate_hs256_token(&claims, &secret)
-            },
+        if let Some(private_key) = &self.signing_key {
+            crate::jwt::generate_rs256_token(&claims, private_key)
+        } else {
+            // Fallback: use deterministic HMAC secret (for testing/dev environments)
+            let secret = format!("fraiseql_session_{}", user_id).into_bytes();
+            crate::jwt::generate_hs256_token(&claims, &secret)
         }
     }
 }
@@ -131,8 +130,8 @@ impl SessionStore for PostgresSessionStore {
         )
         .bind(user_id)
         .bind(&refresh_token_hash)
-        .bind(now as i64)
-        .bind(expires_at as i64)
+        .bind(now.cast_signed())
+        .bind(expires_at.cast_signed())
         .execute(&self.db)
         .await
         .map_err(|e| {
@@ -180,8 +179,8 @@ impl SessionStore for PostgresSessionStore {
 
         Ok(SessionData {
             user_id,
-            issued_at: issued_at as u64,
-            expires_at: expires_at as u64,
+            issued_at: issued_at.cast_unsigned(),
+            expires_at: expires_at.cast_unsigned(),
             refresh_token_hash,
         })
     }

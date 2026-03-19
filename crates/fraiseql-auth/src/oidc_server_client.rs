@@ -64,13 +64,16 @@ pub struct OidcServerClient {
 }
 
 /// Custom `Debug` implementation that redacts the client secret.
+#[allow(clippy::missing_fields_in_debug)]
+// Reason: `server_redirect_uri` and `token_endpoint` are omitted intentionally
+// to keep debug output concise and avoid leaking endpoint configuration in logs.
 impl fmt::Debug for OidcServerClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OidcServerClient")
             .field("client_id", &self.client_id)
             .field("client_secret", &"[REDACTED]")
             .field("authorization_endpoint", &self.authorization_endpoint)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -123,31 +126,25 @@ impl OidcServerClient {
             schema_json.get("auth").and_then(|v| serde_json::from_value(v.clone()).ok())?;
 
         // ── Read client secret from env ───────────────────────────────────
-        let client_secret = match std::env::var(&auth_cfg.client_secret_env) {
-            Ok(s) => s,
-            Err(_) => {
-                tracing::error!(
-                    env_var = %auth_cfg.client_secret_env,
-                    "PKCE init failed: env var for OIDC client secret is not set"
-                );
-                return None;
-            },
+        let Ok(client_secret) = std::env::var(&auth_cfg.client_secret_env) else {
+            tracing::error!(
+                env_var = %auth_cfg.client_secret_env,
+                "PKCE init failed: env var for OIDC client secret is not set"
+            );
+            return None;
         };
 
         // ── Load cached endpoints ─────────────────────────────────────────
-        let endpoints: OidcEndpoints = match schema_json
+        let Some(endpoints): Option<OidcEndpoints> = schema_json
             .get("auth_endpoints")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
-        {
-            Some(e) => e,
-            None => {
-                tracing::error!(
-                    "PKCE init failed: 'auth_endpoints' not found in compiled schema. \
-                     Re-compile the schema so that the CLI caches the OIDC discovery \
-                     document (authorization_endpoint, token_endpoint)."
-                );
-                return None;
-            },
+        else {
+            tracing::error!(
+                "PKCE init failed: 'auth_endpoints' not found in compiled schema. \
+                 Re-compile the schema so that the CLI caches the OIDC discovery \
+                 document (authorization_endpoint, token_endpoint)."
+            );
+            return None;
         };
 
         Some(Arc::new(Self {

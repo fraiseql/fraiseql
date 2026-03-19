@@ -1,7 +1,7 @@
 //! Security tests for authentication and cryptographic operations.
 //! Validates that security-critical operations meet production standards.
 #[cfg(test)]
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Test that CSRF tokens are cryptographically unique and unpredictable.
 /// Generates multiple tokens and verifies no collisions and high entropy.
@@ -86,7 +86,7 @@ fn test_jwt_expiration_enforcement() {
         aud:   vec!["api".to_string()],
         exp:   now - 1,
         iat:   now - 3600,
-        extra: Default::default(),
+        extra: HashMap::default(),
     };
 
     assert!(expired_token.is_expired(), "Expired token should be rejected");
@@ -98,7 +98,7 @@ fn test_jwt_expiration_enforcement() {
         aud:   vec!["api".to_string()],
         exp:   now + 3600,
         iat:   now,
-        extra: Default::default(),
+        extra: HashMap::default(),
     };
 
     assert!(!valid_token.is_expired(), "Valid token should not be rejected");

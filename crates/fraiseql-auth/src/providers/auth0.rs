@@ -122,11 +122,10 @@ impl Auth0OAuth {
                         Some("operator".to_string())
                     },
                     "viewer" | "fraiseql-viewer" | "viewers" | "fraiseql_viewer" | "user"
-                    | "fraiseql-user" => Some("viewer".to_string()),
+                    | "fraiseql-user" | "viewer_user" | "read_only" => Some("viewer".to_string()),
                     // Common patterns
                     "admin_user" => Some("admin".to_string()),
                     "operator_user" => Some("operator".to_string()),
-                    "viewer_user" | "read_only" => Some("viewer".to_string()),
                     _ => None,
                 }
             })

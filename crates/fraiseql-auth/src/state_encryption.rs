@@ -35,7 +35,7 @@ pub struct EncryptedState {
 
 impl EncryptedState {
     /// Create new encrypted state
-    pub fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
+    pub const fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
         Self { ciphertext, nonce }
     }
 
@@ -289,7 +289,7 @@ impl fmt::Debug for StateEncryptionService {
 
 impl StateEncryptionService {
     /// Construct from a raw 32-byte key slice.
-    pub fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
+    pub const fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
         Self {
             algorithm,
             key: *key,
@@ -402,6 +402,7 @@ impl StateEncryptionService {
     /// - [`DecryptionError::InvalidInput`] — empty / too-short / bad base64
     /// - [`DecryptionError::AuthenticationFailed`] — tampered or wrong-key
     pub fn decrypt(&self, encoded: &str) -> std::result::Result<Vec<u8>, DecryptionError> {
+        const NONCE_SIZE: usize = 12;
         if encoded.is_empty() {
             return Err(DecryptionError::InvalidInput("empty input".into()));
         }
@@ -409,7 +410,6 @@ impl StateEncryptionService {
             .decode(encoded)
             .map_err(|_| DecryptionError::InvalidInput("invalid base64".into()))?;
 
-        const NONCE_SIZE: usize = 12;
         if combined.len() < NONCE_SIZE {
             return Err(DecryptionError::InvalidInput(format!(
                 "too short: {} bytes (minimum {NONCE_SIZE})",

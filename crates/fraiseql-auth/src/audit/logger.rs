@@ -107,7 +107,7 @@ impl AuditEventType {
     ///
     /// These strings are written to log sinks and compliance systems and will not
     /// change between releases.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             AuditEventType::JwtValidation => "jwt_validation",
             AuditEventType::JwtRefresh => "jwt_refresh",
@@ -154,7 +154,7 @@ impl SecretType {
     /// Return a stable, lowercase snake_case string representation of this secret type.
     ///
     /// Written to log sinks and compliance systems; will not change between releases.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             SecretType::JwtToken => "jwt_token",
             SecretType::SessionToken => "session_token",
@@ -209,7 +209,7 @@ pub struct AuditEntry {
     ///
     /// Each entry's hash depends on all previous entries, making retroactive
     /// tampering detectable. `None` when tamper-evident logging is disabled.
-    /// Verify with [`crate::audit_chain::verify_chain`].
+    /// Verify with [`crate::audit::chain::verify_chain`].
     pub chain_hash:    Option<String>,
 }
 
@@ -294,7 +294,7 @@ pub struct StructuredAuditLogger;
 
 impl StructuredAuditLogger {
     /// Create a new `StructuredAuditLogger`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -495,7 +495,7 @@ mod tests {
     // Vulnerability #15: Audit logger bounds documentation tests
     #[test]
     fn test_bounds_constants_are_reasonable() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // Subject length should accommodate typical user IDs
         let max_subject = bounds::MAX_SUBJECT_LEN;
@@ -521,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_bounds_constants_match_documentation() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // Verify documented bounds match constants
         assert_eq!(bounds::MAX_SUBJECT_LEN, 256, "Subject length bound mismatch");
@@ -533,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_memory_per_entry_constant_is_reasonable() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // Memory per entry should be sensible
         let bytes_per_entry = bounds::BYTES_PER_ENTRY;
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_audit_entry_field_sizes_within_bounds() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         let entry = AuditEntry {
             event_type:    AuditEventType::JwtValidation,
@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     fn test_error_message_bound_accommodates_typical_errors() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // Typical security errors should fit
         let error_messages = vec![
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn test_operation_bound_covers_all_audit_operations() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // All documented operation names should fit
         let operations = vec![
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_audit_entry_sizes_reasonable_for_serialization() {
-        use crate::audit_logger::bounds;
+        use crate::audit::logger::bounds;
 
         // Create a maximum-size entry
         let max_entry = AuditEntry {

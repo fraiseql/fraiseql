@@ -11,7 +11,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    audit_logger::{AuditEventType, SecretType, get_audit_logger},
+    audit::logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
     provider::OAuthProvider,
     rate_limiting::RateLimiters,
@@ -311,7 +311,7 @@ pub async fn auth_refresh(
         audit_logger.log_failure(
             AuditEventType::JwtRefresh,
             SecretType::RefreshToken,
-            Some(session.user_id.clone()),
+            Some(session.user_id),
             "refresh",
             "Session expired",
         );
@@ -330,7 +330,7 @@ pub async fn auth_refresh(
     audit_logger.log_success(
         AuditEventType::SessionTokenValidation,
         SecretType::RefreshToken,
-        Some(session.user_id.clone()),
+        Some(session.user_id),
         "validate",
     );
 

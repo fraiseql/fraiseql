@@ -22,7 +22,7 @@ pub struct TokenResponse {
 
 impl TokenResponse {
     /// Create new token response
-    pub fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
+    pub const fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
         Self {
             access_token,
             refresh_token: None,
@@ -35,7 +35,7 @@ impl TokenResponse {
 
     /// Calculate expiry time
     pub fn expiry_time(&self) -> DateTime<Utc> {
-        Utc::now() + Duration::seconds(self.expires_in as i64)
+        Utc::now() + Duration::seconds(self.expires_in.cast_signed())
     }
 
     /// Check if token is expired
@@ -75,7 +75,7 @@ pub struct IdTokenClaims {
 
 impl IdTokenClaims {
     /// Create new ID token claims
-    pub fn new(iss: String, sub: String, aud: String, exp: i64, iat: i64) -> Self {
+    pub const fn new(iss: String, sub: String, aud: String, exp: i64, iat: i64) -> Self {
         Self {
             iss,
             sub,
@@ -122,7 +122,7 @@ pub struct UserInfo {
 
 impl UserInfo {
     /// Create new userinfo
-    pub fn new(sub: String) -> Self {
+    pub const fn new(sub: String) -> Self {
         Self {
             sub,
             email: None,

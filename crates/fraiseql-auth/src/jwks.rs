@@ -292,6 +292,9 @@ impl JwksCache {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
+// Reason: `last_fetched` and `client` are intentionally omitted — they contain
+// no useful diagnostic info and exposing the reqwest::Client handle is noisy.
 impl std::fmt::Debug for JwksCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let key_count = self.keys.read().map(|k| k.len()).unwrap_or(0);
@@ -299,7 +302,7 @@ impl std::fmt::Debug for JwksCache {
             .field("jwks_uri", &self.jwks_uri)
             .field("ttl", &self.ttl)
             .field("cached_keys", &key_count)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

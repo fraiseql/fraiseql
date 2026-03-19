@@ -142,7 +142,7 @@ pub struct AuthMetrics {
 
 impl AuthMetrics {
     /// Create a new `AuthMetrics` with all counters initialized to zero.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             total_auth_attempts:        0,
             successful_authentications: 0,
@@ -154,32 +154,32 @@ impl AuthMetrics {
     }
 
     /// Increment the total authentication attempts counter.
-    pub fn record_attempt(&mut self) {
+    pub const fn record_attempt(&mut self) {
         self.total_auth_attempts += 1;
     }
 
     /// Increment the successful authentications counter.
-    pub fn record_success(&mut self) {
+    pub const fn record_success(&mut self) {
         self.successful_authentications += 1;
     }
 
     /// Increment the failed authentications counter.
-    pub fn record_failure(&mut self) {
+    pub const fn record_failure(&mut self) {
         self.failed_authentications += 1;
     }
 
     /// Increment the tokens issued counter.
-    pub fn record_token_issued(&mut self) {
+    pub const fn record_token_issued(&mut self) {
         self.tokens_issued += 1;
     }
 
     /// Increment the tokens refreshed counter.
-    pub fn record_token_refreshed(&mut self) {
+    pub const fn record_token_refreshed(&mut self) {
         self.tokens_refreshed += 1;
     }
 
     /// Increment the sessions revoked counter.
-    pub fn record_session_revoked(&mut self) {
+    pub const fn record_session_revoked(&mut self) {
         self.sessions_revoked += 1;
     }
 
@@ -190,7 +190,11 @@ impl AuthMetrics {
         if self.total_auth_attempts == 0 {
             0.0
         } else {
-            (self.successful_authentications as f64) / (self.total_auth_attempts as f64) * 100.0
+            #[allow(clippy::cast_precision_loss)] // Reason: acceptable precision for metrics/timing
+            let result = (self.successful_authentications as f64)
+                / (self.total_auth_attempts as f64)
+                * 100.0;
+            result
         }
     }
 }
@@ -246,6 +250,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: acceptable precision for metrics/timing — values set directly from literals
     fn test_auth_event_builder() {
         let event = AuthEvent::new("login")
             .with_user_id("user123".to_string())
@@ -260,6 +265,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: acceptable precision for metrics/timing — values set directly from literals
     fn test_auth_metrics() {
         let mut metrics = AuthMetrics::new();
 
@@ -275,6 +281,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: acceptable precision for metrics/timing — values set directly from literals
     fn test_auth_metrics_success_rate() {
         let mut metrics = AuthMetrics::new();
 

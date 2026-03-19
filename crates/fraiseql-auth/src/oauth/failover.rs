@@ -73,7 +73,7 @@ impl ProviderFailoverManager {
         let mut unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
             message: "failover manager mutex poisoned".to_string(),
         })?;
-        unavailable.push((provider, Utc::now() + Duration::seconds(duration_seconds as i64)));
+        unavailable.push((provider, Utc::now() + Duration::seconds(duration_seconds.cast_signed())));
         Ok(())
     }
 

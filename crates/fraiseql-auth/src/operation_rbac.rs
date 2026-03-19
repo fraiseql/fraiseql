@@ -64,7 +64,7 @@ pub enum OperationPermission {
 
 impl OperationPermission {
     /// Human-readable name for the permission
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::CreateRule => "Create Observer Rule",
             Self::UpdateRule => "Update Observer Rule",
@@ -89,7 +89,7 @@ impl OperationPermission {
     }
 
     /// Convert to string for policy storage
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::CreateRule => "create_rule",
             Self::UpdateRule => "update_rule",
@@ -125,7 +125,7 @@ pub struct Role {
 
 impl Role {
     /// Create a new role with specified permissions
-    pub fn new(name: String, permissions: Vec<OperationPermission>) -> Self {
+    pub const fn new(name: String, permissions: Vec<OperationPermission>) -> Self {
         Self { name, permissions }
     }
 

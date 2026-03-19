@@ -153,7 +153,7 @@ impl ExternalAuthProvider {
     }
 
     /// Enable or disable provider
-    pub fn set_enabled(&mut self, enabled: bool) {
+    pub const fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
 

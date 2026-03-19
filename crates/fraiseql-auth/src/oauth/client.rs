@@ -5,6 +5,8 @@ use std::{sync::Arc, time::Duration as StdDuration};
 /// Timeout for all outbound OAuth2 / OIDC HTTP requests.
 const OAUTH_REQUEST_TIMEOUT: StdDuration = StdDuration::from_secs(30);
 
+use std::fmt::Write as _;
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -138,7 +140,7 @@ impl OAuth2Client {
     }
 
     /// Enable PKCE protection.
-    pub fn with_pkce(mut self, enabled: bool) -> Self {
+    pub const fn with_pkce(mut self, enabled: bool) -> Self {
         self.use_pkce = enabled;
         self
     }
@@ -164,10 +166,11 @@ impl OAuth2Client {
 
         let pkce = if self.use_pkce {
             let challenge = PKCEChallenge::new();
-            url.push_str(&format!(
+            let _ = write!(
+                url,
                 "&code_challenge={}&code_challenge_method=S256",
                 urlencoding::encode(&challenge.code_challenge),
-            ));
+            );
             Some(challenge)
         } else {
             None

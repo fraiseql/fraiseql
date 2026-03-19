@@ -130,17 +130,14 @@ impl KeycloakOAuth {
                 let role_lower = role.to_lowercase();
 
                 match role_lower.as_str() {
-                    // Direct Keycloak role names
-                    "admin" | "fraiseql-admin" | "administrators" => Some("admin".to_string()),
-                    "operator" | "fraiseql-operator" | "operators" => Some("operator".to_string()),
-                    "viewer" | "fraiseql-viewer" | "viewers" | "user" => Some("viewer".to_string()),
-                    // Realm roles
-                    "realm-admin" => Some("admin".to_string()),
-                    "realm-operator" => Some("operator".to_string()),
-                    // Client roles
-                    "client-admin" => Some("admin".to_string()),
-                    "client-operator" => Some("operator".to_string()),
-                    "client-viewer" => Some("viewer".to_string()),
+                    // Direct Keycloak role names + realm roles + client roles
+                    "admin" | "fraiseql-admin" | "administrators" | "realm-admin"
+                    | "client-admin" => Some("admin".to_string()),
+                    "operator" | "fraiseql-operator" | "operators" | "realm-operator"
+                    | "client-operator" => Some("operator".to_string()),
+                    "viewer" | "fraiseql-viewer" | "viewers" | "user" | "client-viewer" => {
+                        Some("viewer".to_string())
+                    },
                     _ => None,
                 }
             })

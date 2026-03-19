@@ -117,9 +117,9 @@ impl GitHubOAuth {
                 if parts.len() == 2 {
                     match parts[1] {
                         "admin" | "administrators" | "admin-team" => Some("admin".to_string()),
-                        "operator" | "operators" | "operator-team" => Some("operator".to_string()),
+                        "operator" | "operators" | "operator-team" | "maintainer"
+                        | "maintainers" => Some("operator".to_string()),
                         "viewer" | "viewers" | "viewer-team" => Some("viewer".to_string()),
-                        "maintainer" | "maintainers" => Some("operator".to_string()),
                         _ => None,
                     }
                 } else {

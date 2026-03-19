@@ -258,6 +258,12 @@ impl RedisPkceStateStore {
         &self,
         outbound_token: &str,
     ) -> Result<ConsumedPkceState, PkceError> {
+        #[derive(serde::Deserialize)]
+        struct StoredEntry {
+            verifier:     String,
+            redirect_uri: String,
+        }
+
         // Recover internal key from outbound token
         let internal_key = match &self.encryptor {
             Some(enc) => {
@@ -280,12 +286,6 @@ impl RedisPkceStateStore {
             .map_err(|_| PkceError::StateNotFound)?;
 
         let json = raw.ok_or(PkceError::StateNotFound)?;
-
-        #[derive(serde::Deserialize)]
-        struct StoredEntry {
-            verifier:     String,
-            redirect_uri: String,
-        }
 
         let entry: StoredEntry =
             serde_json::from_str(&json).map_err(|_| PkceError::StateNotFound)?;
@@ -353,7 +353,7 @@ impl PkceStateStore {
     /// Returns `true` when backed by the in-memory DashMap store.
     ///
     /// Used by the `FRAISEQL_REQUIRE_REDIS` startup check.
-    pub fn is_in_memory(&self) -> bool {
+    pub const fn is_in_memory(&self) -> bool {
         matches!(self, Self::InMemory(_))
     }
 

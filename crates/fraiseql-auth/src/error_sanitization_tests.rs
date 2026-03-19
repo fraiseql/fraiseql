@@ -263,11 +263,11 @@ mod error_sanitization {
             let user_msg = error.user_facing();
 
             // Should not contain:
-            assert!(!user_msg.contains("=")); // No variable assignments
+            assert!(!user_msg.contains('=')); // No variable assignments
             assert!(!user_msg.contains("://")); // No URLs
-            assert!(!user_msg.contains(":")); // No ports
-            assert!(!user_msg.contains(".")); // No IP addresses or domain parts
-            assert!(!user_msg.contains("[")); // No stack traces
+            assert!(!user_msg.contains(':')); // No ports
+            assert!(!user_msg.contains('.')); // No IP addresses or domain parts
+            assert!(!user_msg.contains('[')); // No stack traces
         }
     }
 

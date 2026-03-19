@@ -124,12 +124,12 @@ impl OktaOAuth {
                         Some("operator".to_string())
                     },
                     "fraiseql-viewer" | "fraiseql_viewer" | "viewer" | "viewers" | "user"
-                    | "fraiseql-user" | "read_only" => Some("viewer".to_string()),
+                    | "fraiseql-user" | "read_only" | "okta_viewer" | "everyone" => {
+                        Some("viewer".to_string())
+                    },
                     // Common Okta patterns
                     "okta_admin" => Some("admin".to_string()),
                     "okta_operator" => Some("operator".to_string()),
-                    "okta_viewer" => Some("viewer".to_string()),
-                    "everyone" => Some("viewer".to_string()), // Default for all users
                     _ => {
                         // Check for partial matches (admin/operator/viewer substrings)
                         if group_lower.contains("admin") {

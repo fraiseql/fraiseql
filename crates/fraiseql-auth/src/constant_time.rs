@@ -58,7 +58,7 @@ impl ConstantTimeOps {
         // First compare what we can, then check length
         let min_len = expected.len().min(actual.len());
         let prefix_equal = expected[..min_len].ct_eq(&actual[..min_len]);
-        let length_equal = (expected.len() == actual.len()) as u8;
+        let length_equal = u8::from(expected.len() == actual.len());
 
         (prefix_equal.unwrap_u8() & length_equal) != 0
     }
@@ -191,8 +191,11 @@ mod tests {
         let mut token1 = vec![0u8; 256];
         let mut token2 = vec![0u8; 256];
         for i in 0..256 {
-            token1[i] = i as u8;
-            token2[i] = i as u8;
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: loop bound is 256, so `i` is always 0..=255 — no truncation possible
+            let byte = i as u8;
+            token1[i] = byte;
+            token2[i] = byte;
         }
 
         assert!(ConstantTimeOps::compare(&token1, &token2));
@@ -203,6 +206,8 @@ mod tests {
 
     #[test]
     fn test_very_long_tokens() {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: `i % 256` is always in 0..=255 for a non-negative i32, so both casts are safe
         let token1: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
         let token2 = token1.clone();
         assert!(ConstantTimeOps::compare(&token1, &token2));
