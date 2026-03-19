@@ -266,6 +266,7 @@ impl CodeGenerator {
                     encryption: None,
                     auto_generated: false,
                     computed: false,
+                    searchable: false,
                 }
             })
             .collect()

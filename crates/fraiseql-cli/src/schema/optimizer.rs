@@ -505,6 +505,7 @@ mod tests {
                         encryption:     None,
                         auto_generated: false,
                         computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,
@@ -564,6 +565,7 @@ mod tests {
                         encryption:     None,
                         auto_generated: false,
                         computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,
@@ -633,6 +635,7 @@ mod tests {
                         encryption:     None,
                         auto_generated: false,
                         computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,

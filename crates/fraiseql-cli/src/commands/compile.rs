@@ -478,6 +478,7 @@ mod tests {
                         encryption:     None,
                         auto_generated: false,
                         computed:       false,
+                        searchable:     false,
                     },
                     FieldDefinition {
                         name:           "name".into(),
@@ -493,6 +494,7 @@ mod tests {
                         encryption:     None,
                         auto_generated: false,
                         computed:       false,
+                        searchable:     false,
                     },
                 ],
                 description:         Some("User type".to_string()),

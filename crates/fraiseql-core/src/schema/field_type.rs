@@ -250,6 +250,7 @@ pub enum FieldDenyPolicy {
 ///     encryption: None,
 ///     auto_generated: false,
 ///     computed: false,
+///     searchable: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -312,6 +313,7 @@ pub struct FieldDefinition {
     ///     encryption: None,
     ///     auto_generated: false,
     ///     computed: false,
+    ///     searchable: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -342,6 +344,14 @@ pub struct FieldDefinition {
     /// Not settable via mutations.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub computed: bool,
+
+    /// Field is searchable via full-text search (requires FTS index/tsvector column).
+    ///
+    /// When `true`, the REST transport enables `?search=` on endpoints returning
+    /// this type.  Multiple searchable fields on one type are combined with `||`
+    /// (PostgreSQL `tsvector` concatenation).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub searchable: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -412,6 +422,7 @@ impl FieldDefinition {
             encryption: None,
             auto_generated: false,
             computed: false,
+            searchable: false,
         }
     }
 
@@ -432,6 +443,7 @@ impl FieldDefinition {
             encryption: None,
             auto_generated: false,
             computed: false,
+            searchable: false,
         }
     }
 
@@ -460,6 +472,7 @@ impl FieldDefinition {
             encryption:     None,
             auto_generated: false,
             computed:       false,
+            searchable:     false,
         }
     }
 

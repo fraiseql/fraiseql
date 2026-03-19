@@ -668,6 +668,44 @@ impl<'a> OpenApiGenerator<'a> {
                 "description": "Full filter expression as JSON. Overrides bracket-style filters.",
                 "schema": { "type": "string" },
             }));
+
+            // Logical operators.
+            for (op, desc) in &[
+                ("or", "OR group: `or=(field[op]=val,field[op]=val)`. Conditions within are OR'd together."),
+                ("and", "AND group: `and=(field[op]=val,field[op]=val)`. Explicit AND (equivalent to multiple filters)."),
+                ("not", "NOT group: `not=(field[op]=val)`. Negates the enclosed conditions."),
+            ] {
+                params.push(json!({
+                    "name": op,
+                    "in": "query",
+                    "required": false,
+                    "description": desc,
+                    "schema": { "type": "string" },
+                }));
+            }
+        }
+
+        // Full-text search parameter (only when type has searchable fields).
+        if let Some(td) = type_def {
+            if !td.searchable_fields().is_empty() {
+                let searchable_names: Vec<&str> = td
+                    .searchable_fields()
+                    .iter()
+                    .map(|f| f.name.as_str())
+                    .collect();
+                params.push(json!({
+                    "name": "search",
+                    "in": "query",
+                    "required": false,
+                    "description": format!(
+                        "Full-text search query. Searches across: {}. \
+                         Supports phrases (\"exact phrase\") and exclusions (-term). \
+                         Results are ranked by relevance unless `sort` is specified.",
+                        searchable_names.join(", ")
+                    ),
+                    "schema": { "type": "string" },
+                }));
+            }
         }
     }
 
@@ -1848,5 +1886,58 @@ mod tests {
     fn info_has_default_version() {
         let spec = generate(&rest_schema());
         assert_eq!(spec["info"]["version"], "1.0.0");
+    }
+
+    // -- Logical operators ---------------------------------------------------
+
+    #[test]
+    fn collection_get_has_logical_operator_params() {
+        let spec = generate(&rest_schema());
+        let params = spec["paths"]["/users"]["get"]["parameters"]
+            .as_array()
+            .unwrap();
+        let param_names: Vec<&str> = params
+            .iter()
+            .filter_map(|p| p["name"].as_str())
+            .collect();
+        assert!(param_names.contains(&"or"), "Expected `or` logical param");
+        assert!(param_names.contains(&"and"), "Expected `and` logical param");
+        assert!(param_names.contains(&"not"), "Expected `not` logical param");
+    }
+
+    // -- Full-text search ----------------------------------------------------
+
+    #[test]
+    fn fts_enabled_resource_has_search_param() {
+        let mut schema = rest_schema();
+        // Mark a field as searchable.
+        for td in &mut schema.types {
+            if td.name == "User" {
+                for f in &mut td.fields {
+                    if f.name.as_str() == "name" {
+                        f.searchable = true;
+                    }
+                }
+            }
+        }
+
+        let spec = generate(&schema);
+        let params = spec["paths"]["/users"]["get"]["parameters"]
+            .as_array()
+            .unwrap();
+        let search_param = params.iter().find(|p| p["name"] == "search");
+        assert!(search_param.is_some(), "Expected `search` param on FTS-enabled resource");
+        let desc = search_param.unwrap()["description"].as_str().unwrap();
+        assert!(desc.contains("name"), "Expected field name in search description: {desc}");
+    }
+
+    #[test]
+    fn non_fts_resource_has_no_search_param() {
+        let spec = generate(&rest_schema());
+        let params = spec["paths"]["/users"]["get"]["parameters"]
+            .as_array()
+            .unwrap();
+        let search_param = params.iter().find(|p| p["name"] == "search");
+        assert!(search_param.is_none(), "Non-FTS resource should not have search param");
     }
 }

@@ -204,18 +204,33 @@ impl SchemaConverter {
             type_names.insert(type_def.name.to_string());
         }
 
+        // Register input types
+        for input_type in &schema.input_types {
+            type_names.insert(input_type.name.clone());
+        }
+
+        // Register enum types
+        for enum_type in &schema.enums {
+            type_names.insert(enum_type.name.clone());
+        }
+
         // Build interface registry
         let mut interface_names = HashSet::new();
         for interface_def in &schema.interfaces {
             interface_names.insert(interface_def.name.clone());
         }
 
-        // Add built-in GraphQL scalars
-        type_names.insert("Int".to_string());
-        type_names.insert("Float".to_string());
-        type_names.insert("String".to_string());
-        type_names.insert("Boolean".to_string());
-        type_names.insert("ID".to_string());
+        // Add built-in scalars (GraphQL standard + common PostgreSQL types)
+        for scalar in &[
+            "Int", "Float", "String", "Boolean", "ID",
+            "Date", "DateTime", "Time", "Json", "JSON",
+            "UUID", "Decimal", "Vector", "BigInt",
+            "date", "timestamp", "timestamptz", "jsonb", "json",
+            "bigint", "numeric", "uuid", "text", "integer",
+            "boolean", "real", "smallint", "bytea", "inet", "interval",
+        ] {
+            type_names.insert((*scalar).to_string());
+        }
 
         // Add built-in FraiseQL scalars
         for name in ["DateTime", "Date", "Time", "Json", "UUID", "Decimal", "Vector"] {

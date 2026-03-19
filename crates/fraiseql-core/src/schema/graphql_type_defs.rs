@@ -193,6 +193,16 @@ impl TypeDefinition {
     pub fn writable_fields(&self) -> Vec<&FieldDefinition> {
         self.fields.iter().filter(|f| f.is_writable()).collect()
     }
+
+    /// Returns FTS-capable fields (those with `searchable: true`), or empty if none.
+    ///
+    /// Used by the REST transport to determine whether `?search=` is available
+    /// on endpoints returning this type and which columns to include in
+    /// the full-text search query.
+    #[must_use]
+    pub fn searchable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields.iter().filter(|f| f.searchable).collect()
+    }
 }
 
 // =============================================================================
@@ -741,6 +751,49 @@ mod tests {
 
         let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_searchable_fields_returns_marked_fields() {
+        let mut title = FieldDefinition::new("title", FieldType::String);
+        title.searchable = true;
+        let mut body = FieldDefinition::new("body", FieldType::String);
+        body.searchable = true;
+
+        let type_def = TypeDefinition::new("Article", "v_article")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(title)
+            .with_field(body)
+            .with_field(FieldDefinition::new("status", FieldType::String));
+
+        let searchable: Vec<&str> = type_def.searchable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(searchable, vec!["title", "body"]);
+    }
+
+    #[test]
+    fn test_searchable_fields_empty_when_none_marked() {
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String));
+
+        assert!(type_def.searchable_fields().is_empty());
+    }
+
+    #[test]
+    fn test_searchable_field_round_trip() {
+        let mut field = FieldDefinition::new("title", FieldType::String);
+        field.searchable = true;
+
+        let json = serde_json::to_string(&field).unwrap();
+        let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.searchable);
+    }
+
+    #[test]
+    fn test_searchable_false_skipped_in_serialization() {
+        let field = FieldDefinition::new("title", FieldType::String);
+        let json = serde_json::to_string(&field).unwrap();
+        assert!(!json.contains("searchable"));
     }
 
     #[test]

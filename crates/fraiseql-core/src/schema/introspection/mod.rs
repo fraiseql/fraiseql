@@ -249,6 +249,7 @@ mod tests {
                     encryption:     None,
                     auto_generated: false,
                     computed:       false,
+                    searchable:     false,
                 },
                 FieldDefinition::new("sku", FieldType::String),
             ],

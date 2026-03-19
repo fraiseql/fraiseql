@@ -45,6 +45,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "title".into(),
@@ -60,6 +61,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             // Protected fields
             FieldDefinition {
@@ -76,6 +78,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "draft".into(),
@@ -91,6 +94,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -107,6 +111,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
         ],
         description:         Some("Post type with field-level scopes".to_string()),

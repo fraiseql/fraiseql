@@ -39,12 +39,61 @@ impl SchemaValidator {
             type_names.insert(type_def.name.clone());
         }
 
-        // Add built-in scalars
-        type_names.insert("Int".to_string());
-        type_names.insert("Float".to_string());
-        type_names.insert("String".to_string());
-        type_names.insert("Boolean".to_string());
-        type_names.insert("ID".to_string());
+        // Register input types so mutation arguments can reference them
+        for input_type in &schema.input_types {
+            if type_names.contains(&input_type.name) {
+                report.errors.push(ValidationError {
+                    message:    format!(
+                        "Duplicate type name: '{}' (input type conflicts with existing type)",
+                        input_type.name
+                    ),
+                    path:       format!("input_types.{}", input_type.name),
+                    severity:   ErrorSeverity::Error,
+                    suggestion: Some(
+                        "Type and input type names must be unique across both sections".to_string(),
+                    ),
+                });
+            }
+            type_names.insert(input_type.name.clone());
+        }
+
+        // Register enum types
+        for enum_type in &schema.enums {
+            type_names.insert(enum_type.name.clone());
+        }
+
+        // Add built-in scalars (GraphQL standard + common PostgreSQL types)
+        for scalar in &[
+            "Int",
+            "Float",
+            "String",
+            "Boolean",
+            "ID",
+            "Date",
+            "DateTime",
+            "Time",
+            "JSON",
+            "BigInt",
+            "Decimal",
+            "date",
+            "timestamp",
+            "timestamptz",
+            "jsonb",
+            "json",
+            "bigint",
+            "numeric",
+            "uuid",
+            "text",
+            "integer",
+            "boolean",
+            "real",
+            "smallint",
+            "bytea",
+            "inet",
+            "interval",
+        ] {
+            type_names.insert((*scalar).to_string());
+        }
 
         // Validate queries
         let mut query_names = HashSet::new();

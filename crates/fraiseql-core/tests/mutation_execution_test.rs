@@ -27,6 +27,7 @@ fn field(name: &str, type_str: &str) -> FieldDefinition {
         encryption:     None,
         auto_generated: false,
         computed:       false,
+        searchable:     false,
     }
 }
 

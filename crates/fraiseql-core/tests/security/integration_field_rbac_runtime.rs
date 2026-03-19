@@ -34,6 +34,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "name".into(),
@@ -49,6 +50,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "email".into(),
@@ -64,6 +66,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "password_hash".into(),
@@ -79,6 +82,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
                 auto_generated: false,
                 computed:       false,
+                searchable:     false,
             },
         ],
         description:         None,

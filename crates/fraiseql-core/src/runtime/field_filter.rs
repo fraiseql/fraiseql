@@ -159,6 +159,7 @@ mod tests {
             encryption:     None,
             auto_generated: false,
             computed:       false,
+            searchable:     false,
         }
     }
 
@@ -282,7 +283,8 @@ mod tests {
             on_deny,
             encryption: None,
             auto_generated: false,
-            computed: false,
+            computed:       false,
+            searchable:     false,
         }
     }
 

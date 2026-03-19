@@ -44,9 +44,13 @@ const BRACKET_OPERATORS: &[&str] = &[
     "is_null",
 ];
 
+/// Maximum nesting depth for logical operator groups (`or=()`, `and=()`, `not=()`).
+const MAX_LOGICAL_DEPTH: usize = 64;
+
 /// Known query-string parameter names that are *not* filter keys.
 const RESERVED_PARAMS: &[&str] = &[
     "select", "sort", "limit", "offset", "first", "after", "last", "before", "filter",
+    "search", "or", "and", "not",
 ];
 
 // ---------------------------------------------------------------------------
@@ -59,7 +63,7 @@ const RESERVED_PARAMS: &[&str] = &[
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
     pub path_params: Vec<(String, serde_json::Value)>,
-    /// WHERE clause for the query (merged from simple/bracket/filter params).
+    /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
     pub where_clause: Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
     pub order_by: Option<serde_json::Value>,
@@ -67,6 +71,8 @@ pub struct ExtractedParams {
     pub pagination: PaginationParams,
     /// Field selection (from `?select=`).
     pub field_selection: RestFieldSpec,
+    /// Full-text search query (from `?search=`).
+    pub search_query: Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
     pub embeddings: Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
@@ -202,6 +208,8 @@ impl<'a> RestParamExtractor<'a> {
         let mut after_raw: Option<&str> = None;
         let mut last_raw: Option<&str> = None;
         let mut before_raw: Option<&str> = None;
+        let mut search_raw: Option<&str> = None;
+        let mut logical_groups: Vec<(&str, &str)> = Vec::new(); // (operator, value)
 
         for &(key, value) in query_pairs {
             // Skip dot-prefixed params (embedding filters) — handled in step 9.
@@ -229,6 +237,8 @@ impl<'a> RestParamExtractor<'a> {
                     "last" => last_raw = Some(value),
                     "before" => before_raw = Some(value),
                     "filter" => filter_json = Some(value),
+                    "search" => search_raw = Some(value),
+                    "or" | "and" | "not" => logical_groups.push((key, value)),
                     _ => {
                         // Could be a simple equality filter (e.g., ?name=Alice)
                         // or an unknown param.
@@ -282,9 +292,30 @@ impl<'a> RestParamExtractor<'a> {
         // 5. Parse sort.
         let order_by = self.parse_sort(sort_raw)?;
 
-        // 6. Build where clause (excluding embedding filters).
+        // 6a. Validate and parse search.
+        let search_query = if let Some(raw) = search_raw {
+            if let Some(td) = self.type_def {
+                if td.searchable_fields().is_empty() {
+                    return Err(validation_error(format!(
+                        "Full-text search not available on '{}'. \
+                         No searchable fields configured.",
+                        td.name.as_str()
+                    )));
+                }
+            }
+            Some(raw.to_string())
+        } else {
+            None
+        };
+
+        // 6b. Parse logical operators.
+        let parsed_logical = self.parse_logical_groups(&logical_groups)?;
+
+        // 6c. Build where clause (excluding embedding filters).
         let filter_where = self.parse_filter(filter_json)?;
-        let where_clause = self.merge_where(simple_filters, bracket_filters, filter_where)?;
+        let where_clause = self.merge_where_with_logical(
+            simple_filters, bracket_filters, filter_where, parsed_logical,
+        )?;
 
         // 7. Parse pagination.
         let pagination = if !is_list {
@@ -331,6 +362,7 @@ impl<'a> RestParamExtractor<'a> {
             order_by,
             pagination,
             field_selection,
+            search_query,
             embeddings,
             embedding_filters,
             embedding_counts,
@@ -661,6 +693,66 @@ impl<'a> RestParamExtractor<'a> {
     }
 
     // -----------------------------------------------------------------------
+    // Logical operators
+    // -----------------------------------------------------------------------
+
+    /// Parse `?or=()`, `?and=()`, `?not=()` query parameters into JSON DSL.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if:
+    /// - The value is not enclosed in parentheses
+    /// - Nesting depth exceeds `MAX_LOGICAL_DEPTH`
+    fn parse_logical_groups(
+        &self,
+        groups: &[(&str, &str)],
+    ) -> Result<Vec<serde_json::Value>, FraiseQLError> {
+        let mut result = Vec::with_capacity(groups.len());
+        for &(op, value) in groups {
+            let dsl_key = format!("_{op}");
+            let parsed = parse_logical_group(value, &dsl_key, 1)?;
+            result.push(parsed);
+        }
+        Ok(result)
+    }
+
+    /// Merge WHERE clause from all sources including logical operators.
+    ///
+    /// When both regular filters and logical groups are present, they are
+    /// combined with an implicit `_and`.
+    fn merge_where_with_logical(
+        &self,
+        simple: Vec<(String, serde_json::Value)>,
+        bracket: Vec<(String, String, String)>,
+        filter: Option<serde_json::Value>,
+        logical: Vec<serde_json::Value>,
+    ) -> Result<Option<serde_json::Value>, FraiseQLError> {
+        let regular = self.merge_where(simple, bracket, filter)?;
+
+        if logical.is_empty() {
+            return Ok(regular);
+        }
+
+        // Wrap each logical group as-is (they're already `{"_or": [...]}` etc).
+        match regular {
+            Some(regular_where) => {
+                // Combine: { "_and": [regular_filters, ...logical_groups] }
+                let mut and_parts = vec![regular_where];
+                and_parts.extend(logical);
+                Ok(Some(serde_json::json!({ "_and": and_parts })))
+            }
+            None if logical.len() == 1 => {
+                // Single logical group with no other filters.
+                Ok(Some(logical.into_iter().next().expect("len checked")))
+            }
+            None => {
+                // Multiple logical groups, no regular filters — wrap in _and.
+                Ok(Some(serde_json::json!({ "_and": logical })))
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Pagination
     // -----------------------------------------------------------------------
 
@@ -872,6 +964,131 @@ fn parse_bracket_key(key: &str) -> Option<(String, String)> {
         return None;
     }
     Some((field.to_string(), op.to_string()))
+}
+
+/// Parse a logical operator group value like `(name[eq]=Alice,name[eq]=Bob)`.
+///
+/// Returns a JSON value like `{"_or": [{"name": {"eq": "Alice"}}, {"name": {"eq": "Bob"}}]}`.
+///
+/// Supports nesting: `(and=(age[gte]=18,active[eq]=true),name[eq]=admin)` produces
+/// `{"_or": [{"_and": [...]}, {"name": {"eq": "admin"}}]}`.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if:
+/// - Input is not enclosed in parentheses
+/// - Nesting depth exceeds `MAX_LOGICAL_DEPTH`
+fn parse_logical_group(
+    input: &str,
+    dsl_key: &str,
+    depth: usize,
+) -> Result<serde_json::Value, FraiseQLError> {
+    if depth > MAX_LOGICAL_DEPTH {
+        return Err(validation_error(format!(
+            "Logical operator nesting depth exceeds maximum ({MAX_LOGICAL_DEPTH})."
+        )));
+    }
+
+    let trimmed = input.trim();
+    if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
+        return Err(validation_error(format!(
+            "Logical operator value must be enclosed in parentheses: `{dsl_key}=(...)`. \
+             Got: `{trimmed}`"
+        )));
+    }
+
+    let inner = &trimmed[1..trimmed.len() - 1];
+    let parts = split_logical_parts(inner);
+
+    let mut conditions = Vec::with_capacity(parts.len());
+    for part in &parts {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+
+        // Check for nested logical operator: `and=(...)` or `or=(...)` or `not=(...)`
+        if let Some((nested_op, nested_val)) = parse_nested_logical(part) {
+            let nested_key = format!("_{nested_op}");
+            let nested = parse_logical_group(nested_val, &nested_key, depth + 1)?;
+            conditions.push(nested);
+        } else if let Some((field_op, value)) = part.split_once('=') {
+            let json_val = parse_logical_value(value);
+            if let Some((field, op)) = parse_bracket_key(field_op) {
+                // Bracket condition: `field[op]=value`
+                conditions.push(serde_json::json!({ field: { op: json_val } }));
+            } else {
+                // Simple equality: `field=value`
+                conditions.push(serde_json::json!({ field_op: { "eq": json_val } }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({ dsl_key: conditions }))
+}
+
+/// Split logical group contents by commas, respecting nested parentheses.
+fn split_logical_parts(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0;
+
+    for ch in input.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                parts.push(current.clone());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        parts.push(current);
+    }
+    parts
+}
+
+/// Check if a part is a nested logical operator: `and=(...)`, `or=(...)`, `not=(...)`.
+fn parse_nested_logical(part: &str) -> Option<(&str, &str)> {
+    for op in &["and", "or", "not"] {
+        let prefix = format!("{op}=");
+        if let Some(rest) = part.strip_prefix(&prefix) {
+            if rest.starts_with('(') && rest.ends_with(')') {
+                return Some((op, rest));
+            }
+        }
+    }
+    None
+}
+
+/// Parse a value from a logical group, attempting numeric and boolean coercion.
+fn parse_logical_value(raw: &str) -> serde_json::Value {
+    // Try integer.
+    if let Ok(v) = raw.parse::<i64>() {
+        return serde_json::Value::Number(v.into());
+    }
+    // Try float.
+    if let Ok(v) = raw.parse::<f64>() {
+        if let Some(n) = serde_json::Number::from_f64(v) {
+            return serde_json::Value::Number(n);
+        }
+    }
+    // Try boolean.
+    match raw {
+        "true" => return serde_json::Value::Bool(true),
+        "false" => return serde_json::Value::Bool(false),
+        _ => {}
+    }
+    // Default to string.
+    serde_json::Value::String(raw.to_string())
 }
 
 /// Compute the nesting depth of a JSON value.
@@ -1881,5 +2098,246 @@ mod tests {
             &[("select", "id,posts(id,comments(id,body))")],
         ).unwrap_err();
         assert!(err.to_string().contains("exceeds maximum"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Full-text search
+    // -----------------------------------------------------------------------
+
+    fn article_type_def() -> TypeDefinition {
+        let mut title = FieldDefinition::new("title", FieldType::String);
+        title.searchable = true;
+        let mut body = FieldDefinition::new("body", FieldType::String);
+        body.searchable = true;
+
+        TypeDefinition::new("Article", "v_article")
+            .with_field(FieldDefinition::new("id", FieldType::Uuid))
+            .with_field(title)
+            .with_field(body)
+            .with_field(FieldDefinition::new("status", FieldType::String))
+    }
+
+    fn article_list_query_def() -> QueryDefinition {
+        QueryDefinition {
+            name: "articles".to_string(),
+            return_type: "Article".to_string(),
+            returns_list: true,
+            auto_params: AutoParams::all(),
+            arguments: vec![
+                ArgumentDefinition::optional("where", FieldType::Json),
+                ArgumentDefinition::optional("orderBy", FieldType::Json),
+                ArgumentDefinition::optional("limit", FieldType::Int),
+                ArgumentDefinition::optional("offset", FieldType::Int),
+            ],
+            ..default_query_def()
+        }
+    }
+
+    #[test]
+    fn search_param_parsed() {
+        let config = test_config();
+        let qd = article_list_query_def();
+        let td = article_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(&[], &[("search", "rust async")]).unwrap();
+        assert_eq!(result.search_query, Some("rust async".to_string()));
+    }
+
+    #[test]
+    fn search_combined_with_filters() {
+        let config = test_config();
+        let qd = article_list_query_def();
+        let td = article_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("search", "rust"), ("status[eq]", "published")],
+        ).unwrap();
+        assert_eq!(result.search_query, Some("rust".to_string()));
+        assert_eq!(
+            result.where_clause,
+            Some(serde_json::json!({ "status": { "eq": "published" } }))
+        );
+    }
+
+    #[test]
+    fn search_on_resource_without_searchable_fields_fails() {
+        let config = test_config();
+        let qd = list_query_def(); // users — no searchable fields
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let err = ext.extract(&[], &[("search", "hello")]).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Full-text search not available"), "got: {msg}");
+        assert!(msg.contains("No searchable fields"), "got: {msg}");
+    }
+
+    #[test]
+    fn search_with_explicit_sort_preserves_sort() {
+        let config = test_config();
+        let qd = article_list_query_def();
+        let td = article_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("search", "rust"), ("sort", "title")],
+        ).unwrap();
+        assert_eq!(result.search_query, Some("rust".to_string()));
+        assert!(result.order_by.is_some());
+    }
+
+    #[test]
+    fn search_on_single_resource_fails() {
+        // `?search=x` on a non-searchable single-resource endpoint fails with
+        // "not available" (search is a reserved param, not treated as a filter).
+        let config = test_config();
+        let qd = single_query_def();
+        let td = user_type_def();
+        let ext = RestParamExtractor::new(&config, &qd, Some(&td));
+
+        let err = ext.extract(&[("id", "550e8400-e29b-41d4-a716-446655440000")], &[("search", "x")]).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Full-text search not available"), "got: {msg}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Logical operators
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn logical_or_two_conditions() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("or", "(name[eq]=Alice,name[eq]=Bob)")],
+        ).unwrap();
+        assert_eq!(
+            result.where_clause,
+            Some(serde_json::json!({
+                "_or": [
+                    { "name": { "eq": "Alice" } },
+                    { "name": { "eq": "Bob" } }
+                ]
+            }))
+        );
+    }
+
+    #[test]
+    fn logical_and_explicit() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("and", "(age[gte]=18,age[lte]=65)")],
+        ).unwrap();
+        assert_eq!(
+            result.where_clause,
+            Some(serde_json::json!({
+                "_and": [
+                    { "age": { "gte": 18 } },
+                    { "age": { "lte": 65 } }
+                ]
+            }))
+        );
+    }
+
+    #[test]
+    fn logical_not() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("not", "(active[eq]=false)")],
+        ).unwrap();
+        assert_eq!(
+            result.where_clause,
+            Some(serde_json::json!({
+                "_not": [
+                    { "active": { "eq": false } }
+                ]
+            }))
+        );
+    }
+
+    #[test]
+    fn logical_nested_or_and() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("or", "(and=(age[gte]=18,active[eq]=true),name[eq]=admin)")],
+        ).unwrap();
+        let wc = result.where_clause.unwrap();
+        assert!(wc.get("_or").is_some(), "expected _or in {wc}");
+        let or_arr = wc["_or"].as_array().unwrap();
+        assert_eq!(or_arr.len(), 2);
+        assert!(or_arr[0].get("_and").is_some(), "expected _and in {}", or_arr[0]);
+    }
+
+    #[test]
+    fn logical_combined_with_regular_filters() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("active[eq]", "true"), ("or", "(name[eq]=Alice,name[eq]=Bob)")],
+        ).unwrap();
+
+        let wc = result.where_clause.unwrap();
+        // Should have _and wrapping the regular filter + the or group.
+        assert!(wc.get("_and").is_some(), "expected _and wrapper in {wc}");
+    }
+
+    #[test]
+    fn logical_depth_exceeded() {
+        let config = test_config();
+        let qd = list_query_def();
+        // No type_def to skip field validation.
+        let ext = RestParamExtractor::new(&config, &qd, None);
+
+        // Build deeply nested: or=(and=(or=(and=(...))))
+        let mut inner = "name[eq]=x".to_string();
+        for _ in 0..65 {
+            inner = format!("or=({inner})");
+        }
+        let input = format!("({inner})");
+        let err = ext.extract(&[], &[("or", &input)]).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("nesting depth") || msg.contains("depth"), "got: {msg}");
+    }
+
+    #[test]
+    fn logical_invalid_syntax() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let err = ext.extract(
+            &[],
+            &[("or", "not-parenthetical")],
+        ).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("must be enclosed in parentheses") || msg.contains("syntax"), "got: {msg}");
     }
 }

@@ -40,6 +40,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             encryption:     None,
             auto_generated: false,
             computed:       false,
+            searchable:     false,
         };
         schema.interfaces.push(
             InterfaceDefinition::new("Node")
@@ -64,7 +65,8 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
             auto_generated: false,
-            computed: false,
+            computed:       false,
+            searchable:     false,
         };
         let page_info = TypeDefinition {
             name:                "PageInfo".into(),
@@ -128,7 +130,8 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
         on_deny: FieldDenyPolicy::default(),
         encryption: None,
         auto_generated: false,
-        computed: false,
+        computed:       false,
+        searchable:     false,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();
