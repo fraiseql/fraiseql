@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+algorithm "rot13" is not supported; must be one of: chacha20-poly1305, aes-256-gcm

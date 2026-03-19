@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+federation.circuit_breaker.per_database entry 'NonExistent' does not match any defined federation entity

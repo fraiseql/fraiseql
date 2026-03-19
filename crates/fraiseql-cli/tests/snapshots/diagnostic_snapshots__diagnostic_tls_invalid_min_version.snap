@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+[server.tls] min_version must be "1.2" or "1.3", got "1.0"

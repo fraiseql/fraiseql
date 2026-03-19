@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
+expression: err.to_string()
+---
+auth_callback_max_requests must be at least 1; setting it to 0 blocks all requests permanently
