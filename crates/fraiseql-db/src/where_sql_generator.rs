@@ -88,22 +88,17 @@ impl WhereSqlGenerator {
         value: &Value,
     ) -> Result<String> {
         let json_path = Self::build_json_path(path)?;
-        let sql = match operator {
-            // Null checks
-            WhereOperator::IsNull => {
-                let is_null = value.as_bool().unwrap_or(true);
-                if is_null {
-                    format!("{json_path} IS NULL")
-                } else {
-                    format!("{json_path} IS NOT NULL")
-                }
-            },
-            // All other operators
-            _ => {
-                let sql_op = Self::operator_to_sql(operator)?;
-                let sql_value = Self::value_to_sql(value, operator)?;
-                format!("{json_path} {sql_op} {sql_value}")
-            },
+        let sql = if operator == &WhereOperator::IsNull {
+            let is_null = value.as_bool().unwrap_or(true);
+            if is_null {
+                format!("{json_path} IS NULL")
+            } else {
+                format!("{json_path} IS NOT NULL")
+            }
+        } else {
+            let sql_op = Self::operator_to_sql(operator)?;
+            let sql_value = Self::value_to_sql(value, operator)?;
+            format!("{json_path} {sql_op} {sql_value}")
         };
         Ok(sql)
     }

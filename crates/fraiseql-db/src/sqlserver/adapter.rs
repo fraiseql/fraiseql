@@ -1,4 +1,6 @@
 //! SQL Server database adapter implementation.
+use std::fmt::Write;
+
 use async_trait::async_trait;
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
@@ -341,11 +343,11 @@ impl DatabaseAdapter for SqlServerAdapter {
         if let Some(off) = offset {
             sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
             param_count += 1;
-            sql.push_str(&format!(" OFFSET @p{param_count} ROWS"));
+            write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String");
             params.push(serde_json::Value::Number(off.into()));
             if let Some(lim) = limit {
                 param_count += 1;
-                sql.push_str(&format!(" FETCH NEXT @p{param_count} ROWS ONLY"));
+                write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String");
                 params.push(serde_json::Value::Number(lim.into()));
             }
         }
@@ -761,7 +763,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                     )
                 },
             };
-        let cursor_param_count: usize = if cursor_param.is_some() { 1 } else { 0 };
+        let cursor_param_count: usize = usize::from(cursor_param.is_some());
 
         // ── User WHERE clause ────────────────────────────────────────────────
         let mut user_where_params: Vec<serde_json::Value> = Vec::new();

@@ -1,6 +1,7 @@
 //! PostgreSQL SQL dialect implementation.
 
 use std::borrow::Cow;
+use std::fmt::Write;
 
 use super::trait_def::{SqlDialect, UnsupportedOperator};
 
@@ -29,9 +30,9 @@ impl SqlDialect for PostgresDialect {
             let mut result = column.to_owned();
             for (i, segment) in escaped_path.iter().enumerate() {
                 if i < escaped_path.len() - 1 {
-                    result.push_str(&format!("->'{segment}'"));
+                    write!(result, "->'{segment}'").expect("write to String");
                 } else {
-                    result.push_str(&format!("->>'{segment}'"));
+                    write!(result, "->>'{segment}'").expect("write to String");
                 }
             }
             result

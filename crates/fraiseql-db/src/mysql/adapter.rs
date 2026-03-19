@@ -1,5 +1,7 @@
 //! MySQL database adapter implementation.
 
+use std::fmt::Write;
+
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
@@ -229,7 +231,7 @@ impl DatabaseAdapter for MySqlAdapter {
 
         // Add LIMIT if present
         if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
+            write!(sql, " LIMIT {lim}").expect("write to String");
         }
 
         // Execute the query

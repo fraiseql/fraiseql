@@ -88,7 +88,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 cursor_where_part = Some(format!("{quoted_col} {op} $1::uuid"));
             },
         }
-        let cursor_param_count: usize = if cursor_param.is_some() { 1 } else { 0 };
+        let cursor_param_count: usize = usize::from(cursor_param.is_some());
 
         // ── User WHERE clause ──────────────────────────────────────────────────
         //

@@ -9,6 +9,8 @@ mod tests;
 #[cfg(all(test, feature = "test-postgres"))]
 mod integration_tests;
 
+use std::fmt::Write;
+
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::{NoTls, Row};
@@ -383,7 +385,7 @@ impl PostgresAdapter {
 
             if let Some(lim) = limit {
                 param_count += 1;
-                sql.push_str(&format!(" LIMIT ${param_count}"));
+                write!(sql, " LIMIT ${param_count}").expect("write to String");
                 params.push(serde_json::Value::Number(lim.into()));
             }
 
@@ -407,7 +409,7 @@ impl PostgresAdapter {
 
             if let Some(lim) = limit {
                 param_count += 1;
-                sql.push_str(&format!(" LIMIT ${param_count}"));
+                write!(sql, " LIMIT ${param_count}").expect("write to String");
                 params.push(serde_json::Value::Number(lim.into()));
             }
 
@@ -464,14 +466,14 @@ pub(super) fn build_where_select_sql(
     // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
     if let Some(lim) = limit {
         param_count += 1;
-        sql.push_str(&format!(" LIMIT ${param_count}"));
+        write!(sql, " LIMIT ${param_count}").expect("write to String");
         typed_params.push(QueryParam::BigInt(i64::from(lim)));
     }
 
     // Add OFFSET as BigInt (PostgreSQL requires integer type for OFFSET)
     if let Some(off) = offset {
         param_count += 1;
-        sql.push_str(&format!(" OFFSET ${param_count}"));
+        write!(sql, " OFFSET ${param_count}").expect("write to String");
         typed_params.push(QueryParam::BigInt(i64::from(off)));
     }
 

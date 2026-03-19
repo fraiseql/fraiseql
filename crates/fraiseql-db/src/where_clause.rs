@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 pub enum WhereClause {
     /// Single field condition.
     Field {
-        /// JSONB path (e.g., ["email"] or ["posts", "title"]).
+        /// JSONB path (e.g., `["email"]` or `["posts", "title"]`).
         path:     Vec<String>,
         /// Comparison operator.
         operator: WhereOperator,
@@ -351,6 +351,9 @@ impl WhereOperator {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if operator name is unknown.
+    // Reason: intentionally not implementing `FromStr` because this returns
+    // `FraiseQLError`, not `<Self as FromStr>::Err`.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         match s {
             "eq" => Ok(Self::Eq),

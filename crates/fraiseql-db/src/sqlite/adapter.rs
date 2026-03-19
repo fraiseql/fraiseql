@@ -12,6 +12,8 @@
 //!
 //! For mutation support, use PostgreSQL, MySQL, or SQL Server.
 
+use std::fmt::Write;
+
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
@@ -242,7 +244,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
         if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
+            write!(sql, " LIMIT {lim}").expect("write to String");
         }
 
         // Execute the query

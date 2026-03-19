@@ -4,6 +4,7 @@
 //! providing streaming JSON queries with low memory overhead.
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
@@ -128,11 +129,11 @@ impl FraiseWireAdapter {
         }
 
         if let Some(offset_val) = offset {
-            sql.push_str(&format!("OFFSET {offset_val} "));
+            write!(sql, "OFFSET {offset_val} ").expect("write to String");
         }
 
         if let Some(limit_val) = limit {
-            sql.push_str(&format!("LIMIT {limit_val}"));
+            write!(sql, "LIMIT {limit_val}").expect("write to String");
         }
 
         Ok(sql.trim().to_string())
