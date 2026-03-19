@@ -5,6 +5,7 @@ use super::{
 };
 use crate::compiler::window_allowlist::WindowAllowlist;
 
+
 /// Window function plan generator
 pub struct WindowFunctionPlanner;
 

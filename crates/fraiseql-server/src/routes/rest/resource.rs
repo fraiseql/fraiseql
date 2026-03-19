@@ -141,7 +141,7 @@ impl RestRouteTable {
     /// Returns an error string if two operations produce the same method+path
     /// combination and neither has a `rest_path` override.
     pub fn from_compiled_schema(schema: &CompiledSchema) -> Result<Self, String> {
-        let config = schema.rest_config.as_ref().cloned().unwrap_or_default();
+        let config = schema.rest_config.clone().unwrap_or_default();
         let base_path = config.path.clone();
 
         // Group operations by return type.
@@ -380,7 +380,7 @@ fn detect_id_arg(
 }
 
 /// Check if a `FieldType` is suitable as an ID parameter.
-fn is_id_like_type(ft: &FieldType) -> bool {
+const fn is_id_like_type(ft: &FieldType) -> bool {
     matches!(ft, FieldType::Id | FieldType::Uuid | FieldType::Int | FieldType::String)
 }
 
@@ -475,7 +475,7 @@ fn derive_resource(
             m,
             type_name,
             &resource_name,
-            &id_arg,
+            id_arg.as_ref(),
             &writable_names,
             config,
             &mut routes,
@@ -501,7 +501,7 @@ fn derive_mutation_routes(
     m: &MutationDefinition,
     type_name: &str,
     resource_name: &str,
-    id_arg: &Option<String>,
+    id_arg: Option<&String>,
     writable_names: &[&str],
     config: &RestConfig,
     routes: &mut Vec<RestRoute>,
@@ -529,7 +529,7 @@ fn derive_mutation_routes(
 
             match coverage {
                 UpdateCoverage::Full => {
-                    if let Some(ref id) = id_arg {
+                    if let Some(id) = id_arg {
                         routes.push(RestRoute {
                             method: HttpMethod::Put,
                             path: format!("/{resource_name}/{{{id}}}"),
@@ -548,7 +548,7 @@ fn derive_mutation_routes(
                 }
                 UpdateCoverage::Partial => {
                     let action = derive_action_name(&m.name, type_name);
-                    if let Some(ref id) = id_arg {
+                    if let Some(id) = id_arg {
                         routes.push(RestRoute {
                             method: HttpMethod::Patch,
                             path: format!("/{resource_name}/{{{id}}}/{action}"),
@@ -567,7 +567,7 @@ fn derive_mutation_routes(
                 // non_exhaustive future variants default to 204.
                 _ => 204,
             };
-            if let Some(ref id) = id_arg {
+            if let Some(id) = id_arg {
                 routes.push(RestRoute {
                     method: HttpMethod::Delete,
                     path: format!("/{resource_name}/{{{id}}}"),
@@ -577,10 +577,9 @@ fn derive_mutation_routes(
                 });
             }
         }
-        // MutationOperation::Custom and future variants.
-        _ => {
+        MutationOperation::Custom => {
             let action = derive_action_name(&m.name, type_name);
-            if let Some(ref id) = id_arg {
+            if let Some(id) = id_arg {
                 routes.push(RestRoute {
                     method: HttpMethod::Post,
                     path: format!("/{resource_name}/{{{id}}}/{action}"),
@@ -687,7 +686,7 @@ fn validate_cqrs_mutation(
         MutationOperation::Insert { table }
         | MutationOperation::Update { table }
         | MutationOperation::Delete { table } => table.as_str(),
-        _ => return,
+        MutationOperation::Custom => return,
     };
 
     if table.starts_with("v_") || table.starts_with("tv_") {
@@ -1050,8 +1049,10 @@ mod tests {
 
     #[test]
     fn test_exclude_filter() {
-        let mut config = RestConfig::default();
-        config.exclude = vec!["deleteUser".to_string()];
+        let config = RestConfig {
+            exclude: vec!["deleteUser".to_string()],
+            ..RestConfig::default()
+        };
         let mut schema = schema_with_rest_config(Some(config));
         schema.types.push(user_type_def());
         schema.queries.push(list_query("users", "User"));
@@ -1065,8 +1066,10 @@ mod tests {
 
     #[test]
     fn test_include_filter() {
-        let mut config = RestConfig::default();
-        config.include = vec!["users".to_string(), "createUser".to_string()];
+        let config = RestConfig {
+            include: vec!["users".to_string(), "createUser".to_string()],
+            ..RestConfig::default()
+        };
         let mut schema = schema_with_rest_config(Some(config));
         schema.types.push(user_type_def());
         schema.queries.push(list_query("users", "User"));
@@ -1281,8 +1284,10 @@ mod tests {
 
     #[test]
     fn test_delete_response_entity() {
-        let mut config = RestConfig::default();
-        config.delete_response = DeleteResponse::Entity;
+        let config = RestConfig {
+            delete_response: DeleteResponse::Entity,
+            ..RestConfig::default()
+        };
         let mut schema = schema_with_rest_config(Some(config));
         schema.types.push(user_type_def());
         schema.queries.push(list_query("users", "User"));
