@@ -58,10 +58,11 @@ pub use compiled::{
     QueryDefinition, inject_cascade_types, is_safe_sql_identifier,
 };
 pub use config_types::{
-    AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
-    DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
-    DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, McpConfig,
-    ObserversConfig, RestConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
+    CompiledSecurityConfig, DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride,
+    EventHandler, DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, McpConfig,
+    ObserversConfig, RelationshipDef, RestConfig, SubscriptionHooksConfig, SubscriptionsConfig,
+    ValidationConfig, DEFAULT_MAX_EMBEDDING_DEPTH,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

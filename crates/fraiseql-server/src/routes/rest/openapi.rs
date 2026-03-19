@@ -12,7 +12,7 @@
 //! - `Prefer` header documentation on collection/delete endpoints
 
 use fraiseql_core::schema::{
-    CompiledSchema, DeleteResponse, FieldType, MutationDefinition, MutationOperation,
+    Cardinality, CompiledSchema, DeleteResponse, FieldType, MutationDefinition, MutationOperation,
     QueryDefinition, RestConfig, TypeDefinition,
 };
 use serde_json::{Map, Value, json};
@@ -873,6 +873,33 @@ impl<'a> OpenApiGenerator<'a> {
             if !field.nullable {
                 required.push(json!(field.name.to_string()));
             }
+        }
+
+        // Add relationship properties for embedded resources.
+        for rel in &type_def.relationships {
+            let ref_schema = json!({ "$ref": format!("#/components/schemas/{}", rel.target_type) });
+            let rel_schema = match rel.cardinality {
+                Cardinality::OneToMany => {
+                    json!({
+                        "type": "array",
+                        "items": ref_schema,
+                        "description": format!("Embedded {} (use ?select={}(fields) to include)", rel.target_type, rel.name),
+                    })
+                }
+                Cardinality::ManyToOne | Cardinality::OneToOne => {
+                    let mut s = ref_schema;
+                    if let Some(obj) = s.as_object_mut() {
+                        obj.insert(
+                            "description".to_string(),
+                            json!(format!("Embedded {} (use ?select={}(fields) to include)", rel.target_type, rel.name)),
+                        );
+                        obj.insert("nullable".to_string(), json!(true));
+                    }
+                    s
+                }
+                _ => ref_schema,
+            };
+            properties.insert(rel.name.clone(), rel_schema);
         }
 
         let mut schema = json!({

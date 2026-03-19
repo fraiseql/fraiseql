@@ -351,7 +351,36 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             );
         }
 
-        let body = build_query_response(&result, total, &params.pagination)?;
+        let mut body = build_query_response(&result, total, &params.pagination)?;
+
+        // Execute embedded resource sub-queries.
+        let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
+        if has_embeddings {
+            if let Some(data) = body.get_mut("data") {
+                let embed_req = super::embedding::EmbeddingRequest {
+                    executor: self.executor,
+                    schema: self.schema,
+                    config: self.config,
+                    parent_type_name: &query_def.return_type,
+                    security_context,
+                };
+
+                super::embedding::execute_embeddings(
+                    &embed_req,
+                    data,
+                    &params.embeddings,
+                    &params.embedding_filters,
+                )
+                .await?;
+
+                super::embedding::execute_embedding_counts(
+                    &embed_req,
+                    data,
+                    &params.embedding_counts,
+                )
+                .await?;
+            }
+        }
 
         Ok(RestResponse {
             status: StatusCode::OK,

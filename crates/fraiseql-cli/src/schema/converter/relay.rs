@@ -102,6 +102,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         };
         schema.types.push(page_info);
     }
@@ -165,6 +166,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             });
         }
 
@@ -202,6 +204,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             });
         }
     }

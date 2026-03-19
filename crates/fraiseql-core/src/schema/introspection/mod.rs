@@ -230,6 +230,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
@@ -481,6 +482,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
@@ -497,6 +499,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
@@ -561,6 +564,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),

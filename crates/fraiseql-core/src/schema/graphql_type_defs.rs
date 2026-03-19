@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::config_types::RelationshipDef;
 use super::{
     domain_types::{SqlSource, TypeName},
     field_type::{DeprecationInfo, FieldDefinition},
@@ -94,6 +95,12 @@ pub struct TypeDefinition {
     /// Cursor-based pagination uses `pk_{snake_case(name)}` (BIGINT) for keyset ordering.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// Relationships to other types (derived from FK conventions or explicit annotation).
+    ///
+    /// Used by the REST transport for nested resource embedding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<RelationshipDef>,
 }
 
 pub(super) fn default_jsonb_column() -> String {
@@ -115,6 +122,7 @@ impl TypeDefinition {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         }
     }
 

@@ -132,21 +132,24 @@ pub struct RestConfig {
     pub etag: bool,
     /// Maximum allowed size in bytes for filter query parameters.
     pub max_filter_bytes: usize,
+    /// Maximum nesting depth for resource embedding (default 3).
+    pub max_embedding_depth: usize,
 }
 
 impl Default for RestConfig {
     fn default() -> Self {
         Self {
-            enabled:           false,
-            path:              "/rest/v1".to_string(),
-            require_auth:      true,
-            include:           Vec::new(),
-            exclude:           Vec::new(),
-            delete_response:   DeleteResponse::NoContent,
-            max_page_size:     100,
-            default_page_size: 20,
-            etag:              true,
-            max_filter_bytes:  4096,
+            enabled:             false,
+            path:                "/rest/v1".to_string(),
+            require_auth:        true,
+            include:             Vec::new(),
+            exclude:             Vec::new(),
+            delete_response:     DeleteResponse::NoContent,
+            max_page_size:       100,
+            default_page_size:   20,
+            etag:                true,
+            max_filter_bytes:    4096,
+            max_embedding_depth: fraiseql_core::schema::DEFAULT_MAX_EMBEDDING_DEPTH,
         }
     }
 }

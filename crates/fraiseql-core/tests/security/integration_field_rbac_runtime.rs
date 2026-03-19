@@ -89,6 +89,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        relationships:       Vec::new(),
     };
 
     let mut security_config = SecurityConfig::new();

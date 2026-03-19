@@ -385,21 +385,24 @@ pub struct RestConfig {
     pub etag: bool,
     /// Maximum allowed size in bytes for filter query parameters.
     pub max_filter_bytes: usize,
+    /// Maximum nesting depth for resource embedding (default 3).
+    pub max_embedding_depth: usize,
 }
 
 impl Default for RestConfig {
     fn default() -> Self {
         Self {
-            enabled:           false,
-            path:              "/rest/v1".to_string(),
-            require_auth:      true,
-            include:           Vec::new(),
-            exclude:           Vec::new(),
-            delete_response:   DeleteResponse::NoContent,
-            max_page_size:     100,
-            default_page_size: 20,
-            etag:              true,
-            max_filter_bytes:  4096,
+            enabled:             false,
+            path:                "/rest/v1".to_string(),
+            require_auth:        true,
+            include:             Vec::new(),
+            exclude:             Vec::new(),
+            delete_response:     DeleteResponse::NoContent,
+            max_page_size:       100,
+            default_page_size:   20,
+            etag:                true,
+            max_filter_bytes:    4096,
+            max_embedding_depth: DEFAULT_MAX_EMBEDDING_DEPTH,
         }
     }
 }
@@ -415,6 +418,40 @@ pub enum DeleteResponse {
     /// Return 200 with the deleted entity body.
     Entity,
 }
+
+/// Relationship between two types, derived from FK conventions or explicit annotation.
+///
+/// Used by the REST transport for nested resource embedding
+/// (`?select=id,posts(id,title)`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationshipDef {
+    /// Name of the relationship (e.g., "posts", "author").
+    pub name: String,
+    /// Target type name (e.g., "Post", "User").
+    pub target_type: String,
+    /// Foreign key column on the owning side (e.g., "fk_user").
+    pub foreign_key: String,
+    /// Referenced key column on the target side (e.g., "pk_user").
+    pub referenced_key: String,
+    /// Cardinality of the relationship.
+    pub cardinality: Cardinality,
+}
+
+/// Cardinality of a relationship between types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Cardinality {
+    /// One parent has many children (embedded as array).
+    OneToMany,
+    /// Many children reference one parent (embedded as single object).
+    ManyToOne,
+    /// One-to-one association (embedded as single object or null).
+    OneToOne,
+}
+
+/// Maximum nesting depth for resource embedding (default 3).
+pub const DEFAULT_MAX_EMBEDDING_DEPTH: usize = 3;
 
 /// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -587,16 +624,17 @@ mod tests {
     #[test]
     fn test_rest_config_roundtrip() {
         let config = RestConfig {
-            enabled:           true,
-            path:              "/api/v2".to_string(),
-            require_auth:      false,
-            include:           vec!["users".to_string()],
-            exclude:           vec!["secrets".to_string()],
-            delete_response:   DeleteResponse::Entity,
-            max_page_size:     500,
-            default_page_size: 50,
-            etag:              false,
-            max_filter_bytes:  8192,
+            enabled:             true,
+            path:                "/api/v2".to_string(),
+            require_auth:        false,
+            include:             vec!["users".to_string()],
+            exclude:             vec!["secrets".to_string()],
+            delete_response:     DeleteResponse::Entity,
+            max_page_size:       500,
+            default_page_size:   50,
+            etag:                false,
+            max_filter_bytes:    8192,
+            max_embedding_depth: 5,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();

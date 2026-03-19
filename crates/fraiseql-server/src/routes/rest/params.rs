@@ -5,6 +5,8 @@
 //! validates against [`QueryDefinition`] / [`TypeDefinition`] metadata, and
 //! returns a typed [`ExtractedParams`].
 
+use std::collections::HashMap;
+
 use fraiseql_core::schema::{FieldType, QueryDefinition, RestConfig, TypeDefinition};
 use fraiseql_core::utils::operators::OPERATOR_REGISTRY;
 use fraiseql_error::FraiseQLError;
@@ -65,6 +67,12 @@ pub struct ExtractedParams {
     pub pagination: PaginationParams,
     /// Field selection (from `?select=`).
     pub field_selection: RestFieldSpec,
+    /// Embedded resource specifications (from parenthetical select syntax).
+    pub embeddings: Vec<EmbeddedSpec>,
+    /// Embedded resource filters (from `?rel.field[op]=value` syntax).
+    pub embedding_filters: HashMap<String, serde_json::Value>,
+    /// Count-only embeddings (from `?select=id,posts.count`).
+    pub embedding_counts: Vec<String>,
 }
 
 /// Pagination mode and parameters.
@@ -102,6 +110,30 @@ pub enum RestFieldSpec {
     All,
     /// Specific flat fields: `["id", "name", "address"]`.
     Fields(Vec<String>),
+}
+
+/// A single entry in a parsed `?select=` list, either a flat field or embedded resource.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectEntry {
+    /// A flat field name (e.g., `"id"`).
+    Field(String),
+    /// An embedded resource with parenthetical sub-select (e.g., `posts(id,title)`).
+    Embedded(EmbeddedSpec),
+    /// Count-only embedding (e.g., `posts.count`).
+    Count(String),
+}
+
+/// Specification for an embedded (nested) resource in a `?select=` parameter.
+///
+/// Represents `posts(id,title)` or `author:fk_user(id,name)` syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedSpec {
+    /// Relationship name (e.g., "posts") or FK column (e.g., "fk_user").
+    pub relationship: String,
+    /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
+    pub rename: Option<String>,
+    /// Sub-selected fields (may include nested `EmbeddedSpec`).
+    pub fields: Vec<SelectEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +204,16 @@ impl<'a> RestParamExtractor<'a> {
         let mut before_raw: Option<&str> = None;
 
         for &(key, value) in query_pairs {
+            // Skip dot-prefixed params (embedding filters) — handled in step 9.
+            if key.contains('.') && !RESERVED_PARAMS.contains(&key) {
+                continue;
+            }
+
             if let Some((field, op)) = parse_bracket_key(key) {
+                // Skip embedding bracket filters (e.g., posts.status[eq]=value).
+                if field.contains('.') {
+                    continue;
+                }
                 // ?field[op]=value
                 self.validate_bracket_operator(&op)?;
                 self.validate_field_name(&field)?;
@@ -234,13 +275,14 @@ impl<'a> RestParamExtractor<'a> {
             }
         }
 
-        // 4. Parse select.
-        let field_selection = self.parse_select(select_raw)?;
+        // 4. Parse select (with embedding support).
+        let (field_selection, embeddings, embedding_counts) =
+            self.parse_select_with_embeddings(select_raw)?;
 
         // 5. Parse sort.
         let order_by = self.parse_sort(sort_raw)?;
 
-        // 6. Build where clause.
+        // 6. Build where clause (excluding embedding filters).
         let filter_where = self.parse_filter(filter_json)?;
         let where_clause = self.merge_where(simple_filters, bracket_filters, filter_where)?;
 
@@ -270,7 +312,9 @@ impl<'a> RestParamExtractor<'a> {
             + match &field_selection {
                 RestFieldSpec::All => 0,
                 RestFieldSpec::Fields(f) => f.len(),
-            };
+            }
+            + embeddings.len()
+            + embedding_counts.len();
 
         if total_count > MAX_VARIABLES_COUNT {
             return Err(validation_error(format!(
@@ -278,12 +322,18 @@ impl<'a> RestParamExtractor<'a> {
             )));
         }
 
+        // 9. Extract embedding filters (dot-prefixed query params).
+        let embedding_filters = self.extract_embedding_filters(query_pairs)?;
+
         Ok(ExtractedParams {
             path_params,
             where_clause,
             order_by,
             pagination,
             field_selection,
+            embeddings,
+            embedding_filters,
+            embedding_counts,
         })
     }
 
@@ -311,31 +361,131 @@ impl<'a> RestParamExtractor<'a> {
     // Select
     // -----------------------------------------------------------------------
 
-    fn parse_select(
+    /// Parse `?select=` with support for parenthetical embedding syntax.
+    ///
+    /// Returns `(flat_field_spec, embedded_specs, count_fields)`.
+    fn parse_select_with_embeddings(
         &self,
         raw: Option<&str>,
-    ) -> Result<RestFieldSpec, FraiseQLError> {
+    ) -> Result<(RestFieldSpec, Vec<EmbeddedSpec>, Vec<String>), FraiseQLError> {
         let Some(raw) = raw else {
-            return Ok(RestFieldSpec::All);
+            return Ok((RestFieldSpec::All, Vec::new(), Vec::new()));
         };
         if raw.is_empty() {
-            return Ok(RestFieldSpec::All);
+            return Ok((RestFieldSpec::All, Vec::new(), Vec::new()));
         }
 
-        let fields: Vec<String> = raw.split(',').map(|s| s.trim().to_string()).collect();
+        let entries = parse_select_entries(raw)?;
 
-        for f in &fields {
-            if f.contains('.') {
-                return Err(validation_error(format!(
-                    "Dot notation not supported in `select`. \
-                     Use `?select={field}` to include the full nested object.",
-                    field = f.split('.').next().unwrap_or(f)
-                )));
+        let max_depth = self.config.max_embedding_depth;
+        let mut flat_fields = Vec::new();
+        let mut embedded = Vec::new();
+        let mut counts = Vec::new();
+
+        for entry in entries {
+            match entry {
+                SelectEntry::Field(name) => {
+                    self.validate_field_name(&name)?;
+                    flat_fields.push(name);
+                }
+                SelectEntry::Embedded(spec) => {
+                    validate_embedding_depth(&spec, 1, max_depth)?;
+                    self.validate_embedding_relationship(&spec)?;
+                    embedded.push(spec);
+                }
+                SelectEntry::Count(name) => {
+                    self.validate_embedding_relationship_name(&name)?;
+                    counts.push(name);
+                }
             }
-            self.validate_field_name(f)?;
         }
 
-        Ok(RestFieldSpec::Fields(fields))
+        let field_spec = if flat_fields.is_empty() && !embedded.is_empty() {
+            // Only embedded fields selected — return All for the parent fields
+            RestFieldSpec::All
+        } else {
+            RestFieldSpec::Fields(flat_fields)
+        };
+
+        Ok((field_spec, embedded, counts))
+    }
+
+    /// Validate that an embedded relationship name exists on the type.
+    fn validate_embedding_relationship(&self, spec: &EmbeddedSpec) -> Result<(), FraiseQLError> {
+        self.validate_embedding_relationship_name(&spec.relationship)
+    }
+
+    /// Validate a relationship name exists on the type.
+    fn validate_embedding_relationship_name(&self, name: &str) -> Result<(), FraiseQLError> {
+        let Some(td) = self.type_def else {
+            return Err(validation_error(format!(
+                "Cannot embed '{name}': type definition not available"
+            )));
+        };
+
+        let has_rel = td.relationships.iter().any(|r| r.name == name);
+        if !has_rel {
+            let available: Vec<&str> = td.relationships.iter().map(|r| r.name.as_str()).collect();
+            let avail_str = if available.is_empty() {
+                "none".to_string()
+            } else {
+                available.join(", ")
+            };
+            return Err(validation_error(format!(
+                "Type '{}' has no relationship '{name}'. Available: {avail_str}",
+                td.name.as_str()
+            )));
+        }
+        Ok(())
+    }
+
+    /// Extract embedding filters from dot-prefixed query params.
+    ///
+    /// E.g., `?posts.status=published` or `?posts.status[eq]=published`.
+    fn extract_embedding_filters(
+        &self,
+        query_pairs: &[(&str, &str)],
+    ) -> Result<HashMap<String, serde_json::Value>, FraiseQLError> {
+        let mut filters: HashMap<String, serde_json::Value> = HashMap::new();
+
+        for &(key, value) in query_pairs {
+            // Check for dot-prefixed bracket: posts.status[eq]=value
+            if let Some((full_field, op)) = parse_bracket_key(key) {
+                if let Some(dot_pos) = full_field.find('.') {
+                    let rel_name = &full_field[..dot_pos];
+                    let field_name = &full_field[dot_pos + 1..];
+                    let entry = filters
+                        .entry(rel_name.to_string())
+                        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+                    if let Some(obj) = entry.as_object_mut() {
+                        obj.insert(
+                            field_name.to_string(),
+                            serde_json::json!({ op: value }),
+                        );
+                    }
+                    continue;
+                }
+            }
+
+            // Check for dot-prefixed simple: posts.status=published
+            if let Some(dot_pos) = key.find('.') {
+                if !RESERVED_PARAMS.contains(&key) {
+                    let rel_name = &key[..dot_pos];
+                    let field_name = &key[dot_pos + 1..];
+                    let entry = filters
+                        .entry(rel_name.to_string())
+                        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+                    if let Some(obj) = entry.as_object_mut() {
+                        obj.insert(
+                            field_name.to_string(),
+                            serde_json::json!({ "eq": value }),
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(filters)
     }
 
     // -----------------------------------------------------------------------
@@ -761,6 +911,141 @@ const fn validation_error(message: String) -> FraiseQLError {
 }
 
 // ---------------------------------------------------------------------------
+// Parenthetical select parser
+// ---------------------------------------------------------------------------
+
+/// Parse a `?select=` value into a list of [`SelectEntry`] items.
+///
+/// Supports:
+/// - Flat fields: `id`, `name`
+/// - Embedded resources: `posts(id,title)`
+/// - Nested embedding: `posts(id,comments(id,body))`
+/// - Renamed embedding: `author:fk_user(id,name)`
+/// - Count-only: `posts.count`
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` on unbalanced parentheses or empty field names.
+pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLError> {
+    let mut entries = Vec::new();
+    let chars: Vec<char> = input.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        // Skip whitespace and leading commas.
+        while i < len && (chars[i] == ',' || chars[i] == ' ') {
+            i += 1;
+        }
+        if i >= len {
+            break;
+        }
+
+        // Read the field/relationship name (until we hit '(', ',', '.', or end).
+        let name_start = i;
+        while i < len && chars[i] != '(' && chars[i] != ',' && chars[i] != '.' && chars[i] != ' ' {
+            i += 1;
+        }
+        let name = &input[name_start..i];
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(validation_error(
+                "Empty field name in `select` parameter".to_string(),
+            ));
+        }
+
+        // Skip whitespace.
+        while i < len && chars[i] == ' ' {
+            i += 1;
+        }
+
+        if i < len && chars[i] == '.' {
+            // Count-only: posts.count
+            i += 1; // skip '.'
+            let suffix_start = i;
+            while i < len && chars[i] != ',' && chars[i] != ' ' {
+                i += 1;
+            }
+            let suffix = &input[suffix_start..i];
+            if suffix == "count" {
+                entries.push(SelectEntry::Count(name.to_string()));
+            } else {
+                return Err(validation_error(format!(
+                    "Unsupported dot-suffix '{suffix}' in `select`. Only `.count` is supported."
+                )));
+            }
+        } else if i < len && chars[i] == '(' {
+            // Embedded resource: posts(id,title) or author:rel_name(id,name)
+            let (rename, relationship) = if let Some(colon_pos) = name.find(':') {
+                (
+                    Some(name[..colon_pos].to_string()),
+                    name[colon_pos + 1..].to_string(),
+                )
+            } else {
+                (None, name.to_string())
+            };
+
+            // Find matching closing paren (handle nesting).
+            i += 1; // skip '('
+            let inner_start = i;
+            let mut depth = 1;
+            while i < len && depth > 0 {
+                if chars[i] == '(' {
+                    depth += 1;
+                } else if chars[i] == ')' {
+                    depth -= 1;
+                }
+                if depth > 0 {
+                    i += 1;
+                }
+            }
+            if depth != 0 {
+                return Err(validation_error(format!(
+                    "Unbalanced parentheses in `select` for '{relationship}'"
+                )));
+            }
+            let inner = &input[inner_start..i];
+            i += 1; // skip ')'
+
+            // Recursively parse the inner fields.
+            let sub_entries = parse_select_entries(inner)?;
+
+            entries.push(SelectEntry::Embedded(EmbeddedSpec {
+                relationship,
+                rename,
+                fields: sub_entries,
+            }));
+        } else {
+            // Check for rename syntax on flat field (shouldn't happen, but handle gracefully).
+            entries.push(SelectEntry::Field(name.to_string()));
+        }
+    }
+
+    Ok(entries)
+}
+
+/// Validate that embedding depth does not exceed the configured maximum.
+fn validate_embedding_depth(
+    spec: &EmbeddedSpec,
+    current_depth: usize,
+    max_depth: usize,
+) -> Result<(), FraiseQLError> {
+    if current_depth > max_depth {
+        return Err(validation_error(format!(
+            "Embedding depth {current_depth} exceeds maximum of {max_depth}. \
+             Reduce nesting in `select` parameter."
+        )));
+    }
+    for field in &spec.fields {
+        if let SelectEntry::Embedded(nested) = field {
+            validate_embedding_depth(nested, current_depth + 1, max_depth)?;
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -768,8 +1053,8 @@ const fn validation_error(message: String) -> FraiseQLError {
 #[allow(clippy::unwrap_used)] // Reason: test assertions use unwrap/unwrap_err intentionally
 mod tests {
     use fraiseql_core::schema::{
-        ArgumentDefinition, AutoParams, FieldDefinition, FieldType, QueryDefinition, RestConfig,
-        TypeDefinition,
+        ArgumentDefinition, AutoParams, Cardinality, FieldDefinition, FieldType, QueryDefinition,
+        RelationshipDef, RestConfig, TypeDefinition,
     };
 
     use super::*;
@@ -1198,7 +1483,7 @@ mod tests {
     }
 
     #[test]
-    fn select_dot_notation_rejected() {
+    fn select_dot_notation_rejects_non_count_suffix() {
         let config = test_config();
         let qd = list_query_def();
         let td = user_type_def();
@@ -1206,7 +1491,7 @@ mod tests {
 
         let err = ext.extract(&[], &[("select", "address.city")]).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("Dot notation not supported"), "got: {msg}");
+        assert!(msg.contains("Unsupported dot-suffix"), "got: {msg}");
     }
 
     // -----------------------------------------------------------------------
@@ -1368,5 +1653,233 @@ mod tests {
     #[test]
     fn json_depth_nested_array() {
         assert_eq!(json_depth(&serde_json::json!([[[1]]])), 4);
+    }
+
+    // -----------------------------------------------------------------------
+    // Parenthetical select parser
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_select_entries_flat_fields() {
+        let entries = parse_select_entries("id,name,email").unwrap();
+        assert_eq!(entries, vec![
+            SelectEntry::Field("id".to_string()),
+            SelectEntry::Field("name".to_string()),
+            SelectEntry::Field("email".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn parse_select_entries_embedded() {
+        let entries = parse_select_entries("id,name,posts(id,title)").unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0], SelectEntry::Field("id".to_string()));
+        assert_eq!(entries[1], SelectEntry::Field("name".to_string()));
+        match &entries[2] {
+            SelectEntry::Embedded(spec) => {
+                assert_eq!(spec.relationship, "posts");
+                assert!(spec.rename.is_none());
+                assert_eq!(spec.fields, vec![
+                    SelectEntry::Field("id".to_string()),
+                    SelectEntry::Field("title".to_string()),
+                ]);
+            }
+            _ => panic!("Expected Embedded"),
+        }
+    }
+
+    #[test]
+    fn parse_select_entries_nested_depth_2() {
+        let entries = parse_select_entries("id,posts(id,title,comments(id,body))").unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[1] {
+            SelectEntry::Embedded(spec) => {
+                assert_eq!(spec.relationship, "posts");
+                assert_eq!(spec.fields.len(), 3);
+                match &spec.fields[2] {
+                    SelectEntry::Embedded(inner) => {
+                        assert_eq!(inner.relationship, "comments");
+                        assert_eq!(inner.fields, vec![
+                            SelectEntry::Field("id".to_string()),
+                            SelectEntry::Field("body".to_string()),
+                        ]);
+                    }
+                    _ => panic!("Expected nested Embedded"),
+                }
+            }
+            _ => panic!("Expected Embedded"),
+        }
+    }
+
+    #[test]
+    fn parse_select_entries_rename_syntax() {
+        let entries = parse_select_entries("id,author:fk_user(id,name)").unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[1] {
+            SelectEntry::Embedded(spec) => {
+                assert_eq!(spec.relationship, "fk_user");
+                assert_eq!(spec.rename, Some("author".to_string()));
+                assert_eq!(spec.fields, vec![
+                    SelectEntry::Field("id".to_string()),
+                    SelectEntry::Field("name".to_string()),
+                ]);
+            }
+            _ => panic!("Expected Embedded"),
+        }
+    }
+
+    #[test]
+    fn parse_select_entries_count_only() {
+        let entries = parse_select_entries("id,posts.count").unwrap();
+        assert_eq!(entries, vec![
+            SelectEntry::Field("id".to_string()),
+            SelectEntry::Count("posts".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn parse_select_entries_unbalanced_parens() {
+        let err = parse_select_entries("id,posts(id,title").unwrap_err();
+        assert!(err.to_string().contains("Unbalanced parentheses"));
+    }
+
+    #[test]
+    fn parse_select_entries_invalid_dot_suffix() {
+        let err = parse_select_entries("id,posts.foo").unwrap_err();
+        assert!(err.to_string().contains("Unsupported dot-suffix"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Embedding depth validation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn embedding_depth_within_limit() {
+        let spec = EmbeddedSpec {
+            relationship: "posts".to_string(),
+            rename: None,
+            fields: vec![SelectEntry::Field("id".to_string())],
+        };
+        assert!(validate_embedding_depth(&spec, 1, 3).is_ok());
+    }
+
+    #[test]
+    fn embedding_depth_exceeds_limit() {
+        let inner = EmbeddedSpec {
+            relationship: "comments".to_string(),
+            rename: None,
+            fields: vec![SelectEntry::Field("id".to_string())],
+        };
+        let outer = EmbeddedSpec {
+            relationship: "posts".to_string(),
+            rename: None,
+            fields: vec![SelectEntry::Embedded(inner)],
+        };
+        // depth=1, max=1 -> inner at depth=2 should fail
+        let err = validate_embedding_depth(&outer, 1, 1).unwrap_err();
+        assert!(err.to_string().contains("exceeds maximum"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Embedding relationship validation via extractor
+    // -----------------------------------------------------------------------
+
+    fn user_type_with_relationships() -> TypeDefinition {
+        let mut td = user_type_def();
+        td.relationships = vec![
+            RelationshipDef {
+                name: "posts".to_string(),
+                target_type: "Post".to_string(),
+                foreign_key: "fk_user".to_string(),
+                referenced_key: "pk_user".to_string(),
+                cardinality: Cardinality::OneToMany,
+            },
+        ];
+        td
+    }
+
+    #[test]
+    fn extract_with_valid_embedding() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_with_relationships();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("select", "id,name,posts(id,title)")],
+        );
+        let params = result.unwrap();
+        assert_eq!(params.embeddings.len(), 1);
+        assert_eq!(params.embeddings[0].relationship, "posts");
+    }
+
+    #[test]
+    fn extract_with_invalid_relationship() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def(); // No relationships
+        let ext = extractor_list(&config, &qd, &td);
+
+        let err = ext.extract(
+            &[],
+            &[("select", "id,comments(id,body)")],
+        ).unwrap_err();
+        assert!(err.to_string().contains("has no relationship 'comments'"));
+        assert!(err.to_string().contains("Available: none"));
+    }
+
+    #[test]
+    fn extract_with_embedding_filter() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_with_relationships();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[
+                ("select", "id,posts(id,title)"),
+                ("posts.status", "published"),
+            ],
+        );
+        let params = result.unwrap();
+        assert_eq!(params.embedding_filters.len(), 1);
+        let posts_filter = params.embedding_filters.get("posts").unwrap();
+        assert_eq!(
+            posts_filter,
+            &serde_json::json!({"status": {"eq": "published"}}),
+        );
+    }
+
+    #[test]
+    fn extract_count_only_embedding() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_with_relationships();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let result = ext.extract(
+            &[],
+            &[("select", "id,posts.count")],
+        );
+        let params = result.unwrap();
+        assert_eq!(params.embedding_counts, vec!["posts"]);
+    }
+
+    #[test]
+    fn extract_embedding_depth_exceeded() {
+        let mut config = test_config();
+        config.max_embedding_depth = 1;
+        let qd = list_query_def();
+        let td = user_type_with_relationships();
+        let ext = extractor_list(&config, &qd, &td);
+
+        // Depth 2: posts -> comments (but max is 1)
+        let err = ext.extract(
+            &[],
+            &[("select", "id,posts(id,comments(id,body))")],
+        ).unwrap_err();
+        assert!(err.to_string().contains("exceeds maximum"));
     }
 }

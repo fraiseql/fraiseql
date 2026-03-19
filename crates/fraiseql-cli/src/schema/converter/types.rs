@@ -35,6 +35,7 @@ impl SchemaConverter {
             requires_role: intermediate.requires_role,
             is_error: intermediate.is_error,
             relay: intermediate.relay,
+            relationships: Vec::new(),
         })
     }
 

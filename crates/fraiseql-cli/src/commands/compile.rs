@@ -503,6 +503,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             }],
             queries: vec![QueryDefinition {
                 name:                "users".to_string(),
