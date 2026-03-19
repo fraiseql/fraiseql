@@ -478,6 +478,25 @@ TOML CONFIG:
         introspection: bool,
     },
 
+    /// Generate OpenAPI 3.0.3 specification from compiled schema
+    ///
+    /// Reads a compiled schema with REST configuration and outputs an OpenAPI
+    /// specification documenting all REST endpoints, parameters, and schemas.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql openapi schema.compiled.json
+    fraiseql openapi schema.compiled.json -o openapi.json
+    fraiseql openapi schema.compiled.json -o -")]
+    Openapi {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output file path (use - for stdout)
+        #[arg(short, long, default_value = "openapi.json")]
+        output: String,
+    },
+
     /// Validate a trusted documents manifest
     ///
     /// Checks that the manifest JSON is well-formed and that each key

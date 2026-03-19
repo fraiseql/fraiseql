@@ -110,9 +110,28 @@ where
 
     // Apply compression (gzip/br/zstd) to REST responses.
     // Finalize state before layering so the router type is `Router<()>`.
-    let router = router
+    let mut router = router
         .with_state(rest_state)
         .layer(CompressionLayer::new());
+
+    // Serve OpenAPI specification at {base_path}/openapi.json.
+    // This is a stateless route merged after `.with_state()` since it doesn't
+    // need `RestState`.
+    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
+    let openapi_spec = match super::openapi::generate_openapi(schema, &route_table) {
+        Ok(spec) => Arc::new(spec),
+        Err(e) => {
+            tracing::warn!(error = %e, "OpenAPI spec generation failed");
+            Arc::new(json!({"error": "OpenAPI generation failed"}))
+        }
+    };
+    router = router.route(
+        &openapi_path,
+        get(move || {
+            let spec = openapi_spec.clone();
+            async move { axum::Json((*spec).clone()) }
+        }),
+    );
 
     // Log startup summary.
     let resource_count = route_table.resources.len();

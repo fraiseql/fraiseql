@@ -356,6 +356,10 @@ pub async fn run() {
             introspection,
         } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
 
+        Commands::Openapi { schema, output } => {
+            commands::openapi::run(&schema, &output)
+        },
+
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
             match commands::validate_documents::run(&manifest, &formatter) {
