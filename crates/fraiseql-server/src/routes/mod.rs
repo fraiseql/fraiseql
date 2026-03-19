@@ -9,6 +9,8 @@ pub mod introspection;
 pub mod metrics;
 pub mod playground;
 pub mod subscriptions;
+#[cfg(feature = "rest")]
+pub mod rest;
 
 #[cfg(feature = "auth")]
 pub use auth::{
