@@ -142,6 +142,7 @@ impl DeduplicationStats {
     /// # Arguments
     ///
     /// * `is_duplicate` - Whether the event was a duplicate
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn record(&mut self, is_duplicate: bool) {
         self.total_checked += 1;
         if is_duplicate {
@@ -156,7 +157,7 @@ impl DeduplicationStats {
     }
 
     /// Reset statistics.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.total_checked = 0;
         self.duplicates_skipped = 0;
         self.new_events = 0;
@@ -175,6 +176,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_new() {
         let stats = DeduplicationStats::new();
         assert_eq!(stats.total_checked, 0);
@@ -184,6 +186,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_record_new_event() {
         let mut stats = DeduplicationStats::new();
         stats.record(false);
@@ -223,6 +226,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_reset() {
         let mut stats = DeduplicationStats::new();
         stats.record(true);
@@ -241,6 +245,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_default_equals_new() {
         let stats_default = DeduplicationStats::default();
         let stats_new = DeduplicationStats::new();
@@ -262,6 +267,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_only_new_events_hit_rate_zero() {
         let mut stats = DeduplicationStats::new();
         for _ in 0..5 {
@@ -284,6 +290,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_reset_clears_hit_rate() {
         let mut stats = DeduplicationStats::new();
         for _ in 0..10 {
@@ -319,6 +326,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_dedup_stats_reset_then_reuse() {
         let mut stats = DeduplicationStats::new();
         stats.record(true);

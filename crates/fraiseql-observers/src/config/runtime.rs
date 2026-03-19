@@ -14,7 +14,7 @@ use crate::error::{ObserverError, Result};
 /// Observer runtime configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObserverRuntimeConfig {
-    /// Transport configuration (postgres, nats, in_memory)
+    /// Transport configuration (postgres, nats, `in_memory`)
     #[serde(default)]
     pub transport: TransportConfig,
 
@@ -22,7 +22,7 @@ pub struct ObserverRuntimeConfig {
     #[serde(default)]
     pub redis: Option<RedisConfig>,
 
-    /// ClickHouse configuration (for analytics sink)
+    /// `ClickHouse` configuration (for analytics sink)
     #[serde(default)]
     pub clickhouse: Option<ClickHouseConfig>,
 

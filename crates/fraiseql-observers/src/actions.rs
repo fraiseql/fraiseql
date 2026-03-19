@@ -31,7 +31,7 @@ const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 /// - Non-HTTP(S) schemes (`file://`, `ftp://`, etc.)
 /// - Loopback addresses (`localhost`, `127.x.x.x`, `::1`)
 /// - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
-/// - Link-local (169.254/16), CGNAT (100.64/10), ULA (fc00::/7)
+/// - Link-local (169.254/16), CGNAT (100.64/10), ULA (`fc00::/7`)
 ///
 /// Attacker-controlled observer configs could redirect outbound webhook
 /// calls to AWS EC2 metadata (`169.254.169.254`), internal Kubernetes
@@ -105,13 +105,13 @@ fn is_ssrf_blocked_host_obs(host: &str) -> bool {
 }
 
 /// Returns `true` for CGNAT range 100.64.0.0/10.
-fn is_cgnat_v4_obs(addr: std::net::Ipv4Addr) -> bool {
+const fn is_cgnat_v4_obs(addr: std::net::Ipv4Addr) -> bool {
     let [a, b, ..] = addr.octets();
     a == 100 && (b & 0xC0) == 64
 }
 
-/// Returns `true` for ULA range fc00::/7.
-fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
+/// Returns `true` for ULA range `fc00::/7`.
+const fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
     (addr.segments()[0] & 0xFE00) == 0xFC00
 }
 
@@ -285,6 +285,7 @@ impl WebhookAction {
         classify_http_status(status, duration_ms)
     }
 
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
         let mut rendered = template.to_string();
 
@@ -357,7 +358,7 @@ impl SlackAction {
 
         // Prepare message
         let message = if let Some(template) = message_template {
-            self.render_message_template(template, &event.data)?
+            self.render_message_template(template, &event.data)
         } else {
             format!(
                 "Event: {} on {} (ID: {})",
@@ -409,7 +410,8 @@ impl SlackAction {
         }
     }
 
-    fn render_message_template(&self, template: &str, data: &Value) -> Result<String> {
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
+    fn render_message_template(&self, template: &str, data: &Value) -> String {
         let mut rendered = template.to_string();
 
         if let Value::Object(map) = data {
@@ -423,7 +425,7 @@ impl SlackAction {
             }
         }
 
-        Ok(rendered)
+        rendered
     }
 }
 
@@ -461,6 +463,7 @@ impl EmailAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if the email delivery fails.
+    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
     pub async fn execute(
         &self,
         _to: &str,
@@ -572,12 +575,13 @@ mod tests {
         let data = json!({"status": "shipped", "order_id": "12345"});
         let template = "Order {{ order_id }} has been {{ status }}";
 
-        let result = slack.render_message_template(template, &data).unwrap();
+        let result = slack.render_message_template(template, &data);
 
         assert_eq!(result, "Order 12345 has been shipped");
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_action_execution_result() {
         let result = ActionExecutionResult {
             action_type: "webhook".to_string(),

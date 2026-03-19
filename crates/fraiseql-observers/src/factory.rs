@@ -226,7 +226,7 @@ pub trait ProcessEvent: Send + Sync {
     ) -> Result<crate::executor::ExecutionSummary>;
 }
 
-/// Implement ProcessEvent for ObserverExecutor
+/// Implement `ProcessEvent` for `ObserverExecutor`
 #[async_trait::async_trait]
 impl ProcessEvent for ObserverExecutor {
     async fn process_event(
@@ -237,7 +237,7 @@ impl ProcessEvent for ObserverExecutor {
     }
 }
 
-/// Implement ProcessEvent for DedupedObserverExecutor
+/// Implement `ProcessEvent` for `DedupedObserverExecutor`
 #[cfg(feature = "dedup")]
 #[async_trait::async_trait]
 impl<D: crate::dedup::DeduplicationStore + Send + Sync> ProcessEvent
@@ -262,7 +262,7 @@ pub trait ProcessEventQueued: Send + Sync {
     ) -> Result<crate::queued_executor::QueuedExecutionSummary>;
 }
 
-/// Implement ProcessEventQueued for QueuedObserverExecutor
+/// Implement `ProcessEventQueued` for `QueuedObserverExecutor`
 #[cfg(feature = "queue")]
 #[async_trait::async_trait]
 impl ProcessEventQueued for QueuedObserverExecutor {
@@ -333,7 +333,7 @@ impl ExecutorFactory {
 
     /// Build executor for **Topology 3: NATS Distributed Worker**
     ///
-    /// - NATS JetStream for event sourcing
+    /// - NATS `JetStream` for event sourcing
     /// - Redis for deduplication (prevents duplicate processing)
     /// - Redis for action caching
     /// - Horizontal scaling with load balancing
@@ -494,17 +494,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_event_trait() {
+        use serde_json::json;
+        use uuid::Uuid;
+
+        use crate::event::{EntityEvent, EventKind};
+
         let matcher = EventMatcher::build(HashMap::new()).unwrap();
         let dlq = Arc::new(MockDeadLetterQueue::new());
         let executor = ObserverExecutor::new(matcher, dlq);
 
         // Can use via trait object
         let processor: Arc<dyn ProcessEvent> = Arc::new(executor);
-
-        use serde_json::json;
-        use uuid::Uuid;
-
-        use crate::event::{EntityEvent, EventKind};
 
         let event =
             EntityEvent::new(EventKind::Created, "Test".to_string(), Uuid::new_v4(), json!({}));

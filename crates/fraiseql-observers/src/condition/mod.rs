@@ -168,7 +168,7 @@ impl ConditionParser {
             ConditionAst::Comparison { field, op, value } => {
                 self.eval_comparison(field, op, value, event)
             },
-            ConditionAst::HasField { field } => self.eval_has_field(field, event),
+            ConditionAst::HasField { field } => Ok(self.eval_has_field(field, event)),
             ConditionAst::FieldChanged { field } => Ok(event.field_changed(field)),
             ConditionAst::FieldChangedTo { field, value } => {
                 let parsed_value = serde_json::from_str::<Value>(value)

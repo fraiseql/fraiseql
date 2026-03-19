@@ -90,7 +90,7 @@ impl QueuedObserverExecutor {
     /// An `ExecutionSummary` with:
     /// - `successful_actions`: Number of jobs successfully queued
     /// - `failed_actions`: Number of jobs that failed to queue
-    /// - `job_ids`: List of queued job UUIDs (stored in ExecutionSummary errors for now)
+    /// - `job_ids`: List of queued job UUIDs (stored in `ExecutionSummary` errors for now)
     ///
     /// # Errors
     ///
@@ -198,7 +198,7 @@ impl QueuedExecutionSummary {
 
     /// Check if queuing was successful
     #[must_use]
-    pub fn is_success(&self) -> bool {
+    pub const fn is_success(&self) -> bool {
         self.queueing_errors == 0 && self.errors.is_empty()
     }
 
@@ -208,7 +208,7 @@ impl QueuedExecutionSummary {
         self.jobs_queued + self.queueing_errors
     }
 
-    /// Convert to standard ExecutionSummary for compatibility
+    /// Convert to standard `ExecutionSummary` for compatibility
     #[must_use]
     pub fn to_execution_summary(&self) -> ExecutionSummary {
         ExecutionSummary {

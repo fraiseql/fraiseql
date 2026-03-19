@@ -5,7 +5,7 @@ use crate::error::{ObserverError, Result};
 
 /// Maximum byte length of a condition expression.
 ///
-/// A 4 KiB limit is generous for any real observer rule while preventing an
+/// A 4 `KiB` limit is generous for any real observer rule while preventing an
 /// attacker-supplied condition string from driving the lexer through millions
 /// of iterations and allocating unbounded token storage.
 const MAX_CONDITION_INPUT_BYTES: usize = 4096;
@@ -42,6 +42,7 @@ impl ConditionParser {
     ///
     /// Returns [`ObserverError::InvalidCondition`] if the expression exceeds
     /// `MAX_CONDITION_INPUT_BYTES` or contains an unexpected character.
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(super) fn tokenize(&self, condition: &str) -> Result<Vec<Token>> {
         if condition.len() > MAX_CONDITION_INPUT_BYTES {
             return Err(ObserverError::InvalidCondition {

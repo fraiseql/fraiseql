@@ -146,6 +146,7 @@ impl ListenerStateMachine {
     ///
     /// Exposed as `pub` to enable property-based testing of the transition table
     /// in integration test files.
+    #[must_use]
     #[allow(clippy::unnested_or_patterns)] // Reason: flat pattern list with comments is clearer for state machine transitions
     pub const fn is_valid_transition(current: ListenerState, next: ListenerState) -> bool {
         matches!(

@@ -50,14 +50,14 @@ impl EventMatcher {
         let mut matcher = Self::new();
 
         for (_name, definition) in observers {
-            matcher.add_observer(definition)?;
+            matcher.add_observer(definition);
         }
 
         Ok(matcher)
     }
 
     /// Add a single observer to the matcher
-    fn add_observer(&mut self, observer: ObserverDefinition) -> Result<()> {
+    fn add_observer(&mut self, observer: ObserverDefinition) {
         let event_type = observer.event_type.to_uppercase();
         let entity_type = observer.entity.clone();
 
@@ -67,8 +67,6 @@ impl EventMatcher {
             .entry(entity_type)
             .or_default()
             .push(observer);
-
-        Ok(())
     }
 
     /// Find all observers that match an event
@@ -205,7 +203,7 @@ mod tests {
         let mut matcher = EventMatcher::new();
         let observer = create_observer("INSERT", "Order");
 
-        matcher.add_observer(observer).unwrap();
+        matcher.add_observer(observer);
 
         assert_eq!(matcher.observer_count(), 1);
         assert_eq!(matcher.event_type_count(), 1);
@@ -215,9 +213,9 @@ mod tests {
     #[test]
     fn test_matcher_find_exact_match() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        evt_matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
-        evt_matcher.add_observer(create_observer("INSERT", "User")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order"));
+        evt_matcher.add_observer(create_observer("UPDATE", "Order"));
+        evt_matcher.add_observer(create_observer("INSERT", "User"));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
@@ -230,7 +228,7 @@ mod tests {
     #[test]
     fn test_matcher_find_no_match() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order"));
 
         let event =
             EntityEvent::new(EventKind::Updated, "Product".to_string(), Uuid::new_v4(), json!({}));
@@ -242,8 +240,8 @@ mod tests {
     #[test]
     fn test_matcher_multiple_observers_same_event() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order"));
+        evt_matcher.add_observer(create_observer("INSERT", "Order"));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
@@ -270,8 +268,8 @@ mod tests {
     #[test]
     fn test_matcher_find_by_event_and_entity() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        evt_matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order"));
+        evt_matcher.add_observer(create_observer("UPDATE", "Order"));
 
         let matching_observers = evt_matcher.find_by_event_and_entity(EventKind::Created, "Order");
         assert_eq!(matching_observers.len(), 1);
@@ -284,8 +282,8 @@ mod tests {
     #[test]
     fn test_matcher_clear() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("UPDATE", "User")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("UPDATE", "User"));
 
         assert_eq!(matcher.observer_count(), 2);
 
@@ -297,9 +295,9 @@ mod tests {
     #[test]
     fn test_matcher_all_observers() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
-        matcher.add_observer(create_observer("INSERT", "User")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("UPDATE", "Order"));
+        matcher.add_observer(create_observer("INSERT", "User"));
 
         let all = matcher.all_observers();
         assert_eq!(all.len(), 3);
@@ -321,7 +319,7 @@ mod tests {
     #[test]
     fn test_single_observer_matches_entity_type() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
@@ -332,7 +330,7 @@ mod tests {
     #[test]
     fn test_single_observer_wrong_entity_type_no_match() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
 
         let event =
             EntityEvent::new(EventKind::Created, "User".to_string(), Uuid::new_v4(), json!({}));
@@ -343,8 +341,8 @@ mod tests {
     #[test]
     fn test_multiple_observers_first_matches_only() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("UPDATE", "User")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("UPDATE", "User"));
 
         // Only INSERT on Order should match
         let event =
@@ -357,9 +355,9 @@ mod tests {
     #[test]
     fn test_multiple_observers_all_match_when_same_event_entity() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("INSERT", "Order"));
 
         let event =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
@@ -370,7 +368,7 @@ mod tests {
     #[test]
     fn test_wildcard_entity_matches_all_entities() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "*")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "*"));
 
         let event_order =
             EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
@@ -389,9 +387,9 @@ mod tests {
         let mut matcher = EventMatcher::new();
         assert_eq!(matcher.observer_count(), 0);
 
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("UPDATE", "User")).unwrap();
-        matcher.add_observer(create_observer("DELETE", "Product")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("UPDATE", "User"));
+        matcher.add_observer(create_observer("DELETE", "Product"));
 
         assert_eq!(
             matcher.observer_count(),
@@ -404,7 +402,7 @@ mod tests {
     fn test_event_type_case_insensitive_matching() {
         let mut matcher = EventMatcher::new();
         // Observer defined with lowercase
-        matcher.add_observer(create_observer("insert", "Order")).unwrap();
+        matcher.add_observer(create_observer("insert", "Order"));
 
         // Event uses EventKind::Created which maps to "INSERT"
         let event =
@@ -416,8 +414,8 @@ mod tests {
     #[test]
     fn test_find_by_event_and_entity_with_wildcard() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "*")).unwrap();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "*"));
+        matcher.add_observer(create_observer("INSERT", "Order"));
 
         // Both wildcard and exact should match
         let results = matcher.find_by_event_and_entity(EventKind::Created, "Order");
@@ -427,9 +425,9 @@ mod tests {
     #[test]
     fn test_entity_type_count_with_multiple_event_types() {
         let mut matcher = EventMatcher::new();
-        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
-        matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
-        matcher.add_observer(create_observer("DELETE", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order"));
+        matcher.add_observer(create_observer("UPDATE", "Order"));
+        matcher.add_observer(create_observer("DELETE", "Order"));
 
         // 3 event types × 1 entity type each = 3 total entity type entries
         assert_eq!(matcher.event_type_count(), 3, "Should have 3 distinct event types");
@@ -437,7 +435,7 @@ mod tests {
     }
 
     /// This test uses `ObserverExecutor::with_dispatcher` to exercise the test seam
-    /// and prevent the dead_code lint from triggering on that method.
+    /// and prevent the `dead_code` lint from triggering on that method.
     #[tokio::test]
     async fn test_executor_with_dispatcher_test_seam() {
         use std::sync::Arc;

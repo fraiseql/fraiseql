@@ -10,6 +10,7 @@ use crate::error::Result;
 /// # Errors
 ///
 /// Returns an error if the output format serialization fails.
+#[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _event_id: Option<String>,

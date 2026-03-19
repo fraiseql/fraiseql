@@ -184,6 +184,7 @@ impl ObserverExecutor {
     ///
     /// Used by wrappers (e.g. `DedupedObserverExecutor`) to route violation
     /// events to the same DLQ without requiring a separate DLQ reference.
+    #[must_use]
     pub fn dlq(&self) -> Arc<dyn DeadLetterQueue> {
         Arc::clone(&self.dlq)
     }

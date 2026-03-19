@@ -180,7 +180,7 @@ impl JobExecutor {
             );
 
             // Execute the action
-            match timeout_job_execution(&executor, &job).await {
+            match timeout_job_execution(&executor, &job) {
                 Ok(()) => {
                     // Success
                     let duration_secs = start_time.elapsed().as_secs_f64();
@@ -262,7 +262,9 @@ impl JobExecutor {
 ///
 /// This is a placeholder that would integrate with the observer executor
 /// in a full implementation. For now, it returns success.
-async fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+#[allow(clippy::missing_const_for_fn)] // Reason: placeholder, will become non-const when implemented
+fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Result<()> {
     // In a full implementation, this would:
     // 1. Determine the action type from job.action
     // 2. Execute the action with the observer executor

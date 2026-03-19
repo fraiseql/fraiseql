@@ -22,7 +22,7 @@ static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 /// Prometheus metrics for observer system
 ///
 /// Metrics are registered with Prometheus's default global registry
-/// when they are created, making them collectible via prometheus::gather().
+/// when they are created, making them collectible via `prometheus::gather()`.
 #[derive(Clone)]
 pub struct MetricsRegistry {
     // Event processing metrics
@@ -327,11 +327,13 @@ impl MetricsRegistry {
     }
 
     /// Update the current backlog size
+    #[allow(clippy::cast_possible_wrap)] // Reason: backlog size won't exceed i64::MAX
     pub fn set_backlog_size(&self, size: usize) {
         self.backlog_size.set(size as i64);
     }
 
     /// Update the current DLQ item count
+    #[allow(clippy::cast_possible_wrap)] // Reason: DLQ count won't exceed i64::MAX
     pub fn set_dlq_items(&self, count: usize) {
         self.dlq_items.set(count as i64);
     }
@@ -367,16 +369,20 @@ impl MetricsRegistry {
     }
 
     /// Update the current job queue depth
+    #[allow(clippy::cast_possible_wrap)] // Reason: queue depth won't exceed i64::MAX
     pub fn set_job_queue_depth(&self, depth: usize) {
         self.job_queue_depth.set(depth as i64);
     }
 
     /// Update the current job DLQ item count
+    #[allow(clippy::cast_possible_wrap)] // Reason: DLQ count won't exceed i64::MAX
     pub fn set_job_dlq_items(&self, count: usize) {
         self.job_dlq_items.set(count as i64);
     }
 
     /// Get cache hit rate as percentage (0-100)
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn cache_hit_rate(&self) -> f64 {
         let hits = self.cache_hits_total.get() as f64;
         let misses = self.cache_misses_total.get() as f64;
@@ -390,6 +396,8 @@ impl MetricsRegistry {
     }
 
     /// Get deduplication save rate (percentage of processing saved)
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn dedup_save_rate(&self) -> f64 {
         let total_processed = self.events_processed_total.get() as f64;
         let skipped = self.dedup_processing_skipped_total.get() as f64;

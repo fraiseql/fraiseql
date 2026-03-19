@@ -138,6 +138,7 @@ impl ConditionParser {
     ///
     /// Returns [`ObserverError::InvalidCondition`] if `name` is not a recognised
     /// built-in function or the argument count is wrong.
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(super) fn parse_function(&self, name: &str, args: &[String]) -> Result<ConditionAst> {
         match name {
             "has_field" => {

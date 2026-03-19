@@ -32,6 +32,7 @@ pub trait ActionDispatcher: Send + Sync {
 }
 
 /// Production action dispatcher that delegates to the concrete action structs.
+#[allow(clippy::struct_field_names)] // Reason: `_action` postfix clarifies executor vs config fields
 pub(super) struct DefaultActionDispatcher {
     /// Webhook action executor
     pub(super) webhook_action: Arc<WebhookAction>,
@@ -87,7 +88,7 @@ pub(super) fn resolve_url(
 /// - URLs with no host
 /// - `localhost` / `*.localhost` hostnames
 /// - Literal IP addresses that fall inside private, loopback, link-local, shared-address-space, or
-///   IPv4-mapped IPv6 ranges
+///   IPv4-mapped `IPv6` ranges
 ///
 /// # Note
 ///
@@ -158,9 +159,9 @@ fn validate_url_ssrf(url: &str) -> Result<()> {
 
 /// Returns `true` for IP addresses that outbound webhooks must never contact.
 ///
-/// Covers: loopback (127/8, ::1), RFC 1918 private (10/8, 172.16/12, 192.168/16),
-/// link-local / APIPA (169.254/16, fe80::/10), shared address space (100.64/10,
-/// RFC 6598), IPv4-mapped IPv6 (::ffff:0:0/96), and ULA (fc00::/7).
+/// Covers: loopback (127/8, `::1`), RFC 1918 private (10/8, 172.16/12, 192.168/16),
+/// link-local / APIPA (169.254/16, `fe80::/10`), shared address space (100.64/10,
+/// RFC 6598), IPv4-mapped `IPv6` (`::ffff:0:0/96`), and ULA (`fc00::/7`).
 fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {
@@ -284,7 +285,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     })?;
 
                     match self.sms_action.execute(
-                        sms_phone.clone(),
+                        sms_phone,
                         message_template.as_deref(),
                         event,
                     ) {
@@ -317,7 +318,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                             reason: "Push 'body_template' not provided".to_string(),
                         })?;
 
-                    match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
+                    match self.push_action.execute(token, title, body) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "push".to_string(),
                             success:     response.success,
@@ -330,7 +331,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     }
                 },
                 ActionConfig::Search { index, id_template } => {
-                    match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
+                    match self.search_action.execute(index, id_template.as_deref(), event) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "search".to_string(),
                             success:     response.success,
@@ -347,7 +348,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 ActionConfig::Cache {
                     key_pattern,
                     action,
-                } => match self.cache_action.execute(key_pattern.clone(), action) {
+                } => match self.cache_action.execute(key_pattern, action) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "cache".to_string(),
                         success:     response.success,

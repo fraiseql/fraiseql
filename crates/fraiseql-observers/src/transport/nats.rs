@@ -132,7 +132,7 @@ pub struct NatsTransport {
     config:                NatsConfig,
     /// Count of messages that could not be deserialized.
     ///
-    /// Undecodable messages are ACKed (preventing infinite redelivery) and
+    /// Undecodable messages are `ACKed` (preventing infinite redelivery) and
     /// counted here so operators can monitor message format drift or schema
     /// version mismatches without a dead-letter queue infrastructure.
     pub undecodable_count: Arc<AtomicU64>,
@@ -444,7 +444,7 @@ impl EventTransport for NatsTransport {
                 status:  HealthStatus::Unhealthy,
                 message: Some("NATS client disconnected".to_string()),
             }),
-            _ => Ok(TransportHealth {
+            async_nats::connection::State::Pending => Ok(TransportHealth {
                 status:  HealthStatus::Degraded,
                 message: Some("NATS client in degraded state".to_string()),
             }),

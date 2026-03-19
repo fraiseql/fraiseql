@@ -52,6 +52,7 @@ impl ResilientExecutor {
     /// Returns [`ObserverError::CircuitBreakerOpen`] when the circuit is open.
     /// Propagates errors from `f`; after exhausting retries under
     /// `ResilienceStrategy::RetryWithBreaker`, returns the last error.
+    #[allow(clippy::future_not_send)] // Reason: single-threaded observer context
     pub async fn execute<F, T>(&self, f: F) -> Result<T>
     where
         F: Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + 'static,

@@ -61,7 +61,7 @@ impl CacheBackend for RedisCacheBackend {
 
         redis::cmd("SETEX")
             .arg(&key)
-            .arg(self.ttl_seconds as i64)
+            .arg(self.ttl_seconds.cast_signed()) // Reason: TTL seconds won't exceed i64::MAX
             .arg(&json)
             .query_async::<()>(&mut self.conn.clone())
             .await?;
@@ -139,7 +139,7 @@ impl CacheBackendDyn for RedisCacheBackend {
 
         redis::cmd("SETEX")
             .arg(&key)
-            .arg(self.ttl_seconds as i64)
+            .arg(self.ttl_seconds.cast_signed()) // Reason: TTL seconds won't exceed i64::MAX
             .arg(&json)
             .query_async::<()>(&mut self.conn.clone())
             .await?;

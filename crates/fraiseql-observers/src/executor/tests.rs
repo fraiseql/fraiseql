@@ -685,7 +685,7 @@ async fn test_failure_policy_dlq_error_counted() {
 
     use crate::traits::{DeadLetterQueue, DlqItem};
 
-    /// A DLQ that always returns an error from push().
+    /// A DLQ that always returns an error from `push()`.
     struct AlwaysFailDlq;
 
     #[async_trait::async_trait]

@@ -47,6 +47,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         .await?;
 
         Ok(record.map(
+            #[allow(clippy::cast_sign_loss)] // Reason: batch_size and event_count are validated non-negative from DB
             |(listener_id, last_processed_id, last_processed_at, batch_size, event_count)| {
                 CheckpointState {
                     listener_id,
@@ -59,6 +60,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         ))
     }
 
+    #[allow(clippy::cast_possible_truncation)] // Reason: batch_size and event_count are bounded by config and fit in i32
     async fn save(&self, listener_id: &str, state: &CheckpointState) -> Result<()> {
         #[allow(clippy::cast_possible_wrap)] // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         sqlx::query(

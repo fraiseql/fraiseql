@@ -173,7 +173,7 @@ pub trait CheckpointStore: Send + Sync + Clone {
 /// transactional database that stores the checkpoint — e.g., the PostgreSQL
 /// `pg_notify` path where both can share one `BEGIN`/`COMMIT`.
 ///
-/// For NATS JetStream and other external transports there is no distributed
+/// For NATS `JetStream` and other external transports there is no distributed
 /// transaction available. `EffectivelyOnce` instead uses an idempotency key
 /// (the NATS message ID or a caller-supplied key) stored in a PostgreSQL table
 /// before acknowledging the message. If a duplicate arrives, the key lookup
@@ -255,13 +255,13 @@ pub enum CheckpointStrategy {
 impl CheckpointStrategy {
     /// Returns `true` if this strategy requires an idempotency table.
     #[must_use]
-    pub fn is_effectively_once(&self) -> bool {
+    pub const fn is_effectively_once(&self) -> bool {
         matches!(self, Self::EffectivelyOnce { .. })
     }
 
     /// Returns the idempotency table name if this is `EffectivelyOnce`.
     #[must_use]
-    pub fn idempotency_table(&self) -> Option<&str> {
+    pub const fn idempotency_table(&self) -> Option<&str> {
         match self {
             Self::AtLeastOnce => None,
             Self::EffectivelyOnce { idempotency_table } => Some(idempotency_table.as_str()),
@@ -465,7 +465,7 @@ impl CheckpointStore for InMemoryCheckpointStore {
         Ok(())
     }
 
-    /// Atomic compare-and-swap using DashMap's entry API.
+    /// Atomic compare-and-swap using `DashMap`'s entry API.
     ///
     /// **Edge-case**: when `expected_id == 0` and no entry exists, the call
     /// succeeds and inserts the first checkpoint. This matches the behaviour of
@@ -587,7 +587,7 @@ mod tests {
         );
     }
 
-    /// AtLeastOnce must short-circuit without touching the database.
+    /// `AtLeastOnce` must short-circuit without touching the database.
     #[tokio::test]
     async fn test_strategy_at_least_once_is_never_duplicate() {
         // We pass a deliberately broken pool URL — if it were used the test would fail.
@@ -676,7 +676,7 @@ mod tests {
         assert!(store.load("l1").await.unwrap().is_none());
     }
 
-    /// CAS edge-case: first-ever save with expected_id == 0 and no entry → succeeds.
+    /// CAS edge-case: first-ever save with `expected_id` == 0 and no entry → succeeds.
     #[tokio::test]
     async fn test_in_memory_cas_first_checkpoint() {
         let store = InMemoryCheckpointStore::new_silent();
@@ -687,7 +687,7 @@ mod tests {
         assert_eq!(loaded.last_processed_id, 100);
     }
 
-    /// CAS with wrong expected_id when no entry exists → fails.
+    /// CAS with wrong `expected_id` when no entry exists → fails.
     #[tokio::test]
     async fn test_in_memory_cas_wrong_expected_no_entry() {
         let store = InMemoryCheckpointStore::new_silent();

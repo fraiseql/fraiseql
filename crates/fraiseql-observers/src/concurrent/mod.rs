@@ -146,7 +146,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
     }
 
     /// Set the action timeout in milliseconds.
-    pub fn set_action_timeout_ms(&mut self, timeout_ms: u64) {
+    pub const fn set_action_timeout_ms(&mut self, timeout_ms: u64) {
         self.action_timeout_ms = timeout_ms;
     }
 }
@@ -263,11 +263,13 @@ mod tests {
             _action: &ActionConfig,
         ) -> Result<ActionResult> {
             tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
+            #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
+            let duration_ms = self.delay_ms as f64;
             Ok(ActionResult {
                 action_type: "slow".to_string(),
                 success:     true,
                 message:     "Completed after delay".to_string(),
-                duration_ms: self.delay_ms as f64,
+                duration_ms,
             })
         }
     }

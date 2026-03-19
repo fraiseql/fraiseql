@@ -55,8 +55,9 @@ impl ConditionParser {
     ///
     /// This function currently always returns `Ok`; the `Result` return type is
     /// reserved for future validation.
-    pub(super) fn eval_has_field(&self, field: &str, event: &EntityEvent) -> Result<bool> {
-        Ok(event.data.get(field).is_some())
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
+    pub(super) fn eval_has_field(&self, field: &str, event: &EntityEvent) -> bool {
+        event.data.get(field).is_some()
     }
 
     /// Compare two JSON numeric values with exact integer semantics when possible.
@@ -74,6 +75,7 @@ impl ConditionParser {
     ///
     /// Returns [`ObserverError::InvalidCondition`] if either operand is not a number,
     /// or if `partial_cmp` produces `NaN`.
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(super) fn compare_ordered<F>(&self, left: &Value, right: &Value, f: F) -> Result<bool>
     where
         F: Fn(Ordering) -> bool,

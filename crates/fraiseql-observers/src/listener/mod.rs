@@ -123,9 +123,6 @@ impl EventListener {
 
         let sender = self.sender.clone();
         let running = self.running.clone();
-        let _capacity = self.config.channel_capacity;
-        let _overflow_policy = self.config.overflow_policy.clone();
-        let _alert_threshold = self.config.backlog_alert_threshold;
 
         tokio::spawn(async move {
             let mut listener = listener;

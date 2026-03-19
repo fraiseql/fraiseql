@@ -108,6 +108,7 @@ impl StructuredLogger {
     }
 
     /// Format fields as structured output
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     fn format_fields(&self, fields: &HashMap<&str, &str>) -> String {
         fields
             .iter()

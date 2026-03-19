@@ -2,35 +2,6 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-// Allow common pedantic lints that are too noisy for this codebase
-#![allow(clippy::struct_excessive_bools)] // Reason: config structs have independent boolean flags; splitting would not improve clarity
-#![allow(clippy::cast_possible_truncation)] // Reason: index casts are bounded by validated input sizes
-#![allow(clippy::unused_self)] // Reason: trait impls require &self for consistency even when the method doesn't use it
-#![allow(clippy::unnecessary_wraps)] // Reason: trait methods must return Result for mock/real symmetry
-#![allow(clippy::needless_pass_by_value)] // Reason: trait method signatures must match; consuming at the boundary is intentional
-#![allow(clippy::must_use_candidate)] // Reason: side-effectful methods intentionally not marked must_use
-#![allow(clippy::module_name_repetitions)] // Reason: ObserverExecutor, ObserverError etc. are the conventional names in this domain
-#![allow(clippy::doc_markdown)] // Reason: prose descriptions don't require backtick-wrapping of every term
-#![allow(clippy::return_self_not_must_use)] // Reason: builder methods are used for side effects, not chaining
-#![allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
-#![allow(clippy::cast_sign_loss)] // Reason: values are validated non-negative before cast
-#![allow(clippy::too_many_lines)] // Reason: executor/mod.rs and condition.rs are domain-dense; split tracked as U1
-#![allow(clippy::cast_possible_wrap)] // Reason: wrapping is acceptable for metric counters (not security-sensitive)
-#![allow(clippy::no_effect_underscore_binding)] // Reason: _field in structs documents intentional unused slots
-#![allow(clippy::default_trait_access)] // Reason: Default::default() is explicit and readable
-#![allow(clippy::struct_field_names)] // Reason: action_type, action_config etc. are accurate names with no clearer alternative
-#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for brevity; consistent with workspace test style
-#![allow(clippy::items_after_statements)] // Reason: nested helper types defined close to their use site for readability
-#![allow(clippy::new_without_default)] // Reason: constructors require arguments; a Default impl would be misleading
-#![allow(clippy::manual_let_else)] // Reason: some match branches are more readable than let-else at this complexity level
-#![allow(clippy::match_same_arms)] // Reason: symmetric arms document that all variants are explicitly considered
-#![allow(clippy::match_wildcard_for_single_variants)] // Reason: _ arm is intentional for forward compatibility with new variants
-#![allow(clippy::unused_async)] // Reason: trait methods must be async for mock/real symmetry
-#![allow(clippy::float_cmp)] // Reason: exact float comparison is intentional in metric threshold tests
-#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used here
-#![allow(clippy::collection_is_never_read)] // Reason: collections populated for side effects (DLQ writes); reads are not the goal
-#![allow(clippy::future_not_send)] // Reason: some futures are deliberately not Send (single-threaded observer contexts)
-#![allow(clippy::significant_drop_in_scrutinee)] // Reason: lock guards in match arms are intentional; drop order is correct
 
 //! FraiseQL Observer System - Post-Mutation Side Effects
 //!

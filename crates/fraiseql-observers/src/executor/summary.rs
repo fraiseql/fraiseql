@@ -42,7 +42,7 @@ impl ExecutionSummary {
 
     /// Check if execution was successful
     #[must_use]
-    pub fn is_success(&self) -> bool {
+    pub const fn is_success(&self) -> bool {
         self.failed_actions == 0 && self.dlq_errors == 0 && self.errors.is_empty()
     }
 

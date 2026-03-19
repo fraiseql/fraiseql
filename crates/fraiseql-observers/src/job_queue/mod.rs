@@ -49,7 +49,7 @@ pub enum JobState {
     Completed,
     /// Failed: max retries exhausted
     Failed,
-    /// DeadLettered: moved to DLQ after permanent failure
+    /// `DeadLettered`: moved to DLQ after permanent failure
     DeadLettered,
 }
 
@@ -208,7 +208,7 @@ impl Job {
     }
 
     /// Mark the job as running
-    pub fn mark_running(&mut self) {
+    pub const fn mark_running(&mut self) {
         self.state = JobState::Running;
     }
 
@@ -394,7 +394,7 @@ mod tests {
             ActionConfig::Webhook {
                 url:           Some("http://example.com".to_string()),
                 url_env:       None,
-                headers:       Default::default(),
+                headers:       std::collections::HashMap::default(),
                 body_template: None,
             },
             3,

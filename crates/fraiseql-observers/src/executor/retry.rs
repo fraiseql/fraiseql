@@ -81,6 +81,7 @@ impl ObserverExecutor {
     }
 
     /// Calculate backoff delay based on attempt number and strategy
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(crate) fn calculate_backoff(&self, attempt: u32, config: &RetryConfig) -> Duration {
         let delay_ms = match config.backoff_strategy {
             BackoffStrategy::Exponential => {
@@ -253,10 +254,10 @@ impl ObserverExecutor {
         listener: &mut crate::listener::ChangeLogListener,
         max_iterations: Option<usize>,
     ) -> Result<()> {
-        let mut iteration = 0;
-        let mut consecutive_errors = 0;
         const MAX_CONSECUTIVE_ERRORS: u32 = 10;
         const MAX_BACKOFF_MS: u64 = 30000; // 30 seconds
+        let mut iteration = 0;
+        let mut consecutive_errors = 0;
 
         loop {
             // Check iteration limit (for testing)

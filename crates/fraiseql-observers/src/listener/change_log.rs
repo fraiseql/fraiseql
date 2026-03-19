@@ -211,7 +211,7 @@ impl ChangeLogEntry {
 
         // Get entity data (use "after" values, or "before" for DELETE)
         let data = if event_kind == EventKind::Deleted {
-            self.before_values().unwrap_or(Value::Object(Default::default()))
+            self.before_values().unwrap_or(Value::Object(serde_json::Map::default()))
         } else {
             self.after_values()?
         };
@@ -245,14 +245,12 @@ impl ChangeLogEntry {
             return Ok(None);
         }
 
-        let before = match self.before_values() {
-            Some(Value::Object(b)) => b,
-            _ => return Ok(None),
+        let Some(Value::Object(before)) = self.before_values() else {
+            return Ok(None);
         };
 
-        let after = match self.after_values()? {
-            Value::Object(a) => a,
-            _ => return Ok(None),
+        let Value::Object(after) = self.after_values()? else {
+            return Ok(None);
         };
 
         let mut changes = HashMap::new();
@@ -331,6 +329,8 @@ impl ChangeLogListener {
         // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
+        #[allow(clippy::cast_possible_wrap)] // Reason: batch_size is bounded by config and won't exceed i64::MAX
+        let batch_size_i64 = self.config.batch_size as i64;
         let rows: Vec<ChangeLogRow> = sqlx::query_as(
             r"
                 SELECT
@@ -352,7 +352,7 @@ impl ChangeLogListener {
                 ",
         )
         .bind(self.last_processed_id)
-        .bind(self.config.batch_size as i64)
+        .bind(batch_size_i64)
         .fetch_all(&self.config.pool)
         .await
         .map_err(|e| ObserverError::DatabaseError {
@@ -396,7 +396,7 @@ impl ChangeLogListener {
     }
 
     /// Set checkpoint (for recovery)
-    pub fn set_checkpoint(&mut self, id: i64) {
+    pub const fn set_checkpoint(&mut self, id: i64) {
         self.last_processed_id = id;
     }
 

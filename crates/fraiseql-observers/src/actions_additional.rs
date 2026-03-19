@@ -31,7 +31,7 @@ impl SmsAction {
     /// Returns `ObserverError` if SMS sending fails.
     pub fn execute(
         &self,
-        phone: String,
+        phone: &str,
         message_template: Option<&str>,
         event: &EntityEvent,
     ) -> Result<SmsResponse> {
@@ -99,9 +99,9 @@ impl PushAction {
     /// Returns `ObserverError` if push notification fails.
     pub fn execute(
         &self,
-        device_token: String,
-        title: String,
-        body: String,
+        device_token: &str,
+        title: &str,
+        body: &str,
     ) -> Result<PushResponse> {
         let start = std::time::Instant::now();
 
@@ -167,7 +167,7 @@ impl SearchAction {
     /// Returns `ObserverError` if indexing fails.
     pub fn execute(
         &self,
-        index: String,
+        index: &str,
         document_id_template: Option<&str>,
         event: &EntityEvent,
     ) -> Result<SearchResponse> {
@@ -177,7 +177,6 @@ impl SearchAction {
         // Meilisearch, etc.)
         let _index_name = index.trim();
         let _document_id = document_id_template.unwrap_or(&event.entity_id.to_string());
-        let _event_data = &event.data;
 
         // Simulate successful indexing
         let indexed = true;
@@ -233,7 +232,7 @@ impl CacheAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if cache operation fails.
-    pub fn execute(&self, key_pattern: String, action_type: &str) -> Result<CacheResponse> {
+    pub fn execute(&self, key_pattern: &str, action_type: &str) -> Result<CacheResponse> {
         let start = std::time::Instant::now();
 
         // Stub implementation - will be replaced with actual cache backend (Redis, Memcached, etc.)
@@ -306,7 +305,7 @@ mod tests {
         let action = SmsAction::new();
         let event = create_test_event();
         let response = action
-            .execute("+1234567890".to_string(), Some("Test notification"), &event)
+            .execute("+1234567890", Some("Test notification"), &event)
             .unwrap();
 
         assert!(response.success);
@@ -325,9 +324,9 @@ mod tests {
         let action = PushAction::new();
         let response = action
             .execute(
-                "device_token_123".to_string(),
-                "Test Title".to_string(),
-                "Test Body".to_string(),
+                "device_token_123",
+                "Test Title",
+                "Test Body",
             )
             .unwrap();
 
@@ -346,7 +345,7 @@ mod tests {
     fn test_search_action_execute() {
         let action = SearchAction::new();
         let event = create_test_event();
-        let response = action.execute("users".to_string(), Some("user_123"), &event).unwrap();
+        let response = action.execute("users", Some("user_123"), &event).unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);
@@ -362,7 +361,7 @@ mod tests {
     #[test]
     fn test_cache_action_execute() {
         let action = CacheAction::new();
-        let response = action.execute("user:*".to_string(), "invalidate").unwrap();
+        let response = action.execute("user:*", "invalidate").unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);

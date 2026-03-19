@@ -36,7 +36,7 @@
 //!
 //! Cache key = `action_result:{event.id}:{action_hash}`
 //!
-//! - `event.id`: UUIDv4 (globally unique)
+//! - `event.id`: `UUIDv4` (globally unique)
 //! - `action_hash`: Hash of action config (type + params)
 //!
 //! This ensures:

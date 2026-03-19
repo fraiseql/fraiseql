@@ -148,7 +148,8 @@ impl FailoverManager {
     /// dropped.
     ///
     /// [`stop_health_monitor`]: Self::stop_health_monitor
-    pub async fn start_health_monitor(&self) -> mpsc::Receiver<FailoverEvent> {
+    #[must_use]
+    pub fn start_health_monitor(&self) -> mpsc::Receiver<FailoverEvent> {
         // Reset the shutdown flag so the monitor can be restarted.
         self.shutdown.store(false, Ordering::SeqCst);
 

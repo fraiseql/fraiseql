@@ -1,6 +1,6 @@
 //! NATS → Arrow Flight bridge for observer events.
 //!
-//! This module provides conversion from EntityEvent to Arrow RecordBatches
+//! This module provides conversion from `EntityEvent` to Arrow `RecordBatch`es
 //! for high-performance event streaming and analytics.
 
 use std::sync::Arc;
@@ -12,9 +12,9 @@ use arrow::{
 
 use crate::event::EntityEvent;
 
-/// Convert a batch of EntityEvents to Arrow RecordBatch.
+/// Convert a batch of `EntityEvent`s to Arrow `RecordBatch`.
 ///
-/// Uses the schema from fraiseql_arrow::event_schema::entity_event_arrow_schema().
+/// Uses the schema from `fraiseql_arrow::event_schema::entity_event_arrow_schema()`.
 ///
 /// # Example
 ///
@@ -50,7 +50,7 @@ impl EventToArrowConverter {
         }
     }
 
-    /// Convert events to Arrow RecordBatch.
+    /// Convert events to Arrow `RecordBatch`.
     ///
     /// # Errors
     ///

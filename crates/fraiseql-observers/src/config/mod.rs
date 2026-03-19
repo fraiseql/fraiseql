@@ -3,7 +3,7 @@
 //! This module provides configuration for:
 //! - Observer runtime (channel capacity, concurrency, etc.)
 //! - Transport selection (PostgreSQL LISTEN/NOTIFY, NATS, in-memory)
-//! - NATS JetStream settings (retention, deduplication, etc.)
+//! - NATS `JetStream` settings (retention, deduplication, etc.)
 //! - Bridge configuration (PostgreSQL → NATS)
 //!
 //! # Configuration Sources

@@ -270,6 +270,8 @@ pub mod mocks {
 
         async fn get_pending(&self, limit: i64) -> Result<Vec<DlqItem>> {
             let items = self.items.lock().unwrap();
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Reason: limit from API is small and non-negative
             Ok(items.iter().take(limit as usize).cloned().collect())
         }
 

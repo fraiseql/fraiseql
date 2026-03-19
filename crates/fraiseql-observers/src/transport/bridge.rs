@@ -1,7 +1,7 @@
 //! PostgreSQL to NATS bridge implementation.
 //!
 //! This module provides the outbox-style bridge that reliably publishes
-//! PostgreSQL entity change events to NATS JetStream.
+//! PostgreSQL entity change events to NATS `JetStream`.
 //!
 //! # Architecture
 //!
@@ -233,7 +233,7 @@ impl ChangeLogEntry {
 /// Bridge configuration.
 #[derive(Debug, Clone)]
 pub struct BridgeConfig {
-    /// Transport name for checkpoint storage (e.g., "pg_to_nats")
+    /// Transport name for checkpoint storage (e.g., `pg_to_nats`)
     pub transport_name: String,
 
     /// Batch size for fetching entries
@@ -260,7 +260,7 @@ impl Default for BridgeConfig {
 /// PostgreSQL to NATS bridge.
 ///
 /// Reliably publishes entity change events from PostgreSQL's
-/// `tb_entity_change_log` to NATS JetStream using cursor-based polling.
+/// `tb_entity_change_log` to NATS `JetStream` using cursor-based polling.
 ///
 /// # Design Properties
 ///
@@ -275,7 +275,7 @@ impl Default for BridgeConfig {
 ///    - On crash/restart, resumes from last checkpoint
 ///
 /// 3. **Publish-then-mark pattern with conditional update**:
-///    - Publish to NATS JetStream
+///    - Publish to NATS `JetStream`
 ///    - Wait for ACK
 ///    - Mark as published (conditional: only if not already published)
 ///    - Safe against accidental multi-bridge races

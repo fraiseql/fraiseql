@@ -109,7 +109,7 @@ pub enum ObserverError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
-    /// Database query error from the underlying SQLx driver.
+    /// Database query error from the underlying `SQLx` driver.
     #[error("Database query error: {0}")]
     SqlxError(String),
 
@@ -156,7 +156,7 @@ pub enum ObserverError {
     DeserializationError {
         /// Raw bytes of the unparseable message
         raw:    Vec<u8>,
-        /// Human-readable reason (e.g. the serde_json error message)
+        /// Human-readable reason (e.g. the `serde_json` error message)
         reason: String,
     },
 
@@ -277,7 +277,9 @@ impl ObserverError {
     #[must_use]
     pub const fn code(&self) -> ObserverErrorCode {
         match self {
-            ObserverError::InvalidConfig { .. } => ObserverErrorCode::InvalidConfig,
+            ObserverError::InvalidConfig { .. } | ObserverError::SerializationError(_) => {
+                ObserverErrorCode::InvalidConfig
+            },
             ObserverError::NoMatchingObservers { .. } => ObserverErrorCode::NoMatchingObservers,
             ObserverError::InvalidCondition { .. } => ObserverErrorCode::InvalidCondition,
             ObserverError::ConditionEvaluationFailed { .. } => {
@@ -291,7 +293,9 @@ impl ObserverError {
             ObserverError::TemplateRenderingFailed { .. } => {
                 ObserverErrorCode::TemplateRenderingFailed
             },
-            ObserverError::DatabaseError { .. } => ObserverErrorCode::DatabaseError,
+            ObserverError::DatabaseError { .. } | ObserverError::SqlxError(_) => {
+                ObserverErrorCode::DatabaseError
+            },
             ObserverError::ListenerConnectionFailed { .. } => {
                 ObserverErrorCode::ListenerConnectionFailed
             },
@@ -299,8 +303,6 @@ impl ObserverError {
             ObserverError::DlqError { .. } => ObserverErrorCode::DlqError,
             ObserverError::RetriesExhausted { .. } => ObserverErrorCode::RetriesExhausted,
             ObserverError::UnsupportedActionType { .. } => ObserverErrorCode::UnsupportedActionType,
-            ObserverError::SerializationError(_) => ObserverErrorCode::InvalidConfig,
-            ObserverError::SqlxError(_) => ObserverErrorCode::DatabaseError,
             ObserverError::CircuitBreakerOpen { .. } => ObserverErrorCode::CircuitBreakerOpen,
             ObserverError::TransportConnectionFailed { .. } => {
                 ObserverErrorCode::TransportConnectionFailed

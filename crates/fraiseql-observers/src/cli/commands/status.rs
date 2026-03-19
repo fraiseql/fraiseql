@@ -11,6 +11,7 @@ use crate::error::Result;
 ///
 /// Returns an error if the observer runtime cannot be queried or output
 /// serialization fails.
+#[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _listener: Option<String>,

@@ -1,4 +1,4 @@
-//! Transport configuration: Postgres LISTEN/NOTIFY, NATS JetStream, in-memory.
+//! Transport configuration: Postgres LISTEN/NOTIFY, NATS `JetStream`, in-memory.
 
 use std::env;
 
@@ -18,7 +18,7 @@ pub enum TransportKind {
     /// PostgreSQL LISTEN/NOTIFY (default, existing behavior)
     #[default]
     Postgres,
-    /// NATS JetStream (distributed, scalable)
+    /// NATS `JetStream` (distributed, scalable)
     Nats,
     /// In-memory (testing only)
     InMemory,
@@ -46,7 +46,7 @@ impl TransportKind {
 /// Top-level transport configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransportConfig {
-    /// Transport type (postgres, nats, in_memory)
+    /// Transport type (postgres, nats, `in_memory`)
     #[serde(default)]
     pub transport: TransportKind,
 
@@ -62,7 +62,7 @@ pub struct TransportConfig {
     #[serde(default)]
     pub nats: NatsTransportConfig,
 
-    /// Bridge-specific configuration (only used when run_bridge = true)
+    /// Bridge-specific configuration (only used when `run_bridge` = true)
     #[serde(default)]
     pub bridge: BridgeTransportConfig,
 }
@@ -133,10 +133,10 @@ impl TransportConfig {
 // NATS Transport Configuration
 // ============================================================================
 
-/// NATS JetStream transport configuration
+/// NATS `JetStream` transport configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NatsTransportConfig {
-    /// NATS server URL (e.g., "nats://localhost:4222")
+    /// NATS server URL (e.g., `nats://localhost:4222`)
     /// Supports multiple servers: "nats://nats-1:4222,nats://nats-2:4222"
     #[serde(default = "default_nats_url")]
     pub url: String,
@@ -150,11 +150,11 @@ pub struct NatsTransportConfig {
     #[serde(default = "default_consumer_name")]
     pub consumer_name: String,
 
-    /// JetStream stream name (default: "fraiseql_events")
+    /// `JetStream` stream name (default: `fraiseql_events`)
     #[serde(default = "default_stream_name")]
     pub stream_name: String,
 
-    /// JetStream configuration
+    /// `JetStream` configuration
     #[serde(default)]
     pub jetstream: JetStreamConfig,
 }
@@ -213,7 +213,7 @@ impl NatsTransportConfig {
     /// # Errors
     ///
     /// Returns [`ObserverError::InvalidConfig`] if `subject_prefix` or `consumer_name`
-    /// is empty, or if nested JetStream config validation fails.
+    /// is empty, or if nested `JetStream` config validation fails.
     pub fn validate(&self) -> Result<()> {
         if self.subject_prefix.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -234,7 +234,7 @@ impl NatsTransportConfig {
 // JetStream Configuration
 // ============================================================================
 
-/// JetStream stream and consumer configuration
+/// `JetStream` stream and consumer configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JetStreamConfig {
     /// Message deduplication window in minutes (default: 5, recommended: 2-10)
@@ -245,7 +245,7 @@ pub struct JetStreamConfig {
     #[serde(default = "default_max_age_days")]
     pub max_age_days: u64,
 
-    /// Maximum number of messages in stream (default: 10_000_000)
+    /// Maximum number of messages in stream (default: `10_000_000`)
     #[serde(default = "default_max_msgs")]
     pub max_msgs: i64,
 
@@ -369,7 +369,7 @@ impl JetStreamConfig {
 /// PostgreSQL → NATS bridge configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeTransportConfig {
-    /// Transport name for checkpoint storage (default: "pg_to_nats")
+    /// Transport name for checkpoint storage (default: `pg_to_nats`)
     #[serde(default = "default_bridge_transport_name")]
     pub transport_name: String,
 
@@ -381,7 +381,7 @@ pub struct BridgeTransportConfig {
     #[serde(default = "default_bridge_poll_interval_secs")]
     pub poll_interval_secs: u64,
 
-    /// PostgreSQL NOTIFY channel name (default: "fraiseql_events")
+    /// PostgreSQL NOTIFY channel name (default: `fraiseql_events`)
     #[serde(default = "default_bridge_notify_channel")]
     pub notify_channel: String,
 }

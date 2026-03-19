@@ -68,6 +68,7 @@ impl MultiListenerCoordinator {
     ///
     /// This function currently always returns `Ok`; the `Result` return type is
     /// reserved for future validation.
+    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
             listener_id:    listener_id.clone(),
@@ -236,6 +237,12 @@ impl MultiListenerCoordinator {
     /// Get current leader
     pub async fn get_leader(&self) -> Option<String> {
         self.leader_id.lock().await.clone()
+    }
+}
+
+impl Default for MultiListenerCoordinator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

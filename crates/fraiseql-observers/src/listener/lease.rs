@@ -120,6 +120,7 @@ impl InProcessLease {
         let state = self.state.lock().await;
         if let Some(acquired_time) = state.acquired_at {
             // Consistent view: both holder and acquired_at are read under the same lock.
+            #[allow(clippy::cast_possible_truncation)] // Reason: lease durations are short, millis fit in u64
             let elapsed = acquired_time.elapsed().as_millis() as u64;
             if elapsed < self.lease_duration_ms {
                 return Ok(self.lease_duration_ms - elapsed);
@@ -265,6 +266,7 @@ impl PostgresAdvisoryLease {
     /// # Errors
     ///
     /// This function currently always returns `Ok`.
+    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         Ok(u64::MAX)
     }
@@ -295,7 +297,7 @@ impl RedisAdvisoryLease {
     /// * `checkpoint_id` — numeric key distinguishing the checkpoint being leased
     /// * `lease_duration_secs` — TTL; must be renewed before expiry via `renew()`
     #[must_use]
-    pub fn new(
+    pub const fn new(
         conn: redis::aio::ConnectionManager,
         listener_id: String,
         checkpoint_id: i64,
@@ -424,7 +426,7 @@ impl RedisAdvisoryLease {
         if ttl_secs < 0 {
             Ok(0)
         } else {
-            Ok(ttl_secs as u64 * 1_000)
+            Ok(ttl_secs.cast_unsigned() * 1_000)
         }
     }
 }
@@ -451,6 +453,7 @@ pub struct CheckpointLease(LeaseKind);
 
 impl CheckpointLease {
     /// Create an in-process lease suitable for testing or single-node deployments.
+    #[must_use]
     pub fn in_process(listener_id: String, checkpoint_id: i64, lease_duration_ms: u64) -> Self {
         Self(LeaseKind::InProcess(InProcessLease::new(
             listener_id,
@@ -460,12 +463,14 @@ impl CheckpointLease {
     }
 
     /// Construct an in-process lease (back-compat alias for [`Self::in_process`]).
+    #[must_use]
     pub fn new(listener_id: String, checkpoint_id: i64, lease_duration_ms: u64) -> Self {
         Self::in_process(listener_id, checkpoint_id, lease_duration_ms)
     }
 
     /// Create a distributed lease backed by a PostgreSQL session advisory lock.
     #[cfg(feature = "postgres")]
+    #[must_use]
     pub fn postgres(pool: sqlx::PgPool, listener_id: String, checkpoint_id: i64) -> Self {
         Self(LeaseKind::Postgres(PostgresAdvisoryLease::new(
             pool,
@@ -476,7 +481,8 @@ impl CheckpointLease {
 
     /// Create a distributed lease backed by Redis `SET NX EX`.
     #[cfg(feature = "redis-lease")]
-    pub fn redis(
+    #[must_use]
+    pub const fn redis(
         conn: redis::aio::ConnectionManager,
         listener_id: String,
         checkpoint_id: i64,
@@ -588,7 +594,7 @@ impl CheckpointLease {
 
     /// The checkpoint ID this lease guards.
     #[must_use]
-    pub fn checkpoint_id(&self) -> i64 {
+    pub const fn checkpoint_id(&self) -> i64 {
         match &self.0 {
             LeaseKind::InProcess(l) => l.checkpoint_id,
             #[cfg(feature = "postgres")]

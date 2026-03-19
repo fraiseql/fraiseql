@@ -9,7 +9,7 @@ use crate::error::{ObserverError, Result};
 /// Job queue configuration for asynchronous action execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobQueueConfig {
-    /// Redis URL for job queue backend (e.g., "redis://localhost:6379")
+    /// Redis URL for job queue backend (e.g., `redis://localhost:6379`)
     /// If not specified, uses the main redis config URL
     #[serde(default = "default_job_queue_url")]
     pub url: String,

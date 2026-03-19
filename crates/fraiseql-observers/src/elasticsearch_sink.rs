@@ -42,7 +42,7 @@ use crate::{
 /// Elasticsearch sink configuration
 #[derive(Debug, Clone)]
 pub struct ElasticsearchSinkConfig {
-    /// Elasticsearch base URL (e.g., "http://localhost:9200")
+    /// Elasticsearch base URL (e.g., `http://localhost:9200`)
     pub url:                 String,
     /// Index name prefix (default: "fraiseql-events")
     pub index_prefix:        String,
@@ -177,12 +177,12 @@ impl ElasticsearchSink {
     ///
     /// Returns an error if the HTTP client cannot be constructed.
     #[cfg(test)]
-    pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Result<Self> {
+    pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Self {
         let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
-        Ok(Self {
+        Self {
             client: Arc::new(client),
             config,
-        })
+        }
     }
 
     /// Health check - verify Elasticsearch is reachable
@@ -278,6 +278,7 @@ impl ElasticsearchSink {
                         last_error = Some(e);
 
                         if attempt < self.config.max_retries {
+                            #[allow(clippy::cast_possible_truncation)] // Reason: attempt count is small, fits in u32
                             let backoff = std::time::Duration::from_millis(
                                 100_u64
                                     .saturating_mul(2_u64.saturating_pow(attempt as u32))
@@ -388,6 +389,7 @@ impl ElasticsearchSink {
     }
 
     /// Classify whether an error is transient (retriable) or permanent
+    #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     fn is_transient_error(&self, error: &str) -> bool {
         error.contains("Connection refused")
             || error.contains("connection reset")
@@ -595,7 +597,7 @@ mod tests {
             flush_interval_secs: 5,
             max_retries:         1,
         };
-        let sink = ElasticsearchSink::new_unchecked(config).unwrap();
+        let sink = ElasticsearchSink::new_unchecked(config);
 
         // Drive the private try_bulk_index path via flush_buffer through a mock event.
         // We create a minimal event buffer and call the internal path indirectly.

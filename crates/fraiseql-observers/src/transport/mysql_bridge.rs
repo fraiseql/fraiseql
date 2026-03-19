@@ -1,7 +1,7 @@
 //! MySQL to NATS bridge implementation.
 //!
 //! This module provides the outbox-style bridge that reliably publishes
-//! MySQL entity change events to NATS JetStream.
+//! MySQL entity change events to NATS `JetStream`.
 //!
 //! # Architecture
 //!
@@ -255,7 +255,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for MySQLChangeLogEntry {
 #[derive(Debug, Clone)]
 #[cfg(feature = "mysql")]
 pub struct MySQLBridgeConfig {
-    /// Transport name for checkpoint storage (e.g., "mysql_to_nats")
+    /// Transport name for checkpoint storage (e.g., `mysql_to_nats`)
     pub transport_name: String,
 
     /// Batch size for fetching entries
@@ -283,7 +283,7 @@ impl Default for MySQLBridgeConfig {
 /// MySQL to NATS bridge.
 ///
 /// Reliably publishes entity change events from MySQL's
-/// `tb_entity_change_log` to NATS JetStream using cursor-based polling.
+/// `tb_entity_change_log` to NATS `JetStream` using cursor-based polling.
 ///
 /// # Key Differences from PostgreSQL Bridge
 ///
@@ -296,7 +296,7 @@ impl Default for MySQLBridgeConfig {
 /// Same as PostgreSQL bridge:
 /// 1. CURSOR-based polling ensures no missed events
 /// 2. Checkpoint persistence enables crash recovery
-/// 3. Conditional mark_published prevents races
+/// 3. Conditional `mark_published` prevents races
 /// 4. At-least-once delivery (consumers must be idempotent)
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub struct MySQLNatsBridge {

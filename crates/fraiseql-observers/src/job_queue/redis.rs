@@ -191,8 +191,9 @@ impl JobQueue for RedisJobQueue {
     async fn dequeue(&self, batch_size: usize, timeout_secs: u64) -> Result<Vec<Job>> {
         let mut jobs = Vec::new();
         let now = Utc::now();
+        #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for timestamp scores
         let expiry_timestamp =
-            (now + chrono::Duration::seconds(timeout_secs as i64)).timestamp_millis() as f64;
+            (now + chrono::Duration::seconds(timeout_secs.cast_signed())).timestamp_millis() as f64;
 
         for _ in 0..batch_size {
             // Pop from pending queue

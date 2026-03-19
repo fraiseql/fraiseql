@@ -1,4 +1,4 @@
-//! ClickHouse sink configuration for analytics events.
+//! `ClickHouse` sink configuration for analytics events.
 
 use std::env;
 
@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ObserverError, Result};
 
-/// ClickHouse sink configuration for analytics events
+/// `ClickHouse` sink configuration for analytics events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClickHouseConfig {
-    /// ClickHouse HTTP endpoint (default: "http://localhost:8123")
+    /// `ClickHouse` HTTP endpoint (default: `http://localhost:8123`)
     #[serde(default = "default_clickhouse_url")]
     pub url: String,
 
@@ -17,7 +17,7 @@ pub struct ClickHouseConfig {
     #[serde(default = "default_clickhouse_database")]
     pub database: String,
 
-    /// Table name (default: "fraiseql_events")
+    /// Table name (default: `fraiseql_events`)
     #[serde(default = "default_clickhouse_table")]
     pub table: String,
 

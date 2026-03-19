@@ -263,6 +263,7 @@ impl SearchStats {
     }
 
     /// Record an indexing operation.
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn record(&mut self, success: bool, latency_ms: f64) {
         self.total_indexed += 1;
 
@@ -278,7 +279,7 @@ impl SearchStats {
     }
 
     /// Reset statistics.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.total_indexed = 0;
         self.successful_indexes = 0;
         self.failed_indexes = 0;
@@ -287,6 +288,7 @@ impl SearchStats {
 
     /// Get success rate as percentage.
     #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn success_rate(&self) -> f64 {
         if self.total_indexed == 0 {
             0.0
@@ -349,6 +351,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_search_stats_new() {
         let stats = SearchStats::new();
         assert_eq!(stats.total_indexed, 0);
@@ -383,6 +386,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_search_stats_reset() {
         let mut stats = SearchStats::new();
         stats.record(true, 10.0);

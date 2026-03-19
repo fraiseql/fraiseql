@@ -188,7 +188,9 @@ impl CircuitBreaker {
 
         // Check if we should transition from Open to HalfOpen
         if current_state == CircuitState::Open {
-            if let Some(failure_time) = *self.last_failure_time.lock().await {
+            let last_failure = *self.last_failure_time.lock().await;
+            if let Some(failure_time) = last_failure {
+                #[allow(clippy::cast_possible_truncation)] // Reason: circuit breaker timeouts are short, millis fit in u64
                 let elapsed = failure_time.elapsed().as_millis() as u64;
                 if elapsed >= self.config.open_timeout_ms {
                     // Transition to HalfOpen for recovery attempt
@@ -241,6 +243,7 @@ impl CircuitBreaker {
     }
 
     /// Calculate current failure rate
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     fn calculate_failure_rate(&self) -> f64 {
         let failures = self.failure_count.load(Ordering::SeqCst) as f64;
         let successes = self.success_count.load(Ordering::SeqCst) as f64;
@@ -391,6 +394,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_circuit_breaker_config_defaults() {
         let config = CircuitBreakerConfig::default();
         assert_eq!(config.failure_threshold, 0.5);

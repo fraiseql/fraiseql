@@ -149,7 +149,7 @@ where
         if self.retry_policy.should_retry(next_attempt) {
             // Schedule retry
             let backoff_ms = self.retry_policy.get_backoff_ms(next_attempt);
-            let next_retry_at = chrono::Utc::now().timestamp() + (backoff_ms as i64 / 1000);
+            let next_retry_at = chrono::Utc::now().timestamp() + (backoff_ms.cast_signed() / 1000);
 
             self.queue.mark_retry(&job.id, next_retry_at).await?;
         } else {
@@ -228,7 +228,7 @@ where
     /// # Errors
     ///
     /// Returns error if already running.
-    pub async fn start(&mut self) -> Result<()> {
+    pub fn start(&mut self) -> Result<()> {
         if self.is_running.load(Ordering::SeqCst) {
             return Err(ObserverError::InvalidConfig {
                 message: "Worker pool already running".to_string(),
@@ -302,7 +302,7 @@ where
     }
 
     /// Get number of active workers.
-    pub fn active_workers(&self) -> usize {
+    pub const fn active_workers(&self) -> usize {
         self.workers.len()
     }
 

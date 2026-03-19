@@ -180,7 +180,8 @@ impl CachedActionResult {
             cached_at_unix: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs() as i64,
+                .as_secs()
+                .cast_signed(), // Reason: Unix timestamp won't exceed i64::MAX until year 292 billion
         }
     }
 
@@ -230,6 +231,7 @@ impl CacheStats {
     ///
     /// * `is_hit` - Whether this was a cache hit
     /// * `latency_ms` - Request latency in milliseconds
+    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
     pub fn record(&mut self, is_hit: bool, latency_ms: f64) {
         self.total_requests += 1;
 
@@ -251,7 +253,7 @@ impl CacheStats {
     }
 
     /// Reset statistics.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.total_requests = 0;
         self.cache_hits = 0;
         self.cache_misses = 0;
@@ -294,6 +296,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_cache_stats_new() {
         let stats = CacheStats::new();
         assert_eq!(stats.total_requests, 0);
@@ -303,6 +306,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_cache_stats_record_hit() {
         let mut stats = CacheStats::new();
         stats.record(true, 2.0);
@@ -315,6 +319,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_cache_stats_record_miss() {
         let mut stats = CacheStats::new();
         stats.record(false, 150.0);
@@ -347,6 +352,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
     fn test_cache_stats_reset() {
         let mut stats = CacheStats::new();
         stats.record(true, 2.0);

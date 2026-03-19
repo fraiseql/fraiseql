@@ -61,7 +61,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
             .arg("1")
             .arg("NX")
             .arg("EX")
-            .arg(self.window_seconds as i64)
+            .arg(self.window_seconds.cast_signed())
             .query_async(&mut self.conn.clone())
             .await?;
         Ok(result.is_some())
@@ -80,7 +80,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
 
         redis::cmd("SETEX")
             .arg(&key)
-            .arg(self.window_seconds as i64)
+            .arg(self.window_seconds.cast_signed())
             .arg("1")
             .query_async::<()>(&mut self.conn.clone())
             .await?;

@@ -9,7 +9,7 @@ use crate::error::{ObserverError, Result};
 /// Redis configuration for deduplication and caching
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisConfig {
-    /// Redis connection URL (e.g., "redis://localhost:6379")
+    /// Redis connection URL (e.g., `redis://localhost:6379`)
     #[serde(default = "default_redis_url")]
     pub url: String,
 

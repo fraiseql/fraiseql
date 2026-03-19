@@ -10,6 +10,7 @@ use crate::{cli::DlqSubcommand, error::Result};
 /// # Errors
 ///
 /// Propagates errors from the individual subcommand handlers.
+#[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
 pub async fn execute(format: crate::cli::OutputFormat, subcommand: DlqSubcommand) -> Result<()> {
     match subcommand {
         DlqSubcommand::List {
@@ -17,23 +18,24 @@ pub async fn execute(format: crate::cli::OutputFormat, subcommand: DlqSubcommand
             offset: _,
             observer: _,
             after: _,
-        } => execute_list(format, limit).await,
-        DlqSubcommand::Show { item_id } => execute_show(format, &item_id).await,
-        DlqSubcommand::Retry { item_id, force: _ } => execute_retry(format, &item_id).await,
+        } => execute_list(format, limit),
+        DlqSubcommand::Show { item_id } => execute_show(format, &item_id),
+        DlqSubcommand::Retry { item_id, force: _ } => execute_retry(format, &item_id),
         DlqSubcommand::RetryAll {
             observer: _,
             after: _,
             dry_run: _,
-        } => execute_retry_all(format).await,
-        DlqSubcommand::Remove { item_id, force: _ } => execute_remove(format, &item_id).await,
+        } => execute_retry_all(format),
+        DlqSubcommand::Remove { item_id, force: _ } => execute_remove(format, &item_id),
         DlqSubcommand::Stats {
             by_observer,
             by_error,
-        } => execute_stats(format, by_observer, by_error).await,
+        } => execute_stats(format, by_observer, by_error),
     }
 }
 
-async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<()> {
     let items = json!({
         "items": [
             {
@@ -106,7 +108,8 @@ async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<
     Ok(())
 }
 
-async fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
     let item = json!({
         "item_id": item_id,
         "observer_id": "obs-webhook-logger",
@@ -192,7 +195,8 @@ async fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result
     Ok(())
 }
 
-async fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
     let result = json!({
         "success": true,
         "item_id": item_id,
@@ -226,7 +230,8 @@ async fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Resul
     Ok(())
 }
 
-async fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
     let result = json!({
         "items_retried": 5,
         "items_failed": 0,
@@ -263,7 +268,8 @@ async fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
     Ok(())
 }
 
-async fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Result<()> {
     let result = json!({
         "success": true,
         "item_id": item_id,
@@ -294,7 +300,8 @@ async fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Resu
     Ok(())
 }
 
-async fn execute_stats(
+#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
+fn execute_stats(
     format: crate::cli::OutputFormat,
     by_observer: bool,
     by_error: bool,

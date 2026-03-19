@@ -13,6 +13,7 @@ use crate::error::Result;
 ///
 /// Returns an error if the configuration file cannot be loaded, parsed, or
 /// validated.
+#[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
 pub async fn execute(
     format: crate::cli::OutputFormat,
     _file: Option<PathBuf>,

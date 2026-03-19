@@ -122,7 +122,7 @@ use crate::{
 /// # Key Decisions
 ///
 /// - **Tenant check**: Before dedup — violated events never touch the dedup store
-/// - **Dedup key**: event.id (UUIDv4, globally unique across all transports)
+/// - **Dedup key**: event.id (`UUIDv4`, globally unique across all transports)
 /// - **Check timing**: Before processing (early return for duplicates)
 /// - **Mark timing**: After successful processing (only if all actions succeeded)
 /// - **TTL**: Configurable window (default 5 minutes)
@@ -233,7 +233,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
     /// 1. Validate `event.tenant_id` against the configured [`TenantScope`]
     ///    - Violation → serialize event, push raw bytes to DLQ, increment metric, return
     ///      `Ok(summary { tenant_rejected: true })`
-    /// 2. Generate dedup key from `event.id` (UUIDv4)
+    /// 2. Generate dedup key from `event.id` (`UUIDv4`)
     /// 3. `claim_event()` — atomic `SET NX EX`: only one worker wins the claim
     /// 4. If not claimed (duplicate) → return early with `duplicate_skipped=true`
     /// 5. If claimed → process event

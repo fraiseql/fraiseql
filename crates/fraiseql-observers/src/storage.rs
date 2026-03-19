@@ -63,7 +63,7 @@ pub mod postgres {
         event::{EntityEvent, EventKind},
     };
 
-    /// PostgreSQL-backed event storage using fraiseql_events table.
+    /// PostgreSQL-backed event storage using `fraiseql_events` table.
     ///
     /// Assumes the following table structure:
     ///
@@ -88,6 +88,7 @@ pub mod postgres {
 
     impl PostgresEventStorage {
         /// Create a new PostgreSQL event storage backend.
+        #[must_use]
         pub const fn new(pool: PgPool) -> Self {
             Self { pool }
         }
@@ -138,6 +139,7 @@ pub mod postgres {
             }
 
             // Execute query
+            #[allow(clippy::items_after_statements)] // Reason: helper type defined close to use site for readability
             #[derive(sqlx::FromRow)]
             struct EventRow {
                 id:          Uuid,
@@ -195,6 +197,8 @@ pub mod postgres {
             Ok(events)
         }
 
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        // Reason: COUNT(*) result is non-negative and fits in usize
         async fn count_events(
             &self,
             entity_type: &str,
