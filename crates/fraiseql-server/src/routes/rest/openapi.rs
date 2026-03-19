@@ -455,20 +455,46 @@ impl<'a> OpenApiGenerator<'a> {
                 "name": "Prefer",
                 "in": "header",
                 "required": false,
-                "description": "Request preferences. Supported: count=exact (include total count), return=representation (return entity on DELETE).",
+                "description": "Request preferences (RFC 7240). Supported: count=exact|planned|estimated, return=representation|minimal, resolution=merge-duplicates|ignore-duplicates, handling=strict|lenient, tx=rollback|commit, max-affected=N.",
                 "schema": { "type": "string" },
                 "examples": {
-                    "count": {
-                        "summary": "Include total count",
+                    "count_exact": {
+                        "summary": "Include exact total count",
                         "value": "count=exact"
                     },
-                    "return": {
-                        "summary": "Return entity on delete",
+                    "count_planned": {
+                        "summary": "Include estimated count from EXPLAIN (PostgreSQL)",
+                        "value": "count=planned"
+                    },
+                    "return_representation": {
+                        "summary": "Return entity body on mutating operations",
                         "value": "return=representation"
+                    },
+                    "handling_lenient": {
+                        "summary": "Ignore unknown parameters",
+                        "value": "handling=lenient"
+                    },
+                    "combined": {
+                        "summary": "Multiple preferences",
+                        "value": "return=representation, count=exact, handling=strict"
                     }
                 }
             }));
         }
+
+        // Idempotency-Key header for POST (create) endpoints.
+        if route.method == HttpMethod::Post {
+            params.push(json!({
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": false,
+                "description": "Client-generated unique key for idempotent POST requests. If a previous request with the same key and body was executed, the stored response is replayed. Reuse with a different body returns 422 IDEMPOTENCY_CONFLICT. Ignored on GET, PUT, and DELETE (inherently idempotent).",
+                "schema": { "type": "string" }
+            }));
+        }
+
+        // Cache-Control response header documentation (via response headers).
+        // Not a request parameter — documented via spec description.
 
         params
     }
@@ -1133,8 +1159,8 @@ fn should_have_prefer_header(route: &RestRoute) -> bool {
             // Collection GET endpoints (no path parameter).
             !route.path.contains('{')
         }
-        HttpMethod::Post | HttpMethod::Delete => true,
-        _ => false,
+        HttpMethod::Post | HttpMethod::Patch | HttpMethod::Delete => true,
+        HttpMethod::Put => false,
     }
 }
 

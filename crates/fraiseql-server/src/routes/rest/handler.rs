@@ -527,9 +527,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 
         // Preference-Applied for count mode
         if let Some(count_pref) = count_applied {
-            if let Ok(val) = HeaderValue::from_str(count_pref) {
-                response_headers.insert("preference-applied", val);
-            }
+            set_preference_applied(&mut response_headers, &[count_pref]);
         }
 
         // X-Preference-Fallback when planned/estimated fell back to exact
@@ -709,13 +707,11 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
 
-        if prefer.resolution.is_some() {
-            if let Ok(val) = HeaderValue::from_str(&format!(
-                "resolution={}",
-                prefer.resolution.as_deref().unwrap_or("")
-            )) {
-                response_headers.insert("preference-applied", val);
-            }
+        if let Some(ref resolution) = prefer.resolution {
+            set_preference_applied(
+                &mut response_headers,
+                &[&format!("resolution={resolution}")],
+            );
             response_headers.insert(
                 "x-rows-affected",
                 HeaderValue::from_static("1"),
@@ -1013,9 +1009,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     match entity {
                         Some(entity_value) => {
                             if prefer.return_representation {
-                                response_headers.insert(
-                                    "preference-applied",
-                                    HeaderValue::from_static("return=representation"),
+                                set_preference_applied(
+                                    &mut response_headers,
+                                    &["return=representation"],
                                 );
                             }
                             Ok(RestResponse {
@@ -1026,9 +1022,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                         }
                         None => {
                             if prefer.return_representation {
-                                response_headers.insert(
-                                    "preference-applied",
-                                    HeaderValue::from_static("return=minimal"),
+                                set_preference_applied(
+                                    &mut response_headers,
+                                    &["return=minimal"],
                                 );
                                 response_headers.insert(
                                     "x-preference-fallback",
@@ -1044,9 +1040,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     }
                 } else {
                     if prefer.return_minimal {
-                        response_headers.insert(
-                            "preference-applied",
-                            HeaderValue::from_static("return=minimal"),
+                        set_preference_applied(
+                            &mut response_headers,
+                            &["return=minimal"],
                         );
                     }
                     Ok(RestResponse {
@@ -1449,6 +1445,21 @@ fn build_query_response(
 /// Extract `pageInfo` from a Relay connection response.
 fn extract_relay_page_info(data: &serde_json::Value) -> Option<&serde_json::Value> {
     data.get("pageInfo")
+}
+
+/// Set `Preference-Applied` header from a list of applied preferences.
+///
+/// Joins all non-empty preferences into a single comma-separated header value
+/// per RFC 7240 §3.  Does nothing if the list is empty.
+pub(super) fn set_preference_applied(headers: &mut HeaderMap, prefs: &[&str]) {
+    let prefs: Vec<&&str> = prefs.iter().filter(|p| !p.is_empty()).collect();
+    if prefs.is_empty() {
+        return;
+    }
+    let value: String = prefs.iter().map(|p| **p).collect::<Vec<_>>().join(", ");
+    if let Ok(val) = HeaderValue::from_str(&value) {
+        headers.insert("preference-applied", val);
+    }
 }
 
 /// Set `X-Request-Id` header: echo from request or generate a new UUID.

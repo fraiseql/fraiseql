@@ -12,7 +12,7 @@ use fraiseql_core::schema::{CompiledSchema, MutationOperation, RestConfig};
 use fraiseql_core::security::SecurityContext;
 use serde_json::json;
 
-use super::handler::{set_request_id, PreferHeader, RestError, RestResponse};
+use super::handler::{set_preference_applied, set_request_id, PreferHeader, RestError, RestResponse};
 use super::params::RestParamExtractor;
 use super::resource::{RestRouteTable, RouteSource};
 
@@ -120,29 +120,20 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
         set_request_id(headers, &mut response_headers);
         set_rows_affected(&mut response_headers, affected);
 
-        if prefer.resolution.is_some() {
-            if let Ok(val) = HeaderValue::from_str(&format!(
-                "resolution={}",
-                prefer.resolution.as_deref().unwrap_or("")
-            )) {
-                response_headers.insert("preference-applied", val);
-            }
+        // Collect all applied preferences into a single header
+        let mut applied: Vec<String> = Vec::new();
+        if let Some(ref res) = prefer.resolution {
+            applied.push(format!("resolution={res}"));
         }
-
-        // Dry-run: report what would happen but mark as rolled back
         if prefer.tx_rollback {
-            response_headers.insert(
-                "preference-applied",
-                HeaderValue::from_static("tx=rollback"),
-            );
+            applied.push("tx=rollback".to_string());
         }
 
         // Return representation or minimal
         if prefer.return_minimal {
-            response_headers.insert(
-                "preference-applied",
-                HeaderValue::from_static("return=minimal"),
-            );
+            applied.push("return=minimal".to_string());
+            let refs: Vec<&str> = applied.iter().map(String::as_str).collect();
+            set_preference_applied(&mut response_headers, &refs);
             Ok(RestResponse {
                 status: StatusCode::CREATED,
                 headers: response_headers,
@@ -156,11 +147,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
                 .collect();
 
             if prefer.return_representation {
-                response_headers.insert(
-                    "preference-applied",
-                    HeaderValue::from_static("return=representation"),
-                );
+                applied.push("return=representation".to_string());
             }
+            let refs: Vec<&str> = applied.iter().map(String::as_str).collect();
+            set_preference_applied(&mut response_headers, &refs);
 
             Ok(RestResponse {
                 status: StatusCode::CREATED,
@@ -418,15 +408,12 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
         set_request_id(headers, &mut response_headers);
         set_rows_affected(&mut response_headers, bulk_result.affected_rows);
 
+        let mut applied: Vec<&str> = Vec::new();
         if prefer.tx_rollback {
-            response_headers.insert(
-                "preference-applied",
-                HeaderValue::from_static("tx=rollback"),
-            );
+            applied.push("tx=rollback");
         }
 
         if prefer.return_representation {
-            // Collect entities from mutation results
             let entities: Vec<serde_json::Value> = bulk_result
                 .entities
                 .unwrap_or_default()
@@ -440,10 +427,8 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
                 })
                 .collect();
 
-            response_headers.insert(
-                "preference-applied",
-                HeaderValue::from_static("return=representation"),
-            );
+            applied.push("return=representation");
+            set_preference_applied(&mut response_headers, &applied);
 
             Ok(RestResponse {
                 status: StatusCode::OK,
@@ -452,17 +437,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             })
         } else if prefer.return_minimal || bulk_result.affected_rows == 0 {
             if prefer.return_minimal {
-                response_headers.insert(
-                    "preference-applied",
-                    HeaderValue::from_static("return=minimal"),
-                );
+                applied.push("return=minimal");
             }
+            set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
                 status: StatusCode::NO_CONTENT,
                 headers: response_headers,
                 body: None,
             })
         } else {
+            set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
                 status: StatusCode::OK,
                 headers: response_headers,
