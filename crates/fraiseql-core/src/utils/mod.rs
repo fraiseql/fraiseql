@@ -2,7 +2,7 @@
 //!
 //! # Modules
 //!
-//! - `casing`: String case conversion (snake_case, camelCase, PascalCase)
+//! - `casing`: String case conversion (`snake_case`, camelCase, `PascalCase`)
 //! - `clock`: Clock abstraction for deterministic time-based testing
 //! - `operators`: GraphQL operator registry and validation
 //! - `vector`: pgvector support for similarity search

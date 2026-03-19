@@ -182,7 +182,7 @@ fn test_tenant_isolation_semantics() {
 // Test 8: Helper Functions for Query Filtering
 // ============================================================================
 
-/// Test where_clause helper function
+/// Test `where_clause` helper function
 #[test]
 fn test_where_clause_helper() {
     use crate::tenancy::where_clause;
@@ -191,7 +191,7 @@ fn test_where_clause_helper() {
     assert_eq!(clause, "tenant_id = 'acme-corp'");
 }
 
-/// Test PostgreSQL parameterized where_clause
+/// Test PostgreSQL parameterized `where_clause`
 #[test]
 fn test_where_clause_postgresql_helper() {
     use crate::tenancy::where_clause_postgresql;
@@ -203,7 +203,7 @@ fn test_where_clause_postgresql_helper() {
     assert_eq!(clause2, "tenant_id = $2");
 }
 
-/// Test parameterized where_clause for MySQL/SQLite
+/// Test parameterized `where_clause` for MySQL/SQLite
 #[test]
 fn test_where_clause_parameterized_helper() {
     use crate::tenancy::where_clause_parameterized;
@@ -216,7 +216,7 @@ fn test_where_clause_parameterized_helper() {
 // Test 9: JWT Extraction
 // ============================================================================
 
-/// Test creating TenantContext from JWT claims
+/// Test creating `TenantContext` from JWT claims
 #[test]
 fn test_from_jwt_claims_success() {
     let claims = json!({
@@ -229,7 +229,7 @@ fn test_from_jwt_claims_success() {
     assert_eq!(tenant.id(), "acme-corp");
 }
 
-/// Test that missing tenant_id in JWT returns error
+/// Test that missing `tenant_id` in JWT returns error
 #[test]
 fn test_from_jwt_claims_missing_tenant_id() {
     let claims = json!({
@@ -241,7 +241,7 @@ fn test_from_jwt_claims_missing_tenant_id() {
     assert!(result.is_err(), "Should error when tenant_id is missing");
 }
 
-/// Test that non-string tenant_id in JWT returns error
+/// Test that non-string `tenant_id` in JWT returns error
 #[test]
 fn test_from_jwt_claims_invalid_tenant_id_type() {
     let claims = json!({
@@ -253,7 +253,7 @@ fn test_from_jwt_claims_invalid_tenant_id_type() {
     assert!(result.is_err(), "Should error when tenant_id is not a string");
 }
 
-/// Test creating TenantContext from JWT with UUID tenant_id
+/// Test creating `TenantContext` from JWT with UUID `tenant_id`
 #[test]
 fn test_from_jwt_claims_uuid_tenant() {
     let uuid_tenant = "550e8400-e29b-41d4-a716-446655440000";
@@ -270,7 +270,7 @@ fn test_from_jwt_claims_uuid_tenant() {
 // Test 10: Tenant Where Clauses
 // ============================================================================
 
-/// Test where_clause method
+/// Test `where_clause` method
 #[test]
 fn test_tenant_where_clause() {
     let tenant = TenantContext::new("acme-corp");
@@ -279,7 +279,7 @@ fn test_tenant_where_clause() {
     assert_eq!(clause, "tenant_id = 'acme-corp'");
 }
 
-/// Test where_clause_postgresql method
+/// Test `where_clause_postgresql` method
 #[test]
 fn test_tenant_where_clause_postgresql() {
     let tenant = TenantContext::new("acme-corp");
@@ -291,7 +291,7 @@ fn test_tenant_where_clause_postgresql() {
     assert_eq!(clause2, "tenant_id = $2");
 }
 
-/// Test where_clause_parameterized method
+/// Test `where_clause_parameterized` method
 #[test]
 fn test_tenant_where_clause_parameterized() {
     let tenant = TenantContext::new("acme-corp");

@@ -71,7 +71,7 @@ pub struct ValidationAuditEntry {
     pub failure_reason:    Option<String>,
     /// Duration of validation in microseconds
     pub duration_us:       u64,
-    /// Type of validator executed (e.g., "pattern_validator", "async_validator")
+    /// Type of validator executed (e.g., "`pattern_validator`", "`async_validator`")
     pub execution_context: String,
 }
 

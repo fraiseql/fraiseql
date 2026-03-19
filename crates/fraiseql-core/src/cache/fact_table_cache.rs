@@ -59,7 +59,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         format!("agg:{:x}", result)
     }
 
-    /// Fetch version from tf_versions table.
+    /// Fetch version from `tf_versions` table.
     ///
     /// Returns cached version if fresh, otherwise queries database.
     pub(super) async fn fetch_table_version(&self, table_name: &str) -> Option<i64> {

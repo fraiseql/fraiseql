@@ -2,7 +2,7 @@
 //!
 //! # Architecture
 //!
-//! The runtime loads a CompiledSchema and executes incoming GraphQL queries by:
+//! The runtime loads a `CompiledSchema` and executes incoming GraphQL queries by:
 //! 1. Parsing the GraphQL query
 //! 2. Matching it to a compiled query template
 //! 3. Binding variables
@@ -111,7 +111,7 @@ use crate::security::{FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSP
 /// | `cache_query_plans` | `true` | Caches parsed query plans for repeated queries |
 /// | `max_query_depth` | `10` | Prevents stack overflow on recursive GraphQL |
 /// | `max_query_complexity` | `1000` | Rough cost model; tune per workload |
-/// | `enable_tracing` | `false` | Emit OpenTelemetry spans for each query |
+/// | `enable_tracing` | `false` | Emit `OpenTelemetry` spans for each query |
 /// | `query_timeout_ms` | `30 000` | Hard limit; 0 disables the timeout |
 /// | `field_filter` | `None` | No field-level access control |
 /// | `rls_policy` | `None` | No row-level security |
@@ -153,7 +153,7 @@ pub struct RuntimeConfig {
     pub field_filter: Option<FieldFilter>,
 
     /// Optional row-level security (RLS) policy.
-    /// When set, evaluates access rules based on SecurityContext to determine
+    /// When set, evaluates access rules based on `SecurityContext` to determine
     /// what rows a user can access (e.g., tenant isolation, owner-based access).
     pub rls_policy: Option<Arc<dyn RLSPolicy>>,
 
@@ -167,7 +167,7 @@ pub struct RuntimeConfig {
     ///
     /// When `Some`, `QueryValidator::validate()` runs at the start of every
     /// `Executor::execute()` call, before any parsing or SQL dispatch.
-    /// This provides DoS protection for direct `fraiseql-core` embedders that
+    /// This provides `DoS` protection for direct `fraiseql-core` embedders that
     /// do not route through `fraiseql-server` (which already runs `RequestValidator`
     /// at the HTTP layer). Enforces: query size, depth, complexity, and alias count
     /// (alias amplification protection).
@@ -234,7 +234,7 @@ impl RuntimeConfig {
     /// Configure row-level security (RLS) policy for access control.
     ///
     /// When set, the executor will evaluate the RLS policy before executing queries,
-    /// applying WHERE clause filters based on the user's SecurityContext.
+    /// applying WHERE clause filters based on the user's `SecurityContext`.
     ///
     /// # Example
     ///

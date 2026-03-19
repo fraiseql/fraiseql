@@ -177,10 +177,11 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use indexmap::IndexMap;
     use super::*;
     use crate::{
         graphql::{FieldSelection, ParsedQuery},
-        schema::{AutoParams, QueryDefinition},
+        schema::{AutoParams, CursorType, QueryDefinition},
     };
 
     fn test_query_match() -> QueryMatch {
@@ -198,8 +199,8 @@ mod tests {
                 jsonb_column:        "data".to_string(),
                 relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type:   Default::default(),
-                inject_params:       Default::default(),
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,

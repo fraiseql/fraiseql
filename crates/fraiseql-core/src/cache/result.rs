@@ -1563,7 +1563,7 @@ mod tests {
         assert_eq!(before, after, "memory_bytes should remain stable after same-size eviction");
     }
 
-    /// Verify memory_bytes decreases after invalidation.
+    /// Verify `memory_bytes` decreases after invalidation.
     #[test]
     fn test_memory_bytes_decreases_on_invalidation() {
         let cache = QueryResultCache::new(CacheConfig::enabled());

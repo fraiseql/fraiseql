@@ -9,7 +9,7 @@
 //! - **Measures**: SQL columns with numeric types (INT, BIGINT, DECIMAL, FLOAT) - for fast
 //!   aggregation
 //! - **Dimensions**: JSONB `data` column - for flexible GROUP BY
-//! - **Denormalized filters**: Indexed SQL columns (customer_id, occurred_at) - for fast WHERE
+//! - **Denormalized filters**: Indexed SQL columns (`customer_id`, `occurred_at`) - for fast WHERE
 //!
 //! # No Joins Principle
 //!
@@ -49,7 +49,7 @@ mod tests;
 /// Metadata about a fact table structure
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
-    /// Table name (e.g., "tf_sales")
+    /// Table name (e.g., "`tf_sales`")
     pub table_name:           String,
     /// Measures (aggregatable numeric columns)
     pub measures:             Vec<MeasureColumn>,
@@ -126,14 +126,14 @@ pub struct DimensionPath {
 /// Calendar dimension metadata (pre-computed temporal fields)
 ///
 /// Calendar dimensions provide 10-20x performance improvements for temporal aggregations
-/// by using pre-computed JSONB columns (date_info, month_info, etc.) instead of runtime
-/// DATE_TRUNC operations.
+/// by using pre-computed JSONB columns (`date_info`, `month_info`, etc.) instead of runtime
+/// `DATE_TRUNC` operations.
 ///
 /// # Multi-Column Pattern
 ///
-/// - 7 JSONB columns: date_info, week_info, month_info, quarter_info, semester_info, year_info,
-///   decade_info
-/// - Each contains hierarchical temporal buckets (e.g., date_info has: date, week, month, quarter,
+/// - 7 JSONB columns: `date_info`, `week_info`, `month_info`, `quarter_info`, `semester_info`, `year_info`,
+///   `decade_info`
+/// - Each contains hierarchical temporal buckets (e.g., `date_info` has: date, week, month, quarter,
 ///   year)
 /// - Pre-populated by user's ETL (FraiseQL reads, doesn't populate)
 ///
@@ -151,7 +151,7 @@ pub struct DimensionPath {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarDimension {
-    /// Source timestamp column (e.g., "occurred_at")
+    /// Source timestamp column (e.g., "`occurred_at`")
     pub source_column: String,
 
     /// Available calendar granularity columns
@@ -161,7 +161,7 @@ pub struct CalendarDimension {
 /// Calendar granularity column with pre-computed fields
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarGranularity {
-    /// Column name (e.g., "date_info", "month_info")
+    /// Column name (e.g., "`date_info`", "`month_info`")
     pub column_name: String,
 
     /// Temporal buckets available in this column
@@ -174,7 +174,7 @@ pub struct CalendarBucket {
     /// JSON path key (e.g., "date", "month", "quarter")
     pub json_key: String,
 
-    /// Corresponding TemporalBucket enum
+    /// Corresponding `TemporalBucket` enum
     pub bucket_type: crate::compiler::aggregate_types::TemporalBucket,
 
     /// Data type (e.g., "date", "integer")
@@ -184,7 +184,7 @@ pub struct CalendarBucket {
 /// A denormalized filter column
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterColumn {
-    /// Column name (e.g., "customer_id")
+    /// Column name (e.g., "`customer_id`")
     pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
@@ -199,8 +199,8 @@ pub struct FilterColumn {
 /// # Strategies
 ///
 /// - **Incremental**: New records added (e.g., transaction logs)
-/// - **AccumulatingSnapshot**: Records updated with new events (e.g., order milestones)
-/// - **PeriodicSnapshot**: Complete snapshot at regular intervals (e.g., daily inventory)
+/// - **`AccumulatingSnapshot`**: Records updated with new events (e.g., order milestones)
+/// - **`PeriodicSnapshot`**: Complete snapshot at regular intervals (e.g., daily inventory)
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AggregationStrategy {
@@ -239,7 +239,7 @@ pub enum AggregationStrategy {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableDeclaration {
-    /// Fact table name (e.g., "tf_sales")
+    /// Fact table name (e.g., "`tf_sales`")
     pub name: String,
 
     /// Measure column names (aggregatable numeric fields)

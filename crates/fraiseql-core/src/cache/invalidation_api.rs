@@ -64,7 +64,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Arguments
     ///
     /// * `cascade_response` - GraphQL mutation response with cascade field
-    /// * `parser` - CascadeResponseParser to extract entities
+    /// * `parser` - `CascadeResponseParser` to extract entities
     ///
     /// # Returns
     ///
@@ -97,7 +97,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Note on Performance
     ///
     /// This method replaces view-level invalidation with entity-level invalidation.
-    /// Instead of clearing all caches that touch a view (e.g., v_user), only caches
+    /// Instead of clearing all caches that touch a view (e.g., `v_user`), only caches
     /// that touch the specific entities are cleared (e.g., User:uuid-1).
     ///
     /// Expected improvement:

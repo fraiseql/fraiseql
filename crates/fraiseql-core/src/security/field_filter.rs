@@ -45,7 +45,7 @@
 //! );
 //! ```
 //!
-//! ## Integration with AuthenticatedUser
+//! ## Integration with `AuthenticatedUser`
 //!
 //! ```no_run
 //! // Requires: AuthenticatedUser from live JWT validation.

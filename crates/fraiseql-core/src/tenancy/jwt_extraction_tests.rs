@@ -9,7 +9,7 @@ use serde_json::json;
 // Test 1: JWT Tenant Extraction
 // ============================================================================
 
-/// Test that tenant_id can be extracted from JWT claims
+/// Test that `tenant_id` can be extracted from JWT claims
 #[test]
 fn test_extract_tenant_from_jwt_claims() {
     // Simulate JWT claims (in real code, these would be decoded from actual JWT)
@@ -30,7 +30,7 @@ fn test_extract_tenant_from_jwt_claims() {
     assert_eq!(tenant_id, "acme-corp");
 }
 
-/// Test that missing tenant_id in JWT is handled gracefully
+/// Test that missing `tenant_id` in JWT is handled gracefully
 #[test]
 fn test_missing_tenant_id_in_jwt() {
     let claims = json!({
@@ -44,7 +44,7 @@ fn test_missing_tenant_id_in_jwt() {
     assert_eq!(tenant_id, None);
 }
 
-/// Test that tenant_id as non-string in JWT is rejected
+/// Test that `tenant_id` as non-string in JWT is rejected
 #[test]
 fn test_invalid_tenant_id_type_in_jwt() {
     let claims = json!({
@@ -62,7 +62,7 @@ fn test_invalid_tenant_id_type_in_jwt() {
 // Test 2: Tenant Context from JWT
 // ============================================================================
 
-/// Test that TenantContext can be created from JWT claims
+/// Test that `TenantContext` can be created from JWT claims
 #[test]
 fn test_tenant_context_from_jwt_claims() {
     let claims = json!({
@@ -80,7 +80,7 @@ fn test_tenant_context_from_jwt_claims() {
     }
 }
 
-/// Test that UUID tenant_ids from JWT work correctly
+/// Test that UUID `tenant_ids` from JWT work correctly
 #[test]
 fn test_uuid_tenant_id_from_jwt() {
     let uuid_tenant = "550e8400-e29b-41d4-a716-446655440000";
@@ -205,7 +205,7 @@ fn test_admin_multi_tenant_query() {
 // Test 6: Edge Cases
 // ============================================================================
 
-/// Test that empty tenant_id handling
+/// Test that empty `tenant_id` handling
 #[test]
 fn test_empty_tenant_id_filtering() {
     let tenant_id = "";
@@ -216,7 +216,7 @@ fn test_empty_tenant_id_filtering() {
     assert!(filter.contains("''"));
 }
 
-/// Test that special characters in tenant_id are preserved
+/// Test that special characters in `tenant_id` are preserved
 #[test]
 fn test_special_chars_tenant_id_filtering() {
     let tenant_id = "company-123_corp.org";
@@ -226,7 +226,7 @@ fn test_special_chars_tenant_id_filtering() {
     assert!(filter.contains("company-123_corp.org"));
 }
 
-/// Test that very long tenant_id is handled
+/// Test that very long `tenant_id` is handled
 #[test]
 fn test_long_tenant_id_filtering() {
     let long_id = "a".repeat(255); // Max typical identifier length

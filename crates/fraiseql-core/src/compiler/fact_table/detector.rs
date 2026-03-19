@@ -192,7 +192,7 @@ impl FactTableDetector {
         Ok(metadata)
     }
 
-    /// Parse SQL type string to SqlType enum
+    /// Parse SQL type string to `SqlType` enum
     fn parse_sql_type(type_name: &str, db_type: DatabaseType) -> SqlType {
         match db_type {
             DatabaseType::PostgreSQL => SqlType::from_str_postgres(type_name),
@@ -331,7 +331,6 @@ impl FactTableDetector {
     /// Infer JSON data type from a value
     pub(super) fn infer_json_type(value: &serde_json::Value) -> String {
         match value {
-            serde_json::Value::Null => "string".to_string(),
             serde_json::Value::Bool(_) => "boolean".to_string(),
             serde_json::Value::Number(n) => {
                 if n.is_i64() || n.is_u64() {
@@ -340,9 +339,10 @@ impl FactTableDetector {
                     "float".to_string()
                 }
             },
-            serde_json::Value::String(_) => "string".to_string(),
             serde_json::Value::Array(_) => "array".to_string(),
             serde_json::Value::Object(_) => "object".to_string(),
+            // Null and String both infer as "string" type
+            serde_json::Value::Null | serde_json::Value::String(_) => "string".to_string(),
         }
     }
 
@@ -393,14 +393,14 @@ impl FactTableDetector {
         }
     }
 
-    /// Detect calendar dimension columns (date_info, week_info, etc.)
+    /// Detect calendar dimension columns (`date_info`, `week_info`, etc.)
     ///
     /// Looks for `*_info` JSONB/JSON columns following the calendar dimension pattern.
     /// Returns calendar dimension metadata if calendar columns are found.
     ///
     /// # Arguments
     ///
-    /// * `columns` - List of (name, data_type, nullable) tuples
+    /// * `columns` - List of (name, `data_type`, nullable) tuples
     /// * `_indexed_set` - Set of indexed columns (unused, for future optimization detection)
     ///
     /// # Returns
@@ -453,7 +453,7 @@ impl FactTableDetector {
     ///
     /// # Arguments
     ///
-    /// * `column_name` - Name of the calendar column (e.g., "date_info", "month_info")
+    /// * `column_name` - Name of the calendar column (e.g., "`date_info`", "`month_info`")
     ///
     /// # Returns
     ///

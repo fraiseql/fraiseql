@@ -74,7 +74,7 @@ impl RedisApqStorage {
     }
 
     /// Record a Redis error and return a fail-open result.
-    fn fail_open<T: Default>(err: redis::RedisError, operation: &str) -> Result<T, ApqError> {
+    fn fail_open<T: Default>(err: &redis::RedisError, operation: &str) -> Result<T, ApqError> {
         REDIS_APQ_ERRORS.fetch_add(1, Ordering::Relaxed);
         warn!(operation, error = %err, "Redis APQ: fail-open on error");
         Ok(T::default())
@@ -90,7 +90,7 @@ impl ApqStorage for RedisApqStorage {
         let mut conn = self.pool.clone();
         match conn.get::<_, Option<String>>(Self::key(hash)).await {
             Ok(result) => Ok(result),
-            Err(e) => Self::fail_open(e, "GET"),
+            Err(e) => Self::fail_open(&e, "GET"),
         }
     }
 
@@ -98,7 +98,7 @@ impl ApqStorage for RedisApqStorage {
         let mut conn = self.pool.clone();
         match conn.set_ex::<_, _, ()>(Self::key(&hash), &query, self.ttl_secs).await {
             Ok(()) => Ok(()),
-            Err(e) => Self::fail_open(e, "SET"),
+            Err(e) => Self::fail_open(&e, "SET"),
         }
     }
 
@@ -106,7 +106,7 @@ impl ApqStorage for RedisApqStorage {
         let mut conn = self.pool.clone();
         match conn.exists::<_, bool>(Self::key(hash)).await {
             Ok(result) => Ok(result),
-            Err(e) => Self::fail_open(e, "EXISTS"),
+            Err(e) => Self::fail_open(&e, "EXISTS"),
         }
     }
 
@@ -114,7 +114,7 @@ impl ApqStorage for RedisApqStorage {
         let mut conn = self.pool.clone();
         match conn.del::<_, ()>(Self::key(hash)).await {
             Ok(()) => Ok(()),
-            Err(e) => Self::fail_open(e, "DEL"),
+            Err(e) => Self::fail_open(&e, "DEL"),
         }
     }
 
@@ -145,12 +145,12 @@ impl ApqStorage for RedisApqStorage {
                 .await
             {
                 Ok(result) => result,
-                Err(e) => return Self::fail_open(e, "SCAN"),
+                Err(e) => return Self::fail_open(&e, "SCAN"),
             };
 
             if !keys.is_empty() {
                 if let Err(e) = conn.del::<_, ()>(&keys[..]).await {
-                    return Self::fail_open(e, "DEL (clear)");
+                    return Self::fail_open(&e, "DEL (clear)");
                 }
             }
 

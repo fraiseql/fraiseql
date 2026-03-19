@@ -84,7 +84,7 @@ pub struct AuthoringIR {
     pub subscriptions: Vec<IRSubscription>,
 
     /// Fact table metadata (from authoring-language decorators).
-    /// Key: table name (e.g., "tf_sales")
+    /// Key: table name (e.g., "`tf_sales`")
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fact_tables: HashMap<String, FactTableMetadata>,
 }
@@ -313,7 +313,7 @@ pub struct IRInterface {
 /// IR Union definition.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRUnion {
-    /// Union name (e.g., "SearchResult").
+    /// Union name (e.g., "`SearchResult`").
     pub name: String,
 
     /// Types that are part of this union.
@@ -326,7 +326,7 @@ pub struct IRUnion {
 /// IR Input type definition.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IRInputType {
-    /// Input type name (e.g., "CreateUserInput").
+    /// Input type name (e.g., "`CreateUserInput`").
     pub name: String,
 
     /// Input fields.
@@ -369,7 +369,7 @@ pub struct IRScalar {
     pub description: Option<String>,
 
     /// URL specification (RFC or standard that defines this scalar type).
-    /// Per GraphQL spec §3.5.1 (specified_by_url).
+    /// Per GraphQL spec §3.5.1 (`specified_by_url`).
     pub specified_by_url: Option<String>,
 
     /// Validation rules for this scalar.

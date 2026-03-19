@@ -191,7 +191,7 @@ impl AuthMiddleware {
     /// Extract scopes from JWT claims.
     ///
     /// Supports multiple formats:
-    /// - `scope`: space-separated string (OAuth2 standard)
+    /// - `scope`: space-separated string (`OAuth2` standard)
     /// - `scp`: array of strings (Microsoft)
     /// - `permissions`: array of strings (Auth0 RBAC)
     fn extract_scopes_from_jwt_claims(&self, claims: &JwtClaims) -> Vec<String> {
@@ -290,7 +290,7 @@ impl AuthMiddleware {
     /// Parse JWT claims (simplified, for demo purposes)
     ///
     /// In a real implementation, this would decode and validate the JWT signature.
-    /// For testing, we accept a special test token format: "test:{json_payload}"
+    /// For testing, we accept a special test token format: "`test:{json_payload`}"
     fn parse_claims(&self, token: &str) -> Result<TokenClaims> {
         // Split the token
         let parts: Vec<&str> = token.split('.').collect();

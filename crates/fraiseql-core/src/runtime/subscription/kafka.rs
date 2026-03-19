@@ -117,7 +117,7 @@ impl KafkaMessage {
         }
     }
 
-    /// Get the message key (entity_id for partitioning).
+    /// Get the message key (`entity_id` for partitioning).
     #[must_use]
     pub fn key(&self) -> &str {
         &self.entity_id
@@ -131,7 +131,7 @@ impl KafkaMessage {
 /// Kafka transport adapter for event streaming.
 ///
 /// Delivers subscription events to Apache Kafka topics.
-/// Uses the entity_id as the message key for consistent partitioning.
+/// Uses the `entity_id` as the message key for consistent partitioning.
 ///
 /// # Feature Flag
 ///

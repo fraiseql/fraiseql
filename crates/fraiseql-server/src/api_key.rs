@@ -227,7 +227,7 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
         scopes:     scopes.to_vec(),
         expires_at: Utc::now() + chrono::Duration::hours(24),
     };
-    SecurityContext::from_user(user, format!("apikey-{}", uuid::Uuid::new_v4()))
+    SecurityContext::from_user(&user, format!("apikey-{}", uuid::Uuid::new_v4()))
 }
 
 /// Build an `ApiKeyAuthenticator` from the compiled schema's `security.api_keys` JSON.

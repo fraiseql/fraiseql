@@ -1,6 +1,6 @@
 //! OIDC Discovery and JWKS Support
 //!
-//! This module provides OpenID Connect discovery and JSON Web Key Set (JWKS)
+//! This module provides `OpenID` Connect discovery and JSON Web Key Set (JWKS)
 //! support for validating JWT tokens from any OIDC-compliant provider.
 //!
 //! Supported providers include:

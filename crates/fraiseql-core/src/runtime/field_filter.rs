@@ -65,7 +65,7 @@ pub fn classify_field_access(
 /// Filter fields based on user's roles and scope requirements.
 ///
 /// Removes fields that:
-/// 1. Have a required scope (requires_scope is Some)
+/// 1. Have a required scope (`requires_scope` is Some)
 /// 2. User's roles don't grant access to that scope
 ///
 /// # Arguments
@@ -164,7 +164,7 @@ mod tests {
         }
     }
 
-    fn create_test_context(roles: Vec<&str>) -> SecurityContext {
+    fn create_test_context(roles: &[&str]) -> SecurityContext {
         SecurityContext {
             user_id:          "test-user".to_string(),
             roles:            roles.iter().map(|&r| r.to_string()).collect(),
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_can_access_public_field() {
         let field = create_test_field("email", None);
-        let context = create_test_context(vec![]);
+        let context = create_test_context(&[]);
         let config = SecurityConfig::new();
 
         assert!(
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn test_cannot_access_scoped_field_without_role() {
         let field = create_test_field("password", Some("admin:*"));
-        let context = create_test_context(vec!["viewer"]);
+        let context = create_test_context(&["viewer"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("viewer".to_string(), vec!["read:*".to_string()]));
         config.add_role(RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]));
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_can_access_scoped_field_with_role() {
         let field = create_test_field("password", Some("admin:*"));
-        let context = create_test_context(vec!["admin"]);
+        let context = create_test_context(&["admin"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]));
 
@@ -228,7 +228,7 @@ mod tests {
             create_test_field("password", Some("admin:*")),      // admin only
         ];
 
-        let context = create_test_context(vec!["viewer"]);
+        let context = create_test_context(&["viewer"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("viewer".to_string(), vec!["read:User.*".to_string()]));
         config.add_role(RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]));
@@ -252,7 +252,7 @@ mod tests {
             create_test_field("password", Some("admin:*")),
         ];
 
-        let context = create_test_context(vec!["admin"]);
+        let context = create_test_context(&["admin"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("admin".to_string(), vec!["*".to_string()]));
 
@@ -292,7 +292,7 @@ mod tests {
             create_field_with_deny("id", None, FieldDenyPolicy::Reject),
             create_field_with_deny("name", None, FieldDenyPolicy::Reject),
         ];
-        let ctx = create_test_context(vec![]);
+        let ctx = create_test_context(&[]);
         let config = SecurityConfig::new();
 
         let result = classify_field_access(
@@ -313,7 +313,7 @@ mod tests {
             create_field_with_deny("id", None, FieldDenyPolicy::Reject),
             create_field_with_deny("email", Some("read:email"), FieldDenyPolicy::Mask),
         ];
-        let ctx = create_test_context(vec!["viewer"]);
+        let ctx = create_test_context(&["viewer"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("viewer".to_string(), vec!["read:name".to_string()]));
 
@@ -335,7 +335,7 @@ mod tests {
             create_field_with_deny("id", None, FieldDenyPolicy::Reject),
             create_field_with_deny("salary", Some("admin:*"), FieldDenyPolicy::Reject),
         ];
-        let ctx = create_test_context(vec!["viewer"]);
+        let ctx = create_test_context(&["viewer"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("viewer".to_string(), vec!["read:*".to_string()]));
 
@@ -356,7 +356,7 @@ mod tests {
             create_field_with_deny("email", Some("read:email"), FieldDenyPolicy::Mask),
             create_field_with_deny("salary", Some("admin:*"), FieldDenyPolicy::Reject),
         ];
-        let ctx = create_test_context(vec!["admin"]);
+        let ctx = create_test_context(&["admin"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("admin".to_string(), vec!["*".to_string()]));
 
@@ -381,7 +381,7 @@ mod tests {
             create_field_with_deny("email", Some("read:email"), FieldDenyPolicy::Mask),
             create_field_with_deny("salary", Some("hr:*"), FieldDenyPolicy::Reject),
         ];
-        let ctx = create_test_context(vec!["viewer"]);
+        let ctx = create_test_context(&["viewer"]);
         let mut config = SecurityConfig::new();
         config.add_role(RoleDefinition::new("viewer".to_string(), vec!["read:name".to_string()]));
 
@@ -403,7 +403,7 @@ mod tests {
             create_field_with_deny("id", None, FieldDenyPolicy::Reject),
             create_field_with_deny("salary", Some("admin:*"), FieldDenyPolicy::Reject),
         ];
-        let ctx = create_test_context(vec!["viewer"]);
+        let ctx = create_test_context(&["viewer"]);
         let config = SecurityConfig::new();
 
         let result = classify_field_access(

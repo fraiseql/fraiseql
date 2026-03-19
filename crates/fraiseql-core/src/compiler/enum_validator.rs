@@ -29,7 +29,7 @@ impl EnumValidator {
     ///
     /// # Returns
     ///
-    /// Vec of parsed IREnum definitions
+    /// Vec of parsed `IREnum` definitions
     ///
     /// # Errors
     ///
@@ -201,7 +201,7 @@ impl EnumValidator {
 
     /// Validate enum type name follows GraphQL naming conventions.
     ///
-    /// Valid names: PascalCase starting with letter, alphanumeric + underscore
+    /// Valid names: `PascalCase` starting with letter, alphanumeric + underscore
     fn validate_enum_name(name: &str) -> Result<()> {
         if name.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -235,7 +235,7 @@ impl EnumValidator {
         Ok(())
     }
 
-    /// Validate enum value name (should be SCREAMING_SNAKE_CASE).
+    /// Validate enum value name (should be `SCREAMING_SNAKE_CASE`).
     ///
     /// Valid names: UPPERCASE with underscores
     fn validate_enum_value_name(name: &str, enum_name: &str) -> Result<()> {

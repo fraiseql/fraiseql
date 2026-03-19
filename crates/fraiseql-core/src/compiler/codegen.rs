@@ -1,9 +1,9 @@
-//! Code generator - produces final CompiledSchema JSON.
+//! Code generator - produces final `CompiledSchema` JSON.
 //!
 //! # Overview
 //!
 //! Takes validated IR and SQL templates, produces runtime-optimized
-//! CompiledSchema ready for execution.
+//! `CompiledSchema` ready for execution.
 
 use std::collections::HashSet;
 
@@ -16,11 +16,11 @@ use crate::error::FraiseQLError;
 use crate::{
     error::Result,
     schema::{
-        ArgumentDefinition, AutoParams as SchemaAutoParams, CompiledSchema, DeprecationInfo,
-        EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy, FieldType,
-        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
-        QueryDefinition, SubscriptionDefinition, TypeDefinition, UnionDefinition,
-        domain_types::{SqlSource, TypeName},
+        ArgumentDefinition, AutoParams as SchemaAutoParams, CompiledSchema, CursorType,
+        DeprecationInfo, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy,
+        FieldType, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
+        MutationDefinition, QueryDefinition, SubscriptionDefinition, TypeDefinition,
+        UnionDefinition, domain_types::{SqlSource, TypeName},
     },
     validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
 };
@@ -162,8 +162,8 @@ impl CodeGenerator {
                     jsonb_column:        "data".to_string(), // Default to "data" column
                     relay:               false,
                     relay_cursor_column: None,
-                    relay_cursor_type:   Default::default(),
-                    inject_params:       Default::default(),
+                    relay_cursor_type:   CursorType::default(),
+                    inject_params:       indexmap::IndexMap::default(),
                     cache_ttl_seconds:   None,
                     additional_views:    vec![],
                     requires_role:       None,
@@ -336,7 +336,7 @@ impl CodeGenerator {
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
             sql_source,
-            inject_params: Default::default(),
+            inject_params: indexmap::IndexMap::default(),
             invalidates_fact_tables: vec![],
             invalidates_views: vec![],
         }
@@ -412,7 +412,7 @@ impl CodeGenerator {
             .collect()
     }
 
-    /// Build custom type registry from IRScalars.
+    /// Build custom type registry from `IRScalars`.
     fn build_custom_type_registry(
         ir_scalars: &[super::ir::IRScalar],
     ) -> Result<CustomTypeRegistry> {

@@ -248,9 +248,7 @@ impl OidcValidator {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => SecurityError::TokenExpired {
                     expired_at: Utc::now(), // Approximate
                 },
-                jsonwebtoken::errors::ErrorKind::InvalidIssuer => SecurityError::InvalidToken,
-                jsonwebtoken::errors::ErrorKind::InvalidAudience => SecurityError::InvalidToken,
-                jsonwebtoken::errors::ErrorKind::InvalidSignature => SecurityError::InvalidToken,
+                // Invalid issuer, audience, signature, and all other errors map to InvalidToken
                 _ => SecurityError::InvalidToken,
             }
         })?;

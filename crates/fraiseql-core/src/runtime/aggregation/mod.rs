@@ -49,6 +49,8 @@
 //! LIMIT 10
 //! ```
 
+use std::fmt::Write as _;
+
 use crate::{
     compiler::{
         aggregate_types::{AggregateFunction, TemporalBucket},
@@ -134,10 +136,9 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Convert WhereOperator to SQL operator
+    /// Convert `WhereOperator` to SQL operator
     pub(super) const fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
         match operator {
-            WhereOperator::Eq => "=",
             WhereOperator::Neq => "!=",
             WhereOperator::Gt => ">",
             WhereOperator::Gte => ">=",
@@ -145,24 +146,19 @@ impl AggregationSqlGenerator {
             WhereOperator::Lte => "<=",
             WhereOperator::In => "IN",
             WhereOperator::Nin => "NOT IN",
-            WhereOperator::Like | WhereOperator::Contains => "LIKE",
-            WhereOperator::Ilike | WhereOperator::Icontains => {
-                match self.database_type {
-                    DatabaseType::PostgreSQL => "ILIKE",
-                    _ => "LIKE", // Other databases use LIKE with UPPER/LOWER
-                }
-            },
-            WhereOperator::Startswith => "LIKE",
-            WhereOperator::Istartswith => match self.database_type {
+            WhereOperator::Like
+            | WhereOperator::Contains
+            | WhereOperator::Startswith
+            | WhereOperator::Endswith => "LIKE",
+            WhereOperator::Ilike
+            | WhereOperator::Icontains
+            | WhereOperator::Istartswith
+            | WhereOperator::Iendswith => match self.database_type {
                 DatabaseType::PostgreSQL => "ILIKE",
-                _ => "LIKE",
+                _ => "LIKE", // Other databases use LIKE with UPPER/LOWER
             },
-            WhereOperator::Endswith => "LIKE",
-            WhereOperator::Iendswith => match self.database_type {
-                DatabaseType::PostgreSQL => "ILIKE",
-                _ => "LIKE",
-            },
-            _ => "=", // Safe default for other operators
+            // Eq and any future operators default to equality
+            _ => "=",
         }
     }
 
@@ -184,7 +180,7 @@ impl AggregationSqlGenerator {
     /// Escape a string value for embedding inside a SQL string literal.
     ///
     /// MySQL treats backslash as an escape character in string literals by default
-    /// (unless `NO_BACKSLASH_ESCAPES` sql_mode is set). Backslashes must be doubled
+    /// (unless `NO_BACKSLASH_ESCAPES` `sql_mode` is set). Backslashes must be doubled
     /// before single-quote escaping to prevent injection via sequences like `\';`.
     ///
     /// Null bytes (`\x00`) are stripped before escaping. PostgreSQL rejects null
@@ -325,10 +321,10 @@ impl AggregationSqlGenerator {
         let mut sql = parts.join("\n");
 
         if let Some(limit) = plan.request.limit {
-            sql.push_str(&format!("\nLIMIT {limit}"));
+            let _ = write!(sql, "\nLIMIT {limit}");
         }
         if let Some(offset) = plan.request.offset {
-            sql.push_str(&format!("\nOFFSET {offset}"));
+            let _ = write!(sql, "\nOFFSET {offset}");
         }
 
         Ok(ParameterizedAggregationSql { sql, params })

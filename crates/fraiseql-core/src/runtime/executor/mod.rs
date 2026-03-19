@@ -88,7 +88,7 @@
 //! - Query operation (not just query string)
 //! - All GraphQL variables
 //! - Schema version
-//! - User's RLS policy (via SecurityContext)
+//! - User's RLS policy (via `SecurityContext`)
 //!
 //! Different users with different RLS policies generate different cache entries.
 //! Cache isolation is **automatic and correct by design**.
@@ -200,11 +200,11 @@ enum QueryType {
     Regular,
 
     /// Aggregate analytics query (ends with _aggregate).
-    /// Contains the full query name (e.g., "sales_aggregate").
+    /// Contains the full query name (e.g., "`sales_aggregate`").
     Aggregate(String),
 
     /// Window function query (ends with _window).
-    /// Contains the full query name (e.g., "sales_window").
+    /// Contains the full query name (e.g., "`sales_window`").
     Window(String),
 
     /// Federation query (_service or _entities).

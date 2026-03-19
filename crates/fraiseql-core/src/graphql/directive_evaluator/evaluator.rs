@@ -201,7 +201,7 @@ impl DirectiveEvaluator {
         Ok(result)
     }
 
-    /// Parse directive arguments into a HashMap.
+    /// Parse directive arguments into a `HashMap`.
     ///
     /// Converts the directive argument list into a map with resolved values.
     ///

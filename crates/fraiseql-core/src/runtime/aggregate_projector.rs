@@ -52,7 +52,7 @@ impl AggregationProjector {
     ///
     /// # Arguments
     ///
-    /// * `rows` - SQL result rows as HashMaps
+    /// * `rows` - SQL result rows as `HashMaps`
     /// * `plan` - Aggregation execution plan (for metadata)
     ///
     /// # Returns
@@ -113,7 +113,7 @@ impl AggregationProjector {
     /// # Arguments
     ///
     /// * `projected` - Projected result array
-    /// * `query_name` - GraphQL query field name (e.g., "sales_aggregate")
+    /// * `query_name` - GraphQL query field name (e.g., "`sales_aggregate`")
     ///
     /// # Returns
     ///
@@ -129,6 +129,8 @@ impl AggregationProjector {
     /// // response: {"data": {"sales_aggregate": [{"count": 42}]}}
     /// assert!(response.get("data").is_some());
     /// ```
+    // Reason: `projected` is moved into `serde_json::json!` and consumed by value.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn wrap_in_data_envelope(projected: Value, query_name: &str) -> Value {
         json!({
             "data": {

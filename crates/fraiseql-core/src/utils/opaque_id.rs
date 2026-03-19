@@ -23,7 +23,7 @@ pub struct OpaqueId {
 impl OpaqueId {
     /// Create an opaque ID from a database ID
     ///
-    /// Example: database ID 12345 → "MTIzNDU=" (base64)
+    /// Example: database ID 12345 → "`MTIzNDU`=" (base64)
     #[must_use]
     pub fn new(db_id: impl Into<String>) -> Self {
         let id_str = db_id.into();
@@ -33,7 +33,7 @@ impl OpaqueId {
 
     /// Create an opaque ID with signature for integrity verification
     ///
-    /// Uses SHA256(db_id + secret) to create a tamper-proof ID
+    /// Uses `SHA256(db_id` + secret) to create a tamper-proof ID
     #[must_use]
     pub fn with_signature(db_id: impl Into<String>, secret: &[u8]) -> Self {
         let id_str = db_id.into();

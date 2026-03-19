@@ -73,11 +73,11 @@ pub struct IntrospectionType {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enum_values: Option<Vec<IntrospectionEnumValue>>,
 
-    /// Input fields (for INPUT_OBJECT types).
+    /// Input fields (for `INPUT_OBJECT` types).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_fields: Option<Vec<IntrospectionInputValue>>,
 
-    /// The wrapped type (for NON_NULL and LIST types).
+    /// The wrapped type (for `NON_NULL` and LIST types).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub of_type: Option<Box<IntrospectionType>>,
 
@@ -167,7 +167,7 @@ pub struct IntrospectionField {
 
 /// Validation rule for input field in introspection format.
 ///
-/// Converts internal ValidationRule enums to introspection-friendly format
+/// Converts internal `ValidationRule` enums to introspection-friendly format
 /// that clients can query and use for UI generation, form validation, etc.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -207,7 +207,7 @@ pub struct IntrospectionValidationRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operator: Option<String>,
 
-    /// List of field names (for one_of, any_of, etc.)
+    /// List of field names (for `one_of`, `any_of`, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field_list: Option<Vec<String>>,
 

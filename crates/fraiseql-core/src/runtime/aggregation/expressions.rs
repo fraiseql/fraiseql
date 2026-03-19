@@ -1,5 +1,7 @@
 //! SELECT, GROUP BY, and aggregate expression SQL generation.
 
+use std::fmt::Write as _;
+
 use super::{
     AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
     GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
@@ -195,7 +197,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate ARRAY_AGG SQL
+    /// Generate `ARRAY_AGG` SQL
     pub(super) fn generate_array_agg_sql(
         &self,
         column: &str,
@@ -227,7 +229,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate JSON_AGG SQL
+    /// Generate `JSON_AGG` SQL
     pub(super) fn generate_json_agg_sql(
         &self,
         column: &str,
@@ -256,7 +258,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate JSONB_AGG SQL (PostgreSQL-specific)
+    /// Generate `JSONB_AGG` SQL (PostgreSQL-specific)
     pub(super) fn generate_jsonb_agg_sql(
         &self,
         column: &str,
@@ -275,7 +277,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate STRING_AGG SQL
+    /// Generate `STRING_AGG` SQL
     pub(super) fn generate_string_agg_sql(
         &self,
         column: &str,
@@ -301,9 +303,9 @@ impl AggregationSqlGenerator {
             DatabaseType::MySQL => {
                 let mut sql = format!("GROUP_CONCAT({}", column);
                 if let Some(order) = order_by {
-                    sql.push_str(&format!(" ORDER BY {}", self.order_by_to_sql(order)));
+                    let _ = write!(sql, " ORDER BY {}", self.order_by_to_sql(order));
                 }
-                sql.push_str(&format!(" SEPARATOR '{}')", safe_delimiter));
+                let _ = write!(sql, " SEPARATOR '{safe_delimiter}')");
                 sql
             },
             DatabaseType::SQLite => {
@@ -314,10 +316,7 @@ impl AggregationSqlGenerator {
                 let mut sql =
                     format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, safe_delimiter);
                 if let Some(order) = order_by {
-                    sql.push_str(&format!(
-                        " WITHIN GROUP (ORDER BY {})",
-                        self.order_by_to_sql(order)
-                    ));
+                    let _ = write!(sql, " WITHIN GROUP (ORDER BY {})", self.order_by_to_sql(order));
                 }
                 sql
             },
@@ -329,10 +328,11 @@ impl AggregationSqlGenerator {
         order_by
             .iter()
             .map(|clause| {
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let direction = match clause.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
-                    // Reason: non_exhaustive requires catch-all for cross-crate matches
                     _ => "ASC",
                 };
                 format!("{} {}", self.quote_identifier(&clause.field), direction)
@@ -344,14 +344,13 @@ impl AggregationSqlGenerator {
     /// Generate STDDEV SQL (database-specific)
     ///
     /// Database support:
-    /// - PostgreSQL: STDDEV_SAMP() (default), STDDEV_POP() also available
-    /// - MySQL: STDDEV_SAMP() or STD()
+    /// - PostgreSQL: `STDDEV_SAMP()` (default), `STDDEV_POP()` also available
+    /// - MySQL: `STDDEV_SAMP()` or `STD()`
     /// - SQLite: Not natively supported (returns NULL or use custom function)
-    /// - SQL Server: STDEV()
+    /// - SQL Server: `STDEV()`
     pub(super) fn generate_stddev_sql(&self, column: &str) -> String {
         match self.database_type {
-            DatabaseType::PostgreSQL => format!("STDDEV_SAMP({})", column),
-            DatabaseType::MySQL => format!("STDDEV_SAMP({})", column),
+            DatabaseType::PostgreSQL | DatabaseType::MySQL => format!("STDDEV_SAMP({})", column),
             DatabaseType::SQLite => {
                 // SQLite doesn't have built-in STDDEV
                 // Return NULL to indicate unavailable
@@ -364,14 +363,13 @@ impl AggregationSqlGenerator {
     /// Generate VARIANCE SQL (database-specific)
     ///
     /// Database support:
-    /// - PostgreSQL: VAR_SAMP() (default), VAR_POP() also available
-    /// - MySQL: VAR_SAMP() or VARIANCE()
+    /// - PostgreSQL: `VAR_SAMP()` (default), `VAR_POP()` also available
+    /// - MySQL: `VAR_SAMP()` or `VARIANCE()`
     /// - SQLite: Not natively supported (returns NULL or use custom function)
-    /// - SQL Server: VAR()
+    /// - SQL Server: `VAR()`
     pub(super) fn generate_variance_sql(&self, column: &str) -> String {
         match self.database_type {
-            DatabaseType::PostgreSQL => format!("VAR_SAMP({})", column),
-            DatabaseType::MySQL => format!("VAR_SAMP({})", column),
+            DatabaseType::PostgreSQL | DatabaseType::MySQL => format!("VAR_SAMP({})", column),
             DatabaseType::SQLite => {
                 // SQLite doesn't have built-in VARIANCE
                 // Return NULL to indicate unavailable
@@ -381,7 +379,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate BOOL_AND/BOOL_OR SQL
+    /// Generate `BOOL_AND/BOOL_OR` SQL
     pub(super) fn generate_bool_agg_sql(
         &self,
         column: &str,
@@ -441,10 +439,11 @@ impl AggregationSqlGenerator {
         let clauses: Vec<String> = order_by
             .iter()
             .map(|clause| {
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let direction = match clause.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
-                    // Reason: non_exhaustive requires catch-all for cross-crate matches
                     _ => "ASC",
                 };
                 format!("{} {}", self.quote_identifier(&clause.field), direction)

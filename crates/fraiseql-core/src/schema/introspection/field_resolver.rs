@@ -42,7 +42,8 @@ pub(super) fn field_type_to_introspection(
         FieldType::Date => type_ref("Date"),
         FieldType::Time => type_ref("Time"),
         FieldType::Uuid => type_ref("UUID"),
-        FieldType::Json => type_ref("JSON"),
+        // JSON and Vector are both exposed as JSON in introspection
+        FieldType::Json | FieldType::Vector => type_ref("JSON"),
         FieldType::Decimal => type_ref("Decimal"),
         FieldType::Scalar(name) => type_ref(name), // Rich/custom scalars
         FieldType::Object(name) => type_ref_with_kind(name, TypeKind::Object),
@@ -62,7 +63,6 @@ pub(super) fn field_type_to_introspection(
             of_type:            Some(Box::new(field_type_to_introspection(inner, true))),
             specified_by_u_r_l: None,
         },
-        FieldType::Vector => type_ref("JSON"), // Vectors are exposed as JSON
     };
 
     if nullable {
@@ -87,15 +87,15 @@ pub(super) fn field_type_to_introspection(
 /// Create a named type reference node with `TypeKind::Scalar`.
 ///
 /// Used for built-in and custom scalar types. For composite types (Object,
-/// Enum, InputObject, Interface, Union) use [`type_ref_with_kind`] instead.
+/// Enum, `InputObject`, Interface, Union) use [`type_ref_with_kind`] instead.
 pub fn type_ref(name: &str) -> IntrospectionType {
     type_ref_with_kind(name, TypeKind::Scalar)
 }
 
 /// Create a named type reference node with the given `TypeKind`.
 ///
-/// Introspection clients (GraphiQL, code-generators) rely on the `kind`
-/// field to distinguish Object from Enum from InputObject etc. Hardcoding
+/// Introspection clients (`GraphiQL`, code-generators) rely on the `kind`
+/// field to distinguish Object from Enum from `InputObject` etc. Hardcoding
 /// `Scalar` for every named type breaks tooling that reads `__schema`.
 pub fn type_ref_with_kind(name: &str, kind: TypeKind) -> IntrospectionType {
     IntrospectionType {

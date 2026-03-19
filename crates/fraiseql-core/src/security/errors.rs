@@ -1,9 +1,9 @@
 //! Security-specific error types for comprehensive error handling.
 //!
 //! This module defines all security-related error types used throughout
-//! the framework. No PyO3 decorators - all types are pure Rust.
+//! the framework. No `PyO3` decorators - all types are pure Rust.
 //!
-//! Note: The PyO3 FFI wrappers for Python are in `py/src/ffi/errors.rs`
+//! Note: The `PyO3` FFI wrappers for Python are in `py/src/ffi/errors.rs`
 
 use std::fmt;
 
@@ -53,7 +53,7 @@ pub enum SecurityError {
 
     /// Query validation: size exceeds maximum allowed bytes.
     ///
-    /// Very large queries can consume memory or cause DoS.
+    /// Very large queries can consume memory or cause `DoS`.
     QueryTooLarge {
         /// Actual query size in bytes
         size:     usize,
@@ -142,7 +142,7 @@ pub enum SecurityError {
     /// JWT signature verification failed.
     ///
     /// The token's signature does not match the configured signing secret.
-    /// Most commonly caused by a wrong or rotated FRAISEQL_JWT_SECRET.
+    /// Most commonly caused by a wrong or rotated `FRAISEQL_JWT_SECRET`.
     JwtSignatureInvalid,
 
     /// JWT issuer claim does not match the expected issuer.
@@ -207,7 +207,7 @@ pub enum SecurityError {
 
     /// Query contains too many aliases (alias amplification attack).
     ///
-    /// Alias amplification is a DoS technique where many aliases resolve the same
+    /// Alias amplification is a `DoS` technique where many aliases resolve the same
     /// expensive field, multiplying backend work with a small query string.
     TooManyAliases {
         /// Actual number of aliases in the query
@@ -350,6 +350,8 @@ impl std::error::Error for SecurityError {
 }
 
 impl PartialEq for SecurityError {
+    #[allow(clippy::match_same_arms)]
+    // Reason: each arm binds distinct enum variant fields; combining would lose per-variant clarity
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (

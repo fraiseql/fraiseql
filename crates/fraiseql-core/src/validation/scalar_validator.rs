@@ -59,7 +59,7 @@ impl ScalarValidationError {
         }
     }
 
-    /// Convert to FraiseQLError.
+    /// Convert to `FraiseQLError`.
     pub fn into_fraiseql_error(self) -> FraiseQLError {
         FraiseQLError::validation(self.to_string())
     }
@@ -149,7 +149,7 @@ pub fn validate_custom_scalar(
     }
 }
 
-/// Convenience function that defaults context to ParseValue.
+/// Convenience function that defaults context to `ParseValue`.
 ///
 /// # Errors
 ///

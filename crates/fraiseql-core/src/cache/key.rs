@@ -258,10 +258,12 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
     use serde_json::json;
 
     use super::*;
     use crate::db::WhereOperator;
+    use crate::schema::CursorType;
 
     // ========================================================================
     // Security Tests (CRITICAL)
@@ -504,8 +506,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -537,8 +539,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -565,8 +567,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
             requires_role:       None,

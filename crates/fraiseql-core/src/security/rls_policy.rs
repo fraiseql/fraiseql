@@ -4,7 +4,7 @@
 //!
 //! RLS rules are defined in fraiseql.toml at authoring time and compiled into
 //! schema.compiled.json. At runtime, the executor evaluates these rules using
-//! the SecurityContext to determine what rows a user can access.
+//! the `SecurityContext` to determine what rows a user can access.
 //!
 //! # Architecture
 //!
@@ -134,7 +134,7 @@ struct CacheEntry {
 /// Row-Level Security (RLS) policy for runtime evaluation.
 ///
 /// Implementations of this trait evaluate compiled RLS rules with the user's
-/// SecurityContext to determine what rows they can access.
+/// `SecurityContext` to determine what rows they can access.
 ///
 /// # Type Safety
 ///
@@ -185,7 +185,7 @@ pub trait RLSPolicy: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `cache_key` - Cache key (typically "user_id:type_name")
+    /// * `cache_key` - Cache key (typically "`user_id:type_name`")
     /// * `result` - The policy evaluation result to cache
     fn cache_result(&self, _cache_key: &str, _result: &Option<WhereClause>) {
         // Default: no caching. Implementers can override.
@@ -197,16 +197,16 @@ pub trait RLSPolicy: Send + Sync {
 /// This is a reference implementation showing how to build RLS policies.
 ///
 /// Rules:
-/// 1. Multi-tenant: Filter to rows matching user's tenant_id
+/// 1. Multi-tenant: Filter to rows matching user's `tenant_id`
 /// 2. Admin bypass: Admins can access all rows in their tenant
-/// 3. Owner-based: Regular users can only access their own rows (author_id == user_id)
+/// 3. Owner-based: Regular users can only access their own rows (`author_id` == `user_id`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefaultRLSPolicy {
     /// Enable multi-tenant isolation
     pub enable_tenant_isolation: bool,
-    /// Field name for tenant isolation (default: "tenant_id")
+    /// Field name for tenant isolation (default: "`tenant_id`")
     pub tenant_field:            String,
-    /// Field name for owner-based access (default: "author_id")
+    /// Field name for owner-based access (default: "`author_id`")
     pub owner_field:             String,
 }
 
@@ -367,7 +367,7 @@ impl CompiledRLSPolicy {
 pub struct RLSRule {
     /// Rule name (for debugging)
     pub name:              String,
-    /// Expression to evaluate (e.g., "user.id == object.author_id")
+    /// Expression to evaluate (e.g., "user.id == `object.author_id`")
     pub expression:        String,
     /// Whether this rule result can be cached
     pub cacheable:         bool,

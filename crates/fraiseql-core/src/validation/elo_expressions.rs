@@ -2,7 +2,7 @@
 //!
 //! This module integrates Elo (<https://elo-lang.org/>), an expression language by Bernard Lambeau,
 //! as a validation framework, enabling concise, portable validation rules that can be compiled to
-//! multiple targets (Rust, JavaScript, SQL).
+//! multiple targets (Rust, `JavaScript`, SQL).
 
 use serde_json::{Value, json};
 
@@ -14,7 +14,7 @@ use crate::error::{FraiseQLError, Result};
 /// - Comparison operators: <, <=, >, >=, ==, !=
 /// - Logical operators: &&, ||, !
 /// - Field references: user.email, user.age
-/// - Function calls: today(), age(field), matches(field, pattern)
+/// - Function calls: `today()`, age(field), matches(field, pattern)
 /// - Literals: numbers, strings, booleans, dates
 #[derive(Debug, Clone)]
 pub struct EloExpressionEvaluator {

@@ -41,7 +41,7 @@
 //! - `AVG(field) OVER (...)` - Moving average
 //! - `COUNT(*) OVER (...)` - Running count
 //!
-//! # High-Level Example (WindowRequest)
+//! # High-Level Example (`WindowRequest`)
 //!
 //! ```text
 //! // Illustrative output structure only — not directly runnable.
@@ -59,10 +59,10 @@
 //!     limit: Some(100),
 //! };
 //!
-//! let plan = WindowPlanner::plan(request, metadata)?;
+//! let plan = WindowPlanner::plan(request, &metadata)?;
 //! ```
 //!
-//! # SQL Example (WindowExecutionPlan output)
+//! # SQL Example (`WindowExecutionPlan` output)
 //!
 //! ```sql
 //! -- Running total
@@ -131,7 +131,7 @@ use crate::{
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WindowRequest {
-    /// Fact table name (e.g., "tf_sales")
+    /// Fact table name (e.g., "`tf_sales`")
     pub table_name: String,
 
     /// Columns to select (measures, dimensions, filters)
@@ -160,7 +160,7 @@ pub struct WindowRequest {
 pub enum WindowSelectColumn {
     /// Select a measure column (e.g., "revenue")
     Measure {
-        /// Measure name from FactTableMetadata
+        /// Measure name from `FactTableMetadata`
         name:  String,
         /// Result alias
         alias: String,
@@ -174,7 +174,7 @@ pub enum WindowSelectColumn {
         alias: String,
     },
 
-    /// Select a denormalized filter column (e.g., "customer_id", "occurred_at")
+    /// Select a denormalized filter column (e.g., "`customer_id`", "`occurred_at`")
     Filter {
         /// Filter column name
         name:  String,
@@ -225,13 +225,13 @@ pub enum WindowFunctionSpec {
     // =========================================================================
     // Ranking Functions (no field reference needed)
     // =========================================================================
-    /// ROW_NUMBER() - Sequential number within partition
+    /// `ROW_NUMBER()` - Sequential number within partition
     RowNumber,
 
-    /// RANK() - Rank with gaps for ties
+    /// `RANK()` - Rank with gaps for ties
     Rank,
 
-    /// DENSE_RANK() - Rank without gaps
+    /// `DENSE_RANK()` - Rank without gaps
     DenseRank,
 
     /// NTILE(n) - Divide rows into n groups
@@ -240,10 +240,10 @@ pub enum WindowFunctionSpec {
         n: u32,
     },
 
-    /// PERCENT_RANK() - Relative rank (0 to 1)
+    /// `PERCENT_RANK()` - Relative rank (0 to 1)
     PercentRank,
 
-    /// CUME_DIST() - Cumulative distribution
+    /// `CUME_DIST()` - Cumulative distribution
     CumeDist,
 
     // =========================================================================
@@ -269,19 +269,19 @@ pub enum WindowFunctionSpec {
         default: Option<serde_json::Value>,
     },
 
-    /// FIRST_VALUE(field) - First value in window frame
+    /// `FIRST_VALUE(field)` - First value in window frame
     FirstValue {
         /// Measure or dimension name
         field: String,
     },
 
-    /// LAST_VALUE(field) - Last value in window frame
+    /// `LAST_VALUE(field)` - Last value in window frame
     LastValue {
         /// Measure or dimension name
         field: String,
     },
 
-    /// NTH_VALUE(field, n) - Nth value in window frame
+    /// `NTH_VALUE(field`, n) - Nth value in window frame
     NthValue {
         /// Measure or dimension name
         field: String,
@@ -436,13 +436,13 @@ pub struct WindowFunction {
 #[non_exhaustive]
 pub enum WindowFunctionType {
     // Ranking functions
-    /// ROW_NUMBER() - Sequential number within partition
+    /// `ROW_NUMBER()` - Sequential number within partition
     RowNumber,
 
-    /// RANK() - Rank with gaps for ties
+    /// `RANK()` - Rank with gaps for ties
     Rank,
 
-    /// DENSE_RANK() - Rank without gaps
+    /// `DENSE_RANK()` - Rank without gaps
     DenseRank,
 
     /// NTILE(n) - Divide rows into n groups
@@ -451,10 +451,10 @@ pub enum WindowFunctionType {
         n: u32,
     },
 
-    /// PERCENT_RANK() - Relative rank (0 to 1)
+    /// `PERCENT_RANK()` - Relative rank (0 to 1)
     PercentRank,
 
-    /// CUME_DIST() - Cumulative distribution
+    /// `CUME_DIST()` - Cumulative distribution
     CumeDist,
 
     // Value functions
@@ -478,19 +478,19 @@ pub enum WindowFunctionType {
         default: Option<serde_json::Value>,
     },
 
-    /// FIRST_VALUE(field) - First value in window
+    /// `FIRST_VALUE(field)` - First value in window
     FirstValue {
         /// Field name
         field: String,
     },
 
-    /// LAST_VALUE(field) - Last value in window
+    /// `LAST_VALUE(field)` - Last value in window
     LastValue {
         /// Field name
         field: String,
     },
 
-    /// NTH_VALUE(field, n) - Nth value in window
+    /// `NTH_VALUE(field`, n) - Nth value in window
     NthValue {
         /// Field name
         field: String,

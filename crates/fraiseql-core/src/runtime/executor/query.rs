@@ -26,7 +26,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// RLS filtering happens at the database level, not in Rust, ensuring:
     /// - High performance (database can optimize filters)
     /// - Correct handling of pagination (LIMIT applied after RLS filtering)
-    /// - Type-safe composition via WhereClause enum
+    /// - Type-safe composition via `WhereClause` enum
     ///
     /// # Errors
     ///

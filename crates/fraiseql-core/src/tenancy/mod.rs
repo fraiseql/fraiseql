@@ -6,8 +6,8 @@
 //!
 //! Tenants are isolated at the data level:
 //! - Each tenant has a unique ID
-//! - Queries automatically include tenant filter (WHERE tenant_id = $1)
-//! - JWT claims carry tenant_id for authorization
+//! - Queries automatically include tenant filter (WHERE `tenant_id` = $1)
+//! - JWT claims carry `tenant_id` for authorization
 //! - Cross-tenant access is denied
 //!
 //! # Example
@@ -107,9 +107,9 @@ impl TenantContext {
         &self.metadata
     }
 
-    /// Create a TenantContext from JWT claims.
+    /// Create a `TenantContext` from JWT claims.
     ///
-    /// Extracts the `tenant_id` from JWT claims and creates a new TenantContext.
+    /// Extracts the `tenant_id` from JWT claims and creates a new `TenantContext`.
     ///
     /// # Arguments
     ///

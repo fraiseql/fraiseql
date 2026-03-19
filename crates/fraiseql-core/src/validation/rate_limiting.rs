@@ -1,11 +1,11 @@
 //! Validation-specific rate limiting with per-dimension tracking.
 //!
 //! Provides rate limiting for different types of validation errors:
-//! - validation_errors: General field-level validation failures
-//! - depth_errors: Query depth limit violations
-//! - complexity_errors: Query complexity limit violations
-//! - malformed_errors: Malformed query/input errors
-//! - async_validation_errors: Async validator failures
+//! - `validation_errors`: General field-level validation failures
+//! - `depth_errors`: Query depth limit violations
+//! - `complexity_errors`: Query complexity limit violations
+//! - `malformed_errors`: Malformed query/input errors
+//! - `async_validation_errors`: Async validator failures
 
 use std::{
     num::NonZeroUsize,
@@ -183,12 +183,12 @@ pub struct ValidationRateLimiter {
 
 impl ValidationRateLimiter {
     /// Create a new validation rate limiter with the given configuration.
-    pub fn new(config: ValidationRateLimitingConfig) -> Self {
+    pub fn new(config: &ValidationRateLimitingConfig) -> Self {
         Self::new_with_clock(config, Arc::new(SystemClock))
     }
 
     /// Create a validation rate limiter with a custom clock (for testing).
-    pub fn new_with_clock(config: ValidationRateLimitingConfig, clock: Arc<dyn Clock>) -> Self {
+    pub fn new_with_clock(config: &ValidationRateLimitingConfig, clock: Arc<dyn Clock>) -> Self {
         Self {
             validation_errors:       DimensionRateLimiter::new_with_clock(
                 config.validation_errors_max_requests,
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn test_validation_limiter_independent_dimensions() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "test-key";
 
         // Fill up validation errors
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn test_validation_limiter_clone_shares_state() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter1 = ValidationRateLimiter::new(config);
+        let limiter1 = ValidationRateLimiter::new(&config);
         let limiter2 = limiter1.clone();
 
         let key = "shared-key";
@@ -391,7 +391,7 @@ mod tests {
             validation_errors_window_secs: 60,
             ..ValidationRateLimitingConfig::default()
         };
-        let limiter = ValidationRateLimiter::new_with_clock(config, clock_arc);
+        let limiter = ValidationRateLimiter::new_with_clock(&config, clock_arc);
 
         limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 1st request: {e}")); // 1st
         limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 2nd request: {e}")); // 2nd

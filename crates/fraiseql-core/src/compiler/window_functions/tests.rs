@@ -217,7 +217,7 @@ fn test_window_planner_basic_request() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.table, "tf_sales");
     assert_eq!(plan.select.len(), 2);
@@ -269,7 +269,7 @@ fn test_window_planner_running_sum() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.windows.len(), 1);
     match &plan.windows[0].function {
@@ -298,7 +298,7 @@ fn test_window_planner_filter_column() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.select.len(), 1);
     assert_eq!(plan.select[0].expression, "occurred_at");
@@ -321,7 +321,7 @@ fn test_window_planner_invalid_measure() {
         offset:       None,
     };
 
-    let err = WindowPlanner::plan(request, metadata)
+    let err = WindowPlanner::plan(request, &metadata)
         .expect_err("expected Err for invalid measure name");
     assert!(err.to_string().contains("not found"), "unexpected error: {err}");
 }
@@ -342,7 +342,7 @@ fn test_window_planner_invalid_filter() {
         offset:       None,
     };
 
-    let err = WindowPlanner::plan(request, metadata)
+    let err = WindowPlanner::plan(request, &metadata)
         .expect_err("expected Err for invalid filter name");
     assert!(err.to_string().contains("not found"), "unexpected error: {err}");
 }
@@ -373,7 +373,7 @@ fn test_window_planner_lag_function() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     match &plan.windows[0].function {
         WindowFunctionType::Lag {
@@ -415,7 +415,7 @@ fn test_window_planner_dimension_field_in_lag() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     match &plan.windows[0].function {
         WindowFunctionType::Lag { field, .. } => {
@@ -447,7 +447,7 @@ fn test_window_planner_partition_by_filter() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.windows[0].partition_by, vec!["customer_id"]);
 }
@@ -474,7 +474,7 @@ fn test_window_planner_final_order_by() {
         offset:       None,
     };
 
-    let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
 
     assert_eq!(plan.order_by.len(), 2);
     assert_eq!(plan.order_by[0].field, "revenue");
@@ -551,7 +551,7 @@ fn test_resolve_field_rejects_injection_in_order_by() {
         offset:       None,
     };
 
-    let result = WindowPlanner::plan(request, metadata);
+    let result = WindowPlanner::plan(request, &metadata);
     assert!(result.is_err(), "injection attempt in orderBy field must be rejected");
     let msg = result.unwrap_err().to_string();
     assert!(

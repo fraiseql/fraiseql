@@ -204,7 +204,7 @@ impl TypeDefinition {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumDefinition {
-    /// Enum type name (e.g., "OrderStatus").
+    /// Enum type name (e.g., "`OrderStatus`").
     pub name: String,
 
     /// Possible values for this enum.
@@ -344,7 +344,7 @@ impl EnumValueDefinition {
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InputObjectDefinition {
-    /// Input object type name (e.g., "UserFilter").
+    /// Input object type name (e.g., "`UserFilter`").
     pub name: String,
 
     /// Input fields.
@@ -611,7 +611,7 @@ impl InterfaceDefinition {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnionDefinition {
-    /// Union name (e.g., "SearchResult").
+    /// Union name (e.g., "`SearchResult`").
     pub name: String,
 
     /// Member types that this union can represent.

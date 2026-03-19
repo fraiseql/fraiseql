@@ -68,7 +68,7 @@ impl ValidationErrorCollection {
 /// # Arguments
 ///
 /// * `value` - The JSON value to validate
-/// * `scalar_type_name` - Name of the custom scalar type (e.g., "LibraryCode")
+/// * `scalar_type_name` - Name of the custom scalar type (e.g., "`LibraryCode`")
 /// * `schema` - The compiled schema containing custom scalar definitions
 ///
 /// # Errors
@@ -338,12 +338,12 @@ mod tests {
     fn test_validate_custom_scalar_library_code_valid() {
         use crate::{
             schema::CompiledSchema,
-            validation::{CustomTypeDef, CustomTypeRegistry},
+            validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
         };
 
         let schema = {
             let mut s = CompiledSchema::new();
-            let registry = CustomTypeRegistry::new(Default::default());
+            let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
@@ -366,12 +366,12 @@ mod tests {
     fn test_validate_custom_scalar_library_code_invalid() {
         use crate::{
             schema::CompiledSchema,
-            validation::{CustomTypeDef, CustomTypeRegistry},
+            validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
         };
 
         let schema = {
             let mut s = CompiledSchema::new();
-            let registry = CustomTypeRegistry::new(Default::default());
+            let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
@@ -397,12 +397,12 @@ mod tests {
     fn test_validate_custom_scalar_student_id_with_length() {
         use crate::{
             schema::CompiledSchema,
-            validation::{CustomTypeDef, CustomTypeRegistry},
+            validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
         };
 
         let schema = {
             let mut s = CompiledSchema::new();
-            let registry = CustomTypeRegistry::new(Default::default());
+            let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
             let mut def = CustomTypeDef::new("StudentID".to_string());
             def.validation_rules = vec![
@@ -465,12 +465,12 @@ mod tests {
     fn test_validate_custom_scalar_with_elo_expression() {
         use crate::{
             schema::CompiledSchema,
-            validation::{CustomTypeDef, CustomTypeRegistry},
+            validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
         };
 
         let schema = {
             let mut s = CompiledSchema::new();
-            let registry = CustomTypeRegistry::new(Default::default());
+            let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
             let mut def = CustomTypeDef::new("StudentID".to_string());
             def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
@@ -499,12 +499,12 @@ mod tests {
     fn test_validate_custom_scalar_combined_rules_and_elo() {
         use crate::{
             schema::CompiledSchema,
-            validation::{CustomTypeDef, CustomTypeRegistry},
+            validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
         };
 
         let schema = {
             let mut s = CompiledSchema::new();
-            let registry = CustomTypeRegistry::new(Default::default());
+            let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
             let mut def = CustomTypeDef::new("PatientID".to_string());
             def.validation_rules = vec![ValidationRule::Length {

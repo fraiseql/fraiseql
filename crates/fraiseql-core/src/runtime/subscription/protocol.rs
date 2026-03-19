@@ -1,4 +1,4 @@
-//! GraphQL over WebSocket subscription protocol types.
+//! GraphQL over `WebSocket` subscription protocol types.
 //!
 //! Implements the `graphql-ws` protocol (v5+) message framing for
 //! client-to-server and server-to-client subscription communication.
@@ -26,6 +26,8 @@ pub enum ClientMessageType {
 impl ClientMessageType {
     /// Parse message type from string.
     #[must_use]
+    // Reason: returns `Option<Self>` (unknown types yield `None`), not a `FromStr`-compatible `Result`.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "connection_init" => Some(Self::ConnectionInit),
@@ -83,7 +85,7 @@ impl ServerMessageType {
     }
 }
 
-/// Client message (from WebSocket client).
+/// Client message (from `WebSocket` client).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ClientMessage {
     /// Message type.
@@ -106,7 +108,7 @@ impl ClientMessage {
         ClientMessageType::from_str(&self.message_type)
     }
 
-    /// Extract connection parameters from connection_init payload.
+    /// Extract connection parameters from `connection_init` payload.
     #[must_use]
     pub const fn connection_params(&self) -> Option<&serde_json::Value> {
         self.payload.as_ref()
@@ -139,7 +141,7 @@ pub struct SubscribePayload {
     pub extensions: HashMap<String, serde_json::Value>,
 }
 
-/// Server message (to WebSocket client).
+/// Server message (to `WebSocket` client).
 #[derive(Debug, Clone, Serialize)]
 pub struct ServerMessage {
     /// Message type.
@@ -156,7 +158,7 @@ pub struct ServerMessage {
 }
 
 impl ServerMessage {
-    /// Create connection_ack message.
+    /// Create `connection_ack` message.
     #[must_use]
     pub fn connection_ack(payload: Option<serde_json::Value>) -> Self {
         Self {
@@ -188,6 +190,8 @@ impl ServerMessage {
 
     /// Create next (data) message.
     #[must_use]
+    // Reason: `data` is moved into `serde_json::json!` macro to construct the payload object.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn next(id: impl Into<String>, data: serde_json::Value) -> Self {
         Self {
             message_type: ServerMessageType::Next.as_str().to_string(),
@@ -198,6 +202,8 @@ impl ServerMessage {
 
     /// Create error message.
     #[must_use]
+    // Reason: `errors` is consumed by `serde_json::to_value`, which requires an owned value.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn error(id: impl Into<String>, errors: Vec<GraphQLError>) -> Self {
         Self {
             message_type: ServerMessageType::Error.as_str().to_string(),
@@ -228,7 +234,7 @@ impl ServerMessage {
 
 pub use fraiseql_error::{GraphQLError, GraphQLErrorLocation as ErrorLocation};
 
-/// Close codes for WebSocket connection.
+/// Close codes for `WebSocket` connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CloseCode {

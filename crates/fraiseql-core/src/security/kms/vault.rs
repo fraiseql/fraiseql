@@ -1,4 +1,4 @@
-//! HashiCorp Vault Transit secrets engine provider.
+//! `HashiCorp` Vault Transit secrets engine provider.
 
 use std::{collections::HashMap, time::Duration};
 
@@ -24,7 +24,7 @@ use crate::{
 /// - For production deployments, consider:
 ///   1. Using short-lived tokens with automatic renewal
 ///   2. Vault Agent with auto-auth for token management
-///   3. AppRole authentication with response wrapping
+///   3. `AppRole` authentication with response wrapping
 ///   4. Kubernetes auth method in K8s environments
 #[derive(Clone)]
 pub struct VaultConfig {
@@ -103,7 +103,7 @@ impl VaultConfig {
     }
 }
 
-/// HashiCorp Vault Transit secrets engine provider.
+/// `HashiCorp` Vault Transit secrets engine provider.
 ///
 /// Uses Vault's Transit secrets engine for encryption/decryption operations.
 /// Supports envelope encryption via data key generation.

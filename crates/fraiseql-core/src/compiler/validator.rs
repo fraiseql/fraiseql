@@ -257,9 +257,9 @@ impl SchemaValidator {
     ///
     /// Aggregate types must:
     /// - Have a `count` field (always available)
-    /// - Have measure aggregate fields (e.g., revenue_sum, quantity_avg)
-    /// - GroupByInput types must have Boolean fields
-    /// - HavingInput types must have comparison operator suffixes
+    /// - Have measure aggregate fields (e.g., `revenue_sum`, `quantity_avg`)
+    /// - `GroupByInput` types must have Boolean fields
+    /// - `HavingInput` types must have comparison operator suffixes
     fn validate_aggregate_types(&self, ir: &AuthoringIR) -> Result<()> {
         // Find aggregate types (those ending with "Aggregate")
         for ir_type in &ir.types {

@@ -16,7 +16,7 @@ use crate::{
 /// Derives the GraphQL entity type name from a database view name.
 ///
 /// Strips the view prefix (everything up to and including the first `_`),
-/// then converts the remainder from snake_case to PascalCase.
+/// then converts the remainder from `snake_case` to `PascalCase`.
 ///
 /// # Examples
 ///

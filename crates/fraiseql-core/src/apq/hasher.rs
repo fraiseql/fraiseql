@@ -151,7 +151,7 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 /// Recursively normalize a JSON value by sorting object keys at every level.
 ///
 /// This makes hashing robust against key-order variance in the source (e.g.
-/// if serde_json's internal map type changes from BTreeMap to a non-sorted type).
+/// if `serde_json`'s internal map type changes from `BTreeMap` to a non-sorted type).
 fn normalize_json_value(value: JsonValue) -> JsonValue {
     match value {
         JsonValue::Object(map) => {

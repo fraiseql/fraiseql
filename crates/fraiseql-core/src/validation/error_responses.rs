@@ -89,7 +89,7 @@ impl GraphQLValidationResponse {
         }
     }
 
-    /// Convert from FraiseQLError to validation response.
+    /// Convert from `FraiseQLError` to validation response.
     pub fn from_error(error: &FraiseQLError) -> Option<Self> {
         if let FraiseQLError::Validation { message, path } = error {
             let mut response = Self::new();

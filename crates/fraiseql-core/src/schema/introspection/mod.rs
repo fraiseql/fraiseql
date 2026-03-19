@@ -1,7 +1,7 @@
 //! GraphQL introspection types per GraphQL spec §4.1-4.2.
 //!
 //! This module provides standard GraphQL introspection support, enabling
-//! tools like Apollo Sandbox, GraphiQL, and Altair to query the schema.
+//! tools like Apollo Sandbox, `GraphiQL`, and Altair to query the schema.
 //!
 //! # Architecture
 //!
@@ -42,8 +42,9 @@ pub use types::{
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+    use indexmap::IndexMap;
     use super::*;
-    use crate::schema::{AutoParams, FieldDenyPolicy, FieldType};
+    use crate::schema::{AutoParams, CursorType, FieldDenyPolicy, FieldType};
 
     fn test_schema() -> crate::schema::CompiledSchema {
         use crate::schema::{CompiledSchema, FieldDefinition, QueryDefinition, TypeDefinition};
@@ -73,8 +74,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -101,8 +102,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -768,8 +769,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -808,8 +809,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

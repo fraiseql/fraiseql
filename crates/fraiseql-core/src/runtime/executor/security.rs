@@ -43,7 +43,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Execute a GraphQL query with cancellation support via ExecutionContext.
+    /// Execute a GraphQL query with cancellation support via `ExecutionContext`.
     ///
     /// This method allows graceful cancellation of long-running queries through a
     /// cancellation token. If the token is cancelled during execution, the query
@@ -53,7 +53,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// * `query` - GraphQL query string
     /// * `variables` - Query variables (optional)
-    /// * `ctx` - ExecutionContext with cancellation token
+    /// * `ctx` - `ExecutionContext` with cancellation token
     ///
     /// # Returns
     ///
@@ -192,7 +192,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Internal execution logic with security context (called by execute_with_security with timeout
+    /// Internal execution logic with security context (called by `execute_with_security` with timeout
     /// wrapper).
     async fn execute_with_security_internal(
         &self,

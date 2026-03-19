@@ -56,7 +56,7 @@
 //!
 //! ### 3. Immutable Intermediate State
 //!
-//! Each phase produces immutable data structures (AuthoringIR, CompiledSchema, etc.)
+//! Each phase produces immutable data structures (`AuthoringIR`, `CompiledSchema`, etc.)
 //! This ensures:
 //! - Reproducible builds (same input = same output)
 //! - Thread-safe processing
@@ -79,7 +79,7 @@
 //!    - Query optimization
 //!    - Template preparation
 //!
-//! 4. **Codegen** (`codegen.rs`): Generate CompiledSchema
+//! 4. **Codegen** (`codegen.rs`): Generate `CompiledSchema`
 //!    - Runtime metadata
 //!    - Schema introspection data
 //!    - Field mappings

@@ -173,7 +173,7 @@ pub fn validate_date_range(date_str: &str, min_date_str: &str, max_date_str: &st
     Ok(())
 }
 
-/// Validate that a person is at least min_age years old.
+/// Validate that a person is at least `min_age` years old.
 ///
 /// # Errors
 ///
@@ -199,7 +199,7 @@ pub fn validate_min_age(date_str: &str, min_age: u32) -> Result<()> {
     Ok(())
 }
 
-/// Validate that a person is at most max_age years old.
+/// Validate that a person is at most `max_age` years old.
 ///
 /// # Errors
 ///
@@ -225,7 +225,7 @@ pub fn validate_max_age(date_str: &str, max_age: u32) -> Result<()> {
     Ok(())
 }
 
-/// Validate that a date is not more than max_days in the future.
+/// Validate that a date is not more than `max_days` in the future.
 ///
 /// # Errors
 ///
@@ -249,7 +249,7 @@ pub fn validate_max_days_in_future(date_str: &str, max_days: i64) -> Result<()> 
     Ok(())
 }
 
-/// Validate that a date is not more than max_days in the past.
+/// Validate that a date is not more than `max_days` in the past.
 ///
 /// # Errors
 ///

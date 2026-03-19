@@ -18,7 +18,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_basic() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "192.168.1.100";
 
         // First 100 requests should succeed (default config)
@@ -36,7 +36,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_different_keys() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
 
         let key1 = "192.168.1.100";
         let key2 = "192.168.1.101";
@@ -66,7 +66,7 @@ mod tests {
             ..ValidationRateLimitingConfig::default()
         };
 
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "test-key";
 
         // Use up the limit
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_depth_errors() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "192.168.1.100";
 
         // Depth errors should have separate tracking
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_complexity_errors() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "192.168.1.100";
 
         // Complexity errors should have separate tracking
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_malformed_errors() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "192.168.1.100";
 
         // Malformed errors should have separate tracking
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_async_validation_errors() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "192.168.1.100";
 
         // Async validation errors should have separate tracking
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_per_user() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
 
         let user1 = "user:123";
         let user2 = "user:456";
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_tenant_isolation() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
 
         let tenant1_ip = "tenant:1:192.168.1.100";
         let tenant2_ip = "tenant:2:192.168.1.100";
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_concurrent() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = std::sync::Arc::new(ValidationRateLimiter::new(config));
+        let limiter = std::sync::Arc::new(ValidationRateLimiter::new(&config));
 
         let key = "concurrent-test";
         let mut handles = vec![];
@@ -255,7 +255,7 @@ mod tests {
             ..ValidationRateLimitingConfig::default()
         };
 
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "custom-config";
 
         // Should allow 5 requests
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_clone_shares_state() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter1 = ValidationRateLimiter::new(config);
+        let limiter1 = ValidationRateLimiter::new(&config);
         let limiter2 = limiter1.clone();
 
         let key = "shared-key";
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_error_response() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "error-test";
 
         // Use up allowance
@@ -331,7 +331,7 @@ mod tests {
             ..ValidationRateLimitingConfig::default()
         };
 
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "test-key";
 
         // Hit the limit
@@ -367,7 +367,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_multiple_clients_different_errors() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = std::sync::Arc::new(ValidationRateLimiter::new(config));
+        let limiter = std::sync::Arc::new(ValidationRateLimiter::new(&config));
 
         let mut handles = vec![];
 
@@ -414,8 +414,8 @@ mod tests {
         let config1 = ValidationRateLimitingConfig::default();
         let config2 = config1.clone();
 
-        let limiter1 = ValidationRateLimiter::new(config1);
-        let limiter2 = ValidationRateLimiter::new(config2);
+        let limiter1 = ValidationRateLimiter::new(&config1);
+        let limiter2 = ValidationRateLimiter::new(&config2);
 
         let key = "config-clone-test";
 
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_independent_dimensions() {
         let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(config);
+        let limiter = ValidationRateLimiter::new(&config);
         let key = "test-key";
 
         // All dimensions should be independent

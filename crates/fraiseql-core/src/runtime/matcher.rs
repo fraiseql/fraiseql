@@ -59,7 +59,7 @@ impl QueryMatcher {
     ///
     /// # Returns
     ///
-    /// QueryMatch with query definition and extracted information
+    /// `QueryMatch` with query definition and extracted information
     ///
     /// # Errors
     ///
@@ -261,7 +261,9 @@ fn levenshtein(a: &str, b: &str) -> usize {
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+    use indexmap::IndexMap;
     use super::*;
+    use crate::schema::CursorType;
 
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
@@ -278,8 +280,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -478,8 +480,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -512,8 +514,8 @@ mod tests {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

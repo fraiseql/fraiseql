@@ -6,8 +6,10 @@
 //!
 //! - **PostgreSQL**: Full support (all functions + GROUPS frames + frame exclusion)
 //! - **MySQL 8.0+**: Full support (no GROUPS, no frame exclusion)
-//! - **SQLite 3.25+**: Basic support (no GROUPS, no PERCENT_RANK/CUME_DIST)
+//! - **SQLite 3.25+**: Basic support (no GROUPS, no `PERCENT_RANK/CUME_DIST`)
 //! - **SQL Server**: Full support (STDEV/VAR naming difference)
+
+use std::fmt::Write as _;
 
 use crate::{
     compiler::{
@@ -74,7 +76,7 @@ impl WindowSqlGenerator {
             if i > 0 {
                 sql.push_str(", ");
             }
-            sql.push_str(&format!("{} AS {}", col.expression, col.alias));
+            let _ = write!(sql, "{} AS {}", col.expression, col.alias);
         }
 
         // Add window functions
@@ -86,7 +88,7 @@ impl WindowSqlGenerator {
         }
 
         // FROM clause
-        sql.push_str(&format!(" FROM {}", plan.table));
+        let _ = write!(sql, " FROM {}", plan.table);
 
         // WHERE clause (if any) — use parameterized generation to avoid literal
         // value escaping and enable the database to cache execution plans.
@@ -105,25 +107,26 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
-                    // Reason: non_exhaustive requires catch-all for cross-crate matches
                     _ => "ASC",
                 };
                 // Fields in the outer ORDER BY may be JSONB path expressions
                 // (e.g. `data->>'category'`) or window aliases (e.g. `rank`); they
                 // are validated at planner parse time and must not be identifier-quoted.
-                sql.push_str(&format!("{} {}", order.field, dir));
+                let _ = write!(sql, "{} {}", order.field, dir);
             }
         }
 
         // LIMIT / OFFSET
         if let Some(limit) = plan.limit {
-            sql.push_str(&format!(" LIMIT {limit}"));
+            let _ = write!(sql, " LIMIT {limit}");
         }
         if let Some(offset) = plan.offset {
-            sql.push_str(&format!(" OFFSET {offset}"));
+            let _ = write!(sql, " OFFSET {offset}");
         }
 
         Ok(WindowSql {
@@ -154,13 +157,14 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
-                    // Reason: non_exhaustive requires catch-all for cross-crate matches
                     _ => "ASC",
                 };
-                sql.push_str(&format!("{} {}", order.field, dir));
+                let _ = write!(sql, "{} {}", order.field, dir);
             }
         }
 
@@ -173,7 +177,7 @@ impl WindowSqlGenerator {
         }
 
         sql.push(')');
-        sql.push_str(&format!(" AS {}", window.alias));
+        let _ = write!(sql, " AS {}", window.alias);
 
         Ok(sql)
     }
@@ -268,7 +272,7 @@ impl WindowSqlGenerator {
                     FrameExclusion::Ties => "EXCLUDE TIES",
                     FrameExclusion::NoOthers => "EXCLUDE NO OTHERS",
                 };
-                sql.push_str(&format!(" {excl}"));
+                let _ = write!(sql, " {excl}");
             }
         }
 

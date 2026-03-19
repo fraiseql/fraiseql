@@ -44,7 +44,7 @@ fn test_custom_type_def_equality() {
 
 #[test]
 fn test_registry_register_and_get() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
     registry.register("Email".to_string(), def.clone())
@@ -54,7 +54,7 @@ fn test_registry_register_and_get() {
 
 #[test]
 fn test_registry_register_duplicate() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
     registry.register("Email".to_string(), def.clone())
@@ -68,7 +68,7 @@ fn test_registry_register_duplicate() {
 
 #[test]
 fn test_registry_exists() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
     assert!(!registry.exists("Email"));
@@ -78,7 +78,7 @@ fn test_registry_exists() {
 
 #[test]
 fn test_registry_remove() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
     registry.register("Email".to_string(), def.clone()).unwrap();
@@ -88,7 +88,7 @@ fn test_registry_remove() {
 
 #[test]
 fn test_registry_count() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
     assert_eq!(registry.count(), 0);
     registry
@@ -103,7 +103,7 @@ fn test_registry_count() {
 
 #[test]
 fn test_registry_list_all() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
     registry
         .register("Email".to_string(), CustomTypeDef::new("Email".to_string()))
@@ -120,7 +120,7 @@ fn test_registry_list_all() {
 
 #[test]
 fn test_registry_clear() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
 
     registry
         .register("Email".to_string(), CustomTypeDef::new("Email".to_string()))
@@ -158,7 +158,7 @@ fn test_registry_max_scalars_limit() {
 fn test_registry_concurrent_reads() {
     use std::{sync::Arc as StdArc, thread};
 
-    let registry = StdArc::new(CustomTypeRegistry::new(Default::default()));
+    let registry = StdArc::new(CustomTypeRegistry::new(CustomTypeRegistryConfig::default()));
     registry
         .register("Email".to_string(), CustomTypeDef::new("Email".to_string()))
         .unwrap();
@@ -180,7 +180,7 @@ fn test_registry_concurrent_reads() {
 
 #[test]
 fn test_validate_unknown_scalar() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let value = serde_json::json!("some-value");
 
     let result = registry.validate("UnknownType", &value);
@@ -192,7 +192,7 @@ fn test_validate_unknown_scalar() {
 
 #[test]
 fn test_validate_library_code_minimal() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("LibraryCode".to_string());
 
     registry.register("LibraryCode".to_string(), def).unwrap();
@@ -204,7 +204,7 @@ fn test_validate_library_code_minimal() {
 
 #[test]
 fn test_validate_student_id_minimal() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("StudentID".to_string());
 
     registry.register("StudentID".to_string(), def).unwrap();
@@ -216,7 +216,7 @@ fn test_validate_student_id_minimal() {
 
 #[test]
 fn test_validate_patient_id_minimal() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("PatientID".to_string());
 
     registry.register("PatientID".to_string(), def).unwrap();
@@ -228,7 +228,7 @@ fn test_validate_patient_id_minimal() {
 
 #[test]
 fn test_validate_with_pattern_rule_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Pattern {
         pattern: r"^LIB-[0-9]{4}$".to_string(),
@@ -244,7 +244,7 @@ fn test_validate_with_pattern_rule_valid() {
 
 #[test]
 fn test_validate_with_pattern_rule_invalid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Pattern {
         pattern: r"^LIB-[0-9]{4}$".to_string(),
@@ -263,7 +263,7 @@ fn test_validate_with_pattern_rule_invalid() {
 
 #[test]
 fn test_validate_with_length_rule_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("StudentID".to_string());
     def.validation_rules = vec![ValidationRule::Length {
         min: Some(5),
@@ -279,7 +279,7 @@ fn test_validate_with_length_rule_valid() {
 
 #[test]
 fn test_validate_with_length_rule_too_short() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("StudentID".to_string());
     def.validation_rules = vec![ValidationRule::Length {
         min: Some(5),
@@ -298,7 +298,7 @@ fn test_validate_with_length_rule_too_short() {
 
 #[test]
 fn test_validate_with_multiple_rules() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("PatientID".to_string());
     def.validation_rules = vec![
         ValidationRule::Pattern {
@@ -329,7 +329,7 @@ fn test_validate_with_multiple_rules() {
 
 #[test]
 fn test_validate_library_code_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
@@ -342,7 +342,7 @@ fn test_validate_library_code_with_elo_expression_valid() {
 
 #[test]
 fn test_validate_library_code_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
@@ -358,7 +358,7 @@ fn test_validate_library_code_with_elo_expression_invalid() {
 
 #[test]
 fn test_validate_student_id_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("StudentID".to_string());
     def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
@@ -371,7 +371,7 @@ fn test_validate_student_id_with_elo_expression_valid() {
 
 #[test]
 fn test_validate_student_id_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("StudentID".to_string());
     def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
@@ -387,7 +387,7 @@ fn test_validate_student_id_with_elo_expression_invalid() {
 
 #[test]
 fn test_validate_patient_id_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("PatientID".to_string());
     def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
 
@@ -400,7 +400,7 @@ fn test_validate_patient_id_with_elo_expression_valid() {
 
 #[test]
 fn test_validate_patient_id_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("PatientID".to_string());
     def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
 
@@ -416,7 +416,7 @@ fn test_validate_patient_id_with_elo_expression_invalid() {
 
 #[test]
 fn test_validate_rules_then_elo_expression_both_valid() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Length {
         min: Some(8),
@@ -433,7 +433,7 @@ fn test_validate_rules_then_elo_expression_both_valid() {
 
 #[test]
 fn test_validate_rules_pass_elo_fails() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Length {
         min: Some(8),
@@ -454,7 +454,7 @@ fn test_validate_rules_pass_elo_fails() {
 
 #[test]
 fn test_validate_rules_fail_elo_not_evaluated() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("StudentID".to_string());
     def.validation_rules = vec![ValidationRule::Length {
         min: Some(10),
@@ -475,7 +475,7 @@ fn test_validate_rules_fail_elo_not_evaluated() {
 
 #[test]
 fn test_validate_complex_elo_expression_with_multiple_conditions() {
-    let registry = CustomTypeRegistry::new(Default::default());
+    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("PatientID".to_string());
     // Match pattern OR contains substring
     def.elo_expression =
@@ -719,7 +719,7 @@ fn test_with_builtin_rich_scalars_backward_compatibility() {
 
 /// Structural test for the poisoning-recovery code paths.
 ///
-/// True RwLock poisoning requires a thread to panic while holding the lock,
+/// True `RwLock` poisoning requires a thread to panic while holding the lock,
 /// which cannot be triggered without unsafe code or spawning panicking threads.
 /// This test validates the happy-path behaviour of all methods that have
 /// poisoning-recovery logic, ensuring they return correct results in the
@@ -727,7 +727,7 @@ fn test_with_builtin_rich_scalars_backward_compatibility() {
 #[test]
 fn registry_lock_recovery_code_paths_compile_and_return_correct_values() {
     use std::sync::Arc as StdArc;
-    let registry = StdArc::new(CustomTypeRegistry::new(Default::default()));
+    let registry = StdArc::new(CustomTypeRegistry::new(CustomTypeRegistryConfig::default()));
     registry
         .register("Email".to_string(), CustomTypeDef::new("Email".to_string()))
         .unwrap();

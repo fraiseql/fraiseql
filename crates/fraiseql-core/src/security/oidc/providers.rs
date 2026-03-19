@@ -181,7 +181,7 @@ impl OidcConfig {
     /// # Arguments
     ///
     /// * `domain` - Your Okta domain (e.g., "your-org.okta.com")
-    /// * `audience` - Your API audience (often "api://default")
+    /// * `audience` - Your API audience (often "<api://default>")
     #[must_use]
     pub fn okta(domain: &str, audience: &str) -> Self {
         Self {

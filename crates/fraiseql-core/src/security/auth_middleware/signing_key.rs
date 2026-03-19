@@ -93,7 +93,7 @@ impl SigningKey {
         }
     }
 
-    /// Convert to a jsonwebtoken DecodingKey.
+    /// Convert to a jsonwebtoken `DecodingKey`.
     pub(super) fn to_decoding_key(&self) -> std::result::Result<DecodingKey, SecurityError> {
         match self {
             Self::Hs256(secret) | Self::Hs384(secret) | Self::Hs512(secret) => {

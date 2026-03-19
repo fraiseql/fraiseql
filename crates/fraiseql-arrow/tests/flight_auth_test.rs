@@ -507,7 +507,7 @@ async fn test_security_context_has_user_info() {
     // Create a security context from authenticated user
     let user = create_test_user("user-abc-123", vec!["user", "read", "admin"]);
     let context =
-        fraiseql_core::security::SecurityContext::from_user(user, "req-correlation-id".to_string());
+        fraiseql_core::security::SecurityContext::from_user(&user, "req-correlation-id".to_string());
 
     // Verify context has user information
     assert_eq!(context.user_id, "user-abc-123");

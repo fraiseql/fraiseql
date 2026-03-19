@@ -92,7 +92,7 @@ pub struct TlsConnection {
     /// Whether the connection is over HTTPS/TLS (true) or HTTP (false)
     pub is_secure: bool,
 
-    /// The TLS protocol version used (only valid if is_secure=true)
+    /// The TLS protocol version used (only valid if `is_secure=true`)
     pub version: TlsVersion,
 
     /// Whether a client certificate was presented
@@ -141,7 +141,7 @@ impl TlsConnection {
 /// TLS Security Configuration
 ///
 /// Defines what TLS/SSL requirements must be met for a connection.
-/// This is typically derived from a SecurityProfile.
+/// This is typically derived from a `SecurityProfile`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TlsConfig {
     /// If true, all connections must be HTTPS (TLS required)
@@ -235,9 +235,9 @@ impl TlsEnforcer {
     /// Validate a TLS connection against the enforcer's configuration.
     ///
     /// Performs 4 validation checks in order:
-    /// 1. HTTPS requirement (if tls_required=true, reject HTTP)
-    /// 2. Minimum TLS version (if secure, check version >= min_version)
-    /// 3. mTLS requirement (if mtls_required=true, require client cert)
+    /// 1. HTTPS requirement (if `tls_required=true`, reject HTTP)
+    /// 2. Minimum TLS version (if secure, check version >= `min_version`)
+    /// 3. mTLS requirement (if `mtls_required=true`, require client cert)
     /// 4. Client cert validity (if client cert present, it must be valid)
     ///
     /// # Errors

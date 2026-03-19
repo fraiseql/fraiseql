@@ -47,6 +47,8 @@ pub enum ComparisonOperator {
 
 impl ComparisonOperator {
     /// Parse operator from string representation.
+    // Reason: returns `Option<Self>` (unrecognized operators yield `None`), not a `FromStr`-compatible `Result`.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "<" | "lt" => Some(Self::LessThan),

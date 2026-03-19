@@ -18,13 +18,13 @@ use super::{
 /// ```rust,ignore
 /// let request = WindowRequest { ... };
 /// let metadata = FactTableMetadata { ... };
-/// let plan = WindowPlanner::plan(request, metadata)?;
+/// let plan = WindowPlanner::plan(request, &metadata)?;
 /// // plan now has SQL expressions like "dimensions->>'category'" instead of "category"
 /// ```
 pub struct WindowPlanner;
 
 impl WindowPlanner {
-    /// Convert high-level WindowRequest to executable WindowExecutionPlan.
+    /// Convert high-level `WindowRequest` to executable `WindowExecutionPlan`.
     ///
     /// # Arguments
     ///
@@ -39,16 +39,16 @@ impl WindowPlanner {
     /// - Window function field references are invalid
     pub fn plan(
         request: WindowRequest,
-        metadata: FactTableMetadata,
+        metadata: &FactTableMetadata,
     ) -> Result<WindowExecutionPlan> {
         // Convert select columns to SQL expressions
-        let select = Self::convert_select_columns(&request.select, &metadata)?;
+        let select = Self::convert_select_columns(&request.select, metadata)?;
 
         // Convert window functions to SQL expressions
-        let windows = Self::convert_window_functions(&request.windows, &metadata)?;
+        let windows = Self::convert_window_functions(&request.windows, metadata)?;
 
         // Convert final ORDER BY to SQL expressions
-        let order_by = Self::convert_order_by(&request.order_by, &metadata)?;
+        let order_by = Self::convert_order_by(&request.order_by, metadata)?;
 
         Ok(WindowExecutionPlan {
             table: request.table_name,

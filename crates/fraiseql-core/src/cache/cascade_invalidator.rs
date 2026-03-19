@@ -47,11 +47,11 @@ use crate::error::FraiseQLError;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CascadeInvalidator {
     /// Dependent view → list of views it depends on.
-    /// Example: v_user → [v_raw_user]
+    /// Example: `v_user` → [`v_raw_user`]
     view_dependencies: HashMap<String, HashSet<String>>,
 
     /// View → list of views that depend on it (reverse mapping).
-    /// Example: v_raw_user → [v_user]
+    /// Example: `v_raw_user` → [`v_user`]
     dependents: HashMap<String, HashSet<String>>,
 
     /// Statistics for monitoring.

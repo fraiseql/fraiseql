@@ -1,10 +1,10 @@
 //! Mutual exclusivity and conditional requirement validators.
 //!
 //! This module provides validators for complex field-relationship rules:
-//! - OneOf: Exactly one field from a set must be provided
-//! - AnyOf: At least one field from a set must be provided
-//! - ConditionalRequired: If one field is present, others must be too
-//! - RequiredIfAbsent: If one field is missing, others must be provided
+//! - `OneOf`: Exactly one field from a set must be provided
+//! - `AnyOf`: At least one field from a set must be provided
+//! - `ConditionalRequired`: If one field is present, others must be too
+//! - `RequiredIfAbsent`: If one field is missing, others must be provided
 
 use serde_json::Value;
 

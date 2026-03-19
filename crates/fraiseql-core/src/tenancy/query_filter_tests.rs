@@ -100,7 +100,7 @@ fn test_join_query_with_tenant_filter() {
     assert!(filtered.contains("tenant_id = 'acme-corp'"));
 }
 
-/// Test that tenant_id is on users table in JOIN
+/// Test that `tenant_id` is on users table in JOIN
 #[test]
 fn test_tenant_column_on_users_table() {
     let tenant = TenantContext::new("acme-corp");
@@ -202,7 +202,7 @@ fn test_union_query_with_tenant_filters() {
 // Test 7: Error Prevention
 // ============================================================================
 
-/// Test that malicious tenant_id is rejected by where_clause() with a panic.
+/// Test that malicious `tenant_id` is rejected by `where_clause()` with a panic.
 ///
 /// `where_clause()` interpolates the tenant ID directly into SQL, so it
 /// validates the input and panics on unsafe characters. This is a

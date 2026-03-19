@@ -190,7 +190,7 @@ impl SubscriptionManager {
     ///
     /// # Concurrency note
     ///
-    /// A concurrent `subscribe` call that runs between the DashMap entry removal and the
+    /// A concurrent `subscribe` call that runs between the `DashMap` entry removal and the
     /// per-subscription cleanup loop would create a new connection entry that is not cleaned
     /// up by this call. A second-pass removal after the first loop closes this window for
     /// all but the most extreme concurrent races. Any subscription that slips through is

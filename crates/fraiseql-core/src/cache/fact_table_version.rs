@@ -232,7 +232,7 @@ impl CachedVersion {
     /// Check if the cached version is still fresh.
     ///
     /// Versions are cached for a short time (default 1 second) to avoid
-    /// hammering the tf_versions table on every query.
+    /// hammering the `tf_versions` table on every query.
     #[must_use]
     pub fn is_fresh(&self, max_age: Duration) -> bool {
         self.fetched_at.elapsed() < max_age
@@ -244,7 +244,7 @@ impl CachedVersion {
 /// Fetches and caches version numbers from the `tf_versions` table.
 #[derive(Debug)]
 pub struct FactTableVersionProvider {
-    /// Cached versions (table_name -> version).
+    /// Cached versions (`table_name` -> version).
     versions:          std::sync::RwLock<HashMap<String, CachedVersion>>,
     /// How long to cache version lookups.
     version_cache_ttl: Duration,
@@ -344,12 +344,12 @@ pub fn generate_version_key_component(
     }
 }
 
-/// SQL to query version from tf_versions table.
+/// SQL to query version from `tf_versions` table.
 pub const VERSION_TABLE_QUERY: &str = r"
     SELECT version FROM tf_versions WHERE table_name = $1
 ";
 
-/// SQL to create the tf_versions table and helper functions.
+/// SQL to create the `tf_versions` table and helper functions.
 pub const VERSION_TABLE_SCHEMA: &str = r"
 -- Fact table version tracking for aggregation cache
 CREATE TABLE IF NOT EXISTS tf_versions (

@@ -46,10 +46,10 @@ pub struct CircuitBreakerConfig {
     /// Consecutive failures required to trip the circuit open.
     #[serde(default = "default_failure_threshold")]
     pub failure_threshold:     u32,
-    /// Seconds to hold the circuit open before transitioning to HalfOpen.
+    /// Seconds to hold the circuit open before transitioning to `HalfOpen`.
     #[serde(default = "default_recovery_timeout")]
     pub recovery_timeout_secs: u64,
-    /// Consecutive successes in HalfOpen required to close the circuit.
+    /// Consecutive successes in `HalfOpen` required to close the circuit.
     #[serde(default = "default_success_threshold")]
     pub success_threshold:     u32,
     /// Per-entity overrides (e.g., Product has different thresholds than User).
@@ -358,11 +358,11 @@ impl Default for McpConfig {
     }
 }
 
-/// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
+/// `WebSocket` subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubscriptionsConfig {
-    /// Maximum subscriptions per WebSocket connection (`None` = unlimited).
+    /// Maximum subscriptions per `WebSocket` connection (`None` = unlimited).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_subscriptions_per_connection: Option<u32>,
     /// Webhook lifecycle hooks.
@@ -374,10 +374,10 @@ pub struct SubscriptionsConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubscriptionHooksConfig {
-    /// URL to POST on WebSocket `connection_init` (fail-closed).
+    /// URL to POST on `WebSocket` `connection_init` (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_connect:     Option<String>,
-    /// URL to POST on WebSocket disconnect (fire-and-forget).
+    /// URL to POST on `WebSocket` disconnect (fire-and-forget).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_disconnect:  Option<String>,
     /// URL to POST before a subscription is registered (fail-closed).

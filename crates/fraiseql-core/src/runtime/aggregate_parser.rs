@@ -64,7 +64,7 @@ use crate::{
 pub struct AggregateQueryParser;
 
 impl AggregateQueryParser {
-    /// Parse a simplified aggregate query into AggregationRequest.
+    /// Parse a simplified aggregate query into `AggregationRequest`.
     ///
     /// For we'll accept a JSON structure that represents the query:
     /// ```json
@@ -190,7 +190,7 @@ impl AggregateQueryParser {
         Ok(WhereClause::And(conditions))
     }
 
-    /// Parse WHERE field and operator from key (e.g., "customer_id_eq" -> ("customer_id", "eq"))
+    /// Parse WHERE field and operator from key (e.g., "`customer_id_eq`" -> ("`customer_id`", "eq"))
     fn parse_where_field_and_operator(key: &str) -> Result<Option<(&str, &str)>> {
         // Find last underscore to split field from operator
         if let Some(last_underscore) = key.rfind('_') {
@@ -216,8 +216,8 @@ impl AggregateQueryParser {
     ///
     /// Supports two formats:
     /// 1. Boolean true: {"category": true} -> regular dimension
-    /// 2. Boolean true with suffix: {"occurred_at_day": true} -> temporal bucket
-    /// 3. String bucket name: {"occurred_at": "day"} -> temporal bucket
+    /// 2. Boolean true with suffix: {"`occurred_at_day"`: true} -> temporal bucket
+    /// 3. String bucket name: {"`occurred_at"`: "day"} -> temporal bucket
     fn parse_group_by(
         group_by_obj: &Value,
         metadata: &FactTableMetadata,
@@ -310,10 +310,10 @@ impl AggregateQueryParser {
         Ok(None)
     }
 
-    /// Try to parse calendar dimension from key pattern (e.g., "occurred_at_day")
+    /// Try to parse calendar dimension from key pattern (e.g., "`occurred_at_day`")
     ///
     /// Checks if the key matches a calendar dimension pattern and returns
-    /// a CalendarDimension selection if available, otherwise None.
+    /// a `CalendarDimension` selection if available, otherwise None.
     fn try_parse_calendar_bucket(
         key: &str,
         metadata: &FactTableMetadata,
@@ -352,7 +352,7 @@ impl AggregateQueryParser {
 
     /// Try to find calendar bucket for explicit temporal request
     ///
-    /// Used when user provides explicit bucket like {"occurred_at": "day"}
+    /// Used when user provides explicit bucket like {"`occurred_at"`: "day"}
     fn try_find_calendar_bucket(
         column: &str,
         bucket: TemporalBucket,
@@ -621,6 +621,8 @@ impl AggregateQueryParser {
 
         if let Some(obj) = order_obj.as_object() {
             for (field, value) in obj {
+                #[allow(clippy::match_same_arms)]
+                // Reason: explicit ASC arm documents accepted values; wildcard handles malformed input
                 let direction = match value.as_str() {
                     Some("ASC" | "asc") => OrderDirection::Asc,
                     Some("DESC" | "desc") => OrderDirection::Desc,

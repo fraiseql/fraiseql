@@ -422,7 +422,7 @@ impl ErrorFormatter {
         result
     }
 
-    /// Check if a string looks like an IPv4 address
+    /// Check if a string looks like an `IPv4` address
     fn looks_like_ip(s: &str) -> bool {
         if !s.contains('.') {
             return false;

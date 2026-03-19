@@ -95,7 +95,7 @@ pub enum GroupBySelection {
     },
     /// Group by temporal bucket
     TemporalBucket {
-        /// Column name (e.g., "occurred_at")
+        /// Column name (e.g., "`occurred_at`")
         column: String,
         /// Bucket type
         bucket: TemporalBucket,
@@ -104,9 +104,9 @@ pub enum GroupBySelection {
     },
     /// Group by pre-computed calendar dimension
     CalendarDimension {
-        /// Source timestamp column (e.g., "occurred_at")
+        /// Source timestamp column (e.g., "`occurred_at`")
         source_column:   String,
-        /// Calendar JSONB column (e.g., "date_info")
+        /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
         json_key:        String,
@@ -217,7 +217,7 @@ pub enum GroupByExpression {
         /// Result alias
         alias:        String,
     },
-    /// Temporal bucket with DATE_TRUNC
+    /// Temporal bucket with `DATE_TRUNC`
     TemporalBucket {
         /// Timestamp column name
         column: String,
@@ -228,7 +228,7 @@ pub enum GroupByExpression {
     },
     /// Pre-computed calendar dimension extraction
     CalendarPath {
-        /// Calendar JSONB column (e.g., "date_info")
+        /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
         json_key:        String,
@@ -270,12 +270,12 @@ pub enum AggregateExpression {
         function:  AggregateFunction,
         /// Result alias
         alias:     String,
-        /// Optional delimiter for STRING_AGG
+        /// Optional delimiter for `STRING_AGG`
         delimiter: Option<String>,
-        /// Optional ORDER BY for ARRAY_AGG/STRING_AGG
+        /// Optional ORDER BY for `ARRAY_AGG/STRING_AGG`
         order_by:  Option<Vec<OrderByClause>>,
     },
-    /// Boolean aggregate (BOOL_AND/BOOL_OR)
+    /// Boolean aggregate (`BOOL_AND/BOOL_OR`)
     BoolAggregate {
         /// Column to aggregate (boolean expression)
         column:   String,

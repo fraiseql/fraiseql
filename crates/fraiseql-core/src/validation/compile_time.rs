@@ -13,9 +13,9 @@ use std::collections::{HashMap, HashSet};
 /// Schema context for compile-time validation
 #[derive(Debug, Clone)]
 pub struct SchemaContext {
-    /// Type definitions: type_name -> fields
+    /// Type definitions: `type_name` -> fields
     pub types:  HashMap<String, TypeDef>,
-    /// Field types: (type_name, field_name) -> field_type
+    /// Field types: (`type_name`, `field_name`) -> `field_type`
     pub fields: HashMap<(String, String), FieldType>,
 }
 
@@ -54,12 +54,11 @@ impl FieldType {
         match (self, other) {
             // Same types are always comparable
             (a, b) if a == b => true,
-            // Numeric types are comparable with each other
-            (FieldType::Integer, FieldType::Float) => true,
-            (FieldType::Float, FieldType::Integer) => true,
-            // Date and DateTime are comparable
-            (FieldType::Date, FieldType::DateTime) => true,
-            (FieldType::DateTime, FieldType::Date) => true,
+            // Numeric types are comparable with each other; date/datetime are interchangeable
+            (FieldType::Integer, FieldType::Float)
+            | (FieldType::Float, FieldType::Integer)
+            | (FieldType::Date, FieldType::DateTime)
+            | (FieldType::DateTime, FieldType::Date) => true,
             // Everything else is not comparable
             _ => false,
         }

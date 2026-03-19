@@ -104,7 +104,7 @@ pub struct AuditEntry {
 impl AuditEntry {
     /// Calculate SHA256 hash for this entry (for integrity chain)
     ///
-    /// Hashes: user_id | timestamp | operation | query to create a tamper-proof chain
+    /// Hashes: `user_id` | timestamp | operation | query to create a tamper-proof chain
     #[must_use]
     pub fn calculate_hash(&self) -> String {
         let mut hasher = Sha256::new();

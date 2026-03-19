@@ -29,7 +29,7 @@ use super::{domain_types::FieldName, scalar_types};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VectorConfig {
-    /// Number of dimensions in the vector (e.g., 1536 for OpenAI embeddings).
+    /// Number of dimensions in the vector (e.g., 1536 for `OpenAI` embeddings).
     pub dimensions: u32,
 
     /// Type of index to use for similarity search.
@@ -52,7 +52,7 @@ impl VectorConfig {
         }
     }
 
-    /// Create a vector config for OpenAI embeddings (1536 dimensions, cosine).
+    /// Create a vector config for `OpenAI` embeddings (1536 dimensions, cosine).
     #[must_use]
     pub const fn openai() -> Self {
         Self {
@@ -62,7 +62,7 @@ impl VectorConfig {
         }
     }
 
-    /// Create a vector config for OpenAI small embeddings (512 dimensions, cosine).
+    /// Create a vector config for `OpenAI` small embeddings (512 dimensions, cosine).
     #[must_use]
     pub const fn openai_small() -> Self {
         Self {
@@ -97,7 +97,7 @@ impl Default for VectorConfig {
 ///
 /// pgvector supports two main index types:
 /// - HNSW: Hierarchical Navigable Small World (faster queries, more memory)
-/// - IVFFlat: Inverted File with Flat compression (slower queries, less memory)
+/// - `IVFFlat`: Inverted File with Flat compression (slower queries, less memory)
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -653,7 +653,7 @@ pub enum FieldType {
     /// Named scalar type (rich scalars like Email, URL, IBAN, or custom user-defined).
     ///
     /// This variant handles:
-    /// - Built-in rich scalars: Email, URL, PhoneNumber, IBAN, etc.
+    /// - Built-in rich scalars: Email, URL, `PhoneNumber`, IBAN, etc.
     /// - User-defined custom scalars
     ///
     /// The string contains the scalar name exactly as defined (e.g., "Email", "IBAN").
@@ -758,9 +758,10 @@ impl FieldType {
             Self::Uuid => "UUID".to_string(),
             Self::Decimal => "Decimal".to_string(),
             Self::Vector => "[Float!]!".to_string(), // Vectors are arrays of floats
-            Self::Scalar(name) => name.clone(),      // Rich/custom scalars use their name
             Self::List(inner) => format!("[{}]", inner.to_graphql_string()),
-            Self::Object(name)
+            // Named types: scalars, objects, enums, inputs, interfaces, unions all use their name
+            Self::Scalar(name)
+            | Self::Object(name)
             | Self::Enum(name)
             | Self::Input(name)
             | Self::Interface(name)
@@ -772,7 +773,8 @@ impl FieldType {
     #[must_use]
     pub fn to_sql_type(&self, vector_config: Option<&VectorConfig>) -> String {
         match self {
-            Self::String | Self::Id => "TEXT".to_string(),
+            // String, ID, and custom scalars are all stored as TEXT
+            Self::String | Self::Id | Self::Scalar(_) => "TEXT".to_string(),
             Self::Int => "INTEGER".to_string(),
             Self::Float => "DOUBLE PRECISION".to_string(),
             Self::Boolean => "BOOLEAN".to_string(),
@@ -788,8 +790,6 @@ impl FieldType {
                     "vector".to_string()
                 }
             },
-            // Rich scalars are stored as TEXT (validated at application level)
-            Self::Scalar(_) => "TEXT".to_string(),
             // Lists and complex types stored as JSONB
             Self::Json
             | Self::List(_)

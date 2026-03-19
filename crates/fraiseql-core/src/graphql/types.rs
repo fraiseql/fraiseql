@@ -15,7 +15,7 @@ pub struct ParsedQuery {
     /// Operation type: "query", "mutation", or "subscription"
     pub operation_type: String,
 
-    /// Optional operation name (e.g., "GetUsers")
+    /// Optional operation name (e.g., "`GetUsers`")
     pub operation_name: Option<String>,
 
     /// First field in selection set (root field for single-root queries)

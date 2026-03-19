@@ -68,13 +68,13 @@ pub enum AggregateFunction {
     Variance,
 
     // Advanced aggregates
-    /// ARRAY_AGG(field) - collect values into array
+    /// `ARRAY_AGG(field)` - collect values into array
     ArrayAgg,
-    /// JSON_AGG(expr) - aggregate into JSON array (PostgreSQL)
+    /// `JSON_AGG(expr)` - aggregate into JSON array (PostgreSQL)
     JsonAgg,
-    /// JSONB_AGG(expr) - aggregate into JSONB array (PostgreSQL)
+    /// `JSONB_AGG(expr)` - aggregate into JSONB array (PostgreSQL)
     JsonbAgg,
-    /// STRING_AGG(field, delimiter) - concatenate strings
+    /// `STRING_AGG(field`, delimiter) - concatenate strings
     StringAgg,
 }
 
@@ -132,8 +132,7 @@ impl AggregateFunction {
     #[must_use]
     pub const fn sql_name(&self) -> &'static str {
         match self {
-            Self::Count => "COUNT",
-            Self::CountDistinct => "COUNT",
+            Self::Count | Self::CountDistinct => "COUNT",
             Self::Sum => "SUM",
             Self::Avg => "AVG",
             Self::Min => "MIN",
@@ -201,7 +200,7 @@ impl TemporalBucket {
         }
     }
 
-    /// Get PostgreSQL DATE_TRUNC argument
+    /// Get PostgreSQL `DATE_TRUNC` argument
     #[must_use]
     pub const fn postgres_arg(&self) -> &'static str {
         match self {
@@ -221,6 +220,8 @@ impl TemporalBucket {
     /// # Errors
     ///
     /// Returns error if bucket name is unknown
+    // Reason: returns `FraiseQLError` (schema-specific), not a `FromStr`-compatible error type.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> crate::error::Result<Self> {
         match s.to_lowercase().as_str() {
             "second" => Ok(Self::Second),
@@ -240,9 +241,9 @@ impl TemporalBucket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum BoolAggregateFunction {
-    /// BOOL_AND - all values must be true
+    /// `BOOL_AND` - all values must be true
     And,
-    /// BOOL_OR - at least one value must be true
+    /// `BOOL_OR` - at least one value must be true
     Or,
 }
 
@@ -269,7 +270,7 @@ impl BoolAggregateFunction {
 /// GraphQL type for aggregate results
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateType {
-    /// Type name (e.g., "SalesAggregate")
+    /// Type name (e.g., "`SalesAggregate`")
     pub name:   String,
     /// Fields in the aggregate result
     pub fields: Vec<AggregateField>,
@@ -318,7 +319,7 @@ pub enum AggregateFieldKind {
 /// GraphQL input type for GROUP BY
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupByInput {
-    /// Input type name (e.g., "SalesGroupBy")
+    /// Input type name (e.g., "`SalesGroupBy`")
     pub name:   String,
     /// Fields in the GROUP BY input
     pub fields: Vec<GroupByField>,
@@ -354,7 +355,7 @@ pub enum GroupByFieldKind {
 /// GraphQL input type for HAVING
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingInput {
-    /// Input type name (e.g., "SalesHaving")
+    /// Input type name (e.g., "`SalesHaving`")
     pub name:   String,
     /// Fields in the HAVING input
     pub fields: Vec<HavingField>,
@@ -363,7 +364,7 @@ pub struct HavingInput {
 /// Field in a HAVING input
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingField {
-    /// Field name (e.g., "revenue_sum_gt")
+    /// Field name (e.g., "`revenue_sum_gt`")
     pub name:       String,
     /// Measure column
     pub measure:    String,
@@ -447,7 +448,7 @@ impl AggregateTypeGenerator {
     ///
     /// # Returns
     ///
-    /// Tuple of (AggregateType, GroupByInput, HavingInput)
+    /// Tuple of (`AggregateType`, `GroupByInput`, `HavingInput`)
     ///
     /// # Errors
     ///
@@ -466,7 +467,7 @@ impl AggregateTypeGenerator {
         Ok((aggregate_type, group_by_input, having_input))
     }
 
-    /// Extract type name from table name (tf_sales -> Sales)
+    /// Extract type name from table name (`tf_sales` -> Sales)
     fn extract_type_name(table_name: &str) -> Result<String> {
         if !table_name.starts_with("tf_") {
             return Err(FraiseQLError::Validation {
@@ -480,7 +481,7 @@ impl AggregateTypeGenerator {
         Ok(pascal_case)
     }
 
-    /// Convert snake_case to PascalCase
+    /// Convert `snake_case` to `PascalCase`
     fn to_pascal_case(s: &str) -> String {
         s.split('_')
             .map(|word| {
@@ -493,7 +494,7 @@ impl AggregateTypeGenerator {
             .collect()
     }
 
-    /// Generate AggregateType
+    /// Generate `AggregateType`
     fn generate_aggregate_type(
         metadata: &FactTableMetadata,
         type_name: &str,
@@ -627,7 +628,7 @@ impl AggregateTypeGenerator {
         })
     }
 
-    /// Generate GroupByInput
+    /// Generate `GroupByInput`
     fn generate_group_by_input(
         metadata: &FactTableMetadata,
         type_name: &str,
@@ -701,7 +702,7 @@ impl AggregateTypeGenerator {
         })
     }
 
-    /// Generate HavingInput
+    /// Generate `HavingInput`
     fn generate_having_input(
         metadata: &FactTableMetadata,
         type_name: &str,
@@ -784,12 +785,12 @@ impl AggregateTypeGenerator {
         match sql_type {
             SqlType::Int | SqlType::BigInt => "Int".to_string(),
             SqlType::Decimal | SqlType::Float => "Float".to_string(),
-            SqlType::Text => "String".to_string(),
             SqlType::Boolean => "Boolean".to_string(),
             SqlType::Jsonb | SqlType::Json => "JSON".to_string(),
             SqlType::Uuid => "ID".to_string(),
-            SqlType::Timestamp | SqlType::Date => "String".to_string(),
-            SqlType::Other(_) => "String".to_string(),
+            SqlType::Text | SqlType::Timestamp | SqlType::Date | SqlType::Other(_) => {
+                "String".to_string()
+            },
         }
     }
 
@@ -799,8 +800,8 @@ impl AggregateTypeGenerator {
             "integer" | "int" | "number" => "Int".to_string(),
             "float" | "decimal" | "double" => "Float".to_string(),
             "boolean" | "bool" => "Boolean".to_string(),
-            "date" | "timestamp" | "datetime" => "String".to_string(),
-            _ => "String".to_string(), // Default to String for text and unknown types
+            // date/timestamp/datetime and all unknown types map to String
+            _ => "String".to_string(),
         }
     }
 
@@ -808,7 +809,7 @@ impl AggregateTypeGenerator {
     fn calendar_bucket_to_graphql(data_type: &str) -> String {
         match data_type.to_lowercase().as_str() {
             "integer" | "int" => "Int".to_string(),
-            "date" => "String".to_string(), // Dates are returned as ISO strings
+            // Dates returned as ISO strings; all other types default to String
             _ => "String".to_string(),
         }
     }

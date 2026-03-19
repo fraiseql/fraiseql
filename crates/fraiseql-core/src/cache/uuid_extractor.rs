@@ -100,7 +100,6 @@ impl UUIDExtractor {
     /// ```
     pub fn extract_entity_uuid(response: &Value, _entity_type: &str) -> Result<Option<String>> {
         match response {
-            Value::Null => Ok(None),
             Value::Object(obj) => {
                 // Try to find "id" field at top level
                 if let Some(id_value) = obj.get("id") {
@@ -171,7 +170,6 @@ impl UUIDExtractor {
                     None => Ok(vec![]),
                 }
             },
-            Value::Null => Ok(vec![]),
             _ => Ok(vec![]),
         }
     }

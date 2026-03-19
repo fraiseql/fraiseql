@@ -75,7 +75,7 @@ pub mod directive_evaluator;
 /// Fragment cycle detection.
 pub mod fragments;
 
-/// Query complexity analysis and DoS prevention.
+/// Query complexity analysis and `DoS` prevention.
 pub mod complexity;
 
 /// Field-level RBAC directive (@require_permission).

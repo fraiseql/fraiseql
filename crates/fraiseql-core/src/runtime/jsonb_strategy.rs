@@ -8,7 +8,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum JsonbStrategy {
-    /// Extract only requested fields using jsonb_build_object/JSON_OBJECT
+    /// Extract only requested fields using `jsonb_build_object/JSON_OBJECT`
     #[default]
     Project,
     /// Stream full JSONB column, filter in application

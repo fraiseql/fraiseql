@@ -12,9 +12,9 @@ use crate::{
 
 /// Mock database adapter for testing.
 struct MockAdapter {
-    /// Number of times execute_where_query was called.
+    /// Number of times `execute_where_query` was called.
     call_count:     std::sync::atomic::AtomicU32,
-    /// Number of times execute_raw_query was called.
+    /// Number of times `execute_raw_query` was called.
     raw_call_count: std::sync::atomic::AtomicU32,
 }
 
@@ -1146,7 +1146,7 @@ async fn test_no_cascade_invalidator_only_direct_views() {
 
 // ── bump_fact_table_versions tests ─────────────────────────────────────
 
-/// Adapter whose execute_function_call simulates bump_tf_version by returning
+/// Adapter whose `execute_function_call` simulates `bump_tf_version` by returning
 /// the incremented version (starting at 2).
 struct BumpAdapter {
     bump_call_count: std::sync::atomic::AtomicU32,

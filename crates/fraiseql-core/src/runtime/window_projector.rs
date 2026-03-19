@@ -47,7 +47,7 @@ impl WindowProjector {
     ///
     /// # Arguments
     ///
-    /// * `rows` - SQL result rows as HashMaps (column name → value)
+    /// * `rows` - SQL result rows as `HashMaps` (column name → value)
     /// * `plan` - Window execution plan (for metadata like aliases)
     ///
     /// # Errors
@@ -105,7 +105,7 @@ impl WindowProjector {
     /// # Arguments
     ///
     /// * `projected` - The projected JSON value (array of objects)
-    /// * `query_name` - The GraphQL field name (e.g., "sales_window")
+    /// * `query_name` - The GraphQL field name (e.g., "`sales_window`")
     ///
     /// # Returns
     ///

@@ -148,7 +148,7 @@ impl IntrospectionEnforcer {
         Self::new(IntrospectionPolicy::Disabled)
     }
 
-    /// Create enforcer with InternalOnly policy (regulated)
+    /// Create enforcer with `InternalOnly` policy (regulated)
     #[must_use]
     pub const fn internal_only() -> Self {
         Self::new(IntrospectionPolicy::InternalOnly)

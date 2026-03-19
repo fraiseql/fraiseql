@@ -15,8 +15,8 @@ use crate::security::{
 
 /// Maximum byte length accepted from a JWKS endpoint response.
 ///
-/// A legitimate JWKS document (a few RSA/EC public keys) is well under 64 KiB.
-/// A 1 MiB cap prevents a malicious or compromised OIDC provider from sending
+/// A legitimate JWKS document (a few RSA/EC public keys) is well under 64 `KiB`.
+/// A 1 `MiB` cap prevents a malicious or compromised OIDC provider from sending
 /// a response large enough to exhaust server memory.
 const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
 
@@ -350,7 +350,7 @@ mod tests {
         assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
     }
 
-    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 MiB.
+    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 `MiB`.
     ///
     /// Kills mutations that change the constant value (e.g. halving or doubling it).
     #[test]

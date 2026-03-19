@@ -2,11 +2,12 @@
 
 use async_trait::async_trait;
 
+use indexmap::IndexMap;
 use super::*;
 use crate::{
     db::{SupportsMutations, types::JsonbValue, where_clause::WhereClause},
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
-    schema::{AutoParams, CompiledSchema, QueryDefinition},
+    schema::{AutoParams, CompiledSchema, CursorType, QueryDefinition},
 };
 
 // ── Shared test fixtures (accessible to all sub-modules via `use super::*`) ──
@@ -112,8 +113,8 @@ impl DatabaseAdapter for MockAdapter {
 
 impl SupportsMutations for MockAdapter {}
 
-/// Read-only adapter that returns false from supports_mutations() —
-/// used to test the runtime mutation guard in execute_mutation_query.
+/// Read-only adapter that returns false from `supports_mutations()` —
+/// used to test the runtime mutation guard in `execute_mutation_query`.
 struct ReadOnlyMockAdapter;
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -193,8 +194,8 @@ fn test_schema() -> CompiledSchema {
         jsonb_column:        "data".to_string(),
         relay:               false,
         relay_cursor_column: None,
-        relay_cursor_type:   Default::default(),
-        inject_params:       Default::default(),
+        relay_cursor_type:   CursorType::default(),
+        inject_params:       IndexMap::default(),
         cache_ttl_seconds:   None,
         additional_views:    vec![],
         requires_role:       None,
@@ -701,8 +702,6 @@ mod inject {
 
     #[tokio::test]
     async fn test_query_with_inject_rejects_unauthenticated() {
-        use indexmap::IndexMap;
-
         let mut schema = test_schema();
         let mut inject_params = IndexMap::new();
         inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
@@ -719,7 +718,7 @@ mod inject {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
-            relay_cursor_type: Default::default(),
+            relay_cursor_type: CursorType::default(),
             inject_params,
             cache_ttl_seconds: None,
             additional_views: vec![],
@@ -828,8 +827,8 @@ mod mutation {
     // returned unconditionally whenever sql_source was absent (e.g. when a schema
     // was compiled via the core Rust codegen path rather than the CLI converter).
 
-    /// A mutation compiled without an explicit sql_source (only operation.table set)
-    /// must NOT return a "has no sql_source configured" error.  Instead it should
+    /// A mutation compiled without an explicit `sql_source` (only operation.table set)
+    /// must NOT return a "has no `sql_source` configured" error.  Instead it should
     /// fall back to operation.table and attempt to call the SQL function, which in
     /// this test returns "function returned no rows" (the mock adapter is empty) —
     /// proving the executor reached the function-call stage (issue #53 regression).
@@ -865,8 +864,8 @@ mod mutation {
         );
     }
 
-    /// Mutations against a non-capable adapter must return FraiseQLError::Validation
-    /// with a diagnostic message, not silently call execute_function_call.
+    /// Mutations against a non-capable adapter must return `FraiseQLError::Validation`
+    /// with a diagnostic message, not silently call `execute_function_call`.
     #[tokio::test]
     async fn test_mutation_rejected_by_non_capable_adapter() {
         use crate::schema::MutationDefinition;
@@ -890,7 +889,7 @@ mod mutation {
         assert!(msg.contains("createUser"), "error message should name the mutation, got: {msg}");
     }
 
-    /// When both sql_source and operation.table are absent the executor must still
+    /// When both `sql_source` and operation.table are absent the executor must still
     /// return a clear validation error (not panic or silently succeed).
     #[tokio::test]
     async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
@@ -1053,8 +1052,8 @@ mod routing {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

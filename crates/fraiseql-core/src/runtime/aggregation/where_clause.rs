@@ -168,7 +168,7 @@ impl AggregationSqlGenerator {
         Ok(format!("{jsonb_extract} {op_sql} {ph}"))
     }
 
-    /// Parameterized case-insensitive WHERE (ILIKE for PostgreSQL, UPPER() for others).
+    /// Parameterized case-insensitive WHERE (ILIKE for PostgreSQL, `UPPER()` for others).
     pub(super) fn generate_case_insensitive_where_parameterized(
         &self,
         column: &str,

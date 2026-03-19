@@ -1,7 +1,7 @@
 //! Mutation response parser for `app.mutation_response` composite rows.
 //!
 //! This module implements the fix for issue #294: error types with scalar/primitive
-//! fields (String, Int, DateTime, UUID, etc.) are now correctly populated from the
+//! fields (String, Int, `DateTime`, UUID, etc.) are now correctly populated from the
 //! `metadata` JSONB column, in addition to the existing support for nested object fields.
 
 use std::collections::HashMap;
@@ -104,10 +104,10 @@ pub fn is_error_status(status: &str) -> bool {
 /// Populate error-type fields from a `metadata` JSONB object.
 ///
 /// This is the fix for issue #294: scalar fields (String, Int, Float, Boolean,
-/// DateTime, UUID, …) are now populated directly from the JSON value, without
+/// `DateTime`, UUID, …) are now populated directly from the JSON value, without
 /// requiring the value to be a nested object.
 ///
-/// Both camelCase and snake_case metadata keys are tried for each field.
+/// Both camelCase and `snake_case` metadata keys are tried for each field.
 ///
 /// # Arguments
 ///
@@ -149,7 +149,7 @@ pub fn populate_error_fields(
     output
 }
 
-/// Convert a snake_case field name to camelCase for metadata key lookup.
+/// Convert a `snake_case` field name to camelCase for metadata key lookup.
 ///
 /// Examples: `"last_activity_date"` → `"lastActivityDate"`,
 ///            `"cascade_count"` → `"cascadeCount"`.

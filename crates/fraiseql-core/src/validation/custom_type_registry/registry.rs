@@ -26,7 +26,7 @@ pub struct CustomTypeRegistry {
 
 impl Default for CustomTypeRegistry {
     fn default() -> Self {
-        Self::new(Default::default())
+        Self::new(CustomTypeRegistryConfig::default())
     }
 }
 
@@ -225,20 +225,20 @@ impl CustomTypeRegistry {
     /// Create a registry with all 51 built-in rich scalar types pre-registered.
     ///
     /// This method registers all FraiseQL's rich scalar types including:
-    /// - Contact/Communication: Email, PhoneNumber, URL, DomainName, Hostname
-    /// - Location/Address: PostalCode, Latitude, Longitude, Coordinates, Timezone, etc.
-    /// - Financial: IBAN, CUSIP, ISIN, SEDOL, LEI, MIC, CurrencyCode, Money, etc.
-    /// - Identifiers: Slug, SemanticVersion, HashSHA256, APIKey, VIN, TrackingNumber, etc.
-    /// - Networking: IPAddress, IPv4, IPv6, MACAddress, CIDR, Port
-    /// - Transportation: AirportCode, PortCode, FlightNumber
-    /// - Content: Markdown, HTML, MimeType, Color, Image, File
-    /// - Database: LTree
-    /// - Ranges: DateRange, Duration, Percentage
+    /// - Contact/Communication: Email, `PhoneNumber`, URL, `DomainName`, Hostname
+    /// - Location/Address: `PostalCode`, Latitude, Longitude, Coordinates, Timezone, etc.
+    /// - Financial: IBAN, CUSIP, ISIN, SEDOL, LEI, MIC, `CurrencyCode`, Money, etc.
+    /// - Identifiers: Slug, `SemanticVersion`, `HashSHA256`, `APIKey`, VIN, `TrackingNumber`, etc.
+    /// - Networking: `IPAddress`, `IPv4`, `IPv6`, `MACAddress`, CIDR, Port
+    /// - Transportation: `AirportCode`, `PortCode`, `FlightNumber`
+    /// - Content: Markdown, HTML, `MimeType`, Color, Image, File
+    /// - Database: `LTree`
+    /// - Ranges: `DateRange`, Duration, Percentage
     ///
     /// # Returns
     ///
     /// A new `CustomTypeRegistry` with all built-in scalars registered.
-    /// All scalars have base_type = Some("String") and no validation rules/ELO expressions.
+    /// All scalars have `base_type` = Some("String") and no validation rules/ELO expressions.
     ///
     /// # Example
     ///
@@ -338,7 +338,7 @@ impl CustomTypeRegistry {
     /// # Arguments
     ///
     /// * `type_name` - Name of the custom scalar type
-    /// * `value` - Value to validate (as serde_json::Value)
+    /// * `value` - Value to validate (as `serde_json::Value`)
     ///
     /// # Errors
     ///

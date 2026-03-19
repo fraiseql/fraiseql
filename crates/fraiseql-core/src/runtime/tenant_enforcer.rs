@@ -11,13 +11,13 @@ use crate::db::where_clause::{WhereClause, WhereOperator};
 
 /// Multi-tenancy enforcer for query scoping
 ///
-/// Automatically adds org_id filtering to all database queries
+/// Automatically adds `org_id` filtering to all database queries
 /// to ensure strict tenant isolation at runtime.
 #[derive(Debug, Clone)]
 pub struct TenantEnforcer {
-    /// Current org_id for this request
+    /// Current `org_id` for this request
     org_id:         Option<String>,
-    /// Enforce tenant scoping (require org_id for all queries)
+    /// Enforce tenant scoping (require `org_id` for all queries)
     require_tenant: bool,
 }
 
@@ -43,7 +43,7 @@ impl TenantEnforcer {
         self.org_id.is_some()
     }
 
-    /// Get the org_id for this request
+    /// Get the `org_id` for this request
     pub fn get_org_id(&self) -> Option<&str> {
         self.org_id.as_deref()
     }
@@ -62,7 +62,7 @@ impl TenantEnforcer {
     ///
     /// # Returns
     /// * Modified WHERE clause with tenant filter added
-    /// * Or error if tenant enforcement is required but org_id not provided
+    /// * Or error if tenant enforcement is required but `org_id` not provided
     pub fn enforce_tenant_scope(
         &self,
         where_clause: Option<&WhereClause>,
@@ -95,12 +95,12 @@ impl TenantEnforcer {
 
     /// Enforce tenant scope for raw SQL queries
     ///
-    /// Adds WHERE org_id = '<org_id>' to raw SQL if needed.
+    /// Adds WHERE `org_id` = '<`org_id`>' to raw SQL if needed.
     /// This is a simpler approach for raw queries.
     ///
     /// # Security
     ///
-    /// The org_id value is escaped to prevent SQL injection. Prefer using
+    /// The `org_id` value is escaped to prevent SQL injection. Prefer using
     /// `enforce_tenant_scope()` with `WhereClause` AST for parameterized queries.
     ///
     /// # Arguments
@@ -111,7 +111,7 @@ impl TenantEnforcer {
     /// Returns an error string if tenant enforcement is required but `org_id` is not set.
     ///
     /// # Returns
-    /// * Modified SQL with tenant filter, or original if no org_id
+    /// * Modified SQL with tenant filter, or original if no `org_id`
     pub fn enforce_tenant_scope_sql(&self, sql: &str) -> Result<String, String> {
         // Check if tenant enforcement is required
         if self.require_tenant && self.org_id.is_none() {

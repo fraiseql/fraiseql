@@ -181,7 +181,7 @@ pub struct CacheConfig {
     /// the cache. The size is estimated by serializing the result to JSON and measuring
     /// the byte length.
     ///
-    /// Default: `None` (no per-entry limit). Suggested value: 10 MB (10_485_760).
+    /// Default: `None` (no per-entry limit). Suggested value: 10 MB (`10_485_760`).
     #[serde(default)]
     pub max_entry_bytes: Option<usize>,
 
@@ -191,7 +191,7 @@ pub struct CacheConfig {
     /// If the budget is already exceeded the entry is silently skipped (the LRU count
     /// limit continues to apply independently).
     ///
-    /// Default: `None` (no total limit). Suggested value: 1 GB (1_073_741_824).
+    /// Default: `None` (no total limit). Suggested value: 1 GB (`1_073_741_824`).
     #[serde(default)]
     pub max_total_bytes: Option<usize>,
 }

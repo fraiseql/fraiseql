@@ -235,7 +235,7 @@ impl WindowFunctionPlanner {
             Some("current_row") => FrameExclusion::CurrentRow,
             Some("group") => FrameExclusion::Group,
             Some("ties") => FrameExclusion::Ties,
-            Some("no_others") => FrameExclusion::NoOthers,
+            // "no_others" and unrecognised values default to NoOthers
             _ => FrameExclusion::NoOthers,
         });
 

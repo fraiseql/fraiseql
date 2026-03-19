@@ -14,7 +14,7 @@ use graphql_parser::query::{
 /// [`RequestValidator`], the server HTTP handler, and the CLI `explain` command.
 pub const DEFAULT_MAX_ALIASES: usize = 30;
 
-/// Maximum number of variables per request (DoS protection).
+/// Maximum number of variables per request (`DoS` protection).
 ///
 /// A single GraphQL request with thousands of variables can cause excessive memory
 /// allocation during deserialization and variable injection. This constant caps
@@ -121,7 +121,7 @@ impl RequestValidator {
 
     /// Create from a `ComplexityConfig`.
     #[must_use]
-    pub const fn from_config(config: ComplexityConfig) -> Self {
+    pub const fn from_config(config: &ComplexityConfig) -> Self {
         Self {
             max_depth:             config.max_depth,
             max_complexity:        config.max_complexity,
@@ -885,7 +885,8 @@ mod tests {
         let validator = RequestValidator::new().with_max_depth(5);
         let mut query = String::from("query { ...F0 }\n");
         for i in 0..34_usize {
-            query.push_str(&format!("fragment F{i} on T {{ ...F{} }}\n", i + 1));
+            use std::fmt::Write;
+            let _ = writeln!(query, "fragment F{i} on T {{ ...F{} }}", i + 1);
         }
         query.push_str("fragment F34 on T { id }\n");
         assert!(
@@ -923,7 +924,7 @@ mod tests {
             max_complexity: 20,
             max_aliases:    3,
         };
-        let validator = RequestValidator::from_config(config);
+        let validator = RequestValidator::from_config(&config);
         // Depth-6 query should fail
         let result = validator.validate_query("{ a { b { c { d { e { f } } } } } }");
         assert!(

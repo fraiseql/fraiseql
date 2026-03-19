@@ -1,4 +1,4 @@
-//! Authentication types: AuthenticatedUser, AuthRequest, TokenClaims.
+//! Authentication types: `AuthenticatedUser`, `AuthRequest`, `TokenClaims`.
 
 use std::fmt;
 

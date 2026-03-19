@@ -101,7 +101,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Arguments
     ///
     /// * `query_json` - JSON representation of the aggregate query
-    /// * `query_name` - GraphQL field name (e.g., "sales_aggregate")
+    /// * `query_name` - GraphQL field name (e.g., "`sales_aggregate`")
     /// * `metadata` - Fact table metadata
     ///
     /// # Returns
@@ -170,7 +170,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Arguments
     ///
     /// * `query_json` - JSON representation of the window query
-    /// * `query_name` - GraphQL field name (e.g., "sales_window")
+    /// * `query_name` - GraphQL field name (e.g., "`sales_window`")
     /// * `metadata` - Fact table metadata
     ///
     /// # Returns
@@ -215,7 +215,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 2. Generate execution plan (validates semantic names against metadata)
         let plan =
-            crate::compiler::window_functions::WindowPlanner::plan(request, metadata.clone())?;
+            crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
 
         // 3. Generate SQL
         let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());

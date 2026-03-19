@@ -25,7 +25,7 @@ fuzz_target!(|data: &[u8]| {
         async_validation_errors_window_secs: window_secs,
     };
     let limiter =
-        fraiseql_core::validation::rate_limiting::ValidationRateLimiter::new(config);
+        fraiseql_core::validation::rate_limiting::ValidationRateLimiter::new(&config);
     // Must never panic on arbitrary key/config combinations
     let _ = limiter.check_validation_errors(key);
     let _ = limiter.check_depth_errors(key);

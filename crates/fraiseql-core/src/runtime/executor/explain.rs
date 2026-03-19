@@ -1,5 +1,7 @@
 //! EXPLAIN ANALYZE execution for admin diagnostics.
 
+use std::fmt::Write as _;
+
 use super::Executor;
 use crate::{
     db::{WhereClause, WhereOperator, traits::DatabaseAdapter},
@@ -151,12 +153,12 @@ fn build_display_sql(
     let param_offset = variables.and_then(|v| v.as_object()).map_or(0, |m| m.len());
 
     if let Some(lim) = limit {
-        sql.push_str(&format!(" LIMIT ${}", param_offset + 1));
+        let _ = write!(sql, " LIMIT ${}", param_offset + 1);
         let _ = lim; // value shown via parameters field
     }
     if let Some(off) = offset {
         let limit_added = usize::from(limit.is_some());
-        sql.push_str(&format!(" OFFSET ${}", param_offset + limit_added + 1));
+        let _ = write!(sql, " OFFSET ${}", param_offset + limit_added + 1);
         let _ = off;
     }
 

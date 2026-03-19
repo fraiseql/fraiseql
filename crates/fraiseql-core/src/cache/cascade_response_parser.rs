@@ -195,7 +195,7 @@ impl CascadeResponseParser {
             }
 
             // Try deeper nesting (mutation result contains cascade)
-            for (_key, value) in data.as_object().unwrap_or(&Default::default()) {
+            for (_key, value) in data.as_object().unwrap_or(&serde_json::Map::default()) {
                 if let Some(cascade) = value.get("cascade") {
                     return Ok(cascade.clone());
                 }
@@ -203,7 +203,7 @@ impl CascadeResponseParser {
         }
 
         // Try top-level mutation response
-        for (_key, value) in response.as_object().unwrap_or(&Default::default()) {
+        for (_key, value) in response.as_object().unwrap_or(&serde_json::Map::default()) {
             if let Some(cascade) = value.get("cascade") {
                 return Ok(cascade.clone());
             }

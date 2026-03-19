@@ -14,6 +14,7 @@
 //! interaction with the authoring-language runtime.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
 
@@ -120,12 +121,12 @@ pub struct CompiledSchema {
 
     /// Observers/event system configuration (from fraiseql.toml).
     ///
-    /// Contains backend connection settings (redis_url, nats_url, etc.) and
+    /// Contains backend connection settings (`redis_url`, `nats_url`, etc.) and
     /// event handler definitions compiled from the `[observers]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers_config: Option<ObserversConfig>,
 
-    /// WebSocket subscription configuration (hooks, limits).
+    /// `WebSocket` subscription configuration (hooks, limits).
     /// Compiled from the `[subscriptions]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscriptions_config: Option<SubscriptionsConfig>,
@@ -159,7 +160,7 @@ pub struct CompiledSchema {
     /// Custom scalar type registry.
     ///
     /// Contains definitions for custom scalar types defined in the schema.
-    /// Built during code generation from IRScalar definitions.
+    /// Built during code generation from `IRScalar` definitions.
     /// Not serialized - populated at runtime from `ir.scalars`.
     #[serde(skip)]
     pub custom_scalars: CustomTypeRegistry,
@@ -649,9 +650,9 @@ impl CompiledSchema {
 
             // Add types
             for type_def in &self.types {
-                sdl.push_str(&format!("type {} {{\n", type_def.name));
+                let _ = writeln!(sdl, "type {} {{", type_def.name);
                 for field in &type_def.fields {
-                    sdl.push_str(&format!("  {}: {}\n", field.name, field.field_type));
+                    let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
                 }
                 sdl.push_str("}\n\n");
             }

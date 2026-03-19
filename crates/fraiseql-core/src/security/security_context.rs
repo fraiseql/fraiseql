@@ -4,8 +4,8 @@
 //! carrying information about the authenticated user and their permissions.
 //!
 //! The security context is extracted from:
-//! - JWT claims (user_id from 'sub', roles from 'roles', etc.)
-//! - HTTP headers (request_id, tenant_id, etc.)
+//! - JWT claims (`user_id` from 'sub', roles from 'roles', etc.)
+//! - HTTP headers (`request_id`, `tenant_id`, etc.)
 //! - Configuration (OAuth provider, scopes, etc.)
 //!
 //! # Architecture
@@ -22,9 +22,9 @@
 //!
 //! # RLS Integration
 //!
-//! The SecurityContext is passed to RLSPolicy::evaluate() to determine what
+//! The `SecurityContext` is passed to `RLSPolicy::evaluate()` to determine what
 //! rows a user can access. Policies are compiled into schema.compiled.json
-//! and evaluated at runtime with the SecurityContext.
+//! and evaluated at runtime with the `SecurityContext`.
 
 use std::collections::HashMap;
 
@@ -65,7 +65,7 @@ pub struct SecurityContext {
     /// Tenant/organization ID (for multi-tenancy)
     ///
     /// When present, RLS policies can enforce tenant isolation.
-    /// Extracted from JWT 'tenant_id' or X-Tenant-Id header.
+    /// Extracted from JWT '`tenant_id`' or X-Tenant-Id header.
     pub tenant_id: Option<String>,
 
     /// OAuth/permission scopes
@@ -129,9 +129,9 @@ impl SecurityContext {
     /// # use fraiseql_core::security::SecurityContext;
     /// # use fraiseql_core::security::AuthenticatedUser;
     /// # let authenticated_user: AuthenticatedUser = unimplemented!();
-    /// let context = SecurityContext::from_user(authenticated_user, "req-123".to_string());
+    /// let context = SecurityContext::from_user(&authenticated_user, "req-123".to_string());
     /// ```
-    pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
+    pub fn from_user(user: &AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
             user_id: user.user_id.clone(),
             roles: vec![], // Will be populated from JWT claims
@@ -238,7 +238,7 @@ impl SecurityContext {
     ///
     /// # Returns
     ///
-    /// `true` if tenant_id is present, `false` otherwise.
+    /// `true` if `tenant_id` is present, `false` otherwise.
     #[must_use]
     pub const fn is_multi_tenant(&self) -> bool {
         self.tenant_id.is_some()

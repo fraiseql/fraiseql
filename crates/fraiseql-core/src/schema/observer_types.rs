@@ -43,7 +43,7 @@ pub struct ObserverDefinition {
     pub event: String,
 
     /// Optional condition expression in FraiseQL DSL.
-    /// Example: "total > 1000" or "status.changed() and status == 'shipped'"
+    /// Example: "total > 1000" or "`status.changed()` and status == 'shipped'"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<String>,
 

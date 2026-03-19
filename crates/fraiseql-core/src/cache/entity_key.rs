@@ -107,7 +107,7 @@ impl EntityKey {
         })
     }
 
-    /// Convert entity key to cache key format: "EntityType:entity_id"
+    /// Convert entity key to cache key format: "`EntityType:entity_id`"
     ///
     /// # Examples
     ///
@@ -122,7 +122,7 @@ impl EntityKey {
         format!("{}:{}", self.entity_type, self.entity_id)
     }
 
-    /// Parse entity key from cache key format: "EntityType:entity_id"
+    /// Parse entity key from cache key format: "`EntityType:entity_id`"
     ///
     /// # Arguments
     ///

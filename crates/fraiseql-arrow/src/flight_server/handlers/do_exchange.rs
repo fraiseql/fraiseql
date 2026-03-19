@@ -238,7 +238,7 @@ pub(super) async fn handle(
 
     // Create security context for RLS
     let security_context = fraiseql_core::security::SecurityContext::from_user(
-        authenticated_user.clone(),
+        &authenticated_user,
         uuid::Uuid::new_v4().to_string(),
     );
 

@@ -142,7 +142,7 @@ fn test_schema_from_json_full() {
     assert_eq!(sub.topic, Some("user_created".to_string()));
 }
 
-/// Assert inject_params, cache_ttl_seconds, additional_views, requires_role
+/// Assert `inject_params`, `cache_ttl_seconds`, `additional_views`, `requires_role`
 #[test]
 fn test_query_full_fields() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -164,7 +164,7 @@ fn test_query_full_fields() {
     assert_eq!(q.requires_role.as_deref(), Some("admin"));
 }
 
-/// Assert sql_source, inject_params, invalidates_* on a mutation
+/// Assert `sql_source`, `inject_params`, invalidates_* on a mutation
 #[test]
 fn test_mutation_full_fields() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
