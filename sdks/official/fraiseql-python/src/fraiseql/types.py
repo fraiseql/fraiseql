@@ -201,9 +201,19 @@ def extract_function_signature(func: Any) -> dict[str, Any]:
         }
     """
     import inspect
+    import typing
 
     sig = inspect.signature(func)
-    annotations = func.__annotations__
+
+    # Resolve string annotations from `from __future__ import annotations`
+    # using the function's own globals so forward references are resolved.
+    try:
+        annotations = typing.get_type_hints(func, globalns=func.__globals__)
+    except Exception:
+        # Fall back to raw annotations if resolution fails (e.g. unresolvable
+        # forward references).  String annotations are still handled by
+        # python_type_to_graphql's isinstance(py_type, str) branch.
+        annotations = func.__annotations__
 
     # Extract arguments
     arguments = []
