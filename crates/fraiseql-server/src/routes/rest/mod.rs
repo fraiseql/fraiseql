@@ -8,8 +8,10 @@
 //! All modules are gated behind `#[cfg(feature = "rest")]` in `routes/mod.rs`.
 
 pub mod bulk;
+pub mod cache_control;
 pub mod embedding;
 pub mod handler;
+pub mod idempotency;
 pub mod openapi;
 pub mod params;
 pub mod resource;

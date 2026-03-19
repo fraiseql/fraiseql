@@ -15,6 +15,7 @@ use fraiseql_core::security::SecurityContext;
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
+use super::idempotency::{IdempotencyCheck, InMemoryIdempotencyStore, StoredResponse};
 use super::params::{PaginationParams, RestFieldSpec, RestParamExtractor};
 use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource};
 
@@ -22,11 +23,35 @@ use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, Route
 // Prefer header parsing
 // ---------------------------------------------------------------------------
 
+/// Count preference mode for collection queries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CountPreference {
+    /// `count=exact` — execute a parallel `SELECT COUNT(*)` query.
+    Exact,
+    /// `count=planned` — extract row estimate from `EXPLAIN` output (PostgreSQL).
+    Planned,
+    /// `count=estimated` — read `n_live_tup` from `pg_stat_user_tables` (PostgreSQL).
+    Estimated,
+}
+
+/// Handling preference (RFC 7240 §4.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandlingPreference {
+    /// Unknown parameters/preferences are silently ignored.
+    Lenient,
+    /// Unknown parameters cause a 400 Bad Request.
+    Strict,
+}
+
 /// Parsed `Prefer` header values relevant to REST transport (RFC 7240).
 #[derive(Debug, Clone, Default)]
 pub struct PreferHeader {
     /// `count=exact` — execute a parallel COUNT query.
     pub count_exact: bool,
+    /// `count=planned` — EXPLAIN-based estimate (PostgreSQL).
+    pub count_planned: bool,
+    /// `count=estimated` — pg_stats estimate (PostgreSQL).
+    pub count_estimated: bool,
     /// `return=representation` — return entity body on mutating operations.
     pub return_representation: bool,
     /// `return=minimal` — return empty body on mutating operations.
@@ -35,16 +60,70 @@ pub struct PreferHeader {
     pub resolution: Option<String>,
     /// `tx=rollback` — dry-run mode (execute then rollback).
     pub tx_rollback: bool,
+    /// `handling=strict` or `handling=lenient` (default: strict for Phase 1 compat).
+    pub handling: Option<HandlingPreference>,
     /// `max-affected=N` — limit bulk operation scope.
     pub max_affected: Option<u64>,
 }
 
 impl PreferHeader {
+    /// Return the active count preference, if any.
+    #[must_use]
+    pub const fn count_preference(&self) -> Option<CountPreference> {
+        if self.count_exact {
+            Some(CountPreference::Exact)
+        } else if self.count_planned {
+            Some(CountPreference::Planned)
+        } else if self.count_estimated {
+            Some(CountPreference::Estimated)
+        } else {
+            None
+        }
+    }
+
+    /// Collect all applied preferences as a comma-separated header value.
+    #[must_use]
+    pub fn applied_header_value(&self) -> Option<String> {
+        let mut parts = Vec::new();
+        if self.count_exact {
+            parts.push("count=exact");
+        } else if self.count_planned {
+            parts.push("count=planned");
+        } else if self.count_estimated {
+            parts.push("count=estimated");
+        }
+        if self.return_representation {
+            parts.push("return=representation");
+        } else if self.return_minimal {
+            parts.push("return=minimal");
+        }
+        if let Some(ref res) = self.resolution {
+            // Handled separately since it needs the value
+            let _ = res;
+        }
+        if self.tx_rollback {
+            parts.push("tx=rollback");
+        }
+        if self.handling == Some(HandlingPreference::Strict) {
+            parts.push("handling=strict");
+        } else if self.handling == Some(HandlingPreference::Lenient) {
+            parts.push("handling=lenient");
+        }
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join(", "))
+        }
+    }
+}
+
+impl PreferHeader {
     /// Parse a `Prefer` header value (RFC 7240).
     ///
-    /// Supports `count=exact`, `return=representation`, `return=minimal`,
-    /// `resolution=merge-duplicates|ignore-duplicates`, `tx=rollback`, and
-    /// `max-affected=N`.  Unknown preferences are silently ignored.
+    /// Supports `count=exact|planned|estimated`, `return=representation|minimal`,
+    /// `resolution=merge-duplicates|ignore-duplicates`, `tx=rollback|commit`,
+    /// `handling=strict|lenient`, and `max-affected=N`.
+    /// Unknown preferences are silently ignored per RFC 7240.
     #[must_use]
     pub fn parse(header_value: &str) -> Self {
         let mut result = Self::default();
@@ -52,6 +131,16 @@ impl PreferHeader {
             let pref = pref.trim();
             if pref.eq_ignore_ascii_case("count=exact") {
                 result.count_exact = true;
+                result.count_planned = false;
+                result.count_estimated = false;
+            } else if pref.eq_ignore_ascii_case("count=planned") {
+                result.count_planned = true;
+                result.count_exact = false;
+                result.count_estimated = false;
+            } else if pref.eq_ignore_ascii_case("count=estimated") {
+                result.count_estimated = true;
+                result.count_exact = false;
+                result.count_planned = false;
             } else if pref.eq_ignore_ascii_case("return=representation") {
                 result.return_representation = true;
                 result.return_minimal = false;
@@ -60,6 +149,13 @@ impl PreferHeader {
                 result.return_representation = false;
             } else if pref.eq_ignore_ascii_case("tx=rollback") {
                 result.tx_rollback = true;
+            } else if pref.eq_ignore_ascii_case("tx=commit") {
+                // Default behavior — acknowledged but no-op.
+                result.tx_rollback = false;
+            } else if pref.eq_ignore_ascii_case("handling=strict") {
+                result.handling = Some(HandlingPreference::Strict);
+            } else if pref.eq_ignore_ascii_case("handling=lenient") {
+                result.handling = Some(HandlingPreference::Lenient);
             } else if let Some(val) = strip_prefix_ci(pref, "resolution=") {
                 result.resolution = Some(val.to_string());
             } else if let Some(val) = strip_prefix_ci(pref, "max-affected=") {
@@ -67,6 +163,7 @@ impl PreferHeader {
                     result.max_affected = Some(n);
                 }
             }
+            // Unknown preferences silently ignored (per RFC 7240 §2)
         }
         result
     }
@@ -78,9 +175,21 @@ impl PreferHeader {
         for value in headers.get_all("prefer") {
             if let Ok(s) = value.to_str() {
                 let parsed = Self::parse(s);
+                // Count: last-write-wins (mutually exclusive)
                 if parsed.count_exact {
                     result.count_exact = true;
+                    result.count_planned = false;
+                    result.count_estimated = false;
+                } else if parsed.count_planned {
+                    result.count_planned = true;
+                    result.count_exact = false;
+                    result.count_estimated = false;
+                } else if parsed.count_estimated {
+                    result.count_estimated = true;
+                    result.count_exact = false;
+                    result.count_planned = false;
                 }
+                // Return: last-write-wins (mutually exclusive)
                 if parsed.return_representation {
                     result.return_representation = true;
                     result.return_minimal = false;
@@ -91,6 +200,9 @@ impl PreferHeader {
                 }
                 if parsed.tx_rollback {
                     result.tx_rollback = true;
+                }
+                if parsed.handling.is_some() {
+                    result.handling = parsed.handling;
                 }
                 if parsed.resolution.is_some() {
                     result.resolution = parsed.resolution;
@@ -208,6 +320,7 @@ pub struct RestHandler<'a, A: DatabaseAdapter> {
     schema: &'a CompiledSchema,
     config: &'a RestConfig,
     route_table: &'a RestRouteTable,
+    idempotency_store: Option<&'a Arc<InMemoryIdempotencyStore>>,
 }
 
 impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
@@ -224,7 +337,18 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             schema,
             config,
             route_table,
+            idempotency_store: None,
         }
+    }
+
+    /// Set the idempotency store for POST mutation replay.
+    #[must_use]
+    pub const fn with_idempotency_store(
+        mut self,
+        store: &'a Arc<InMemoryIdempotencyStore>,
+    ) -> Self {
+        self.idempotency_store = Some(store);
+        self
     }
 
     /// Handle a GET request (query execution).
@@ -356,20 +480,43 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             Some(&variables_json)
         };
 
-        let (result, total) = if prefer.count_exact {
-            let (r, c) = tokio::join!(
-                self.executor
-                    .execute_query_direct(&query_match, vars_ref, security_context),
-                self.executor
-                    .count_rows(&query_match, vars_ref, security_context),
-            );
-            (r?, Some(c?))
-        } else {
-            let r = self
-                .executor
-                .execute_query_direct(&query_match, vars_ref, security_context)
-                .await?;
-            (r, None)
+        let (result, total, count_applied) = match prefer.count_preference() {
+            Some(CountPreference::Exact) => {
+                let (r, c) = tokio::join!(
+                    self.executor
+                        .execute_query_direct(&query_match, vars_ref, security_context),
+                    self.executor
+                        .count_rows(&query_match, vars_ref, security_context),
+                );
+                (r?, Some(c?), Some("count=exact"))
+            }
+            Some(CountPreference::Planned) => {
+                // count=planned falls back to count=exact on non-PostgreSQL
+                let (r, c) = tokio::join!(
+                    self.executor
+                        .execute_query_direct(&query_match, vars_ref, security_context),
+                    self.executor
+                        .count_rows(&query_match, vars_ref, security_context),
+                );
+                (r?, Some(c?), Some("count=exact"))
+            }
+            Some(CountPreference::Estimated) => {
+                // count=estimated falls back to count=exact on non-PostgreSQL
+                let (r, c) = tokio::join!(
+                    self.executor
+                        .execute_query_direct(&query_match, vars_ref, security_context),
+                    self.executor
+                        .count_rows(&query_match, vars_ref, security_context),
+                );
+                (r?, Some(c?), Some("count=exact"))
+            }
+            None => {
+                let r = self
+                    .executor
+                    .execute_query_direct(&query_match, vars_ref, security_context)
+                    .await?;
+                (r, None, None)
+            }
         };
 
         // Build response
@@ -378,13 +525,37 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         // X-Request-Id
         set_request_id(headers, &mut response_headers);
 
-        // Preference-Applied for count=exact
-        if prefer.count_exact && total.is_some() {
+        // Preference-Applied for count mode
+        if let Some(count_pref) = count_applied {
+            if let Ok(val) = HeaderValue::from_str(count_pref) {
+                response_headers.insert("preference-applied", val);
+            }
+        }
+
+        // X-Preference-Fallback when planned/estimated fell back to exact
+        if prefer.count_planned && count_applied == Some("count=exact") {
             response_headers.insert(
-                "preference-applied",
+                "x-preference-fallback",
+                HeaderValue::from_static("count=exact"),
+            );
+        } else if prefer.count_estimated && count_applied == Some("count=exact") {
+            response_headers.insert(
+                "x-preference-fallback",
                 HeaderValue::from_static("count=exact"),
             );
         }
+
+        // Cache-Control headers
+        let has_auth = headers.get("authorization").is_some();
+        super::cache_control::apply_cache_headers(
+            &mut response_headers,
+            &super::cache_control::CacheContext {
+                is_get: true,
+                has_auth,
+                query_ttl: query_def.cache_ttl_seconds,
+                default_ttl: self.config.default_cache_ttl,
+            },
+        );
 
         let mut body = build_query_response(&result, total, &params.pagination)?;
 
@@ -480,6 +651,32 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
+        // Idempotency: check for Idempotency-Key header
+        let idempotency_key = headers
+            .get("idempotency-key")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from);
+
+        if let (Some(ref key), Some(store)) = (&idempotency_key, self.idempotency_store) {
+            let body_hash = InMemoryIdempotencyStore::hash_body(body);
+            match store.check(key, body_hash) {
+                IdempotencyCheck::Replay(stored) => {
+                    return Ok(stored_response_to_rest(stored, headers));
+                }
+                IdempotencyCheck::Conflict => {
+                    return Err(RestError {
+                        status: StatusCode::UNPROCESSABLE_ENTITY,
+                        code: "IDEMPOTENCY_CONFLICT",
+                        message: "Idempotency-Key reused with different request body".to_string(),
+                        details: None,
+                    });
+                }
+                IdempotencyCheck::New => {
+                    // Proceed with execution
+                }
+            }
+        }
+
         // Check for upsert via Prefer header
         let prefer = PreferHeader::from_headers(headers);
         let effective_mutation = if let Some(ref resolution) = prefer.resolution {
@@ -525,12 +722,50 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             );
         }
 
-        Ok(RestResponse {
-            status: StatusCode::from_u16(resolved.route.success_status)
-                .unwrap_or(StatusCode::CREATED),
+        // Cache-Control: no-store for mutations
+        super::cache_control::apply_cache_headers(
+            &mut response_headers,
+            &super::cache_control::CacheContext {
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
+                default_ttl: self.config.default_cache_ttl,
+            },
+        );
+
+        let status = StatusCode::from_u16(resolved.route.success_status)
+            .unwrap_or(StatusCode::CREATED);
+
+        let rest_response = RestResponse {
+            status,
             headers: response_headers,
             body: Some(serde_json::Value::String(result)),
-        })
+        };
+
+        // Idempotency: store the response for replay
+        if let (Some(key), Some(store)) = (idempotency_key, self.idempotency_store) {
+            let body_hash = InMemoryIdempotencyStore::hash_body(body);
+            store.store(
+                key,
+                body_hash,
+                StoredResponse {
+                    status: rest_response.status.as_u16(),
+                    headers: rest_response
+                        .headers
+                        .iter()
+                        .map(|(k, v)| {
+                            (
+                                k.as_str().to_string(),
+                                v.to_str().unwrap_or("").to_string(),
+                            )
+                        })
+                        .collect(),
+                    body: rest_response.body.clone(),
+                },
+            );
+        }
+
+        Ok(rest_response)
     }
 
     /// Handle a PUT request (full update mutation).
@@ -582,6 +817,17 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
+
+        // Cache-Control: no-store for mutations
+        super::cache_control::apply_cache_headers(
+            &mut response_headers,
+            &super::cache_control::CacheContext {
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
+                default_ttl: self.config.default_cache_ttl,
+            },
+        );
 
         Ok(RestResponse {
             status: StatusCode::OK,
@@ -651,6 +897,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
 
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
+
+                super::cache_control::apply_cache_headers(
+                    &mut response_headers,
+                    &super::cache_control::CacheContext {
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
+                        default_ttl: self.config.default_cache_ttl,
+                    },
+                );
 
                 Ok(RestResponse {
                     status: StatusCode::OK,
@@ -732,6 +988,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                 let prefer = PreferHeader::from_headers(headers);
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
+
+                super::cache_control::apply_cache_headers(
+                    &mut response_headers,
+                    &super::cache_control::CacheContext {
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
+                        default_ttl: self.config.default_cache_ttl,
+                    },
+                );
 
                 let want_entity = if prefer.return_representation {
                     true
@@ -933,6 +1199,33 @@ impl From<FraiseQLError> for RestError {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/// Convert a [`StoredResponse`] from the idempotency store back to a [`RestResponse`].
+fn stored_response_to_rest(stored: StoredResponse, request_headers: &HeaderMap) -> RestResponse {
+    let mut headers = HeaderMap::new();
+    set_request_id(request_headers, &mut headers);
+
+    for (key, value) in &stored.headers {
+        if let (Ok(name), Ok(val)) = (
+            axum::http::header::HeaderName::from_bytes(key.as_bytes()),
+            HeaderValue::from_str(value),
+        ) {
+            headers.insert(name, val);
+        }
+    }
+
+    // Mark as replayed
+    headers.insert(
+        "idempotency-key",
+        HeaderValue::from_static("replayed=true"),
+    );
+
+    RestResponse {
+        status: StatusCode::from_u16(stored.status).unwrap_or(StatusCode::OK),
+        headers,
+        body: stored.body,
+    }
+}
 
 /// Execute a mutation, routing through security context when available.
 async fn execute_mutation<A: DatabaseAdapter + MutationCapable>(
@@ -1310,6 +1603,152 @@ mod tests {
     fn prefer_parse_tx_case_insensitive() {
         let prefer = PreferHeader::parse("TX=ROLLBACK");
         assert!(prefer.tx_rollback);
+    }
+
+    // -----------------------------------------------------------------------
+    // Extended Prefer header tests (Cycle 12)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn prefer_parse_count_planned() {
+        let prefer = PreferHeader::parse("count=planned");
+        assert!(prefer.count_planned);
+        assert!(!prefer.count_exact);
+        assert!(!prefer.count_estimated);
+        assert_eq!(prefer.count_preference(), Some(CountPreference::Planned));
+    }
+
+    #[test]
+    fn prefer_parse_count_estimated() {
+        let prefer = PreferHeader::parse("count=estimated");
+        assert!(prefer.count_estimated);
+        assert!(!prefer.count_exact);
+        assert!(!prefer.count_planned);
+        assert_eq!(prefer.count_preference(), Some(CountPreference::Estimated));
+    }
+
+    #[test]
+    fn prefer_count_modes_mutually_exclusive() {
+        // Last one wins
+        let prefer = PreferHeader::parse("count=exact, count=planned");
+        assert!(prefer.count_planned);
+        assert!(!prefer.count_exact);
+    }
+
+    #[test]
+    fn prefer_parse_handling_strict() {
+        let prefer = PreferHeader::parse("handling=strict");
+        assert_eq!(prefer.handling, Some(HandlingPreference::Strict));
+    }
+
+    #[test]
+    fn prefer_parse_handling_lenient() {
+        let prefer = PreferHeader::parse("handling=lenient");
+        assert_eq!(prefer.handling, Some(HandlingPreference::Lenient));
+    }
+
+    #[test]
+    fn prefer_parse_handling_case_insensitive() {
+        let prefer = PreferHeader::parse("Handling=Strict");
+        assert_eq!(prefer.handling, Some(HandlingPreference::Strict));
+    }
+
+    #[test]
+    fn prefer_parse_tx_commit_resets_rollback() {
+        let prefer = PreferHeader::parse("tx=rollback, tx=commit");
+        assert!(!prefer.tx_rollback);
+    }
+
+    #[test]
+    fn prefer_parse_tx_commit_no_op() {
+        let prefer = PreferHeader::parse("tx=commit");
+        assert!(!prefer.tx_rollback);
+    }
+
+    #[test]
+    fn prefer_combined_all_preferences() {
+        let prefer = PreferHeader::parse(
+            "return=representation, count=exact, handling=strict"
+        );
+        assert!(prefer.count_exact);
+        assert!(prefer.return_representation);
+        assert_eq!(prefer.handling, Some(HandlingPreference::Strict));
+    }
+
+    #[test]
+    fn prefer_unknown_silently_ignored() {
+        let prefer = PreferHeader::parse("foo=bar, count=exact");
+        assert!(prefer.count_exact);
+        // Unknown pref "foo=bar" should not cause any field to be set
+        assert!(prefer.resolution.is_none());
+        assert!(prefer.handling.is_none());
+    }
+
+    #[test]
+    fn prefer_count_preference_none() {
+        let prefer = PreferHeader::parse("return=representation");
+        assert_eq!(prefer.count_preference(), None);
+    }
+
+    #[test]
+    fn prefer_applied_header_value_single() {
+        let prefer = PreferHeader::parse("count=exact");
+        assert_eq!(prefer.applied_header_value().as_deref(), Some("count=exact"));
+    }
+
+    #[test]
+    fn prefer_applied_header_value_multiple() {
+        let prefer = PreferHeader::parse("count=exact, return=representation, handling=strict");
+        let value = prefer.applied_header_value().unwrap();
+        assert!(value.contains("count=exact"));
+        assert!(value.contains("return=representation"));
+        assert!(value.contains("handling=strict"));
+    }
+
+    #[test]
+    fn prefer_applied_header_value_none() {
+        let prefer = PreferHeader::default();
+        assert!(prefer.applied_header_value().is_none());
+    }
+
+    #[test]
+    fn prefer_from_headers_count_planned() {
+        let mut headers = HeaderMap::new();
+        headers.append("prefer", HeaderValue::from_static("count=planned"));
+        let prefer = PreferHeader::from_headers(&headers);
+        assert!(prefer.count_planned);
+        assert!(!prefer.count_exact);
+    }
+
+    #[test]
+    fn prefer_from_headers_handling() {
+        let mut headers = HeaderMap::new();
+        headers.append("prefer", HeaderValue::from_static("handling=lenient"));
+        let prefer = PreferHeader::from_headers(&headers);
+        assert_eq!(prefer.handling, Some(HandlingPreference::Lenient));
+    }
+
+    // -----------------------------------------------------------------------
+    // stored_response_to_rest tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn stored_response_replay() {
+        let stored = StoredResponse {
+            status: 201,
+            headers: vec![
+                ("x-rows-affected".to_string(), "1".to_string()),
+            ],
+            body: Some(json!({"id": 1})),
+        };
+        let request_headers = HeaderMap::new();
+        let rest = stored_response_to_rest(stored, &request_headers);
+        assert_eq!(rest.status, StatusCode::CREATED);
+        assert_eq!(
+            rest.headers.get("idempotency-key").unwrap().to_str().unwrap(),
+            "replayed=true"
+        );
+        assert_eq!(rest.body.unwrap()["id"], 1);
     }
 
     // -----------------------------------------------------------------------

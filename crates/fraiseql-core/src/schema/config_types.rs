@@ -392,6 +392,13 @@ pub struct RestConfig {
     /// Acts as a server-side safety limit.  Clients may request a lower limit
     /// via `Prefer: max-affected=N`.  Default: 1000.
     pub max_bulk_affected: u64,
+    /// Default `Cache-Control: max-age` for GET responses (seconds).
+    ///
+    /// Overridden per-query by `QueryDefinition.cache_ttl_seconds`.
+    /// Set to 0 to disable caching. Default: 60.
+    pub default_cache_ttl: u64,
+    /// TTL for idempotency keys in seconds. Default: 86400 (24 hours).
+    pub idempotency_ttl_seconds: u64,
 }
 
 impl Default for RestConfig {
@@ -407,8 +414,10 @@ impl Default for RestConfig {
             default_page_size:   20,
             etag:                true,
             max_filter_bytes:    4096,
-            max_embedding_depth: DEFAULT_MAX_EMBEDDING_DEPTH,
-            max_bulk_affected:   DEFAULT_MAX_BULK_AFFECTED,
+            max_embedding_depth:      DEFAULT_MAX_EMBEDDING_DEPTH,
+            max_bulk_affected:        DEFAULT_MAX_BULK_AFFECTED,
+            default_cache_ttl:        60,
+            idempotency_ttl_seconds:  86_400,
         }
     }
 }
@@ -646,18 +655,20 @@ mod tests {
     #[test]
     fn test_rest_config_roundtrip() {
         let config = RestConfig {
-            enabled:             true,
-            path:                "/api/v2".to_string(),
-            require_auth:        false,
-            include:             vec!["users".to_string()],
-            exclude:             vec!["secrets".to_string()],
-            delete_response:     DeleteResponse::Entity,
-            max_page_size:       500,
-            default_page_size:   50,
-            etag:                false,
-            max_filter_bytes:    8192,
-            max_embedding_depth: 5,
-            max_bulk_affected:   500,
+            enabled:                 true,
+            path:                    "/api/v2".to_string(),
+            require_auth:            false,
+            include:                 vec!["users".to_string()],
+            exclude:                 vec!["secrets".to_string()],
+            delete_response:         DeleteResponse::Entity,
+            max_page_size:           500,
+            default_page_size:       50,
+            etag:                    false,
+            max_filter_bytes:        8192,
+            max_embedding_depth:     5,
+            max_bulk_affected:       500,
+            default_cache_ttl:       120,
+            idempotency_ttl_seconds: 3600,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();

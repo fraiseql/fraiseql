@@ -86,9 +86,13 @@ where
 
     // Build axum routes from the route table.
     let base_path = config.path;
+    let idempotency_store =
+        super::idempotency::create_store(config.idempotency_ttl_seconds);
+
     let rest_state = RestState {
         executor: state.executor.clone(),
         route_table: route_table.clone(),
+        idempotency_store,
     };
 
     let mut router = Router::new();
@@ -199,6 +203,7 @@ where
 struct RestState<A: DatabaseAdapter> {
     executor: Arc<Executor<A>>,
     route_table: Arc<RestRouteTable>,
+    idempotency_store: Arc<super::idempotency::InMemoryIdempotencyStore>,
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +258,8 @@ where
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
+        .with_idempotency_store(&rest.idempotency_store);
 
     let result = handler
         .handle_post(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())

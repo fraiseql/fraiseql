@@ -23,6 +23,12 @@ use super::resource::{RestRouteTable, RouteSource};
 /// Maximum number of items in a single bulk insert request.
 const MAX_BULK_INSERT_ITEMS: usize = 1_000;
 
+/// Operation-specific parameters for filter-based bulk operations.
+struct BulkFilterOp<'a> {
+    operation: &'a str,
+    missing_filter_msg: &'a str,
+}
+
 // ---------------------------------------------------------------------------
 // Bulk handler
 // ---------------------------------------------------------------------------
@@ -185,8 +191,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             query_params,
             headers,
             security_context,
-            "update",
-            "Bulk update requires at least one filter parameter",
+            BulkFilterOp {
+                operation: "update",
+                missing_filter_msg: "Bulk update requires at least one filter parameter",
+            },
         )
         .await
     }
@@ -212,8 +220,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             query_params,
             headers,
             security_context,
-            "delete",
-            "Bulk delete requires at least one filter parameter",
+            BulkFilterOp {
+                operation: "delete",
+                missing_filter_msg: "Bulk delete requires at least one filter parameter",
+            },
         )
         .await
     }
@@ -229,14 +239,15 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
         query_params: &[(&str, &str)],
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
-        operation: &str,
-        missing_filter_msg: &str,
+        op: BulkFilterOp<'_>,
     ) -> Result<RestResponse, RestError> {
         let prefer = PreferHeader::from_headers(headers);
 
         if !has_filter_params(query_params) {
-            return Err(RestError::bad_request(missing_filter_msg));
+            return Err(RestError::bad_request(op.missing_filter_msg));
         }
+
+        let operation = op.operation;
 
         let (resource, mutation_name, list_query_name) =
             self.resolve_bulk_mutation(relative_path, operation)?;
