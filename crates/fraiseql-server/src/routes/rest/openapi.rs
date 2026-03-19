@@ -137,6 +137,9 @@ impl<'a> OpenApiGenerator<'a> {
                     map.insert(method_key.to_string(), operation);
                 }
             }
+
+            // Add bulk operation endpoints (collection-level PATCH/DELETE).
+            self.add_bulk_operations(&mut paths, resource);
         }
 
         Value::Object(paths)
@@ -181,6 +184,150 @@ impl<'a> OpenApiGenerator<'a> {
         }
 
         Value::Object(op)
+    }
+
+    /// Add collection-level PATCH and DELETE operations for bulk update/delete.
+    fn add_bulk_operations(&self, paths: &mut Map<String, Value>, resource: &RestResource) {
+        let collection_path = format!("/{}", resource.name);
+        let type_ref = format!("#/components/schemas/{}", resource.type_name);
+
+        let has_update = resource.routes.iter().any(|r| {
+            matches!(&r.source, RouteSource::Mutation { name }
+                if self.schema.find_mutation(name)
+                    .is_some_and(|m| matches!(m.operation,
+                        MutationOperation::Update { .. })))
+        });
+
+        let has_delete = resource.routes.iter().any(|r| {
+            matches!(&r.source, RouteSource::Mutation { name }
+                if self.schema.find_mutation(name)
+                    .is_some_and(|m| matches!(m.operation,
+                        MutationOperation::Delete { .. })))
+        });
+
+        let path_obj = paths
+            .entry(collection_path)
+            .or_insert_with(|| Value::Object(Map::new()));
+        let Value::Object(ref mut map) = path_obj else {
+            return;
+        };
+
+        let bulk_prefer_params = json!([
+            {
+                "name": "Prefer",
+                "in": "header",
+                "required": false,
+                "description": "Bulk operation preferences: return=representation, return=minimal, max-affected=N, tx=rollback.",
+                "schema": { "type": "string" },
+                "examples": {
+                    "max-affected": {
+                        "summary": "Limit affected rows",
+                        "value": "max-affected=100"
+                    },
+                    "dry-run": {
+                        "summary": "Preview changes without committing",
+                        "value": "tx=rollback"
+                    }
+                }
+            }
+        ]);
+
+        if has_update && !map.contains_key("patch") {
+            let mut params = bulk_prefer_params.as_array().cloned().unwrap_or_default();
+            params.push(json!({
+                "name": "filter",
+                "in": "query",
+                "required": true,
+                "description": "At least one filter parameter is required for bulk update. Use bracket operators (e.g., status[eq]=inactive) or JSON filter DSL.",
+                "schema": { "type": "string" },
+            }));
+
+            map.insert("patch".to_string(), json!({
+                "tags": [capitalize(&resource.name)],
+                "summary": format!("Bulk update {}", resource.name),
+                "operationId": format!("bulk_update_{}", resource.name),
+                "description": format!(
+                    "Update all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the update mutation per row.",
+                    resource.name
+                ),
+                "parameters": params,
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "description": "Fields to update on each matching entity"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": format!("Updated {}", resource.name),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": { "$ref": type_ref }
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Rows-Affected": {
+                                "description": "Number of rows affected",
+                                "schema": { "type": "integer" }
+                            }
+                        }
+                    },
+                    "204": { "description": "No content (return=minimal)" },
+                    "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
+                }
+            }));
+        }
+
+        if has_delete && !map.contains_key("delete") {
+            let mut params = bulk_prefer_params.as_array().cloned().unwrap_or_default();
+            params.push(json!({
+                "name": "filter",
+                "in": "query",
+                "required": true,
+                "description": "At least one filter parameter is required for bulk delete. Use bracket operators (e.g., status[eq]=archived) or JSON filter DSL.",
+                "schema": { "type": "string" },
+            }));
+
+            map.insert("delete".to_string(), json!({
+                "tags": [capitalize(&resource.name)],
+                "summary": format!("Bulk delete {}", resource.name),
+                "operationId": format!("bulk_delete_{}", resource.name),
+                "description": format!(
+                    "Delete all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the delete mutation per row.",
+                    resource.name
+                ),
+                "parameters": params,
+                "responses": {
+                    "200": {
+                        "description": format!("Deleted {}", resource.name),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": { "$ref": type_ref }
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Rows-Affected": {
+                                "description": "Number of rows affected",
+                                "schema": { "type": "integer" }
+                            }
+                        }
+                    },
+                    "204": { "description": "No content (return=minimal or no matches)" },
+                    "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
+                }
+            }));
+        }
     }
 
     fn operation_summary(&self, resource: &RestResource, route: &RestRoute) -> (String, String) {
@@ -477,8 +624,18 @@ impl<'a> OpenApiGenerator<'a> {
 
         let schema = match route.method {
             HttpMethod::Post => {
-                // Insert: body from mutation arguments (excluding id).
-                self.mutation_args_schema(mutation)
+                // Insert: single object or array for bulk insert.
+                let single = self.mutation_args_schema(mutation);
+                json!({
+                    "oneOf": [
+                        single,
+                        {
+                            "type": "array",
+                            "items": single,
+                            "description": "Array body triggers bulk insert mode"
+                        }
+                    ]
+                })
             }
             HttpMethod::Put => {
                 // Full update: all writable fields required.
@@ -976,7 +1133,7 @@ fn should_have_prefer_header(route: &RestRoute) -> bool {
             // Collection GET endpoints (no path parameter).
             !route.path.contains('{')
         }
-        HttpMethod::Delete => true,
+        HttpMethod::Post | HttpMethod::Delete => true,
         _ => false,
     }
 }
@@ -1551,6 +1708,51 @@ mod tests {
         // Only the openapi.json self-reference endpoint.
         let paths = spec["paths"].as_object().unwrap();
         assert_eq!(paths.len(), 1);
+    }
+
+    // -- Bulk operations ----------------------------------------------------
+
+    #[test]
+    fn bulk_update_produces_collection_patch() {
+        let spec = generate(&rest_schema());
+        let patch_op = &spec["paths"]["/users"]["patch"];
+        assert!(patch_op.is_object(), "Expected PATCH on /users");
+        assert_eq!(patch_op["operationId"], "bulk_update_users");
+        assert!(patch_op["responses"]["200"].is_object());
+        assert!(patch_op["responses"]["400"].is_object());
+    }
+
+    #[test]
+    fn bulk_delete_produces_collection_delete() {
+        let spec = generate(&rest_schema());
+        let delete_op = &spec["paths"]["/users"]["delete"];
+        assert!(delete_op.is_object(), "Expected DELETE on /users");
+        assert_eq!(delete_op["operationId"], "bulk_delete_users");
+        assert!(delete_op["responses"]["200"].is_object());
+        assert!(delete_op["responses"]["400"].is_object());
+    }
+
+    #[test]
+    fn post_body_supports_array_for_bulk_insert() {
+        let spec = generate(&rest_schema());
+        let post_body = &spec["paths"]["/users"]["post"]["requestBody"]["content"]["application/json"]["schema"];
+        // Should have oneOf with single object and array variant.
+        assert!(post_body["oneOf"].is_array(), "Expected oneOf schema for bulk insert support");
+        let variants = post_body["oneOf"].as_array().unwrap();
+        assert_eq!(variants.len(), 2);
+        assert_eq!(variants[1]["type"], "array");
+    }
+
+    #[test]
+    fn post_has_prefer_header_for_upsert() {
+        let spec = generate(&rest_schema());
+        let params = &spec["paths"]["/users"]["post"]["parameters"];
+        let has_prefer = params
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["name"] == "Prefer");
+        assert!(has_prefer, "POST should have Prefer header for upsert/bulk preferences");
     }
 
     #[test]

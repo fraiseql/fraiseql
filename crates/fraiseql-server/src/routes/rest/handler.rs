@@ -1159,7 +1159,7 @@ fn extract_relay_page_info(data: &serde_json::Value) -> Option<&serde_json::Valu
 }
 
 /// Set `X-Request-Id` header: echo from request or generate a new UUID.
-fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
+pub(super) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
     let request_id = request_headers
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())

@@ -12,7 +12,7 @@ use fraiseql_core::schema::{CompiledSchema, MutationOperation, RestConfig};
 use fraiseql_core::security::SecurityContext;
 use serde_json::json;
 
-use super::handler::{PreferHeader, RestError, RestResponse};
+use super::handler::{set_request_id, PreferHeader, RestError, RestResponse};
 use super::params::RestParamExtractor;
 use super::resource::{RestRouteTable, RouteSource};
 
@@ -179,49 +179,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let prefer = PreferHeader::from_headers(headers);
-
-        // Require at least one filter parameter
-        if !has_filter_params(query_params) {
-            return Err(RestError::bad_request(
-                "Bulk update requires at least one filter parameter",
-            ));
-        }
-
-        // Resolve the collection-level PATCH route to find the update mutation
-        let (resource, mutation_name, list_query_name) =
-            self.resolve_bulk_mutation(relative_path, "update")?;
-
-        let id_field = resource
-            .id_arg
-            .as_deref()
-            .unwrap_or("id");
-
-        // Build a QueryMatch for the list query to get matching IDs
-        let query_match = self.build_filter_query_match(
-            list_query_name,
+        self.handle_bulk_filter_operation(
+            relative_path,
+            body,
             query_params,
-            &resource.type_name,
-        )?;
-
-        let max_affected = prefer
-            .max_affected
-            .unwrap_or(self.config.max_bulk_affected);
-
-        let bulk_result = self
-            .executor
-            .execute_bulk_by_filter(
-                &query_match,
-                mutation_name,
-                body,
-                id_field,
-                max_affected,
-                security_context,
-            )
-            .await
-            .map_err(RestError::from)?;
-
-        self.build_bulk_response(bulk_result, &prefer, headers)
+            headers,
+            security_context,
+            "update",
+            "Bulk update requires at least one filter parameter",
+        )
+        .await
     }
 
     /// Handle a bulk DELETE (collection-level delete with filter).
@@ -238,22 +205,43 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
+        let empty_body = json!({});
+        self.handle_bulk_filter_operation(
+            relative_path,
+            &empty_body,
+            query_params,
+            headers,
+            security_context,
+            "delete",
+            "Bulk delete requires at least one filter parameter",
+        )
+        .await
+    }
+
+    /// Shared CQRS filter-based bulk operation (update or delete).
+    ///
+    /// Flow: validate filter → resolve mutation → query view for IDs →
+    /// count guard → mutate per row → build response.
+    async fn handle_bulk_filter_operation(
+        &self,
+        relative_path: &str,
+        body: &serde_json::Value,
+        query_params: &[(&str, &str)],
+        headers: &HeaderMap,
+        security_context: Option<&SecurityContext>,
+        operation: &str,
+        missing_filter_msg: &str,
+    ) -> Result<RestResponse, RestError> {
         let prefer = PreferHeader::from_headers(headers);
 
-        // Require at least one filter parameter
         if !has_filter_params(query_params) {
-            return Err(RestError::bad_request(
-                "Bulk delete requires at least one filter parameter",
-            ));
+            return Err(RestError::bad_request(missing_filter_msg));
         }
 
         let (resource, mutation_name, list_query_name) =
-            self.resolve_bulk_mutation(relative_path, "delete")?;
+            self.resolve_bulk_mutation(relative_path, operation)?;
 
-        let id_field = resource
-            .id_arg
-            .as_deref()
-            .unwrap_or("id");
+        let id_field = resource.id_arg.as_deref().unwrap_or("id");
 
         let query_match = self.build_filter_query_match(
             list_query_name,
@@ -265,13 +253,12 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             .max_affected
             .unwrap_or(self.config.max_bulk_affected);
 
-        let empty_body = json!({});
         let bulk_result = self
             .executor
             .execute_bulk_by_filter(
                 &query_match,
                 mutation_name,
-                &empty_body,
+                body,
                 id_field,
                 max_affected,
                 security_context,
@@ -533,19 +520,6 @@ fn extract_entity_from_result(result: &str) -> Option<serde_json::Value> {
     }
 
     None
-}
-
-/// Set `X-Request-Id` header: echo from request or generate a new UUID.
-fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
-    let request_id = request_headers
-        .get("x-request-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    if let Ok(val) = HeaderValue::from_str(&request_id) {
-        response_headers.insert("x-request-id", val);
-    }
 }
 
 /// Set `X-Rows-Affected` header.

@@ -38,13 +38,9 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
     ) -> Result<Vec<String>> {
         let mut results = Vec::with_capacity(items.len());
         for item in items {
-            let vars = Some(item);
-            let result = if let Some(ctx) = security_context {
-                self.execute_mutation_with_security(mutation_name, vars, ctx)
-                    .await?
-            } else {
-                self.execute_mutation(mutation_name, vars).await?
-            };
+            let result = self
+                .execute_mutation_routed(mutation_name, Some(item), security_context)
+                .await?;
             results.push(result);
         }
         Ok(results)
@@ -114,12 +110,9 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
             }
             let vars_json = serde_json::Value::Object(vars);
 
-            let mutation_result = if let Some(ctx) = security_context {
-                self.execute_mutation_with_security(mutation_name, Some(&vars_json), ctx)
-                    .await?
-            } else {
-                self.execute_mutation(mutation_name, Some(&vars_json)).await?
-            };
+            let mutation_result = self
+                .execute_mutation_routed(mutation_name, Some(&vars_json), security_context)
+                .await?;
             entities.push(serde_json::Value::String(mutation_result));
         }
 
@@ -127,6 +120,21 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
             affected_rows: count,
             entities: Some(entities),
         })
+    }
+
+    /// Route a single mutation through security context when available.
+    async fn execute_mutation_routed(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<String> {
+        if let Some(ctx) = security_context {
+            self.execute_mutation_with_security(mutation_name, variables, ctx)
+                .await
+        } else {
+            self.execute_mutation(mutation_name, variables).await
+        }
     }
 }
 
