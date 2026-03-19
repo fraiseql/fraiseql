@@ -5,7 +5,7 @@
 //!
 //! # Overview
 //!
-//! The mapper module integrates with DatabaseFieldAdapter to provide
+//! The mapper module integrates with `DatabaseFieldAdapter` to provide
 //! automatic encryption/decryption at the data mapping layer:
 //!
 //! - Encrypt plaintext values before INSERT/UPDATE
@@ -80,7 +80,7 @@ impl FieldMapping {
     }
 
     /// Check if field is encrypted
-    pub fn is_encrypted(&self) -> bool {
+    pub const fn is_encrypted(&self) -> bool {
         self.is_encrypted
     }
 
@@ -202,7 +202,7 @@ impl FieldMapper {
 
     /// Encrypt multiple fields (batch operation)
     ///
-    /// Returns FieldMapping objects with encryption status.
+    /// Returns `FieldMapping` objects with encryption status.
     ///
     /// # Errors
     ///
@@ -232,7 +232,7 @@ impl FieldMapper {
 
     /// Decrypt multiple fields (batch operation)
     ///
-    /// Returns FieldMapping objects with decrypted values.
+    /// Returns `FieldMapping` objects with decrypted values.
     ///
     /// # Errors
     ///
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_field_mapping_to_string() {
-        let mapping = FieldMapping::new("email", true, "user@example.com".as_bytes().to_vec());
+        let mapping = FieldMapping::new("email", true, b"user@example.com".to_vec());
         let result = mapping.to_string();
         let value = result.unwrap_or_else(|e| panic!("expected Ok from to_string: {e}"));
         assert_eq!(value, "user@example.com");
@@ -348,7 +348,7 @@ mod tests {
     fn test_encrypted_fields_list() {
         let encrypted_fields = vec!["email".to_string(), "phone".to_string()];
         let mut field_encryption_map = HashMap::new();
-        for field in encrypted_fields.clone() {
+        for field in encrypted_fields {
             field_encryption_map.insert(field, true);
         }
 

@@ -123,9 +123,9 @@ struct CachedEncryption {
     cipher: Arc<FieldEncryption>,
 }
 
-/// Basic implementation of EncryptedFieldAdapter
+/// Basic implementation of `EncryptedFieldAdapter`
 ///
-/// Uses SecretsManager to fetch encryption keys from Vault
+/// Uses `SecretsManager` to fetch encryption keys from Vault
 /// and caches ciphers for performance.
 pub struct DatabaseFieldAdapter {
     /// Secrets manager for fetching encryption keys
@@ -141,7 +141,7 @@ impl DatabaseFieldAdapter {
     ///
     /// # Arguments
     ///
-    /// * `secrets_manager` - SecretsManager for fetching encryption keys from Vault
+    /// * `secrets_manager` - `SecretsManager` for fetching encryption keys from Vault
     /// * `field_keys` - Mapping of database field names to Vault key names
     ///
     /// # Example
@@ -221,7 +221,7 @@ impl DatabaseFieldAdapter {
         self.field_keys.insert(field_name.into(), key_name.into());
     }
 
-    /// Invalidate cipher cache, forcing fresh key retrieval from SecretsManager
+    /// Invalidate cipher cache, forcing fresh key retrieval from `SecretsManager`
     ///
     /// Useful after key rotation in Vault. Next encryption/decryption
     /// will fetch the new key and create a new cipher.

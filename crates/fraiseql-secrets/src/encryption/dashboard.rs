@@ -119,7 +119,7 @@ pub struct RotationMetricsPoint {
 
 impl RotationMetricsPoint {
     /// Create new metrics point
-    pub fn new(timestamp: DateTime<Utc>) -> Self {
+    pub const fn new(timestamp: DateTime<Utc>) -> Self {
         Self {
             timestamp,
             rotations_total: 0,
@@ -200,7 +200,7 @@ pub struct ComplianceDashboard {
 
 impl ComplianceDashboard {
     /// Create new compliance dashboard
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             hipaa:   ComplianceStatus::Compliant,
             pci_dss: ComplianceStatus::Compliant,
@@ -211,7 +211,7 @@ impl ComplianceDashboard {
     }
 
     /// Recalculate overall compliance
-    pub fn recalculate_overall(&mut self) {
+    pub const fn recalculate_overall(&mut self) {
         // If any is non-compliant, overall is non-compliant
         if matches!(self.hipaa, ComplianceStatus::NonCompliant)
             || matches!(self.pci_dss, ComplianceStatus::NonCompliant)
@@ -316,7 +316,7 @@ impl Alert {
     }
 
     /// Mark alert as acknowledged
-    pub fn acknowledge(&mut self) {
+    pub const fn acknowledge(&mut self) {
         self.acknowledged = true;
     }
 }
@@ -334,7 +334,7 @@ pub struct AlertsWidget {
 
 impl AlertsWidget {
     /// Create new alerts widget
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             active_alerts:        Vec::new(),
             historical_alerts:    Vec::new(),
@@ -475,7 +475,9 @@ impl DashboardSnapshot {
         }
 
         let total: u32 = self.key_cards.iter().map(|c| c.urgency_score).sum();
-        total / self.key_cards.len() as u32
+        #[allow(clippy::cast_possible_truncation)] // Reason: key_cards.len() is always small (number of encryption keys)
+        let len = self.key_cards.len() as u32;
+        total / len
     }
 }
 
@@ -494,7 +496,7 @@ pub struct AlertFilter {
 
 impl AlertFilter {
     /// Create new alert filter
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             severity:     None,
             alert_type:   None,

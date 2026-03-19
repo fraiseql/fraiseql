@@ -1,7 +1,7 @@
 //! Abstraction layer for multiple secrets backends (Vault, Environment Variables, File)
 //!
 //! This module provides a unified interface to manage secrets from different sources:
-//! - HashiCorp Vault for dynamic credentials
+//! - `HashiCorp` Vault for dynamic credentials
 //! - Environment variables for configuration
 //! - Local files for development/testing
 
@@ -28,7 +28,7 @@ pub enum SecretsBackendConfig {
     },
     /// Read secrets from environment variables.
     Env,
-    /// Read secrets from HashiCorp Vault.
+    /// Read secrets from `HashiCorp` Vault.
     Vault {
         /// Vault server address (e.g., `https://vault.example.com:8200`).
         addr:       String,
@@ -51,11 +51,11 @@ pub enum SecretsBackendConfig {
 pub enum VaultAuth {
     /// Authenticate with a static token.
     Token(Zeroizing<String>),
-    /// Authenticate via AppRole (recommended for production).
+    /// Authenticate via `AppRole` (recommended for production).
     AppRole {
-        /// The role ID for AppRole login.
+        /// The role ID for `AppRole` login.
         role_id:   String,
-        /// The secret ID for AppRole login (high-value credential).
+        /// The secret ID for `AppRole` login (high-value credential).
         secret_id: Zeroizing<String>,
     },
 }
@@ -78,7 +78,7 @@ impl fmt::Debug for VaultAuth {
 /// # Errors
 ///
 /// Returns `SecretsError` if the backend cannot be initialized (e.g., Vault
-/// AppRole login fails).
+/// `AppRole` login fails).
 pub async fn create_secrets_manager(
     config: SecretsBackendConfig,
 ) -> Result<Arc<SecretsManager>, SecretsError> {
@@ -150,7 +150,7 @@ impl SecretsManager {
 
     /// Get secret with expiry time.
     ///
-    /// Returns tuple of (secret_value, expiry_datetime).
+    /// Returns tuple of (`secret_value`, `expiry_datetime`).
     /// Useful for dynamic credentials with lease durations.
     ///
     /// # Errors
@@ -239,6 +239,7 @@ impl LeaseRenewalTask {
                     let remaining = expiry - Utc::now();
                     // Refresh if less than one full check interval remains,
                     // ensuring renewal completes before the next poll would be too late.
+                    #[allow(clippy::cast_possible_wrap)] // Reason: check_interval is always small (seconds), never exceeds i64::MAX
                     if remaining < chrono::Duration::seconds(self.check_interval.as_secs() as i64) {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),

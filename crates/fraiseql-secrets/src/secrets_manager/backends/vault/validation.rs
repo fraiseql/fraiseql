@@ -5,7 +5,7 @@ use crate::secrets_manager::SecretsError;
 /// Maximum byte length for a Vault secret name / path.
 ///
 /// Vault's own internal key-value paths top out at a few hundred characters in
-/// practice; 1 024 bytes is generous while preventing cache-key DoS from a
+/// practice; 1 024 bytes is generous while preventing cache-key `DoS` from a
 /// caller that passes a megabyte-sized string.
 pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 
@@ -17,7 +17,7 @@ pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 /// - RFC 1918 private ranges (`10/8`, `172.16/12`, `192.168/16`)
 /// - Link-local addresses (`169.254/16`) — includes AWS IMDSv1/v2
 /// - CGNAT range (`100.64/10`)
-/// - IPv6 ULA (`fc00::/7`)
+/// - `IPv6` ULA (`fc00::/7`)
 ///
 /// # Errors
 ///
@@ -71,13 +71,13 @@ fn is_ssrf_blocked_host_vault(host: &str) -> bool {
     false
 }
 
-fn is_cgnat_v4_vault(addr: std::net::Ipv4Addr) -> bool {
+const fn is_cgnat_v4_vault(addr: std::net::Ipv4Addr) -> bool {
     // 100.64.0.0/10
     let octets = addr.octets();
     octets[0] == 100 && (octets[1] & 0xC0) == 64
 }
 
-fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
+const fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
     // fc00::/7
     (addr.segments()[0] & 0xFE00) == 0xFC00
 }

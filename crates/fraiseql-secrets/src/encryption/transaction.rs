@@ -123,13 +123,13 @@ impl TransactionContext {
     }
 
     /// Set isolation level
-    pub fn with_isolation(mut self, level: IsolationLevel) -> Self {
+    pub const fn with_isolation(mut self, level: IsolationLevel) -> Self {
         self.isolation_level = level;
         self
     }
 
     /// Set key version
-    pub fn with_key_version(mut self, version: u32) -> Self {
+    pub const fn with_key_version(mut self, version: u32) -> Self {
         self.key_version = version;
         self
     }
@@ -158,7 +158,7 @@ impl TransactionContext {
     }
 
     /// Mark transaction as committed
-    pub fn commit(&mut self) {
+    pub const fn commit(&mut self) {
         self.state = TransactionState::Committed;
     }
 
@@ -169,7 +169,7 @@ impl TransactionContext {
     }
 
     /// Mark transaction as error
-    pub fn error(&mut self) {
+    pub const fn error(&mut self) {
         self.state = TransactionState::Error;
     }
 
@@ -184,7 +184,7 @@ impl TransactionContext {
     }
 
     /// Get operation count
-    pub fn operation_count(&self) -> usize {
+    pub const fn operation_count(&self) -> usize {
         self.operations.len()
     }
 }

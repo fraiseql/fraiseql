@@ -89,7 +89,7 @@ impl KeyVersionMetadata {
         Self {
             version,
             issued_at: now,
-            expires_at: now + Duration::days(ttl_days as i64),
+            expires_at: now + Duration::days(i64::from(ttl_days)),
             status: KeyVersionStatus::Active,
             is_current: false,
             compromise_reason: None,
@@ -119,8 +119,12 @@ impl KeyVersionMetadata {
         if total_ttl.num_seconds() <= 0 {
             100
         } else {
-            let percent = (elapsed.num_seconds() as f64 / total_ttl.num_seconds() as f64) * 100.0;
-            percent.min(100.0) as u32
+            // Reason: i64→f64 precision loss is negligible for second-granularity TTL values;
+            // f64→u32 is safe because the result is clamped to [0, 100].
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let percent = ((elapsed.num_seconds() as f64 / total_ttl.num_seconds() as f64) * 100.0)
+                .min(100.0) as u32;
+            percent
         }
     }
 
@@ -132,7 +136,8 @@ impl KeyVersionMetadata {
     /// Update status based on current time
     pub fn update_status(&mut self) {
         match self.status {
-            KeyVersionStatus::Compromised => {}, // Never change compromised status
+            // Never change compromised or expired status
+            KeyVersionStatus::Compromised | KeyVersionStatus::Expired => {},
             KeyVersionStatus::Active => {
                 if self.is_expired() {
                     self.status = KeyVersionStatus::Expired;
@@ -145,7 +150,6 @@ impl KeyVersionMetadata {
                     self.status = KeyVersionStatus::Expired;
                 }
             },
-            KeyVersionStatus::Expired => {}, // Remains expired
         }
     }
 
@@ -193,7 +197,7 @@ pub struct RotationConfig {
 
 impl RotationConfig {
     /// Create default rotation config (annual rotation, 80% refresh)
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             ttl_days:                  365,
             refresh_threshold_percent: 80,
@@ -203,7 +207,7 @@ impl RotationConfig {
     }
 
     /// Set TTL in days
-    pub fn with_ttl_days(mut self, days: u32) -> Self {
+    pub const fn with_ttl_days(mut self, days: u32) -> Self {
         self.ttl_days = days;
         self
     }
@@ -283,7 +287,10 @@ impl RotationMetrics {
         } else {
             let failed = self.failed_rotations();
             let successful = total - failed;
-            ((successful as f64 / total as f64) * 100.0) as u32
+            // Reason: u64→f64 precision loss is negligible for rotation counts;
+            // f64→u32 is safe because the result is in [0, 100].
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            { ((successful as f64 / total as f64) * 100.0) as u32 }
         }
     }
 
@@ -417,7 +424,12 @@ impl VersionedKeyStorage {
     /// Get next version number
     pub fn next_version_number(&self) -> KeyVersion {
         let next = self.next_version.fetch_add(1, Ordering::Relaxed);
-        next as KeyVersion
+        // Reason: version numbers are sequential starting from 1; wrapping at u16::MAX
+        // is acceptable for this metadata tracker — 65 535 rotations is far beyond any
+        // realistic deployment lifetime.
+        #[allow(clippy::cast_possible_truncation)]
+        let version = next as KeyVersion;
+        version
     }
 }
 
@@ -496,6 +508,9 @@ impl CredentialRotationManager {
         self.storage.add_version(metadata)?;
         self.storage.set_current_version(new_version)?;
 
+        // Reason: key rotation completes in microseconds; u128→u64 truncation is
+        // impossible for any realistic elapsed time.
+        #[allow(clippy::cast_possible_truncation)]
         let duration_ms = start.elapsed().as_millis() as u64;
         self.metrics.record_rotation(duration_ms);
 

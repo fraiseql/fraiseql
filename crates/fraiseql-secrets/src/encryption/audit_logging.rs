@@ -140,7 +140,7 @@ impl AuditLogEntry {
     }
 
     /// Get timestamp
-    pub fn timestamp(&self) -> DateTime<Utc> {
+    pub const fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp
     }
 
@@ -155,12 +155,12 @@ impl AuditLogEntry {
     }
 
     /// Get operation type
-    pub fn operation(&self) -> OperationType {
+    pub const fn operation(&self) -> OperationType {
         self.operation
     }
 
     /// Get status
-    pub fn status(&self) -> EventStatus {
+    pub const fn status(&self) -> EventStatus {
         self.status
     }
 
@@ -180,7 +180,7 @@ impl AuditLogEntry {
     }
 
     /// Get context data
-    pub fn context(&self) -> &HashMap<String, String> {
+    pub const fn context(&self) -> &HashMap<String, String> {
         &self.context
     }
 
@@ -233,7 +233,7 @@ pub struct AuditLogger {
 
 impl AuditLogger {
     /// Create new audit logger
-    pub fn new(max_entries: usize) -> Self {
+    pub const fn new(max_entries: usize) -> Self {
         Self {
             entries: Vec::new(),
             max_entries,
@@ -309,7 +309,7 @@ impl AuditLogger {
     }
 
     /// Get entry count
-    pub fn entry_count(&self) -> usize {
+    pub const fn entry_count(&self) -> usize {
         self.entries.len()
     }
 

@@ -108,15 +108,15 @@ impl RecoveryError {
         };
 
         let (strategy, retryable) = match category {
-            ErrorCategory::NetworkError => (RecoveryStrategy::Retry, true),
             ErrorCategory::VaultUnavailable => (RecoveryStrategy::UseCache, true),
-            ErrorCategory::KeyExpired => (RecoveryStrategy::Retry, true),
-            ErrorCategory::KeyNotFound => (RecoveryStrategy::FailFast, false),
-            ErrorCategory::PermissionDenied => (RecoveryStrategy::FailFast, false),
-            ErrorCategory::EncryptionFailed => (RecoveryStrategy::FailFast, false),
-            ErrorCategory::DecryptionFailed => (RecoveryStrategy::FailFast, false),
-            ErrorCategory::CacheMiss => (RecoveryStrategy::Retry, true),
-            ErrorCategory::Unknown => (RecoveryStrategy::FailFast, false),
+            ErrorCategory::NetworkError
+            | ErrorCategory::KeyExpired
+            | ErrorCategory::CacheMiss => (RecoveryStrategy::Retry, true),
+            ErrorCategory::KeyNotFound
+            | ErrorCategory::PermissionDenied
+            | ErrorCategory::EncryptionFailed
+            | ErrorCategory::DecryptionFailed
+            | ErrorCategory::Unknown => (RecoveryStrategy::FailFast, false),
         };
 
         Self {
@@ -131,7 +131,7 @@ impl RecoveryError {
     }
 
     /// Increment retry count
-    pub fn with_retry_count(mut self, count: u32) -> Self {
+    pub const fn with_retry_count(mut self, count: u32) -> Self {
         self.retry_count = count;
         self
     }
@@ -147,12 +147,12 @@ impl RecoveryError {
     }
 
     /// Check if this error suggests a transient issue (can retry)
-    pub fn is_transient(&self) -> bool {
+    pub const fn is_transient(&self) -> bool {
         self.retryable
     }
 
     /// Check if cache fallback is appropriate for this error
-    pub fn should_use_cache(&self) -> bool {
+    pub const fn should_use_cache(&self) -> bool {
         matches!(self.strategy, RecoveryStrategy::UseCache | RecoveryStrategy::ReadOnly)
     }
 
@@ -177,7 +177,7 @@ pub struct RetryConfig {
 
 impl RetryConfig {
     /// Create new retry config
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             max_retries:        3,
             initial_backoff_ms: 100,
@@ -187,19 +187,22 @@ impl RetryConfig {
     }
 
     /// Set maximum retries
-    pub fn with_max_retries(mut self, max: u32) -> Self {
+    pub const fn with_max_retries(mut self, max: u32) -> Self {
         self.max_retries = max;
         self
     }
 
     /// Calculate backoff delay for retry attempt
     pub fn backoff_delay_ms(&self, attempt: u32) -> u64 {
-        let delay = self.initial_backoff_ms as f64 * self.backoff_multiplier.powi(attempt as i32);
-        (delay as u64).min(self.max_backoff_ms)
+        #[allow(clippy::cast_precision_loss)] // Reason: backoff delay does not need sub-millisecond precision
+        let delay = self.initial_backoff_ms as f64 * self.backoff_multiplier.powi(attempt.cast_signed());
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: delay is always positive and within u64 range
+        let delay_u64 = delay as u64;
+        delay_u64.min(self.max_backoff_ms)
     }
 
     /// Check if we should attempt retry based on attempt count
-    pub fn should_retry(&self, attempt: u32) -> bool {
+    pub const fn should_retry(&self, attempt: u32) -> bool {
         attempt < self.max_retries
     }
 
@@ -258,16 +261,15 @@ mod atomic {
     }
 
     impl CircuitState {
-        pub fn from_usize(val: usize) -> Self {
+        pub const fn from_usize(val: usize) -> Self {
             match val {
-                0 => CircuitState::Closed,
                 1 => CircuitState::Open,
                 2 => CircuitState::HalfOpen,
                 _ => CircuitState::Closed,
             }
         }
 
-        pub fn to_usize(self) -> usize {
+        pub const fn to_usize(self) -> usize {
             self as usize
         }
     }
@@ -275,7 +277,7 @@ mod atomic {
     pub struct AtomicUsize(StdAtomicUsize);
 
     impl AtomicUsize {
-        pub fn new(val: CircuitState) -> Self {
+        pub const fn new(val: CircuitState) -> Self {
             AtomicUsize(StdAtomicUsize::new(val.to_usize()))
         }
 
@@ -319,7 +321,7 @@ impl CircuitBreaker {
             },
             CircuitState::HalfOpen => {
                 let success = self.success_count.fetch_add(1, Ordering::Relaxed) + 1;
-                if success >= self.success_threshold as u64 {
+                if success >= u64::from(self.success_threshold) {
                     self.state.store(CircuitState::Closed);
                     self.failure_count.store(0, Ordering::Relaxed);
                     self.success_count.store(0, Ordering::Relaxed);
@@ -338,7 +340,7 @@ impl CircuitBreaker {
         match state {
             CircuitState::Closed => {
                 let failures = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
-                if failures >= self.failure_threshold as u64 {
+                if failures >= u64::from(self.failure_threshold) {
                     self.state.store(CircuitState::Open);
                     if let Ok(mut last) = self.last_change.lock() {
                         *last = Utc::now();
@@ -387,10 +389,10 @@ impl CircuitBreaker {
     /// Check if circuit should attempt recovery from Open state
     pub fn should_attempt_recovery(&self, recovery_timeout_ms: u64) -> bool {
         matches!(self.state.load(), CircuitState::Open)
-            && self.time_since_last_change().num_milliseconds() as u64 >= recovery_timeout_ms
+            && self.time_since_last_change().num_milliseconds().cast_unsigned() >= recovery_timeout_ms
     }
 
-    /// Attempt to transition from Open to HalfOpen after timeout
+    /// Attempt to transition from Open to `HalfOpen` after timeout
     pub fn attempt_recovery(&self, recovery_timeout_ms: u64) {
         if self.should_attempt_recovery(recovery_timeout_ms) {
             self.state.store(CircuitState::HalfOpen);

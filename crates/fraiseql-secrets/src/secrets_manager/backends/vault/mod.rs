@@ -1,7 +1,7 @@
-//! Backend for HashiCorp Vault integration with dynamic secrets,
+//! Backend for `HashiCorp` Vault integration with dynamic secrets,
 //! lease management, and encryption support.
 //!
-//! Implements the `SecretsBackend` trait for HashiCorp Vault,
+//! Implements the `SecretsBackend` trait for `HashiCorp` Vault,
 //! providing dynamic database credentials, TTL management, and encryption.
 //!
 //! # Sub-modules

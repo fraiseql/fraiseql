@@ -6,7 +6,7 @@
 //!
 //! Uses the compiled schema's `FieldEncryptionConfig` metadata to determine
 //! which fields require encryption, and `DatabaseFieldAdapter` for the
-//! actual AES-256-GCM operations via SecretsManager.
+//! actual AES-256-GCM operations via `SecretsManager`.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -30,11 +30,11 @@ use crate::secrets_manager::SecretsError;
 /// [2-byte version][12-byte nonce][ciphertext][16-byte GCM tag]
 /// ```
 pub struct FieldEncryptionService {
-    /// Map: type_name -> list of encrypted field names
+    /// Map: `type_name` -> list of encrypted field names
     encrypted_fields: HashMap<String, Vec<String>>,
     /// Map: operation name (query/mutation) -> return type name
     operation_types:  HashMap<String, String>,
-    /// Adapter for encrypt/decrypt operations (fetches keys from SecretsManager)
+    /// Adapter for encrypt/decrypt operations (fetches keys from `SecretsManager`)
     adapter:          Arc<DatabaseFieldAdapter>,
     /// Optional key rotation manager for versioned encryption
     rotation_manager: Option<Arc<CredentialRotationManager>>,
@@ -42,7 +42,7 @@ pub struct FieldEncryptionService {
 
 impl FieldEncryptionService {
     /// Create a new encryption service with explicit configuration.
-    pub fn new(
+    pub const fn new(
         encrypted_fields: HashMap<String, Vec<String>>,
         operation_types: HashMap<String, String>,
         adapter: Arc<DatabaseFieldAdapter>,
@@ -56,7 +56,7 @@ impl FieldEncryptionService {
     }
 
     /// Create a new encryption service with key rotation support.
-    pub fn with_rotation(
+    pub const fn with_rotation(
         encrypted_fields: HashMap<String, Vec<String>>,
         operation_types: HashMap<String, String>,
         adapter: Arc<DatabaseFieldAdapter>,
@@ -133,14 +133,12 @@ impl FieldEncryptionService {
         &self,
         response: &mut serde_json::Value,
     ) -> Result<(), SecretsError> {
-        let data = match response.get_mut("data") {
-            Some(d) => d,
-            None => return Ok(()),
+        let Some(data) = response.get_mut("data") else {
+            return Ok(());
         };
 
-        let data_obj = match data.as_object_mut() {
-            Some(obj) => obj,
-            None => return Ok(()),
+        let Some(data_obj) = data.as_object_mut() else {
+            return Ok(());
         };
 
         for (operation_name, value) in data_obj.iter_mut() {
@@ -207,9 +205,8 @@ impl FieldEncryptionService {
         variables: &mut serde_json::Value,
         target_type: &str,
     ) -> Result<(), SecretsError> {
-        let enc_fields = match self.encrypted_fields.get(target_type) {
-            Some(fields) => fields,
-            None => return Ok(()),
+        let Some(enc_fields) = self.encrypted_fields.get(target_type) else {
+            return Ok(());
         };
 
         self.encrypt_value(variables, enc_fields).await

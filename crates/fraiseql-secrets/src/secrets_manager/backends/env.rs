@@ -67,8 +67,8 @@ impl SecretsBackend for EnvBackend {
 }
 
 impl EnvBackend {
-    /// Create new EnvBackend
-    pub fn new() -> Self {
+    /// Create new `EnvBackend`
+    pub const fn new() -> Self {
         EnvBackend
     }
 }
@@ -111,7 +111,7 @@ fn validate_secret_name(name: &str) -> Result<(), SecretsError> {
 mod tests {
     use super::*;
 
-    /// Test EnvBackend reads from environment
+    /// Test `EnvBackend` reads from environment
     #[tokio::test]
     async fn test_env_backend_get_secret() {
         temp_env::async_with_vars([("TEST_SECRET_KEY", Some("test_value_123"))], async {
@@ -123,7 +123,7 @@ mod tests {
         .await;
     }
 
-    /// Test EnvBackend returns error for missing variable
+    /// Test `EnvBackend` returns error for missing variable
     #[tokio::test]
     async fn test_env_backend_not_found() {
         let backend = EnvBackend::new();
@@ -135,7 +135,7 @@ mod tests {
         );
     }
 
-    /// Test EnvBackend with_expiry returns future date
+    /// Test `EnvBackend` `with_expiry` returns future date
     #[tokio::test]
     async fn test_env_backend_with_expiry() {
         temp_env::async_with_vars([("EXPIRY_TEST_KEY", Some("value"))], async {
@@ -148,7 +148,7 @@ mod tests {
         .await;
     }
 
-    /// Test EnvBackend rotate returns error
+    /// Test `EnvBackend` rotate returns error
     #[tokio::test]
     async fn test_env_backend_rotate_not_supported() {
         let backend = EnvBackend::new();

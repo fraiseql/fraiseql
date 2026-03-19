@@ -35,10 +35,10 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
         .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))
 }
 
-/// Secrets backend for HashiCorp Vault
+/// Secrets backend for `HashiCorp` Vault
 ///
 /// Provides dynamic secrets, credential rotation, and lease management
-/// via the HashiCorp Vault HTTP API.
+/// via the `HashiCorp` Vault HTTP API.
 ///
 /// # Example
 /// ```no_run
@@ -66,7 +66,7 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 ///
 /// # Token Renewal
 ///
-/// When the Vault token is obtained via AppRole login (`with_approle`), the token carries
+/// When the Vault token is obtained via `AppRole` login (`with_approle`), the token carries
 /// a TTL. To avoid using an expired token, callers should check `token_needs_renewal()` and
 /// call `renew_token()` proactively at `TOKEN_RENEWAL_THRESHOLD` (80%) of TTL elapsed.
 ///
@@ -177,6 +177,7 @@ impl SecretsBackend for VaultBackend {
         // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
         // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
         // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
+        #[allow(clippy::cast_possible_truncation)] // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
         let cache_ttl_secs =
             response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
         let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
@@ -206,7 +207,7 @@ impl SecretsBackend for VaultBackend {
 }
 
 impl VaultBackend {
-    /// Create new VaultBackend with server address and authentication token.
+    /// Create new `VaultBackend` with server address and authentication token.
     ///
     /// # Errors
     ///
@@ -250,7 +251,7 @@ impl VaultBackend {
         self
     }
 
-    /// Create a `VaultBackend` by authenticating via AppRole.
+    /// Create a `VaultBackend` by authenticating via `AppRole`.
     ///
     /// Posts to `/v1/auth/approle/login` with the given `role_id` and `secret_id`,
     /// then uses the returned client token for subsequent requests.
@@ -323,7 +324,7 @@ impl VaultBackend {
 
     /// Check if TLS verification is enabled.
     #[must_use]
-    pub fn tls_verify(&self) -> bool {
+    pub const fn tls_verify(&self) -> bool {
         self.tls_verify
     }
 
@@ -349,7 +350,7 @@ impl VaultBackend {
 
     /// Returns `true` if the Vault auth token should be renewed.
     ///
-    /// Returns `false` for static tokens (created via `new()`). For AppRole tokens
+    /// Returns `false` for static tokens (created via `new()`). For `AppRole` tokens
     /// (created via `with_approle()`), returns `true` when more than
     /// `TOKEN_RENEWAL_THRESHOLD` (80%) of the token's TTL has elapsed.
     ///
@@ -365,6 +366,7 @@ impl VaultBackend {
 
         let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
         // Use integer arithmetic to avoid f64 precision loss for large TTL values.
+        #[allow(clippy::cast_possible_truncation)] // Reason: TOKEN_RENEWAL_THRESHOLD * 100.0 is 80.0, fits in i64
         let renewal_threshold_secs =
             ttl_secs.saturating_mul((TOKEN_RENEWAL_THRESHOLD * 100.0) as i64) / 100;
         elapsed_secs >= renewal_threshold_secs
@@ -420,7 +422,7 @@ impl VaultBackend {
     /// Token TTL as set at login time (seconds). `None` for static tokens.
     /// Exposed for test assertions only.
     #[cfg(test)]
-    pub(super) fn token_ttl_secs_for_test(&self) -> Option<i64> {
+    pub(super) const fn token_ttl_secs_for_test(&self) -> Option<i64> {
         self.token_ttl_secs
     }
 
@@ -534,10 +536,10 @@ impl VaultBackend {
     fn build_vault_request(
         &self,
         client: &reqwest::Client,
-        url: String,
+        url: &str,
     ) -> reqwest::RequestBuilder {
         client
-            .post(&url)
+            .post(url)
             .header("X-Vault-Token", (*self.token).clone())
             .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
     }
@@ -598,7 +600,7 @@ impl VaultBackend {
         });
 
         let response = self
-            .build_vault_request(&self.client, url)
+            .build_vault_request(&self.client, &url)
             .json(&request_body)
             .send()
             .await
@@ -638,7 +640,7 @@ impl VaultBackend {
         });
 
         let response = self
-            .build_vault_request(&self.client, url)
+            .build_vault_request(&self.client, &url)
             .json(&request_body)
             .send()
             .await

@@ -41,14 +41,16 @@ impl OperationMetrics {
     }
 
     /// Mark as failed
-    pub fn with_failure(mut self) -> Self {
+    pub const fn with_failure(mut self) -> Self {
         self.success = false;
         self
     }
 
     /// Get latency in milliseconds
     pub fn latency_ms(&self) -> f64 {
-        self.latency_us as f64 / 1000.0
+        #[allow(clippy::cast_precision_loss)] // Reason: microsecond latency will never exceed f64 mantissa range
+        let us = self.latency_us as f64;
+        us / 1000.0
     }
 }
 
@@ -90,12 +92,12 @@ impl EncryptionBatch {
     }
 
     /// Check if batch is full
-    pub fn is_full(&self) -> bool {
+    pub const fn is_full(&self) -> bool {
         self.fields.len() >= self.max_size
     }
 
     /// Get batch size
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.fields.len()
     }
 
@@ -179,7 +181,9 @@ impl KeyCache {
 
     /// Get hit rate
     pub fn hit_rate(&self) -> f64 {
+        #[allow(clippy::cast_precision_loss)] // Reason: cache hit/miss counters won't exceed f64 mantissa range
         let hits = self.hits.load(Ordering::Relaxed) as f64;
+        #[allow(clippy::cast_precision_loss)] // Reason: cache hit/miss counters won't exceed f64 mantissa range
         let misses = self.misses.load(Ordering::Relaxed) as f64;
         let total = hits + misses;
         if total > 0.0 { hits / total } else { 0.0 }
@@ -302,7 +306,7 @@ impl PerformanceMonitor {
         }
         let mut latencies: Vec<_> = self.metrics.iter().map(|m| m.latency_us).collect();
         latencies.sort_unstable();
-        let idx = (latencies.len() as f64 * 0.99) as usize;
+        let idx = latencies.len().saturating_mul(99) / 100;
         latencies[idx]
     }
 
@@ -321,8 +325,11 @@ impl PerformanceMonitor {
         if self.metrics.is_empty() {
             return 0.0;
         }
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
         let successful = self.metrics.iter().filter(|m| m.success).count() as f64;
-        successful / self.metrics.len() as f64
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
+        let total = self.metrics.len() as f64;
+        successful / total
     }
 
     /// Get error rate
@@ -336,11 +343,13 @@ impl PerformanceMonitor {
     }
 
     /// Get operations per second
-    pub fn operations_per_second(&self) -> f64 {
+    pub const fn operations_per_second(&self) -> f64 {
         if self.metrics.is_empty() {
             return 0.0;
         }
-        self.metrics.len() as f64
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
+        let count = self.metrics.len() as f64;
+        count
     }
 
     /// Check if SLO violated
@@ -359,7 +368,7 @@ impl PerformanceMonitor {
     }
 
     /// Get metric count
-    pub fn metric_count(&self) -> usize {
+    pub const fn metric_count(&self) -> usize {
         self.metrics.len()
     }
 
@@ -395,12 +404,16 @@ impl OperationTimer {
 
     /// Get elapsed microseconds
     pub fn elapsed_us(&self) -> u64 {
-        self.start.elapsed().as_micros() as u64
+        #[allow(clippy::cast_possible_truncation)] // Reason: elapsed micros won't exceed u64::MAX in practice
+        let us = self.start.elapsed().as_micros() as u64;
+        us
     }
 
     /// Get elapsed milliseconds
     pub fn elapsed_ms(&self) -> f64 {
-        self.elapsed_us() as f64 / 1000.0
+        #[allow(clippy::cast_precision_loss)] // Reason: microsecond latency will never exceed f64 mantissa range
+        let us = self.elapsed_us() as f64;
+        us / 1000.0
     }
 }
 
@@ -425,6 +438,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: 5000/1000.0 is exactly representable as f64
     fn test_operation_metrics_latency_ms() {
         let metric = OperationMetrics::new("encrypt", 5000, 1);
         assert_eq!(metric.latency_ms(), 5.0);
@@ -502,6 +516,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: comparing exact f64 division results in test
     fn test_key_cache_hit_rate() {
         let mut cache = KeyCache::new(100);
         cache.insert("key1", vec![1]);
@@ -558,6 +573,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: 1.0/2.0 is exactly representable as f64
     fn test_performance_monitor_success_rate() {
         let mut monitor = PerformanceMonitor::new(100);
         monitor.record_metric(OperationMetrics::new("encrypt", 1000, 5));
@@ -667,6 +683,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // Reason: 1.0 - 0.5 is exactly representable as f64
     fn test_performance_monitor_error_rate() {
         let mut monitor = PerformanceMonitor::new(100);
         monitor.record_metric(OperationMetrics::new("encrypt", 1000, 5));

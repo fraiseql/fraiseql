@@ -74,13 +74,13 @@ impl SchemaFieldInfo {
     }
 
     /// Mark as nullable
-    pub fn with_nullable(mut self, nullable: bool) -> Self {
+    pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set encryption mark
-    pub fn with_mark(mut self, mark: EncryptionMark) -> Self {
+    pub const fn with_mark(mut self, mark: EncryptionMark) -> Self {
         self.mark = Some(mark);
         self
     }
@@ -93,7 +93,7 @@ pub struct StructSchema {
     pub type_name:        String,
     /// All fields in struct (including non-encrypted)
     pub all_fields:       Vec<SchemaFieldInfo>,
-    /// Only encrypted fields (subset of all_fields)
+    /// Only encrypted fields (subset of `all_fields`)
     pub encrypted_fields: Vec<SchemaFieldInfo>,
     /// Schema version for evolution tracking
     pub version:          u32,
@@ -127,7 +127,7 @@ impl StructSchema {
     }
 
     /// Set schema version for evolution tracking
-    pub fn with_version(mut self, version: u32) -> Self {
+    pub const fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }
@@ -171,12 +171,12 @@ impl StructSchema {
     }
 
     /// Count encrypted fields
-    pub fn encrypted_field_count(&self) -> usize {
+    pub const fn encrypted_field_count(&self) -> usize {
         self.encrypted_fields.len()
     }
 
     /// Count total fields
-    pub fn total_field_count(&self) -> usize {
+    pub const fn total_field_count(&self) -> usize {
         self.all_fields.len()
     }
 
@@ -265,8 +265,7 @@ impl SchemaRegistry {
     /// Check if type has encrypted fields
     pub fn has_encrypted_fields(&self, type_name: &str) -> bool {
         self.get(type_name)
-            .map(|schema| !schema.encrypted_fields.is_empty())
-            .unwrap_or(false)
+            .is_some_and(|schema| !schema.encrypted_fields.is_empty())
     }
 
     /// Get list of all registered types

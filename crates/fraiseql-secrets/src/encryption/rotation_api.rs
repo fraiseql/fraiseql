@@ -59,7 +59,7 @@ pub struct RotationStatusResponse {
 
 impl RotationStatusResponse {
     /// Create new rotation status response
-    pub fn new(current_version: u16, ttl_days: u32) -> Self {
+    pub const fn new(current_version: u16, ttl_days: u32) -> Self {
         Self {
             current_version,
             ttl_days,
@@ -76,19 +76,19 @@ impl RotationStatusResponse {
     }
 
     /// Set last rotation timestamp
-    pub fn with_last_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
+    pub const fn with_last_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.last_rotation = Some(timestamp);
         self
     }
 
     /// Set next rotation timestamp
-    pub fn with_next_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
+    pub const fn with_next_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.next_rotation = Some(timestamp);
         self
     }
 
     /// Set status level
-    pub fn with_status(mut self, status: RotationStatus) -> Self {
+    pub const fn with_status(mut self, status: RotationStatus) -> Self {
         self.status = status;
         self
     }
@@ -142,7 +142,7 @@ pub struct ManualRotationResponse {
 
 impl ManualRotationResponse {
     /// Create successful rotation response
-    pub fn success(old_version: u16, new_version: u16, duration_ms: u64) -> Self {
+    pub const fn success(old_version: u16, new_version: u16, duration_ms: u64) -> Self {
         Self {
             new_version,
             old_version,
@@ -198,7 +198,7 @@ pub struct RotationHistoryResponse {
 
 impl RotationHistoryResponse {
     /// Create new history response
-    pub fn new(offset: usize, limit: usize) -> Self {
+    pub const fn new(offset: usize, limit: usize) -> Self {
         Self {
             total_count: 0,
             offset,
@@ -214,7 +214,7 @@ impl RotationHistoryResponse {
     }
 
     /// Set total count
-    pub fn with_total_count(mut self, count: usize) -> Self {
+    pub const fn with_total_count(mut self, count: usize) -> Self {
         self.total_count = count;
         self
     }
@@ -390,7 +390,7 @@ pub struct TestScheduleResponse {
 
 impl TestScheduleResponse {
     /// Create valid schedule test
-    pub fn valid(next_times: Vec<DateTime<Utc>>) -> Self {
+    pub const fn valid(next_times: Vec<DateTime<Utc>>) -> Self {
         Self {
             valid: true,
             error: None,
@@ -469,24 +469,6 @@ impl ConfigPreset {
     /// Get default config for this preset
     pub fn get_config(&self) -> RotationConfigResponse {
         match self {
-            Self::Hipaa => RotationConfigResponse {
-                auto_refresh_enabled: true,
-                refresh_check_interval_hours: 24,
-                refresh_threshold_percent: 80,
-                ttl_days: 365,
-                quiet_hours_start: Some(2),
-                quiet_hours_end: Some(4),
-                manual_rotation_cooldown_minutes: 60,
-            },
-            Self::PciDss => RotationConfigResponse {
-                auto_refresh_enabled: true,
-                refresh_check_interval_hours: 24,
-                refresh_threshold_percent: 80,
-                ttl_days: 365,
-                quiet_hours_start: Some(2),
-                quiet_hours_end: Some(4),
-                manual_rotation_cooldown_minutes: 60,
-            },
             Self::Gdpr => RotationConfigResponse {
                 auto_refresh_enabled: true,
                 refresh_check_interval_hours: 24,
@@ -496,7 +478,7 @@ impl ConfigPreset {
                 quiet_hours_end: None,
                 manual_rotation_cooldown_minutes: 30,
             },
-            Self::Soc2 => RotationConfigResponse {
+            Self::Hipaa | Self::PciDss | Self::Soc2 => RotationConfigResponse {
                 auto_refresh_enabled: true,
                 refresh_check_interval_hours: 24,
                 refresh_threshold_percent: 80,
@@ -771,7 +753,7 @@ mod tests {
     #[test]
     fn test_test_schedule_response_valid() {
         let times = vec![Utc::now(), Utc::now()];
-        let response = TestScheduleResponse::valid(times.clone());
+        let response = TestScheduleResponse::valid(times);
         assert!(response.valid);
         assert_eq!(response.next_times.len(), 2);
     }

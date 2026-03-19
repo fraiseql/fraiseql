@@ -25,7 +25,7 @@ pub trait SecretsBackend: Send + Sync {
     /// * `name` - Secret identifier (path, env var name, etc.)
     ///
     /// # Returns
-    /// Secret value as String, or SecretsError if not found/error
+    /// Secret value as String, or `SecretsError` if not found/error
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError>;
 
     /// Get secret with expiry information
@@ -33,7 +33,7 @@ pub trait SecretsBackend: Send + Sync {
     /// Useful for dynamic credentials from Vault with lease durations
     ///
     /// # Returns
-    /// Tuple of (secret_value, expiry_datetime)
+    /// Tuple of (`secret_value`, `expiry_datetime`)
     async fn get_secret_with_expiry(
         &self,
         name: &str,
@@ -64,7 +64,7 @@ pub struct Secret(String);
 impl Secret {
     /// Create new Secret wrapper
     #[must_use]
-    pub fn new(value: String) -> Self {
+    pub const fn new(value: String) -> Self {
         Secret(value)
     }
 
@@ -85,13 +85,13 @@ impl Secret {
 
     /// Check if secret is empty
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Get length of secret
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.0.len()
     }
 }
@@ -146,7 +146,7 @@ mod tests {
         assert_eq!(display_str, "***", "Display should only show ***");
     }
 
-    /// Test Secret.expose() returns actual value
+    /// Test `Secret.expose()` returns actual value
     #[test]
     fn test_secret_expose() {
         let value = "actual_secret_value".to_string();
@@ -155,7 +155,7 @@ mod tests {
         assert_eq!(secret.expose(), &value);
     }
 
-    /// Test Secret.into_exposed() consumes and returns value
+    /// Test `Secret.into_exposed()` consumes and returns value
     #[test]
     fn test_secret_into_exposed() {
         let value = "test_secret".to_string();
@@ -176,7 +176,7 @@ mod tests {
         assert_ne!(secret1, secret3, "Secrets with different values should not be equal");
     }
 
-    /// Test Secret length and is_empty
+    /// Test Secret length and `is_empty`
     #[test]
     fn test_secret_properties() {
         let secret = Secret::new("test".to_string());
@@ -188,7 +188,7 @@ mod tests {
         assert!(empty.is_empty());
     }
 
-    /// Test SecretsBackend trait requirements
+    /// Test `SecretsBackend` trait requirements
     #[test]
     fn test_secrets_backend_trait_definition() {
         // Trait should require:

@@ -7,7 +7,7 @@ use super::{
 };
 use crate::secrets_manager::{SecretsBackend, SecretsError};
 
-/// Test VaultBackend creation
+/// Test `VaultBackend` creation
 #[test]
 fn test_vault_backend_creation() {
     let vault = VaultBackend::new("https://vault.local:8200", "mytoken").unwrap();
@@ -15,7 +15,7 @@ fn test_vault_backend_creation() {
     assert_eq!(vault.token(), "mytoken");
 }
 
-/// Test VaultBackend placeholder returns error
+/// Test `VaultBackend` placeholder returns error
 #[tokio::test]
 async fn test_vault_backend_placeholder() {
     let vault = VaultBackend::new("https://vault.local:8200", "token").unwrap();
@@ -24,7 +24,7 @@ async fn test_vault_backend_placeholder() {
     assert!(result.is_err(), "placeholder vault should return an error: {result:?}");
 }
 
-/// Test multiple VaultBackend instances
+/// Test multiple `VaultBackend` instances
 #[test]
 fn test_vault_backend_multiple() {
     let vault1 = VaultBackend::new("https://vault1.local:8200", "token1").unwrap();
@@ -34,7 +34,7 @@ fn test_vault_backend_multiple() {
     assert_ne!(vault1.token(), vault2.token());
 }
 
-/// Test VaultBackend clone
+/// Test `VaultBackend` clone
 #[test]
 fn test_vault_backend_clone() {
     let vault1 = VaultBackend::new("https://vault.local:8200", "token").unwrap();

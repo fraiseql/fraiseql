@@ -85,7 +85,7 @@ impl SecretsBackend for FileBackend {
 }
 
 impl FileBackend {
-    /// Create new FileBackend with base path
+    /// Create new `FileBackend` with base path
     pub fn new<P: Into<PathBuf>>(base_path: P) -> Self {
         FileBackend {
             base_path: base_path.into(),
@@ -98,7 +98,7 @@ impl FileBackend {
 mod tests {
     use super::*;
 
-    /// Test FileBackend reads from file
+    /// Test `FileBackend` reads from file
     #[tokio::test]
     async fn test_file_backend_read_secret() {
         use tempfile::tempdir;
@@ -113,7 +113,7 @@ mod tests {
         assert_eq!(secret, "secret_content_123");
     }
 
-    /// Test FileBackend returns error for missing file
+    /// Test `FileBackend` returns error for missing file
     #[tokio::test]
     async fn test_file_backend_not_found() {
         use tempfile::tempdir;
@@ -128,7 +128,7 @@ mod tests {
         );
     }
 
-    /// Test FileBackend trims whitespace
+    /// Test `FileBackend` trims whitespace
     #[tokio::test]
     async fn test_file_backend_trims_whitespace() {
         use tempfile::tempdir;
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(secret, "secret_value");
     }
 
-    /// Test FileBackend with_expiry returns future date
+    /// Test `FileBackend` `with_expiry` returns future date
     #[tokio::test]
     async fn test_file_backend_with_expiry() {
         use tempfile::tempdir;
@@ -159,7 +159,7 @@ mod tests {
         assert!(expiry > Utc::now());
     }
 
-    /// Test FileBackend rotate returns error
+    /// Test `FileBackend` rotate returns error
     #[tokio::test]
     async fn test_file_backend_rotate_not_supported() {
         use tempfile::tempdir;
@@ -174,7 +174,7 @@ mod tests {
         );
     }
 
-    /// Test FileBackend with multiple files
+    /// Test `FileBackend` with multiple files
     #[tokio::test]
     async fn test_file_backend_multiple_secrets() {
         use tempfile::tempdir;
@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(s2, "value2");
     }
 
-    /// Test FileBackend handles empty files
+    /// Test `FileBackend` handles empty files
     #[tokio::test]
     async fn test_file_backend_empty_file() {
         use tempfile::tempdir;

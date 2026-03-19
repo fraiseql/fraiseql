@@ -151,7 +151,7 @@ impl FieldEncryption {
     /// Encrypted data in format: [12-byte nonce][ciphertext + 16-byte tag]
     ///
     /// # Errors
-    /// Returns EncryptionError if encryption fails
+    /// Returns `EncryptionError` if encryption fails
     pub fn encrypt(&self, plaintext: &str) -> Result<Vec<u8>, SecretsError> {
         let nonce_bytes = Self::generate_nonce();
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -173,13 +173,13 @@ impl FieldEncryption {
     /// Extracts nonce, decrypts, and verifies authentication tag.
     ///
     /// # Arguments
-    /// * `encrypted` - Encrypted data from encrypt()
+    /// * `encrypted` - Encrypted data from `encrypt()`
     ///
     /// # Returns
     /// Decrypted plaintext as String
     ///
     /// # Errors
-    /// Returns EncryptionError if:
+    /// Returns `EncryptionError` if:
     /// - Data too short for nonce
     /// - Decryption fails (wrong key or corrupted data)
     /// - Plaintext is not valid UTF-8
@@ -201,7 +201,7 @@ impl FieldEncryption {
 
     /// Encrypt field with additional context for audit/security
     ///
-    /// Includes context (e.g., user_id, field_name) in authenticated data
+    /// Includes context (e.g., `user_id`, `field_name`) in authenticated data
     /// but not in ciphertext, providing audit trail without bloating storage.
     ///
     /// # Arguments
@@ -238,14 +238,14 @@ impl FieldEncryption {
     /// Context must match the value used during encryption for verification to succeed.
     ///
     /// # Arguments
-    /// * `encrypted` - Encrypted data from encrypt_with_context()
+    /// * `encrypted` - Encrypted data from `encrypt_with_context()`
     /// * `context` - Context that was used during encryption
     ///
     /// # Returns
     /// Decrypted plaintext as String
     ///
     /// # Errors
-    /// Returns EncryptionError if context doesn't match or decryption fails
+    /// Returns `EncryptionError` if context doesn't match or decryption fails
     pub fn decrypt_with_context(
         &self,
         encrypted: &[u8],
@@ -397,7 +397,7 @@ impl VersionedFieldEncryption {
 mod tests {
     use super::*;
 
-    /// Test FieldEncryption creation
+    /// Test `FieldEncryption` creation
     #[test]
     fn test_field_encryption_creation() {
         let key = [0u8; KEY_SIZE];
