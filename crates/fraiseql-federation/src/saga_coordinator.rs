@@ -9,7 +9,7 @@
 //! The saga coordinator manages:
 //! - Sequential step execution across subgraphs
 //! - Automatic compensation on failure
-//! - Persistent saga state (via SagaStore)
+//! - Persistent saga state (via `SagaStore`)
 //! - Recovery from interruptions
 //! - Structured logging and observability
 //!
@@ -74,7 +74,7 @@
 //! - `info!()` for saga lifecycle events (created, completed, failed)
 //! - `debug!()` for step-level details (step started, compensation triggered)
 //! - `warn!()` for failures and recoveries
-//! - Structured logging with saga_id, step_number, subgraph context
+//! - Structured logging with `saga_id`, `step_number`, subgraph context
 
 use std::sync::Arc;
 
@@ -109,7 +109,7 @@ pub struct SagaStep {
     /// Must include all input fields for the mutation
     pub variables:              serde_json::Value,
     /// Compensation mutation operation name
-    /// Usually inverse of mutation_name (e.g., deleteOrder, reversePayment)
+    /// Usually inverse of `mutation_name` (e.g., `deleteOrder`, `reversePayment`)
     pub compensation_mutation:  String,
     /// Variables for compensation mutation
     /// Must be able to identify and reverse the forward mutation
@@ -225,7 +225,7 @@ impl SagaCoordinator {
     ///
     /// # Arguments
     ///
-    /// * `executor` - SagaExecutor instance (type-erased)
+    /// * `executor` - `SagaExecutor` instance (type-erased)
     pub fn with_executor(mut self, executor: Arc<dyn std::any::Any + Send + Sync>) -> Self {
         self.executor = executor;
         self
@@ -235,7 +235,7 @@ impl SagaCoordinator {
     ///
     /// # Arguments
     ///
-    /// * `compensator` - SagaCompensator instance (type-erased)
+    /// * `compensator` - `SagaCompensator` instance (type-erased)
     pub fn with_compensator(mut self, compensator: Arc<dyn std::any::Any + Send + Sync>) -> Self {
         self.compensator = compensator;
         self
@@ -252,7 +252,7 @@ impl SagaCoordinator {
     ///
     /// # Returns
     ///
-    /// Saga ID for use in execute_saga and other operations
+    /// Saga ID for use in `execute_saga` and other operations
     ///
     /// # Errors
     ///

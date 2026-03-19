@@ -26,12 +26,12 @@
 //!
 //! The composition process works in two phases:
 //!
-//! 1. **Consistency Validation** (CrossSubgraphValidator)
+//! 1. **Consistency Validation** (`CrossSubgraphValidator`)
 //!    - Validates across all subgraphs simultaneously
 //!    - Checks federation directives for conflicts
 //!    - Collects all errors before returning
 //!
-//! 2. **Schema Composition** (CompositionValidator)
+//! 2. **Schema Composition** (`CompositionValidator`)
 //!    - Merges type definitions from all subgraphs
 //!    - Errors on type conflicts (safest default)
 //!    - Produces final supergraph schema
@@ -181,7 +181,7 @@ impl CrossSubgraphValidator {
     /// Create a new cross-subgraph validator with named subgraphs
     ///
     /// # Arguments
-    /// - `subgraphs`: Vector of (subgraph_name, metadata) tuples
+    /// - `subgraphs`: Vector of (`subgraph_name`, metadata) tuples
     ///
     /// Subgraph names are used in error messages to identify problem sources.
     pub const fn new(subgraphs: Vec<(String, FederationMetadata)>) -> Self {

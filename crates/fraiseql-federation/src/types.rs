@@ -90,7 +90,7 @@ impl FieldFederationDirectives {
 }
 
 /// Field path selection for @requires/@provides (e.g., `["profile", "age"]` for "profile.age")
-/// Note: This is distinct from selection_parser::FieldSelection which represents requested fields
+/// Note: This is distinct from `selection_parser::FieldSelection` which represents requested fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FieldPathSelection {
     /// Path components: `["profile", "age"]` for "profile.age"
@@ -153,25 +153,23 @@ impl FederatedType {
     /// Check if a field has the @requires directive
     pub fn field_has_requires(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name)
-            .map(|d| !d.requires.is_empty())
-            .unwrap_or(false)
+            .is_some_and(|d| !d.requires.is_empty())
     }
 
     /// Check if a field has the @provides directive
     pub fn field_has_provides(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name)
-            .map(|d| !d.provides.is_empty())
-            .unwrap_or(false)
+            .is_some_and(|d| !d.provides.is_empty())
     }
 
     /// Check if a field is marked as @shareable
     pub fn field_is_shareable(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name).map(|d| d.shareable).unwrap_or(false)
+        self.get_field_directives(field_name).is_some_and(|d| d.shareable)
     }
 
     /// Check if a field is marked as @external
     pub fn field_is_external(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name).map(|d| d.external).unwrap_or(false)
+        self.get_field_directives(field_name).is_some_and(|d| d.external)
     }
 }
 

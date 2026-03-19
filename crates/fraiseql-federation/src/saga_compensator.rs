@@ -50,7 +50,7 @@
 //! - Compensation result data (confirmation of rollback)
 //! - Error details if failed
 //! - Execution duration in milliseconds
-//! - Timestamp (tracked by saga_store)
+//! - Timestamp (tracked by `saga_store`)
 //!
 //! Results are persisted for:
 //! - **Audit trails**: What was compensated and when
@@ -124,7 +124,7 @@ use crate::saga_store::{PostgresSagaStore, Result as SagaStoreResult, SagaState,
 /// Compensation results differ from `StepExecutionResult` in important ways:
 /// - **Focus**: Forward = "what data did we create?" → Compensation = "did we delete/undo it?"
 /// - **Data**: Forward = business entity data → Compensation = confirmation flags (deleted,
-///   rolled_back, etc.)
+///   `rolled_back`, etc.)
 /// - **Error Tolerance**: Forward = stop on first error → Compensation = continue despite failures
 /// - **Idempotency**: Compensation must be idempotent (safe to retry)
 ///
@@ -202,7 +202,7 @@ pub struct CompensationResult {
     pub failed_steps:      Vec<u32>,
     /// Total compensation duration in milliseconds
     pub total_duration_ms: u64,
-    /// Error message if status is CompensationFailed
+    /// Error message if status is `CompensationFailed`
     pub error:             Option<String>,
 }
 
@@ -260,8 +260,8 @@ impl SagaCompensator {
     /// During: Saga state = Compensating (atomic transaction)
     /// After:
     /// - All success → Saga state = Compensated
-    /// - Some fail → Saga state = CompensationFailed (needs recovery)
-    /// - All fail → Saga state = CompensationFailed (needs manual intervention)
+    /// - Some fail → Saga state = `CompensationFailed` (needs recovery)
+    /// - All fail → Saga state = `CompensationFailed` (needs manual intervention)
     ///
     /// # Arguments
     ///
@@ -270,12 +270,12 @@ impl SagaCompensator {
     /// # Returns
     ///
     /// `CompensationResult` with:
-    /// - `status`: Overall compensation status (Compensated, PartiallyCompensated, or
-    ///   CompensationFailed)
+    /// - `status`: Overall compensation status (`Compensated`, `PartiallyCompensated`, or
+    ///   `CompensationFailed`)
     /// - `step_results`: Results for each compensated step (in reverse order)
     /// - `failed_steps`: Steps where compensation failed (for targeted recovery)
     /// - `total_duration_ms`: Total time spent in compensation phase
-    /// - `error`: High-level error message if status is CompensationFailed
+    /// - `error`: High-level error message if status is `CompensationFailed`
     ///
     /// # Errors
     ///
@@ -338,12 +338,15 @@ impl SagaCompensator {
                 "Saga is not in Failed state - cannot compensate"
             );
             // For non-failed sagas, return empty compensation
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
+            let total_duration_ms = start_time.elapsed().as_millis() as u64;
             let result = CompensationResult {
                 saga_id,
                 status: CompensationStatus::Compensated,
                 step_results: vec![],
                 failed_steps: vec![],
-                total_duration_ms: start_time.elapsed().as_millis() as u64,
+                total_duration_ms,
                 error: None,
             };
             return Ok(result);
@@ -379,10 +382,13 @@ impl SagaCompensator {
             );
 
             // Execute this step's compensation
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: step count is bounded well below u32::MAX
+            let step_order = step.order as u32;
             match self
                 .compensate_step(
                     saga_id,
-                    step.order as u32,
+                    step_order,
                     &format!("delete_{}", step.typename),
                     &step.result.clone().unwrap_or(serde_json::json!({})),
                     &step.subgraph,
@@ -407,11 +413,11 @@ impl SagaCompensator {
                         "Step compensation failed - continuing with next step"
                     );
 
-                    failed_steps.push(step.order as u32);
+                    failed_steps.push(step_order);
 
                     // Create failure result
                     let failure_result = CompensationStepResult {
-                        step_number: step.order as u32,
+                        step_number: step_order,
                         success:     false,
                         data:        None,
                         error:       Some(format!("Compensation failed: {:?}", e)),
@@ -442,6 +448,8 @@ impl SagaCompensator {
             e
         })?;
 
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: duration millis won't exceed u64 in practice
         let total_duration_ms = start_time.elapsed().as_millis() as u64;
 
         let result = CompensationResult {
@@ -532,6 +540,8 @@ impl SagaCompensator {
 
         // If no store available, return success for testing
         if self.store.is_none() {
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
             let result = CompensationStepResult {
                 step_number,
@@ -613,6 +623,8 @@ impl SagaCompensator {
             "Step compensation result persisted"
         );
 
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: duration millis won't exceed u64 in practice
         let duration_ms = start_time.elapsed().as_millis() as u64;
 
         let result = CompensationStepResult {
@@ -705,13 +717,15 @@ impl SagaCompensator {
             let has_compensation = step
                 .result
                 .as_ref()
-                .map(|r| r.get("deleted").is_some() || r.get("confirmation_id").is_some())
-                .unwrap_or(false);
+                .is_some_and(|r| r.get("deleted").is_some() || r.get("confirmation_id").is_some());
 
             if has_compensation {
                 let success = true;
+                #[allow(clippy::cast_possible_truncation)]
+                // Reason: step count is bounded well below u32::MAX
+                let step_number = step.order as u32;
                 step_results.push(CompensationStepResult {
-                    step_number: step.order as u32,
+                    step_number,
                     success,
                     data: step.result.clone(),
                     error: None,
@@ -867,7 +881,10 @@ mod tests {
 
         // Verify reverse order was maintained
         for (i, result) in results.iter().enumerate() {
-            assert_eq!(result.step_number, (3 - i) as u32);
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: step count is bounded well below u32::MAX
+            let expected = (3 - i) as u32;
+            assert_eq!(result.step_number, expected);
         }
     }
 

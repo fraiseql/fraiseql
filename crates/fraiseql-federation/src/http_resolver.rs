@@ -71,7 +71,7 @@ struct GraphQLResponse {
 ///    variable `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` is set.
 /// 2. Blocking `localhost` and `.localhost` hostnames.
 /// 3. Blocking literal private/reserved IP addresses (RFC 1918, loopback, link-local, CGNAT, ULA,
-///    IPv4-mapped IPv6).
+///    `IPv4`-mapped `IPv6`).
 ///
 /// Note: DNS-level SSRF (attacker-controlled domain that resolves to a
 /// private IP) is not mitigated here; that requires egress filtering at the
@@ -163,9 +163,9 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
 
 /// Returns `true` for IP addresses the federation engine must not contact.
 ///
-/// Covers: loopback (127/8, ::1), RFC 1918 (10/8, 172.16/12, 192.168/16),
-/// link-local (169.254/16, fe80::/10), CGNAT (100.64/10), unspecified (0.0.0.0),
-/// IPv4-mapped IPv6 (::ffff:0:0/96), and ULA (fc00::/7).
+/// Covers: loopback (`127/8`, `::1`), RFC 1918 (`10/8`, `172.16/12`, `192.168/16`),
+/// link-local (`169.254/16`, `fe80::/10`), CGNAT (`100.64/10`), unspecified (`0.0.0.0`),
+/// `IPv4`-mapped `IPv6` (`::ffff:0:0/96`), and ULA (`fc00::/7`).
 pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {

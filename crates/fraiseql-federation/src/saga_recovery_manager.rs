@@ -25,9 +25,9 @@
 //!
 //! # Configuration
 //!
-//! - **check_interval**: How frequently the recovery loop runs (default: 5 seconds)
-//! - **max_sagas_per_iteration**: Maximum sagas to process per loop (default: 50)
-//! - **stale_age_hours**: Age threshold for cleanup (default: 24 hours)
+//! - **`check_interval`**: How frequently the recovery loop runs (default: 5 seconds)
+//! - **`max_sagas_per_iteration`**: Maximum sagas to process per loop (default: 50)
+//! - **`stale_age_hours`**: Age threshold for cleanup (default: 24 hours)
 //!
 //! # Example
 //!
@@ -219,7 +219,7 @@ impl SagaRecoveryManager {
     /// Start the background recovery loop
     ///
     /// Spawns a tokio task that runs recovery iterations periodically according
-    /// to the configured check_interval.
+    /// to the configured `check_interval`.
     ///
     /// # Errors
     ///

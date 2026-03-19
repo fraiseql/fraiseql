@@ -136,6 +136,7 @@ impl SagaState {
     /// Parse a `SagaState` from its lowercase string representation.
     ///
     /// Returns `None` if `s` does not match a known state name.
+    #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(SagaState::Pending),
@@ -177,6 +178,7 @@ impl StepState {
     /// Parse a `StepState` from its lowercase string representation.
     ///
     /// Returns `None` if `s` does not match a known state name.
+    #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(StepState::Pending),
@@ -211,6 +213,7 @@ impl MutationType {
     }
 
     /// Parse from string representation
+    #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "create" => Some(MutationType::Create),
@@ -496,11 +499,12 @@ impl PostgresSagaStore {
         }
     }
 
-    /// Map a database row to a SagaStep struct
+    /// Map a database row to a [`SagaStep`] struct
     fn map_saga_step_row(row: &tokio_postgres::Row) -> SagaStep {
         SagaStep {
             id:            row.get(0),
             saga_id:       row.get(1),
+            #[allow(clippy::cast_sign_loss)] // Reason: step_order is always non-negative from DB
             order:         row.get::<_, i32>(2) as usize,
             subgraph:      row.get(3),
             mutation_type: MutationType::from_str(row.get::<_, String>(4).as_str())
@@ -597,7 +601,7 @@ impl PostgresSagaStore {
 
     /// Update saga state and automatically set completion time for terminal states
     ///
-    /// Terminal states (Completed, Compensated) automatically receive completed_at timestamp.
+    /// Terminal states (Completed, Compensated) automatically receive `completed_at` timestamp.
     ///
     /// # Errors
     ///
@@ -667,7 +671,7 @@ impl PostgresSagaStore {
 
     /// Update saga step state and automatically set completion time for terminal states
     ///
-    /// Terminal states (Completed, Failed) automatically receive completed_at timestamp.
+    /// Terminal states (Completed, Failed) automatically receive `completed_at` timestamp.
     ///
     /// # Errors
     ///
@@ -709,7 +713,7 @@ impl PostgresSagaStore {
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
         #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
-        // Reason: saga count is bounded by configuration and won't exceed i64::MAX
+        #[allow(clippy::cast_possible_truncation)] // Reason: step count bounded well below i32::MAX
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
@@ -886,7 +890,7 @@ impl PostgresSagaStore {
                 &[&saga_id],
             )
             .await?;
-        Ok(row.map(|r| r.get(0)).unwrap_or(0))
+        Ok(row.map_or(0, |r| r.get(0)))
     }
 
     /// Save a saga recovery record

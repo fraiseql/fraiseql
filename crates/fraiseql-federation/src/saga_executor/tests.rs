@@ -1,6 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::*;
+use uuid::Uuid;
+
+use super::SagaExecutor;
 
 #[test]
 fn test_saga_executor_creation() {
@@ -123,7 +125,10 @@ async fn test_saga_maintains_step_order() {
 
     // Verify order is maintained
     for (i, result) in results.iter().enumerate() {
-        assert_eq!(result.step_number, (i + 1) as u32);
+        #[allow(clippy::cast_possible_truncation)] // Reason: test loop index is small
+        {
+            assert_eq!(result.step_number, (i + 1) as u32);
+        }
     }
 }
 
@@ -300,9 +305,9 @@ fn test_augment_entity_with_empty_requires() {
     assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("test-123"));
 }
 
-/// C3: execute_step must include the augmented entity data in result.
+/// C3: `execute_step` must include the augmented entity data in result.
 ///
-/// With the stub pre_fetch (returns `{}`), augment_entity_with_requires is a
+/// With the stub `pre_fetch` (returns `{}`), `augment_entity_with_requires` is a
 /// no-op, so the input variables must appear unchanged under the `input` key.
 #[tokio::test]
 async fn execute_step_pre_fetches_required_fields() {
@@ -321,7 +326,7 @@ async fn execute_step_pre_fetches_required_fields() {
     assert_eq!(data.get("input"), Some(&variables), "augmented input must be present");
 }
 
-/// C3 regression guard: steps without @requires must behave identically to before.
+/// C3 regression guard: steps without `@requires` must behave identically to before.
 #[tokio::test]
 async fn execute_step_without_requires_is_unchanged() {
     let executor = SagaExecutor::new();

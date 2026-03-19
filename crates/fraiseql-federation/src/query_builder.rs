@@ -59,7 +59,7 @@ pub fn construct_where_in_clause(
         Ok(format!("{} IN ({})", key_field, values_str))
     } else {
         // For composite keys, build: (key1, key2) IN ((val1a, val1b), ...)
-        construct_composite_where_in(key_directive.fields.clone(), representations)
+        construct_composite_where_in(&key_directive.fields, representations)
     }
 }
 
@@ -87,7 +87,7 @@ fn extract_key_values(
 
 /// Build WHERE IN clause for composite keys.
 fn construct_composite_where_in(
-    key_fields: Vec<String>,
+    key_fields: &[String],
     representations: &[EntityRepresentation],
 ) -> Result<String> {
     if representations.is_empty() {
@@ -99,7 +99,7 @@ fn construct_composite_where_in(
 
     for rep in representations {
         let mut tuple_values = Vec::new();
-        for field in &key_fields {
+        for field in key_fields {
             let value = rep.key_fields.get(field).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Key field '{}' missing in representation", field),
                 path:    None,
@@ -119,6 +119,8 @@ fn construct_composite_where_in(
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     #![allow(clippy::iter_on_single_items)] // Reason: test data uses single-element iter for structural clarity
+
+    use std::collections::HashMap;
 
     use serde_json::json;
 
@@ -153,12 +155,12 @@ mod tests {
             EntityRepresentation {
                 typename:   "User".to_string(),
                 key_fields: [(String::from("id"), json!("123"))].iter().cloned().collect(),
-                all_fields: Default::default(),
+                all_fields: HashMap::default(),
             },
             EntityRepresentation {
                 typename:   "User".to_string(),
                 key_fields: [(String::from("id"), json!("456"))].iter().cloned().collect(),
-                all_fields: Default::default(),
+                all_fields: HashMap::default(),
             },
         ];
 
@@ -177,7 +179,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .collect(),
-            all_fields: Default::default(),
+            all_fields: HashMap::default(),
         }];
 
         let clause = construct_where_in_clause("User", &reps, &metadata).unwrap();

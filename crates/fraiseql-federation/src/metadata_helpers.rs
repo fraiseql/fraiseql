@@ -49,7 +49,7 @@ pub fn get_key_directive(fed_type: &FederatedType) -> Result<&KeyDirective> {
 
 /// Find a federation type and its primary key directive.
 ///
-/// Convenience function combining find_federation_type and get_key_directive.
+/// Convenience function combining `find_federation_type` and `get_key_directive`.
 ///
 /// # Errors
 ///

@@ -39,7 +39,7 @@
 //!
 //! The validator detects circular dependencies using depth-first search (DFS).
 //! For example, if User.orders @requires User.id, and User.id @requires User.orders,
-//! a CircularDependency error is returned with the cycle path.
+//! a `CircularDependency` error is returned with the cycle path.
 
 use std::collections::{HashMap, HashSet};
 
@@ -58,7 +58,7 @@ use crate::types::{
 pub enum DirectiveValidationError {
     /// @requires references a field that doesn't exist
     ///
-    /// The field declared in @requires() was not found on the referenced type.
+    /// The field declared in `@requires()` was not found on the referenced type.
     RequiresNonexistentField {
         /// Name of the type declaring the field.
         typename:       String,
@@ -69,7 +69,7 @@ pub enum DirectiveValidationError {
     },
     /// @provides references a field that doesn't exist
     ///
-    /// The field declared in @provides() was not found on the return type.
+    /// The field declared in `@provides()` was not found on the return type.
     ProvidesNonexistentField {
         /// Name of the type declaring the field.
         typename:       String,
@@ -103,7 +103,7 @@ pub enum DirectiveValidationError {
     },
     /// Field missing at runtime when @requires declares it must be present
     ///
-    /// During entity resolution, a field marked with @requires() was not
+    /// During entity resolution, a field marked with `@requires()` was not
     /// present in the resolved entity data.
     MissingRequiredField {
         /// Name of the type being resolved.
@@ -191,7 +191,7 @@ impl RequiresProvidesValidator {
     /// Create a new validator with federation metadata
     ///
     /// # Arguments
-    /// - `metadata`: FederationMetadata containing all federated types and directives
+    /// - `metadata`: `FederationMetadata` containing all federated types and directives
     ///
     /// # Example
     /// ```text
@@ -456,7 +456,7 @@ impl RequiresProvidesValidator {
 
     /// Get a federated type by name
     ///
-    /// Returns a reference to the FederatedType if found, None otherwise.
+    /// Returns a reference to the `FederatedType` if found, `None` otherwise.
     fn get_type(&self, typename: &str) -> Option<&FederatedType> {
         self.metadata.types.iter().find(|t| t.name == typename)
     }
@@ -468,16 +468,15 @@ impl RequiresProvidesValidator {
     /// 2. It is the special "id" field (implicit key)
     fn field_exists(&self, typename: &str, field_name: &str) -> bool {
         self.get_type(typename)
-            .map(|t| t.get_field_directives(field_name).is_some() || field_name == "id")
-            .unwrap_or(false)
+            .is_some_and(|t| t.get_field_directives(field_name).is_some() || field_name == "id")
     }
 }
 
 /// Runtime validator for checking @requires and @provides at entity resolution time
 ///
 /// This validator checks at query execution time that:
-/// - All fields declared in @requires() are present in resolved entity data
-/// - Fields declared in @provides() are returned by the resolver (warnings)
+/// - All fields declared in `@requires()` are present in resolved entity data
+/// - Fields declared in `@provides()` are returned by the resolver (warnings)
 ///
 /// This complements the compile-time validator by catching issues specific
 /// to actual entity data at runtime.
@@ -487,7 +486,7 @@ pub struct RequiresProvidesRuntimeValidator;
 impl RequiresProvidesRuntimeValidator {
     /// Validate that all required fields are present in an entity
     ///
-    /// Checks each field declared in @requires() to ensure it exists in the entity data.
+    /// Checks each field declared in `@requires()` to ensure it exists in the entity data.
     /// This is critical because missing required fields could lead to incorrect field resolution.
     ///
     /// # Arguments
@@ -544,7 +543,7 @@ impl RequiresProvidesRuntimeValidator {
 
     /// Validate that @provides fields are returned by the resolver
     ///
-    /// Issues warnings if fields declared in @provides() are not present
+    /// Issues warnings if fields declared in `@provides()` are not present
     /// in the returned data. This is a contract check - the field declared
     /// that it would provide these fields, so consumers may be expecting them.
     ///
@@ -582,7 +581,7 @@ impl RequiresProvidesRuntimeValidator {
     /// # Arguments
     /// - `typename`: The type being resolved
     /// - `entity_fields`: The fields present in the resolved entity
-    /// - `fed_type`: The FederatedType definition with directive information
+    /// - `fed_type`: The `FederatedType` definition with directive information
     ///
     /// # Errors
     ///

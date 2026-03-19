@@ -1,15 +1,21 @@
 //! Single-step execution for saga forward phase.
 
-use super::*;
+use std::time::Instant;
+
+use ::tracing::{debug, info, warn};
+use uuid::Uuid;
+
+use super::{SagaExecutor, StepExecutionResult};
+use crate::saga_store::{Result as SagaStoreResult, StepState};
 
 impl SagaExecutor {
     /// Execute a single saga step
     ///
     /// Executes a single mutation step within a saga, handling:
     /// - Step state validation (Pending → Executing → Completed)
-    /// - @requires field pre-fetching from owning subgraphs
+    /// - `@requires` field pre-fetching from owning subgraphs
     /// - Entity data augmentation with required fields
-    /// - Mutation execution via MutationExecutor
+    /// - Mutation execution via `MutationExecutor`
     /// - Result capture and persistence
     ///
     /// # Arguments
@@ -154,6 +160,7 @@ impl SagaExecutor {
 
             info!(saga_id = %saga_id, step = step_number, "Step transitioned to Completed");
 
+            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
             let result = StepExecutionResult {
@@ -176,6 +183,7 @@ impl SagaExecutor {
             // No store available - return placeholder success for testing
             debug!("No saga store available - returning placeholder result");
 
+            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
             let result = StepExecutionResult {

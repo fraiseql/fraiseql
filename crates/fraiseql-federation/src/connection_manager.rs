@@ -28,7 +28,7 @@ const MAX_TIMEOUT_SECS: u32 = 120;
 /// Configuration for a remote database connection
 #[derive(Clone)]
 pub struct RemoteDatabaseConfig {
-    /// Connection string (e.g., "postgresql://user:pass@host:5432/dbname").
+    /// Connection string (e.g., `<postgresql://user:pass@host:5432/dbname>`).
     ///
     /// Not included in `Debug` output to prevent credential leakage in logs.
     connection_string:   String,
