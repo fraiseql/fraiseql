@@ -8,6 +8,8 @@
 use std::sync::Arc;
 
 use super::CircuitBreaker;
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::ObserverError;
 use crate::error::Result;
 
 /// Different resilience strategies for failure handling

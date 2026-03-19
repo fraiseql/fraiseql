@@ -8,6 +8,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::FraiseQLError;
 
 /// Tracks transitive view-to-view dependencies for cascading invalidation.
 ///

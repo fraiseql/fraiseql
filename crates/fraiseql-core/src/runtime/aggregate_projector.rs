@@ -40,6 +40,8 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::FraiseQLError;
 use crate::{compiler::aggregation::AggregationPlan, error::Result};
 
 /// Aggregation result projector

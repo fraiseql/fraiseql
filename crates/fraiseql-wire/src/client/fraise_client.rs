@@ -5,6 +5,8 @@ use super::query_builder::QueryBuilder;
 use crate::connection::{Connection, ConnectionConfig, Transport};
 use crate::stream::JsonStream;
 use crate::Result;
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::WireError;
 use serde::de::DeserializeOwned;
 
 /// FraiseQL wire protocol client

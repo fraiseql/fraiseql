@@ -9,6 +9,8 @@
 
 use std::collections::HashMap;
 
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::ObserverError;
 use crate::{
     config::ObserverDefinition,
     error::Result,

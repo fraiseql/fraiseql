@@ -48,6 +48,8 @@ use regex::Regex;
 use serde_json::Value;
 
 use crate::error::Result;
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::FraiseQLError;
 
 /// UUID v4 format regex (RFC 4122).
 /// Matches: 550e8400-e29b-41d4-a716-446655440000

@@ -16,6 +16,8 @@
 use crate::client::FraiseClient;
 use crate::stream::QueryStream;
 use crate::Result;
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::WireError;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::marker::PhantomData;

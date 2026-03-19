@@ -68,7 +68,7 @@ impl AuthMiddleware {
     /// Returns [`SecurityError::AuthRequired`] if no Authorization header or
     /// token is missing. Returns [`SecurityError::InvalidToken`] if the token
     /// signature, expiry, issuer, or audience is invalid. Returns
-    /// [`SecurityError::MissingClaim`] if a required claim is absent.
+    /// [`SecurityError::TokenMissingClaim`] if a required claim is absent.
     pub fn validate_request(&self, req: &AuthRequest) -> Result<AuthenticatedUser> {
         // Check 1: Extract token from Authorization header
         let token = self.extract_token(req)?;

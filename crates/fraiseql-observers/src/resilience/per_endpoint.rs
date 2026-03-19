@@ -8,6 +8,8 @@ use std::sync::Arc;
 use dashmap::DashMap;
 
 use super::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::ObserverError;
 use crate::error::Result;
 
 /// Manages circuit breakers per endpoint

@@ -11,6 +11,8 @@ use super::ir::{
     AuthoringIR, IRArgument, IREnum, IREnumValue, IRField, IRInputField, IRInputType, IRInterface,
     IRMutation, IRUnion,
 };
+#[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
+use crate::error::FraiseQLError;
 use crate::{
     error::Result,
     schema::{
