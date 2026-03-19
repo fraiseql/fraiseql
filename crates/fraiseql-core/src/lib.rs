@@ -1,3 +1,6 @@
+// Reason: MutationDefinition has many fields; test arrays of definitions exceed 16 KiB
+#![allow(clippy::large_stack_arrays)]
+
 //! # FraiseQL Core
 //!
 //! Core execution engine for FraiseQL v2 - A compiled GraphQL execution engine.

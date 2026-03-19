@@ -177,12 +177,14 @@ use crate::{
 };
 
 mod core;
+pub use bulk::BulkResult;
 pub use core::Executor;
 
 mod aggregate;
 mod classify;
 mod execution;
 mod explain;
+mod bulk;
 mod federation;
 mod mutation;
 mod planning;

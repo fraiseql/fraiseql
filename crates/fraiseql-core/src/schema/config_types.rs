@@ -387,6 +387,11 @@ pub struct RestConfig {
     pub max_filter_bytes: usize,
     /// Maximum nesting depth for resource embedding (default 3).
     pub max_embedding_depth: usize,
+    /// Maximum number of rows a single bulk update/delete may affect.
+    ///
+    /// Acts as a server-side safety limit.  Clients may request a lower limit
+    /// via `Prefer: max-affected=N`.  Default: 1000.
+    pub max_bulk_affected: u64,
 }
 
 impl Default for RestConfig {
@@ -403,6 +408,7 @@ impl Default for RestConfig {
             etag:                true,
             max_filter_bytes:    4096,
             max_embedding_depth: DEFAULT_MAX_EMBEDDING_DEPTH,
+            max_bulk_affected:   DEFAULT_MAX_BULK_AFFECTED,
         }
     }
 }
@@ -450,8 +456,24 @@ pub enum Cardinality {
     OneToOne,
 }
 
+/// Maximum number of rows a single bulk operation may affect (default 1000).
+pub const DEFAULT_MAX_BULK_AFFECTED: u64 = 1_000;
+
 /// Maximum nesting depth for resource embedding (default 3).
 pub const DEFAULT_MAX_EMBEDDING_DEPTH: usize = 3;
+
+/// Unique constraint columns for upsert conflict resolution.
+///
+/// Each `ConflictTarget` represents a unique constraint or unique index on a
+/// table.  The REST transport uses these to determine which columns to check
+/// for duplicates when `Prefer: resolution=merge-duplicates` is specified.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictTarget {
+    /// Constraint or index name (e.g., "uq_user_email").
+    pub name: String,
+    /// Column names that form the unique constraint.
+    pub columns: Vec<String>,
+}
 
 /// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -635,6 +657,7 @@ mod tests {
             etag:                false,
             max_filter_bytes:    8192,
             max_embedding_depth: 5,
+            max_bulk_affected:   500,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();
@@ -692,5 +715,45 @@ mod tests {
         let restored: CompiledSchema = serde_json::from_str(&json).unwrap();
         assert!(restored.rest_config.is_some());
         assert!(restored.rest_config.unwrap().enabled);
+    }
+
+    #[test]
+    fn test_rest_config_max_bulk_affected_default() {
+        let config = RestConfig::default();
+        assert_eq!(config.max_bulk_affected, DEFAULT_MAX_BULK_AFFECTED);
+    }
+
+    #[test]
+    fn test_rest_config_max_bulk_affected_roundtrip() {
+        let config = RestConfig {
+            max_bulk_affected: 500,
+            ..RestConfig::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let restored: RestConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.max_bulk_affected, 500);
+    }
+
+    #[test]
+    fn test_conflict_target_serde() {
+        let target = ConflictTarget {
+            name: "uq_user_email".to_string(),
+            columns: vec!["email".to_string()],
+        };
+        let json = serde_json::to_string(&target).unwrap();
+        let restored: ConflictTarget = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.name, "uq_user_email");
+        assert_eq!(restored.columns, vec!["email"]);
+    }
+
+    #[test]
+    fn test_conflict_target_multi_column() {
+        let target = ConflictTarget {
+            name: "uq_user_org_email".to_string(),
+            columns: vec!["fk_org".to_string(), "email".to_string()],
+        };
+        let json = serde_json::to_string(&target).unwrap();
+        let restored: ConflictTarget = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.columns.len(), 2);
     }
 }

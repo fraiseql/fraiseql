@@ -7,6 +7,7 @@
 //!
 //! All modules are gated behind `#[cfg(feature = "rest")]` in `routes/mod.rs`.
 
+pub mod bulk;
 pub mod embedding;
 pub mod handler;
 pub mod openapi;

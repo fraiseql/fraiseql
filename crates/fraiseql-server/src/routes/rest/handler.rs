@@ -22,7 +22,7 @@ use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, Route
 // Prefer header parsing
 // ---------------------------------------------------------------------------
 
-/// Parsed `Prefer` header values relevant to REST transport.
+/// Parsed `Prefer` header values relevant to REST transport (RFC 7240).
 #[derive(Debug, Clone, Default)]
 pub struct PreferHeader {
     /// `count=exact` — execute a parallel COUNT query.
@@ -31,13 +31,20 @@ pub struct PreferHeader {
     pub return_representation: bool,
     /// `return=minimal` — return empty body on mutating operations.
     pub return_minimal: bool,
+    /// `resolution=merge-duplicates` or `resolution=ignore-duplicates` — upsert mode.
+    pub resolution: Option<String>,
+    /// `tx=rollback` — dry-run mode (execute then rollback).
+    pub tx_rollback: bool,
+    /// `max-affected=N` — limit bulk operation scope.
+    pub max_affected: Option<u64>,
 }
 
 impl PreferHeader {
     /// Parse a `Prefer` header value (RFC 7240).
     ///
-    /// Supports `count=exact`, `return=representation`, and `return=minimal`.
-    /// Unknown preferences are silently ignored.
+    /// Supports `count=exact`, `return=representation`, `return=minimal`,
+    /// `resolution=merge-duplicates|ignore-duplicates`, `tx=rollback`, and
+    /// `max-affected=N`.  Unknown preferences are silently ignored.
     #[must_use]
     pub fn parse(header_value: &str) -> Self {
         let mut result = Self::default();
@@ -51,6 +58,14 @@ impl PreferHeader {
             } else if pref.eq_ignore_ascii_case("return=minimal") {
                 result.return_minimal = true;
                 result.return_representation = false;
+            } else if pref.eq_ignore_ascii_case("tx=rollback") {
+                result.tx_rollback = true;
+            } else if let Some(val) = strip_prefix_ci(pref, "resolution=") {
+                result.resolution = Some(val.to_string());
+            } else if let Some(val) = strip_prefix_ci(pref, "max-affected=") {
+                if let Ok(n) = val.parse::<u64>() {
+                    result.max_affected = Some(n);
+                }
             }
         }
         result
@@ -74,9 +89,29 @@ impl PreferHeader {
                     result.return_minimal = true;
                     result.return_representation = false;
                 }
+                if parsed.tx_rollback {
+                    result.tx_rollback = true;
+                }
+                if parsed.resolution.is_some() {
+                    result.resolution = parsed.resolution;
+                }
+                if parsed.max_affected.is_some() {
+                    result.max_affected = parsed.max_affected;
+                }
             }
         }
         result
+    }
+}
+
+/// Case-insensitive prefix strip.
+fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
+    if s.len() >= prefix.len()
+        && s[..prefix.len()].eq_ignore_ascii_case(prefix)
+    {
+        Some(&s[prefix.len()..])
+    } else {
+        None
     }
 }
 
@@ -391,7 +426,10 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 }
 
 impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
-    /// Handle a POST request (create mutation or custom action).
+    /// Handle a POST request (create mutation, bulk insert, or custom action).
+    ///
+    /// Array body on a collection route triggers bulk insert mode.
+    /// `Prefer: resolution=merge-duplicates` triggers upsert mode.
     ///
     /// # Errors
     ///
@@ -416,14 +454,56 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             }
         };
 
-        // Build variables from path params + body
+        // Detect array body → bulk insert
+        if let serde_json::Value::Array(items) = body {
+            // Array body on a single-resource route (with :id) is not allowed
+            if !resolved.path_params.is_empty() {
+                return Err(RestError::bad_request(
+                    "Array body not allowed on single-resource endpoint",
+                ));
+            }
+
+            let prefer = PreferHeader::from_headers(headers);
+            let bulk_handler = super::bulk::BulkHandler::new(
+                self.executor,
+                self.schema,
+                self.config,
+                self.route_table,
+            );
+            return bulk_handler
+                .handle_bulk_insert(items, mutation_name, &prefer, headers, security_context)
+                .await;
+        }
+
+        // Single POST (existing behavior)
         let variables = build_mutation_variables(&resolved.path_params, body);
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
+        // Check for upsert via Prefer header
+        let prefer = PreferHeader::from_headers(headers);
+        let effective_mutation = if let Some(ref resolution) = prefer.resolution {
+            let mutation_def = self.schema.find_mutation(mutation_name);
+            match resolution.as_str() {
+                "merge-duplicates" | "ignore-duplicates" => {
+                    match mutation_def.and_then(|md| md.upsert_function.as_deref()) {
+                        Some(upsert_fn) => upsert_fn,
+                        None => {
+                            return Err(RestError::bad_request(
+                                "Upsert not available — no compiler-generated upsert function exists",
+                            ));
+                        }
+                    }
+                }
+                _ => mutation_name,
+            }
+        } else {
+            mutation_name
+        };
+
         let result = execute_mutation(
             self.executor,
-            mutation_name,
+            effective_mutation,
             vars_ref,
             security_context,
         )
@@ -431,6 +511,19 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
+
+        if prefer.resolution.is_some() {
+            if let Ok(val) = HeaderValue::from_str(&format!(
+                "resolution={}",
+                prefer.resolution.as_deref().unwrap_or("")
+            )) {
+                response_headers.insert("preference-applied", val);
+            }
+            response_headers.insert(
+                "x-rows-affected",
+                HeaderValue::from_static("1"),
+            );
+        }
 
         Ok(RestResponse {
             status: StatusCode::from_u16(resolved.route.success_status)
@@ -497,7 +590,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         })
     }
 
-    /// Handle a PATCH request (partial update mutation or sub-resource action).
+    /// Handle a PATCH request (partial update, bulk update, or sub-resource action).
+    ///
+    /// Collection-level PATCH (no `:id` in path, requires filter) triggers bulk
+    /// update mode via the CQRS view-query-then-mutate pattern.
     ///
     /// Accepts `application/json` and `application/merge-patch+json`.
     ///
@@ -508,6 +604,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         &self,
         relative_path: &str,
         body: &serde_json::Value,
+        query_params: &[(&str, &str)],
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
@@ -525,45 +622,70 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             }
         }
 
+        // Try single-resource PATCH first (with :id)
         let resolved = self
             .route_table
-            .resolve(relative_path, HttpMethod::Patch)
-            .ok_or_else(|| RestError::not_found("Route not found"))?;
+            .resolve(relative_path, HttpMethod::Patch);
 
-        let mutation_name = match &resolved.route.source {
-            RouteSource::Mutation { name } => name.as_str(),
-            RouteSource::Query { .. } => {
-                return Err(RestError::internal("PATCH route backed by query"));
+        match resolved {
+            Some(r) if !r.path_params.is_empty() => {
+                // Single-resource PATCH (existing behavior)
+                let mutation_name = match &r.route.source {
+                    RouteSource::Mutation { name } => name.as_str(),
+                    RouteSource::Query { .. } => {
+                        return Err(RestError::internal("PATCH route backed by query"));
+                    }
+                };
+
+                let variables = build_mutation_variables(&r.path_params, body);
+                let variables_json = serde_json::Value::Object(variables);
+                let vars_ref = Some(&variables_json);
+
+                let result = execute_mutation(
+                    self.executor,
+                    mutation_name,
+                    vars_ref,
+                    security_context,
+                )
+                .await?;
+
+                let mut response_headers = HeaderMap::new();
+                set_request_id(headers, &mut response_headers);
+
+                Ok(RestResponse {
+                    status: StatusCode::OK,
+                    headers: response_headers,
+                    body: Some(serde_json::Value::String(result)),
+                })
             }
-        };
-
-        let variables = build_mutation_variables(&resolved.path_params, body);
-        let variables_json = serde_json::Value::Object(variables);
-        let vars_ref = Some(&variables_json);
-
-        let result = execute_mutation(
-            self.executor,
-            mutation_name,
-            vars_ref,
-            security_context,
-        )
-        .await?;
-
-        let mut response_headers = HeaderMap::new();
-        set_request_id(headers, &mut response_headers);
-
-        Ok(RestResponse {
-            status: StatusCode::OK,
-            headers: response_headers,
-            body: Some(serde_json::Value::String(result)),
-        })
+            _ => {
+                // Collection-level PATCH → bulk update
+                let bulk_handler = super::bulk::BulkHandler::new(
+                    self.executor,
+                    self.schema,
+                    self.config,
+                    self.route_table,
+                );
+                bulk_handler
+                    .handle_bulk_update(
+                        relative_path,
+                        body,
+                        query_params,
+                        headers,
+                        security_context,
+                    )
+                    .await
+            }
+        }
     }
 
     /// Handle a DELETE request.
     ///
-    /// Respects `Prefer: return=representation|minimal` and the configured
-    /// [`DeleteResponse`] policy. Gracefully degrades when entity data is
-    /// unavailable from the mutation response.
+    /// Single-resource DELETE (with `:id`): respects `Prefer: return=representation|minimal`
+    /// and the configured [`DeleteResponse`] policy.
+    ///
+    /// Collection-level DELETE (no `:id`, requires filter): triggers bulk delete
+    /// via the CQRS view-query-then-mutate pattern.
     ///
     /// # Errors
     ///
@@ -571,83 +693,94 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
     pub async fn handle_delete(
         &self,
         relative_path: &str,
+        query_params: &[(&str, &str)],
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
         let resolved = self
             .route_table
-            .resolve(relative_path, HttpMethod::Delete)
-            .ok_or_else(|| RestError::not_found("Route not found"))?;
+            .resolve(relative_path, HttpMethod::Delete);
 
-        let mutation_name = match &resolved.route.source {
-            RouteSource::Mutation { name } => name.as_str(),
-            RouteSource::Query { .. } => {
-                return Err(RestError::internal("DELETE route backed by query"));
-            }
-        };
-
-        // Build variables from path params only (no body for DELETE)
-        let mut variables = serde_json::Map::new();
-        for (key, value) in &resolved.path_params {
-            variables.insert(
-                key.clone(),
-                coerce_path_param_value(value),
-            );
-        }
-        let variables_json = serde_json::Value::Object(variables);
-        let vars_ref = Some(&variables_json);
-
-        let result = execute_mutation(
-            self.executor,
-            mutation_name,
-            vars_ref,
-            security_context,
-        )
-        .await?;
-
-        let prefer = PreferHeader::from_headers(headers);
-        let mut response_headers = HeaderMap::new();
-        set_request_id(headers, &mut response_headers);
-
-        // Determine return behavior:
-        // 1. Prefer header overrides config
-        // 2. Config sets default
-        let want_entity = if prefer.return_representation {
-            true
-        } else if prefer.return_minimal {
-            false
-        } else {
-            matches!(self.config.delete_response, DeleteResponse::Entity)
-        };
-
-        if want_entity {
-            // Try to extract entity from mutation response
-            let entity = extract_delete_entity(&result, mutation_name);
-
-            match entity {
-                Some(entity_value) => {
-                    if prefer.return_representation {
-                        response_headers.insert(
-                            "preference-applied",
-                            HeaderValue::from_static("return=representation"),
-                        );
+        match resolved {
+            Some(r) if !r.path_params.is_empty() => {
+                // Single-resource DELETE (existing behavior)
+                let mutation_name = match &r.route.source {
+                    RouteSource::Mutation { name } => name.as_str(),
+                    RouteSource::Query { .. } => {
+                        return Err(RestError::internal("DELETE route backed by query"));
                     }
-                    Ok(RestResponse {
-                        status: StatusCode::OK,
-                        headers: response_headers,
-                        body: Some(entity_value),
-                    })
+                };
+
+                let mut variables = serde_json::Map::new();
+                for (key, value) in &r.path_params {
+                    variables.insert(
+                        key.clone(),
+                        coerce_path_param_value(value),
+                    );
                 }
-                None => {
-                    // Graceful degradation: entity unavailable
-                    if prefer.return_representation {
+                let variables_json = serde_json::Value::Object(variables);
+                let vars_ref = Some(&variables_json);
+
+                let result = execute_mutation(
+                    self.executor,
+                    mutation_name,
+                    vars_ref,
+                    security_context,
+                )
+                .await?;
+
+                let prefer = PreferHeader::from_headers(headers);
+                let mut response_headers = HeaderMap::new();
+                set_request_id(headers, &mut response_headers);
+
+                let want_entity = if prefer.return_representation {
+                    true
+                } else if prefer.return_minimal {
+                    false
+                } else {
+                    matches!(self.config.delete_response, DeleteResponse::Entity)
+                };
+
+                if want_entity {
+                    let entity = extract_delete_entity(&result, mutation_name);
+
+                    match entity {
+                        Some(entity_value) => {
+                            if prefer.return_representation {
+                                response_headers.insert(
+                                    "preference-applied",
+                                    HeaderValue::from_static("return=representation"),
+                                );
+                            }
+                            Ok(RestResponse {
+                                status: StatusCode::OK,
+                                headers: response_headers,
+                                body: Some(entity_value),
+                            })
+                        }
+                        None => {
+                            if prefer.return_representation {
+                                response_headers.insert(
+                                    "preference-applied",
+                                    HeaderValue::from_static("return=minimal"),
+                                );
+                                response_headers.insert(
+                                    "x-preference-fallback",
+                                    HeaderValue::from_static("entity-unavailable"),
+                                );
+                            }
+                            Ok(RestResponse {
+                                status: StatusCode::NO_CONTENT,
+                                headers: response_headers,
+                                body: None,
+                            })
+                        }
+                    }
+                } else {
+                    if prefer.return_minimal {
                         response_headers.insert(
                             "preference-applied",
                             HeaderValue::from_static("return=minimal"),
-                        );
-                        response_headers.insert(
-                            "x-preference-fallback",
-                            HeaderValue::from_static("entity-unavailable"),
                         );
                     }
                     Ok(RestResponse {
@@ -657,18 +790,23 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     })
                 }
             }
-        } else {
-            if prefer.return_minimal {
-                response_headers.insert(
-                    "preference-applied",
-                    HeaderValue::from_static("return=minimal"),
+            _ => {
+                // Collection-level DELETE → bulk delete
+                let bulk_handler = super::bulk::BulkHandler::new(
+                    self.executor,
+                    self.schema,
+                    self.config,
+                    self.route_table,
                 );
+                bulk_handler
+                    .handle_bulk_delete(
+                        relative_path,
+                        query_params,
+                        headers,
+                        security_context,
+                    )
+                    .await
             }
-            Ok(RestResponse {
-                status: StatusCode::NO_CONTENT,
-                headers: response_headers,
-                body: None,
-            })
         }
     }
 }
@@ -1104,6 +1242,74 @@ mod tests {
         let prefer = PreferHeader::from_headers(&headers);
         assert!(prefer.count_exact);
         assert!(prefer.return_representation);
+    }
+
+    #[test]
+    fn prefer_parse_resolution_merge() {
+        let prefer = PreferHeader::parse("resolution=merge-duplicates");
+        assert_eq!(prefer.resolution.as_deref(), Some("merge-duplicates"));
+    }
+
+    #[test]
+    fn prefer_parse_resolution_ignore() {
+        let prefer = PreferHeader::parse("resolution=ignore-duplicates");
+        assert_eq!(prefer.resolution.as_deref(), Some("ignore-duplicates"));
+    }
+
+    #[test]
+    fn prefer_parse_tx_rollback() {
+        let prefer = PreferHeader::parse("tx=rollback");
+        assert!(prefer.tx_rollback);
+    }
+
+    #[test]
+    fn prefer_parse_max_affected() {
+        let prefer = PreferHeader::parse("max-affected=50");
+        assert_eq!(prefer.max_affected, Some(50));
+    }
+
+    #[test]
+    fn prefer_parse_max_affected_invalid() {
+        let prefer = PreferHeader::parse("max-affected=abc");
+        assert_eq!(prefer.max_affected, None);
+    }
+
+    #[test]
+    fn prefer_parse_combined_bulk() {
+        let prefer =
+            PreferHeader::parse("resolution=merge-duplicates, return=representation, max-affected=100");
+        assert_eq!(prefer.resolution.as_deref(), Some("merge-duplicates"));
+        assert!(prefer.return_representation);
+        assert_eq!(prefer.max_affected, Some(100));
+    }
+
+    #[test]
+    fn prefer_parse_tx_rollback_combined() {
+        let prefer = PreferHeader::parse("tx=rollback, return=representation");
+        assert!(prefer.tx_rollback);
+        assert!(prefer.return_representation);
+    }
+
+    #[test]
+    fn prefer_from_headers_bulk() {
+        let mut headers = HeaderMap::new();
+        headers.append("prefer", HeaderValue::from_static("resolution=merge-duplicates"));
+        headers.append("prefer", HeaderValue::from_static("max-affected=25"));
+        let prefer = PreferHeader::from_headers(&headers);
+        assert_eq!(prefer.resolution.as_deref(), Some("merge-duplicates"));
+        assert_eq!(prefer.max_affected, Some(25));
+    }
+
+    #[test]
+    fn prefer_parse_resolution_case_insensitive() {
+        let prefer = PreferHeader::parse("Resolution=merge-duplicates");
+        assert_eq!(prefer.resolution.as_deref(), Some("merge-duplicates"));
+    }
+
+    #[test]
+    fn prefer_parse_tx_case_insensitive() {
+        let prefer = PreferHeader::parse("TX=ROLLBACK");
+        assert!(prefer.tx_rollback);
     }
 
     // -----------------------------------------------------------------------

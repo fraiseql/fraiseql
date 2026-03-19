@@ -23,7 +23,7 @@ use tower_http::compression::CompressionLayer;
 use tracing::info;
 
 use super::handler::{RestError, RestHandler, RestResponse};
-use super::resource::{HttpMethod, RestRouteTable};
+use super::resource::{HttpMethod, RestRouteTable, RouteSource};
 use crate::extractors::OptionalSecurityContext;
 use crate::routes::graphql::AppState;
 
@@ -95,6 +95,12 @@ where
 
     // Register concrete routes for each resource so that axum can match them
     // directly (better diagnostics, HEAD/OPTIONS handled automatically).
+    //
+    // Track which collection paths already have PATCH/DELETE so we can add
+    // bulk operation routes for resources that have update/delete mutations.
+    let mut collection_patch_paths = std::collections::HashSet::new();
+    let mut collection_delete_paths = std::collections::HashSet::new();
+
     for resource in &route_table.resources {
         for route in &resource.routes {
             let axum_path = to_axum_path(&base_path, &route.path);
@@ -102,9 +108,41 @@ where
                 HttpMethod::Get => router.route(&axum_path, get(rest_get_handler::<A>)),
                 HttpMethod::Post => router.route(&axum_path, post(rest_post_handler::<A>)),
                 HttpMethod::Put => router.route(&axum_path, put(rest_put_handler::<A>)),
-                HttpMethod::Patch => router.route(&axum_path, patch(rest_patch_handler::<A>)),
-                HttpMethod::Delete => router.route(&axum_path, delete(rest_delete_handler::<A>)),
+                HttpMethod::Patch => {
+                    let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
+                    collection_patch_paths.insert(collection_path);
+                    router.route(&axum_path, patch(rest_patch_handler::<A>))
+                }
+                HttpMethod::Delete => {
+                    let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
+                    collection_delete_paths.insert(collection_path);
+                    router.route(&axum_path, delete(rest_delete_handler::<A>))
+                }
             };
+        }
+
+        // Register collection-level PATCH route for bulk update if an update
+        // mutation exists but no collection PATCH was derived.
+        let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
+        let has_update = resource.routes.iter().any(|r| {
+            matches!(&r.source, RouteSource::Mutation { name }
+                if state.executor.schema().find_mutation(name)
+                    .is_some_and(|m| matches!(m.operation,
+                        fraiseql_core::schema::MutationOperation::Update { .. })))
+        });
+        if has_update && !collection_patch_paths.contains(&collection_path) {
+            router = router.route(&collection_path, patch(rest_patch_handler::<A>));
+        }
+
+        // Register collection-level DELETE route for bulk delete.
+        let has_delete = resource.routes.iter().any(|r| {
+            matches!(&r.source, RouteSource::Mutation { name }
+                if state.executor.schema().find_mutation(name)
+                    .is_some_and(|m| matches!(m.operation,
+                        fraiseql_core::schema::MutationOperation::Delete { .. })))
+        });
+        if has_delete && !collection_delete_paths.contains(&collection_path) {
+            router = router.route(&collection_path, delete(rest_delete_handler::<A>));
         }
     }
 
@@ -252,7 +290,7 @@ where
     rest_result_to_response(result)
 }
 
-/// PATCH handler — partial update mutation.
+/// PATCH handler — partial update mutation or bulk update.
 async fn rest_patch_handler<A>(
     State(rest): State<RestState<A>>,
     OptionalSecurityContext(security_ctx): OptionalSecurityContext,
@@ -263,6 +301,12 @@ where
 {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
+    let query_string = parts.uri.query().unwrap_or("");
+    let query_pairs = parse_query_pairs(query_string);
+    let query_refs: Vec<(&str, &str)> = query_pairs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
 
     let body_value = match read_json_body(body).await {
         Ok(v) => v,
@@ -274,13 +318,13 @@ where
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
-        .handle_patch(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
+        .handle_patch(&relative_path, &body_value, &query_refs, &parts.headers, security_ctx.as_ref())
         .await;
 
     rest_result_to_response(result)
 }
 
-/// DELETE handler — delete mutation.
+/// DELETE handler — single-resource delete or bulk delete.
 async fn rest_delete_handler<A>(
     State(rest): State<RestState<A>>,
     OptionalSecurityContext(security_ctx): OptionalSecurityContext,
@@ -291,13 +335,19 @@ where
 {
     let (parts, _body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
+    let query_string = parts.uri.query().unwrap_or("");
+    let query_pairs = parse_query_pairs(query_string);
+    let query_refs: Vec<(&str, &str)> = query_pairs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
-        .handle_delete(&relative_path, &parts.headers, security_ctx.as_ref())
+        .handle_delete(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())
         .await;
 
     rest_result_to_response(result)
