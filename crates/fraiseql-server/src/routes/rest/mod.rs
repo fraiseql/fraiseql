@@ -17,5 +17,7 @@ pub mod params;
 pub mod resource;
 pub mod response;
 mod router;
+pub mod sse;
+pub mod streaming;
 
 pub use router::rest_router;

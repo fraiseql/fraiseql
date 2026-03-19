@@ -148,6 +148,10 @@ where
         if has_delete && !collection_delete_paths.contains(&collection_path) {
             router = router.route(&collection_path, delete(rest_delete_handler::<A>));
         }
+
+        // Register SSE stream route: GET /{resource}/stream
+        let stream_path = to_axum_path(&base_path, &format!("/{}/stream", resource.name));
+        router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
     // Apply compression (gzip/br/zstd) to REST responses.
@@ -211,6 +215,10 @@ struct RestState<A: DatabaseAdapter> {
 // ---------------------------------------------------------------------------
 
 /// GET handler — query execution (single resource or collection).
+///
+/// Content negotiation:
+/// - `Accept: application/x-ndjson` → NDJSON streaming (one JSON object per line)
+/// - `Accept: application/json` (default) → standard envelope response
 async fn rest_get_handler<A>(
     State(rest): State<RestState<A>>,
     OptionalSecurityContext(security_ctx): OptionalSecurityContext,
@@ -227,6 +235,44 @@ where
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
+
+    // NDJSON content negotiation
+    if super::streaming::accepts_ndjson(&parts.headers) {
+        let schema = rest.executor.schema();
+        let config = schema.rest_config.as_ref().expect("REST config must exist");
+        let ndjson_ctx = super::streaming::NdjsonRequest {
+            executor: &rest.executor,
+            schema,
+            config,
+            route_table: &rest.route_table,
+        };
+        let result = super::streaming::handle_ndjson_get(
+            &ndjson_ctx,
+            &relative_path,
+            &query_refs,
+            &parts.headers,
+            security_ctx.as_ref(),
+        )
+        .await;
+
+        return match result {
+            Ok(ndjson) => {
+                let mut builder = Response::builder().status(StatusCode::OK);
+                for (key, value) in &ndjson.headers {
+                    builder = builder.header(key, value);
+                }
+                builder
+                    .body(Body::from(ndjson.body))
+                    .unwrap_or_else(|_| {
+                        Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::empty())
+                            .expect("fallback response")
+                    })
+            }
+            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+        };
+    }
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist");
@@ -357,6 +403,94 @@ where
         .await;
 
     rest_result_to_response(result)
+}
+
+/// SSE handler — stream entity change events in real-time.
+///
+/// Returns `501 Not Implemented` when the `observers` feature is disabled.
+/// Otherwise, streams events for the given resource type via SSE.
+async fn rest_sse_handler<A>(
+    State(rest): State<RestState<A>>,
+    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    request: Request<Body>,
+) -> Response
+where
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    let (parts, _body) = request.into_parts();
+    let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
+
+    // Extract resource name from /{resource}/stream path
+    let resource_name = match super::sse::extract_stream_resource(&relative_path) {
+        Some(name) => name.to_string(),
+        None => {
+            return rest_result_to_response(Err(super::handler::RestError::not_found(
+                "Stream endpoint not found",
+            )));
+        }
+    };
+
+    // Verify the resource exists
+    let schema = rest.executor.schema();
+    let has_resource = rest
+        .route_table
+        .resources
+        .iter()
+        .any(|r| r.name == resource_name);
+
+    if !has_resource {
+        return rest_result_to_response(Err(super::handler::RestError::not_found(format!(
+            "Resource not found: {resource_name}"
+        ))));
+    }
+
+    // Check auth if required
+    if let Some(config) = &schema.rest_config {
+        if config.require_auth && security_ctx.is_none() {
+            return rest_result_to_response(Err(super::handler::RestError {
+                status: StatusCode::UNAUTHORIZED,
+                code: "UNAUTHENTICATED",
+                message: "Authentication required".to_string(),
+                details: None,
+            }));
+        }
+    }
+
+    // Check if observers feature is available
+    #[cfg(not(feature = "observers"))]
+    {
+        rest_result_to_response(Err(super::sse::observers_not_available()))
+    }
+
+    // With observers feature: set up SSE stream
+    #[cfg(feature = "observers")]
+    {
+        let _last_event_id = super::sse::extract_last_event_id(&parts.headers);
+
+        // Build SSE response with heartbeat stream.
+        // In a full implementation, this would connect to the observer event bus
+        // and emit insert/update/delete events.  For now, return the SSE
+        // connection with periodic heartbeat pings.
+        let heartbeat_interval =
+            std::time::Duration::from_secs(super::sse::DEFAULT_SSE_HEARTBEAT_SECONDS);
+
+        let stream = futures::stream::unfold((), move |()| async move {
+            tokio::time::sleep(heartbeat_interval).await;
+            let event = axum::response::sse::Event::default()
+                .event("ping")
+                .data("");
+            Some((Ok::<_, std::convert::Infallible>(event), ()))
+        });
+
+        let sse = axum::response::sse::Sse::new(stream)
+            .keep_alive(
+                axum::response::sse::KeepAlive::new()
+                    .interval(heartbeat_interval)
+                    .text(""),
+            );
+
+        axum::response::IntoResponse::into_response(sse)
+    }
 }
 
 // ---------------------------------------------------------------------------

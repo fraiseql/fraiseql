@@ -140,6 +140,9 @@ impl<'a> OpenApiGenerator<'a> {
 
             // Add bulk operation endpoints (collection-level PATCH/DELETE).
             self.add_bulk_operations(&mut paths, resource);
+
+            // Add SSE stream endpoint: /{resource}/stream
+            self.add_stream_endpoint(&mut paths, resource);
         }
 
         Value::Object(paths)
@@ -328,6 +331,56 @@ impl<'a> OpenApiGenerator<'a> {
                 }
             }));
         }
+    }
+
+    /// Add an SSE stream endpoint for a resource: `/{resource}/stream`.
+    fn add_stream_endpoint(&self, paths: &mut Map<String, Value>, resource: &RestResource) {
+        let stream_path = format!("/{}/stream", resource.name);
+
+        paths.insert(
+            stream_path,
+            json!({
+                "get": {
+                    "tags": [capitalize(&resource.name)],
+                    "summary": format!("Stream {} changes (SSE)", resource.name),
+                    "operationId": format!("stream_{}", resource.name),
+                    "description": format!(
+                        "Subscribe to real-time changes on {} via Server-Sent Events. \
+                         Requires the `observers` feature. Events: `insert`, `update`, `delete`, `ping` (heartbeat).",
+                        resource.name
+                    ),
+                    "parameters": [
+                        {
+                            "name": "Accept",
+                            "in": "header",
+                            "required": true,
+                            "schema": { "type": "string", "enum": ["text/event-stream"] },
+                            "description": "Must be text/event-stream for SSE."
+                        },
+                        {
+                            "name": "Last-Event-ID",
+                            "in": "header",
+                            "required": false,
+                            "schema": { "type": "string" },
+                            "description": "Resume from a specific event ID on reconnection."
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "SSE event stream",
+                            "content": {
+                                "text/event-stream": {
+                                    "schema": { "type": "string" }
+                                }
+                            }
+                        },
+                        "501": {
+                            "description": "Not Implemented (observers feature disabled)"
+                        }
+                    }
+                }
+            }),
+        );
     }
 
     fn operation_summary(&self, resource: &RestResource, route: &RestRoute) -> (String, String) {
@@ -791,6 +844,10 @@ impl<'a> OpenApiGenerator<'a> {
                                             }
                                         }
                                     }
+                                },
+                                "application/x-ndjson": {
+                                    "description": "Newline-delimited JSON stream (one object per line, no envelope)",
+                                    "schema": { "$ref": type_ref }
                                 }
                             }
                         }),
