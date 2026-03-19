@@ -601,6 +601,16 @@ impl<'a> RestParamExtractor<'a> {
         };
 
         for (key, inner) in obj {
+            // Logical DSL keys: recurse into their array elements.
+            if matches!(key.as_str(), "_or" | "_and" | "_not") {
+                if let Some(arr) = inner.as_array() {
+                    for item in arr {
+                        self.validate_filter_value(item)?;
+                    }
+                }
+                continue;
+            }
+
             // Top-level keys are field names.
             self.validate_field_name(key)?;
 
@@ -2324,6 +2334,31 @@ mod tests {
         let err = ext.extract(&[], &[("or", &input)]).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("nesting depth") || msg.contains("depth"), "got: {msg}");
+    }
+
+    #[test]
+    fn filter_json_with_logical_operators() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let filter = r#"{"_or":[{"name":{"eq":"Alice"}},{"name":{"eq":"Bob"}}]}"#;
+        let result = ext.extract(&[], &[("filter", filter)]).unwrap();
+        let wc = result.where_clause.unwrap();
+        assert!(wc.get("_or").is_some(), "expected _or in {wc}");
+    }
+
+    #[test]
+    fn filter_json_with_nested_logical_validates_fields() {
+        let config = test_config();
+        let qd = list_query_def();
+        let td = user_type_def();
+        let ext = extractor_list(&config, &qd, &td);
+
+        let filter = r#"{"_or":[{"bogus":{"eq":"x"}}]}"#;
+        let err = ext.extract(&[], &[("filter", filter)]).unwrap_err();
+        assert!(err.to_string().contains("Unknown field 'bogus'"));
     }
 
     #[test]
