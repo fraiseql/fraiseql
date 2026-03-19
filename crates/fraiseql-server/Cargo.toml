@@ -90,6 +90,8 @@ tracing = {workspace = true}
 tracing-opentelemetry = {version = "0.32", optional = true}
 tracing-subscriber = {workspace = true, features = ["json"]}
 urlencoding = "2.1"
+# Fast non-cryptographic hashing for ETag generation (REST transport)
+xxhash-rust = { version = "0.8", features = ["xxh3"], optional = true }
 # UUID generation
 uuid = {workspace = true}
 zeroize = "1.8"
@@ -136,7 +138,7 @@ default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 # REST transport (resource-centric REST API auto-generated from compiled schema)
-rest = []
+rest = ["dep:xxhash-rust"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]

@@ -3,3 +3,4 @@
 pub mod handler;
 pub mod params;
 pub mod resource;
+pub mod response;

@@ -351,6 +351,7 @@ fn validate_luhn(value: &str) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 

@@ -17,6 +17,7 @@
 #![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
 
 use fraiseql_secrets::secrets_manager::{SecretsBackendConfig, VaultAuth, create_secrets_manager};
+use zeroize::Zeroizing;
 
 /// Test file backend initialization
 #[tokio::test]
