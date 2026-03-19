@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{DirectiveEvaluator, FieldSelection, FragmentResolver, ParsedQuery, parse_query},
-    schema::{CompiledSchema, QueryDefinition},
+    schema::{CompiledSchema, QueryDefinition, TypeDefinition},
 };
 
 /// A matched query with extracted information.
@@ -27,7 +27,96 @@ pub struct QueryMatch {
     pub operation_name: Option<String>,
 
     /// The parsed query (for access to fragments, variables, etc.).
-    pub parsed_query: ParsedQuery,
+    ///
+    /// `Some` when constructed via `QueryMatcher::match_query()` (GraphQL string path).
+    /// `None` when constructed via `QueryMatch::from_operation()` (direct execution path).
+    pub parsed_query: Option<ParsedQuery>,
+}
+
+impl QueryMatch {
+    /// Build a `QueryMatch` from a query definition, field list, and arguments.
+    ///
+    /// Used by transports (REST, future gRPC) that bypass GraphQL parsing.
+    /// Builds the `selections` tree (using [`FieldSelection`]) so the planner's
+    /// projection extraction works correctly.
+    ///
+    /// `field_names` are the requested output fields (e.g. from `?select=id,name`).
+    /// If empty, no projection is applied (all fields returned).
+    /// **Flat fields only** — dot-notation is rejected.
+    ///
+    /// When `type_def` is provided, validates all field names against the type
+    /// using [`TypeDefinition::find_field_by_output_name()`] (respects aliases).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if a field name in `field_names`
+    /// does not exist in `type_def` (when provided), or if a field name
+    /// contains a dot (nested selection not supported via this constructor).
+    pub fn from_operation(
+        query_def: QueryDefinition,
+        field_names: Vec<String>,
+        arguments: HashMap<String, serde_json::Value>,
+        type_def: Option<&TypeDefinition>,
+    ) -> Result<Self> {
+        // Reject dot-notation in field names
+        for name in &field_names {
+            if name.contains('.') {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Nested field selection not supported: '{name}'. \
+                         Use the parent field name to include the full nested object."
+                    ),
+                    path: Some("select".to_string()),
+                });
+            }
+        }
+
+        // Validate field names against type definition when provided
+        if let Some(td) = type_def {
+            for name in &field_names {
+                if td.find_field_by_output_name(name).is_none() {
+                    let available: Vec<&str> = td.fields.iter().map(|f| f.output_name()).collect();
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Unknown field '{name}' on type '{}'. Available fields: {}",
+                            td.name,
+                            available.join(", ")
+                        ),
+                        path: Some("select".to_string()),
+                    });
+                }
+            }
+        }
+
+        // Build selections tree: one root FieldSelection with nested leaf selections
+        let nested_fields: Vec<FieldSelection> = field_names
+            .iter()
+            .map(|name| FieldSelection {
+                name:          name.clone(),
+                alias:         None,
+                arguments:     vec![],
+                nested_fields: vec![],
+                directives:    vec![],
+            })
+            .collect();
+
+        let root_selection = FieldSelection {
+            name:          query_def.name.clone(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields,
+            directives:    vec![],
+        };
+
+        Ok(Self {
+            query_def,
+            fields: field_names,
+            selections: vec![root_selection],
+            arguments,
+            operation_name: None,
+            parsed_query: None,
+        })
+    }
 }
 
 /// Query pattern matcher.
@@ -159,7 +248,7 @@ impl QueryMatcher {
             selections: final_selections,
             arguments,
             operation_name: parsed.operation_name.clone(),
-            parsed_query: parsed,
+            parsed_query: Some(parsed),
         })
     }
 
@@ -490,5 +579,151 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("Did you mean 'users'?"), "expected suggestion in: {msg}");
+    }
+
+    // =========================================================================
+    // QueryMatch::from_operation tests
+    // =========================================================================
+
+    fn test_query_def() -> QueryDefinition {
+        QueryDefinition {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+        }
+    }
+
+    #[test]
+    fn test_from_operation_builds_correct_selections() {
+        let qm = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["id".to_string(), "name".to_string()],
+            HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(qm.selections.len(), 1);
+        let root = &qm.selections[0];
+        assert_eq!(root.name, "users");
+        assert_eq!(root.nested_fields.len(), 2);
+        assert_eq!(root.nested_fields[0].name, "id");
+        assert_eq!(root.nested_fields[1].name, "name");
+    }
+
+    #[test]
+    fn test_from_operation_sets_parsed_query_none() {
+        let qm = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["id".to_string()],
+            HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        assert!(qm.parsed_query.is_none());
+    }
+
+    #[test]
+    fn test_from_operation_empty_field_list() {
+        let qm = QueryMatch::from_operation(
+            test_query_def(),
+            vec![],
+            HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(qm.selections.len(), 1);
+        assert!(qm.selections[0].nested_fields.is_empty());
+        assert!(qm.fields.is_empty());
+    }
+
+    #[test]
+    fn test_from_operation_roundtrip_with_planner() {
+        use crate::runtime::QueryPlanner;
+
+        let qm = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["id".to_string(), "name".to_string()],
+            HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        let planner = QueryPlanner::new(false);
+        let plan = planner.plan(&qm).unwrap();
+        assert_eq!(plan.projection_fields, vec!["id", "name"]);
+    }
+
+    #[test]
+    fn test_from_operation_validates_field_names() {
+        use crate::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+        let mut td = TypeDefinition::new("User", "v_user");
+        td.fields.push(FieldDefinition::new("id", FieldType::Id));
+        td.fields.push(FieldDefinition::new("name", FieldType::String));
+
+        let result = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["id".to_string(), "bogus".to_string()],
+            HashMap::new(),
+            Some(&td),
+        );
+
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Unknown field 'bogus'"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_from_operation_skips_validation_without_type_def() {
+        let qm = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["anything".to_string()],
+            HashMap::new(),
+            None,
+        );
+
+        assert!(qm.is_ok());
+    }
+
+    #[test]
+    fn test_from_operation_rejects_dot_notation() {
+        let result = QueryMatch::from_operation(
+            test_query_def(),
+            vec!["address.city".to_string()],
+            HashMap::new(),
+            None,
+        );
+
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Nested field selection not supported"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_match_query_sets_parsed_query_some() {
+        let schema = test_schema();
+        let matcher = QueryMatcher::new(schema);
+
+        let result = matcher.match_query("{ users { id } }", None).unwrap();
+        assert!(result.parsed_query.is_some());
     }
 }

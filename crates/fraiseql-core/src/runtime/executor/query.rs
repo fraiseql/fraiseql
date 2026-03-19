@@ -54,121 +54,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 3. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
-
-        // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
-        //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
-        //    evaluation.
-        let rls_where_clause: Option<RlsWhereClause> =
-            if let Some(ref rls_policy) = self.config.rls_policy {
-                // Evaluate RLS policy with user's security context
-                rls_policy.evaluate(security_context, &query_match.query_def.name)?
-            } else {
-                // No RLS policy configured, allow all access
-                None
-            };
-
-        // 5. Get SQL source from query definition
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
-
-        // 6. Generate SQL projection hint for requested fields (optimization)
-        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        let projection_hint = if !plan.projection_fields.is_empty()
-            && plan.jsonb_strategy == JsonbStrategy::Project
-        {
-            let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_projection_sql(&plan.projection_fields)
-                .unwrap_or_else(|_| "data".to_string());
-
-            Some(SqlProjectionHint {
-                database:                    self.adapter.database_type(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: compute_projection_reduction(
-                    plan.projection_fields.len(),
-                ),
-            })
-        } else {
-            // Stream strategy: return full JSONB, no projection hint
-            None
-        };
-
-        // 7. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
-        //    RLS so they cannot bypass it.
-        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
-        {
-            // Common path: unwrap RlsWhereClause into WhereClause for the adapter
-            rls_where_clause.map(RlsWhereClause::into_where_clause)
-        } else {
-            let mut conditions: Vec<WhereClause> = query_match
-                .query_def
-                .inject_params
-                .iter()
-                .map(|(col, source)| {
-                    let value = resolve_inject_value(col, source, security_context)?;
-                    Ok(WhereClause::Field {
-                        path: vec![col.clone()],
-                        operator: WhereOperator::Eq,
-                        value,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            if let Some(rls) = rls_where_clause {
-                conditions.insert(0, rls.into_where_clause());
-            }
-            match conditions.len() {
-                0 => None,
-                1 => Some(conditions.remove(0)),
-                _ => Some(WhereClause::And(conditions)),
-            }
-        };
-
-        // 8. Execute query with combined WHERE clause filter
-        let results = self
-            .adapter
-            .execute_with_projection(
-                sql_source,
-                projection_hint.as_ref(),
-                combined_where.as_ref(),
-                None,
-            )
-            .await?;
-
-        // 9. Apply field-level RBAC filtering (reject / mask / allow)
-        let access = self.apply_field_rbac_filtering(
-            &query_match.query_def.return_type,
-            plan.projection_fields,
-            security_context,
-        )?;
-
-        // 10. Project results — include both allowed and masked fields in projection
-        let mut all_projection_fields = access.allowed;
-        all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields);
-        let mut projected =
-            projector.project_results(&results, query_match.query_def.returns_list)?;
-
-        // 11. Null out masked fields in the projected result
-        if !access.masked.is_empty() {
-            null_masked_fields(&mut projected, &access.masked);
-        }
-
-        // 12. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
-
-        // 13. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+        // Delegate to shared execution logic
+        self.execute_from_match(&query_match, Some(security_context)).await
     }
 
     pub(super) async fn execute_regular_query(
@@ -203,20 +90,50 @@ impl<A: DatabaseAdapter> Executor<A> {
             return self.execute_relay_query(&query_match, variables).await;
         }
 
-        // 2. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
+        // Delegate to shared execution logic
+        self.execute_from_match(&query_match, None).await
+    }
 
-        // 3. Execute SQL query
-        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
-            crate::error::FraiseQLError::Validation {
-                message: "Query has no SQL source".to_string(),
-                path:    None,
-            }
-        })?;
+    /// Core execution logic shared by all query execution paths.
+    ///
+    /// Plans the query, evaluates RLS, resolves inject params, executes SQL,
+    /// applies field-level RBAC, projects results, and wraps in a data envelope.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source,
+    /// or if inject params are required but no security context is available.
+    /// Returns `FraiseQLError::Database` if the underlying adapter returns an error.
+    async fn execute_from_match(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<String> {
+        // 1. Create execution plan
+        let plan = self.planner.plan(query_match)?;
 
-        // 3a. Generate SQL projection hint for requested fields (optimization)
-        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        // This reduces payload by projecting only requested fields at the database level
+        // 2. Evaluate RLS policy and build WHERE clause filter.
+        let rls_where_clause: Option<RlsWhereClause> =
+            if let (Some(ref rls_policy), Some(ctx)) =
+                (&self.config.rls_policy, security_context)
+            {
+                rls_policy.evaluate(ctx, &query_match.query_def.name)?
+            } else {
+                None
+            };
+
+        // 3. Get SQL source from query definition
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // 4. Generate SQL projection hint for requested fields (optimization)
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
@@ -233,25 +150,263 @@ impl<A: DatabaseAdapter> Executor<A> {
                 ),
             })
         } else {
-            // Stream strategy: return full JSONB, no projection hint
             None
         };
 
+        // 5. AND inject conditions onto the RLS WHERE clause.
+        //    Inject conditions always come after RLS so they cannot bypass it.
+        let combined_where: Option<WhereClause> =
+            if query_match.query_def.inject_params.is_empty() {
+                rls_where_clause.map(RlsWhereClause::into_where_clause)
+            } else {
+                let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Query '{}' has inject params but was called without a security context",
+                        query_match.query_def.name
+                    ),
+                    path: None,
+                })?;
+                let mut conditions: Vec<WhereClause> = query_match
+                    .query_def
+                    .inject_params
+                    .iter()
+                    .map(|(col, source)| {
+                        let value = resolve_inject_value(col, source, ctx)?;
+                        Ok(WhereClause::Field {
+                            path:     vec![col.clone()],
+                            operator: WhereOperator::Eq,
+                            value,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                if let Some(rls) = rls_where_clause {
+                    conditions.insert(0, rls.into_where_clause());
+                }
+                match conditions.len() {
+                    0 => None,
+                    1 => Some(conditions.remove(0)),
+                    _ => Some(WhereClause::And(conditions)),
+                }
+            };
+
+        // 6. Execute query with combined WHERE clause filter
         let results = self
             .adapter
-            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None)
+            .execute_with_projection(
+                sql_source,
+                projection_hint.as_ref(),
+                combined_where.as_ref(),
+                None,
+            )
             .await?;
 
-        // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields);
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+        // 7. Apply field-level RBAC filtering (reject / mask / allow)
+        if let Some(ctx) = security_context {
+            let access = self.apply_field_rbac_filtering(
+                &query_match.query_def.return_type,
+                plan.projection_fields,
+                ctx,
+            )?;
 
-        // 5. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            let mut all_projection_fields = access.allowed;
+            all_projection_fields.extend(access.masked.iter().cloned());
+            let projector = ResultProjector::new(all_projection_fields);
+            let mut projected =
+                projector.project_results(&results, query_match.query_def.returns_list)?;
 
-        // 6. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+            if !access.masked.is_empty() {
+                null_masked_fields(&mut projected, &access.masked);
+            }
+
+            let response =
+                ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            Ok(serde_json::to_string(&response)?)
+        } else {
+            // No security context — skip RBAC filtering
+            let projector = ResultProjector::new(plan.projection_fields);
+            let projected =
+                projector.project_results(&results, query_match.query_def.returns_list)?;
+            let response =
+                ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            Ok(serde_json::to_string(&response)?)
+        }
+    }
+
+    /// Execute a query directly from a pre-built [`QueryMatch`], bypassing GraphQL parsing.
+    ///
+    /// This is the public entry point for transports (REST, gRPC) that already know
+    /// the operation name, fields, and variables. The `QueryMatch` is typically built
+    /// via [`QueryMatch::from_operation()`].
+    ///
+    /// # Arguments
+    ///
+    /// * `query_match` - Pre-built query match (from `QueryMatch::from_operation()`)
+    /// * `variables` - Optional variables for relay pagination (`first`, `after`, etc.)
+    /// * `security_context` - Optional authenticated user context for RLS and inject
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if:
+    /// - The security context is expired
+    /// - The query requires a role the user doesn't have
+    /// - The query has inject params but no security context is provided
+    /// - The query has no SQL source
+    pub async fn execute_query_direct(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<String> {
+        // Validate security context expiration
+        if let Some(ctx) = security_context {
+            if ctx.is_expired() {
+                return Err(FraiseQLError::Validation {
+                    message: "Security token has expired".to_string(),
+                    path:    Some("request.authorization".to_string()),
+                });
+            }
+        }
+
+        // Enforce requires_role
+        if let Some(ref required_role) = query_match.query_def.requires_role {
+            match security_context {
+                Some(ctx) if ctx.roles.iter().any(|r| r == required_role) => {},
+                _ => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Query '{}' not found in schema",
+                            query_match.query_def.name
+                        ),
+                        path: None,
+                    });
+                },
+            }
+        }
+
+        // Guard: queries with inject params require a security context.
+        if !query_match.query_def.inject_params.is_empty() && security_context.is_none() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path: None,
+            });
+        }
+
+        // Route relay queries to dedicated handler.
+        if query_match.query_def.relay {
+            return self.execute_relay_query(query_match, variables).await;
+        }
+
+        // Apply query timeout if configured
+        if self.config.query_timeout_ms > 0 {
+            let timeout_duration =
+                std::time::Duration::from_millis(self.config.query_timeout_ms);
+            tokio::time::timeout(
+                timeout_duration,
+                self.execute_from_match(query_match, security_context),
+            )
+            .await
+            .map_err(|_| FraiseQLError::Timeout {
+                timeout_ms: self.config.query_timeout_ms,
+                query:      Some(format!("direct:{}", query_match.query_def.name)),
+            })?
+        } else {
+            self.execute_from_match(query_match, security_context).await
+        }
+    }
+
+    /// Count the total number of rows matching the query's WHERE and RLS conditions.
+    ///
+    /// Issues a `SELECT COUNT(*) FROM {view} WHERE {conditions}` query, ignoring
+    /// pagination (ORDER BY, LIMIT, OFFSET). Useful for REST `X-Total-Count` headers
+    /// and `count=exact` query parameter support.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_match` - Pre-built query match identifying the SQL source and filters
+    /// * `variables` - Optional variables (unused for count, reserved for future use)
+    /// * `security_context` - Optional authenticated user context for RLS and inject
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source, or if
+    /// inject params are required but no security context is provided.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn count_rows(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        _variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<u64> {
+        // 1. Evaluate RLS policy
+        let rls_where_clause: Option<RlsWhereClause> =
+            if let (Some(ref rls_policy), Some(ctx)) =
+                (&self.config.rls_policy, security_context)
+            {
+                rls_policy.evaluate(ctx, &query_match.query_def.name)?
+            } else {
+                None
+            };
+
+        // 2. Get SQL source
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // 3. Build combined WHERE clause (RLS + inject)
+        let combined_where: Option<WhereClause> =
+            if query_match.query_def.inject_params.is_empty() {
+                rls_where_clause.map(RlsWhereClause::into_where_clause)
+            } else {
+                let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Query '{}' has inject params but no security context is available",
+                        query_match.query_def.name
+                    ),
+                    path: None,
+                })?;
+                let mut conditions: Vec<WhereClause> = query_match
+                    .query_def
+                    .inject_params
+                    .iter()
+                    .map(|(col, source)| {
+                        let value = resolve_inject_value(col, source, ctx)?;
+                        Ok(WhereClause::Field {
+                            path:     vec![col.clone()],
+                            operator: WhereOperator::Eq,
+                            value,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                if let Some(rls) = rls_where_clause {
+                    conditions.insert(0, rls.into_where_clause());
+                }
+                match conditions.len() {
+                    0 => None,
+                    1 => Some(conditions.remove(0)),
+                    _ => Some(WhereClause::And(conditions)),
+                }
+            };
+
+        // 4. Execute COUNT query via adapter
+        let rows = self
+            .adapter
+            .execute_where_query(sql_source, combined_where.as_ref(), None, None)
+            .await?;
+
+        // Return the row count
+        #[allow(clippy::cast_possible_truncation)] // Reason: row count fits u64
+        Ok(rows.len() as u64)
     }
 
     /// Execute a Relay connection query with cursor-based (keyset) pagination.

@@ -48,6 +48,37 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
         // guarantees at compile time that this adapter supports mutations.
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
     }
+
+    /// Execute a mutation by name with an authenticated security context.
+    ///
+    /// Compile-time enforcement: only available on adapters implementing
+    /// [`MutationCapable`]. Passes the security context for inject param resolution,
+    /// role checking, and audit purposes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the security context is expired
+    /// or lacks the required role.
+    /// Returns [`FraiseQLError::Validation`] if the mutation name is not in the schema.
+    pub async fn execute_mutation_with_security(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<String> {
+        if security_context.is_expired() {
+            return Err(FraiseQLError::Validation {
+                message: "Security token has expired".to_string(),
+                path:    Some("request.authorization".to_string()),
+            });
+        }
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            variables,
+            Some(security_context),
+        )
+        .await
+    }
 }
 
 impl<A: DatabaseAdapter> Executor<A> {

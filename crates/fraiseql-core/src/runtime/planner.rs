@@ -233,7 +233,7 @@ mod tests {
             }],
             arguments:      HashMap::new(),
             operation_name: Some("users".to_string()),
-            parsed_query:   ParsedQuery {
+            parsed_query:   Some(ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
                 root_field:     "users".to_string(),
@@ -241,7 +241,7 @@ mod tests {
                 variables:      vec![],
                 fragments:      vec![],
                 source:         "{ users { id name } }".to_string(),
-            },
+            }),
         }
     }
 
