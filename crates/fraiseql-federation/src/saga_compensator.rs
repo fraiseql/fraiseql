@@ -508,6 +508,11 @@ impl SagaCompensator {
     ///     println!("Order deleted successfully");
     /// }
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice — the `expect` on `self.store` is guarded by
+    /// an `is_none()` early-return immediately above.
     pub async fn compensate_step(
         &self,
         saga_id: Uuid,

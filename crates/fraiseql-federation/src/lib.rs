@@ -2,7 +2,6 @@
 // Reason: pedantic lints applied to existing federation module code.
 #![warn(missing_docs)]
 #![allow(clippy::doc_markdown)]
-#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::match_same_arms)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_precision_loss)]

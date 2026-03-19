@@ -247,6 +247,11 @@ impl RequestValidator {
     ///
     /// Returns [`ComplexityValidationError`] if variables are not a JSON object or exceed
     /// [`MAX_VARIABLES_COUNT`].
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice — the `expect` on `as_object()` is guarded
+    /// by a preceding `is_object()` check that returns `Err` first.
     pub fn validate_variables(
         &self,
         variables: Option<&serde_json::Value>,

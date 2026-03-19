@@ -329,7 +329,12 @@ impl KeyedRateLimiter {
         }
     }
 
-    /// Get the number of active rate limiters (for monitoring)
+    /// Get the number of active rate limiters (for monitoring).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned (a prior panic occurred
+    /// while the lock was held).
     pub fn active_limiters(&self) -> usize {
         let records = self
             .records
@@ -338,7 +343,12 @@ impl KeyedRateLimiter {
         records.len()
     }
 
-    /// Clear all rate limiters (for testing or reset)
+    /// Clear all rate limiters (for testing or reset).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned (a prior panic occurred
+    /// while the lock was held).
     pub fn clear(&self) {
         let mut records = self
             .records

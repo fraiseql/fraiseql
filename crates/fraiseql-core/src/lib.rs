@@ -88,9 +88,6 @@
 // Reason: `push_str(&format!(...))` is used in ~12 SQL builder sites (window.rs,
 //         aggregation/, explain.rs, schema.rs) where it is clearer than `write!`.
 #![allow(clippy::format_push_string)]
-// Reason: ~300+ public functions lack `# Panics` sections; doc coverage is
-//         tracked in roadmap.md (v2.2.0 cleanup).
-#![allow(clippy::missing_panics_doc)]
 // Reason: `from_str`/`from_value` are schema-specific constructors intentionally
 //         named to avoid confusion with the `FromStr` standard trait.
 #![allow(clippy::should_implement_trait)]

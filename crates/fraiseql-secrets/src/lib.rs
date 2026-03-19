@@ -23,7 +23,6 @@
 #![deny(missing_docs)]
 // module_name_repetitions, must_use_candidate, uninlined_format_args:
 // allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
-#![allow(clippy::missing_panics_doc)] // Reason: panics eliminated by design
 #![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
 #![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports

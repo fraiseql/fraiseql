@@ -54,6 +54,11 @@ impl ValidationResult {
     ///
     /// Returns the single `ConfigError` if exactly one error was collected.
     /// Returns `ConfigError::MultipleErrors` if more than one error was collected.
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice — the `expect` on `into_iter().next()` is
+    /// guarded by a preceding `len() == 1` check.
     pub fn into_result(self) -> Result<Vec<String>, ConfigError> {
         if self.errors.is_empty() {
             Ok(self.warnings)

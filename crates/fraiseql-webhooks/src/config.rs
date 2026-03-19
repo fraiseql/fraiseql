@@ -49,6 +49,11 @@ impl WebhookConfig {
     /// # Errors
     ///
     /// Returns `WebhookError::Configuration` if `secret_env` is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice — the `expect` is guarded by a preceding
+    /// emptiness check that returns `Err` before the call site is reached.
     pub fn validate_secret_env(&self) -> Result<(), WebhookError> {
         let name = &self.secret_env;
         if name.is_empty() {

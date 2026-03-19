@@ -117,6 +117,11 @@ pub fn filter_fields<'a>(
 /// # Returns
 ///
 /// `true` if user can access the field, `false` otherwise.
+///
+/// # Panics
+///
+/// Cannot panic in practice — the `expect` on `requires_scope` is guarded
+/// by an `is_none()` early-return immediately above.
 #[must_use]
 pub fn can_access_field(
     context: &SecurityContext,

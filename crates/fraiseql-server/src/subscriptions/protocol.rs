@@ -109,6 +109,11 @@ impl ProtocolCodec {
     /// # Errors
     ///
     /// Returns a [`ProtocolError`] if serialisation fails.
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice — the `expect` on `wire_type` is guarded
+    /// by an `is_none()` early-return immediately above.
     pub fn encode(&self, msg: ServerMessage) -> Result<Option<String>, ProtocolError> {
         match self.protocol {
             WsProtocol::GraphqlTransportWs => {

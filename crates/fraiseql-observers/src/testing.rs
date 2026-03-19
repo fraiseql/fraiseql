@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions; all panics are from mutex poisoning
 //! Mock implementations of traits for testing without external dependencies.
 
 #[cfg(any(test, feature = "testing"))]

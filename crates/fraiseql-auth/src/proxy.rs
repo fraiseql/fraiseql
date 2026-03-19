@@ -30,7 +30,11 @@ impl ProxyConfig {
         }
     }
 
-    /// Create a proxy config that trusts all local proxies (127.0.0.1 only)
+    /// Create a proxy config that trusts all local proxies (127.0.0.1 only).
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic — the IP literal `"127.0.0.1"` is always valid.
     pub fn localhost_only() -> Self {
         Self {
             trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")],

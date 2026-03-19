@@ -71,6 +71,11 @@ impl MetricsRegistry {
     ///
     /// Returns a Prometheus error if metric registration with the global
     /// registry fails (e.g., duplicate metric names from another library).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the one-time global metrics initialization itself fails
+    /// (e.g., Prometheus metric name collision with another library).
     pub fn global() -> PrometheusResult<Self> {
         Ok(GLOBAL_REGISTRY
             .get_or_init(|| Self::register_metrics().expect("Failed to initialize global metrics registry"))

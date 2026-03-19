@@ -94,6 +94,11 @@ pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
 /// let app = Router::new()
 ///     .layer(axum::middleware::from_fn(security_headers_middleware));
 /// ```
+///
+/// # Panics
+///
+/// Cannot panic in practice — the `expect` calls parse static header value
+/// string literals that are always valid.
 pub async fn security_headers_middleware(
     req: axum::extract::Request,
     next: Next,

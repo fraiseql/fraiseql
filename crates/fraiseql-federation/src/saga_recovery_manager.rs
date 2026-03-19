@@ -207,6 +207,11 @@ impl SagaRecoveryManager {
     /// let stats = manager.get_stats();
     /// println!("Processed {} sagas in {} iterations", stats.sagas_processed, stats.iterations);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal stats mutex is poisoned (a prior panic occurred
+    /// while the lock was held).
     pub fn get_stats(&self) -> RecoveryStats {
         self.stats.lock().expect("stats mutex poisoned").clone()
     }

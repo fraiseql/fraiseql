@@ -155,6 +155,10 @@ impl CustomTypeRegistry {
     /// Remove a custom scalar type definition.
     ///
     /// Returns the removed definition if it existed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal `RwLock` is poisoned and cannot be recovered.
     pub fn remove(&self, name: &str) -> Option<CustomTypeDef> {
         self.types
             .write()
@@ -204,6 +208,10 @@ impl CustomTypeRegistry {
     }
 
     /// Clear all registered custom scalars.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal `RwLock` is poisoned and cannot be recovered.
     pub fn clear(&self) {
         self.types
             .write()

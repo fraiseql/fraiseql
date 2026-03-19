@@ -57,6 +57,11 @@ pub mod mocks {
         }
 
         /// Return a snapshot of all `verify` calls recorded so far.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned (a prior panic occurred
+        /// while the lock was held).
         #[must_use]
         pub fn get_calls(&self) -> Vec<MockVerifyCall> {
             self.calls.lock().unwrap().clone()
@@ -115,7 +120,12 @@ pub mod mocks {
             }
         }
 
-        /// Pre-populate with existing events for testing duplicates
+        /// Pre-populate with existing events for testing duplicates.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned (a prior panic occurred
+        /// while the lock was held).
         #[must_use]
         pub fn with_existing_events(events: Vec<(&str, &str)>) -> Self {
             let store = Self::new();
@@ -136,6 +146,11 @@ pub mod mocks {
         }
 
         /// Retrieve the stored record for a `(provider, event_id)` pair, if one exists.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned (a prior panic occurred
+        /// while the lock was held).
         #[must_use]
         pub fn get_record(&self, provider: &str, event_id: &str) -> Option<IdempotencyRecord> {
             self.events
