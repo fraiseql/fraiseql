@@ -273,6 +273,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
         DatabaseType::PostgreSQL
     }
 
+    fn supports_mutations(&self) -> bool {
+        false
+    }
+
     async fn health_check(&self) -> Result<()> {
         // fraiseql-wire's FraiseClient contains non-Send types (raw pointers in TLS),
         // which makes it incompatible with the async_trait Send requirement.
