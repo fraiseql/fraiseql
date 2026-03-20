@@ -119,6 +119,24 @@ impl DatabaseAdapter for PostgresAdapter {
         DatabaseType::PostgreSQL
     }
 
+    async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
+        if variables.is_empty() {
+            return Ok(());
+        }
+        let client = self.acquire_connection_with_retry().await?;
+        for &(name, value) in variables {
+            // set_config(name, value, is_local) — is_local=true gives SET LOCAL semantics
+            client
+                .query("SELECT set_config($1, $2, true)", &[&name, &value])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to set session variable '{name}': {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+        }
+        Ok(())
+    }
+
     async fn health_check(&self) -> Result<()> {
         // Use retry logic for health check to avoid false negatives during pool exhaustion
         let client = self.acquire_connection_with_retry().await?;

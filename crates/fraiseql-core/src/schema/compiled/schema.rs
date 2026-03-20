@@ -26,7 +26,7 @@ use crate::{
     schema::{
         config_types::{
             DebugConfig, FederationConfig, McpConfig, ObserversConfig, RestConfig,
-            SubscriptionsConfig, ValidationConfig,
+            SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -152,6 +152,11 @@ pub struct CompiledSchema {
     /// Compiled from the `[rest]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
+
+    /// Session variable configuration.
+    /// Compiled from the `[session_variables]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_variables_config: Option<SessionVariablesConfig>,
 
     /// Target database type for SQL generation.
     ///

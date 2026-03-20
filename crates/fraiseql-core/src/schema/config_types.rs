@@ -536,6 +536,73 @@ impl Default for SubscriptionHooksConfig {
     }
 }
 
+/// Source from which a session variable value is resolved at request time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "source", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum SessionVariableSource {
+    /// Extract from a JWT claim (e.g., `{ "source": "jwt", "claim": "tenant_id" }`).
+    Jwt {
+        /// JWT claim name (e.g., `"sub"`, `"tenant_id"`, or a custom claim).
+        claim: String,
+    },
+    /// Extract from an HTTP request header (e.g., `Accept-Language`).
+    Header {
+        /// Header name (e.g., `"Accept-Language"`).
+        name: String,
+    },
+}
+
+/// A single session variable mapping.
+///
+/// Maps a PostgreSQL GUC variable name (e.g., `app.locale`) to a runtime source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionVariableMapping {
+    /// PostgreSQL GUC name (e.g., `"app.locale"`, `"app.tenant_id"`).
+    ///
+    /// Must start with `app.` or `fraiseql.` to avoid namespace collisions
+    /// with built-in PostgreSQL settings.
+    pub pg_name: String,
+
+    /// Where to get the runtime value.
+    #[serde(flatten)]
+    pub source: SessionVariableSource,
+}
+
+/// Session variable configuration compiled from `[session_variables]` in `fraiseql.toml`.
+///
+/// Session variables are emitted as `SELECT set_config($1, $2, true)` before each
+/// query/mutation. They are transaction-scoped (`SET LOCAL` semantics) and reset
+/// automatically on commit/rollback.
+///
+/// PostgreSQL views and functions can read them via `current_setting('app.locale', true)`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionVariablesConfig {
+    /// User-defined session variable mappings.
+    #[serde(default)]
+    pub variables: Vec<SessionVariableMapping>,
+
+    /// Automatically inject `fraiseql.started_at` (current timestamp) before mutations.
+    ///
+    /// SQL functions can use `current_setting('fraiseql.started_at', true)::timestamptz`
+    /// to compute elapsed time.
+    #[serde(default = "default_inject_started_at")]
+    pub inject_started_at: bool,
+}
+
+const fn default_inject_started_at() -> bool {
+    true
+}
+
+impl Default for SessionVariablesConfig {
+    fn default() -> Self {
+        Self {
+            variables:         Vec::new(),
+            inject_started_at: true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -775,5 +842,77 @@ mod tests {
         let json = serde_json::to_string(&target).unwrap();
         let restored: ConflictTarget = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.columns.len(), 2);
+    }
+
+    // ── Session variables config tests ──────────────────────────────────
+
+    #[test]
+    fn test_session_variables_config_default() {
+        let config = SessionVariablesConfig::default();
+        assert!(config.variables.is_empty());
+        assert!(config.inject_started_at);
+    }
+
+    #[test]
+    fn test_session_variable_jwt_source_roundtrip() {
+        let mapping = SessionVariableMapping {
+            pg_name: "app.tenant_id".to_string(),
+            source:  SessionVariableSource::Jwt { claim: "tenant_id".to_string() },
+        };
+        let json = serde_json::to_string(&mapping).unwrap();
+        let restored: SessionVariableMapping = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.pg_name, "app.tenant_id");
+        assert_eq!(
+            restored.source,
+            SessionVariableSource::Jwt { claim: "tenant_id".to_string() }
+        );
+    }
+
+    #[test]
+    fn test_session_variable_header_source_roundtrip() {
+        let mapping = SessionVariableMapping {
+            pg_name: "app.locale".to_string(),
+            source:  SessionVariableSource::Header { name: "Accept-Language".to_string() },
+        };
+        let json = serde_json::to_string(&mapping).unwrap();
+        let restored: SessionVariableMapping = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.pg_name, "app.locale");
+        assert_eq!(
+            restored.source,
+            SessionVariableSource::Header { name: "Accept-Language".to_string() }
+        );
+    }
+
+    #[test]
+    fn test_session_variables_config_in_compiled_schema() {
+        let mut schema = CompiledSchema::new();
+        schema.session_variables_config = Some(SessionVariablesConfig {
+            variables: vec![
+                SessionVariableMapping {
+                    pg_name: "app.tenant_id".to_string(),
+                    source:  SessionVariableSource::Jwt { claim: "tenant_id".to_string() },
+                },
+                SessionVariableMapping {
+                    pg_name: "app.locale".to_string(),
+                    source:  SessionVariableSource::Header { name: "Accept-Language".to_string() },
+                },
+            ],
+            inject_started_at: true,
+        });
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(json.contains("session_variables_config"));
+        assert!(json.contains("app.tenant_id"));
+
+        let restored: CompiledSchema = serde_json::from_str(&json).unwrap();
+        let config = restored.session_variables_config.unwrap();
+        assert_eq!(config.variables.len(), 2);
+        assert!(config.inject_started_at);
+    }
+
+    #[test]
+    fn test_session_variables_config_omitted_when_none() {
+        let schema = CompiledSchema::new();
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(!json.contains("session_variables_config"));
     }
 }

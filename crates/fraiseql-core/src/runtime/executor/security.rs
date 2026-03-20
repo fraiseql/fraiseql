@@ -191,6 +191,84 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
+    /// Resolve and emit session variables from the compiled schema configuration.
+    ///
+    /// Reads `session_variables_config` from the schema, resolves each variable's
+    /// value from the security context (JWT claims or HTTP headers), and calls
+    /// `adapter.set_session_variables()` to emit `SET LOCAL` on PostgreSQL.
+    ///
+    /// For mutations, also injects the built-in `fraiseql.started_at` timestamp
+    /// if `inject_started_at` is enabled (default: true).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if a required JWT claim is missing.
+    /// Returns `FraiseQLError::Database` if `set_config()` fails.
+    async fn emit_session_variables(
+        &self,
+        security_context: &SecurityContext,
+        is_mutation: bool,
+    ) -> Result<()> {
+        use crate::schema::SessionVariableSource;
+
+        let Some(config) = self.schema.session_variables_config.as_ref() else {
+            return Ok(());
+        };
+
+        let mut resolved: Vec<(String, String)> = Vec::with_capacity(
+            config.variables.len() + usize::from(is_mutation && config.inject_started_at),
+        );
+
+        for mapping in &config.variables {
+            let value = match &mapping.source {
+                SessionVariableSource::Jwt { claim } => {
+                    match claim.as_str() {
+                        "sub" => security_context.user_id.clone(),
+                        "tenant_id" | "org_id" => security_context
+                            .tenant_id
+                            .clone()
+                            .unwrap_or_default(),
+                        other => security_context
+                            .attributes
+                            .get(other)
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            })
+                            .unwrap_or_default(),
+                    }
+                },
+                SessionVariableSource::Header { name } => {
+                    // Headers are forwarded via SecurityContext.attributes with "header:" prefix
+                    security_context
+                        .attributes
+                        .get(&format!("header:{name}"))
+                        .and_then(|v| v.as_str().map(String::from))
+                        .unwrap_or_default()
+                },
+            };
+            resolved.push((mapping.pg_name.clone(), value));
+        }
+
+        // Built-in: fraiseql.started_at for mutations
+        if is_mutation && config.inject_started_at {
+            resolved.push((
+                "fraiseql.started_at".to_string(),
+                chrono::Utc::now().to_rfc3339(),
+            ));
+        }
+
+        if resolved.is_empty() {
+            return Ok(());
+        }
+
+        let pairs: Vec<(&str, &str)> = resolved
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        self.adapter.set_session_variables(&pairs).await
+    }
+
     /// Internal execution logic with security context (called by execute_with_security with timeout
     /// wrapper).
     async fn execute_with_security_internal(
@@ -201,6 +279,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // 1. Classify query type
         let query_type = self.classify_query(query)?;
+
+        // 1a. Emit session variables if configured
+        let is_mutation = matches!(query_type, QueryType::Mutation(_));
+        self.emit_session_variables(security_context, is_mutation).await?;
 
         // 2. Route to appropriate handler (with RLS support for regular queries)
         match query_type {

@@ -698,6 +698,30 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(0)
     }
 
+    /// Set transaction-scoped session variables before query execution.
+    ///
+    /// On PostgreSQL, this emits `SELECT set_config($1, $2, true)` for each
+    /// variable, which behaves like `SET LOCAL` (transaction-scoped, auto-resets
+    /// on commit/rollback).
+    ///
+    /// Views and functions can read these values via
+    /// `current_setting('app.locale', true)`.
+    ///
+    /// The default implementation is a no-op. Only PostgreSQL supports session
+    /// variables; other databases silently ignore this call.
+    ///
+    /// # Arguments
+    ///
+    /// * `variables` - Pairs of `(pg_guc_name, value)`. Names must be prefixed
+    ///   with `app.` or `fraiseql.` to avoid collisions with built-in settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if `set_config()` fails.
+    async fn set_session_variables(&self, _variables: &[(&str, &str)]) -> Result<()> {
+        Ok(())
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

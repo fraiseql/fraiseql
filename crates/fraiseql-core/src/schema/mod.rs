@@ -61,8 +61,9 @@ pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
     CompiledSecurityConfig, DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride,
     EventHandler, DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, McpConfig,
-    ObserversConfig, RelationshipDef, RestConfig, SubscriptionHooksConfig, SubscriptionsConfig,
-    ValidationConfig, ConflictTarget, DEFAULT_MAX_EMBEDDING_DEPTH, DEFAULT_MAX_BULK_AFFECTED,
+    ObserversConfig, RelationshipDef, RestConfig, SessionVariableMapping, SessionVariableSource,
+    SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    ConflictTarget, DEFAULT_MAX_EMBEDDING_DEPTH, DEFAULT_MAX_BULK_AFFECTED,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
