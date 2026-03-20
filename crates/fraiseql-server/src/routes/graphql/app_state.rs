@@ -57,6 +57,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub validator:             crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
     pub debug_config:          Option<fraiseql_core::schema::DebugConfig>,
+    /// Development mode configuration (optional, from `[dev]` in `fraiseql.toml`).
+    pub dev_config:            Option<fraiseql_core::schema::DevConfig>,
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
     /// Defaults to `100_000` (100 KiB).  Configurable via
@@ -115,6 +117,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             apq_metrics: Arc::new(ApqMetrics::default()),
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
+            dev_config: None,
             pool_tuner: None,
             rate_limiter: None,
             max_get_query_bytes: 100_000,

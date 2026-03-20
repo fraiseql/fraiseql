@@ -95,6 +95,26 @@ impl Default for DebugConfig {
     }
 }
 
+/// Development mode configuration (TOML authoring struct).
+///
+/// When enabled, the server injects default JWT claims for unauthenticated
+/// requests — removing the need for a real OIDC setup during local development.
+///
+/// ```toml
+/// [dev]
+/// enabled = true
+/// default_claims = { sub = "dev-user", tenant_id = "dev-tenant" }
+/// ```
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DevConfig {
+    /// Enable dev mode. Default: false.
+    pub enabled: bool,
+    /// Default claims injected when no `Authorization` header is present.
+    #[serde(default)]
+    pub default_claims: std::collections::HashMap<String, serde_json::Value>,
+}
+
 /// REST transport configuration (TOML authoring struct).
 ///
 /// ```toml
@@ -134,22 +154,46 @@ pub struct RestConfig {
     pub max_filter_bytes: usize,
     /// Maximum nesting depth for resource embedding (default 3).
     pub max_embedding_depth: usize,
+    /// Maximum rows affected by a single bulk UPDATE or DELETE.
+    /// Default: 1000. Set to 0 to disable the limit.
+    pub max_bulk_affected: u64,
+    /// Default `Cache-Control: max-age` for GET responses (seconds).
+    /// Individual queries can override via `cache_ttl_seconds`.
+    /// Default: 60.
+    pub default_cache_ttl: u64,
+    /// TTL for idempotency key deduplication (seconds).
+    /// After this period, the same `Idempotency-Key` can be reused.
+    /// Default: 86400 (24 hours).
+    pub idempotency_ttl_seconds: u64,
+    /// CDN/shared-cache TTL in seconds (`s-maxage`).
+    /// Only applies to public (unauthenticated) GET responses.
+    #[serde(default)]
+    pub cdn_max_age: Option<u64>,
+    /// Batch size for NDJSON streaming. Rows are fetched from the database
+    /// in batches of this size and streamed to the client incrementally.
+    /// Default: 500.
+    pub ndjson_batch_size: u64,
 }
 
 impl Default for RestConfig {
     fn default() -> Self {
         Self {
-            enabled:             false,
-            path:                "/rest/v1".to_string(),
-            require_auth:        true,
-            include:             Vec::new(),
-            exclude:             Vec::new(),
-            delete_response:     DeleteResponse::NoContent,
-            max_page_size:       100,
-            default_page_size:   20,
-            etag:                true,
-            max_filter_bytes:    4096,
-            max_embedding_depth: fraiseql_core::schema::DEFAULT_MAX_EMBEDDING_DEPTH,
+            enabled:                 false,
+            path:                    "/rest/v1".to_string(),
+            require_auth:            true,
+            include:                 Vec::new(),
+            exclude:                 Vec::new(),
+            delete_response:         DeleteResponse::NoContent,
+            max_page_size:           100,
+            default_page_size:       20,
+            etag:                    true,
+            max_filter_bytes:        4096,
+            max_embedding_depth:     fraiseql_core::schema::DEFAULT_MAX_EMBEDDING_DEPTH,
+            max_bulk_affected:       fraiseql_core::schema::DEFAULT_MAX_BULK_AFFECTED,
+            default_cache_ttl:       60,
+            idempotency_ttl_seconds: 86_400,
+            cdn_max_age:             None,
+            ndjson_batch_size:       500,
         }
     }
 }

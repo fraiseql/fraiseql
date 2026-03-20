@@ -7,6 +7,8 @@
 //! The `private` directive is used when the request includes an `Authorization`
 //! header (response varies by user), `public` otherwise.
 
+use std::fmt::Write;
+
 use axum::http::{HeaderMap, HeaderValue};
 
 // ---------------------------------------------------------------------------
@@ -23,6 +25,8 @@ pub struct CacheContext {
     pub query_ttl: Option<u64>,
     /// Default TTL from `RestConfig.default_cache_ttl`.
     pub default_ttl: u64,
+    /// CDN/shared-cache TTL (`s-maxage`). Only emitted on public GET responses.
+    pub cdn_max_age: Option<u64>,
 }
 
 /// Apply `Cache-Control` and `Vary` headers to a response header map.
@@ -36,7 +40,16 @@ pub fn apply_cache_headers(headers: &mut HeaderMap, ctx: &CacheContext) {
     if ctx.is_get {
         let max_age = ctx.query_ttl.unwrap_or(ctx.default_ttl);
         let visibility = if ctx.has_auth { "private" } else { "public" };
-        let value = format!("{visibility}, max-age={max_age}");
+        let mut value = format!("{visibility}, max-age={max_age}");
+
+        // s-maxage only on public responses — CDNs ignore private responses,
+        // but omitting it is cleaner and avoids confusion.
+        if !ctx.has_auth {
+            if let Some(s_maxage) = ctx.cdn_max_age {
+                write!(value, ", s-maxage={s_maxage}").expect("write to String");
+            }
+        }
+
         if let Ok(val) = HeaderValue::from_str(&value) {
             headers.insert("cache-control", val);
         }
@@ -71,6 +84,7 @@ mod tests {
                 has_auth: false,
                 query_ttl: None,
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
@@ -93,6 +107,7 @@ mod tests {
                 has_auth: true,
                 query_ttl: None,
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
@@ -111,6 +126,7 @@ mod tests {
                 has_auth: false,
                 query_ttl: Some(120),
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
@@ -129,6 +145,7 @@ mod tests {
                 has_auth: false,
                 query_ttl: None,
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
@@ -148,6 +165,7 @@ mod tests {
                 has_auth: true,
                 query_ttl: None,
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
@@ -166,11 +184,88 @@ mod tests {
                 has_auth: false,
                 query_ttl: Some(0),
                 default_ttl: 60,
+                cdn_max_age: None,
             },
         );
         assert_eq!(
             headers.get("cache-control").unwrap().to_str().unwrap(),
             "public, max-age=0"
+        );
+    }
+
+    #[test]
+    fn s_maxage_on_public_get() {
+        let mut headers = HeaderMap::new();
+        apply_cache_headers(
+            &mut headers,
+            &CacheContext {
+                is_get: true,
+                has_auth: false,
+                query_ttl: None,
+                default_ttl: 60,
+                cdn_max_age: Some(300),
+            },
+        );
+        assert_eq!(
+            headers.get("cache-control").unwrap().to_str().unwrap(),
+            "public, max-age=60, s-maxage=300"
+        );
+    }
+
+    #[test]
+    fn no_s_maxage_on_private_get() {
+        let mut headers = HeaderMap::new();
+        apply_cache_headers(
+            &mut headers,
+            &CacheContext {
+                is_get: true,
+                has_auth: true,
+                query_ttl: None,
+                default_ttl: 60,
+                cdn_max_age: Some(300),
+            },
+        );
+        assert_eq!(
+            headers.get("cache-control").unwrap().to_str().unwrap(),
+            "private, max-age=60"
+        );
+    }
+
+    #[test]
+    fn no_s_maxage_when_none() {
+        let mut headers = HeaderMap::new();
+        apply_cache_headers(
+            &mut headers,
+            &CacheContext {
+                is_get: true,
+                has_auth: false,
+                query_ttl: None,
+                default_ttl: 60,
+                cdn_max_age: None,
+            },
+        );
+        assert_eq!(
+            headers.get("cache-control").unwrap().to_str().unwrap(),
+            "public, max-age=60"
+        );
+    }
+
+    #[test]
+    fn no_s_maxage_on_mutations() {
+        let mut headers = HeaderMap::new();
+        apply_cache_headers(
+            &mut headers,
+            &CacheContext {
+                is_get: false,
+                has_auth: false,
+                query_ttl: None,
+                default_ttl: 60,
+                cdn_max_age: Some(300),
+            },
+        );
+        assert_eq!(
+            headers.get("cache-control").unwrap().to_str().unwrap(),
+            "no-store"
         );
     }
 }

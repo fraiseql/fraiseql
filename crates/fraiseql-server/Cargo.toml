@@ -61,6 +61,7 @@ pin-project = "1"
 rand = {workspace = true}
 # Redis for rate limiting (optional)
 redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+rmp-serde = { version = "1", optional = true }
 reqwest = {workspace = true}
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
@@ -149,6 +150,7 @@ observers = ["fraiseql-observers"]
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
+redis-idempotency = ["rest", "redis", "dep:rmp-serde"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
 secrets = ["dep:fraiseql-secrets"]

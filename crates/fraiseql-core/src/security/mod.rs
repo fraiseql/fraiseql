@@ -16,6 +16,7 @@
 
 pub mod audit;
 pub mod auth_middleware;
+pub mod dev_context;
 pub mod error_formatter;
 pub mod errors;
 pub mod field_filter;
@@ -48,6 +49,7 @@ pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
+pub use dev_context::{is_dev_mode_active, security_context_from_dev_claims};
 pub use security_context::SecurityContext;
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
 pub use validation_audit::{

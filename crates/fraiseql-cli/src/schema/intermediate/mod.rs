@@ -160,6 +160,13 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
 
+    /// Development mode configuration.
+    ///
+    /// Compiled from `[dev]` in `fraiseql.toml`. Embedded into the compiled
+    /// schema for server-side consumption.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dev_config: Option<fraiseql_core::schema::DevConfig>,
+
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///
     /// Never present in `schema.json` — populated at compile time from `[query_defaults]`

@@ -214,6 +214,13 @@ fn generate_where_input_type(
         });
     }
 
+    // Deduplicate fields by name (rich operators may overlap with standard operators).
+    // Keep the first occurrence (standard operator takes precedence).
+    {
+        let mut seen = std::collections::HashSet::new();
+        fields.retain(|f| seen.insert(f.name.clone()));
+    }
+
     // Build SQL template metadata for this rich type
     let operator_refs: Vec<&str> = operator_names.iter().map(std::string::String::as_str).collect();
     let sql_metadata = sql_templates::build_sql_templates_metadata(&operator_refs);

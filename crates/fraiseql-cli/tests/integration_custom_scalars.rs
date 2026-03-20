@@ -35,7 +35,7 @@ fn test_compile_schema_with_single_custom_scalar() {
             }],
             base_type:        Some("String".to_string()),
         }]),
-        security:             None,
+security:             None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
@@ -43,6 +43,7 @@ fn test_compile_schema_with_single_custom_scalar() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -93,7 +94,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
                 base_type:        Some("String".to_string()),
             },
         ]),
-        security:             None,
+security:             None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
@@ -101,6 +102,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -148,7 +150,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
             ],
             base_type:        Some("String".to_string()),
         }]),
-        security:             None,
+security:             None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
@@ -156,6 +158,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -190,7 +193,7 @@ fn test_custom_scalar_preserves_all_metadata() {
             validation_rules: vec![],
             base_type:        Some("Int".to_string()),
         }]),
-        security:             None,
+security:             None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
@@ -198,6 +201,7 @@ fn test_custom_scalar_preserves_all_metadata() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -213,7 +217,7 @@ fn test_custom_scalar_preserves_all_metadata() {
 #[test]
 fn test_empty_custom_scalars_list() {
     let schema = IntermediateSchema {
-        version:              "2.0.0".to_string(),
+version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
         input_types:          vec![],
@@ -236,6 +240,7 @@ fn test_empty_custom_scalars_list() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -270,7 +275,7 @@ fn test_custom_scalar_with_no_validation_rules() {
             validation_rules: vec![], // No rules
             base_type:        None,
         }]),
-        security:             None,
+security:             None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
@@ -278,6 +283,7 @@ fn test_custom_scalar_with_no_validation_rules() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

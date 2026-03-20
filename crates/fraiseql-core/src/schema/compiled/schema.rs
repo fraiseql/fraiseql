@@ -25,7 +25,7 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, McpConfig, ObserversConfig, RestConfig,
+            DebugConfig, DevConfig, FederationConfig, McpConfig, ObserversConfig, RestConfig,
             SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
@@ -152,6 +152,11 @@ pub struct CompiledSchema {
     /// Compiled from the `[rest]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
+
+    /// Development mode configuration.
+    /// Compiled from the `[dev]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dev_config: Option<DevConfig>,
 
     /// Session variable configuration.
     /// Compiled from the `[session_variables]` TOML section.

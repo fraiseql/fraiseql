@@ -59,7 +59,7 @@ pub use compiled::{
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
-    CompiledSecurityConfig, DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride,
+    CompiledSecurityConfig, DebugConfig, DevConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride,
     EventHandler, DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, McpConfig,
     ObserversConfig, RelationshipDef, RestConfig, SessionVariableMapping, SessionVariableSource,
     SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,

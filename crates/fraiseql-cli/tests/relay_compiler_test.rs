@@ -72,7 +72,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
+mutations:            vec![],
         subscriptions:        vec![],
         fragments:            None,
         directives:           None,
@@ -88,6 +88,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     }
 }

@@ -210,7 +210,7 @@ where
 struct RestState<A: DatabaseAdapter> {
     executor: Arc<Executor<A>>,
     route_table: Arc<RestRouteTable>,
-    idempotency_store: Arc<super::idempotency::InMemoryIdempotencyStore>,
+    idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
     event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
@@ -263,7 +263,7 @@ where
                     builder = builder.header(key, value);
                 }
                 builder
-                    .body(Body::from(ndjson.body))
+                    .body(ndjson.body.into_body())
                     .unwrap_or_else(|_| {
                         Response::builder()
                             .status(StatusCode::INTERNAL_SERVER_ERROR)

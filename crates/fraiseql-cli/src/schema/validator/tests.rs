@@ -29,11 +29,12 @@ fn test_validate_empty_schema() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -79,11 +80,12 @@ fn test_detect_unknown_return_type() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -159,11 +161,12 @@ fn test_detect_duplicate_query_names() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -218,11 +221,12 @@ fn test_warning_for_query_without_sql_source() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -280,11 +284,12 @@ fn test_valid_observer() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -330,11 +335,12 @@ fn test_observer_with_unknown_entity() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -388,11 +394,12 @@ fn test_observer_with_invalid_event() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -446,11 +453,12 @@ fn test_observer_with_invalid_action_type() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -504,11 +512,12 @@ fn test_observer_with_invalid_retry_config() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -563,11 +572,12 @@ fn test_query_injection_in_sql_source_rejected() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -622,11 +632,12 @@ fn test_query_schema_qualified_sql_source_passes() {
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
-        validation_config:    None,
+validation_config:    None,
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

@@ -8,7 +8,8 @@ use axum::{
     extract::{FromRequestParts, rejection::ExtensionRejection},
     http::request::Parts,
 };
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::schema::DevConfig;
+use fraiseql_core::security::{SecurityContext, is_dev_mode_active, security_context_from_dev_claims};
 
 use crate::middleware::AuthUser;
 
@@ -71,6 +72,22 @@ where
                 context.tenant_id = tenant_id;
                 context
             });
+
+            // If no auth and dev mode is active, inject synthetic security context
+            let security_context = if security_context.is_none() {
+                let dev_config = parts.extensions.get::<DevConfig>();
+                if is_dev_mode_active(dev_config) {
+                    let claims = &dev_config
+                        .expect("dev_config checked by is_dev_mode_active")
+                        .default_claims;
+                    let request_id = extract_request_id(headers);
+                    Some(security_context_from_dev_claims(claims, request_id))
+                } else {
+                    None
+                }
+            } else {
+                security_context
+            };
 
             Ok(OptionalSecurityContext(security_context))
         }

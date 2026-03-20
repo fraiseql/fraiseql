@@ -160,6 +160,7 @@ impl SchemaConverter {
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
             rest_config: intermediate.rest_config,             // REST config from TOML
+            dev_config: intermediate.dev_config,               // Dev mode config from TOML
             schema_sdl: None,                                  // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
@@ -190,6 +191,14 @@ impl SchemaConverter {
 
         // Validate the compiled schema
         Self::validate(&compiled)?;
+
+        // Warn when dev mode is compiled into the schema
+        if compiled.dev_config.as_ref().is_some_and(|d| d.enabled) {
+            warn!(
+                "Dev mode is enabled — default claims will be injected when no JWT \
+                 is present. Do NOT use in production."
+            );
+        }
 
         info!("Schema conversion successful");
         Ok(compiled)

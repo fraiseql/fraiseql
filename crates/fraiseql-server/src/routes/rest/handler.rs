@@ -15,7 +15,7 @@ use fraiseql_core::security::SecurityContext;
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
-use super::idempotency::{IdempotencyCheck, InMemoryIdempotencyStore, StoredResponse};
+use super::idempotency::{IdempotencyCheck, IdempotencyStore, StoredResponse};
 use super::params::{PaginationParams, RestFieldSpec, RestParamExtractor};
 use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource};
 
@@ -335,7 +335,7 @@ pub struct RestHandler<'a, A: DatabaseAdapter> {
     schema: &'a CompiledSchema,
     config: &'a RestConfig,
     route_table: &'a RestRouteTable,
-    idempotency_store: Option<&'a Arc<InMemoryIdempotencyStore>>,
+    idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
 }
 
 impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
@@ -362,11 +362,17 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         self.executor
     }
 
+    /// Access the REST configuration.
+    #[must_use]
+    pub const fn config(&self) -> &RestConfig {
+        self.config
+    }
+
     /// Set the idempotency store for POST mutation replay.
     #[must_use]
     pub const fn with_idempotency_store(
         mut self,
-        store: &'a Arc<InMemoryIdempotencyStore>,
+        store: &'a Arc<dyn IdempotencyStore>,
     ) -> Self {
         self.idempotency_store = Some(store);
         self
@@ -624,6 +630,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
                 has_auth,
                 query_ttl: query_match.query_def.cache_ttl_seconds,
                 default_ttl: self.config.default_cache_ttl,
+                cdn_max_age: self.config.cdn_max_age,
             },
         );
 
@@ -728,8 +735,8 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             .map(String::from);
 
         if let (Some(ref key), Some(store)) = (&idempotency_key, self.idempotency_store) {
-            let body_hash = InMemoryIdempotencyStore::hash_body(body);
-            match store.check(key, body_hash) {
+            let body_hash = super::idempotency::hash_body(body);
+            match store.check(key, body_hash).await {
                 IdempotencyCheck::Replay(stored) => {
                     return Ok(stored_response_to_rest(stored, headers));
                 }
@@ -798,6 +805,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                 has_auth: headers.get("authorization").is_some(),
                 query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
+                cdn_max_age: self.config.cdn_max_age,
             },
         );
 
@@ -812,7 +820,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
 
         // Idempotency: store the response for replay
         if let (Some(key), Some(store)) = (idempotency_key, self.idempotency_store) {
-            let body_hash = InMemoryIdempotencyStore::hash_body(body);
+            let body_hash = super::idempotency::hash_body(body);
             store.store(
                 key,
                 body_hash,
@@ -830,7 +838,8 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                         .collect(),
                     body: rest_response.body.clone(),
                 },
-            );
+            )
+            .await;
         }
 
         Ok(rest_response)
@@ -894,6 +903,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                 has_auth: headers.get("authorization").is_some(),
                 query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
+                cdn_max_age: self.config.cdn_max_age,
             },
         );
 
@@ -973,6 +983,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                         has_auth: headers.get("authorization").is_some(),
                         query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
+                        cdn_max_age: self.config.cdn_max_age,
                     },
                 );
 
@@ -1064,6 +1075,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                         has_auth: headers.get("authorization").is_some(),
                         query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
+                        cdn_max_age: self.config.cdn_max_age,
                     },
                 );
 

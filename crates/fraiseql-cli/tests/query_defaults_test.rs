@@ -49,9 +49,10 @@ fn base_schema_with_query(
         subscriptions_config: None,
         validation_config: None,
         federation_config: None,
-        debug_config: None,
+debug_config: None,
         mcp_config: None,
         rest_config: None,
+        dev_config:  None,
         query_defaults,
     }
 }

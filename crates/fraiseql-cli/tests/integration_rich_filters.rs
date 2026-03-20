@@ -16,7 +16,7 @@ fn test_rich_filter_compilation_pipeline() {
     // 1. Build minimal intermediate schema
     // Rich types are auto-generated, so we just need an empty schema
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -39,6 +39,7 @@ fn test_rich_filter_compilation_pipeline() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -94,7 +95,7 @@ fn test_rich_filter_compilation_pipeline() {
 #[test]
 fn test_all_rich_types_generate_where_input() {
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -117,6 +118,7 @@ fn test_all_rich_types_generate_where_input() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -156,7 +158,7 @@ fn test_all_rich_types_generate_where_input() {
 #[test]
 fn test_where_input_fields_include_standard_operators() {
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -179,6 +181,7 @@ fn test_where_input_fields_include_standard_operators() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -213,7 +216,7 @@ fn test_where_input_fields_include_standard_operators() {
 #[test]
 fn test_sql_templates_cover_all_databases() {
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -236,6 +239,7 @@ fn test_sql_templates_cover_all_databases() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -281,7 +285,7 @@ fn test_sql_templates_cover_all_databases() {
 #[test]
 fn test_lookup_data_integrity() {
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -304,6 +308,7 @@ fn test_lookup_data_integrity() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -350,7 +355,7 @@ fn test_lookup_data_integrity() {
 #[test]
 fn test_compiled_schema_is_valid() {
     let intermediate = IntermediateSchema {
-        security:             None,
+security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -373,6 +378,7 @@ fn test_compiled_schema_is_valid() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

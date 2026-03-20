@@ -3,6 +3,8 @@
 //! These types replace untyped `serde_json::Value` fields in `CompiledSchema`
 //! to enable compile-time validation, IDE autocompletion, and clearer domain modeling.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// Federation configuration for Apollo Federation v2 support.
@@ -304,6 +306,30 @@ pub struct EventHandler {
     pub synchronous:      bool,
 }
 
+/// Development-mode configuration (compiled from `[dev]` in `fraiseql.toml`).
+///
+/// When enabled, injects default JWT claims for unauthenticated requests,
+/// removing the need for a real OIDC/JWT setup during local development.
+///
+/// **MUST NOT** be used in production — the server forcibly disables dev mode
+/// when `FRAISEQL_ENV=production`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DevConfig {
+    /// Enable dev mode. Default: false.
+    pub enabled: bool,
+    /// Default claims injected when no `Authorization` header is present.
+    ///
+    /// Keys map to `SecurityContext` fields:
+    /// - `"sub"` → `user_id`
+    /// - `"tenant_id"` / `"org_id"` → `tenant_id`
+    /// - `"roles"` → `roles` (JSON array of strings)
+    /// - `"scopes"` / `"scope"` → `scopes` (space-delimited string or JSON array)
+    /// - all other keys → `attributes`
+    #[serde(default)]
+    pub default_claims: HashMap<String, serde_json::Value>,
+}
+
 /// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -413,6 +439,18 @@ pub struct RestConfig {
     /// SSE heartbeat interval in seconds. Default: 30.
     #[serde(default = "default_sse_heartbeat_seconds")]
     pub sse_heartbeat_seconds: u64,
+    /// CDN/shared-cache TTL in seconds. When set, appends `s-maxage={value}`
+    /// to `Cache-Control` on public GET responses. `None` = no s-maxage directive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cdn_max_age: Option<u64>,
+    /// Batch size for NDJSON streaming responses. Each batch is fetched from the
+    /// database and serialized to the client before fetching the next. Default: 500.
+    #[serde(default = "default_ndjson_batch_size")]
+    pub ndjson_batch_size: u64,
+}
+
+const fn default_ndjson_batch_size() -> u64 {
+    500
 }
 
 const fn default_sse_heartbeat_seconds() -> u64 {
@@ -437,6 +475,8 @@ impl Default for RestConfig {
             default_cache_ttl:        60,
             idempotency_ttl_seconds:  86_400,
             sse_heartbeat_seconds:    30,
+            cdn_max_age:              None,
+            ndjson_batch_size:        500,
         }
     }
 }
@@ -796,6 +836,8 @@ mod tests {
             default_cache_ttl:       120,
             idempotency_ttl_seconds: 3600,
             sse_heartbeat_seconds:  15,
+            cdn_max_age:            Some(300),
+            ndjson_batch_size:      1000,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();

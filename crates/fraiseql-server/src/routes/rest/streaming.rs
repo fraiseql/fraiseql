@@ -4,11 +4,20 @@
 //! to this module.  Each row is serialized as a single JSON line, with no
 //! envelope (`data`/`meta`/`links`), enabling constant-memory streaming for
 //! large result sets.
+//!
+//! Rows are fetched from the database in batches (configured via
+//! `ndjson_batch_size`), serialized to NDJSON, and streamed to the client
+//! incrementally.  Memory usage is bounded by O(batch_size) rather than
+//! O(total_rows).
+
+use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::runtime::{Executor, QueryMatch};
 use fraiseql_core::security::SecurityContext;
+use futures::stream;
 
 use super::handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id};
 use super::params::PaginationParams;
@@ -66,19 +75,21 @@ pub fn validate_ndjson_request(
     Ok(())
 }
 
-/// Execute a query and return results as an NDJSON byte stream.
+/// Execute a query and return results as a streaming NDJSON response.
 ///
-/// Each row is serialized as a JSON object followed by a newline (`\n`).
-/// The response uses `Transfer-Encoding: chunked` and has no envelope.
+/// Rows are fetched in batches from the database and streamed to the client
+/// as they arrive.  Each row is a JSON object followed by `\n`.  Memory usage
+/// is bounded by the configured `ndjson_batch_size` rather than total rows.
 ///
 /// Delegates route resolution and query building to
 /// [`RestHandler::resolve_get_query`].
 ///
 /// # Errors
 ///
-/// Returns `RestError` on route resolution, parameter extraction, or query
-/// execution failure.
-pub async fn handle_ndjson_get<A: DatabaseAdapter>(
+/// Returns `RestError` on route resolution, parameter extraction, or initial
+/// query setup failure.  Errors that occur mid-stream are emitted as a
+/// trailing NDJSON error line: `{"error":"..."}\n`.
+pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     handler: &RestHandler<'_, A>,
     relative_path: &str,
     query_pairs: &[(&str, &str)],
@@ -95,54 +106,188 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter>(
         query_match,
         variables,
         ..
-    } = &resolved;
+    } = resolved;
 
-    let vars_ref = if variables.as_object().is_none_or(|m| m.is_empty()) {
-        None
-    } else {
-        Some(variables)
-    };
+    let batch_size = handler.config().ndjson_batch_size.max(1);
 
-    // Execute the query — we get the full result and stream row-by-row
-    let result = handler
-        .executor()
-        .execute_query_direct(query_match, vars_ref, security_context)
-        .await
-        .map_err(RestError::from)?;
-
-    // Parse and extract rows from the executor envelope
-    let rows = extract_rows(&result, query_name)?;
-
-    // Build NDJSON bytes: one JSON object per line
-    let mut ndjson_bytes = Vec::new();
-    for row in &rows {
-        let mut line = serde_json::to_vec(row)
-            .map_err(|e| RestError::internal(format!("Failed to serialize row: {e}")))?;
-        line.push(b'\n');
-        ndjson_bytes.extend_from_slice(&line);
-    }
-
-    // Build response headers
+    // Build response headers eagerly (before starting the stream).
     let mut response_headers = HeaderMap::new();
     set_request_id(headers, &mut response_headers);
     response_headers.insert(
         "content-type",
         HeaderValue::from_static(NDJSON_CONTENT_TYPE),
     );
+    response_headers.insert(
+        "x-stream-batch-size",
+        HeaderValue::from_str(&batch_size.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("500")),
+    );
+
+    // Clone what we need for the async stream closure.
+    let executor = Arc::clone(handler.executor());
+    let security_ctx_owned = security_context.cloned();
+
+    // Create an async stream that fetches batches and yields NDJSON lines.
+    let ndjson_stream = stream::unfold(
+        StreamState {
+            executor,
+            query_name,
+            query_match,
+            variables,
+            security_ctx: security_ctx_owned,
+            batch_size,
+            offset: 0,
+            done: false,
+        },
+        |mut state| async move {
+            if state.done {
+                return None;
+            }
+
+            match fetch_and_serialize_batch(&mut state).await {
+                Ok(Some(bytes)) => Some((Ok(bytes), state)),
+                Ok(None) => None,
+                Err(err_bytes) => {
+                    state.done = true;
+                    Some((Ok(err_bytes), state))
+                }
+            }
+        },
+    );
 
     Ok(NdjsonResponse {
         headers: response_headers,
-        body: Bytes::from(ndjson_bytes),
+        body: NdjsonBody::Stream(Box::pin(ndjson_stream)),
     })
 }
 
-/// NDJSON streaming response (pre-serialized bytes).
-#[derive(Debug)]
+/// Internal state for the streaming unfold loop.
+struct StreamState<A: DatabaseAdapter> {
+    executor: Arc<Executor<A>>,
+    query_name: String,
+    query_match: QueryMatch,
+    variables: serde_json::Value,
+    security_ctx: Option<SecurityContext>,
+    batch_size: u64,
+    offset: u64,
+    done: bool,
+}
+
+/// Fetch the next batch of rows, serialize as NDJSON bytes, and advance the offset.
+///
+/// Returns:
+/// - `Ok(Some(bytes))` — batch serialized successfully
+/// - `Ok(None)` — no more rows (stream done)
+/// - `Err(bytes)` — error serialized as NDJSON error line
+async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
+    state: &mut StreamState<A>,
+) -> Result<Option<Bytes>, Bytes> {
+    // Override limit/offset in the variables for this batch.
+    let mut batch_vars = state.variables.clone();
+    if let Some(obj) = batch_vars.as_object_mut() {
+        obj.insert("limit".to_string(), serde_json::json!(state.batch_size));
+        if state.offset > 0 {
+            obj.insert("offset".to_string(), serde_json::json!(state.offset));
+        }
+    }
+
+    let vars_ref = if batch_vars.as_object().is_none_or(|m| m.is_empty()) {
+        None
+    } else {
+        Some(&batch_vars)
+    };
+
+    let result_str: String = match state
+        .executor
+        .execute_query_direct(
+            &state.query_match,
+            vars_ref,
+            state.security_ctx.as_ref(),
+        )
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            state.done = true;
+            return Err(error_ndjson_line(&e.to_string()));
+        }
+    };
+
+    let rows = match extract_rows(&result_str, &state.query_name) {
+        Ok(r) => r,
+        Err(e) => {
+            state.done = true;
+            return Err(error_ndjson_line(&e.message));
+        }
+    };
+
+    if rows.is_empty() {
+        state.done = true;
+        return Ok(None);
+    }
+
+    // Serialize rows as NDJSON.
+    let mut ndjson_bytes = Vec::new();
+    for row in &rows {
+        match serde_json::to_vec(row) {
+            Ok(mut line) => {
+                line.push(b'\n');
+                ndjson_bytes.extend_from_slice(&line);
+            }
+            Err(e) => {
+                state.done = true;
+                // Yield what we have so far plus the error.
+                ndjson_bytes.extend_from_slice(&error_ndjson_line(&e.to_string()));
+                return Ok(Some(Bytes::from(ndjson_bytes)));
+            }
+        }
+    }
+
+    // If we got fewer rows than the batch size, this is the last batch.
+    #[allow(clippy::cast_possible_truncation)] // Reason: rows.len() won't exceed u64 range
+    let row_count = rows.len() as u64;
+    if row_count < state.batch_size {
+        state.done = true;
+    } else {
+        state.offset += state.batch_size;
+    }
+
+    Ok(Some(Bytes::from(ndjson_bytes)))
+}
+
+/// Serialize an error as an NDJSON error line.
+fn error_ndjson_line(message: &str) -> Bytes {
+    // Escape the message for safe JSON embedding.
+    let escaped = serde_json::to_string(message).unwrap_or_else(|_| format!("\"{message}\""));
+    Bytes::from(format!("{{\"error\":{escaped}}}\n"))
+}
+
+/// NDJSON streaming response.
 pub struct NdjsonResponse {
     /// Response headers.
     pub headers: HeaderMap,
-    /// NDJSON body bytes.
-    pub body: Bytes,
+    /// NDJSON body — either pre-buffered bytes or a streaming body.
+    pub body: NdjsonBody,
+}
+
+/// Body of an NDJSON response.
+pub enum NdjsonBody {
+    /// Streaming body (batched execution).
+    Stream(
+        std::pin::Pin<
+            Box<dyn futures::Stream<Item = Result<Bytes, std::convert::Infallible>> + Send>,
+        >,
+    ),
+}
+
+impl NdjsonBody {
+    /// Convert to an axum `Body`.
+    #[must_use]
+    pub fn into_body(self) -> axum::body::Body {
+        match self {
+            Self::Stream(stream) => axum::body::Body::from_stream(stream),
+        }
+    }
 }
 
 /// Extract rows from the executor result envelope.
@@ -404,5 +549,26 @@ mod tests {
     #[test]
     fn ndjson_content_type_constant() {
         assert_eq!(NDJSON_CONTENT_TYPE, "application/x-ndjson");
+    }
+
+    // -----------------------------------------------------------------------
+    // error_ndjson_line
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn error_ndjson_line_valid_json() {
+        let line = error_ndjson_line("something went wrong");
+        let s = String::from_utf8(line.to_vec()).unwrap();
+        assert!(s.ends_with('\n'));
+        let parsed: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert_eq!(parsed["error"], "something went wrong");
+    }
+
+    #[test]
+    fn error_ndjson_line_escapes_special_chars() {
+        let line = error_ndjson_line("bad \"quote\" and \nnewline");
+        let s = String::from_utf8(line.to_vec()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert!(parsed["error"].as_str().unwrap().contains("quote"));
     }
 }

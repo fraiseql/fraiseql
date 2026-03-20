@@ -34,6 +34,7 @@ fn test_convert_minimal_schema() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -96,6 +97,7 @@ fn test_convert_type_with_fields() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -150,6 +152,7 @@ fn test_validate_unknown_type_reference() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -220,6 +223,7 @@ fn test_convert_query_with_arguments() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -281,6 +285,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -343,6 +348,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -412,6 +418,7 @@ fn test_convert_field_with_deprecated_directive() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -484,6 +491,7 @@ fn test_convert_enum() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -569,6 +577,7 @@ fn test_convert_input_object() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -624,6 +633,7 @@ fn test_rich_filter_types_generated() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -683,6 +693,7 @@ fn test_rich_filter_types_have_sql_templates() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -754,6 +765,7 @@ fn test_lookup_data_embedded_in_schema() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -848,6 +860,7 @@ fn test_convert_interface() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -929,6 +942,7 @@ fn test_convert_type_implements_interface() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -987,6 +1001,7 @@ fn test_validate_unknown_interface() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1054,6 +1069,7 @@ fn test_validate_missing_interface_field() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1129,6 +1145,7 @@ fn test_convert_union() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1215,6 +1232,7 @@ fn test_convert_field_requires_scope() {
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

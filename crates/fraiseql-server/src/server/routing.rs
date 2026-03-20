@@ -119,6 +119,18 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
         // Attach debug config from compiled schema
         state.debug_config.clone_from(&self.executor.schema().debug_config);
 
+        // Attach dev config from compiled schema (or FRAISEQL_DEV_CLAIMS env var override)
+        state.dev_config = if let Ok(claims_json) = std::env::var("FRAISEQL_DEV_CLAIMS") {
+            serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&claims_json)
+                .ok()
+                .map(|claims| fraiseql_core::schema::DevConfig {
+                    enabled:        true,
+                    default_claims: claims,
+                })
+        } else {
+            self.executor.schema().dev_config.clone()
+        };
+
         // Apply GET query size limit from server config.
         state.max_get_query_bytes = self.config.max_get_query_bytes;
 
@@ -635,6 +647,20 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
                 "Admission controller enabled and attached to request extensions"
             );
             app = app.layer(Extension(controller));
+        }
+
+        // Inject DevConfig into request extensions so the OptionalSecurityContext
+        // extractor can synthesize a SecurityContext for unauthenticated requests
+        // during local development.
+        if let Some(ref dev_cfg) = state.dev_config {
+            if fraiseql_core::security::is_dev_mode_active(Some(dev_cfg)) {
+                use axum::Extension;
+
+                tracing::warn!(
+                    "Dev mode active — unauthenticated requests will receive default claims"
+                );
+                app = app.layer(Extension(dev_cfg.clone()));
+            }
         }
 
         (app, state)
