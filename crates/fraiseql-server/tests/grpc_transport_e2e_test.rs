@@ -236,9 +236,10 @@ fn build_descriptor_set() -> FileDescriptorSet {
                 ..Default::default()
             },
             MethodDescriptorProto {
-                name:       Some("ListUsers".into()),
-                input_type: Some(".fraiseql.v1.ListUsersRequest".into()),
-                output_type: Some(".fraiseql.v1.ListUsersResponse".into()),
+                name:             Some("ListUsers".into()),
+                input_type:       Some(".fraiseql.v1.ListUsersRequest".into()),
+                output_type:      Some(".fraiseql.v1.User".into()),
+                server_streaming: Some(true),
                 ..Default::default()
             },
             MethodDescriptorProto {
@@ -348,6 +349,79 @@ async fn send_grpc(
     (status, grpc_status, body_bytes)
 }
 
+/// Decode multiple gRPC frames from a streaming response body.
+///
+/// Each frame: 1 byte compression flag + 4 bytes big-endian length + payload.
+/// Returns a vec of decoded `DynamicMessage` values.
+fn decode_streaming_frames(
+    body: &[u8],
+    message_name: &str,
+) -> Vec<prost_reflect::DynamicMessage> {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let desc = pool
+        .get_message_by_name(&format!("{PACKAGE}.{message_name}"))
+        .unwrap_or_else(|| panic!("Message {message_name} not found in pool"));
+
+    let mut messages = Vec::new();
+    let mut offset = 0;
+    while offset + 5 <= body.len() {
+        let _compression = body[offset];
+        let len = u32::from_be_bytes([
+            body[offset + 1],
+            body[offset + 2],
+            body[offset + 3],
+            body[offset + 4],
+        ]) as usize;
+        offset += 5;
+        if offset + len > body.len() {
+            break;
+        }
+        let msg_bytes = &body[offset..offset + len];
+        let msg = prost_reflect::DynamicMessage::decode(desc.clone(), msg_bytes)
+            .expect("decode streaming frame");
+        messages.push(msg);
+        offset += len;
+    }
+    messages
+}
+
+/// Send a gRPC request and collect the full streaming response.
+///
+/// Returns (`grpc_status_from_trailers`, `body_bytes_without_trailers`).
+/// For streaming responses, `grpc-status` arrives via HTTP/2 trailers
+/// (extracted by `http_body_util`), not headers.
+async fn send_grpc_streaming(
+    svc: &DynamicGrpcService<FailingAdapter>,
+    method: &str,
+    msg_bytes: &[u8],
+) -> (Option<String>, Vec<u8>) {
+    let req = grpc_request(method, msg_bytes);
+    let response = svc.clone().oneshot(req).await.expect("service call should not error");
+
+    // Check for grpc-status in headers (Trailers-Only error responses).
+    let header_status = response
+        .headers()
+        .get("grpc-status")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    // Collect the entire body and extract trailers.
+    let collected = response.into_body().collect().await.expect("collect body");
+
+    let trailer_status = collected
+        .trailers()
+        .and_then(|t| t.get("grpc-status"))
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    let data_bytes = collected.to_bytes().to_vec();
+
+    // Prefer trailer status (streaming), fall back to header status (error).
+    let status = trailer_status.or(header_status);
+    (status, data_bytes)
+}
+
 /// Decode a gRPC response body (skip 5-byte frame header) into a `DynamicMessage`.
 fn decode_response(
     body: &[u8],
@@ -449,7 +523,7 @@ async fn get_user_returns_single_row() {
 }
 
 #[tokio::test]
-async fn list_users_returns_repeated_items() {
+async fn list_users_streams_individual_rows() {
     let tmp = tempfile::tempdir().unwrap();
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
@@ -468,52 +542,32 @@ async fn list_users_returns_repeated_items() {
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
-    let (status, grpc_status, body) = send_grpc(&svc, "ListUsers", &req_bytes).await;
+    let (grpc_status, body) = send_grpc_streaming(&svc, "ListUsers", &req_bytes).await;
 
-    assert_eq!(status, http::StatusCode::OK);
-    assert_eq!(grpc_status.as_deref(), Some("0"));
+    assert_eq!(grpc_status.as_deref(), Some("0"), "gRPC streaming should return OK");
 
-    // Decode response as ListUsersResponse.
-    let response = decode_response(&body, "ListUsersResponse");
+    // Decode streaming frames — each frame is an individual User message.
+    let users = decode_streaming_frames(&body, "User");
+    assert_eq!(users.len(), 2, "Expected 2 streamed User messages");
 
-    let resp_desc = pool
-        .get_message_by_name("fraiseql.v1.ListUsersResponse")
-        .unwrap();
-    let items_field = resp_desc.get_field_by_name("items").unwrap();
-    let items = response.get_field(&items_field);
+    let user_desc = pool.get_message_by_name("fraiseql.v1.User").unwrap();
+    let name_field = user_desc.get_field_by_name("name").unwrap();
 
-    if let prost_reflect::Value::List(items) = items.as_ref() {
-        assert_eq!(items.len(), 2, "Expected 2 items");
+    // First: Alice
+    assert_eq!(
+        users[0].get_field(&name_field).into_owned(),
+        prost_reflect::Value::String("Alice".into())
+    );
 
-        // First item: Alice
-        if let prost_reflect::Value::Message(alice) = &items[0] {
-            let user_desc = pool.get_message_by_name("fraiseql.v1.User").unwrap();
-            let name_field = user_desc.get_field_by_name("name").unwrap();
-            assert_eq!(
-                alice.get_field(&name_field).into_owned(),
-                prost_reflect::Value::String("Alice".into())
-            );
-        } else {
-            panic!("Expected Message value for items[0]");
-        }
+    // Second: Bob
+    assert_eq!(
+        users[1].get_field(&name_field).into_owned(),
+        prost_reflect::Value::String("Bob".into())
+    );
 
-        // Second item: Bob
-        if let prost_reflect::Value::Message(bob) = &items[1] {
-            let user_desc = pool.get_message_by_name("fraiseql.v1.User").unwrap();
-            let name_field = user_desc.get_field_by_name("name").unwrap();
-            assert_eq!(
-                bob.get_field(&name_field).into_owned(),
-                prost_reflect::Value::String("Bob".into())
-            );
-            // Bob's email is null — field should be unset (default empty string in proto3).
-            let email_field = user_desc.get_field_by_name("email").unwrap();
-            assert!(!bob.has_field(&email_field), "Bob's email should be unset (null)");
-        } else {
-            panic!("Expected Message value for items[1]");
-        }
-    } else {
-        panic!("Expected List value for items field");
-    }
+    // Bob's email is null — field should be unset.
+    let email_field = user_desc.get_field_by_name("email").unwrap();
+    assert!(!users[1].has_field(&email_field), "Bob's email should be unset (null)");
 }
 
 #[tokio::test]
@@ -547,7 +601,7 @@ async fn get_user_empty_result_returns_default_message() {
 }
 
 #[tokio::test]
-async fn list_users_empty_result_returns_empty_items() {
+async fn list_users_empty_result_streams_zero_messages() {
     let tmp = tempfile::tempdir().unwrap();
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
@@ -563,19 +617,13 @@ async fn list_users_empty_result_returns_empty_items() {
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
-    let (status, grpc_status, body) = send_grpc(&svc, "ListUsers", &req_bytes).await;
+    let (grpc_status, body) = send_grpc_streaming(&svc, "ListUsers", &req_bytes).await;
 
-    assert_eq!(status, http::StatusCode::OK);
-    assert_eq!(grpc_status.as_deref(), Some("0"));
+    assert_eq!(grpc_status.as_deref(), Some("0"), "Empty stream should return OK");
 
-    let response = decode_response(&body, "ListUsersResponse");
-    let resp_desc = pool
-        .get_message_by_name("fraiseql.v1.ListUsersResponse")
-        .unwrap();
-    let items_field = resp_desc.get_field_by_name("items").unwrap();
-
-    // Items should be empty (default for repeated field).
-    assert!(!response.has_field(&items_field), "Empty list should have no items");
+    // No data frames expected — just trailers.
+    let users = decode_streaming_frames(&body, "User");
+    assert_eq!(users.len(), 0, "Empty result should stream zero messages");
 }
 
 #[tokio::test]
@@ -866,10 +914,10 @@ async fn all_three_rpcs_are_callable() {
     let (_, grpc_status, _) = send_grpc(&svc, "GetUser", &req_msg.encode_to_vec()).await;
     assert_eq!(grpc_status.as_deref(), Some("0"), "GetUser should succeed");
 
-    // 2. ListUsers — query RPC
+    // 2. ListUsers — server-streaming RPC
     let req_desc = pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
-    let (_, grpc_status, _) = send_grpc(&svc, "ListUsers", &req_msg.encode_to_vec()).await;
+    let (grpc_status, _) = send_grpc_streaming(&svc, "ListUsers", &req_msg.encode_to_vec()).await;
     assert_eq!(grpc_status.as_deref(), Some("0"), "ListUsers should succeed");
 
     // 3. CreateUser — mutation RPC

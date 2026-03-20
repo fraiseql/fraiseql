@@ -45,6 +45,19 @@ pub enum RpcKind {
         /// or the single message for get queries).
         row_descriptor: MessageDescriptor,
     },
+    /// A server-streaming query against a row-shaped view (`vr_*`).
+    ///
+    /// Used for list queries when the descriptor marks the RPC as
+    /// `server_streaming`. Rows are fetched in batches and streamed
+    /// individually as gRPC frames.
+    ServerStream {
+        /// Row-shaped view name (e.g., `"vr_user"`).
+        view_name: String,
+        /// Column specs for the row-shaped view.
+        columns: Vec<ColumnSpec>,
+        /// Row message descriptor (the entity type, e.g., `User`).
+        row_descriptor: MessageDescriptor,
+    },
     /// A mutation that calls a database function via `execute_function_call()`.
     Mutation {
         /// SQL function name (e.g., `"fn_create_user"`).
@@ -609,25 +622,39 @@ pub fn build_dispatch_table(
                 let view_name = format!("vr_{}", type_def.sql_source);
                 let columns = column_specs_from_type(type_def);
 
-                let row_desc = if query_def.returns_list {
-                    response_desc
-                        .fields()
-                        .find(|f| f.is_list() && f.kind().as_message().is_some())
-                        .and_then(|f| f.kind().as_message().cloned())
-                        .unwrap_or_else(|| response_desc.clone())
+                // Server-streaming list queries: the descriptor marks
+                // the method with `server_streaming = true` and the
+                // response type is the entity message directly.
+                let is_server_streaming = method_desc.is_server_streaming();
+
+                let kind = if is_server_streaming && query_def.returns_list {
+                    RpcKind::ServerStream {
+                        view_name,
+                        columns,
+                        row_descriptor: response_desc.clone(),
+                    }
                 } else {
-                    response_desc.clone()
+                    let row_desc = if query_def.returns_list {
+                        response_desc
+                            .fields()
+                            .find(|f| f.is_list() && f.kind().as_message().is_some())
+                            .and_then(|f| f.kind().as_message().cloned())
+                            .unwrap_or_else(|| response_desc.clone())
+                    } else {
+                        response_desc.clone()
+                    };
+                    RpcKind::Query {
+                        view_name,
+                        returns_list: query_def.returns_list,
+                        columns,
+                        row_descriptor: row_desc,
+                    }
                 };
 
                 table.insert(full_method, RpcOperation {
                     operation_name: query_name,
                     type_name:      type_name.clone(),
-                    kind: RpcKind::Query {
-                        view_name,
-                        returns_list: query_def.returns_list,
-                        columns,
-                        row_descriptor: row_desc,
-                    },
+                    kind,
                     response_descriptor: response_desc,
                 });
                 continue;

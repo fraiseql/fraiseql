@@ -9,6 +9,7 @@
 //! at server startup — no generated Rust protobuf code is needed.
 
 pub mod handler;
+pub mod streaming;
 
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -213,6 +214,43 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         };
 
         // Dispatch based on RPC kind.
+        //
+        // Server-streaming RPCs return early with a streaming body;
+        // unary RPCs continue to the framing code below.
+        if let handler::RpcKind::ServerStream { view_name, columns, row_descriptor } = &op.kind {
+            let type_def = match self.schema.find_type(&op.type_name) {
+                Some(t) => t.clone(),
+                None => return grpc_error_response(tonic::Code::Internal, &format!("Type '{}' not found in schema", op.type_name)),
+            };
+
+            let batch_size = self
+                .schema
+                .grpc_config
+                .as_ref()
+                .map_or(500, |c| c.stream_batch_size);
+
+            debug!(method = %method, batch_size, "Starting gRPC server-streaming response");
+
+            let body_stream = streaming::build_streaming_body(
+                Arc::clone(&self.adapter),
+                view_name.clone(),
+                columns.clone(),
+                row_descriptor.clone(),
+                type_def,
+                &request_msg,
+                security_context.as_ref(),
+                batch_size,
+            );
+
+            let body = http_body_util::StreamBody::new(body_stream);
+            let mut response = http::Response::new(TonicBody::new(body));
+            response.headers_mut().insert(
+                "content-type",
+                http::HeaderValue::from_static("application/grpc"),
+            );
+            return response;
+        }
+
         let response_msg = match &op.kind {
             handler::RpcKind::Query { view_name, returns_list, columns, row_descriptor } => {
                 // Look up the type definition.
@@ -243,6 +281,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                 debug!(method = %method, row_count = rows.len(), "gRPC query returned results");
 
                 handler::encode_response(rows, columns, *returns_list, row_descriptor, &op.response_descriptor)
+            },
+            handler::RpcKind::ServerStream { .. } => {
+                // Handled above — unreachable.
+                unreachable!("ServerStream handled above");
             },
             handler::RpcKind::Mutation { function_name } => {
                 let result = match handler::execute_grpc_mutation(
@@ -479,6 +521,14 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                     columns = columns.len(),
                     list = returns_list,
                     "Registered gRPC query RPC"
+                );
+            },
+            handler::RpcKind::ServerStream { view_name, columns, .. } => {
+                debug!(
+                    method = %method,
+                    view = %view_name,
+                    columns = columns.len(),
+                    "Registered gRPC server-streaming RPC"
                 );
             },
             handler::RpcKind::Mutation { function_name } => {

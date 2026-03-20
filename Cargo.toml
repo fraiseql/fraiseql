@@ -80,6 +80,7 @@ futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
+http-body = "1"
 http-body-util = "0.1"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}

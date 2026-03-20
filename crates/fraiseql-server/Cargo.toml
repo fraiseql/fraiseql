@@ -42,6 +42,7 @@ futures = {workspace = true}
 # GraphQL AST parsing for secure query validation
 graphql-parser = {workspace = true}
 hex = {workspace = true}
+http-body = {workspace = true, optional = true}
 http-body-util = {workspace = true, optional = true}
 # Webhook signature verification
 hmac = {workspace = true}
@@ -132,7 +133,7 @@ wiremock = "0.6"
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 # gRPC transport: row-shaped view queries via protobuf wire encoding
-grpc = ["dep:http-body-util", "dep:prost", "dep:prost-reflect", "dep:tonic", "dep:tonic-reflection", "fraiseql-core/grpc"]
+grpc = ["dep:http-body", "dep:http-body-util", "dep:prost", "dep:prost-reflect", "dep:tonic", "dep:tonic-reflection", "fraiseql-core/grpc"]
 auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 azure-blob = []

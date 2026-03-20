@@ -227,8 +227,11 @@ pub fn generate_proto_file(
         let rpc_name = to_pascal_case(&q.name);
         let req = format!("{rpc_name}Request");
         if q.returns_list {
-            let resp = format!("{rpc_name}Response");
-            out.push_str(&format!("  rpc {rpc_name}({req}) returns ({resp});\n"));
+            // Server-streaming RPC: each response frame is a single entity message.
+            out.push_str(&format!(
+                "  rpc {rpc_name}({req}) returns (stream {});\n",
+                q.return_type
+            ));
         } else {
             out.push_str(&format!(
                 "  rpc {rpc_name}({req}) returns ({});\n",
@@ -334,13 +337,8 @@ fn generate_query_messages(
 
     out.push_str("}\n\n");
 
-    // Response message (list queries only — single queries return the type directly)
-    if q.returns_list {
-        out.push_str(&format!("message {rpc_name}Response {{\n"));
-        out.push_str(&format!("  repeated {} items = 1;\n", q.return_type));
-        out.push_str("  int32 total_count = 2;\n");
-        out.push_str("}\n\n");
-    }
+    // Note: list queries use server-streaming RPCs and do not need a
+    // response wrapper message — each streamed frame is the entity type directly.
 }
 
 /// Generate a request message for a mutation.
@@ -747,9 +745,7 @@ mod tests {
         // Service
         assert!(proto.contains("service FraiseqlService {"));
         assert!(proto.contains("rpc GetUser(GetUserRequest) returns (User);"));
-        assert!(proto.contains("rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);"));
-        // List response
-        assert!(proto.contains("repeated User items = 1;"));
+        assert!(proto.contains("rpc ListUsers(ListUsersRequest) returns (stream User);"));
     }
 
     #[test]
@@ -873,8 +869,9 @@ mod tests {
         // Pagination fields added to list request
         assert!(proto.contains("optional int32 limit = 1;"));
         assert!(proto.contains("optional int32 offset = 2;"));
-        // Response has total_count
-        assert!(proto.contains("int32 total_count = 2;"));
+        // Server-streaming: no ListUsersResponse wrapper, returns stream User
+        assert!(proto.contains("rpc ListUsers(ListUsersRequest) returns (stream User);"));
+        assert!(!proto.contains("ListUsersResponse"), "No response wrapper for streaming RPCs");
     }
 
     #[test]

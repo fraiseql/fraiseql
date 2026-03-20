@@ -503,6 +503,8 @@ pub struct GrpcConfig {
     pub include_types: Vec<String>,
     /// Blacklist of type names to hide from gRPC services.
     pub exclude_types: Vec<String>,
+    /// Batch size for server-streaming RPCs (list queries). Default: 500.
+    pub stream_batch_size: u32,
 }
 
 impl Default for GrpcConfig {
@@ -515,6 +517,7 @@ impl Default for GrpcConfig {
             descriptor_path:        "proto/descriptor.binpb".to_string(),
             include_types:          Vec::new(),
             exclude_types:          Vec::new(),
+            stream_batch_size:      500,
         }
     }
 }
