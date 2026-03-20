@@ -20,7 +20,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
     /// # Errors
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
-    pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    pub async fn serve_with_shutdown<F>(mut self, shutdown: F) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
@@ -128,6 +128,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
         #[cfg(feature = "grpc")]
         let grpc_server_handle = if let Some(grpc_service) = self.grpc_service.clone() {
             let grpc_addr = self.config.grpc_bind_addr;
+            let reflection_bytes = self.grpc_reflection_bytes.take();
             info!("gRPC transport server listening on grpc://{}", grpc_addr);
 
             let max_msg_size = self
@@ -137,12 +138,31 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
                 .as_ref()
                 .map_or(4 * 1024 * 1024, |c| c.max_message_size_bytes);
 
+            // Build reflection service from descriptor bytes (if available).
+            let reflection_svc = reflection_bytes.and_then(|bytes| {
+                match tonic_reflection::server::Builder::configure()
+                    .register_encoded_file_descriptor_set(&bytes)
+                    .build_v1()
+                {
+                    Ok(svc) => Some(svc),
+                    Err(e) => {
+                        warn!("Failed to build gRPC reflection service: {e}");
+                        None
+                    },
+                }
+            });
+
             Some(tokio::spawn(async move {
-                tonic::transport::Server::builder()
-                    .max_frame_size(Some(max_msg_size as u32))
-                    .add_service(grpc_service)
-                    .serve(grpc_addr)
-                    .await
+                let mut builder = tonic::transport::Server::builder()
+                    .max_frame_size(Some(max_msg_size as u32));
+
+                let router = builder.add_service(grpc_service);
+
+                if let Some(reflection) = reflection_svc {
+                    router.add_service(reflection).serve(grpc_addr).await
+                } else {
+                    router.serve(grpc_addr).await
+                }
             }))
         } else {
             None

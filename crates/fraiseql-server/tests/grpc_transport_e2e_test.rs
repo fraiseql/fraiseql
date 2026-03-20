@@ -290,12 +290,12 @@ fn build_service(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, name) = grpc::build_grpc_service(schema, adapter, None, None)
+    let services = grpc::build_grpc_service(schema, adapter, None, None)
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
-    assert_eq!(name, SERVICE_NAME);
-    svc
+    assert_eq!(services.service_name, SERVICE_NAME);
+    services.service
 }
 
 // ---------------------------------------------------------------------------
@@ -909,11 +909,11 @@ fn build_service_with_auth(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, _) = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)), None)
+    let services = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)), None)
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
-    svc
+    services.service
 }
 
 /// Build a gRPC request with an Authorization header.
@@ -1144,12 +1144,12 @@ fn build_service_with_rate_limiter(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, name) = grpc::build_grpc_service(schema, adapter, None, Some(rate_limiter))
+    let services = grpc::build_grpc_service(schema, adapter, None, Some(rate_limiter))
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
-    assert_eq!(name, SERVICE_NAME);
-    svc
+    assert_eq!(services.service_name, SERVICE_NAME);
+    services.service
 }
 
 #[tokio::test]
@@ -1257,4 +1257,120 @@ async fn no_rate_limiter_allows_all_requests() {
         let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
         assert_eq!(grpc_status.as_deref(), Some("0"), "Request {i} should succeed without limiter");
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cycle 11: Reflection service tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn reflection_descriptor_bytes_present_when_enabled() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new();
+    let services = grpc::build_grpc_service(
+        Arc::new(schema),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
+
+    // Default: reflection = true → descriptor bytes should be present.
+    assert!(
+        services.reflection_descriptor_bytes.is_some(),
+        "Reflection descriptor bytes should be present when reflection is enabled"
+    );
+    assert_eq!(services.service_name, SERVICE_NAME);
+}
+
+#[test]
+fn reflection_descriptor_bytes_absent_when_disabled() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let mut schema = build_grpc_schema(&desc_path);
+
+    // Disable reflection.
+    schema.grpc_config.as_mut().unwrap().reflection = false;
+
+    let adapter = FailingAdapter::new();
+    let services = grpc::build_grpc_service(
+        Arc::new(schema),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
+
+    assert!(
+        services.reflection_descriptor_bytes.is_none(),
+        "Reflection descriptor bytes should be absent when reflection is disabled"
+    );
+}
+
+#[test]
+fn reflection_service_builds_from_descriptor_bytes() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new();
+    let services = grpc::build_grpc_service(
+        Arc::new(schema),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
+
+    let bytes = services
+        .reflection_descriptor_bytes
+        .expect("descriptor bytes should be present");
+
+    // Verify that tonic-reflection can build a v1 service from these bytes.
+    let result = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(&bytes)
+        .build_v1();
+
+    assert!(result.is_ok(), "Reflection service should build successfully from descriptor bytes");
+}
+
+#[tokio::test]
+async fn reflection_service_accepts_tonic_add_service() {
+    // Verify both services can be added to a tonic server builder without type errors.
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    let services = grpc::build_grpc_service(
+        Arc::new(schema),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
+
+    let bytes = services
+        .reflection_descriptor_bytes
+        .expect("descriptor bytes should be present");
+
+    let reflection_svc = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(&bytes)
+        .build_v1()
+        .expect("reflection service should build");
+
+    // Build a tonic server with both services — verifies type compatibility.
+    let mut builder = tonic::transport::Server::builder();
+    let _router = builder
+        .add_service(services.service)
+        .add_service(reflection_svc);
 }

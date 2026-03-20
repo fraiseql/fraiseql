@@ -27,6 +27,24 @@ use crate::middleware::RateLimiter;
 use handler::{RpcDispatchTable, build_dispatch_table};
 
 // ---------------------------------------------------------------------------
+// Service bundle returned by `build_grpc_service()`
+// ---------------------------------------------------------------------------
+
+/// Bundle of services produced by [`build_grpc_service()`].
+///
+/// Contains the dynamic gRPC service, optional descriptor bytes for
+/// reflection, and the fully-qualified service name.
+pub struct GrpcServices<A: DatabaseAdapter> {
+    /// The dynamic gRPC service that dispatches RPCs.
+    pub service: DynamicGrpcService<A>,
+    /// Raw `FileDescriptorSet` bytes for building reflection at serve time.
+    /// Present when `GrpcConfig.reflection` is true.
+    pub reflection_descriptor_bytes: Option<Vec<u8>>,
+    /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
+    pub service_name: String,
+}
+
+// ---------------------------------------------------------------------------
 // Dynamic gRPC service
 // ---------------------------------------------------------------------------
 
@@ -136,7 +154,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
 
         // Record user_id on the tracing span (set by `call()`).
         if let Some(ref ctx) = security_context {
-            tracing::Span::current().record("user_id", &ctx.user_id.as_str());
+            tracing::Span::current().record("user_id", ctx.user_id.as_str());
         }
 
         // ── Rate limiting ─────────────────────────────────────────────
@@ -395,7 +413,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// Build a [`DynamicGrpcService`] from a compiled schema and descriptor file.
 ///
 /// Returns `None` if gRPC is not configured or not enabled.
-/// Returns `Some(service, service_name)` on success.
+/// Returns `Some(GrpcServices)` on success, containing the dynamic service,
+/// an optional reflection service, and the service name.
 ///
 /// # Errors
 ///
@@ -406,7 +425,7 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     adapter: Arc<A>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
-) -> Result<Option<(DynamicGrpcService<A>, String)>, FraiseQLError> {
+) -> Result<Option<GrpcServices<A>>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
         _ => return Ok(None),
@@ -479,6 +498,14 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         info!("gRPC transport: rate limiting enabled");
     }
 
+    // Preserve descriptor bytes for reflection service (built at serve time).
+    let reflection_descriptor_bytes = if grpc_config.reflection {
+        info!("gRPC server reflection enabled");
+        Some(descriptor_bytes)
+    } else {
+        None
+    };
+
     let service = DynamicGrpcService {
         adapter,
         schema,
@@ -489,5 +516,9 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         rate_limiter,
     };
 
-    Ok(Some((service, service_name)))
+    Ok(Some(GrpcServices {
+        service,
+        reflection_descriptor_bytes,
+        service_name,
+    }))
 }

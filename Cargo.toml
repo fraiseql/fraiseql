@@ -129,6 +129,7 @@ tokio-util = {version = "0.7"}
 # Configuration
 toml = "0.8"
 tonic = "0.14"
+tonic-reflection = "0.14"
 tower = {version = "0.5"}
 tower-http = {version = "0.5", features = ["cors", "compression-gzip"]}
 # Logging

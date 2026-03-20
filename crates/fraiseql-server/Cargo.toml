@@ -89,6 +89,7 @@ toml = {workspace = true}
 prost = {workspace = true, optional = true}
 prost-reflect = {workspace = true, optional = true}
 tonic = {workspace = true, optional = true}
+tonic-reflection = {workspace = true, optional = true}
 tower = {workspace = true, features = ["full"]}
 tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
 # Tracing
@@ -131,7 +132,7 @@ wiremock = "0.6"
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 # gRPC transport: row-shaped view queries via protobuf wire encoding
-grpc = ["dep:http-body-util", "dep:prost", "dep:prost-reflect", "dep:tonic", "fraiseql-core/grpc"]
+grpc = ["dep:http-body-util", "dep:prost", "dep:prost-reflect", "dep:tonic", "dep:tonic-reflection", "fraiseql-core/grpc"]
 auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 azure-blob = []

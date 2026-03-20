@@ -110,6 +110,10 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "grpc")]
     pub(super) grpc_service: Option<crate::routes::grpc::DynamicGrpcService<A>>,
 
+    /// Raw `FileDescriptorSet` bytes for building gRPC reflection at serve time.
+    #[cfg(feature = "grpc")]
+    pub(super) grpc_reflection_bytes: Option<Vec<u8>>,
+
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 

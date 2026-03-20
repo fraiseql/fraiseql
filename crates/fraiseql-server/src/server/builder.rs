@@ -168,9 +168,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 server.oidc_validator.clone(),
                 server.rate_limiter.clone(),
             ) {
-                Ok(Some((svc, service_name))) => {
-                    info!(service = %service_name, "gRPC transport service initialized");
-                    server.grpc_service = Some(svc);
+                Ok(Some(grpc_services)) => {
+                    info!(service = %grpc_services.service_name, "gRPC transport service initialized");
+                    server.grpc_service = Some(grpc_services.service);
+                    server.grpc_reflection_bytes = grpc_services.reflection_descriptor_bytes;
                 },
                 Ok(None) => {
                     // gRPC not configured or disabled — no-op.
@@ -342,6 +343,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             flight_service,
             #[cfg(feature = "grpc")]
             grpc_service: None,
+            #[cfg(feature = "grpc")]
+            grpc_reflection_bytes: None,
             #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,
