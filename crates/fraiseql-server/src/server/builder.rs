@@ -159,6 +159,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Initialize gRPC service from compiled schema when the feature is compiled in.
+        #[cfg(feature = "grpc")]
+        {
+            match crate::routes::grpc::build_grpc_service(
+                Arc::new(server.executor.schema().clone()),
+                server.executor.adapter().clone(),
+            ) {
+                Ok(Some((svc, service_name))) => {
+                    info!(service = %service_name, "gRPC transport service initialized");
+                    server.grpc_service = Some(svc);
+                },
+                Ok(None) => {
+                    // gRPC not configured or disabled — no-op.
+                },
+                Err(e) => {
+                    warn!("gRPC transport initialization failed: {e}");
+                },
+            }
+        }
+
         // Initialize APQ store when enabled.
         if server.config.apq_enabled {
             let apq_store: fraiseql_core::apq::ArcApqStorage =
@@ -318,6 +338,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
             #[cfg(feature = "arrow")]
             flight_service,
+            #[cfg(feature = "grpc")]
+            grpc_service: None,
             #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,

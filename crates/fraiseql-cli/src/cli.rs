@@ -497,6 +497,35 @@ EXAMPLES:
         output: String,
     },
 
+    /// Generate gRPC proto, row-view migrations, and binary descriptor
+    ///
+    /// Reads a compiled schema and produces three files:
+    /// - service.proto: proto3 service definition
+    /// - vr_migrations.sql: row-shaped view DDL for the gRPC transport
+    /// - descriptor.binpb: serialized FileDescriptorSet for gRPC reflection
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate-proto schema.compiled.json
+    fraiseql generate-proto schema.compiled.json -o proto/
+    fraiseql generate-proto schema.compiled.json --package myapp.v1 --dialect mysql")]
+    GenerateProto {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output directory for generated files
+        #[arg(short, long, value_name = "DIR", default_value = "proto")]
+        output: String,
+
+        /// Protobuf package name
+        #[arg(long, value_name = "PACKAGE", default_value = "fraiseql.v1")]
+        package: String,
+
+        /// SQL dialect for row-view DDL (postgres, mysql, sqlite, sqlserver)
+        #[arg(long, value_name = "DIALECT", default_value = "postgres")]
+        dialect: String,
+    },
+
     /// Validate a trusted documents manifest
     ///
     /// Checks that the manifest JSON is well-formed and that each key

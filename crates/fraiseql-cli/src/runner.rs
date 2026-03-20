@@ -166,6 +166,16 @@ pub async fn run() {
             },
         },
 
+        Commands::GenerateProto {
+            schema,
+            output,
+            package,
+            dialect,
+        } => {
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            commands::generate_proto::run(&schema, &output, &package, &dialect, &formatter)
+        },
+
         Commands::GenerateViews {
             schema,
             entity,

@@ -50,6 +50,14 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_flight_bind_addr")]
     pub flight_bind_addr: SocketAddr,
 
+    /// gRPC transport bind address (requires `grpc` feature).
+    ///
+    /// Defaults to `0.0.0.0:50052`. Override with `FRAISEQL_GRPC_BIND_ADDR`
+    /// environment variable or this field in the config file.
+    #[cfg(feature = "grpc")]
+    #[serde(default = "defaults::default_grpc_bind_addr")]
+    pub grpc_bind_addr: SocketAddr,
+
     /// Enable CORS.
     #[serde(default = "defaults::default_true")]
     pub cors_enabled: bool,
@@ -399,6 +407,8 @@ impl Default for ServerConfig {
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]
             flight_bind_addr: defaults::default_flight_bind_addr(),
+            #[cfg(feature = "grpc")]
+            grpc_bind_addr: defaults::default_grpc_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: true,

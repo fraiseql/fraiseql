@@ -107,6 +107,9 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
 
+    #[cfg(feature = "grpc")]
+    pub(super) grpc_service: Option<crate::routes::grpc::DynamicGrpcService<A>>,
+
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 

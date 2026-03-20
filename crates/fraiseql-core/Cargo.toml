@@ -96,6 +96,8 @@ wiremock = "0.6"
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres", "rich-filters"]
+# gRPC transport: row-shaped view queries returning typed ColumnValue vectors
+grpc = ["fraiseql-db/grpc"]
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]

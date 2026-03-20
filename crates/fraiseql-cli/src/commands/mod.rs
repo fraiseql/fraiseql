@@ -10,6 +10,7 @@ pub mod extract;
 pub mod federation;
 pub mod gateway;
 pub mod generate;
+pub mod generate_proto;
 pub mod generate_views;
 pub mod init;
 pub mod introspect_facts;

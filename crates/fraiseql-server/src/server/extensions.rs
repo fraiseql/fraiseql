@@ -275,6 +275,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             flight_service,
+            #[cfg(feature = "grpc")]
+            grpc_service: None,
         })
     }
 

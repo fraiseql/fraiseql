@@ -18,6 +18,14 @@ pub fn default_flight_bind_addr() -> SocketAddr {
         .unwrap_or_else(|| "0.0.0.0:50051".parse().expect("valid Flight bind address"))
 }
 
+#[cfg(feature = "grpc")]
+pub fn default_grpc_bind_addr() -> SocketAddr {
+    std::env::var("FRAISEQL_GRPC_BIND_ADDR")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| "0.0.0.0:50052".parse().expect("valid gRPC bind address"))
+}
+
 pub fn default_bind_addr() -> SocketAddr {
     "127.0.0.1:8000".parse().expect("hard-coded addr literal is always valid")
 }

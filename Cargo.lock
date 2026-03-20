@@ -2622,6 +2622,8 @@ dependencies = [
  "http-body-util",
  "indexmap 2.13.0",
  "notify",
+ "prost 0.14.3",
+ "prost-types",
  "regex",
  "reqwest",
  "serde",
@@ -2855,6 +2857,7 @@ dependencies = [
  "hex",
  "hmac",
  "http 1.4.0",
+ "http-body-util",
  "ipnet",
  "jsonwebtoken",
  "metrics 0.22.4",
@@ -2865,6 +2868,8 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "proptest",
+ "prost 0.14.3",
+ "prost-reflect",
  "rand 0.8.5",
  "redis",
  "reqwest",
@@ -5203,6 +5208,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-reflect"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
+dependencies = [
+ "base64 0.22.1",
+ "prost 0.14.3",
+ "prost-types",
+ "serde",
+ "serde-value",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6139,6 +6157,16 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
+dependencies = [
+ "ordered-float",
+ "serde",
 ]
 
 [[package]]

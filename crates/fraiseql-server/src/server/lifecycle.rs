@@ -124,6 +124,30 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
 
         info!("Server listening on http://{}", self.config.bind_addr);
 
+        // Spawn gRPC transport server in background (if configured).
+        #[cfg(feature = "grpc")]
+        let grpc_server_handle = if let Some(grpc_service) = self.grpc_service.clone() {
+            let grpc_addr = self.config.grpc_bind_addr;
+            info!("gRPC transport server listening on grpc://{}", grpc_addr);
+
+            let max_msg_size = self
+                .executor
+                .schema()
+                .grpc_config
+                .as_ref()
+                .map_or(4 * 1024 * 1024, |c| c.max_message_size_bytes);
+
+            Some(tokio::spawn(async move {
+                tonic::transport::Server::builder()
+                    .max_frame_size(Some(max_msg_size as u32))
+                    .add_service(grpc_service)
+                    .serve(grpc_addr)
+                    .await
+            }))
+        } else {
+            None
+        };
+
         // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
         #[cfg(feature = "arrow")]
         if let Some(flight_service) = self.flight_service {
@@ -165,6 +189,12 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
 
             // Abort Flight server after HTTP server exits
             flight_server.abort();
+
+            // Abort gRPC transport server after HTTP server exits
+            #[cfg(feature = "grpc")]
+            if let Some(handle) = grpc_server_handle {
+                handle.abort();
+            }
         }
 
         // HTTP-only server (when arrow feature not enabled)
@@ -200,6 +230,12 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
                     timeout_secs = self.config.shutdown_timeout_secs,
                     "Shutdown drain timed out; forcing exit"
                 ),
+            }
+
+            // Abort gRPC transport server after HTTP server exits
+            #[cfg(feature = "grpc")]
+            if let Some(handle) = grpc_server_handle {
+                handle.abort();
             }
         }
 

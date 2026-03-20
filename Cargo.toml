@@ -80,6 +80,7 @@ futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
+http-body-util = "0.1"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
@@ -92,6 +93,9 @@ lru = "0.16"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 # Property-based testing
+prost = "0.14"
+prost-reflect = {version = "0.16", features = ["serde"]}
+prost-types = "0.14"
 proptest = "1.4"
 # Random
 rand = "0.8"
@@ -124,6 +128,7 @@ tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1
 tokio-util = {version = "0.7"}
 # Configuration
 toml = "0.8"
+tonic = "0.14"
 tower = {version = "0.5"}
 tower-http = {version = "0.5", features = ["cors", "compression-gzip"]}
 # Logging
