@@ -15,11 +15,12 @@ use std::sync::Arc;
 
 use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::security::{OidcValidator, SecurityContext};
 use fraiseql_error::FraiseQLError;
 use prost_reflect::DescriptorPool;
 use tonic::body::Body as TonicBody;
 use tonic::server::NamedService;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use handler::{RpcDispatchTable, build_dispatch_table};
 
@@ -44,16 +45,22 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     pool: Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
     service_name: Arc<str>,
+    /// Optional OIDC validator for JWT authentication.
+    /// When present, incoming requests must carry a valid `authorization`
+    /// metadata header (`Bearer <jwt>`). The validated token is converted
+    /// into a [`SecurityContext`] that drives RLS WHERE clause injection.
+    oidc_validator: Option<Arc<OidcValidator>>,
 }
 
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter:      Arc::clone(&self.adapter),
-            schema:       Arc::clone(&self.schema),
-            dispatch:     Arc::clone(&self.dispatch),
-            pool:         Arc::clone(&self.pool),
-            service_name: Arc::clone(&self.service_name),
+            adapter:        Arc::clone(&self.adapter),
+            schema:         Arc::clone(&self.schema),
+            dispatch:       Arc::clone(&self.dispatch),
+            pool:           Arc::clone(&self.pool),
+            service_name:   Arc::clone(&self.service_name),
+            oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
         }
     }
 }
@@ -65,8 +72,14 @@ impl<A: DatabaseAdapter> NamedService for DynamicGrpcService<A> {
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     /// Handle a unary gRPC request.
     ///
-    /// Decodes the request bytes, dispatches to the appropriate query handler,
-    /// executes the query, and encodes the response.
+    /// When an [`OidcValidator`] is configured, the handler extracts the
+    /// `authorization` HTTP header (gRPC metadata), validates the Bearer JWT,
+    /// and builds a [`SecurityContext`].  Unauthenticated requests are
+    /// rejected with `UNAUTHENTICATED` (gRPC status 16).
+    ///
+    /// The resulting `SecurityContext` is threaded through to
+    /// [`handler::execute_grpc_query`] where it drives RLS WHERE clause
+    /// injection.
     async fn handle_request(
         &self,
         method: &str,
@@ -78,6 +91,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             Some(op) => op,
             None => return grpc_error_response(tonic::Code::Unimplemented, &format!("Method not found: {method}")),
         };
+
+        // ── Auth interceptor ──────────────────────────────────────────
+        // Extract headers before any `.await` so the non-Sync request body
+        // is not held across the token-validation await point.
+        let auth_header = req
+            .headers()
+            .get(http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .map(String::from);
+        let request_id = req
+            .headers()
+            .get("x-request-id")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("grpc")
+            .to_string();
+
+        let security_context: Option<SecurityContext> =
+            match self.authenticate(auth_header, request_id).await {
+                Ok(ctx) => ctx,
+                Err(resp) => return resp,
+            };
 
         // Collect the body bytes.
         let body_bytes: bytes::Bytes = match req.into_body().collect().await {
@@ -125,6 +159,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                     *returns_list,
                     &request_msg,
                     type_def,
+                    security_context.as_ref(),
                 ).await {
                     Ok(rows) => rows,
                     Err(FraiseQLError::Validation { message, .. }) => {
@@ -181,6 +216,64 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             http::HeaderValue::from_static("0"),
         );
         response
+    }
+}
+
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
+    /// Extract and validate a Bearer JWT token.
+    ///
+    /// Returns `Ok(Some(SecurityContext))` when the token is valid,
+    /// `Ok(None)` when no OIDC validator is configured (auth disabled), or
+    /// `Err(response)` with gRPC `UNAUTHENTICATED` when auth is required but
+    /// the token is missing or invalid.
+    ///
+    /// The caller pre-extracts `auth_header` and `request_id` from the HTTP
+    /// request *before* any `.await`, so that `http::Request<TonicBody>` (which
+    /// is not `Sync`) need not be held across the token-validation await point.
+    async fn authenticate(
+        &self,
+        auth_header: Option<String>,
+        request_id: String,
+    ) -> std::result::Result<Option<SecurityContext>, http::Response<TonicBody>> {
+        let validator = match self.oidc_validator.as_ref() {
+            Some(v) => v,
+            None => return Ok(None), // Auth not configured — allow anonymous access.
+        };
+
+        let token = match auth_header.as_deref() {
+            Some(h) if h.starts_with("Bearer ") => h[7..].to_string(),
+            Some(_) => {
+                debug!("gRPC request has invalid Authorization header format");
+                return Err(grpc_error_response(
+                    tonic::Code::Unauthenticated,
+                    "Invalid Authorization header format",
+                ));
+            },
+            None => {
+                if validator.is_required() {
+                    debug!("gRPC request missing required Authorization header");
+                    return Err(grpc_error_response(
+                        tonic::Code::Unauthenticated,
+                        "Authentication required",
+                    ));
+                }
+                return Ok(None);
+            },
+        };
+
+        match validator.validate_token(&token).await {
+            Ok(user) => {
+                debug!(user_id = %user.user_id, "gRPC user authenticated");
+                Ok(Some(SecurityContext::from_user(user, request_id)))
+            },
+            Err(e) => {
+                warn!(error = %e, "gRPC token validation failed");
+                Err(grpc_error_response(
+                    tonic::Code::Unauthenticated,
+                    "Invalid or expired token",
+                ))
+            },
+        }
     }
 }
 
@@ -244,6 +337,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     schema: Arc<CompiledSchema>,
     adapter: Arc<A>,
+    oidc_validator: Option<Arc<OidcValidator>>,
 ) -> Result<Option<(DynamicGrpcService<A>, String)>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
@@ -310,12 +404,17 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         }
     }
 
+    if oidc_validator.is_some() {
+        info!("gRPC transport: OIDC authentication enabled");
+    }
+
     let service = DynamicGrpcService {
         adapter,
         schema,
         dispatch: Arc::new(dispatch),
         pool: Arc::new(pool),
         service_name: service_name.clone().into(),
+        oidc_validator,
     };
 
     Ok(Some((service, service_name)))

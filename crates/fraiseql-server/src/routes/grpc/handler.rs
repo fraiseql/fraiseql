@@ -14,6 +14,7 @@ use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use fraiseql_core::db::where_generator::GenericWhereGenerator;
 use fraiseql_core::schema::{CompiledSchema, FieldType, TypeDefinition};
+use fraiseql_core::security::SecurityContext;
 use fraiseql_error::FraiseQLError;
 use prost_reflect::{DynamicMessage, MessageDescriptor, ReflectMessage, Value};
 use tracing::{debug, warn};
@@ -286,6 +287,11 @@ pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Opti
 
 /// Execute a gRPC query against a row-shaped view.
 ///
+/// When a [`SecurityContext`] is provided, RLS (Row-Level Security) WHERE
+/// clauses are generated from the user's identity and AND-ed with any
+/// client-supplied filters.  RLS always wins — client filters can only
+/// *narrow*, never *widen*, the result set.
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Database` on query execution failure.
@@ -297,12 +303,34 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
     returns_list: bool,
     request_msg: &DynamicMessage,
     type_def: &TypeDefinition,
+    security_context: Option<&SecurityContext>,
 ) -> Result<Vec<Vec<ColumnValue>>, FraiseQLError> {
     // Extract filters and build WHERE clause.
-    let where_clause = extract_filters(request_msg, type_def);
+    let user_where = extract_filters(request_msg, type_def);
+
+    // Evaluate RLS policy when a security context is available.
+    // The default policy injects `author_id = <user_id>` for non-admin users
+    // and tenant isolation when a tenant_id is present.
+    let rls_where = if let Some(ctx) = security_context {
+        use fraiseql_core::security::DefaultRLSPolicy;
+        use fraiseql_core::security::RLSPolicy as _;
+        let policy = DefaultRLSPolicy::new();
+        policy
+            .evaluate(ctx, type_def.name.as_str())?
+            .map(|rls| rls.into_where_clause())
+    } else {
+        None
+    };
+
+    // Combine: RLS first, then user filters — RLS always wins.
+    let combined = match (rls_where, user_where) {
+        (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
+        (Some(rls), None) => Some(rls),
+        (None, user) => user,
+    };
 
     // Generate SQL WHERE clause string via GenericWhereGenerator.
-    let where_sql = if let Some(ref clause) = where_clause {
+    let where_sql = if let Some(ref clause) = combined {
         let gen = GenericWhereGenerator::new(PostgresDialect);
         let (sql, _params) = gen.generate(clause)?;
         // Note: In the MVP, the WHERE clause string is passed directly to
@@ -327,6 +355,7 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
         limit = ?limit,
         offset = ?offset,
         order_by = ?order_by,
+        user_id = ?security_context.map(|c| &c.user_id),
         "Executing gRPC row query"
     );
 

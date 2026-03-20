@@ -165,6 +165,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             match crate::routes::grpc::build_grpc_service(
                 Arc::new(server.executor.schema().clone()),
                 server.executor.adapter().clone(),
+                server.oidc_validator.clone(),
             ) {
                 Ok(Some((svc, service_name))) => {
                     info!(service = %service_name, "gRPC transport service initialized");

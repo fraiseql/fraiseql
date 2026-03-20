@@ -290,7 +290,7 @@ fn build_service(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, name) = grpc::build_grpc_service(schema, adapter)
+    let (svc, name) = grpc::build_grpc_service(schema, adapter, None)
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
@@ -634,7 +634,7 @@ async fn grpc_disabled_returns_none() {
     schema.grpc_config.as_mut().unwrap().enabled = false;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter))
+    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None)
         .expect("should not error");
     assert!(result.is_none(), "Disabled gRPC should return None");
 }
@@ -651,7 +651,7 @@ async fn no_grpc_config_returns_none() {
     schema.grpc_config = None;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter))
+    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None)
         .expect("should not error");
     assert!(result.is_none(), "No gRPC config should return None");
 }
@@ -881,4 +881,252 @@ async fn all_three_rpcs_are_callable() {
     // 4. Unknown method — still returns UNIMPLEMENTED
     let (_, grpc_status, _) = send_grpc(&svc, "DeleteUser", &[]).await;
     assert_eq!(grpc_status.as_deref(), Some("12"), "Unknown method should return UNIMPLEMENTED");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cycle 9: Auth interceptor + RLS tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Build a `DynamicGrpcService` with OIDC authentication enabled.
+///
+/// Uses `OidcValidator::with_jwks_uri` to skip OIDC discovery (no network
+/// access needed). The JWKS URI points to `http://localhost:0/jwks` which
+/// will never be called for the "no token" test path.
+fn build_service_with_auth(
+    adapter: FailingAdapter,
+    schema: CompiledSchema,
+) -> DynamicGrpcService<FailingAdapter> {
+    use fraiseql_core::security::{OidcConfig, OidcValidator};
+
+    let config = OidcConfig {
+        issuer:   "https://test-issuer.example.com".to_string(),
+        audience: Some("test-audience".to_string()),
+        required: true,
+        ..OidcConfig::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, "http://localhost:0/jwks".to_string());
+
+    let schema = Arc::new(schema);
+    let adapter = Arc::new(adapter);
+
+    let (svc, _) = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)))
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
+
+    svc
+}
+
+/// Build a gRPC request with an Authorization header.
+fn grpc_request_with_auth(method: &str, msg_bytes: &[u8], bearer_token: &str) -> http::Request<tonic::body::Body> {
+    let mut framed = Vec::with_capacity(5 + msg_bytes.len());
+    framed.push(0);
+    let len = u32::try_from(msg_bytes.len()).unwrap();
+    framed.extend_from_slice(&len.to_be_bytes());
+    framed.extend_from_slice(msg_bytes);
+
+    let uri = format!("/{SERVICE_NAME}/{method}");
+
+    http::Request::builder()
+        .method("POST")
+        .uri(&uri)
+        .header("content-type", "application/grpc")
+        .header("te", "trailers")
+        .header("authorization", format!("Bearer {bearer_token}"))
+        .body(tonic::body::Body::new(axum::body::Body::from(framed)))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn request_without_token_returns_unauthenticated() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    let svc = build_service_with_auth(adapter, schema);
+
+    // Send a GetUser request with NO Authorization header.
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    let (status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
+
+    assert_eq!(status, http::StatusCode::OK); // gRPC always returns 200
+    // gRPC status 16 = UNAUTHENTICATED
+    assert_eq!(grpc_status.as_deref(), Some("16"), "Missing token should return UNAUTHENTICATED");
+}
+
+#[tokio::test]
+async fn request_with_invalid_token_returns_unauthenticated() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new();
+    let svc = build_service_with_auth(adapter, schema);
+
+    // Send a request with an invalid JWT.
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    let req = grpc_request_with_auth("GetUser", &req_bytes, "not-a-valid-jwt");
+    let response = svc.clone().oneshot(req).await.expect("service call should not error");
+
+    let grpc_status = response
+        .headers()
+        .get("grpc-status")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    // gRPC status 16 = UNAUTHENTICATED
+    assert_eq!(grpc_status.as_deref(), Some("16"), "Invalid token should return UNAUTHENTICATED");
+}
+
+#[tokio::test]
+async fn request_with_bad_auth_scheme_returns_unauthenticated() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new();
+    let svc = build_service_with_auth(adapter, schema);
+
+    // Send a request with "Basic" instead of "Bearer".
+    let uri = format!("/{SERVICE_NAME}/GetUser");
+    let req = http::Request::builder()
+        .method("POST")
+        .uri(&uri)
+        .header("content-type", "application/grpc")
+        .header("authorization", "Basic dXNlcjpwYXNz")
+        .body(tonic::body::Body::new(axum::body::Body::from(vec![0u8; 5])))
+        .unwrap();
+
+    let response = svc.clone().oneshot(req).await.unwrap();
+    let grpc_status = response
+        .headers()
+        .get("grpc-status")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    assert_eq!(grpc_status.as_deref(), Some("16"), "Basic auth should return UNAUTHENTICATED");
+}
+
+/// Test that when a `SecurityContext` is provided, `execute_grpc_query` generates
+/// RLS WHERE clauses (`DefaultRLSPolicy`: owner-based filtering).
+#[tokio::test]
+async fn query_with_security_context_applies_rls_where_clause() {
+    use fraiseql_core::security::SecurityContext;
+    use fraiseql_server::routes::grpc::handler;
+    use std::collections::HashMap;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    // Build a SecurityContext for user "user-42" (non-admin).
+    let ctx = SecurityContext {
+        user_id:          "user-42".to_string(),
+        roles:            vec!["viewer".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "grpc-test".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+    };
+
+    // Build the request message (empty GetUserRequest).
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+
+    let type_def = schema.find_type("User").expect("User type must exist");
+
+    let columns = handler::column_specs_from_type(type_def);
+
+    // Execute with SecurityContext → RLS should inject WHERE clause.
+    let _result = handler::execute_grpc_query(
+        &adapter,
+        "vr_tb_users",
+        &columns,
+        false,
+        &req_msg,
+        type_def,
+        Some(&ctx),
+    )
+    .await
+    .expect("query should succeed");
+
+    // Verify the adapter received a query (confirms it was called).
+    let queries = adapter.recorded_queries();
+    assert_eq!(queries, vec!["vr_tb_users"], "Adapter should be queried");
+
+    // Verify the adapter received a WHERE clause containing the RLS filter.
+    // The DefaultRLSPolicy generates: author_id = $1 (parameterized).
+    let where_clauses = adapter.recorded_where_clauses();
+    assert!(
+        !where_clauses.is_empty(),
+        "RLS should have generated a WHERE clause"
+    );
+    let where_sql = &where_clauses[0];
+    assert!(
+        where_sql.as_ref().is_some_and(|s| s.contains("author_id")),
+        "RLS WHERE clause should contain author_id filter: got {where_sql:?}"
+    );
+}
+
+/// Test that without a `SecurityContext`, no RLS is applied (anonymous access).
+#[tokio::test]
+async fn query_without_security_context_has_no_rls() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+
+    let type_def = schema.find_type("User").expect("User type must exist");
+    let columns = handler::column_specs_from_type(type_def);
+
+    // Execute WITHOUT SecurityContext → no RLS.
+    let _result = handler::execute_grpc_query(
+        &adapter,
+        "vr_tb_users",
+        &columns,
+        false,
+        &req_msg,
+        type_def,
+        None,
+    )
+    .await
+    .expect("query should succeed");
+
+    // Verify no WHERE clause was passed (no RLS, no user filters).
+    let where_clauses = adapter.recorded_where_clauses();
+    assert!(
+        where_clauses.is_empty() || where_clauses[0].is_none(),
+        "Without SecurityContext, no WHERE clause should be passed: got {where_clauses:?}"
+    );
 }

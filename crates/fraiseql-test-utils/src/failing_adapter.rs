@@ -108,6 +108,9 @@ pub struct FailingAdapter {
     /// Canned row-shaped responses per view name (for gRPC `execute_row_query`).
     #[cfg(feature = "grpc")]
     row_responses:      Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
+    /// Log of WHERE clauses passed to `execute_row_query` (for RLS assertion).
+    #[cfg(feature = "grpc")]
+    where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
     /// Failure injection configuration.
     fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
@@ -125,6 +128,8 @@ impl FailingAdapter {
             function_responses: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "grpc")]
             row_responses:      Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "grpc")]
+            where_clause_log:   Arc::new(Mutex::new(Vec::new())),
             fail_config:        Arc::new(Mutex::new(FailConfig::default())),
             query_count:        Arc::new(AtomicU64::new(0)),
             query_log:          Arc::new(Mutex::new(Vec::new())),
@@ -239,6 +244,20 @@ impl FailingAdapter {
     #[must_use]
     pub fn recorded_queries(&self) -> Vec<String> {
         self.query_log.lock().unwrap().clone()
+    }
+
+    /// Get all recorded WHERE clauses from `execute_row_query` calls.
+    ///
+    /// Each entry is `Some(sql)` when a WHERE clause was passed, or `None`
+    /// when the query was executed without filtering.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal where clause log mutex is poisoned.
+    #[cfg(feature = "grpc")]
+    #[must_use]
+    pub fn recorded_where_clauses(&self) -> Vec<Option<String>> {
+        self.where_clause_log.lock().unwrap().clone()
     }
 
     /// Get the current query count.
@@ -410,12 +429,16 @@ impl DatabaseAdapter for FailingAdapter {
         &self,
         view: &str,
         _columns: &[ColumnSpec],
-        _where_clause: Option<&str>,
+        where_clause: Option<&str>,
         _order_by: Option<&str>,
         _limit: Option<u32>,
         _offset: Option<u32>,
     ) -> Result<Vec<Vec<ColumnValue>>> {
         self.check_failure(view)?;
+        self.where_clause_log
+            .lock()
+            .unwrap()
+            .push(where_clause.map(String::from));
         let responses = self.row_responses.lock().unwrap();
         Ok(responses.get(view).cloned().unwrap_or_default())
     }
