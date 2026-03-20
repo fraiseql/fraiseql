@@ -420,3 +420,37 @@ fn test_validate_admin_readonly_token_without_admin_enabled_is_ignored() {
     };
     assert!(config.validate().is_ok());
 }
+
+#[test]
+fn test_toml_rejects_unknown_top_level_keys() {
+    let toml_str = r#"
+[server]
+port = 4001
+bind = "0.0.0.0"
+"#;
+    let result: Result<ServerConfig, _> = toml::from_str(toml_str);
+    assert!(result.is_err(), "Nested [server] section should be rejected");
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("unknown field"), "Error should mention unknown field: {err}");
+}
+
+#[test]
+fn test_toml_rejects_nested_database_section() {
+    let toml_str = r#"
+[database]
+url = "postgresql://localhost/mydb"
+"#;
+    let result: Result<ServerConfig, _> = toml::from_str(toml_str);
+    assert!(result.is_err(), "Nested [database] section should be rejected");
+}
+
+#[test]
+fn test_toml_accepts_valid_flat_config() {
+    let toml_str = r#"
+database_url = "postgresql://localhost/mydb"
+bind_addr = "127.0.0.1:9000"
+"#;
+    let config: ServerConfig = toml::from_str(toml_str).expect("Valid flat config should parse");
+    assert_eq!(config.database_url, "postgresql://localhost/mydb");
+    assert_eq!(config.bind_addr.port(), 9000);
+}

@@ -2,10 +2,11 @@
 
 use indexmap::IndexMap;
 
-use crate::schema::{
-    intermediate::{IntermediateQuery, IntermediateSchema, IntermediateType},
-    validator::schema_validator::SchemaValidator,
+use crate::schema::intermediate::{
+    IntermediateArgument, IntermediateEnum, IntermediateEnumValue, IntermediateInputObject,
+    IntermediateMutation, IntermediateQuery, IntermediateSchema, IntermediateType,
 };
+use crate::schema::validator::schema_validator::SchemaValidator;
 
 #[test]
 fn test_validate_empty_schema() {
@@ -632,4 +633,139 @@ fn test_query_schema_qualified_sql_source_passes() {
     let report = SchemaValidator::validate(&schema).unwrap();
     // Should only have the usual "no sql_source" warnings for other queries, not errors
     assert!(report.is_valid(), "Schema-qualified sql_source should be valid");
+}
+
+// ========================================================================
+// Input type and enum type registry tests (#110)
+// ========================================================================
+
+#[test]
+fn test_mutation_arg_referencing_input_type_is_valid() {
+    let schema = IntermediateSchema {
+        types: vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        input_types: vec![IntermediateInputObject {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![],
+            description: None,
+        }],
+        mutations: vec![IntermediateMutation {
+            name:          "create_order".to_string(),
+            return_type:   "Order".to_string(),
+            returns_list:  false,
+            nullable:      false,
+            arguments:     vec![IntermediateArgument {
+                name:       "input".to_string(),
+                arg_type:   "CreateOrderInput".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:   None,
+            sql_source:    Some("fn_create_order".to_string()),
+            operation:              None,
+            deprecated:             None,
+            inject:                 IndexMap::default(),
+            invalidates_fact_tables: vec![],
+            invalidates_views:      vec![],
+        }],
+        ..IntermediateSchema::default()
+    };
+
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(report.is_valid(), "Input type should be recognised: {report:?}");
+}
+
+#[test]
+fn test_mutation_arg_referencing_enum_type_is_valid() {
+    let schema = IntermediateSchema {
+        types: vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums: vec![IntermediateEnum {
+            name:        "Status".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "ACTIVE".to_string(), description: None, deprecated: None },
+                IntermediateEnumValue { name: "CANCELLED".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        mutations: vec![IntermediateMutation {
+            name:          "update_status".to_string(),
+            return_type:   "Order".to_string(),
+            returns_list:  false,
+            nullable:      false,
+            arguments:     vec![IntermediateArgument {
+                name:       "status".to_string(),
+                arg_type:   "Status".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:   None,
+            sql_source:    Some("fn_update_status".to_string()),
+            operation:              None,
+            deprecated:             None,
+            inject:                 IndexMap::default(),
+            invalidates_fact_tables: vec![],
+            invalidates_views:      vec![],
+        }],
+        ..IntermediateSchema::default()
+    };
+
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(report.is_valid(), "Enum type should be recognised: {report:?}");
+}
+
+#[test]
+fn test_unknown_input_type_is_rejected() {
+    let schema = IntermediateSchema {
+        types: vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        mutations: vec![IntermediateMutation {
+            name:          "create_order".to_string(),
+            return_type:   "Order".to_string(),
+            returns_list:  false,
+            nullable:      false,
+            arguments:     vec![IntermediateArgument {
+                name:       "input".to_string(),
+                arg_type:   "NonExistentInput".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:   None,
+            sql_source:    Some("fn_create_order".to_string()),
+            operation:              None,
+            deprecated:             None,
+            inject:                 IndexMap::default(),
+            invalidates_fact_tables: vec![],
+            invalidates_views:      vec![],
+        }],
+        ..IntermediateSchema::default()
+    };
+
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(!report.is_valid());
+    assert!(report.errors.iter().any(|e| e.message.contains("NonExistentInput")));
 }

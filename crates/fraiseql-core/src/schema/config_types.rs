@@ -399,6 +399,13 @@ pub struct RestConfig {
     pub default_cache_ttl: u64,
     /// TTL for idempotency keys in seconds. Default: 86400 (24 hours).
     pub idempotency_ttl_seconds: u64,
+    /// SSE heartbeat interval in seconds. Default: 30.
+    #[serde(default = "default_sse_heartbeat_seconds")]
+    pub sse_heartbeat_seconds: u64,
+}
+
+const fn default_sse_heartbeat_seconds() -> u64 {
+    30
 }
 
 impl Default for RestConfig {
@@ -418,6 +425,7 @@ impl Default for RestConfig {
             max_bulk_affected:        DEFAULT_MAX_BULK_AFFECTED,
             default_cache_ttl:        60,
             idempotency_ttl_seconds:  86_400,
+            sse_heartbeat_seconds:    30,
         }
     }
 }
@@ -669,6 +677,7 @@ mod tests {
             max_bulk_affected:       500,
             default_cache_ttl:       120,
             idempotency_ttl_seconds: 3600,
+            sse_heartbeat_seconds:  15,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();

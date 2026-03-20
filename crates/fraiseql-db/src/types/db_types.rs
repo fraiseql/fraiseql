@@ -66,6 +66,39 @@ impl DatabaseType {
             Self::SQLServer => format!("@p{index}"),
         }
     }
+
+    /// Quote a SQL identifier using the correct syntax for this database dialect.
+    ///
+    /// Schema-qualified names (e.g., `schema.table`) are split on `.` and each
+    /// component is quoted separately.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fraiseql_db::DatabaseType;
+    /// assert_eq!(DatabaseType::PostgreSQL.quote_identifier("v_user"), "\"v_user\"");
+    /// assert_eq!(
+    ///     DatabaseType::PostgreSQL.quote_identifier("product.v_offering"),
+    ///     "\"product\".\"v_offering\""
+    /// );
+    /// assert_eq!(
+    ///     DatabaseType::MySQL.quote_identifier("product.v_offering"),
+    ///     "`product`.`v_offering`"
+    /// );
+    /// assert_eq!(
+    ///     DatabaseType::SQLServer.quote_identifier("product.v_offering"),
+    ///     "[product].[v_offering]"
+    /// );
+    /// ```
+    #[must_use]
+    pub fn quote_identifier(&self, identifier: &str) -> String {
+        match self {
+            Self::PostgreSQL => crate::quote_postgres_identifier(identifier),
+            Self::MySQL => crate::quote_mysql_identifier(identifier),
+            Self::SQLite => crate::quote_sqlite_identifier(identifier),
+            Self::SQLServer => crate::quote_sqlserver_identifier(identifier),
+        }
+    }
 }
 
 impl std::fmt::Display for DatabaseType {

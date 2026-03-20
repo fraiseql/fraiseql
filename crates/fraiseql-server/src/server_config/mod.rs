@@ -28,6 +28,7 @@ use crate::middleware::RateLimitConfig;
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
     #[serde(default = "defaults::default_schema_path")]

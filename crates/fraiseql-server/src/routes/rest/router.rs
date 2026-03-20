@@ -93,6 +93,8 @@ where
         executor: state.executor.clone(),
         route_table: route_table.clone(),
         idempotency_store,
+        #[cfg(feature = "observers")]
+        event_transport: state.event_transport.clone(),
     };
 
     let mut router = Router::new();
@@ -208,6 +210,9 @@ struct RestState<A: DatabaseAdapter> {
     executor: Arc<Executor<A>>,
     route_table: Arc<RestRouteTable>,
     idempotency_store: Arc<super::idempotency::InMemoryIdempotencyStore>,
+    /// Optional event transport for SSE streaming (requires `observers` feature).
+    #[cfg(feature = "observers")]
+    event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -451,24 +456,94 @@ where
         }
     }
 
+    // Read heartbeat interval from REST config (or use default).
+    let heartbeat_secs = schema
+        .rest_config
+        .as_ref()
+        .map_or(super::sse::DEFAULT_SSE_HEARTBEAT_SECONDS, |c| c.sse_heartbeat_seconds);
+
     // Check if observers feature is available
     #[cfg(not(feature = "observers"))]
     {
+        let _ = heartbeat_secs; // suppress unused warning
         rest_result_to_response(Err(super::sse::observers_not_available()))
     }
 
-    // With observers feature: set up SSE stream
+    // With observers feature: set up SSE stream with real event subscription.
     #[cfg(feature = "observers")]
     {
         let _last_event_id = super::sse::extract_last_event_id(&parts.headers);
+        let heartbeat_interval = std::time::Duration::from_secs(heartbeat_secs);
 
-        // Build SSE response with heartbeat stream.
-        // In a full implementation, this would connect to the observer event bus
-        // and emit insert/update/delete events.  For now, return the SSE
-        // connection with periodic heartbeat pings.
-        let heartbeat_interval =
-            std::time::Duration::from_secs(super::sse::DEFAULT_SSE_HEARTBEAT_SECONDS);
+        // If we have an event transport, subscribe to real entity events.
+        if let Some(ref transport) = rest.event_transport {
+            let filter = fraiseql_observers::transport::EventFilter {
+                entity_type: Some(resource_name.clone()),
+                ..Default::default()
+            };
 
+            match transport.subscribe(filter).await {
+                Ok(event_stream) => {
+                    use futures::StreamExt;
+
+                    // Merge entity events with heartbeat ticks.
+                    let heartbeat = futures::stream::unfold((), move |()| async move {
+                        tokio::time::sleep(heartbeat_interval).await;
+                        let event = axum::response::sse::Event::default()
+                            .event("ping")
+                            .data("");
+                        Some((event, ()))
+                    });
+
+                    let entity_events = event_stream.filter_map(|result| async move {
+                        match result {
+                            Ok(entity_event) => {
+                                let event_type = super::sse::event_kind_to_sse_type(
+                                    entity_event.event_type.as_str(),
+                                );
+                                let event = axum::response::sse::Event::default()
+                                    .event(event_type)
+                                    .id(entity_event.id.to_string())
+                                    .json_data(&entity_event.data)
+                                    .ok()?;
+                                Some(event)
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, "SSE event stream error");
+                                None
+                            }
+                        }
+                    });
+
+                    // Select between entity events and heartbeat pings.
+                    let merged = futures::stream::select(
+                        entity_events,
+                        heartbeat,
+                    )
+                    .map(Ok::<_, std::convert::Infallible>);
+
+                    let sse = axum::response::sse::Sse::new(merged)
+                        .keep_alive(
+                            axum::response::sse::KeepAlive::new()
+                                .interval(heartbeat_interval)
+                                .text(""),
+                        );
+
+                    return axum::response::IntoResponse::into_response(sse);
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, resource = %resource_name, "Failed to subscribe to event stream");
+                    return rest_result_to_response(Err(super::handler::RestError {
+                        status: StatusCode::SERVICE_UNAVAILABLE,
+                        code: "EVENT_STREAM_UNAVAILABLE",
+                        message: "Could not connect to event stream".to_string(),
+                        details: None,
+                    }));
+                }
+            }
+        }
+
+        // Fallback: no event transport configured — heartbeat-only stream.
         let stream = futures::stream::unfold((), move |()| async move {
             tokio::time::sleep(heartbeat_interval).await;
             let event = axum::response::sse::Event::default()

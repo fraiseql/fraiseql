@@ -201,7 +201,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await?;
 
-        // 7. Apply field-level RBAC filtering (reject / mask / allow)
+        // 7. Handle scalar return types (Int, String, Float, etc.)
+        //
+        // When a query has a scalar return type and returns_list is false, the
+        // result should be a scalar value, not a projected object. The database
+        // returns JSONB row objects, so we extract the scalar:
+        //   - Single-key objects (e.g. {"count": 42}) → unwrap the value
+        //   - Already-scalar JSONB values → use directly
+        //   - Empty results → null
+        if !query_match.query_def.returns_list
+            && is_scalar_return_type(&query_match.query_def.return_type)
+        {
+            let scalar = extract_scalar_from_results(&results);
+            let response =
+                ResultProjector::wrap_in_data_envelope(scalar, &query_match.query_def.name);
+            return Ok(serde_json::to_string(&response)?);
+        }
+
+        // 8. Apply field-level RBAC filtering (reject / mask / allow)
         if let Some(ctx) = security_context {
             let access = self.apply_field_rbac_filtering(
                 &query_match.query_def.return_type,
@@ -789,4 +806,113 @@ fn selections_contain_field(
         }
     }
     false
+}
+
+/// Check whether a return type string names a GraphQL scalar type.
+///
+/// Matches the standard GraphQL scalars plus FraiseQL extended scalars
+/// (Date, DateTime, Time, JSON, UUID, Decimal, BigInt, Vector).
+fn is_scalar_return_type(return_type: &str) -> bool {
+    matches!(
+        return_type,
+        "String"
+            | "Int"
+            | "Float"
+            | "Boolean"
+            | "ID"
+            | "DateTime"
+            | "Date"
+            | "Time"
+            | "JSON"
+            | "UUID"
+            | "Decimal"
+            | "BigInt"
+            | "Vector"
+    )
+}
+
+/// Extract a scalar value from JSONB query results.
+///
+/// For scalar return types, the database returns JSONB rows from the `data` column.
+/// This function extracts a single scalar value:
+/// - Empty results → `null`
+/// - Single-key object (e.g. `{"count": 42}`) → unwrap the value (`42`)
+/// - Already-scalar JSONB (e.g. `42`) → use directly
+/// - Multi-key object → return as-is (caller's view returned an object)
+fn extract_scalar_from_results(results: &[crate::db::types::JsonbValue]) -> serde_json::Value {
+    let Some(first) = results.first() else {
+        return serde_json::Value::Null;
+    };
+
+    let value = first.as_value();
+    match value {
+        serde_json::Value::Object(map) if map.len() == 1 => {
+            // Single-key object: unwrap the scalar value
+            map.values().next().cloned().unwrap_or(serde_json::Value::Null)
+        },
+        _ => value.clone(),
+    }
+}
+
+#[cfg(test)]
+mod scalar_return_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::db::types::JsonbValue;
+
+    #[test]
+    fn test_is_scalar_return_type() {
+        assert!(is_scalar_return_type("Int"));
+        assert!(is_scalar_return_type("String"));
+        assert!(is_scalar_return_type("Float"));
+        assert!(is_scalar_return_type("Boolean"));
+        assert!(is_scalar_return_type("ID"));
+        assert!(is_scalar_return_type("DateTime"));
+        assert!(is_scalar_return_type("UUID"));
+        assert!(is_scalar_return_type("BigInt"));
+
+        assert!(!is_scalar_return_type("User"));
+        assert!(!is_scalar_return_type("Order"));
+        assert!(!is_scalar_return_type("[Int]"));
+    }
+
+    #[test]
+    fn test_extract_scalar_empty_results() {
+        let results: Vec<JsonbValue> = vec![];
+        assert_eq!(extract_scalar_from_results(&results), json!(null));
+    }
+
+    #[test]
+    fn test_extract_scalar_single_key_object() {
+        let results = vec![JsonbValue::new(json!({"count": 42}))];
+        assert_eq!(extract_scalar_from_results(&results), json!(42));
+    }
+
+    #[test]
+    fn test_extract_scalar_single_key_string() {
+        let results = vec![JsonbValue::new(json!({"name": "hello"}))];
+        assert_eq!(extract_scalar_from_results(&results), json!("hello"));
+    }
+
+    #[test]
+    fn test_extract_scalar_already_scalar() {
+        let results = vec![JsonbValue::new(json!(42))];
+        assert_eq!(extract_scalar_from_results(&results), json!(42));
+    }
+
+    #[test]
+    fn test_extract_scalar_multi_key_object_returned_as_is() {
+        let results = vec![JsonbValue::new(json!({"a": 1, "b": 2}))];
+        let result = extract_scalar_from_results(&results);
+        assert!(result.is_object());
+    }
+
+    #[test]
+    fn test_extract_scalar_null_value() {
+        let results = vec![JsonbValue::new(json!({"value": null}))];
+        assert_eq!(extract_scalar_from_results(&results), json!(null));
+    }
 }

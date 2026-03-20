@@ -65,6 +65,9 @@ pub struct AppState<A: DatabaseAdapter> {
     pub pool_tuner:            Option<Arc<crate::pool::PoolSizingAdvisor>>,
     /// Request-level rate limiter (optional, for metrics exposure).
     pub rate_limiter:          Option<Arc<crate::middleware::rate_limit::RateLimiter>>,
+    /// Event transport for SSE streaming (requires `observers` feature).
+    #[cfg(feature = "observers")]
+    pub event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -98,6 +101,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             pool_tuner: None,
             rate_limiter: None,
             max_get_query_bytes: 100_000,
+            #[cfg(feature = "observers")]
+            event_transport: None,
         }
     }
 
@@ -267,6 +272,17 @@ impl<A: DatabaseAdapter> AppState<A> {
         limiter: Arc<crate::middleware::rate_limit::RateLimiter>,
     ) -> Self {
         self.rate_limiter = Some(limiter);
+        self
+    }
+
+    /// Attach an event transport for SSE streaming in the REST transport.
+    #[cfg(feature = "observers")]
+    #[must_use]
+    pub fn with_event_transport(
+        mut self,
+        transport: Arc<dyn fraiseql_observers::transport::EventTransport>,
+    ) -> Self {
+        self.event_transport = Some(transport);
         self
     }
 

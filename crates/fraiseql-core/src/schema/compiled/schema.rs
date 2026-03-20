@@ -153,6 +153,13 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
 
+    /// Target database type for SQL generation.
+    ///
+    /// Set by the compiler from `fraiseql.toml` or CLI flags. Used by downstream
+    /// tools (e.g., `generate-views`) to emit dialect-correct DDL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database_target: Option<crate::db::DatabaseType>,
+
     /// Schema format version emitted by the compiler.
     ///
     /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,

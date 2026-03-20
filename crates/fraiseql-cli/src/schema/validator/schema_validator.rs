@@ -62,6 +62,16 @@ impl SchemaValidator {
             type_names.insert(enum_type.name.clone());
         }
 
+        // Register interface types
+        for interface in &schema.interfaces {
+            type_names.insert(interface.name.clone());
+        }
+
+        // Register union types
+        for union_type in &schema.unions {
+            type_names.insert(union_type.name.clone());
+        }
+
         // Add built-in scalars (GraphQL standard + common PostgreSQL types)
         for scalar in &[
             "Int",
@@ -72,9 +82,12 @@ impl SchemaValidator {
             "Date",
             "DateTime",
             "Time",
+            "Json",
             "JSON",
-            "BigInt",
+            "UUID",
             "Decimal",
+            "Vector",
+            "BigInt",
             "date",
             "timestamp",
             "timestamptz",

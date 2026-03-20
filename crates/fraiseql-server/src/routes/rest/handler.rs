@@ -438,14 +438,36 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             arguments.insert(key.clone(), value.clone());
         }
 
-        // WHERE clause
-        if let Some(ref where_clause) = params.where_clause {
-            arguments.insert("where".to_string(), where_clause.clone());
+        // WHERE clause — merge regular filters with full-text search if present.
+        let fts_where = params.search_query.as_deref().and_then(|query| {
+            build_fts_where_clause(query, type_def)
+        });
+
+        match (&params.where_clause, &fts_where) {
+            (Some(regular), Some(fts)) => {
+                // AND the regular filters with the FTS clause.
+                arguments.insert(
+                    "where".to_string(),
+                    json!({ "_and": [regular, fts] }),
+                );
+            }
+            (Some(regular), None) => {
+                arguments.insert("where".to_string(), regular.clone());
+            }
+            (None, Some(fts)) => {
+                arguments.insert("where".to_string(), fts.clone());
+            }
+            (None, None) => {}
         }
 
-        // ORDER BY
+        // ORDER BY — use ts_rank relevance ordering when search is active
+        // and no explicit sort was provided.
         if let Some(ref order_by) = params.order_by {
             arguments.insert("orderBy".to_string(), order_by.clone());
+        } else if fts_where.is_some() {
+            // Implicit relevance ordering: `ts_rank DESC` is signalled to the
+            // executor as a special `_relevance` sort key.
+            arguments.insert("orderBy".to_string(), json!([{ "_relevance": "desc" }]));
         }
 
         // Offset pagination into arguments (non-relay)
@@ -1525,6 +1547,32 @@ pub(super) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut
     }
 }
 
+/// Build a FTS WHERE clause from a search query string and the type's searchable fields.
+///
+/// Produces `{"_or": [{"field": {"websearch_query": "query"}}, ...]}` for each
+/// searchable field.  Returns `None` if the type has no searchable fields.
+fn build_fts_where_clause(
+    query: &str,
+    type_def: Option<&TypeDefinition>,
+) -> Option<serde_json::Value> {
+    let td = type_def?;
+    let fields = td.searchable_fields();
+    if fields.is_empty() {
+        return None;
+    }
+
+    let clauses: Vec<serde_json::Value> = fields
+        .iter()
+        .map(|f| json!({ f.name.as_str(): { "websearch_query": query } }))
+        .collect();
+
+    if clauses.len() == 1 {
+        Some(clauses.into_iter().next().expect("len checked"))
+    } else {
+        Some(json!({ "_or": clauses }))
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 #[allow(clippy::missing_panics_doc)] // Reason: test code
@@ -2340,5 +2388,56 @@ mod tests {
         };
         let rest_err = RestError::from(err);
         assert_eq!(rest_err.status, StatusCode::FORBIDDEN);
+    }
+
+    // -----------------------------------------------------------------------
+    // Full-text search WHERE clause builder
+    // -----------------------------------------------------------------------
+
+    fn searchable_type_def() -> TypeDefinition {
+        let mut td = TypeDefinition::new("Article", "v_article");
+        let mut title = FieldDefinition::new("title", FieldType::String);
+        title.searchable = true;
+        let mut body = FieldDefinition::new("body", FieldType::String);
+        body.searchable = true;
+        let status = FieldDefinition::new("status", FieldType::String);
+        td.fields = vec![title, body, status];
+        td
+    }
+
+    #[test]
+    fn fts_where_clause_with_multiple_searchable_fields() {
+        let td = searchable_type_def();
+        let clause = build_fts_where_clause("rust async", Some(&td)).unwrap();
+
+        // Should produce { "_or": [ {"title": ...}, {"body": ...} ] }
+        let or_clauses = clause["_or"].as_array().unwrap();
+        assert_eq!(or_clauses.len(), 2);
+        assert_eq!(or_clauses[0]["title"]["websearch_query"], "rust async");
+        assert_eq!(or_clauses[1]["body"]["websearch_query"], "rust async");
+    }
+
+    #[test]
+    fn fts_where_clause_with_single_searchable_field() {
+        let mut td = TypeDefinition::new("Note", "v_note");
+        let mut content = FieldDefinition::new("content", FieldType::String);
+        content.searchable = true;
+        td.fields = vec![content];
+
+        let clause = build_fts_where_clause("hello", Some(&td)).unwrap();
+
+        // Single field: no _or wrapper
+        assert_eq!(clause["content"]["websearch_query"], "hello");
+    }
+
+    #[test]
+    fn fts_where_clause_returns_none_without_searchable_fields() {
+        let td = TypeDefinition::new("Plain", "v_plain");
+        assert!(build_fts_where_clause("test", Some(&td)).is_none());
+    }
+
+    #[test]
+    fn fts_where_clause_returns_none_without_type_def() {
+        assert!(build_fts_where_clause("test", None).is_none());
     }
 }

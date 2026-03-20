@@ -59,12 +59,27 @@ impl DatabaseTarget {
         }
     }
 
-    /// Get the identifier quoting character for this database.
+    /// Quote a SQL identifier, splitting schema-qualified names on `.`.
+    ///
+    /// For example, `"product.v_offering"` becomes `"product"."v_offering"` in
+    /// PostgreSQL, `` `product`.`v_offering` `` in MySQL, and
+    /// `[product].[v_offering]` in SQL Server.
     fn quote_identifier(self, name: &str) -> String {
-        match self {
-            Self::PostgreSQL | Self::SQLite => format!("\"{name}\""),
-            Self::MySQL => format!("`{name}`"),
-            Self::SQLServer => format!("[{name}]"),
+        let quote_one = |part: &str| -> String {
+            match self {
+                Self::PostgreSQL | Self::SQLite => format!("\"{part}\""),
+                Self::MySQL => format!("`{part}`"),
+                Self::SQLServer => format!("[{part}]"),
+            }
+        };
+
+        if name.contains('.') {
+            name.split('.')
+                .map(quote_one)
+                .collect::<Vec<_>>()
+                .join(".")
+        } else {
+            quote_one(name)
         }
     }
 
@@ -542,10 +557,29 @@ mod tests {
 
     #[test]
     fn test_database_target_quote_identifier() {
+        // Simple identifiers
         assert_eq!(DatabaseTarget::PostgreSQL.quote_identifier("users"), "\"users\"");
         assert_eq!(DatabaseTarget::MySQL.quote_identifier("users"), "`users`");
         assert_eq!(DatabaseTarget::SQLite.quote_identifier("users"), "\"users\"");
         assert_eq!(DatabaseTarget::SQLServer.quote_identifier("users"), "[users]");
+
+        // Schema-qualified identifiers (dot-splitting)
+        assert_eq!(
+            DatabaseTarget::PostgreSQL.quote_identifier("product.v_offering"),
+            "\"product\".\"v_offering\""
+        );
+        assert_eq!(
+            DatabaseTarget::MySQL.quote_identifier("product.v_offering"),
+            "`product`.`v_offering`"
+        );
+        assert_eq!(
+            DatabaseTarget::SQLite.quote_identifier("product.v_offering"),
+            "\"product\".\"v_offering\""
+        );
+        assert_eq!(
+            DatabaseTarget::SQLServer.quote_identifier("product.v_offering"),
+            "[product].[v_offering]"
+        );
     }
 
     #[test]

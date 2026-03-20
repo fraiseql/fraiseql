@@ -214,10 +214,16 @@ impl SchemaConverter {
             type_names.insert(enum_type.name.clone());
         }
 
-        // Build interface registry
+        // Build interface registry and add to type_names
         let mut interface_names = HashSet::new();
         for interface_def in &schema.interfaces {
             interface_names.insert(interface_def.name.clone());
+            type_names.insert(interface_def.name.clone());
+        }
+
+        // Register union types
+        for union_type in &schema.unions {
+            type_names.insert(union_type.name.clone());
         }
 
         // Add built-in scalars (GraphQL standard + common PostgreSQL types)
