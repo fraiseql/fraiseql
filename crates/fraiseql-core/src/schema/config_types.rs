@@ -1076,6 +1076,7 @@ mod tests {
             descriptor_path:        "custom/desc.binpb".to_string(),
             include_types:          vec!["User".to_string()],
             exclude_types:          vec!["Secret".to_string()],
+            stream_batch_size:      500,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: GrpcConfig = serde_json::from_str(&json).unwrap();
