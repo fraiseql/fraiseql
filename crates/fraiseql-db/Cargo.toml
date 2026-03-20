@@ -33,6 +33,8 @@ proptest = {workspace = true}
 
 [features]
 default = ["postgres"]
+# gRPC transport: row-shaped view queries returning typed ColumnValue vectors
+grpc = []
 mysql = ["sqlx/mysql"]
 postgres = []
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)

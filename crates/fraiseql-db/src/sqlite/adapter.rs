@@ -322,6 +322,142 @@ impl DatabaseAdapter for SqliteAdapter {
         self.execute_raw(&sql, params).await
     }
 
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_clause: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        use crate::dialect::RowViewColumnType;
+        use crate::types::ColumnValue;
+
+        let col_list: String = columns
+            .iter()
+            .map(|c| quote_sqlite_identifier(&c.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut sql = format!("SELECT {col_list} FROM {}", quote_sqlite_identifier(view));
+
+        if let Some(wc) = where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(wc);
+        }
+        if let Some(ob) = order_by {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(ob);
+        }
+        match (limit, offset) {
+            (Some(lim), Some(off)) => sql.push_str(&format!(" LIMIT {lim} OFFSET {off}")),
+            (Some(lim), None) => sql.push_str(&format!(" LIMIT {lim}")),
+            (None, Some(off)) => sql.push_str(&format!(" LIMIT -1 OFFSET {off}")),
+            (None, None) => {},
+        }
+
+        let rows: Vec<SqliteRow> =
+            sqlx::query(&sql).fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite row query on view '{view}' failed: {e}"),
+                sql_state: None,
+            })?;
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let mut row_values = Vec::with_capacity(columns.len());
+            for col in columns {
+                let name = col.name.as_str();
+                let value = match col.column_type {
+                    RowViewColumnType::Text => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' text extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Text),
+                    RowViewColumnType::Int32 => row
+                        .try_get::<Option<i32>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int32 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int32),
+                    RowViewColumnType::Int64 => row
+                        .try_get::<Option<i64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int64),
+                    RowViewColumnType::Float64 => row
+                        .try_get::<Option<f64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' float64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Float64),
+                    RowViewColumnType::Boolean => row
+                        .try_get::<Option<bool>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' bool extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Bool),
+                    RowViewColumnType::Uuid => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' uuid extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<uuid::Uuid>()
+                                .map_or(ColumnValue::Text(s), ColumnValue::Uuid)
+                        }),
+                    RowViewColumnType::Timestamptz => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' timestamp extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<chrono::DateTime<chrono::Utc>>()
+                                .map_or(ColumnValue::Text(s), ColumnValue::Timestamp)
+                        }),
+                    RowViewColumnType::Date => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' date extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<chrono::NaiveDate>()
+                                .map_or(ColumnValue::Text(s), ColumnValue::Date)
+                        }),
+                    RowViewColumnType::Json => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' json extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            serde_json::from_str(&s)
+                                .map_or(ColumnValue::Null, ColumnValue::Json)
+                        }),
+                    #[allow(unreachable_patterns)]
+                    // Reason: RowViewColumnType is #[non_exhaustive]; wildcard
+                    // handles future variants gracefully.
+                    _ => ColumnValue::Null,
+                };
+                row_values.push(value);
+            }
+            results.push(row_values);
+        }
+
+        Ok(results)
+    }
+
     fn database_type(&self) -> DatabaseType {
         DatabaseType::SQLite
     }
@@ -604,5 +740,653 @@ impl MutationCapable for SqliteAdapter {}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[path = "adapter_tests.rs"]
-mod tests;
+mod tests {
+    use serde_json::json;
+    use sqlx::Executor as _;
+
+    use super::*;
+
+    /// Create an in-memory adapter and seed a `v_user` table with N rows.
+    async fn setup_user_table(n: usize) -> SqliteAdapter {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+        adapter
+            .pool
+            .execute("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .await
+            .expect("Failed to create v_user");
+        for i in 1..=n {
+            let row = format!(
+                r#"INSERT INTO "v_user" (data) VALUES ('{{"id":{i},"name":"user{i}","age":{age},"active":{active},"score":{score},"deleted_at":null}}')"#,
+                age = 20 + i,
+                active = if i % 2 == 0 { "true" } else { "false" },
+                score = i * 10,
+            );
+            adapter.pool.execute(row.as_str()).await.expect("Failed to insert row");
+        }
+        adapter
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_adapter_creation() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        let metrics = adapter.pool_metrics();
+        assert!(metrics.total_connections > 0);
+        assert_eq!(adapter.database_type(), DatabaseType::SQLite);
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        adapter.health_check().await.expect("Health check failed");
+    }
+
+    #[tokio::test]
+    async fn test_raw_query() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create a test table
+        sqlx::query("CREATE TABLE test_table (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        sqlx::query("INSERT INTO test_table (data) VALUES ('{\"name\": \"test\"}')")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+
+        // Query the data
+        let results = adapter
+            .execute_raw_query("SELECT * FROM test_table")
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].contains_key("id"));
+        assert!(results[0].contains_key("data"));
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_only() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_offset_only() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, None, Some(2))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_function_call_returns_unsupported_error() {
+        // Primary enforcement is at compile time: `SqliteAdapter` does not implement
+        // `MutationCapable`, so the mutation executor won't accept it as a type parameter.
+        // This test verifies the runtime fallback for the rare case where
+        // `execute_function_call` is called directly on the `DatabaseAdapter` trait object.
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        let err = adapter
+            .execute_function_call("fn_create_user", &[json!("alice")])
+            .await
+            .expect_err("Expected Unsupported error");
+
+        assert!(
+            matches!(err, FraiseQLError::Unsupported { .. }),
+            "Expected Unsupported error, got: {err:?}"
+        );
+        assert!(
+            err.to_string().contains("fn_create_user"),
+            "Error message should name the function"
+        );
+    }
+
+    // ── WHERE operator matrix ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_where_eq_operator() {
+        let adapter = setup_user_table(5).await;
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::Eq,
+            value:    json!("user3"),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].as_value()["name"], "user3");
+    }
+
+    #[tokio::test]
+    async fn test_where_neq_operator() {
+        let adapter = setup_user_table(3).await;
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::Neq,
+            value:    json!("user1"),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_where_gt_operator() {
+        let adapter = setup_user_table(5).await;
+        // age = 20+i, so age > 23 → users 4 and 5
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: crate::where_clause::WhereOperator::Gt,
+            value:    json!(23),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_where_gte_operator() {
+        let adapter = setup_user_table(5).await;
+        // age >= 23 → users 3, 4, 5
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: crate::where_clause::WhereOperator::Gte,
+            value:    json!(23),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_where_lt_operator() {
+        let adapter = setup_user_table(5).await;
+        // age < 23 → users 1 and 2
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: crate::where_clause::WhereOperator::Lt,
+            value:    json!(23),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_where_lte_operator() {
+        let adapter = setup_user_table(5).await;
+        // age <= 23 → users 1, 2, 3
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: crate::where_clause::WhereOperator::Lte,
+            value:    json!(23),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_where_in_operator() {
+        let adapter = setup_user_table(5).await;
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::In,
+            value:    json!(["user1", "user3", "user5"]),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_where_not_in_operator() {
+        let adapter = setup_user_table(5).await;
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::Nin,
+            value:    json!(["user1", "user2"]),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_where_like_operator() {
+        let adapter = setup_user_table(5).await;
+        // name LIKE 'user%' matches all 5
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::Like,
+            value:    json!("user%"),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_where_is_null_operator() {
+        let adapter = setup_user_table(3).await;
+        // deleted_at is null for all rows (seeded as null)
+        let clause = WhereClause::Field {
+            path:     vec!["deleted_at".to_string()],
+            operator: crate::where_clause::WhereOperator::IsNull,
+            value:    json!(true),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_where_is_not_null_operator() {
+        let adapter = setup_user_table(3).await;
+        // deleted_at is null → IS NOT NULL returns 0 rows
+        let clause = WhereClause::Field {
+            path:     vec!["deleted_at".to_string()],
+            operator: crate::where_clause::WhereOperator::IsNull,
+            value:    json!(false),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_where_multiple_conditions_and() {
+        let adapter = setup_user_table(5).await;
+        // name = "user2" AND age = 22
+        let clause = WhereClause::And(vec![
+            WhereClause::Field {
+                path:     vec!["name".to_string()],
+                operator: crate::where_clause::WhereOperator::Eq,
+                value:    json!("user2"),
+            },
+            WhereClause::Field {
+                path:     vec!["age".to_string()],
+                operator: crate::where_clause::WhereOperator::Eq,
+                value:    json!(22),
+            },
+        ]);
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].as_value()["name"], "user2");
+    }
+
+    #[tokio::test]
+    async fn test_where_multiple_conditions_or() {
+        let adapter = setup_user_table(5).await;
+        // name = "user1" OR name = "user5"
+        let clause = WhereClause::Or(vec![
+            WhereClause::Field {
+                path:     vec!["name".to_string()],
+                operator: crate::where_clause::WhereOperator::Eq,
+                value:    json!("user1"),
+            },
+            WhereClause::Field {
+                path:     vec!["name".to_string()],
+                operator: crate::where_clause::WhereOperator::Eq,
+                value:    json!("user5"),
+            },
+        ]);
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    // ── Error paths ───────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_empty_result_set() {
+        let adapter = setup_user_table(3).await;
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: crate::where_clause::WhereOperator::Eq,
+            value:    json!("nonexistent"),
+        };
+        let results =
+            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_raw_query_returns_error() {
+        let adapter = SqliteAdapter::in_memory().await.unwrap();
+        let err = adapter
+            .execute_raw_query("SELECT * FROM nonexistent_table_xyz")
+            .await
+            .expect_err("Expected database error");
+        assert!(matches!(err, FraiseQLError::Database { .. }));
+    }
+
+    // ── Pool metrics ──────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_pool_metrics_when_idle() {
+        let adapter = SqliteAdapter::in_memory().await.unwrap();
+        let metrics = adapter.pool_metrics();
+        // Idle connections should be ≤ total
+        assert!(metrics.idle_connections <= metrics.total_connections);
+        assert_eq!(metrics.waiting_requests, 0);
+    }
+
+    // ── explain_query ─────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_explain_query_returns_plan() {
+        let adapter = setup_user_table(3).await;
+        let result = adapter
+            .explain_query("SELECT data FROM \"v_user\"", &[])
+            .await
+            .expect("explain_query should succeed");
+        // EXPLAIN QUERY PLAN returns at least one step
+        assert!(result.as_array().is_some_and(|a| !a.is_empty()));
+    }
+
+    // ── Projection ────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_projection_filters_fields() {
+        use crate::types::SqlProjectionHint;
+
+        let adapter = setup_user_table(3).await;
+        let projection = SqlProjectionHint {
+            database:                    crate::DatabaseType::SQLite,
+            projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
+                .to_string(),
+            estimated_reduction_percent: 50,
+        };
+        let results = adapter
+            .execute_with_projection("v_user", Some(&projection), None, None)
+            .await
+            .expect("execute_with_projection should succeed");
+        assert_eq!(results.len(), 3);
+        // Only 'name' key is present; 'age' should be absent
+        for row in &results {
+            assert!(row.as_value().get("name").is_some());
+            assert!(row.as_value().get("age").is_none());
+        }
+    }
+
+    // ── gRPC row-shaped view tests ──────────────────────────────────────
+
+    #[cfg(feature = "grpc")]
+    mod grpc_row_query {
+        use crate::dialect::RowViewColumnType;
+        use crate::types::{ColumnSpec, ColumnValue};
+        use crate::traits::DatabaseAdapter;
+        use sqlx::Executor as _;
+
+        use super::*;
+
+        /// Create an in-memory adapter with a `tb_user` table and a `vr_user`
+        /// row-shaped view that extracts typed columns from the JSON `data` column.
+        async fn setup_row_view() -> SqliteAdapter {
+            let adapter =
+                SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+            // Base table
+            adapter
+                .pool
+                .execute(
+                    "CREATE TABLE \"tb_user\" (\
+                         pk_user INTEGER PRIMARY KEY, \
+                         data TEXT NOT NULL\
+                     )",
+                )
+                .await
+                .expect("Failed to create tb_user");
+
+            // Row-shaped view (matches SQLite dialect output from row_views codegen)
+            adapter
+                .pool
+                .execute(
+                    "CREATE VIEW \"vr_user\" AS \
+                     SELECT \
+                       CAST(json_extract(data, '$.id') AS TEXT) AS \"id\", \
+                       CAST(json_extract(data, '$.name') AS TEXT) AS \"name\", \
+                       CAST(json_extract(data, '$.age') AS INTEGER) AS \"age\", \
+                       CAST(json_extract(data, '$.active') AS INTEGER) AS \"active\", \
+                       CAST(json_extract(data, '$.score') AS REAL) AS \"score\", \
+                       CAST(json_extract(data, '$.created_at') AS TEXT) AS \"created_at\", \
+                       json_extract(data, '$.metadata') AS \"metadata\" \
+                     FROM \"tb_user\"",
+                )
+                .await
+                .expect("Failed to create vr_user view");
+
+            // Seed rows
+            let rows = [
+                r#"{"id":"550e8400-e29b-41d4-a716-446655440000","name":"Alice","age":30,"active":true,"score":95.5,"created_at":"2026-03-20","metadata":{"role":"admin"}}"#,
+                r#"{"id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","name":"Bob","age":25,"active":false,"score":82.0,"created_at":"2026-01-15","metadata":null}"#,
+                r#"{"id":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","name":"Charlie","age":null,"active":true,"score":70.0,"created_at":"2025-12-01","metadata":{"role":"user"}}"#,
+            ];
+            for (i, json) in rows.iter().enumerate() {
+                let sql = format!(
+                    "INSERT INTO \"tb_user\" (pk_user, data) VALUES ({}, '{}')",
+                    i + 1,
+                    json.replace('\'', "''"),
+                );
+                adapter.pool.execute(sql.as_str()).await.expect("Failed to insert row");
+            }
+
+            adapter
+        }
+
+        fn user_columns() -> Vec<ColumnSpec> {
+            vec![
+                ColumnSpec { name: "id".into(),         column_type: RowViewColumnType::Uuid },
+                ColumnSpec { name: "name".into(),       column_type: RowViewColumnType::Text },
+                ColumnSpec { name: "age".into(),        column_type: RowViewColumnType::Int32 },
+                ColumnSpec { name: "active".into(),     column_type: RowViewColumnType::Boolean },
+                ColumnSpec { name: "score".into(),      column_type: RowViewColumnType::Float64 },
+                ColumnSpec { name: "created_at".into(), column_type: RowViewColumnType::Date },
+                ColumnSpec { name: "metadata".into(),   column_type: RowViewColumnType::Json },
+            ]
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_returns_typed_columns() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query failed");
+
+            assert_eq!(rows.len(), 3);
+
+            // First row: Alice
+            let alice = &rows[0];
+            assert_eq!(alice.len(), cols.len());
+            assert_eq!(
+                alice[0],
+                ColumnValue::Uuid("550e8400-e29b-41d4-a716-446655440000".parse().unwrap())
+            );
+            assert_eq!(alice[1], ColumnValue::Text("Alice".into()));
+            assert_eq!(alice[2], ColumnValue::Int32(30));
+            // SQLite stores booleans as integers; CAST(json_extract…AS INTEGER) gives 1/0
+            // The adapter reads Option<bool>; sqlx decodes 1→true for SQLite
+            assert_eq!(alice[3], ColumnValue::Bool(true));
+            assert_eq!(alice[4], ColumnValue::Float64(95.5));
+            assert_eq!(
+                alice[5],
+                ColumnValue::Date(chrono::NaiveDate::from_ymd_opt(2026, 3, 20).unwrap())
+            );
+            assert_eq!(
+                alice[6],
+                ColumnValue::Json(serde_json::json!({"role": "admin"}))
+            );
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_null_handling() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query failed");
+
+            // Row 2 (Bob): metadata is null
+            assert_eq!(rows[1][6], ColumnValue::Null);
+
+            // Row 3 (Charlie): age is null
+            assert_eq!(rows[2][2], ColumnValue::Null);
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_limit_and_offset() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, Some(1), Some(1))
+                .await
+                .expect("execute_row_query with limit+offset failed");
+
+            assert_eq!(rows.len(), 1);
+            // Second row (Bob)
+            assert_eq!(rows[0][1], ColumnValue::Text("Bob".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_where_clause() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query(
+                    "vr_user",
+                    &cols,
+                    Some("\"name\" = 'Charlie'"),
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .expect("execute_row_query with WHERE failed");
+
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0][1], ColumnValue::Text("Charlie".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_order_by() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, Some("\"name\" DESC"), None, None)
+                .await
+                .expect("execute_row_query with ORDER BY failed");
+
+            assert_eq!(rows.len(), 3);
+            assert_eq!(rows[0][1], ColumnValue::Text("Charlie".into()));
+            assert_eq!(rows[1][1], ColumnValue::Text("Bob".into()));
+            assert_eq!(rows[2][1], ColumnValue::Text("Alice".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_subset_columns() {
+            let adapter = setup_row_view().await;
+            let cols = vec![
+                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+                ColumnSpec { name: "score".into(), column_type: RowViewColumnType::Float64 },
+            ];
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query with subset columns failed");
+
+            assert_eq!(rows.len(), 3);
+            assert_eq!(rows[0].len(), 2);
+            assert_eq!(rows[0][0], ColumnValue::Text("Alice".into()));
+            assert_eq!(rows[0][1], ColumnValue::Float64(95.5));
+        }
+    }
+}

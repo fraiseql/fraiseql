@@ -242,6 +242,12 @@ pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,
     sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
 };
+#[cfg(feature = "grpc")]
+pub use types::{ColumnSpec, ColumnValue};
+pub use dialect::{
+    MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect, SqliteDialect,
+    UnsupportedOperator,
+};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;
 pub use where_sql_generator::WhereSqlGenerator;

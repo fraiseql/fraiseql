@@ -523,6 +523,138 @@ impl DatabaseAdapter for MySqlAdapter {
         Ok(results)
     }
 
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_clause: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        use crate::dialect::RowViewColumnType;
+        use crate::types::ColumnValue;
+
+        let col_list: String = columns
+            .iter()
+            .map(|c| quote_mysql_identifier(&c.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut sql = format!("SELECT {col_list} FROM {}", quote_mysql_identifier(view));
+
+        if let Some(wc) = where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(wc);
+        }
+        if let Some(ob) = order_by {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(ob);
+        }
+        match (limit, offset) {
+            (Some(lim), Some(off)) => sql.push_str(&format!(" LIMIT {lim} OFFSET {off}")),
+            (Some(lim), None) => sql.push_str(&format!(" LIMIT {lim}")),
+            (None, Some(off)) => sql.push_str(&format!(" LIMIT 18446744073709551615 OFFSET {off}")),
+            (None, None) => {},
+        }
+
+        let rows: Vec<MySqlRow> =
+            sqlx::query(&sql).fetch_all(&self.pool).await.map_err(|e| {
+                let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                    db_err.code().map(|c| c.into_owned())
+                } else {
+                    None
+                };
+                FraiseQLError::Database {
+                    message: format!("MySQL row query on view '{view}' failed: {e}"),
+                    sql_state,
+                }
+            })?;
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let mut row_values = Vec::with_capacity(columns.len());
+            for col in columns {
+                let name = col.name.as_str();
+                let value = match col.column_type {
+                    RowViewColumnType::Text | RowViewColumnType::Uuid => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' text extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            if col.column_type == RowViewColumnType::Uuid {
+                                s.parse::<uuid::Uuid>()
+                                    .map_or(ColumnValue::Text(s), ColumnValue::Uuid)
+                            } else {
+                                ColumnValue::Text(s)
+                            }
+                        }),
+                    RowViewColumnType::Int32 => row
+                        .try_get::<Option<i32>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int32 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int32),
+                    RowViewColumnType::Int64 => row
+                        .try_get::<Option<i64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int64),
+                    RowViewColumnType::Float64 => row
+                        .try_get::<Option<f64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' float64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Float64),
+                    RowViewColumnType::Boolean => row
+                        .try_get::<Option<bool>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' bool extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Bool),
+                    RowViewColumnType::Timestamptz | RowViewColumnType::Date => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' temporal extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            if col.column_type == RowViewColumnType::Date {
+                                s.parse::<chrono::NaiveDate>()
+                                    .map_or(ColumnValue::Text(s), ColumnValue::Date)
+                            } else {
+                                s.parse::<chrono::DateTime<chrono::Utc>>()
+                                    .map_or(ColumnValue::Text(s), ColumnValue::Timestamp)
+                            }
+                        }),
+                    RowViewColumnType::Json => row
+                        .try_get::<Option<serde_json::Value>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' json extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Json),
+                    #[allow(unreachable_patterns)]
+                    // Reason: RowViewColumnType is #[non_exhaustive]; wildcard
+                    // handles future variants gracefully.
+                    _ => ColumnValue::Null,
+                };
+                row_values.push(value);
+            }
+            results.push(row_values);
+        }
+
+        Ok(results)
+    }
+
     async fn explain_query(
         &self,
         sql: &str,

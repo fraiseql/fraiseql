@@ -750,6 +750,43 @@ pub trait DatabaseAdapter: Send + Sync {
         })
     }
 
+    /// Execute a query against a row-shaped `vr_*` view and return typed column vectors.
+    ///
+    /// Row-shaped views extract scalar fields from JSONB into native SQL columns,
+    /// enabling efficient protobuf encoding without JSON deserialization. Each row
+    /// is returned as a `Vec<ColumnValue>` with one element per requested column,
+    /// in the same order as `columns`.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - Row-shaped view name (e.g., `"vr_user"`)
+    /// * `columns` - Columns to select, with name and expected type
+    /// * `where_clause` - Optional pre-built WHERE clause (from `GenericWhereGenerator`)
+    /// * `order_by` - Optional pre-built ORDER BY clause
+    /// * `limit` - Optional row limit
+    /// * `offset` - Optional row offset
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` by default (adapters must opt in).
+    /// Returns `FraiseQLError::Database` on query execution failure in implementations.
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        _view: &str,
+        _columns: &[crate::types::ColumnSpec],
+        _where_clause: Option<&str>,
+        _order_by: Option<&str>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        Err(FraiseQLError::Unsupported {
+            message: "Row-shaped view queries are not supported by this adapter. \
+                      Use PostgreSQL, MySQL, or SQLite for gRPC transport support."
+                .to_string(),
+        })
+    }
+
     /// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` against a view with the
     /// same parameterized WHERE clause that `execute_where_query` would use.
     ///
