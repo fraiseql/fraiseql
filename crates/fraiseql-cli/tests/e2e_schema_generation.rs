@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! End-to-end schema generation tests.
 //!
 //! Tests the complete compilation pipeline:
@@ -10,40 +10,40 @@
 use fraiseql_cli::schema::{
     SchemaConverter,
     intermediate::{
-        IntermediateField, IntermediateMutation, IntermediateQuery, IntermediateSchema,
-        IntermediateType,
+        IntermediateArgument, IntermediateField, IntermediateMutation, IntermediateQuery,
+        IntermediateSchema, IntermediateType,
     },
 };
-use fraiseql_core::schema::CursorType;
+use fraiseql_core::schema::{CursorType, FieldType};
 use indexmap::IndexMap;
 
 /// Test: E2E complete rich filter compilation pipeline
 #[test]
 fn test_e2e_complete_compilation_pipeline() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -74,29 +74,29 @@ fn test_e2e_complete_compilation_pipeline() {
 #[test]
 fn test_e2e_sql_templates_all_databases() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -133,37 +133,35 @@ fn test_e2e_sql_templates_all_databases() {
 #[test]
 fn test_e2e_lookup_data_comprehensive() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     let security = compiled.security.as_ref().expect("Security should exist");
-    let lookup = security.additional["lookup_data"]
-        .as_object()
-        .expect("Lookup data should exist");
+    let lookup = security.additional["lookup_data"].as_object().expect("Lookup data should exist");
 
     // Verify all expected lookup tables
     assert!(lookup.contains_key("countries"), "Should have countries");
@@ -189,29 +187,29 @@ fn test_e2e_lookup_data_comprehensive() {
 #[test]
 fn test_e2e_all_operators_generated() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -253,29 +251,29 @@ fn test_e2e_all_operators_generated() {
 #[test]
 fn test_e2e_compilation_deterministic() {
     let create_schema = || IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled1 =
@@ -311,29 +309,29 @@ fn test_e2e_compilation_deterministic() {
 #[test]
 fn test_e2e_all_49_types_valid() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+            subscriptions_config: None,
+            validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -379,11 +377,11 @@ fn test_e2e_all_49_types_valid() {
 #[test]
 fn test_e2e_full_field_assertion() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
+            name:        "User".to_string(),
+            fields:      vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -409,57 +407,57 @@ fn test_e2e_full_field_assertion() {
             is_error:      false,
             relay:         false,
         }],
-        queries:              vec![IntermediateQuery {
-            name:              "users".to_string(),
-            return_type:       "User".to_string(),
-            returns_list:      true,
-            nullable:          false,
-            arguments:         vec![],
-            description:       None,
-            sql_source:        Some("v_user".to_string()),
-            auto_params:       None,
-            deprecated:        None,
-            jsonb_column:      None,
-            relay:             false,
-            inject:            IndexMap::default(),
+        queries:           vec![IntermediateQuery {
+            name:             "users".to_string(),
+            return_type:      "User".to_string(),
+            returns_list:     true,
+            nullable:         false,
+            arguments:        vec![],
+            description:      None,
+            sql_source:       Some("v_user".to_string()),
+            auto_params:      None,
+            deprecated:       None,
+            jsonb_column:     None,
+            relay:            false,
+            inject:           IndexMap::default(),
             cache_ttl_seconds: None,
-            additional_views:  vec![],
-            requires_role:     None,
+            additional_views: vec![],
+            requires_role:    None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![IntermediateMutation {
-            name:                    "createUser".to_string(),
-            return_type:             "User".to_string(),
-            returns_list:            false,
-            nullable:                false,
-            arguments:               vec![],
-            description:             None,
-            operation:               None,
-            deprecated:              None,
-            sql_source:              Some("fn_create_user".to_string()),
-            inject:                  IndexMap::default(),
+        mutations:         vec![IntermediateMutation {
+            name:                   "createUser".to_string(),
+            return_type:            "User".to_string(),
+            returns_list:           false,
+            nullable:               false,
+            arguments:              vec![],
+            description:            None,
+            operation:              None,
+            deprecated:             None,
+            sql_source:             Some("fn_create_user".to_string()),
+            inject:                 IndexMap::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:       vec![],
-            cascade:                 false,
+            invalidates_views:      vec![],
+            cascade:                false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
-        custom_scalars:       None,
-        observers_config:     None,
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
         subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        query_defaults:       None,
+        validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
     };
 
     let schema = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -494,4 +492,88 @@ fn test_e2e_full_field_assertion() {
     assert!(m.invalidates_fact_tables.is_empty());
     assert!(m.invalidates_views.is_empty());
     assert!(m.deprecation.is_none());
+}
+
+/// Test: argument types with trailing `!` compile successfully.
+///
+/// External code generators may emit `"ID!"` instead of `"ID"`. The compiler
+/// must strip the non-null marker and produce the correct `FieldType`.
+#[test]
+fn test_e2e_argument_type_with_non_null_marker() {
+    let intermediate = IntermediateSchema {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
+            name:        "User".to_string(),
+            fields:      vec![
+                IntermediateField {
+                    name:           "id".to_string(),
+                    field_type:     "ID".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
+                    requires_scope: None,
+                    on_deny:        None,
+                },
+                IntermediateField {
+                    name:           "name".to_string(),
+                    field_type:     "String".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
+                    requires_scope: None,
+                    on_deny:        None,
+                },
+            ],
+            description: None,
+            implements:  vec![],
+            requires_role: None,
+            is_error:    false,
+            relay:       false,
+        }],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
+            name:        "user".to_string(),
+            return_type: "User".to_string(),
+            arguments:   vec![IntermediateArgument {
+                name:       "id".to_string(),
+                arg_type:   "ID!".to_string(),  // <-- trailing `!`
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            sql_source:  Some("users".to_string()),
+            ..Default::default()
+        }],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+        custom_scalars:    None,
+        observers_config:  None,
+        subscriptions_config: None,
+        validation_config: None,
+        federation_config: None,
+        debug_config:      None,
+        mcp_config:        None,
+        query_defaults:    None,
+    };
+
+    let compiled = SchemaConverter::convert(intermediate)
+        .expect("Compilation should succeed with trailing `!` in argument type");
+
+    let query = compiled
+        .queries
+        .iter()
+        .find(|q| q.name == "user")
+        .expect("user query should exist");
+
+    assert_eq!(query.arguments.len(), 1);
+    assert_eq!(query.arguments[0].arg_type, FieldType::Id);
 }
