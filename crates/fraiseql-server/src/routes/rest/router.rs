@@ -48,7 +48,8 @@ pub fn rest_router<A>(state: AppState<A>) -> Option<Router>
 where
     A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static,
 {
-    let schema = state.executor.schema();
+    let executor = state.executor();
+    let schema = executor.schema();
 
     let config = match &schema.rest_config {
         Some(cfg) if cfg.enabled => cfg.clone(),
@@ -90,7 +91,7 @@ where
         super::idempotency::create_store(config.idempotency_ttl_seconds);
 
     let rest_state = RestState {
-        executor: state.executor.clone(),
+        executor: state.executor.load_full(),
         route_table: route_table.clone(),
         idempotency_store,
         #[cfg(feature = "observers")]
@@ -132,7 +133,7 @@ where
         let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
         let has_update = resource.routes.iter().any(|r| {
             matches!(&r.source, RouteSource::Mutation { name }
-                if state.executor.schema().find_mutation(name)
+                if state.executor().schema().find_mutation(name)
                     .is_some_and(|m| matches!(m.operation,
                         fraiseql_core::schema::MutationOperation::Update { .. })))
         });
@@ -143,7 +144,7 @@ where
         // Register collection-level DELETE route for bulk delete.
         let has_delete = resource.routes.iter().any(|r| {
             matches!(&r.source, RouteSource::Mutation { name }
-                if state.executor.schema().find_mutation(name)
+                if state.executor().schema().find_mutation(name)
                     .is_some_and(|m| matches!(m.operation,
                         fraiseql_core::schema::MutationOperation::Delete { .. })))
         });

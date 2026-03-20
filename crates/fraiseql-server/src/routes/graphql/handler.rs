@@ -452,11 +452,11 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let exec_result = if let Some(sec_ctx) = security_context {
         state
-            .executor
+            .executor()
             .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)
             .await
     } else {
-        state.executor.execute(&query, request.variables.as_ref()).await
+        state.executor().execute(&query, request.variables.as_ref()).await
     };
 
     // Record circuit breaker outcome for federation entity queries

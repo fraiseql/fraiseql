@@ -5,10 +5,14 @@
 //! - Invalidating cache by scope (all, entity type, or pattern)
 //! - Inspecting runtime configuration (sanitized)
 
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, sync::Arc};
 
 use axum::{Json, extract::State};
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    runtime::Executor,
+    schema::CompiledSchema,
+};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -83,18 +87,17 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Json(req): Json<ReloadSchemaRequest>,
 ) -> Result<Json<ApiResponse<ReloadSchemaResponse>>, ApiError> {
-    let _ = &state; // used conditionally by #[cfg(feature = "arrow")]
     if req.schema_path.is_empty() {
         return Err(ApiError::validation_error("schema_path cannot be empty"));
     }
 
     // Step 1: Load schema from file
     let schema_json = fs::read_to_string(&req.schema_path)
-        .map_err(|e| ApiError::parse_error(format!("Failed to read schema file: {}", e)))?;
+        .map_err(|e| ApiError::parse_error(format!("Failed to read schema file: {e}")))?;
 
     // Step 2: Validate schema structure
-    let _validated_schema = CompiledSchema::from_json(&schema_json)
-        .map_err(|e| ApiError::parse_error(format!("Invalid schema JSON: {}", e)))?;
+    let validated_schema = CompiledSchema::from_json(&schema_json)
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema JSON: {e}")))?;
 
     if req.validate_only {
         info!(
@@ -104,52 +107,50 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
             success = true,
             "Admin: schema validation requested"
         );
-        let response = ReloadSchemaResponse {
-            success: true,
-            message: "Schema validated successfully (not applied)".to_string(),
-        };
-        Ok(Json(ApiResponse {
+        return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   response,
-        }))
-    } else {
-        // Step 3: Apply the schema (invalidate cache after swap if configured)
-        #[cfg(feature = "arrow")]
-        if let Some(cache) = state.cache() {
-            cache.clear();
-            info!(
-                operation = "admin.reload_schema",
-                schema_path = %req.schema_path,
-                validate_only = false,
-                cache_cleared = true,
-                success = true,
-                "Admin: schema reloaded and cache cleared"
-            );
-            let response = ReloadSchemaResponse {
+            data:   ReloadSchemaResponse {
                 success: true,
-                message: format!("Schema reloaded from {} and cache cleared", req.schema_path),
-            };
-            return Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data:   response,
-            }));
-        }
-        info!(
-            operation = "admin.reload_schema",
-            schema_path = %req.schema_path,
-            validate_only = false,
-            success = true,
-            "Admin: schema reloaded"
-        );
-        let response = ReloadSchemaResponse {
-            success: true,
-            message: format!("Schema reloaded from {}", req.schema_path),
-        };
-        Ok(Json(ApiResponse {
-            status: "success".to_string(),
-            data:   response,
-        }))
+                message: "Schema validated successfully (not applied)".to_string(),
+            },
+        }));
     }
+
+    // Step 3: Build a new Executor with the validated schema, reusing the
+    // existing database adapter so connection pools are shared.
+    let old_executor = state.executor.load_full();
+    let adapter = Arc::clone(old_executor.adapter());
+    let config = old_executor.config().clone();
+    let new_executor = Arc::new(Executor::with_config(validated_schema, adapter, config));
+    let new_hash = new_executor.schema().content_hash();
+
+    // Atomic swap — in-flight requests continue using the old executor
+    state.swap_executor(new_executor);
+
+    // Clear query cache after swap if configured
+    #[cfg(feature = "arrow")]
+    if let Some(cache) = state.cache() {
+        cache.clear();
+    }
+
+    info!(
+        operation = "admin.reload_schema",
+        schema_path = %req.schema_path,
+        schema_hash = %new_hash,
+        success = true,
+        "Admin: schema hot-reloaded"
+    );
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data:   ReloadSchemaResponse {
+            success: true,
+            message: format!(
+                "Schema reloaded from {} (hash: {new_hash})",
+                req.schema_path,
+            ),
+        },
+    }))
 }
 
 /// Cache statistics response.
@@ -468,7 +469,7 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
     }
 
     state
-        .executor
+        .executor()
         .explain(&req.query, req.variables.as_ref(), req.limit, req.offset)
         .await
         .map(ApiResponse::success)

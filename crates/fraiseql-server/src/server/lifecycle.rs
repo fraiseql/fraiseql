@@ -37,7 +37,14 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             }
         }
 
-        let app = self.build_router();
+        let (app, app_state) = self.build_router();
+
+        // Spawn SIGUSR1 schema reload listener (Unix only)
+        #[cfg(unix)]
+        let _reload_handle = Self::spawn_schema_reload_listener(
+            self.config.schema_path.clone(),
+            app_state,
+        );
 
         // Initialize TLS setup
         let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone())?;
@@ -211,7 +218,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        let app = self.build_router();
+        let (app, _state) = self.build_router();
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown)
             .await
@@ -246,5 +253,56 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             _ = ctrl_c => info!("Received Ctrl+C"),
             _ = terminate => info!("Received SIGTERM"),
         }
+    }
+
+    /// Spawn a background task that listens for SIGUSR1 and hot-reloads the
+    /// compiled schema from `schema_path`.
+    ///
+    /// The task runs until the returned [`tokio::task::JoinHandle`] is aborted
+    /// (usually at server shutdown).
+    #[cfg(unix)]
+    pub fn spawn_schema_reload_listener(
+        schema_path: std::path::PathBuf,
+        state: crate::routes::graphql::AppState<A>,
+    ) -> tokio::task::JoinHandle<()> {
+        use std::sync::Arc as StdArc;
+        use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+
+        tokio::spawn(async move {
+            let mut sig = tokio::signal::unix::signal(
+                tokio::signal::unix::SignalKind::user_defined1(),
+            )
+            .expect("Failed to install SIGUSR1 handler");
+
+            loop {
+                sig.recv().await;
+                info!(path = %schema_path.display(), "SIGUSR1 received — reloading schema");
+
+                let json = match std::fs::read_to_string(&schema_path) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        warn!("Schema reload failed (read error): {e}");
+                        continue;
+                    },
+                };
+
+                let new_schema = match CompiledSchema::from_json(&json) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!("Schema reload failed (parse error): {e}");
+                        continue;
+                    },
+                };
+
+                let old = state.executor.load_full();
+                let adapter = StdArc::clone(old.adapter());
+                let config = old.config().clone();
+                let new_exec = StdArc::new(Executor::with_config(new_schema, adapter, config));
+                let hash = new_exec.schema().content_hash();
+                state.swap_executor(new_exec);
+
+                info!(schema_hash = %hash, "Schema hot-reloaded via SIGUSR1");
+            }
+        })
     }
 }

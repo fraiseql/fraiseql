@@ -129,13 +129,13 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // Use the real QueryPlanner via Executor::plan_query
     let (sql, estimated_cost, views_accessed, query_type, database_plan) =
-        match state.executor.plan_query(&req.query, req.variables.as_ref()) {
+        match state.executor().plan_query(&req.query, req.variables.as_ref()) {
             Ok(plan) => {
                 // Optionally run DB-level EXPLAIN when debug.database_explain is enabled
                 let db_plan =
                     if is_db_explain_enabled(state.debug_config.as_ref()) && !plan.sql.is_empty() {
                         state
-                            .executor
+                            .executor()
                             .adapter()
                             .explain_query(&plan.sql, &[])
                             .await

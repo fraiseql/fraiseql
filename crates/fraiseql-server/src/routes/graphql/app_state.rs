@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
@@ -18,8 +19,8 @@ use crate::{
 /// Server state containing executor and configuration.
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
-    /// Query executor.
-    pub executor:              Arc<Executor<A>>,
+    /// Query executor (hot-swappable via [`ArcSwap`] for graceful schema reload).
+    pub executor:              Arc<ArcSwap<Executor<A>>>,
     /// Metrics collector.
     pub metrics:               Arc<MetricsCollector>,
     /// Query result cache (optional).
@@ -71,11 +72,27 @@ pub struct AppState<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
+    /// Load the current executor snapshot.
+    ///
+    /// Returns a cheap `Arc` pointing to the executor that was active at the
+    /// time of the call.  In-flight requests keep the old executor alive even
+    /// after a schema reload swaps in a new one.
+    #[must_use]
+    pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
+        self.executor.load()
+    }
+
+    /// Atomically swap the executor with a newly-built one (e.g., after
+    /// reloading the compiled schema from disk).
+    pub fn swap_executor(&self, new_executor: Arc<Executor<A>>) {
+        self.executor.store(new_executor);
+    }
+
     /// Create new application state.
     #[must_use]
     pub fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor,
+            executor: Arc::new(ArcSwap::from(executor)),
             metrics: Arc::new(MetricsCollector::new()),
             #[cfg(feature = "arrow")]
             cache: None,

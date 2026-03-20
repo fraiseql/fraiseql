@@ -946,7 +946,8 @@ async fn test_process_event_with_mock_dispatcher_success() {
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -985,7 +986,8 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1015,7 +1017,8 @@ async fn test_process_event_condition_false_skips_action() {
         condition:  Some("id == 99999".to_string()),
         actions:    vec![webhook_action()],
         retry:      RetryConfig::default(),
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1052,7 +1055,8 @@ async fn test_process_event_multiple_observers_all_succeed() {
                 initial_delay_ms: 0,
                 ..RetryConfig::default()
             },
-            on_failure: FP::Log,
+            on_failure:  FP::Log,
+            synchronous: false,
         };
         observers_map.insert(format!("obs_{i}"), observer);
     }
@@ -1091,7 +1095,8 @@ async fn test_process_event_multiple_actions_in_one_observer() {
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1128,7 +1133,8 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Dlq,
+        on_failure:  FP::Dlq,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1391,7 +1397,8 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
         condition:  Some("total > 100".to_string()),
         actions:    vec![],
         retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_ok(), "valid condition must compile without error");
@@ -1407,7 +1414,8 @@ fn test_compile_condition_returns_none_when_no_condition() {
         condition:  None,
         actions:    vec![],
         retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_ok());
@@ -1426,7 +1434,8 @@ fn test_compile_condition_returns_error_for_invalid_dsl() {
         condition:  Some("@@@invalid$$$".to_string()),
         actions:    vec![],
         retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_err(), "invalid DSL must return an error from compile_condition");

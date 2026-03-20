@@ -3,8 +3,9 @@
 use super::*;
 
 impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router.
-    pub(super) fn build_router(&self) -> Router {
+    /// Build application router, returning both the router and a clone of
+    /// the `AppState` so callers can pass it to the SIGUSR1 reload listener.
+    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
         let mut state = AppState::new(self.executor.clone());
 
         // Attach secrets manager if configured
@@ -636,7 +637,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             app = app.layer(Extension(controller));
         }
 
-        app
+        (app, state)
     }
 
     /// Add REST transport routes to the router.

@@ -46,6 +46,8 @@ resolver = "2"
 # Encryption
 aes-gcm = "0.10"
 anyhow = "1.0"
+# Lock-free atomic swap for hot-reloading Arc<Executor>
+arc-swap = "1"
 async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.8"}

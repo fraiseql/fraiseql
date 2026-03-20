@@ -34,7 +34,14 @@ pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
     pub name:       String,
     /// Key fields that uniquely identify this entity.
+    ///
+    /// Defaults to `["id"]` when omitted from the compiled schema JSON.
+    #[serde(default = "default_key_fields")]
     pub key_fields: Vec<String>,
+}
+
+fn default_key_fields() -> Vec<String> {
+    vec!["id".to_string()]
 }
 
 /// Circuit breaker configuration for federation entity resolution.
@@ -291,6 +298,10 @@ pub struct EventHandler {
     pub push_target:      Option<String>,
     /// Rate limit in seconds between notifications.
     pub rate_limit:       Option<u32>,
+    /// When `true`, the mutation waits for this observer to complete before
+    /// returning the response.  Defaults to `false` (fire-and-forget).
+    #[serde(default)]
+    pub synchronous:      bool,
 }
 
 /// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
@@ -645,6 +656,46 @@ mod tests {
         assert!(!config.enabled);
         assert_eq!(config.backend, "redis");
         assert!(config.handlers.is_empty());
+    }
+
+    #[test]
+    fn test_event_handler_synchronous_defaults_false() {
+        let json = r#"{
+            "name": "onOrderCreated",
+            "event": "Order.created",
+            "action": "webhook",
+            "webhook_url": "https://example.com/hook"
+        }"#;
+        let handler: EventHandler = serde_json::from_str(json).unwrap();
+        assert!(!handler.synchronous);
+    }
+
+    #[test]
+    fn test_event_handler_synchronous_explicit_true() {
+        let json = r#"{
+            "name": "onOrderCreated",
+            "event": "Order.created",
+            "action": "webhook",
+            "webhook_url": "https://example.com/hook",
+            "synchronous": true
+        }"#;
+        let handler: EventHandler = serde_json::from_str(json).unwrap();
+        assert!(handler.synchronous);
+    }
+
+    #[test]
+    fn test_federation_entity_key_fields_default_to_id() {
+        let json = r#"{"name": "Product"}"#;
+        let entity: FederationEntity = serde_json::from_str(json).unwrap();
+        assert_eq!(entity.name, "Product");
+        assert_eq!(entity.key_fields, vec!["id".to_string()]);
+    }
+
+    #[test]
+    fn test_federation_entity_key_fields_explicit_override() {
+        let json = r#"{"name": "OrderLine", "key_fields": ["order_id", "line_id"]}"#;
+        let entity: FederationEntity = serde_json::from_str(json).unwrap();
+        assert_eq!(entity.key_fields, vec!["order_id", "line_id"]);
     }
 
     #[test]

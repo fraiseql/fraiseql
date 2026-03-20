@@ -37,8 +37,9 @@ fn make_observer(event_type: &str, entity: &str, condition: Option<&str>) -> Obs
             headers:       HashMap::default(),
             body_template: Some("{}".to_string()),
         }],
-        retry:      RetryConfig::default(),
-        on_failure: FailurePolicy::Log,
+        retry:       RetryConfig::default(),
+        on_failure:  FailurePolicy::Log,
+        synchronous: false,
     }
 }
 

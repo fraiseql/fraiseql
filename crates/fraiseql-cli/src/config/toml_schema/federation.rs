@@ -76,6 +76,11 @@ impl Default for FederationConfig {
 pub struct FederationEntity {
     /// Entity name
     pub name:       String,
-    /// Key fields for entity resolution
+    /// Key fields for entity resolution (defaults to `["id"]` when omitted).
+    #[serde(default = "default_key_fields")]
     pub key_fields: Vec<String>,
+}
+
+fn default_key_fields() -> Vec<String> {
+    vec!["id".to_string()]
 }

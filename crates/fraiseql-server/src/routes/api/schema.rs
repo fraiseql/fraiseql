@@ -45,7 +45,7 @@ pub struct JsonSchemaResponse {
 pub async fn export_sdl_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Response, ApiError> {
-    let schema_sdl = state.executor.schema().raw_schema();
+    let schema_sdl = state.executor().schema().raw_schema();
     Ok((StatusCode::OK, schema_sdl).into_response())
 }
 
@@ -63,7 +63,8 @@ pub async fn export_sdl_handler<A: DatabaseAdapter>(
 pub async fn export_json_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<JsonSchemaResponse>>, ApiError> {
-    let schema_json = serde_json::to_value(state.executor.schema())
+    let executor = state.executor();
+    let schema_json = serde_json::to_value(executor.schema())
         .map_err(|e| ApiError::internal_error(format!("Failed to serialize schema: {e}")))?;
 
     let response = JsonSchemaResponse {

@@ -217,7 +217,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // Pool health metrics (sampled live from adapter on each request)
     {
-        let pool = state.executor.pool_metrics();
+        let pool = state.executor().pool_metrics();
         output.push_str(&format!(
             concat!(
                 "\n# HELP fraiseql_db_pool_connections_total Total connections in pool\n",
@@ -313,7 +313,7 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 
     // Collect metrics from AppState
     let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
-    let pool = state.executor.pool_metrics();
+    let pool = state.executor().pool_metrics();
 
     let response = MetricsResponse {
         queries_total:           prometheus_metrics.queries_total,

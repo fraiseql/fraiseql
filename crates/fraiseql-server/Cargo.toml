@@ -7,6 +7,8 @@ name = "performance_benchmarks"
 aes-gcm = {workspace = true}
 # Error handling
 anyhow = {workspace = true}
+# Lock-free atomic swap for hot-reloading Arc<Executor>
+arc-swap = {workspace = true}
 async-trait = {workspace = true}
 aws-config = {version = "1", optional = true}
 # AWS S3 (optional)

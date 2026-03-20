@@ -150,6 +150,11 @@ pub struct ObserverDefinition {
     /// Failure handling policy
     #[serde(default)]
     pub on_failure: FailurePolicy,
+
+    /// When `true`, the mutation waits for this observer to complete before
+    /// returning the response.  Defaults to `false` (fire-and-forget).
+    #[serde(default)]
+    pub synchronous: bool,
 }
 
 impl ObserverDefinition {
