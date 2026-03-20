@@ -106,7 +106,7 @@ zeroize = "1.8"
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-auth = {workspace = true}
-fraiseql-test-utils = {path = "../fraiseql-test-utils", features = ["postgres"]}
+fraiseql-test-utils = {path = "../fraiseql-test-utils", features = ["postgres", "grpc"]}
 futures = {workspace = true}
 proptest = {workspace = true}
 # HTTP testing
@@ -186,6 +186,10 @@ version.workspace = true
 [[test]]
 name = "rest_transport_e2e_test"
 required-features = ["rest"]
+
+[[test]]
+name = "grpc_transport_e2e_test"
+required-features = ["grpc"]
 
 [[test]]
 name = "secrets_manager_integration_test"

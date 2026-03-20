@@ -10,6 +10,7 @@ uuid = {workspace = true}
 [dev-dependencies]
 
 [features]
+grpc = ["fraiseql-core/grpc"]
 postgres = ["sqlx"]
 
 [lints]

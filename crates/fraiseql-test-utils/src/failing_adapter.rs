@@ -23,6 +23,8 @@ use fraiseql_core::{
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
 };
+#[cfg(feature = "grpc")]
+use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
 
 /// Configuration for failure injection.
 ///
@@ -103,6 +105,9 @@ pub struct FailingAdapter {
     responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
     /// Canned function call responses per function name.
     function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
+    /// Canned row-shaped responses per view name (for gRPC `execute_row_query`).
+    #[cfg(feature = "grpc")]
+    row_responses:      Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
     /// Failure injection configuration.
     fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
@@ -118,6 +123,8 @@ impl FailingAdapter {
         Self {
             responses:          Arc::new(Mutex::new(HashMap::new())),
             function_responses: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "grpc")]
+            row_responses:      Arc::new(Mutex::new(HashMap::new())),
             fail_config:        Arc::new(Mutex::new(FailConfig::default())),
             query_count:        Arc::new(AtomicU64::new(0)),
             query_log:          Arc::new(Mutex::new(Vec::new())),
@@ -150,6 +157,21 @@ impl FailingAdapter {
             .lock()
             .unwrap()
             .insert(function_name.to_string(), data);
+        self
+    }
+
+    /// Set a canned row-shaped response for a specific view (for gRPC transport).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal row responses mutex is poisoned.
+    #[cfg(feature = "grpc")]
+    #[must_use]
+    pub fn with_row_response(self, view: &str, data: Vec<Vec<ColumnValue>>) -> Self {
+        self.row_responses
+            .lock()
+            .unwrap()
+            .insert(view.to_string(), data);
         self
     }
 
@@ -382,6 +404,22 @@ impl DatabaseAdapter for FailingAdapter {
         let responses = self.function_responses.lock().unwrap();
         Ok(responses.get(function_name).cloned().unwrap_or_default())
     }
+
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        _columns: &[ColumnSpec],
+        _where_clause: Option<&str>,
+        _order_by: Option<&str>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<Vec<ColumnValue>>> {
+        self.check_failure(view)?;
+        let responses = self.row_responses.lock().unwrap();
+        Ok(responses.get(view).cloned().unwrap_or_default())
+    }
+
 }
 
 impl MutationCapable for FailingAdapter {}
