@@ -290,7 +290,7 @@ fn build_service(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, name) = grpc::build_grpc_service(schema, adapter, None)
+    let (svc, name) = grpc::build_grpc_service(schema, adapter, None, None)
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
@@ -634,7 +634,7 @@ async fn grpc_disabled_returns_none() {
     schema.grpc_config.as_mut().unwrap().enabled = false;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None)
+    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
         .expect("should not error");
     assert!(result.is_none(), "Disabled gRPC should return None");
 }
@@ -651,7 +651,7 @@ async fn no_grpc_config_returns_none() {
     schema.grpc_config = None;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None)
+    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
         .expect("should not error");
     assert!(result.is_none(), "No gRPC config should return None");
 }
@@ -909,7 +909,7 @@ fn build_service_with_auth(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let (svc, _) = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)))
+    let (svc, _) = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)), None)
         .expect("build_grpc_service should succeed")
         .expect("gRPC should be enabled");
 
@@ -1129,4 +1129,132 @@ async fn query_without_security_context_has_no_rls() {
         where_clauses.is_empty() || where_clauses[0].is_none(),
         "Without SecurityContext, no WHERE clause should be passed: got {where_clauses:?}"
     );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cycle 10: Rate limiting + observability tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Build a `DynamicGrpcService` with rate limiting enabled.
+fn build_service_with_rate_limiter(
+    adapter: FailingAdapter,
+    schema: CompiledSchema,
+    rate_limiter: Arc<fraiseql_server::middleware::RateLimiter>,
+) -> DynamicGrpcService<FailingAdapter> {
+    let schema = Arc::new(schema);
+    let adapter = Arc::new(adapter);
+
+    let (svc, name) = grpc::build_grpc_service(schema, adapter, None, Some(rate_limiter))
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
+
+    assert_eq!(name, SERVICE_NAME);
+    svc
+}
+
+#[tokio::test]
+async fn rate_limited_request_returns_resource_exhausted() {
+    use fraiseql_server::middleware::rate_limit::RateLimitConfig;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    // Create a rate limiter that allows only 1 request per second per IP.
+    let config = RateLimitConfig {
+        enabled:               true,
+        rps_per_ip:            1,
+        rps_per_user:          1,
+        burst_size:            1,
+        cleanup_interval_secs: 300,
+        trust_proxy_headers:   false,
+        trusted_proxy_cidrs:   Vec::new(),
+    };
+    let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
+    let svc = build_service_with_rate_limiter(adapter, schema, limiter);
+
+    // Build a valid request.
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    // First request should succeed (consumes the single token).
+    let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
+    assert_eq!(grpc_status.as_deref(), Some("0"), "First request should succeed");
+
+    // Second request should be rate-limited (burst exhausted).
+    let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
+    // gRPC status 8 = RESOURCE_EXHAUSTED
+    assert_eq!(
+        grpc_status.as_deref(),
+        Some("8"),
+        "Second request should return RESOURCE_EXHAUSTED"
+    );
+}
+
+#[tokio::test]
+async fn rate_limiter_allows_requests_within_budget() {
+    use fraiseql_server::middleware::rate_limit::RateLimitConfig;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    // Generous rate limit: 100 rps with burst of 100.
+    let config = RateLimitConfig {
+        enabled:               true,
+        rps_per_ip:            100,
+        rps_per_user:          100,
+        burst_size:            100,
+        cleanup_interval_secs: 300,
+        trust_proxy_headers:   false,
+        trusted_proxy_cidrs:   Vec::new(),
+    };
+    let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
+    let svc = build_service_with_rate_limiter(adapter, schema, limiter);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    // Multiple requests should all succeed within the generous budget.
+    for i in 0..5 {
+        let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
+        assert_eq!(grpc_status.as_deref(), Some("0"), "Request {i} should succeed");
+    }
+}
+
+#[tokio::test]
+async fn no_rate_limiter_allows_all_requests() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()]);
+
+    // No rate limiter — all requests allowed.
+    let svc = build_service(adapter, schema);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    // Send many requests — should all succeed without rate limiter.
+    for i in 0..10 {
+        let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
+        assert_eq!(grpc_status.as_deref(), Some("0"), "Request {i} should succeed without limiter");
+    }
 }

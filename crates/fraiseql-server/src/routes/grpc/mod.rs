@@ -20,7 +20,9 @@ use fraiseql_error::FraiseQLError;
 use prost_reflect::DescriptorPool;
 use tonic::body::Body as TonicBody;
 use tonic::server::NamedService;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, warn, Instrument as _};
+
+use crate::middleware::RateLimiter;
 
 use handler::{RpcDispatchTable, build_dispatch_table};
 
@@ -50,6 +52,9 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// metadata header (`Bearer <jwt>`). The validated token is converted
     /// into a [`SecurityContext`] that drives RLS WHERE clause injection.
     oidc_validator: Option<Arc<OidcValidator>>,
+    /// Optional shared rate limiter (same instance used by GraphQL/REST).
+    /// When present, requests are throttled per-IP and per-user before dispatch.
+    rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
@@ -61,6 +66,7 @@ impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
             pool:           Arc::clone(&self.pool),
             service_name:   Arc::clone(&self.service_name),
             oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
+            rate_limiter:   self.rate_limiter.as_ref().map(Arc::clone),
         }
     }
 }
@@ -107,11 +113,56 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             .unwrap_or("grpc")
             .to_string();
 
+        // Extract client IP for rate limiting (x-forwarded-for → x-real-ip → fallback).
+        let client_ip = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(',').next())
+            .map(|s| s.trim().to_string())
+            .or_else(|| {
+                req.headers()
+                    .get("x-real-ip")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from)
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+
         let security_context: Option<SecurityContext> =
             match self.authenticate(auth_header, request_id).await {
                 Ok(ctx) => ctx,
                 Err(resp) => return resp,
             };
+
+        // Record user_id on the tracing span (set by `call()`).
+        if let Some(ref ctx) = security_context {
+            tracing::Span::current().record("user_id", &ctx.user_id.as_str());
+        }
+
+        // ── Rate limiting ─────────────────────────────────────────────
+        if let Some(ref limiter) = self.rate_limiter {
+            // Per-user limit if authenticated, per-IP otherwise.
+            let result = if let Some(ref ctx) = security_context {
+                limiter.check_user_limit(&ctx.user_id).await
+            } else {
+                limiter.check_ip_limit(&client_ip).await
+            };
+
+            if !result.allowed {
+                let user_id = security_context.as_ref().map(|c| c.user_id.as_str());
+                warn!(
+                    ip = %client_ip,
+                    user_id = ?user_id,
+                    retry_after_secs = result.retry_after_secs,
+                    method = %method,
+                    "gRPC rate limit exceeded"
+                );
+                return grpc_error_response(
+                    tonic::Code::ResourceExhausted,
+                    "Rate limit exceeded",
+                );
+            }
+        }
 
         // Collect the body bytes.
         let body_bytes: bytes::Bytes = match req.into_body().collect().await {
@@ -316,7 +367,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         let method = req.uri().path().to_string();
 
         Box::pin(async move {
-            Ok(svc.handle_request(&method, req).await)
+            let span = info_span!(
+                "grpc_request",
+                method = %method,
+                grpc.status = tracing::field::Empty,
+                user_id = tracing::field::Empty,
+            );
+            let response = svc.handle_request(&method, req).instrument(span.clone()).await;
+
+            // Record the gRPC status code on the span.
+            let grpc_status = response
+                .headers()
+                .get("grpc-status")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("unknown");
+            span.record("grpc.status", grpc_status);
+
+            Ok(response)
         })
     }
 }
@@ -338,6 +405,7 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     schema: Arc<CompiledSchema>,
     adapter: Arc<A>,
     oidc_validator: Option<Arc<OidcValidator>>,
+    rate_limiter: Option<Arc<RateLimiter>>,
 ) -> Result<Option<(DynamicGrpcService<A>, String)>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
@@ -407,6 +475,9 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     if oidc_validator.is_some() {
         info!("gRPC transport: OIDC authentication enabled");
     }
+    if rate_limiter.is_some() {
+        info!("gRPC transport: rate limiting enabled");
+    }
 
     let service = DynamicGrpcService {
         adapter,
@@ -415,6 +486,7 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         pool: Arc::new(pool),
         service_name: service_name.clone().into(),
         oidc_validator,
+        rate_limiter,
     };
 
     Ok(Some((service, service_name)))

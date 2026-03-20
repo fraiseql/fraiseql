@@ -166,6 +166,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 Arc::new(server.executor.schema().clone()),
                 server.executor.adapter().clone(),
                 server.oidc_validator.clone(),
+                server.rate_limiter.clone(),
             ) {
                 Ok(Some((svc, service_name))) => {
                     info!(service = %service_name, "gRPC transport service initialized");
