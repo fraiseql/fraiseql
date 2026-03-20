@@ -28,24 +28,40 @@ const DEFAULT_GRPC_LIMIT: u32 = 100;
 // RPC operation metadata
 // ---------------------------------------------------------------------------
 
+/// Distinguishes query RPCs (row-shaped view reads) from mutation RPCs
+/// (database function calls).
+#[derive(Debug, Clone)]
+pub enum RpcKind {
+    /// A read query against a row-shaped view (`vr_*`).
+    Query {
+        /// Row-shaped view name (e.g., `"vr_user"`).
+        view_name: String,
+        /// Whether this RPC returns a list.
+        returns_list: bool,
+        /// Column specs for the row-shaped view.
+        columns: Vec<ColumnSpec>,
+        /// Inner row message descriptor (the repeated element for list queries,
+        /// or the single message for get queries).
+        row_descriptor: MessageDescriptor,
+    },
+    /// A mutation that calls a database function via `execute_function_call()`.
+    Mutation {
+        /// SQL function name (e.g., `"fn_create_user"`).
+        function_name: String,
+    },
+}
+
 /// Metadata for a single gRPC RPC method, resolved at startup.
 #[derive(Debug, Clone)]
 pub struct RpcOperation {
-    /// Query name in the compiled schema (e.g., `"users"`).
-    pub query_name: String,
+    /// Operation name in the compiled schema (query or mutation name).
+    pub operation_name: String,
     /// GraphQL type name (e.g., `"User"`).
     pub type_name: String,
-    /// Row-shaped view name (e.g., `"vr_user"`).
-    pub view_name: String,
-    /// Whether this RPC returns a list.
-    pub returns_list: bool,
-    /// Column specs for the row-shaped view (derived from the type's scalar fields).
-    pub columns: Vec<ColumnSpec>,
+    /// What kind of RPC this is (query or mutation).
+    pub kind: RpcKind,
     /// Response message descriptor for encoding results.
     pub response_descriptor: MessageDescriptor,
-    /// Inner row message descriptor (the repeated element for list queries,
-    /// or the single message for get queries).
-    pub row_descriptor: MessageDescriptor,
 }
 
 /// Maps gRPC method names (e.g., `"/fraiseql.v1.FraiseQLService/ListUsers"`)
@@ -276,7 +292,9 @@ pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Opti
 /// Returns `FraiseQLError::Validation` if filter construction fails.
 pub async fn execute_grpc_query<A: DatabaseAdapter>(
     adapter: &A,
-    op: &RpcOperation,
+    view_name: &str,
+    columns: &[ColumnSpec],
+    returns_list: bool,
     request_msg: &DynamicMessage,
     type_def: &TypeDefinition,
 ) -> Result<Vec<Vec<ColumnValue>>, FraiseQLError> {
@@ -295,7 +313,7 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
         None
     };
 
-    let limit = if op.returns_list {
+    let limit = if returns_list {
         Some(extract_limit(request_msg))
     } else {
         Some(1)
@@ -304,7 +322,7 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
     let order_by = extract_order_by(request_msg, type_def);
 
     debug!(
-        view = %op.view_name,
+        view = %view_name,
         where_clause = ?where_sql,
         limit = ?limit,
         offset = ?offset,
@@ -314,14 +332,98 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
 
     adapter
         .execute_row_query(
-            &op.view_name,
-            &op.columns,
+            view_name,
+            columns,
             where_sql.as_deref(),
             order_by.as_deref(),
             limit,
             offset,
         )
         .await
+}
+
+/// Execute a gRPC mutation by calling the database function.
+///
+/// Maps the `execute_function_call()` result to a protobuf `MutationResponse`
+/// message with `success`, `id`, and `error` fields.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Database` on function call failure.
+pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
+    adapter: &A,
+    function_name: &str,
+    request_msg: &DynamicMessage,
+) -> Result<MutationResult, FraiseQLError> {
+    // Extract arguments from the request message as JSON values.
+    let args: Vec<serde_json::Value> = request_msg
+        .descriptor()
+        .fields()
+        .filter(|f| request_msg.has_field(f))
+        .map(|f| proto_value_to_json(request_msg.get_field(&f).as_ref()))
+        .collect();
+
+    debug!(
+        function = %function_name,
+        arg_count = args.len(),
+        "Executing gRPC mutation"
+    );
+
+    let rows = adapter.execute_function_call(function_name, &args).await?;
+
+    // The Trinity pattern returns a single row with status/entity_id columns.
+    let row = rows.into_iter().next().unwrap_or_default();
+    let success = row
+        .get("status")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| s == "success");
+    let id = row
+        .get("entity_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let error = if success {
+        None
+    } else {
+        row.get("message")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    };
+
+    Ok(MutationResult { success, id, error })
+}
+
+/// Result from a gRPC mutation, ready to be encoded as a `MutationResponse`.
+#[derive(Debug)]
+pub struct MutationResult {
+    /// Whether the mutation succeeded.
+    pub success: bool,
+    /// Optional entity ID returned by the mutation.
+    pub id: Option<String>,
+    /// Optional error message (when `success` is false).
+    pub error: Option<String>,
+}
+
+/// Encode a [`MutationResult`] into a protobuf response message.
+///
+/// Expects the response descriptor to have fields: `success` (bool),
+/// `id` (optional string), `error` (optional string).
+pub fn encode_mutation_response(
+    result: &MutationResult,
+    response_desc: &MessageDescriptor,
+) -> DynamicMessage {
+    let mut msg = DynamicMessage::new(response_desc.clone());
+
+    if let Some(field) = response_desc.get_field_by_name("success") {
+        msg.set_field(&field, Value::Bool(result.success));
+    }
+    if let (Some(field), Some(id)) = (response_desc.get_field_by_name("id"), &result.id) {
+        msg.set_field(&field, Value::String(id.clone()));
+    }
+    if let (Some(field), Some(err)) = (response_desc.get_field_by_name("error"), &result.error) {
+        msg.set_field(&field, Value::String(err.clone()));
+    }
+
+    msg
 }
 
 // ---------------------------------------------------------------------------
@@ -384,22 +486,25 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
 /// the row fields directly.
 pub fn encode_response(
     rows: Vec<Vec<ColumnValue>>,
-    op: &RpcOperation,
+    columns: &[ColumnSpec],
+    returns_list: bool,
+    row_descriptor: &MessageDescriptor,
+    response_descriptor: &MessageDescriptor,
 ) -> DynamicMessage {
-    let mut response = DynamicMessage::new(op.response_descriptor.clone());
+    let mut response = DynamicMessage::new(response_descriptor.clone());
 
-    if op.returns_list {
+    if returns_list {
         // List response: encode each row as a sub-message in the "items" field.
         let items: Vec<Value> = rows
             .iter()
             .map(|row| {
-                let row_msg = encode_row(row, &op.columns, &op.row_descriptor);
+                let row_msg = encode_row(row, columns, row_descriptor);
                 Value::Message(row_msg)
             })
             .collect();
 
         // Find the repeated field (first repeated message field in the response).
-        for field_desc in op.response_descriptor.fields() {
+        for field_desc in response_descriptor.fields() {
             if field_desc.is_list()
                 && field_desc.kind().as_message().is_some()
             {
@@ -410,8 +515,8 @@ pub fn encode_response(
     } else {
         // Get response: single row — set fields directly on the response message.
         if let Some(row) = rows.into_iter().next() {
-            for (col_val, col_spec) in row.iter().zip(op.columns.iter()) {
-                if let Some(field_desc) = op.response_descriptor.get_field_by_name(&col_spec.name) {
+            for (col_val, col_spec) in row.iter().zip(columns.iter()) {
+                if let Some(field_desc) = response_descriptor.get_field_by_name(&col_spec.name) {
                     if let Some(v) = column_value_to_proto(col_val) {
                         response.set_field(&field_desc, v);
                     }
@@ -429,13 +534,15 @@ pub fn encode_response(
 
 /// Build the RPC dispatch table from a compiled schema and a descriptor pool.
 ///
-/// Iterates the schema's queries, resolves each to a row-shaped view and column
-/// specs, and maps the gRPC method name to the operation metadata.
+/// Iterates the schema's queries and mutations, mapping each gRPC method name
+/// to its resolved operation metadata.
+///
+/// Convention: methods starting with `Get` or `List` are queries; all others
+/// are matched against mutations.
 ///
 /// # Errors
 ///
-/// Returns an error if a query's return type cannot be found in the schema or
-/// if the proto descriptor pool is missing expected message types.
+/// Returns an error if the service descriptor is not found in the pool.
 pub fn build_dispatch_table(
     schema: &CompiledSchema,
     service_name: &str,
@@ -452,56 +559,73 @@ pub fn build_dispatch_table(
 
     for method_desc in service_desc.methods() {
         let method_name = method_desc.name().to_string();
-
-        // Derive query name from method name. Convention:
-        // "GetUser" → "user", "ListUsers" → "users"
-        let query_name = grpc_method_to_query_name(&method_name);
-
-        let Some(query_def) = schema.find_query(&query_name) else {
-            debug!(
-                method = %method_name,
-                query = %query_name,
-                "gRPC method has no matching query — skipping"
-            );
-            continue;
-        };
-
-        let type_name = &query_def.return_type;
-        let Some(type_def) = schema.find_type(type_name) else {
-            warn!(
-                method = %method_name,
-                type_name = %type_name,
-                "gRPC method return type not found in schema — skipping"
-            );
-            continue;
-        };
-
-        let view_name = format!("vr_{}", type_def.sql_source);
-        let columns = column_specs_from_type(type_def);
-
-        let response_desc = method_desc.output();
-        let row_desc = if query_def.returns_list {
-            // For list responses, find the repeated message field type.
-            response_desc
-                .fields()
-                .find(|f| f.is_list() && f.kind().as_message().is_some())
-                .and_then(|f| f.kind().as_message().cloned())
-                .unwrap_or_else(|| response_desc.clone())
-        } else {
-            response_desc.clone()
-        };
-
         let full_method = format!("/{service_name}/{method_name}");
+        let response_desc = method_desc.output();
 
-        table.insert(full_method, RpcOperation {
-            query_name: query_name.clone(),
-            type_name: type_name.clone(),
-            view_name,
-            returns_list: query_def.returns_list,
-            columns,
-            response_descriptor: response_desc,
-            row_descriptor: row_desc,
-        });
+        // Try query first (Get*/List* prefix).
+        if method_name.starts_with("Get") || method_name.starts_with("List") {
+            let query_name = grpc_method_to_query_name(&method_name);
+
+            if let Some(query_def) = schema.find_query(&query_name) {
+                let type_name = &query_def.return_type;
+                let Some(type_def) = schema.find_type(type_name) else {
+                    warn!(
+                        method = %method_name,
+                        type_name = %type_name,
+                        "gRPC query return type not found in schema — skipping"
+                    );
+                    continue;
+                };
+
+                let view_name = format!("vr_{}", type_def.sql_source);
+                let columns = column_specs_from_type(type_def);
+
+                let row_desc = if query_def.returns_list {
+                    response_desc
+                        .fields()
+                        .find(|f| f.is_list() && f.kind().as_message().is_some())
+                        .and_then(|f| f.kind().as_message().cloned())
+                        .unwrap_or_else(|| response_desc.clone())
+                } else {
+                    response_desc.clone()
+                };
+
+                table.insert(full_method, RpcOperation {
+                    operation_name: query_name,
+                    type_name:      type_name.clone(),
+                    kind: RpcKind::Query {
+                        view_name,
+                        returns_list: query_def.returns_list,
+                        columns,
+                        row_descriptor: row_desc,
+                    },
+                    response_descriptor: response_desc,
+                });
+                continue;
+            }
+        }
+
+        // Try mutation: convert PascalCase method name to camelCase mutation name.
+        let mutation_name = grpc_method_to_mutation_name(&method_name);
+        if let Some(mutation_def) = schema.find_mutation(&mutation_name) {
+            let function_name = mutation_def
+                .sql_source
+                .clone()
+                .unwrap_or_else(|| format!("fn_{mutation_name}"));
+
+            table.insert(full_method, RpcOperation {
+                operation_name: mutation_name,
+                type_name:      mutation_def.return_type.clone(),
+                kind: RpcKind::Mutation { function_name },
+                response_descriptor: response_desc,
+            });
+            continue;
+        }
+
+        debug!(
+            method = %method_name,
+            "gRPC method has no matching query or mutation — skipping"
+        );
     }
 
     Ok(table)
@@ -525,6 +649,21 @@ fn grpc_method_to_query_name(method: &str) -> String {
         result.push(ch.to_ascii_lowercase());
     }
     result
+}
+
+/// Convert a gRPC method name to a schema mutation name.
+///
+/// Convention: `"CreateUser"` → `"createUser"` (PascalCase → camelCase).
+fn grpc_method_to_mutation_name(method: &str) -> String {
+    let mut chars = method.chars();
+    match chars.next() {
+        Some(first) => {
+            let mut result = first.to_lowercase().to_string();
+            result.extend(chars);
+            result
+        },
+        None => String::new(),
+    }
 }
 
 #[cfg(test)]
@@ -626,6 +765,23 @@ mod tests {
     #[test]
     fn no_prefix_passthrough() {
         assert_eq!(grpc_method_to_query_name("SearchUsers"), "search_users");
+    }
+
+    // ── grpc_method_to_mutation_name ──────────────────────────────────
+
+    #[test]
+    fn mutation_name_pascal_to_camel() {
+        assert_eq!(grpc_method_to_mutation_name("CreateUser"), "createUser");
+    }
+
+    #[test]
+    fn mutation_name_single_word() {
+        assert_eq!(grpc_method_to_mutation_name("Delete"), "delete");
+    }
+
+    #[test]
+    fn mutation_name_empty() {
+        assert_eq!(grpc_method_to_mutation_name(""), "");
     }
 
     // ── column_value_to_proto ───────────────────────────────────────────
@@ -826,22 +982,12 @@ mod tests {
             ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
         ];
 
-        let op = RpcOperation {
-            query_name:          "user".into(),
-            type_name:           "User".into(),
-            view_name:           "vr_user".into(),
-            returns_list:        false,
-            columns,
-            response_descriptor: user_desc.clone(),
-            row_descriptor:      user_desc.clone(),
-        };
-
         let rows = vec![vec![
             ColumnValue::Text("u-1".into()),
             ColumnValue::Text("Bob".into()),
         ]];
 
-        let response = encode_response(rows, &op);
+        let response = encode_response(rows, &columns, false, &user_desc, &user_desc);
 
         let id_field = user_desc.get_field_by_name("id").unwrap();
         assert_eq!(response.get_field(&id_field).into_owned(), Value::String("u-1".into()));
@@ -856,18 +1002,8 @@ mod tests {
             ColumnSpec { name: "id".into(), column_type: RowViewColumnType::Uuid },
         ];
 
-        let op = RpcOperation {
-            query_name:          "user".into(),
-            type_name:           "User".into(),
-            view_name:           "vr_user".into(),
-            returns_list:        false,
-            columns,
-            response_descriptor: user_desc.clone(),
-            row_descriptor:      user_desc.clone(),
-        };
-
         // No rows — response should have default values.
-        let response = encode_response(vec![], &op);
+        let response = encode_response(vec![], &columns, false, &user_desc, &user_desc);
         let id_field = user_desc.get_field_by_name("id").unwrap();
         assert!(!response.has_field(&id_field));
     }

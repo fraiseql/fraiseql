@@ -109,28 +109,58 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             Err(e) => return grpc_error_response(tonic::Code::InvalidArgument, &format!("Failed to decode request: {e}")),
         };
 
-        // Look up the type definition.
-        let type_def = match self.schema.find_type(&op.type_name) {
-            Some(t) => t,
-            None => return grpc_error_response(tonic::Code::Internal, &format!("Type '{}' not found in schema", op.type_name)),
-        };
+        // Dispatch based on RPC kind.
+        let response_msg = match &op.kind {
+            handler::RpcKind::Query { view_name, returns_list, columns, row_descriptor } => {
+                // Look up the type definition.
+                let type_def = match self.schema.find_type(&op.type_name) {
+                    Some(t) => t,
+                    None => return grpc_error_response(tonic::Code::Internal, &format!("Type '{}' not found in schema", op.type_name)),
+                };
 
-        // Execute the query.
-        let rows = match handler::execute_grpc_query(self.adapter.as_ref(), op, &request_msg, type_def).await {
-            Ok(rows) => rows,
-            Err(FraiseQLError::Validation { message, .. }) => {
-                return grpc_error_response(tonic::Code::InvalidArgument, &message);
+                let rows = match handler::execute_grpc_query(
+                    self.adapter.as_ref(),
+                    view_name,
+                    columns,
+                    *returns_list,
+                    &request_msg,
+                    type_def,
+                ).await {
+                    Ok(rows) => rows,
+                    Err(FraiseQLError::Validation { message, .. }) => {
+                        return grpc_error_response(tonic::Code::InvalidArgument, &message);
+                    },
+                    Err(FraiseQLError::Unsupported { message }) => {
+                        return grpc_error_response(tonic::Code::Unimplemented, &message);
+                    },
+                    Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
+                };
+
+                debug!(method = %method, row_count = rows.len(), "gRPC query returned results");
+
+                handler::encode_response(rows, columns, *returns_list, row_descriptor, &op.response_descriptor)
             },
-            Err(FraiseQLError::Unsupported { message }) => {
-                return grpc_error_response(tonic::Code::Unimplemented, &message);
+            handler::RpcKind::Mutation { function_name } => {
+                let result = match handler::execute_grpc_mutation(
+                    self.adapter.as_ref(),
+                    function_name,
+                    &request_msg,
+                ).await {
+                    Ok(r) => r,
+                    Err(FraiseQLError::Validation { message, .. }) => {
+                        return grpc_error_response(tonic::Code::InvalidArgument, &message);
+                    },
+                    Err(FraiseQLError::Unsupported { message }) => {
+                        return grpc_error_response(tonic::Code::Unimplemented, &message);
+                    },
+                    Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
+                };
+
+                debug!(method = %method, success = result.success, "gRPC mutation completed");
+
+                handler::encode_mutation_response(&result, &op.response_descriptor)
             },
-            Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
         };
-
-        debug!(method = %method, row_count = rows.len(), "gRPC query returned results");
-
-        // Encode the response.
-        let response_msg = handler::encode_response(rows, op);
 
         // Serialize to protobuf bytes with gRPC framing.
         use prost::Message as _;
@@ -260,13 +290,24 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     );
 
     for (method, op) in &dispatch {
-        debug!(
-            method = %method,
-            view = %op.view_name,
-            columns = op.columns.len(),
-            list = op.returns_list,
-            "Registered gRPC RPC"
-        );
+        match &op.kind {
+            handler::RpcKind::Query { view_name, columns, returns_list, .. } => {
+                debug!(
+                    method = %method,
+                    view = %view_name,
+                    columns = columns.len(),
+                    list = returns_list,
+                    "Registered gRPC query RPC"
+                );
+            },
+            handler::RpcKind::Mutation { function_name } => {
+                debug!(
+                    method = %method,
+                    function = %function_name,
+                    "Registered gRPC mutation RPC"
+                );
+            },
+        }
     }
 
     let service = DynamicGrpcService {

@@ -15,7 +15,7 @@ use fraiseql_core::schema::{CompiledSchema, GrpcConfig};
 use fraiseql_server::routes::grpc::{self, DynamicGrpcService};
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use fraiseql_test_utils::schema_builder::{
-    TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+    TestFieldBuilder, TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
 };
 use http_body_util::BodyExt as _;
 use prost::Message as _;
@@ -45,6 +45,11 @@ fn build_grpc_schema(descriptor_path: &str) -> CompiledSchema {
         .with_query(
             TestQueryBuilder::new("users", "User")
                 .returns_list(true)
+                .build(),
+        )
+        .with_mutation(
+            TestMutationBuilder::new("createUser", "User")
+                .with_sql_source("fn_create_user")
                 .build(),
         )
         .with_type(
@@ -169,6 +174,57 @@ fn build_descriptor_set() -> FileDescriptorSet {
         ..Default::default()
     };
 
+    // CreateUserRequest (for mutation "createUser" → CreateUser)
+    let create_user_request = DescriptorProto {
+        name: Some("CreateUserRequest".into()),
+        field: vec![
+            FieldDescriptorProto {
+                name:   Some("name".into()),
+                number: Some(1),
+                r#type: Some(field_descriptor_proto::Type::String.into()),
+                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name:   Some("email".into()),
+                number: Some(2),
+                r#type: Some(field_descriptor_proto::Type::String.into()),
+                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    // MutationResponse: bool success = 1; optional string id = 2; optional string error = 3;
+    let mutation_response = DescriptorProto {
+        name: Some("MutationResponse".into()),
+        field: vec![
+            FieldDescriptorProto {
+                name:   Some("success".into()),
+                number: Some(1),
+                r#type: Some(field_descriptor_proto::Type::Bool.into()),
+                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name:   Some("id".into()),
+                number: Some(2),
+                r#type: Some(field_descriptor_proto::Type::String.into()),
+                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                ..Default::default()
+            },
+            FieldDescriptorProto {
+                name:   Some("error".into()),
+                number: Some(3),
+                r#type: Some(field_descriptor_proto::Type::String.into()),
+                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
     // Service definition
     let service = ServiceDescriptorProto {
         name: Some("FraiseqlService".into()),
@@ -185,6 +241,12 @@ fn build_descriptor_set() -> FileDescriptorSet {
                 output_type: Some(".fraiseql.v1.ListUsersResponse".into()),
                 ..Default::default()
             },
+            MethodDescriptorProto {
+                name:        Some("CreateUser".into()),
+                input_type:  Some(".fraiseql.v1.CreateUserRequest".into()),
+                output_type: Some(".fraiseql.v1.MutationResponse".into()),
+                ..Default::default()
+            },
         ],
         ..Default::default()
     };
@@ -198,6 +260,8 @@ fn build_descriptor_set() -> FileDescriptorSet {
             get_user_request,
             list_users_request,
             list_users_response,
+            create_user_request,
+            mutation_response,
         ],
         service: vec![service],
         ..Default::default()
@@ -643,4 +707,178 @@ async fn dispatch_table_has_correct_view_names() {
     // Verify the adapter was queried with the correct view name.
     let queries = adapter.recorded_queries();
     assert_eq!(queries, vec!["vr_tb_users"]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cycle 8: Mutation tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn create_user_mutation_returns_mutation_response() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    // Canned function response: Trinity pattern returns status + entity_id.
+    let mut function_row = std::collections::HashMap::new();
+    function_row.insert("status".to_string(), serde_json::json!("success"));
+    function_row.insert("entity_id".to_string(), serde_json::json!("new-user-123"));
+
+    let adapter = FailingAdapter::new()
+        .with_function_response("fn_create_user", vec![function_row]);
+
+    let svc = build_service(adapter, schema);
+
+    // Build a CreateUserRequest with name and email fields.
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool
+        .get_message_by_name("fraiseql.v1.CreateUserRequest")
+        .unwrap();
+    let mut req_msg = prost_reflect::DynamicMessage::new(req_desc.clone());
+
+    let name_field = req_desc.get_field_by_name("name").unwrap();
+    req_msg.set_field(&name_field, prost_reflect::Value::String("Charlie".into()));
+
+    let email_field = req_desc.get_field_by_name("email").unwrap();
+    req_msg.set_field(&email_field, prost_reflect::Value::String("charlie@example.com".into()));
+
+    let req_bytes = req_msg.encode_to_vec();
+
+    let (status, grpc_status, body) = send_grpc(&svc, "CreateUser", &req_bytes).await;
+
+    assert_eq!(status, http::StatusCode::OK);
+    assert_eq!(grpc_status.as_deref(), Some("0"), "gRPC status should be OK");
+
+    // Decode response as MutationResponse.
+    let response = decode_response(&body, "MutationResponse");
+    let resp_desc = pool
+        .get_message_by_name("fraiseql.v1.MutationResponse")
+        .unwrap();
+
+    let success_field = resp_desc.get_field_by_name("success").unwrap();
+    assert_eq!(
+        response.get_field(&success_field).into_owned(),
+        prost_reflect::Value::Bool(true)
+    );
+
+    let id_field = resp_desc.get_field_by_name("id").unwrap();
+    assert_eq!(
+        response.get_field(&id_field).into_owned(),
+        prost_reflect::Value::String("new-user-123".into())
+    );
+}
+
+#[tokio::test]
+async fn create_user_mutation_failure_returns_error_in_response() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    // Canned function response: failure case.
+    let mut function_row = std::collections::HashMap::new();
+    function_row.insert("status".to_string(), serde_json::json!("error"));
+    function_row.insert("message".to_string(), serde_json::json!("email already exists"));
+
+    let adapter = FailingAdapter::new()
+        .with_function_response("fn_create_user", vec![function_row]);
+
+    let svc = build_service(adapter, schema);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool
+        .get_message_by_name("fraiseql.v1.CreateUserRequest")
+        .unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    let (status, grpc_status, body) = send_grpc(&svc, "CreateUser", &req_bytes).await;
+
+    assert_eq!(status, http::StatusCode::OK);
+    assert_eq!(grpc_status.as_deref(), Some("0"));
+
+    let response = decode_response(&body, "MutationResponse");
+    let resp_desc = pool
+        .get_message_by_name("fraiseql.v1.MutationResponse")
+        .unwrap();
+
+    let success_field = resp_desc.get_field_by_name("success").unwrap();
+    assert_eq!(
+        response.get_field(&success_field).into_owned(),
+        prost_reflect::Value::Bool(false)
+    );
+
+    let error_field = resp_desc.get_field_by_name("error").unwrap();
+    assert_eq!(
+        response.get_field(&error_field).into_owned(),
+        prost_reflect::Value::String("email already exists".into())
+    );
+}
+
+#[tokio::test]
+async fn mutation_adapter_failure_propagates_as_grpc_error() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    // Configure adapter to fail on function call.
+    let adapter = FailingAdapter::new().fail_on_query(0);
+    let svc = build_service(adapter, schema);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool
+        .get_message_by_name("fraiseql.v1.CreateUserRequest")
+        .unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let req_bytes = req_msg.encode_to_vec();
+
+    let (status, grpc_status, _body) = send_grpc(&svc, "CreateUser", &req_bytes).await;
+
+    assert_eq!(status, http::StatusCode::OK);
+    // gRPC status 13 = INTERNAL
+    assert_eq!(grpc_status.as_deref(), Some("13"));
+}
+
+#[tokio::test]
+async fn all_three_rpcs_are_callable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+
+    let mut function_row = std::collections::HashMap::new();
+    function_row.insert("status".to_string(), serde_json::json!("success"));
+    function_row.insert("entity_id".to_string(), serde_json::json!("u-99"));
+
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row()])
+        .with_function_response("fn_create_user", vec![function_row]);
+
+    let svc = build_service(adapter, schema);
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+
+    // 1. GetUser — query RPC
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let (_, grpc_status, _) = send_grpc(&svc, "GetUser", &req_msg.encode_to_vec()).await;
+    assert_eq!(grpc_status.as_deref(), Some("0"), "GetUser should succeed");
+
+    // 2. ListUsers — query RPC
+    let req_desc = pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let (_, grpc_status, _) = send_grpc(&svc, "ListUsers", &req_msg.encode_to_vec()).await;
+    assert_eq!(grpc_status.as_deref(), Some("0"), "ListUsers should succeed");
+
+    // 3. CreateUser — mutation RPC
+    let req_desc = pool.get_message_by_name("fraiseql.v1.CreateUserRequest").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(req_desc);
+    let (_, grpc_status, _) = send_grpc(&svc, "CreateUser", &req_msg.encode_to_vec()).await;
+    assert_eq!(grpc_status.as_deref(), Some("0"), "CreateUser should succeed");
+
+    // 4. Unknown method — still returns UNIMPLEMENTED
+    let (_, grpc_status, _) = send_grpc(&svc, "DeleteUser", &[]).await;
+    assert_eq!(grpc_status.as_deref(), Some("12"), "Unknown method should return UNIMPLEMENTED");
 }
