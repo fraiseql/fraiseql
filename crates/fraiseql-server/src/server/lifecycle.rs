@@ -2,25 +2,53 @@
 
 use super::*;
 
-impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
-    /// Start server and listen for requests.
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Start a read-only server.
+    ///
+    /// Mounts all routes except REST mutations (POST, PUT, PATCH, DELETE).
+    /// GraphQL mutations are dispatched at runtime and will return an error
+    /// for adapters that do not support them.
+    ///
+    /// For full mutation support including REST mutations, use [`serve_mut`]
+    /// (requires `A: MutationCapable`).
     ///
     /// # Errors
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
     pub async fn serve(self) -> Result<()> {
-        self.serve_with_shutdown(Self::shutdown_signal()).await
+        self.serve_inner(Self::shutdown_signal(), Self::build_router).await
     }
 
-    /// Start server with a custom shutdown future.
+    /// Start a read-only server with a custom shutdown future.
     ///
-    /// Enables programmatic shutdown (e.g., for `--watch` hot-reload) by accepting any
-    /// future that resolves when the server should stop.
+    /// See [`serve`] for details. Enables programmatic shutdown (e.g., for
+    /// `--watch` hot-reload) by accepting any future that resolves when the
+    /// server should stop.
     ///
     /// # Errors
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
-    pub async fn serve_with_shutdown<F>(mut self, shutdown: F) -> Result<()>
+    pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.serve_inner(shutdown, Self::build_router).await
+    }
+
+    /// Core server startup logic shared by all `serve*` variants.
+    ///
+    /// Accepts a `router_fn` so that [`serve_mut`] can supply
+    /// [`build_mutation_router`] while the base [`serve`] uses [`build_router`].
+    ///
+    /// # Errors
+    ///
+    /// Returns error if server fails to bind or encounters runtime errors.
+    #[allow(unused_mut)] // Reason: `self` is mutated only when the `grpc` feature is enabled (.take())
+    async fn serve_inner<F>(
+        mut self,
+        shutdown: F,
+        router_fn: fn(&Self) -> (axum::Router, crate::routes::graphql::AppState<A>),
+    ) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
@@ -37,7 +65,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             }
         }
 
-        let (app, app_state) = self.build_router();
+        let (app, app_state) = router_fn(&self);
 
         // Spawn SIGUSR1 schema reload listener (Unix only)
         #[cfg(unix)]
@@ -360,5 +388,91 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
                 info!(schema_hash = %hash, "Schema hot-reloaded via SIGUSR1");
             }
         })
+    }
+}
+
+impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
+    /// Start a full server with REST mutation support.
+    ///
+    /// Includes all routes from [`serve`] plus REST mutation routes
+    /// (POST, PUT, PATCH, DELETE) that require `MutationCapable`.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if server fails to bind or encounters runtime errors.
+    pub async fn serve_mut(self) -> Result<()> {
+        self.serve_inner(Self::shutdown_signal(), Self::build_mutation_router).await
+    }
+
+    /// Start a full server with REST mutations and a custom shutdown future.
+    ///
+    /// See [`serve_mut`] for details. Enables programmatic shutdown (e.g., for
+    /// `--watch` hot-reload) by accepting any future that resolves when the
+    /// server should stop.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if server fails to bind or encounters runtime errors.
+    pub async fn serve_mut_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.serve_inner(shutdown, Self::build_mutation_router).await
+    }
+
+    /// Start server on an externally created listener with full mutation support.
+    ///
+    /// Used in tests to discover the bound port before serving.
+    /// Skips TLS, Flight, and observer startup — suitable for unit/integration tests only.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the server encounters a runtime error.
+    pub async fn serve_mut_on_listener<F>(self, listener: TcpListener, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let (app, _state) = self.build_mutation_router();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown)
+            .await
+            .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Compile-time assertions that read-only adapters can construct and
+    //! (conceptually) serve a `Server` without requiring `MutationCapable`.
+    //!
+    //! These tests do not actually start a server — they verify that the
+    //! type-level bounds are satisfied at compile time.
+
+    use super::*;
+
+    /// Prove that `Server<FraiseWireAdapter>` can call `serve()` (read-only)
+    /// without requiring `MutationCapable`.
+    ///
+    /// This is the primary compile-time assertion for this module — it proves
+    /// that the `MutationCapable` bound was correctly removed from `serve()`.
+    #[cfg(feature = "wire-backend")]
+    #[allow(dead_code, unreachable_code, clippy::diverging_sub_expression, unused_variables)]
+    // Reason: compile-time type check only; body is never executed.
+    fn static_assert_wire_adapter_can_serve() {
+        let server: Server<fraiseql_core::db::FraiseWireAdapter> = todo!();
+        drop(server.serve());
+    }
+
+    /// Prove that `Server<PostgresAdapter>` can call both `serve()` (read-only)
+    /// and `serve_mut()` (full mutations).
+    #[allow(dead_code, unreachable_code, clippy::diverging_sub_expression, unused_variables)]
+    // Reason: compile-time type check only; body is never executed.
+    fn static_assert_postgres_can_serve_and_serve_mut() {
+        let server: Server<fraiseql_core::db::postgres::PostgresAdapter> = todo!();
+        drop(server.serve());
+        // Also verifiable but requires separate instance due to move:
+        let server2: Server<fraiseql_core::db::postgres::PostgresAdapter> = todo!();
+        drop(server2.serve_mut());
     }
 }

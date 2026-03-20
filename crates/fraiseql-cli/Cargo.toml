@@ -12,8 +12,15 @@ clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
 deadpool-postgres = {workspace = true}
 # Workspace dependencies
+bb8 = {version = "0.8", optional = true}
+bb8-tiberius = {version = "0.15", optional = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
+fraiseql-db = {workspace = true}
+fraiseql-error = {workspace = true}
+fraiseql-federation = {workspace = true, optional = true, features = ["gateway"]}
 fraiseql-server = {workspace = true, optional = true}
+sqlx = {version = "0.8", features = ["runtime-tokio", "mysql", "sqlite"], optional = true}
+tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 glob = "0.3"
 # Gateway HTTP body utilities
 http-body-util = {workspace = true}
@@ -50,7 +57,11 @@ tempfile = {workspace = true}
 
 [features]
 default = []
+gateway = ["dep:axum", "dep:fraiseql-federation"]
+mysql = ["fraiseql-core/mysql", "fraiseql-db/mysql", "dep:sqlx"]
 run-server = ["dep:fraiseql-server"]
+sqlite = ["fraiseql-core/sqlite", "fraiseql-db/sqlite", "dep:sqlx"]
+sqlserver = ["fraiseql-core/sqlserver", "fraiseql-db/sqlserver", "dep:bb8", "dep:bb8-tiberius", "dep:tiberius"]
 
 [lints]
 workspace = true
