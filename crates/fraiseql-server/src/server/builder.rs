@@ -35,7 +35,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     ///
     /// let server = Server::new(config, schema, adapter, None).await?;
-    /// server.serve().await?;
+    /// server.serve_mut().await?; // or server.serve() for read-only mode
     /// # Ok(())
     /// # }
     /// ```

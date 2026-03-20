@@ -375,7 +375,13 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "arrow"))]
     tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
 
+    // Wire-backend adapters are read-only — use serve() which mounts only
+    // query routes.  Full adapters (PostgreSQL, MySQL, SQL Server) use
+    // serve_mut() to include REST mutation routes.
+    #[cfg(feature = "wire-backend")]
     server.serve().await?;
+    #[cfg(not(feature = "wire-backend"))]
+    server.serve_mut().await?;
     Ok(())
 }
 

@@ -8,7 +8,7 @@ use std::time::Duration;
 use redis::AsyncCommands;
 use tracing::warn;
 
-use super::idempotency::{IdempotencyCheck, IdempotencyStore, StoredResponse};
+use super::{IdempotencyCheck, IdempotencyStore, StoredResponse};
 
 /// Serializable Redis entry combining body hash + stored response.
 #[derive(serde::Serialize, serde::Deserialize)]

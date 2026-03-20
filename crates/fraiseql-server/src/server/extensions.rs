@@ -37,7 +37,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
-    /// server.serve().await?;
+    /// server.serve_mut().await?; // or server.serve() for read-only mode
     /// # Ok(())
     /// # }
     /// ```

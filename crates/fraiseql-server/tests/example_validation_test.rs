@@ -235,6 +235,7 @@ fn test_example_error_code_status_mapping() {
     }
 
     let mappings = [
+        // GraphQL spec §7.1.2: parse/validation errors return 200.
         ErrorMapping {
             code:   ErrorCode::ValidationError,
             status: StatusCode::OK,

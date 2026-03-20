@@ -2,10 +2,12 @@
 
 use super::*;
 
-impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router, returning both the router and a clone of
-    /// the `AppState` so callers can pass it to the SIGUSR1 reload listener.
-    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Build the base application router (everything except REST routes).
+    ///
+    /// Both [`build_router`] and [`build_mutation_router`] extend this with
+    /// the appropriate REST route set.
+    fn build_base_router(&self) -> (Router, AppState<A>) {
         let mut state = AppState::new(self.executor.clone());
 
         // Attach secrets manager if configured
@@ -511,11 +513,9 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             }
         }
 
-        // REST transport — resource-centric HTTP API (feature-gated)
-        #[cfg(feature = "rest")]
-        {
-            app = self.add_rest_routes(app, state.clone());
-        }
+        // REST transport routes are NOT mounted here.
+        // - build_router() adds read-only query routes (GET, SSE).
+        // - build_mutation_router() adds full routes (GET, POST, PUT, PATCH, DELETE, SSE).
 
         // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
@@ -666,15 +666,31 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
         (app, state)
     }
 
-    /// Add REST transport routes to the router.
+    /// Build application router with read-only REST routes (GET and SSE only).
     ///
-    /// Derives REST resources from the compiled schema and mounts them under
-    /// the configured base path (default `/rest/v1`).  When `require_auth` is
-    /// `true`, OIDC authentication middleware is applied.  Returns the router
-    /// unchanged if REST is not configured or derivation fails.
+    /// For mutation-capable adapters, use [`build_mutation_router`] instead to
+    /// include REST mutation routes (POST, PUT, PATCH, DELETE).
+    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+        let (app, state) = self.build_base_router();
+
+        #[cfg(feature = "rest")]
+        let app = self.add_rest_query_routes(app, state.clone());
+
+        (app, state)
+    }
+
+    /// Add read-only REST query routes (GET and SSE) to the router.
+    ///
+    /// Derives REST resources from the compiled schema and mounts GET query
+    /// and SSE stream routes under the configured base path (default `/rest/v1`).
+    /// When `require_auth` is `true`, OIDC authentication middleware is applied.
+    /// Returns the router unchanged if REST is not configured or derivation fails.
+    ///
+    /// Mutation routes (POST, PUT, PATCH, DELETE) are added separately by
+    /// [`add_rest_mutation_routes`] on the `MutationCapable` impl block.
     #[cfg(feature = "rest")]
-    fn add_rest_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
-        use crate::routes::rest::rest_router;
+    fn add_rest_query_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
+        use crate::routes::rest::rest_query_router;
 
         let rest_config = self.executor.schema().rest_config.as_ref();
 
@@ -691,12 +707,21 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             }
         }
 
-        let Some(rest) = rest_router(state) else {
+        let Some(rest) = rest_query_router(state) else {
             return app;
         };
 
         // Optionally apply OIDC auth middleware to REST routes.
-        let rest = if let Some(cfg) = rest_config {
+        let rest = self.apply_rest_auth(rest);
+
+        app.merge(rest)
+    }
+
+    /// Apply OIDC authentication middleware to a REST router if configured.
+    #[cfg(feature = "rest")]
+    fn apply_rest_auth(&self, rest: Router) -> Router {
+        let rest_config = self.executor.schema().rest_config.as_ref();
+        if let Some(cfg) = rest_config {
             if cfg.require_auth {
                 if let Some(ref validator) = self.oidc_validator {
                     info!(
@@ -718,9 +743,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
             }
         } else {
             rest
-        };
-
-        app.merge(rest)
+        }
     }
 
     /// Add observer-related routes to the router.
@@ -774,5 +797,56 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
         } else {
             app
         }
+    }
+}
+
+impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
+    /// Build application router with full REST support (queries + mutations).
+    ///
+    /// Extends [`build_base_router`] by adding the full REST router (GET, POST,
+    /// PUT, PATCH, DELETE, SSE). Requires the adapter to implement
+    /// [`MutationCapable`].
+    pub(super) fn build_mutation_router(&self) -> (Router, AppState<A>) {
+        let (app, state) = self.build_base_router();
+
+        #[cfg(feature = "rest")]
+        let app = self.add_rest_routes(app, state.clone());
+
+        (app, state)
+    }
+
+    /// Add the full REST router (queries + mutations) to the application router.
+    ///
+    /// Derives REST resources from the compiled schema and mounts all REST
+    /// routes (GET, POST, PUT, PATCH, DELETE, SSE) under the configured base
+    /// path (default `/rest/v1`).  When `require_auth` is `true`, OIDC
+    /// authentication middleware is applied.  Returns the router unchanged if
+    /// REST is not configured or derivation fails.
+    #[cfg(feature = "rest")]
+    fn add_rest_routes(
+        &self,
+        app: Router,
+        state: crate::routes::graphql::AppState<A>,
+    ) -> Router {
+        use crate::routes::rest::rest_router;
+
+        let rest_config = self.executor.schema().rest_config.as_ref();
+
+        // Bail out if require_auth is set but no OIDC — query routes already logged
+        // the error, so just silently skip mutations too.
+        if let Some(cfg) = rest_config {
+            if cfg.require_auth && self.oidc_validator.is_none() {
+                return app;
+            }
+        }
+
+        let Some(rest) = rest_router(state) else {
+            return app;
+        };
+
+        // Optionally apply OIDC auth middleware to REST routes.
+        let rest = self.apply_rest_auth(rest);
+
+        app.merge(rest)
     }
 }

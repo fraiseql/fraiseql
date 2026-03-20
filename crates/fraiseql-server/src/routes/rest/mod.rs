@@ -20,4 +20,4 @@ mod router;
 pub mod sse;
 pub mod streaming;
 
-pub use router::rest_router;
+pub use router::{rest_query_router, rest_router};

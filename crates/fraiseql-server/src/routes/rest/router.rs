@@ -31,22 +31,20 @@ use crate::routes::graphql::AppState;
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Build an axum [`Router`] that serves REST endpoints derived from the
-/// compiled schema.
+/// Derive REST configuration, route table, and shared state from the compiled schema.
 ///
 /// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
-/// route derivation fails.
-///
-/// The returned router is *not* nested — the caller must merge it into the
-/// application router.  Middleware applied at the server level (auth, rate
-/// limiting, CORS, tracing, body-size limit) is inherited automatically.
+/// route derivation fails. This shared helper is used by both [`rest_query_router`]
+/// and [`rest_mutation_router`].
 ///
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(state: AppState<A>) -> Option<Router>
+fn derive_rest_context<A>(
+    state: &AppState<A>,
+) -> Option<(String, Arc<RestRouteTable>, RestState<A>)>
 where
-    A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let executor = state.executor();
     let schema = executor.schema();
@@ -85,7 +83,6 @@ where
         }
     }
 
-    // Build axum routes from the route table.
     let base_path = config.path;
     let idempotency_store =
         super::idempotency::create_store(config.idempotency_ttl_seconds);
@@ -98,11 +95,122 @@ where
         event_transport: state.event_transport.clone(),
     };
 
+    Some((base_path, route_table, rest_state))
+}
+
+/// Build an axum [`Router`] for read-only REST endpoints (GET queries and SSE
+/// streams) derived from the compiled schema.
+///
+/// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
+/// route derivation fails.
+///
+/// Does **not** require `MutationCapable` — suitable for read-only adapters such
+/// as `FraiseWireAdapter` and `SqliteAdapter`.
+///
+/// The returned router is *not* nested — the caller must merge it into the
+/// application router.  Middleware applied at the server level (auth, rate
+/// limiting, CORS, tracing, body-size limit) is inherited automatically.
+///
+/// # Errors
+///
+/// Returns `None` (with a warning log) if the route table cannot be derived.
+pub fn rest_query_router<A>(state: AppState<A>) -> Option<Router>
+where
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    let (base_path, route_table, rest_state) = derive_rest_context(&state)?;
+    let executor = state.executor();
+    let schema = executor.schema();
+
     let mut router = Router::new();
 
-    // Register concrete routes for each resource so that axum can match them
-    // directly (better diagnostics, HEAD/OPTIONS handled automatically).
-    //
+    for resource in &route_table.resources {
+        // Register GET routes for queries.
+        for route in &resource.routes {
+            if route.method == HttpMethod::Get {
+                let axum_path = to_axum_path(&base_path, &route.path);
+                router = router.route(&axum_path, get(rest_get_handler::<A>));
+            }
+        }
+
+        // Register SSE stream route: GET /{resource}/stream
+        let stream_path = to_axum_path(&base_path, &format!("/{}/stream", resource.name));
+        router = router.route(&stream_path, get(rest_sse_handler::<A>));
+    }
+
+    // Finalize state and apply compression.
+    let mut router = router
+        .with_state(rest_state)
+        .layer(CompressionLayer::new());
+
+    // Serve OpenAPI specification at {base_path}/openapi.json.
+    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
+    let openapi_spec = match super::openapi::generate_openapi(schema, &route_table) {
+        Ok(spec) => Arc::new(spec),
+        Err(e) => {
+            tracing::warn!(error = %e, "OpenAPI spec generation failed");
+            Arc::new(json!({"error": "OpenAPI generation failed"}))
+        }
+    };
+    router = router.route(
+        &openapi_path,
+        get(move || {
+            let spec = openapi_spec.clone();
+            async move { axum::Json((*spec).clone()) }
+        }),
+    );
+
+    // Log startup summary.
+    let resource_count = route_table.resources.len();
+    let get_route_count: usize = route_table
+        .resources
+        .iter()
+        .flat_map(|r| &r.routes)
+        .filter(|r| r.method == HttpMethod::Get)
+        .count();
+    let paths: Vec<String> = route_table
+        .resources
+        .iter()
+        .map(|r| format!("{}/{}", base_path, r.name))
+        .collect();
+    info!(
+        resources = resource_count,
+        routes = get_route_count,
+        base_path = %base_path,
+        paths = ?paths,
+        "REST query transport enabled (read-only)"
+    );
+
+    Some(router)
+}
+
+/// Build an axum [`Router`] for all REST endpoints — both read-only (GET, SSE)
+/// and mutation (POST, PUT, PATCH, DELETE) routes — derived from the compiled
+/// schema.
+///
+/// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
+/// route derivation fails.
+///
+/// Requires `MutationCapable` because mutation handlers call
+/// `Executor::execute_mutation()` which has the same compile-time bound.
+///
+/// The returned router is *not* nested — the caller must merge it into the
+/// application router.  Middleware applied at the server level (auth, rate
+/// limiting, CORS, tracing, body-size limit) is inherited automatically.
+///
+/// # Errors
+///
+/// Returns `None` (with a warning log) if the route table cannot be derived.
+pub fn rest_router<A>(state: AppState<A>) -> Option<Router>
+where
+    A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static,
+{
+    let (base_path, route_table, rest_state) = derive_rest_context(&state)?;
+    let executor = state.executor();
+    let schema = executor.schema();
+
+    let mut router = Router::new();
+
     // Track which collection paths already have PATCH/DELETE so we can add
     // bulk operation routes for resources that have update/delete mutations.
     let mut collection_patch_paths = std::collections::HashSet::new();
@@ -157,15 +265,12 @@ where
         router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
-    // Apply compression (gzip/br/zstd) to REST responses.
-    // Finalize state before layering so the router type is `Router<()>`.
+    // Finalize state and apply compression.
     let mut router = router
         .with_state(rest_state)
         .layer(CompressionLayer::new());
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
-    // This is a stateless route merged after `.with_state()` since it doesn't
-    // need `RestState`.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
     let openapi_spec = match super::openapi::generate_openapi(schema, &route_table) {
         Ok(spec) => Arc::new(spec),
@@ -788,6 +893,28 @@ mod tests {
             fraiseql_core::runtime::Executor::new(schema, adapter),
         );
         AppState::new(executor)
+    }
+
+    // -----------------------------------------------------------------------
+    // rest_query_router function tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn rest_query_router_returns_none_when_no_config() {
+        let state = make_app_state(schema_without_rest());
+        assert!(rest_query_router(state).is_none());
+    }
+
+    #[test]
+    fn rest_query_router_returns_none_when_disabled() {
+        let state = make_app_state(schema_with_rest_disabled());
+        assert!(rest_query_router(state).is_none());
+    }
+
+    #[test]
+    fn rest_query_router_returns_some_when_enabled() {
+        let state = make_app_state(schema_with_rest());
+        assert!(rest_query_router(state).is_some());
     }
 
     // -----------------------------------------------------------------------

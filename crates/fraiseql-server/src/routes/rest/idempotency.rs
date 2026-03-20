@@ -186,6 +186,7 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "redis-idempotency")]
+#[path = "redis_store.rs"]
 mod redis_store;
 
 #[cfg(feature = "redis-idempotency")]

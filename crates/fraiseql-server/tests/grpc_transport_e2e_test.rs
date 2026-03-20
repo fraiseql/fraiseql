@@ -366,7 +366,8 @@ fn decode_streaming_frames(
     let mut messages = Vec::new();
     let mut offset = 0;
     while offset + 5 <= body.len() {
-        let _compression = body[offset];
+        // byte 0: compression flag (skip)
+        let _ = body[offset];
         let len = u32::from_be_bytes([
             body[offset + 1],
             body[offset + 2],

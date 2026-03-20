@@ -47,7 +47,7 @@ impl TestServer {
 
         tokio::spawn(async move {
             server
-                .serve_on_listener(listener, async {
+                .serve_mut_on_listener(listener, async {
                     let _ = rx.await; // intentional
                 })
                 .await
