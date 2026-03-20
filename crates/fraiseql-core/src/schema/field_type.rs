@@ -3,6 +3,7 @@
 //! These types represent GraphQL field types in a Rust-native format.
 //! All types are serializable to/from JSON for cross-language compatibility.
 
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 
 use super::{domain_types::FieldName, scalar_types};
@@ -600,7 +601,7 @@ impl FieldDefinition {
 /// let list_type = FieldType::List(Box::new(FieldType::String));
 /// let object_type = FieldType::Object("User".to_string());
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum FieldType {
     // ===== Core Scalar Types (GraphQL built-ins) =====
@@ -676,6 +677,98 @@ pub enum FieldType {
 
     /// Reference to a union type.
     Union(String),
+}
+
+/// Serde helper: identical to [`FieldType`] but with derived `Deserialize`.
+///
+/// Used only inside the custom `Deserialize` impl for `FieldType` so that
+/// object-style variants (`{"Scalar": "Email"}`, `{"List": ...}`) are handled
+/// by serde's default machinery while string variants get `!`-stripping.
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+enum FieldTypeHelper {
+    #[default]
+    String,
+    Int,
+    Float,
+    Boolean,
+    #[serde(rename = "ID")]
+    Id,
+    DateTime,
+    Date,
+    Time,
+    Json,
+    #[serde(rename = "UUID")]
+    Uuid,
+    Decimal,
+    Vector,
+    Scalar(std::string::String),
+    List(Box<FieldType>),
+    Object(std::string::String),
+    Enum(std::string::String),
+    Input(std::string::String),
+    Interface(std::string::String),
+    Union(std::string::String),
+}
+
+impl From<FieldTypeHelper> for FieldType {
+    fn from(h: FieldTypeHelper) -> Self {
+        match h {
+            FieldTypeHelper::String => Self::String,
+            FieldTypeHelper::Int => Self::Int,
+            FieldTypeHelper::Float => Self::Float,
+            FieldTypeHelper::Boolean => Self::Boolean,
+            FieldTypeHelper::Id => Self::Id,
+            FieldTypeHelper::DateTime => Self::DateTime,
+            FieldTypeHelper::Date => Self::Date,
+            FieldTypeHelper::Time => Self::Time,
+            FieldTypeHelper::Json => Self::Json,
+            FieldTypeHelper::Uuid => Self::Uuid,
+            FieldTypeHelper::Decimal => Self::Decimal,
+            FieldTypeHelper::Vector => Self::Vector,
+            FieldTypeHelper::Scalar(s) => Self::Scalar(s),
+            FieldTypeHelper::List(inner) => Self::List(inner),
+            FieldTypeHelper::Object(s) => Self::Object(s),
+            FieldTypeHelper::Enum(s) => Self::Enum(s),
+            FieldTypeHelper::Input(s) => Self::Input(s),
+            FieldTypeHelper::Interface(s) => Self::Interface(s),
+            FieldTypeHelper::Union(s) => Self::Union(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for FieldType {
+    /// Custom deserializer that strips trailing `!` from type strings.
+    ///
+    /// Authoring tools may emit `"ID!"` instead of `"ID"`. Since nullability is
+    /// tracked separately via a `nullable` field, the non-null marker `!` is
+    /// redundant and must be stripped for backward compatibility.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Use an untagged enum to inspect the JSON value shape:
+        // - strings like `"ID!"` need `!` stripping
+        // - objects like `{"Scalar": "Email"}` are passed through as-is
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum RawFieldType {
+            Str(std::string::String),
+            Structured(FieldTypeHelper),
+        }
+
+        match RawFieldType::deserialize(deserializer)? {
+            RawFieldType::Str(s) => {
+                let normalized = s.trim_end_matches('!');
+                // Try deserializing the normalized string through the helper
+                let json_str = serde_json::Value::String(normalized.to_string());
+                serde_json::from_value::<FieldTypeHelper>(json_str)
+                    .map(Into::into)
+                    .map_err(de::Error::custom)
+            }
+            RawFieldType::Structured(helper) => Ok(helper.into()),
+        }
+    }
 }
 
 impl FieldType {
@@ -1182,5 +1275,160 @@ mod tests {
         let json = serde_json::to_string(&field).unwrap();
         let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
         assert_eq!(field, deserialized);
+    }
+
+    // =========================================================================
+    // Primary key detection
+    // =========================================================================
+
+    #[test]
+    fn test_is_primary_key_id() {
+        let field = FieldDefinition::new("id", FieldType::Id);
+        assert!(field.is_primary_key());
+    }
+
+    #[test]
+    fn test_is_primary_key_pk_prefix() {
+        let field = FieldDefinition::new("pk_user", FieldType::Int);
+        assert!(field.is_primary_key());
+    }
+
+    #[test]
+    fn test_is_primary_key_regular_field() {
+        let field = FieldDefinition::new("email", FieldType::String);
+        assert!(!field.is_primary_key());
+    }
+
+    #[test]
+    fn test_is_primary_key_id_prefix_not_pk() {
+        // "identifier" starts with "id" but is not exactly "id"
+        let field = FieldDefinition::new("identifier", FieldType::String);
+        assert!(!field.is_primary_key());
+    }
+
+    // =========================================================================
+    // Writable field detection
+    // =========================================================================
+
+    #[test]
+    fn test_regular_field_is_writable() {
+        let field = FieldDefinition::new("email", FieldType::String);
+        assert!(field.is_writable());
+    }
+
+    #[test]
+    fn test_pk_field_not_writable() {
+        let field = FieldDefinition::new("id", FieldType::Id);
+        assert!(!field.is_writable());
+    }
+
+    #[test]
+    fn test_auto_generated_field_not_writable() {
+        let mut field = FieldDefinition::new("created_at", FieldType::DateTime);
+        field.auto_generated = true;
+        assert!(!field.is_writable());
+    }
+
+    #[test]
+    fn test_computed_field_not_writable() {
+        let mut field = FieldDefinition::new("full_name", FieldType::String);
+        field.computed = true;
+        assert!(!field.is_writable());
+    }
+
+    #[test]
+    fn test_encrypted_field_not_writable() {
+        let field = FieldDefinition::new("ssn", FieldType::String).with_encryption(
+            FieldEncryptionConfig {
+                key_reference: "keys/ssn".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            },
+        );
+        assert!(!field.is_writable());
+    }
+
+    // =========================================================================
+    // auto_generated / computed serialization
+    // =========================================================================
+
+    #[test]
+    fn test_auto_generated_defaults_false() {
+        let field = FieldDefinition::new("name", FieldType::String);
+        assert!(!field.auto_generated);
+        assert!(!field.computed);
+    }
+
+    #[test]
+    fn test_auto_generated_skipped_when_false() {
+        let field = FieldDefinition::new("name", FieldType::String);
+        let json = serde_json::to_string(&field).unwrap();
+        assert!(!json.contains("auto_generated"));
+        assert!(!json.contains("computed"));
+    }
+
+    #[test]
+    fn test_auto_generated_roundtrip() {
+        let mut field = FieldDefinition::new("created_at", FieldType::DateTime);
+        field.auto_generated = true;
+        field.computed = true;
+        let json = serde_json::to_string(&field).unwrap();
+        assert!(json.contains("auto_generated"));
+        assert!(json.contains("computed"));
+        let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.auto_generated);
+        assert!(deserialized.computed);
+    }
+
+    #[test]
+    fn test_deserialization_without_new_fields() {
+        // Existing JSON without auto_generated/computed should deserialize with defaults
+        let json = r#"{"name":"email","field_type":"String"}"#;
+        let field: FieldDefinition = serde_json::from_str(json).unwrap();
+        assert!(!field.auto_generated);
+        assert!(!field.computed);
+    }
+
+    // =========================================================================
+    // FieldType deserialization strips non-null marker `!`
+    // =========================================================================
+
+    #[test]
+    fn test_field_type_deserialize_strips_non_null_marker() {
+        // Authoring tools may emit "ID!" instead of "ID" — the `!` must be
+        // silently stripped since nullability is tracked separately.
+        let ft: FieldType = serde_json::from_str(r#""ID!""#).unwrap();
+        assert_eq!(ft, FieldType::Id);
+    }
+
+    #[test]
+    fn test_field_type_deserialize_strips_non_null_marker_string() {
+        let ft: FieldType = serde_json::from_str(r#""String!""#).unwrap();
+        assert_eq!(ft, FieldType::String);
+    }
+
+    #[test]
+    fn test_field_type_deserialize_strips_non_null_marker_uuid() {
+        let ft: FieldType = serde_json::from_str(r#""UUID!""#).unwrap();
+        assert_eq!(ft, FieldType::Uuid);
+    }
+
+    #[test]
+    fn test_field_type_deserialize_canonical_still_works() {
+        // Canonical forms (without `!`) must continue to work
+        let ft: FieldType = serde_json::from_str(r#""ID""#).unwrap();
+        assert_eq!(ft, FieldType::Id);
+
+        let ft: FieldType = serde_json::from_str(r#""String""#).unwrap();
+        assert_eq!(ft, FieldType::String);
+    }
+
+    #[test]
+    fn test_argument_definition_deserialize_with_non_null_marker() {
+        use crate::schema::compiled::argument::ArgumentDefinition;
+
+        let json = r#"{"name": "id", "arg_type": "ID!", "nullable": false}"#;
+        let arg: ArgumentDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(arg.arg_type, FieldType::Id);
+        assert_eq!(arg.name, "id");
     }
 }
