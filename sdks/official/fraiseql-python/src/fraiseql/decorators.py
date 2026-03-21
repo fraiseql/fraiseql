@@ -189,6 +189,9 @@ def type(
     implements: list[str] | None = None,
     relay: bool = False,
     requires_role: str | None = None,
+    tenant_scoped: bool = False,
+    crud: bool | list[str] = False,
+    sql_source: str | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -248,6 +251,10 @@ def type(
         # Extract field information from class annotations
         fields = extract_field_info(c)
 
+        # Validate sql_source if explicitly provided
+        if sql_source is not None:
+            _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -256,7 +263,13 @@ def type(
             implements=implements or [],
             relay=relay,
             requires_role=requires_role,
+            tenant_scoped=tenant_scoped,
+            sql_source=sql_source,
         )
+
+        # Auto-generate CRUD operations if requested
+        if crud:
+            SchemaRegistry.register_crud(c.__name__, fields, crud)
 
         # Return original class unmodified (no runtime behavior)
         return c
@@ -425,10 +438,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
             cfg.pop("rest_path")
             cfg["rest"] = {"path": rest_path, "method": rest_method}
         elif "rest_method" in cfg:
-            msg = (
-                f"@fraiseql.query rest_method= on {f.__name__!r} has no effect "
-                "without rest_path."
-            )
+            msg = f"@fraiseql.query rest_method= on {f.__name__!r} has no effect without rest_path."
             raise ValueError(msg)
 
         # Register query with schema registry
