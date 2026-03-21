@@ -113,6 +113,8 @@ impl FraiseWireAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<String> {
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input.
         let mut sql = format!("SELECT data FROM {view} ");
 
         if let Some(clause) = where_clause {

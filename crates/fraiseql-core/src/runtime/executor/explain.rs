@@ -133,6 +133,8 @@ fn build_display_sql(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> String {
+    // SAFETY: sql_source is schema-derived (from CompiledSchema, validated at compile time),
+    // not user input. This builds a display string, not directly executed SQL.
     let mut sql =
         format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT data FROM \"{sql_source}\"");
 

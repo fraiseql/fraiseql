@@ -404,6 +404,8 @@ pub(super) fn build_where_select_sql(
     offset: Option<u32>,
 ) -> Result<(String, Vec<QueryParam>)> {
     // Build base query
+    // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+    // not user input. Additionally passed through quote_postgres_identifier().
     let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
 
     // Collect WHERE clause params (if any)

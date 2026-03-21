@@ -304,6 +304,8 @@ impl DatabaseAdapter for SqlServerAdapter {
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQL Server uses square brackets for identifiers
         // SQL Server uses TOP instead of LIMIT, and OFFSET...FETCH for pagination
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input. Additionally passed through quote_sqlserver_identifier().
         let mut sql = if let Some(lim) = limit {
             if offset.is_some() {
                 // With OFFSET, we need ORDER BY for pagination
@@ -784,6 +786,8 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         // retrieves the correct N rows before the cursor.  The inner query also projects each
         // custom sort column under an alias (`_relay_sort_0`, …) so the outer re-sort can
         // reference them.  The outer query restores the original (non-flipped) sort order.
+        // SAFETY: quoted_view and quoted_col are schema-derived (from CompiledSchema, validated
+        // at compile time) and passed through quote_sqlserver_identifier(), not user input.
         let page_sql = if forward {
             format!(
                 "SELECT data FROM {quoted_view}{page_where_sql}{order_sql} \
@@ -806,6 +810,8 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                  OFFSET 0 ROWS FETCH NEXT @p{limit_idx} ROWS ONLY"
             );
             let outer_order = build_relay_backward_outer_order_sql(order_by);
+            // SAFETY: quoted_view and quoted_col are schema-derived (validated at compile time),
+            // not user input. Passed through quote_sqlserver_identifier().
             format!("SELECT data FROM ({inner}) AS _relay_page{outer_order}")
         };
 
@@ -828,6 +834,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
             let (count_sql, count_params) = if let Some(clause) = where_clause {
                 let generator = SqlServerWhereGenerator::new(SqlServerDialect);
                 let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
+                // SAFETY: quoted_view is schema-derived (validated at compile time), not user input.
                 (
                     format!("SELECT COUNT_BIG(*) AS cnt FROM {quoted_view} WHERE ({where_sql})"),
                     params,

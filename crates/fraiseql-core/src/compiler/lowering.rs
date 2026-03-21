@@ -232,6 +232,8 @@ impl SqlTemplateGenerator {
         let parameters: Vec<String> = query.arguments.iter().map(|a| a.name.clone()).collect();
 
         // Build the base SELECT template
+        // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+        // through quote_identifier(), not user input.
         let mut template = format!("SELECT data FROM {quoted_table}");
 
         // Add placeholder for dynamic WHERE if supported
@@ -306,6 +308,8 @@ impl SqlTemplateGenerator {
         arguments: &[IRArgument],
     ) -> (String, TemplateKind) {
         if arguments.is_empty() {
+            // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+            // through quote_identifier(), not user input.
             return (
                 format!("INSERT INTO {quoted_table} (data) VALUES ({{data}}) RETURNING data"),
                 TemplateKind::Insert,
@@ -317,6 +321,8 @@ impl SqlTemplateGenerator {
 
         if has_input {
             // Standard input pattern
+            // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+            // through quote_identifier(), not user input.
             (
                 format!("INSERT INTO {quoted_table} (data) VALUES ({{input}}) RETURNING data"),
                 TemplateKind::Insert,
@@ -408,6 +414,8 @@ impl SqlTemplateGenerator {
         // Find the id argument
         let id_arg = arguments.iter().find(|a| a.name == "id" || a.name == "where");
 
+        // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+        // through quote_identifier(), not user input.
         if let Some(id) = id_arg {
             (
                 format!(

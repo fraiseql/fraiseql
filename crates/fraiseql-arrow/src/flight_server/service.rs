@@ -942,7 +942,8 @@ impl FraiseQLFlightService {
             Status::failed_precondition("Database adapter not configured - cannot export data")
         })?;
 
-        // Build SQL query with quoted table identifier to prevent SQL injection.
+        // SAFETY: table name is schema-derived (validated at compile time), not user input.
+        // Additionally quoted as a SQL identifier to prevent SQL injection.
         let quoted_table = format!("\"{}\"", table.replace('"', "\"\""));
         let mut sql = format!("SELECT * FROM {quoted_table}");
 

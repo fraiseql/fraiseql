@@ -87,6 +87,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 path:    None,
             });
         }
+        // SAFETY: select_sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
 
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
@@ -198,6 +200,8 @@ impl DatabaseAdapter for PostgresAdapter {
         // The function name is double-quoted so that reserved words, mixed-case
         // names, and names with special characters are handled correctly.
         // Any embedded double quotes are escaped by doubling them ("").
+        // SAFETY: function_name is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input. Additionally double-quoted to escape special characters.
         let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
@@ -235,6 +239,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 path:    None,
             });
         }
+        // SAFETY: sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         let client = self.acquire_connection_with_retry().await?;
         let rows: Vec<Row> =

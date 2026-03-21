@@ -118,7 +118,8 @@ pub fn build_optimized_sql(
         ));
     }
 
-    // Quote view name as a SQL identifier to prevent identifier injection.
+    // SAFETY: view name is schema-derived (validated at compile time), not user input.
+    // Additionally quoted as a SQL identifier to prevent identifier injection.
     let quoted_view = format!("\"{}\"", view.replace('"', "\"\""));
     let mut sql = format!("SELECT * FROM {quoted_view}");
 

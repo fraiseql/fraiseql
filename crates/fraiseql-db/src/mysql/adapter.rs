@@ -240,6 +240,8 @@ impl DatabaseAdapter for MySqlAdapter {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input. Additionally passed through quote_mysql_identifier().
         let mut sql = format!("SELECT data FROM {}", quote_mysql_identifier(view));
 
         // Add WHERE clause if present
@@ -523,6 +525,8 @@ impl DatabaseAdapter for MySqlAdapter {
                 path:    None,
             });
         }
+        // SAFETY: sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
         let row: sqlx::mysql::MySqlRow = sqlx::query(&explain_sql)
             .fetch_one(&self.pool)
@@ -746,6 +750,8 @@ impl RelayDatabaseAdapter for MySqlAdapter {
         //
         // Backward pagination: inner DESC query + outer re-sorts ASC so the
         // caller always receives rows in ascending cursor order.
+        // SAFETY: quoted_view and quoted_col are schema-derived (from CompiledSchema, validated
+        // at compile time) and passed through quote_mysql_identifier(), not user input.
         let page_sql = if forward {
             format!("SELECT data FROM {quoted_view}{page_where_sql}{order_sql} LIMIT ?")
         } else {
@@ -761,6 +767,7 @@ impl RelayDatabaseAdapter for MySqlAdapter {
         // ── Count query (cursor-independent per Relay spec) ────────────────
         let total_count = if include_total_count {
             let (count_sql, count_params) = if let Some(u_sql) = &user_where_sql {
+                // SAFETY: quoted_view is schema-derived (validated at compile time), not user input.
                 (
                     format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({u_sql})"),
                     user_where_params.clone(),

@@ -59,6 +59,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                     })?;
                 let fn_name =
                     mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
+                // SAFETY: fn_name/sql_source are schema-derived (from CompiledSchema,
+                // validated at compile time), not user input. Used for display only.
                 Ok(super::super::ExplainPlan {
                     sql:            format!("SELECT * FROM {fn_name}(...)"),
                     parameters:     Vec::new(),
@@ -75,6 +77,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .find(|q| q.name == *name)
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
+                // SAFETY: sql_source is schema-derived (from CompiledSchema,
+                // validated at compile time), not user input. Used for display only.
                 Ok(super::super::ExplainPlan {
                     sql:            format!("SELECT ... FROM {sql_source} -- aggregate"),
                     parameters:     Vec::new(),
@@ -91,6 +95,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .find(|q| q.name == *name)
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
+                // SAFETY: sql_source is schema-derived (from CompiledSchema,
+                // validated at compile time), not user input. Used for display only.
                 Ok(super::super::ExplainPlan {
                     sql:            format!("SELECT ... FROM {sql_source} -- window"),
                     parameters:     Vec::new(),

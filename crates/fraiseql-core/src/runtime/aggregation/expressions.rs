@@ -38,6 +38,8 @@ impl AggregationSqlGenerator {
             columns.push(format!("{} AS {}", column, alias));
         }
 
+        // SAFETY: column names and aliases are schema-derived (from CompiledSchema,
+        // validated at compile time), not user input.
         Ok(format!("SELECT\n  {}", columns.join(",\n  ")))
     }
 

@@ -126,6 +126,8 @@ impl VectorIndexType {
         column: &str,
         distance_metric: DistanceMetric,
     ) -> Option<String> {
+        // SAFETY: table and column are schema-derived (from CompiledSchema, validated at
+        // compile time), not user input. ops is from a match on DistanceMetric enum.
         match self {
             Self::Hnsw => {
                 let ops = distance_metric.hnsw_ops_class();

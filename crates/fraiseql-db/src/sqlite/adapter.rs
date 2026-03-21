@@ -271,6 +271,8 @@ impl DatabaseAdapter for SqliteAdapter {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input. Additionally passed through quote_sqlite_identifier().
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
 
         // Add WHERE clause if present
@@ -562,6 +564,8 @@ impl DatabaseAdapter for SqliteAdapter {
                 path:    None,
             });
         }
+        // SAFETY: sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
         let rows: Vec<sqlx::sqlite::SqliteRow> = sqlx::query(&explain_sql)
             .fetch_all(&self.pool)

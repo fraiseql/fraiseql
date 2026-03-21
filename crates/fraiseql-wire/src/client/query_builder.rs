@@ -466,6 +466,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             "SELECT data".to_string()
         };
 
+        // SAFETY: self.entity is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input.
         let mut sql = format!("{} FROM {}", select_clause, self.entity);
 
         if !self.sql_predicates.is_empty() {

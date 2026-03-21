@@ -138,6 +138,8 @@ impl QueryPlanner {
         // Select all data — projection happens later in the execution pipeline
         let fields_sql = "data".to_string();
 
+        // SAFETY: table (sql_source) is schema-derived (from CompiledSchema, validated at
+        // compile time), not user input.
         format!("SELECT {fields_sql} FROM {table}")
     }
 

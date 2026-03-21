@@ -123,6 +123,9 @@ pub fn build_insert_query(
         .join(", ");
     let values_str = values.join(", ");
 
+    // SAFETY: table_name is schema-derived (typename from federation metadata, validated at
+    // compile time) and passed through quote_table_name()/quote_postgres_identifier().
+    // columns are also passed through quote_postgres_identifier().
     Ok(format!("INSERT INTO {} ({}) VALUES ({})", table_name, columns_str, values_str))
 }
 

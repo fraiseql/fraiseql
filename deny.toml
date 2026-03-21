@@ -1,15 +1,19 @@
-# FraiseQL dependency policy
+# FraiseQL dependency policy — single source of truth for all dependency checks.
 # Run: cargo deny check
+# CI workflows use this file exclusively (no separate cargo-audit ignore flags).
 
 [advisories]
 db-path = "~/.cargo/advisory-db"
 ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
+  # Last reviewed: 2026-03-21
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   # Unmaintained crates — blocked on upstream updates, no action available
+  # Last reviewed: 2026-03-21
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
   # rustls-webpki CRL DP matching — transitive via tokio-rustls 0.24/0.25 (rustls 0.21/0.22).
   # Requires compromised CA + CRL checking enabled. Low impact for FraiseQL.
+  # Last reviewed: 2026-03-21
   {id = "RUSTSEC-2026-0049", reason = "rustls-webpki CRL DP matching: transitive via tokio-rustls; low impact, tracked for upstream bump"},
 ]
 unmaintained = "workspace"

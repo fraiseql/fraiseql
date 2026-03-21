@@ -226,6 +226,8 @@ impl SchemaRegistry {
     ) -> Result<u64> {
         use tracing::info;
 
+        // SAFETY: view_name is from a hardcoded known-views list or schema-derived,
+        // not user input.
         let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
         let rows = db_adapter.execute_raw_query(&sample_query).await.map_err(|e| {
@@ -424,6 +426,7 @@ impl SchemaRegistry {
 
         for view_name in known_views {
             // Sample one row from the view to infer schema
+            // SAFETY: view_name is from a hardcoded known-views list, not user input.
             let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
             match db_adapter.execute_raw_query(&sample_query).await {
