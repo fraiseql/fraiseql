@@ -490,8 +490,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Record duration even for failed queries
         metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
         metrics.operation_metrics.record(op_name, elapsed_us, true);
-        let err = state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e));
-        ErrorResponse::from_error(err)
+        ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e))
     })?;
 
     let elapsed = start_time.elapsed();
@@ -525,10 +524,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             response_length = result.len(),
             "Failed to deserialize executor response"
         );
-        let err = state
-            .error_sanitizer
-            .sanitize(GraphQLError::internal(format!("Failed to process response: {e}")));
-        ErrorResponse::from_error(err)
+        ErrorResponse::from_error(GraphQLError::internal(format!("Failed to process response: {e}")))
     })?;
 
     // Decrypt encrypted fields if field encryption is configured
@@ -537,10 +533,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         if encryption.has_encrypted_fields() {
             encryption.decrypt_response(&mut response_json).await.map_err(|e| {
                 error!(error = %e, "Field decryption failed");
-                let err = state
-                    .error_sanitizer
-                    .sanitize(GraphQLError::internal("Field decryption failed".to_string()));
-                ErrorResponse::from_error(err)
+                ErrorResponse::from_error(GraphQLError::internal("Field decryption failed".to_string()))
             })?;
         }
     }

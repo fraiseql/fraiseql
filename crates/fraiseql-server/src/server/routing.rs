@@ -524,6 +524,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Global error sanitization (outermost layer for error responses).
+        // Strips internal details (SQL, stack traces, file paths) from all 4xx/5xx
+        // JSON responses before they reach the client. Covers both GraphQL and REST.
+        app = app.layer(middleware::from_fn_with_state(
+            self.error_sanitizer.clone(),
+            crate::middleware::error_sanitization::error_sanitization_middleware,
+        ));
+
         // Add HTTP metrics middleware (tracks requests and response status codes)
         // This runs on ALL routes, even when metrics endpoints are disabled
         app = app.layer(middleware::from_fn_with_state(metrics, metrics_middleware));
