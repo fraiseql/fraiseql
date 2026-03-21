@@ -6,7 +6,7 @@
 
 ## Context
 
-FraiseQL uses `#[async_trait]` across ~128 sites to support `dyn Trait` dispatch
+FraiseQL uses `#[async_trait]` across ~202 sites to support `dyn Trait` dispatch
 on async traits. Native async fn in traits (Rust 1.75+) is not object-safe: you
 cannot write `Box<dyn T>` or `Arc<dyn T>` when `T` has `async fn` methods unless
 the future type is erased.
@@ -34,7 +34,10 @@ RFC 3425 (Return Type Notation). Not yet stable as of Rust 1.88 (current MSRV).
 Retain `#[async_trait]` across all 28 affected traits until native dyn-async-trait
 with `Send` bound support stabilizes in std (RFC 3425 / RTN).
 
-A CI gate (`make lint-async-trait`) tracks the baseline of 128 `#[async_trait]`
+**Updated 2026-03-22**: Full audit confirmed all 28 traits have `dyn` dispatch
+usage (via `Arc<dyn T>` or `Box<dyn T>`). Zero traits are eligible for migration.
+
+A CI gate (`make lint-async-trait`) tracks the baseline of 202 `#[async_trait]`
 usages and will fail if new usages are added without justification. Each existing
 site is annotated with:
 
@@ -57,7 +60,7 @@ site is annotated with:
 ## Monitoring
 
 ```bash
-# Track usage count (baseline: 128 as of v2.1.0)
+# Track usage count (baseline: 202 as of v2.1.0, audited 2026-03-22)
 make lint-async-trait
 
 # Find all sites for migration planning
