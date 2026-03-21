@@ -347,6 +347,17 @@ pub async fn run() {
             }
         },
 
+        Commands::Doctor {
+            config,
+            schema,
+            database,
+        } => commands::doctor::run(
+            std::path::Path::new(&config),
+            std::path::Path::new(&schema),
+            database.as_deref(),
+            cli.json,
+        ),
+
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
     };
 

@@ -491,6 +491,30 @@ EXAMPLES:
         manifest: String,
     },
 
+    /// Run diagnostic checks on your FraiseQL setup
+    ///
+    /// Validates configuration, connectivity, and common setup issues.
+    /// Checks: schema exists/parses/version, TOML config, DATABASE_URL,
+    /// database reachability, JWT secret, Redis, TLS, and cache+auth coherence.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql doctor
+    fraiseql doctor --config fraiseql.toml --schema schema.compiled.json
+    fraiseql doctor --json")]
+    Doctor {
+        /// Path to fraiseql.toml config file
+        #[arg(long, default_value = "fraiseql.toml")]
+        config: String,
+
+        /// Path to schema.compiled.json
+        #[arg(long, default_value = "schema.compiled.json")]
+        schema: String,
+
+        /// Override DATABASE_URL for connectivity check
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+    },
+
     /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
