@@ -6,7 +6,49 @@
 
 use serde_json::{Value, json};
 
+use chrono::Datelike;
+
 use crate::error::{FraiseQLError, Result};
+
+/// Compute a person's age in whole years from a `YYYY-MM-DD` birth date string.
+///
+/// Returns a signed integer — negative if the date is in the future.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the date string is not valid ISO 8601.
+fn compute_age_from_date_str(date_str: &str) -> Result<i64> {
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 {
+        return Err(FraiseQLError::Validation {
+            message: format!("Invalid date format for age(): '{date_str}'. Expected YYYY-MM-DD"),
+            path:    None,
+        });
+    }
+
+    let year: i32 = parts[0].parse().map_err(|_| FraiseQLError::Validation {
+        message: format!("Invalid year in date: '{}'", parts[0]),
+        path:    None,
+    })?;
+    let month: u32 = parts[1].parse().map_err(|_| FraiseQLError::Validation {
+        message: format!("Invalid month in date: '{}'", parts[1]),
+        path:    None,
+    })?;
+    let day: u32 = parts[2].parse().map_err(|_| FraiseQLError::Validation {
+        message: format!("Invalid day in date: '{}'", parts[2]),
+        path:    None,
+    })?;
+
+    let today = chrono::Utc::now().date_naive();
+    let mut age = i64::from(today.year()) - i64::from(year);
+
+    // Not yet had birthday this year
+    if (today.month(), today.day()) < (month, day) {
+        age -= 1;
+    }
+
+    Ok(age)
+}
 
 /// Elo expression evaluator for validation rules.
 ///
@@ -283,25 +325,38 @@ impl EloExpressionEvaluator {
                     }
                 },
                 "length" => {
+                    // Standalone length(field) — truthy if length > 0.
                     let field_val = self.get_value(args_str, context)?;
-                    if let Value::String(_s) = field_val {
-                        Ok(EloValidationResult {
-                            valid: true,
-                            error: None,
-                        })
-                    } else {
-                        Err(FraiseQLError::Validation {
-                            message: "length() requires a string argument".to_string(),
-                            path:    None,
-                        })
-                    }
+                    let s = field_val.as_str().ok_or_else(|| FraiseQLError::Validation {
+                        message: "length() requires a string argument".to_string(),
+                        path:    None,
+                    })?;
+                    let valid = !s.is_empty();
+                    Ok(EloValidationResult {
+                        valid,
+                        error: if valid {
+                            None
+                        } else {
+                            Some("length is 0".to_string())
+                        },
+                    })
                 },
                 "age" => {
-                    let _field_val = self.get_value(args_str, context)?;
-                    // Age calculation would go here
+                    // Standalone age(field) — truthy if age >= 0 (date is not in the future).
+                    let field_val = self.get_value(args_str, context)?;
+                    let date_str = field_val.as_str().ok_or_else(|| FraiseQLError::Validation {
+                        message: format!("age() requires a date string, got: {field_val}"),
+                        path:    None,
+                    })?;
+                    let age = compute_age_from_date_str(date_str)?;
+                    let valid = age >= 0;
                     Ok(EloValidationResult {
-                        valid: true,
-                        error: None,
+                        valid,
+                        error: if valid {
+                            None
+                        } else {
+                            Some(format!("age is negative ({age}): date is in the future"))
+                        },
                     })
                 },
                 _ => Err(FraiseQLError::Validation {
@@ -420,7 +475,8 @@ impl EloExpressionEvaluator {
         None
     }
 
-    /// Get the actual value of an expression (field reference or literal).
+    /// Get the actual value of an expression (field reference, literal, or
+    /// value-returning function call like `age(field)` or `length(field)`).
     fn get_value(&self, expr: &str, context: &Value) -> Result<Value> {
         let trimmed = expr.trim();
 
@@ -464,6 +520,11 @@ impl EloExpressionEvaluator {
             return Ok(Value::Null);
         }
 
+        // Value-returning function calls: age(field), length(field)
+        if trimmed.contains('(') && trimmed.ends_with(')') {
+            return self.evaluate_value_function(trimmed, context);
+        }
+
         // Field access (e.g., "user.email" or "obj.field.subfield")
         if let Some(value) = self.access_field(trimmed, context) {
             return Ok(value);
@@ -473,6 +534,45 @@ impl EloExpressionEvaluator {
             message: format!("Cannot resolve value: {}", trimmed),
             path:    None,
         })
+    }
+
+    /// Evaluate a function call that returns a typed value (not a bool).
+    ///
+    /// Used when a function appears as an operand in a comparison,
+    /// e.g. `age(birthdate) >= 18` or `length(name) <= 255`.
+    fn evaluate_value_function(&self, expr: &str, context: &Value) -> Result<Value> {
+        let Some(paren_idx) = expr.find('(') else {
+            return Err(FraiseQLError::Validation {
+                message: format!("Invalid function call: {expr}"),
+                path:    None,
+            });
+        };
+        let func_name = expr[..paren_idx].trim();
+        let args_str = &expr[paren_idx + 1..expr.len() - 1];
+
+        match func_name {
+            "age" => {
+                let field_val = self.get_value(args_str, context)?;
+                let date_str = field_val.as_str().ok_or_else(|| FraiseQLError::Validation {
+                    message: format!("age() requires a date string, got: {field_val}"),
+                    path:    None,
+                })?;
+                let age = compute_age_from_date_str(date_str)?;
+                Ok(json!(age))
+            },
+            "length" => {
+                let field_val = self.get_value(args_str, context)?;
+                let s = field_val.as_str().ok_or_else(|| FraiseQLError::Validation {
+                    message: format!("length() requires a string argument, got: {field_val}"),
+                    path:    None,
+                })?;
+                Ok(json!(s.len()))
+            },
+            _ => Err(FraiseQLError::Validation {
+                message: format!("Unknown value function: {func_name}"),
+                path:    None,
+            }),
+        }
     }
 
     /// Access a nested field in the context object.
@@ -506,6 +606,13 @@ mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::*;
+
+    /// Returns "YYYY-MM-DD" for `years` years before today.
+    fn years_ago(years: u32) -> String {
+        let today = chrono::Utc::now().date_naive();
+        let y = today.year() - i32::try_from(years).unwrap_or(0);
+        format!("{y}-{:02}-{:02}", today.month(), today.day())
+    }
 
     // Helper to create test context
     fn create_test_user() -> Value {
@@ -804,6 +911,108 @@ mod tests {
         let user = create_test_user();
         let result = eval.evaluate(&user).unwrap();
         assert!(result.valid);
+    }
+
+    // ========== AGE FUNCTION ==========
+
+    #[test]
+    fn test_age_comparison_old_enough() {
+        // Born 25 years ago — age(birthDate) >= 18 should be valid
+        let birth = years_ago(25);
+        let user = json!({ "birthDate": birth });
+        let eval = EloExpressionEvaluator::new("age(birthDate) >= 18".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_age_comparison_too_young() {
+        // Born 10 years ago — age(birthDate) >= 18 should be invalid
+        let birth = years_ago(10);
+        let user = json!({ "birthDate": birth });
+        let eval = EloExpressionEvaluator::new("age(birthDate) >= 18".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(!result.valid);
+    }
+
+    #[test]
+    fn test_age_comparison_exactly_18() {
+        // Born exactly 18 years ago today — age(birthDate) >= 18 should be valid
+        let birth = years_ago(18);
+        let user = json!({ "birthDate": birth });
+        let eval = EloExpressionEvaluator::new("age(birthDate) >= 18".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_age_combined_with_and() {
+        let birth = years_ago(30);
+        let user = json!({ "birthDate": birth, "verified": true });
+        let eval =
+            EloExpressionEvaluator::new("age(birthDate) >= 18 && verified == true".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_age_invalid_date_format() {
+        let user = json!({ "birthDate": "not-a-date" });
+        let eval = EloExpressionEvaluator::new("age(birthDate) >= 18".to_string());
+        let result = eval.evaluate(&user);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_age_standalone_positive() {
+        // Standalone age(field) is truthy if age >= 0
+        let birth = years_ago(20);
+        let user = json!({ "birthDate": birth });
+        let eval = EloExpressionEvaluator::new("age(birthDate)".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    // ========== LENGTH FUNCTION ==========
+
+    #[test]
+    fn test_length_comparison_valid() {
+        let user = json!({ "name": "Alice" });
+        let eval = EloExpressionEvaluator::new("length(name) <= 255".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_length_comparison_exact() {
+        let user = json!({ "code": "ABC" });
+        let eval = EloExpressionEvaluator::new("length(code) == 3".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_length_comparison_too_long() {
+        let user = json!({ "name": "A very long name indeed" });
+        let eval = EloExpressionEvaluator::new("length(name) <= 5".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(!result.valid);
+    }
+
+    #[test]
+    fn test_length_standalone_nonempty() {
+        let user = json!({ "name": "Bob" });
+        let eval = EloExpressionEvaluator::new("length(name)".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(result.valid);
+    }
+
+    #[test]
+    fn test_length_standalone_empty() {
+        let user = json!({ "name": "" });
+        let eval = EloExpressionEvaluator::new("length(name)".to_string());
+        let result = eval.evaluate(&user).unwrap();
+        assert!(!result.valid);
     }
 
     // ========== REAL-WORLD PATTERNS ==========

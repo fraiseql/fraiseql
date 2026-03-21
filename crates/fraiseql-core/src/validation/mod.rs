@@ -14,6 +14,7 @@ pub mod custom_type_registry;
 pub mod date_validators;
 pub mod elo_expressions;
 pub mod elo_rust_integration;
+pub mod js_codegen;
 pub mod error_responses;
 mod id_policy;
 pub mod inheritance;

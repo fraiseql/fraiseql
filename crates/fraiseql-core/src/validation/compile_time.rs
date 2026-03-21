@@ -10,6 +10,13 @@
 
 use std::collections::{HashMap, HashSet};
 
+/// ELO infix operators that are NOT field references.
+const INFIX_OPERATORS: &[&str] = &["matches", "in", "contains"];
+
+/// Known ELO function names.  When these appear followed by `(` in the
+/// original expression they are function calls, not field references.
+const KNOWN_FUNCTIONS: &[&str] = &["length", "age", "today", "now", "matches", "contains"];
+
 /// Schema context for compile-time validation
 #[derive(Debug, Clone)]
 pub struct SchemaContext {
@@ -87,6 +94,34 @@ pub struct CompileTimeError {
     pub message:    String,
     /// Optional suggestion for how to fix the error.
     pub suggestion: Option<String>,
+}
+
+/// Find a logical operator (`&&` or `||`) outside of parentheses and quotes.
+fn find_logical_op(expr: &str, op: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let bytes = expr.as_bytes();
+
+    for i in 0..bytes.len() {
+        let ch = bytes[i];
+
+        if ch == b'"' || ch == b'\'' {
+            in_string = !in_string;
+            continue;
+        }
+        if in_string {
+            continue;
+        }
+        if ch == b'(' {
+            depth += 1;
+        } else if ch == b')' {
+            depth -= 1;
+        } else if depth == 0 && i + op.len() <= bytes.len() && &expr[i..i + op.len()] == op {
+            return Some(i);
+        }
+    }
+
+    None
 }
 
 /// Compile-time validator for cross-field rules
@@ -229,20 +264,137 @@ impl CompileTimeValidator {
             }
         }
 
-        // Check for valid operators
-        let valid_operators = vec!["<", ">", "<=", ">=", "==", "!=", "&&", "||", "!"];
-        for op in valid_operators {
-            if expression.contains(op) {
-                // Operator found and is valid
-            }
-        }
+        // Attempt SQL constraint generation for simple expressions.
+        let sql_constraint = if errors.is_empty() {
+            self.try_generate_elo_sql_constraint(type_name, expression)
+        } else {
+            None
+        };
 
         CompileTimeValidationResult {
             valid: errors.is_empty(),
             errors,
             warnings,
-            sql_constraint: None,
+            sql_constraint,
         }
+    }
+
+    /// Attempt to generate a SQL CHECK constraint from a simple ELO expression.
+    ///
+    /// Supports:
+    /// - `field op literal`: `CHECK ("age" >= 0)`
+    /// - `field op field`: `CHECK ("start_date" < "end_date")`
+    /// - `length(field) op literal`: `CHECK (length("name") <= 255)`
+    /// - `expr && expr`: `CHECK (... AND ...)`
+    /// - `expr || expr`: `CHECK (... OR ...)`
+    ///
+    /// Returns `None` for expressions that cannot be translated (e.g. `age()`
+    /// which is time-dependent and unsuitable for a static CHECK constraint).
+    fn try_generate_elo_sql_constraint(
+        &self,
+        type_name: &str,
+        expression: &str,
+    ) -> Option<String> {
+        let inner = self.elo_expr_to_sql(type_name, expression.trim())?;
+        Some(format!("CHECK ({inner})"))
+    }
+
+    /// Recursively translate an ELO expression fragment to SQL.
+    fn elo_expr_to_sql(&self, type_name: &str, expr: &str) -> Option<String> {
+        let expr = expr.trim();
+
+        // Strip matching outer parentheses
+        if expr.starts_with('(') && expr.ends_with(')') {
+            let inner = &expr[1..expr.len() - 1];
+            // Verify they truly match (not `(a) && (b)`)
+            if !inner.contains("&&") || inner.matches('(').count() == inner.matches(')').count() {
+                if let Some(sql) = self.elo_expr_to_sql(type_name, inner) {
+                    return Some(format!("({sql})"));
+                }
+            }
+        }
+
+        // Handle && (AND)
+        if let Some(idx) = find_logical_op(expr, "&&") {
+            let left = self.elo_expr_to_sql(type_name, &expr[..idx])?;
+            let right = self.elo_expr_to_sql(type_name, &expr[idx + 2..])?;
+            return Some(format!("{left} AND {right}"));
+        }
+
+        // Handle || (OR)
+        if let Some(idx) = find_logical_op(expr, "||") {
+            let left = self.elo_expr_to_sql(type_name, &expr[..idx])?;
+            let right = self.elo_expr_to_sql(type_name, &expr[idx + 2..])?;
+            return Some(format!("{left} OR {right}"));
+        }
+
+        // Handle comparison operators
+        for op in &["<=", ">=", "!=", "==", "<", ">"] {
+            if let Some(idx) = expr.find(op) {
+                let left = expr[..idx].trim();
+                let right = expr[idx + op.len()..].trim();
+                let sql_op = match *op {
+                    "==" => "=",
+                    other => other,
+                };
+
+                let left_sql = self.elo_operand_to_sql(type_name, left)?;
+                let right_sql = self.elo_operand_to_sql(type_name, right)?;
+                return Some(format!("{left_sql} {sql_op} {right_sql}"));
+            }
+        }
+
+        None
+    }
+
+    /// Translate a single operand (field, literal, or function call) to SQL.
+    fn elo_operand_to_sql(&self, type_name: &str, operand: &str) -> Option<String> {
+        let operand = operand.trim();
+
+        // Numeric literal
+        if operand.parse::<i64>().is_ok() || operand.parse::<f64>().is_ok() {
+            return Some(operand.to_string());
+        }
+
+        // String literal
+        if (operand.starts_with('"') && operand.ends_with('"'))
+            || (operand.starts_with('\'') && operand.ends_with('\''))
+        {
+            // Convert to SQL single-quoted string, escaping internal quotes
+            let inner = &operand[1..operand.len() - 1];
+            let escaped = inner.replace('\'', "''");
+            return Some(format!("'{escaped}'"));
+        }
+
+        // Boolean literal
+        if operand == "true" || operand == "false" {
+            return Some(operand.to_uppercase());
+        }
+
+        // length(field) → length("field")
+        if let Some(rest) = operand.strip_prefix("length(") {
+            let field = rest.strip_suffix(')')?.trim();
+            let field_key = (type_name.to_string(), field.to_string());
+            if self.context.fields.contains_key(&field_key) {
+                let quoted = format!("\"{}\"", field.replace('"', "\"\""));
+                return Some(format!("length({quoted})"));
+            }
+            return None;
+        }
+
+        // age(field) → cannot be a static CHECK constraint (time-dependent)
+        if operand.starts_with("age(") {
+            return None;
+        }
+
+        // Field reference
+        let field_key = (type_name.to_string(), operand.to_string());
+        if self.context.fields.contains_key(&field_key) {
+            let quoted = format!("\"{}\"", operand.replace('"', "\"\""));
+            return Some(quoted);
+        }
+
+        None
     }
 
     /// Extract field references from an expression
@@ -292,8 +444,6 @@ impl CompileTimeValidator {
         }
 
         // Second pass: extract field references from tokens
-        let infix_operators = ["matches", "in", "contains"];
-
         for (i, token) in tokens.iter().enumerate() {
             // Skip quoted strings
             if token.starts_with('"') || token.starts_with('\'') {
@@ -301,22 +451,28 @@ impl CompileTimeValidator {
             }
 
             // Skip if this token is an infix operator
-            if infix_operators.contains(&token.as_str()) {
+            if INFIX_OPERATORS.contains(&token.as_str()) {
                 continue;
             }
 
             // Skip if the previous token was an infix operator (it's the RHS of the operator)
-            if i > 0 && infix_operators.contains(&tokens[i - 1].as_str()) {
+            if i > 0 && INFIX_OPERATORS.contains(&tokens[i - 1].as_str()) {
                 continue;
             }
 
             // Skip reserved keywords
-            if token == "true"
-                || token == "false"
-                || token == "null"
-                || token == "and"
-                || token == "or"
-                || token == "not"
+            if matches!(
+                token.as_str(),
+                "true" | "false" | "null" | "and" | "or" | "not"
+            ) {
+                continue;
+            }
+
+            // Skip known function names when used as function calls (e.g. `length(email)`).
+            // Function names used as plain field references (e.g. `age >= 18`) are NOT skipped.
+            if KNOWN_FUNCTIONS.contains(&token.as_str())
+                && i + 1 < tokens.len()
+                && expression.contains(&format!("{token}("))
             {
                 continue;
             }
@@ -665,6 +821,86 @@ mod tests {
         );
 
         assert!(result.valid);
+    }
+
+    // ========== ELO SQL CONSTRAINT GENERATION ==========
+
+    #[test]
+    fn test_elo_sql_field_vs_literal() {
+        let context = create_test_context();
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("User", "age >= 0");
+        assert!(result.valid);
+        assert_eq!(result.sql_constraint.as_deref(), Some(r#"CHECK ("age" >= 0)"#));
+    }
+
+    #[test]
+    fn test_elo_sql_field_vs_field() {
+        let context = create_test_context();
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("DateRange", "startDate <= endDate");
+        assert!(result.valid);
+        assert_eq!(
+            result.sql_constraint.as_deref(),
+            Some(r#"CHECK ("startDate" <= "endDate")"#)
+        );
+    }
+
+    #[test]
+    fn test_elo_sql_length_constraint() {
+        let context = create_test_context();
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("User", "length(email) <= 255");
+        assert!(result.valid);
+        assert_eq!(
+            result.sql_constraint.as_deref(),
+            Some(r#"CHECK (length("email") <= 255)"#)
+        );
+    }
+
+    #[test]
+    fn test_elo_sql_and_expression() {
+        let context = create_test_context();
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("User", "age >= 0 && age <= 150");
+        assert!(result.valid);
+        assert_eq!(
+            result.sql_constraint.as_deref(),
+            Some(r#"CHECK ("age" >= 0 AND "age" <= 150)"#)
+        );
+    }
+
+    #[test]
+    fn test_elo_sql_age_function_returns_none() {
+        // age(birthDate) is time-dependent — cannot be a static CHECK constraint.
+        let context = create_test_context();
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("User", "age(birthDate) >= 18");
+        assert!(result.valid); // Expression itself is valid
+        assert!(result.sql_constraint.is_none()); // But no SQL constraint
+    }
+
+    #[test]
+    fn test_elo_sql_string_equality() {
+        let mut context = create_test_context();
+        context.types.get_mut("User").unwrap().fields.push("status".to_string());
+        context.fields.insert(
+            ("User".to_string(), "status".to_string()),
+            FieldType::String,
+        );
+        let validator = CompileTimeValidator::new(context);
+
+        let result = validator.validate_elo_expression("User", "status == \"active\"");
+        assert!(result.valid);
+        assert_eq!(
+            result.sql_constraint.as_deref(),
+            Some(r#"CHECK ("status" = 'active')"#)
+        );
     }
 
     #[test]
