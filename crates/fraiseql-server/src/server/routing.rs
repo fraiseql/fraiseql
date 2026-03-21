@@ -57,6 +57,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Attach rate limiter reference for metrics exposure
+        if let Some(ref limiter) = self.rate_limiter {
+            state = state.with_rate_limiter(limiter.clone());
+        }
+
         // Attach API key authenticator if configured
         if let Some(ref api_key_auth) = self.api_key_authenticator {
             state = state.with_api_key_authenticator(api_key_auth.clone());

@@ -1,9 +1,20 @@
 //! In-memory token-bucket rate limiter backend.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, atomic::{AtomicU64, Ordering}},
+};
 
 use tokio::sync::RwLock;
 use tracing::debug;
+
+/// Total number of rate limit denials (IP + user + path combined).
+static DENIALS_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+/// Total rate limit denials across all in-memory buckets.
+pub fn denials_total() -> u64 {
+    DENIALS_TOTAL.load(Ordering::Relaxed)
+}
 
 use super::{
     config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig},
@@ -104,6 +115,7 @@ impl InMemoryRateLimiter {
         if allowed {
             CheckResult::allow(remaining)
         } else {
+            DENIALS_TOTAL.fetch_add(1, Ordering::Relaxed);
             debug!(ip = ip, path = path, "Per-path rate limit exceeded");
             let retry = if tokens_per_sec > 0.0 {
                 ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
@@ -137,6 +149,7 @@ impl InMemoryRateLimiter {
         if allowed {
             CheckResult::allow(remaining)
         } else {
+            DENIALS_TOTAL.fetch_add(1, Ordering::Relaxed);
             debug!(ip = ip, "Rate limit exceeded for IP");
             let rps = self.config.rps_per_ip;
             let retry = if rps == 0 {
@@ -166,6 +179,7 @@ impl InMemoryRateLimiter {
         if allowed {
             CheckResult::allow(remaining)
         } else {
+            DENIALS_TOTAL.fetch_add(1, Ordering::Relaxed);
             debug!(user_id = user_id, "Rate limit exceeded for user");
             let rps = self.config.rps_per_user;
             let retry = if rps == 0 {
@@ -220,6 +234,14 @@ impl InMemoryRateLimiter {
         drop(path_buckets);
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
+    }
+
+    /// Number of active rate limit keys (IP + user + path buckets).
+    pub(super) async fn active_key_count(&self) -> usize {
+        let ip = self.ip_buckets.read().await.len();
+        let user = self.user_buckets.read().await.len();
+        let path = self.path_ip_buckets.read().await.len();
+        ip + user + path
     }
 
     /// Number of per-path rate limit rules registered.

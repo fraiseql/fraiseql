@@ -113,6 +113,24 @@ impl RateLimiter {
         }
     }
 
+    /// Total number of rate limit denials across all backends.
+    pub fn denials_total(&self) -> u64 {
+        match self {
+            Self::InMemory(_) => super::in_memory::denials_total(),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(_) => super::in_memory::denials_total(), // Redis denials tracked in middleware
+        }
+    }
+
+    /// Number of active rate limit keys (buckets currently tracked).
+    pub async fn active_key_count(&self) -> usize {
+        match self {
+            Self::InMemory(rl) => rl.active_key_count().await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(_) => 0, // Redis doesn't expose key count
+        }
+    }
+
     /// Evict stale in-memory buckets.
     ///
     /// No-op for the Redis backend — Redis handles expiry via `PEXPIRE`.
