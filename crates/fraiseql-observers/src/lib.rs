@@ -130,7 +130,7 @@ pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
-    ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
+    ObserverRuntimeConfig, OverflowPolicy, RetryConfig, SmtpConfig, SmtpTlsMode,
 };
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;

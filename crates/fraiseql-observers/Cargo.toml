@@ -12,6 +12,7 @@ colored = {version = "2.1", optional = true}
 dashmap = "6.1"
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
+lettre = {workspace = true, optional = true}
 futures = "0.3"
 http = "1.1"
 prometheus = {version = "0.14", optional = true}
@@ -52,6 +53,8 @@ cli = ["dep:clap", "dep:colored", "dep:tabwriter"]
 dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]
+# Email via SMTP (lettre)
+email = ["lettre"]
 # Descriptive bundles
 enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 metrics = ["prometheus"]

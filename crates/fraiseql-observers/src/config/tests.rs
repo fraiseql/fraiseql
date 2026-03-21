@@ -256,6 +256,147 @@ fn test_email_action_validation() {
     };
 
     assert!(valid.validate().is_ok());
+
+    // subject_template alone (no static subject) should also be valid.
+    let valid_tmpl = ActionConfig::Email {
+        to:               Some("user@example.com".to_string()),
+        to_template:      None,
+        subject:          None,
+        subject_template: Some("Order {{ id }}".to_string()),
+        body_template:    Some("Body".to_string()),
+        reply_to:         None,
+    };
+    assert!(valid_tmpl.validate().is_ok());
+
+    // Neither subject nor subject_template → invalid.
+    let no_subject = ActionConfig::Email {
+        to:               Some("user@example.com".to_string()),
+        to_template:      None,
+        subject:          None,
+        subject_template: None,
+        body_template:    Some("Body".to_string()),
+        reply_to:         None,
+    };
+    assert!(no_subject.validate().is_err());
+}
+
+// ========================================================================
+// SmtpConfig tests
+// ========================================================================
+
+#[test]
+fn smtp_config_valid_minimal() {
+    let config = SmtpConfig {
+        smtp_host:         "smtp.example.com".to_string(),
+        smtp_port:         587,
+        smtp_username:     None,
+        smtp_password_env: None,
+        smtp_tls:          SmtpTlsMode::default(),
+        from_address:      "noreply@example.com".to_string(),
+        from_name:         None,
+    };
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn smtp_config_valid_with_auth() {
+    let config = SmtpConfig {
+        smtp_host:         "smtp.example.com".to_string(),
+        smtp_port:         587,
+        smtp_username:     Some("user".to_string()),
+        smtp_password_env: Some("SMTP_PASS".to_string()),
+        smtp_tls:          SmtpTlsMode::Starttls,
+        from_address:      "noreply@example.com".to_string(),
+        from_name:         Some("FraiseQL".to_string()),
+    };
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn smtp_config_empty_host_rejected() {
+    let config = SmtpConfig {
+        smtp_host:         String::new(),
+        smtp_port:         587,
+        smtp_username:     None,
+        smtp_password_env: None,
+        smtp_tls:          SmtpTlsMode::default(),
+        from_address:      "noreply@example.com".to_string(),
+        from_name:         None,
+    };
+    assert!(config.validate().is_err());
+}
+
+#[test]
+fn smtp_config_empty_from_address_rejected() {
+    let config = SmtpConfig {
+        smtp_host:         "smtp.example.com".to_string(),
+        smtp_port:         587,
+        smtp_username:     None,
+        smtp_password_env: None,
+        smtp_tls:          SmtpTlsMode::default(),
+        from_address:      String::new(),
+        from_name:         None,
+    };
+    assert!(config.validate().is_err());
+}
+
+#[test]
+fn smtp_config_from_address_missing_at_rejected() {
+    let config = SmtpConfig {
+        smtp_host:         "smtp.example.com".to_string(),
+        smtp_port:         587,
+        smtp_username:     None,
+        smtp_password_env: None,
+        smtp_tls:          SmtpTlsMode::default(),
+        from_address:      "noreply-no-at".to_string(),
+        from_name:         None,
+    };
+    assert!(config.validate().is_err());
+}
+
+#[test]
+fn smtp_config_username_without_password_env_rejected() {
+    let config = SmtpConfig {
+        smtp_host:         "smtp.example.com".to_string(),
+        smtp_port:         587,
+        smtp_username:     Some("user".to_string()),
+        smtp_password_env: None,
+        smtp_tls:          SmtpTlsMode::default(),
+        from_address:      "noreply@example.com".to_string(),
+        from_name:         None,
+    };
+    assert!(config.validate().is_err());
+}
+
+#[test]
+fn smtp_config_deserialize_from_json() {
+    let json = r#"{
+        "smtp_host": "mail.example.com",
+        "smtp_port": 465,
+        "smtp_tls": "tls",
+        "from_address": "bot@example.com",
+        "from_name": "Bot"
+    }"#;
+    let config: SmtpConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.smtp_host, "mail.example.com");
+    assert_eq!(config.smtp_port, 465);
+    assert!(matches!(config.smtp_tls, SmtpTlsMode::Tls));
+    assert_eq!(config.from_address, "bot@example.com");
+    assert_eq!(config.from_name.as_deref(), Some("Bot"));
+}
+
+#[test]
+fn smtp_config_deserialize_defaults() {
+    let json = r#"{
+        "smtp_host": "smtp.test.com",
+        "from_address": "test@test.com"
+    }"#;
+    let config: SmtpConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.smtp_port, 587);
+    assert!(matches!(config.smtp_tls, SmtpTlsMode::Starttls));
+    assert!(config.smtp_username.is_none());
+    assert!(config.smtp_password_env.is_none());
+    assert!(config.from_name.is_none());
 }
 
 #[test]

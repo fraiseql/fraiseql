@@ -82,6 +82,8 @@ hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
 jsonwebtoken = "9.2"
+# SMTP client
+lettre = {version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"]}
 linked-hash-map = "0.5"
 # Caching
 lru = "0.16"
