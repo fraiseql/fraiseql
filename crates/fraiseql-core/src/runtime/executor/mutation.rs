@@ -2,32 +2,23 @@
 
 use super::{Executor, resolve_inject_value};
 use crate::{
-    db::traits::{DatabaseAdapter, MutationCapable},
+    db::traits::{
+        DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
+    },
     error::{FraiseQLError, Result},
     runtime::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
         suggest_similar,
     },
+    schema::MutationOperation,
     security::SecurityContext,
 };
 
-/// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
+/// Compile-time enforcement: only `MutationCapable` adapters can call `execute_mutation`.
 ///
-/// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
-/// because `SqliteAdapter` does not implement the `MutationCapable` marker trait.
-///
-/// ```compile_fail
-/// use fraiseql_core::runtime::Executor;
-/// use fraiseql_core::db::sqlite::SqliteAdapter;
-/// use fraiseql_core::schema::CompiledSchema;
-/// use std::sync::Arc;
-/// async fn _wont_compile() {
-///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
-///     let executor = Executor::new(CompiledSchema::new(), adapter);
-///     executor.execute_mutation("createUser", None).await.unwrap();
-/// }
-/// ```
+/// `SqliteAdapter` now implements `MutationCapable` (via direct-SQL mutations).
+/// This block provides the compile-time-safe mutation entry point.
 impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
     /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
     ///
@@ -181,7 +172,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source: &str = if let Some(src) = mutation_def.sql_source.as_deref() {
             src
         } else {
-            use crate::schema::MutationOperation;
             match &mutation_def.operation {
                 MutationOperation::Insert { table }
                 | MutationOperation::Update { table }
@@ -254,8 +244,54 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 4. Call the database function
-        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+        // 4. Call the database function or execute direct SQL, depending on strategy
+        let rows = match self.adapter.mutation_strategy() {
+            MutationStrategy::FunctionCall => {
+                self.adapter.execute_function_call(sql_source, &args).await?
+            },
+            MutationStrategy::DirectSql => {
+                let (table, op) = match &mutation_def.operation {
+                    MutationOperation::Insert { table } => {
+                        (table.as_str(), DirectMutationOp::Insert)
+                    },
+                    MutationOperation::Update { table } => {
+                        (table.as_str(), DirectMutationOp::Update)
+                    },
+                    MutationOperation::Delete { table } => {
+                        (table.as_str(), DirectMutationOp::Delete)
+                    },
+                    MutationOperation::Custom => {
+                        return Err(FraiseQLError::Unsupported {
+                            message: format!(
+                                "Custom mutation '{mutation_name}' requires a database with \
+                                 stored procedure support. SQLite only supports Insert, \
+                                 Update, and Delete mutations."
+                            ),
+                        });
+                    },
+                };
+                let columns: Vec<String> =
+                    mutation_def.arguments.iter().map(|a| a.name.clone()).collect();
+                let inject_columns: Vec<String> =
+                    mutation_def.inject_params.keys().cloned().collect();
+                let ctx = DirectMutationContext {
+                    operation: op,
+                    table,
+                    columns: &columns,
+                    values: &args,
+                    inject_columns: &inject_columns,
+                    return_type: &mutation_def.return_type,
+                };
+                self.adapter.execute_direct_mutation(&ctx).await?
+            },
+            _ => {
+                return Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "Unsupported mutation strategy for mutation '{mutation_name}'"
+                    ),
+                });
+            },
+        };
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {

@@ -20,6 +20,62 @@ pub struct RelayPageResult {
     pub total_count: Option<u64>,
 }
 
+/// How a database adapter executes mutations.
+///
+/// Adapters that support stored procedures (PostgreSQL, MySQL, SQL Server) use
+/// [`FunctionCall`](MutationStrategy::FunctionCall). Adapters without stored procedure
+/// support (SQLite, DuckDB) use [`DirectSql`](MutationStrategy::DirectSql) to execute
+/// INSERT/UPDATE/DELETE statements directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MutationStrategy {
+    /// Call a named database function/stored procedure.
+    ///
+    /// Builds `SELECT * FROM "fn_name"($1, $2, ...)` (PostgreSQL) or equivalent.
+    FunctionCall,
+    /// Execute direct SQL statements (INSERT/UPDATE/DELETE … RETURNING *).
+    DirectSql,
+}
+
+/// The kind of write operation for a direct-SQL mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DirectMutationOp {
+    /// INSERT INTO … RETURNING *
+    Insert,
+    /// UPDATE … SET … WHERE pk = ? RETURNING *
+    Update,
+    /// DELETE FROM … WHERE pk = ? RETURNING *
+    Delete,
+}
+
+/// Structured context for direct-SQL mutation execution.
+///
+/// Carries all the information a [`DirectSql`](MutationStrategy::DirectSql) adapter
+/// needs to build and execute the mutation statement without parsing function names.
+#[derive(Debug)]
+pub struct DirectMutationContext<'a> {
+    /// The kind of mutation (INSERT, UPDATE, DELETE).
+    pub operation: DirectMutationOp,
+    /// Target table name (will be identifier-quoted by the adapter).
+    pub table: &'a str,
+    /// Column names from client-supplied mutation arguments, in positional order.
+    ///
+    /// For UPDATE/DELETE the first column is the primary key (used in the WHERE clause).
+    pub columns: &'a [String],
+    /// All argument values: client args followed by inject params, in positional order.
+    pub values: &'a [serde_json::Value],
+    /// Column names from server-injected parameters (JWT claims etc.).
+    ///
+    /// These are appended after `columns` in the SQL statement:
+    /// - INSERT: additional columns in the INSERT
+    /// - UPDATE: additional SET columns
+    /// - DELETE: additional WHERE conditions (AND inject_col = ?)
+    pub inject_columns: &'a [String],
+    /// The GraphQL return type name (used as `entity_type` in the mutation response).
+    pub return_type: &'a str,
+}
+
 /// Database adapter for executing queries against views.
 ///
 /// This trait abstracts over different database backends (PostgreSQL, MySQL, SQLite, SQL Server).
@@ -502,6 +558,46 @@ pub trait DatabaseAdapter: Send + Sync {
         })
     }
 
+    /// Returns the mutation execution strategy for this adapter.
+    ///
+    /// Adapters that execute mutations via stored database functions (PostgreSQL,
+    /// MySQL, SQL Server) return [`MutationStrategy::FunctionCall`] (the default).
+    /// Adapters that execute direct SQL statements (SQLite) return
+    /// [`MutationStrategy::DirectSql`].
+    ///
+    /// The executor uses this to choose between `execute_function_call` and
+    /// `execute_direct_mutation`.
+    fn mutation_strategy(&self) -> MutationStrategy {
+        MutationStrategy::FunctionCall
+    }
+
+    /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the result
+    /// in `mutation_response` shape.
+    ///
+    /// Only adapters with [`MutationStrategy::DirectSql`] need to override this.
+    /// The default implementation returns [`FraiseQLError::Unsupported`].
+    ///
+    /// The returned `HashMap` must contain the same columns as `app.mutation_response`:
+    /// `status`, `entity`, `entity_type`, and optionally `entity_id`, `message`,
+    /// `cascade`, `metadata`.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Structured mutation context with operation type, table, columns, and values
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` by default.
+    /// Returns `FraiseQLError::Database` on SQL execution failure.
+    async fn execute_direct_mutation(
+        &self,
+        _ctx: &DirectMutationContext<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Err(FraiseQLError::Unsupported {
+            message: "Direct SQL mutations are not supported by this adapter.".into(),
+        })
+    }
+
     /// Returns `true` if this adapter supports GraphQL mutation operations.
     ///
     /// **This is the authoritative mutation gate.** The executor checks this method
@@ -764,10 +860,11 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
     ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a;
 }
 
-/// Marker trait for database adapters that support write operations via stored functions.
+/// Marker trait for database adapters that support write operations.
 ///
-/// Adapters that implement this trait signal that they can execute GraphQL mutations by
-/// calling stored database functions (e.g. `fn_create_user`, `fn_update_order`).
+/// Adapters that implement this trait signal that they can execute GraphQL mutations,
+/// either via stored database functions ([`MutationStrategy::FunctionCall`]) or via
+/// direct SQL statements ([`MutationStrategy::DirectSql`]).
 ///
 /// # Role: documentation, generic bound, and compile-time enforcement
 ///
@@ -776,8 +873,7 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// 2. **Generic bounds**: code that only accepts write-capable adapters can constrain on `A:
 ///    MutationCapable` (e.g., `CachedDatabaseAdapter<A: MutationCapable>`).
 /// 3. **Compile-time enforcement**: `Executor<A>::execute_mutation()` is only available when `A:
-///    MutationCapable`. Attempting to call it with `SqliteAdapter` produces a compiler error
-///    (`error[E0277]: SqliteAdapter does not implement MutationCapable`).
+///    MutationCapable`.
 ///
 /// The `execute()` method (which accepts raw GraphQL strings) still performs a runtime
 /// `supports_mutations()` check because it cannot know the operation type at compile time.
@@ -785,14 +881,14 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 ///
 /// # Which adapters implement this?
 ///
-/// | Adapter | Implements |
-/// |---------|-----------|
-/// | [`PostgresAdapter`](crate::postgres::PostgresAdapter) | ✅ Yes |
-/// | [`MySqlAdapter`](crate::mysql::MySqlAdapter) | ✅ Yes |
-/// | [`SqlServerAdapter`](crate::sqlserver::SqlServerAdapter) | ✅ Yes |
-/// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
-/// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
-/// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
+/// | Adapter | Implements | Strategy |
+/// |---------|-----------|----------|
+/// | [`PostgresAdapter`](crate::postgres::PostgresAdapter) | ✅ Yes | `FunctionCall` |
+/// | [`MySqlAdapter`](crate::mysql::MySqlAdapter) | ✅ Yes | `FunctionCall` |
+/// | [`SqlServerAdapter`](crate::sqlserver::SqlServerAdapter) | ✅ Yes | `FunctionCall` |
+/// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ✅ Yes | `DirectSql` |
+/// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol | — |
+/// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` | Delegates |
 pub trait MutationCapable: DatabaseAdapter {}
 
 /// Type alias for boxed dynamic database adapters.

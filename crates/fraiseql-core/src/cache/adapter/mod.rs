@@ -552,6 +552,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_parameterized_aggregate(sql, params).await
     }
 
+    fn mutation_strategy(&self) -> fraiseql_db::MutationStrategy {
+        self.adapter.mutation_strategy()
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -559,6 +563,14 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Mutations are never cached — always delegate to the underlying adapter
         self.adapter.execute_function_call(function_name, args).await
+    }
+
+    async fn execute_direct_mutation(
+        &self,
+        ctx: &fraiseql_db::DirectMutationContext<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Mutations are never cached — always delegate to the underlying adapter
+        self.adapter.execute_direct_mutation(ctx).await
     }
 
     async fn invalidate_views(&self, views: &[String]) -> Result<u64> {

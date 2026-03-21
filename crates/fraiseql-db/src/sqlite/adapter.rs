@@ -1,16 +1,28 @@
-//! SQLite database adapter — **read-only** (queries only, no mutations).
+//! SQLite database adapter with query and mutation support.
 //!
 //! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
-//! but does **not** implement [`MutationCapable`](crate::MutationCapable). Attempting
-//! to compile a schema with mutations and run it against SQLite will produce a
-//! **compile-time error** at the mutation executor call site.
+//! and **direct-SQL mutations** (INSERT/UPDATE/DELETE with RETURNING).
+//!
+//! Unlike PostgreSQL/MySQL/SQL Server, SQLite has no stored procedures. Mutations
+//! are executed as direct SQL statements rather than function calls. The adapter
+//! implements [`MutationCapable`](crate::MutationCapable) and uses
+//! [`MutationStrategy::DirectSql`](crate::MutationStrategy::DirectSql).
+//!
+//! # Requirements
+//!
+//! - SQLite 3.35.0+ (2021-03-12) for `RETURNING` clause support.
+//!
+//! # Limitations
+//!
+//! - `MutationOperation::Custom` mutations are not supported (no stored procedures).
+//! - No server-side validation logic beyond constraint checking.
+//! - Each mutation is a single atomic statement (no multi-statement transactions).
 //!
 //! # When to use SQLite
 //!
-//! - Unit testing queries without a real database
-//! - Schema exploration and local development (read-only)
-//!
-//! For mutation support, use PostgreSQL, MySQL, or SQL Server.
+//! - Local development with full read/write cycles
+//! - Unit testing queries and mutations without a real database
+//! - Schema exploration
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
@@ -23,7 +35,9 @@ use super::where_generator::SqliteWhereGenerator;
 use crate::{
     dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
-    traits::DatabaseAdapter,
+    traits::{
+        DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
+    },
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
@@ -298,7 +312,91 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     fn supports_mutations(&self) -> bool {
-        false
+        true
+    }
+
+    fn mutation_strategy(&self) -> MutationStrategy {
+        MutationStrategy::DirectSql
+    }
+
+    async fn execute_direct_mutation(
+        &self,
+        ctx: &DirectMutationContext<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let (sql, bind_values) = build_direct_mutation_sql(ctx)?;
+
+        // Bind parameters and execute
+        let mut query = sqlx::query(&sql);
+        for value in bind_values {
+            query = match value {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(value.to_string())
+                },
+            };
+        }
+
+        let row_opt = query
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite direct mutation failed: {e}"),
+                sql_state: None,
+            })?;
+
+        let Some(row) = row_opt else {
+            // DELETE/UPDATE of non-existent row
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation on table '{}' affected no rows (entity not found)",
+                    ctx.table
+                ),
+                path: None,
+            });
+        };
+
+        // Convert the RETURNING * row into a JSON object for the `entity` field
+        let entity = sqlite_row_to_json(&row);
+
+        // Determine status and entity_id based on operation
+        let status = match ctx.operation {
+            DirectMutationOp::Insert => "new",
+            DirectMutationOp::Update => "updated",
+            DirectMutationOp::Delete => "deleted",
+        };
+
+        // For UPDATE/DELETE, extract the PK value as entity_id
+        let entity_id: serde_json::Value = match ctx.operation {
+            DirectMutationOp::Update | DirectMutationOp::Delete => {
+                // First value is the PK
+                match &ctx.values[0] {
+                    serde_json::Value::Number(n) => serde_json::json!(n.to_string()),
+                    v => serde_json::json!(v.to_string().trim_matches('"')),
+                }
+            },
+            DirectMutationOp::Insert => serde_json::Value::Null,
+        };
+
+        let mut result = std::collections::HashMap::new();
+        result.insert("status".into(), serde_json::json!(status));
+        result.insert("message".into(), serde_json::Value::Null);
+        result.insert("entity".into(), entity);
+        result.insert("entity_type".into(), serde_json::json!(ctx.return_type));
+        result.insert("entity_id".into(), entity_id);
+        result.insert("cascade".into(), serde_json::Value::Null);
+        result.insert("metadata".into(), serde_json::Value::Null);
+        Ok(vec![result])
     }
 
     async fn health_check(&self) -> Result<()> {
@@ -312,8 +410,7 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: pool sizes are always ≪ u32::MAX in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are always far below u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();
@@ -486,6 +583,162 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 }
 
+impl MutationCapable for SqliteAdapter {}
+
+/// Convert a SQLite row (from `RETURNING *`) into a JSON object.
+///
+/// Uses type-sniffing (i32 → i64 → f64 → String → bool → Null) to convert
+/// each column value. String values that look like JSON are parsed.
+fn sqlite_row_to_json(row: &SqliteRow) -> serde_json::Value {
+    use sqlx::{Column as _, Row as _, TypeInfo as _, ValueRef as _};
+
+    let mut obj = serde_json::Map::new();
+    for column in row.columns() {
+        let name = column.name().to_string();
+
+        // Check for NULL first — sqlx type-sniffing can coerce NULL to default values
+        let is_null = row
+            .try_get_raw(name.as_str())
+            .is_ok_and(|v| v.is_null() || v.type_info().name() == "NULL");
+
+        let value: serde_json::Value = if is_null {
+            serde_json::Value::Null
+        } else if let Ok(v) = row.try_get::<i32, _>(name.as_str()) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<i64, _>(name.as_str()) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<f64, _>(name.as_str()) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<String, _>(name.as_str()) {
+            if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&v) {
+                json_val
+            } else {
+                serde_json::json!(v)
+            }
+        } else if let Ok(v) = row.try_get::<bool, _>(name.as_str()) {
+            serde_json::json!(v)
+        } else {
+            serde_json::Value::Null
+        };
+        obj.insert(name, value);
+    }
+    serde_json::Value::Object(obj)
+}
+
+/// Build the SQL statement and ordered bind values for a direct mutation.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Unsupported` if the operation/column combination is invalid.
+fn build_direct_mutation_sql<'a>(
+    ctx: &'a DirectMutationContext<'_>,
+) -> Result<(String, Vec<&'a serde_json::Value>)> {
+    // Number of client args
+    let n_client = ctx.columns.len();
+    let n_inject = ctx.inject_columns.len();
+
+    match ctx.operation {
+        DirectMutationOp::Insert => {
+            // INSERT INTO "table" ("col1", "col2", "inject1") VALUES (?, ?, ?) RETURNING *
+            // All client + inject columns, all values in order
+            let all_columns: Vec<String> = ctx
+                .columns
+                .iter()
+                .chain(ctx.inject_columns.iter())
+                .map(|c| quote_sqlite_identifier(c))
+                .collect();
+            let placeholders: Vec<&str> = vec!["?"; n_client + n_inject];
+            let sql = format!(
+                "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
+                quote_sqlite_identifier(ctx.table),
+                all_columns.join(", "),
+                placeholders.join(", ")
+            );
+            // Bind all values in order (client args + inject args)
+            let bind_values: Vec<&serde_json::Value> =
+                ctx.values.iter().collect();
+            Ok((sql, bind_values))
+        },
+        DirectMutationOp::Update => {
+            // UPDATE "table" SET "col2" = ?, "inject1" = ? WHERE "pk_col" = ? RETURNING *
+            // First client column is PK (for WHERE), rest are SET columns
+            if ctx.columns.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "UPDATE mutation requires at least one argument (primary key)"
+                        .into(),
+                    path: None,
+                });
+            }
+            let pk_col = quote_sqlite_identifier(&ctx.columns[0]);
+
+            // SET columns: client columns after PK + inject columns
+            let set_columns: Vec<String> = ctx.columns[1..]
+                .iter()
+                .chain(ctx.inject_columns.iter())
+                .map(|c| format!("{} = ?", quote_sqlite_identifier(c)))
+                .collect();
+
+            if set_columns.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "UPDATE mutation requires at least one column to update".into(),
+                    path: None,
+                });
+            }
+
+            let sql = format!(
+                "UPDATE {} SET {} WHERE {} = ? RETURNING *",
+                quote_sqlite_identifier(ctx.table),
+                set_columns.join(", "),
+                pk_col
+            );
+
+            // Bind order: SET values (client[1..] + inject), then PK value (client[0])
+            let mut bind_values: Vec<&serde_json::Value> = Vec::with_capacity(ctx.values.len());
+            // Client args after PK (indices 1..n_client)
+            for v in &ctx.values[1..n_client] {
+                bind_values.push(v);
+            }
+            // Inject args (indices n_client..)
+            for v in &ctx.values[n_client..] {
+                bind_values.push(v);
+            }
+            // PK value last (for WHERE clause)
+            bind_values.push(&ctx.values[0]);
+            Ok((sql, bind_values))
+        },
+        DirectMutationOp::Delete => {
+            // DELETE FROM "table" WHERE "pk_col" = ? [AND "inject_col" = ?] RETURNING *
+            if ctx.columns.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "DELETE mutation requires at least one argument (primary key)"
+                        .into(),
+                    path: None,
+                });
+            }
+            let pk_col = quote_sqlite_identifier(&ctx.columns[0]);
+
+            let mut where_parts = vec![format!("{pk_col} = ?")];
+            for ic in ctx.inject_columns {
+                where_parts.push(format!("{} = ?", quote_sqlite_identifier(ic)));
+            }
+
+            let sql = format!(
+                "DELETE FROM {} WHERE {} RETURNING *",
+                quote_sqlite_identifier(ctx.table),
+                where_parts.join(" AND ")
+            );
+
+            // Bind order: PK value, then inject values
+            let mut bind_values: Vec<&serde_json::Value> = Vec::with_capacity(1 + n_inject);
+            bind_values.push(&ctx.values[0]);
+            for v in &ctx.values[n_client..] {
+                bind_values.push(v);
+            }
+            Ok((sql, bind_values))
+        },
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
@@ -646,10 +899,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_function_call_returns_unsupported_error() {
-        // Primary enforcement is at compile time: `SqliteAdapter` does not implement
-        // `MutationCapable`, so the mutation executor won't accept it as a type parameter.
-        // This test verifies the runtime fallback for the rare case where
-        // `execute_function_call` is called directly on the `DatabaseAdapter` trait object.
+        // SQLite uses DirectSql strategy, not FunctionCall. Calling execute_function_call
+        // directly still returns the default Unsupported error because SQLite doesn't
+        // override it — mutations go through execute_direct_mutation instead.
         let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         let err = adapter
@@ -665,6 +917,222 @@ mod tests {
             err.to_string().contains("fn_create_user"),
             "Error message should name the function"
         );
+    }
+
+    #[tokio::test]
+    async fn test_supports_mutations() {
+        let adapter = SqliteAdapter::in_memory().await.unwrap();
+        assert!(adapter.supports_mutations());
+        assert_eq!(adapter.mutation_strategy(), MutationStrategy::DirectSql);
+    }
+
+    // ── Direct mutation tests ────────────────────────────────────────────────
+
+    /// Create an in-memory adapter with a `users` table for mutation testing.
+    async fn setup_mutation_table() -> SqliteAdapter {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+        adapter
+            .pool
+            .execute(
+                "CREATE TABLE \"users\" (\
+                    pk_user INTEGER PRIMARY KEY AUTOINCREMENT, \
+                    name TEXT NOT NULL, \
+                    email TEXT NOT NULL UNIQUE, \
+                    tenant_id TEXT\
+                )",
+            )
+            .await
+            .expect("Failed to create users table");
+        adapter
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_insert() {
+        let adapter = setup_mutation_table().await;
+        let columns = vec!["name".to_string(), "email".to_string()];
+        let values = vec![json!("Alice"), json!("alice@example.com")];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Insert,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row["status"], json!("new"));
+        assert_eq!(row["entity_type"], json!("User"));
+        assert!(row["entity_id"].is_null());
+        let entity = &row["entity"];
+        assert_eq!(entity["name"], "Alice");
+        assert_eq!(entity["email"], "alice@example.com");
+        assert_eq!(entity["pk_user"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_insert_with_inject_params() {
+        let adapter = setup_mutation_table().await;
+        let columns = vec!["name".to_string(), "email".to_string()];
+        let inject_columns = vec!["tenant_id".to_string()];
+        let values = vec![json!("Bob"), json!("bob@example.com"), json!("tenant-42")];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Insert,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &inject_columns,
+            return_type:    "User",
+        };
+
+        let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+        let entity = &rows[0]["entity"];
+        assert_eq!(entity["tenant_id"], "tenant-42");
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_update() {
+        let adapter = setup_mutation_table().await;
+        // Seed a row
+        adapter
+            .pool
+            .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+            .await
+            .unwrap();
+
+        let columns = vec!["pk_user".to_string(), "name".to_string()];
+        let values = vec![json!(1), json!("Alice Updated")];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Update,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+        let row = &rows[0];
+        assert_eq!(row["status"], json!("updated"));
+        assert_eq!(row["entity_id"], json!("1"));
+        assert_eq!(row["entity"]["name"], "Alice Updated");
+        assert_eq!(row["entity"]["email"], "alice@example.com");
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_delete() {
+        let adapter = setup_mutation_table().await;
+        // Seed a row
+        adapter
+            .pool
+            .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+            .await
+            .unwrap();
+
+        let columns = vec!["pk_user".to_string()];
+        let values = vec![json!(1)];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Delete,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+        let row = &rows[0];
+        assert_eq!(row["status"], json!("deleted"));
+        assert_eq!(row["entity_id"], json!("1"));
+        assert_eq!(row["entity"]["name"], "Alice");
+
+        // Verify row is actually gone
+        let remaining = adapter.execute_raw_query("SELECT * FROM \"users\"").await.unwrap();
+        assert!(remaining.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_delete_nonexistent_row() {
+        let adapter = setup_mutation_table().await;
+        let columns = vec!["pk_user".to_string()];
+        let values = vec![json!(999)];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Delete,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let err = adapter
+            .execute_direct_mutation(&ctx)
+            .await
+            .expect_err("Expected error for nonexistent row");
+        assert!(matches!(err, FraiseQLError::Validation { .. }));
+        assert!(err.to_string().contains("no rows"));
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_constraint_violation() {
+        let adapter = setup_mutation_table().await;
+        adapter
+            .pool
+            .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+            .await
+            .unwrap();
+
+        // Insert duplicate email (UNIQUE constraint)
+        let columns = vec!["name".to_string(), "email".to_string()];
+        let values = vec![json!("Bob"), json!("alice@example.com")];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Insert,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let err = adapter
+            .execute_direct_mutation(&ctx)
+            .await
+            .expect_err("Expected constraint violation");
+        assert!(matches!(err, FraiseQLError::Database { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_direct_mutation_null_handling() {
+        let adapter = setup_mutation_table().await;
+        adapter
+            .pool
+            .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+            .await
+            .unwrap();
+
+        // Update tenant_id to null
+        let columns = vec!["pk_user".to_string(), "tenant_id".to_string()];
+        let values = vec![json!(1), serde_json::Value::Null];
+
+        let ctx = DirectMutationContext {
+            operation:      DirectMutationOp::Update,
+            table:          "users",
+            columns:        &columns,
+            values:         &values,
+            inject_columns: &[],
+            return_type:    "User",
+        };
+
+        let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+        assert!(rows[0]["entity"]["tenant_id"].is_null());
     }
 
     // ── WHERE operator matrix ─────────────────────────────────────────────────

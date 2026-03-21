@@ -235,7 +235,8 @@ pub use sqlite::SqliteAdapter;
 pub use sqlserver::SqlServerAdapter;
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    MutationCapable, RelayDatabaseAdapter, RelayPageResult,
+    DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
+    RelayDatabaseAdapter, RelayPageResult,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,
