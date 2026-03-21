@@ -9,12 +9,13 @@ use std::collections::HashMap;
 use fraiseql_core::federation::{
     query_builder::construct_where_in_clause, types::EntityRepresentation,
 };
+use fraiseql_db::DatabaseType;
 use serde_json::json;
 
 use super::common;
 
 // ============================================================================
-// WHERE Clause Construction
+// WHERE Clause Construction (Parameterized)
 // ============================================================================
 
 #[test]
@@ -41,8 +42,11 @@ fn test_where_clause_single_key_field() {
         all_fields: rep2_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep1, rep2], &metadata).unwrap();
-    assert_eq!(where_clause, "id IN ('123', '456')");
+    let result =
+        construct_where_in_clause("User", &[rep1, rep2], &metadata, DatabaseType::PostgreSQL)
+            .unwrap();
+    assert_eq!(result.sql, "id IN ($1, $2)");
+    assert_eq!(result.params, vec![json!("123"), json!("456")]);
 }
 
 #[test]
@@ -61,12 +65,15 @@ fn test_where_clause_composite_keys() {
         all_fields: rep1_all,
     };
 
-    let where_clause = construct_where_in_clause("Order", &[rep1], &metadata).unwrap();
-    assert_eq!(where_clause, "(user_id, order_id) IN (('user1', 'order1'))");
+    let result =
+        construct_where_in_clause("Order", &[rep1], &metadata, DatabaseType::PostgreSQL).unwrap();
+    assert_eq!(result.sql, "(user_id, order_id) IN (($1, $2))");
+    assert_eq!(result.params, vec![json!("user1"), json!("order1")]);
 }
 
 #[test]
-fn test_where_clause_string_escaping() {
+fn test_where_clause_string_escaping_not_needed() {
+    // With parameterized queries, values with special characters go in params, not SQL
     let metadata = common::metadata_single_key("User", "name");
 
     let mut rep_keys = HashMap::new();
@@ -79,8 +86,12 @@ fn test_where_clause_string_escaping() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "name IN ('O''Brien')");
+    let result =
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    assert_eq!(result.sql, "name IN ($1)");
+    assert_eq!(result.params, vec![json!("O'Brien")]);
+    // The dangerous character is in params, not in SQL text
+    assert!(!result.sql.contains('\''));
 }
 
 #[test]
@@ -97,8 +108,13 @@ fn test_where_clause_sql_injection_prevention() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "id IN ('''; DROP TABLE users; --')");
+    let result =
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    // SQL text contains only placeholders, no user values
+    assert_eq!(result.sql, "id IN ($1)");
+    assert!(!result.sql.contains("DROP"));
+    // The malicious value is safely in params
+    assert_eq!(result.params, vec![json!("'; DROP TABLE users; --")]);
 }
 
 #[test]
@@ -115,6 +131,9 @@ fn test_where_clause_type_coercion() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("Order", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "order_id IN ('789')");
+    let result =
+        construct_where_in_clause("Order", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    assert_eq!(result.sql, "order_id IN ($1)");
+    // Numeric value converted to string in params
+    assert_eq!(result.params, vec![json!("789")]);
 }

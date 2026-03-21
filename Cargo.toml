@@ -134,11 +134,10 @@ uuid = {version = "1.21", features = ["v4", "serde"]}
 # ── Global levels ────────────────────────────────────────────────────────────
 # priority = -1 lets individual lint entries below override the group level.
 all = {level = "deny", priority = -1}
-# Reason: crates.io metadata (description, keywords, categories) is missing on
-# some internal crates; this is non-blocking for a private workspace.
-cargo = {level = "warn", priority = -1}
-# Reason: internal crates don't need all crates.io metadata fields.
-cargo_common_metadata = "allow"
+# Reason: crates.io metadata is required for all publishable crates.
+cargo = {level = "deny", priority = -1}
+# Reason: all crates now have the required crates.io metadata fields.
+cargo_common_metadata = "deny"
 # Reason: negative-first guard clauses are sometimes more readable than positive-first.
 if_not_else = "allow"
 # Reason: public fallible functions should document errors — warn, not deny, because
@@ -228,6 +227,7 @@ edition = "2021"
 homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
 version = "2.1.0"

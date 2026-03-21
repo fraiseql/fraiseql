@@ -52,6 +52,20 @@ impl DatabaseType {
             Self::SQLServer => "sqlserver",
         }
     }
+
+    /// Return the SQL bind-parameter placeholder for the given 1-based index.
+    ///
+    /// - PostgreSQL: `$1`, `$2`, …
+    /// - MySQL / SQLite: `?`
+    /// - SQL Server: `@p1`, `@p2`, …
+    #[must_use]
+    pub fn placeholder(&self, index: usize) -> String {
+        match self {
+            Self::PostgreSQL => format!("${index}"),
+            Self::MySQL | Self::SQLite => "?".to_string(),
+            Self::SQLServer => format!("@p{index}"),
+        }
+    }
 }
 
 impl std::fmt::Display for DatabaseType {

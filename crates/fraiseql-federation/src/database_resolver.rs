@@ -106,8 +106,10 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Get table name from typename (already validated as safe identifier above)
         let table_name = typename.to_lowercase();
 
-        // Build WHERE IN clause for batch query
-        let where_clause = construct_where_in_clause(typename, representations, &self.metadata)?;
+        // Build parameterized WHERE IN clause for batch query
+        let db_type = self.adapter.database_type();
+        let where_result =
+            construct_where_in_clause(typename, representations, &self.metadata, db_type)?;
 
         // Build SELECT list from field selection + always include key fields
         let mut select_fields = selection.fields.clone();
@@ -124,16 +126,18 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             select_fields.push("__typename".to_string());
         }
 
-        // Execute query
+        // Execute parameterized query — user-supplied values never appear in the SQL text
         let sql = format!(
             "SELECT {} FROM {} WHERE {}",
             select_fields.join(", "),
             table_name,
-            where_clause
+            where_result.sql
         );
 
-        // Execute the query (using raw query execution)
-        let rows = self.adapter.execute_raw_query(&sql).await?;
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate(&sql, &where_result.params)
+            .await?;
 
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)

@@ -227,6 +227,7 @@ fn test_database_prepared_statements() {
 #[test]
 fn test_database_parameterized_queries() {
     use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_db::DatabaseType;
 
     let metadata = common::metadata_single_key("User", "id");
 
@@ -241,10 +242,18 @@ fn test_database_parameterized_queries() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[representation], &metadata).unwrap();
+    let result = construct_where_in_clause(
+        "User",
+        &[representation],
+        &metadata,
+        DatabaseType::PostgreSQL,
+    )
+    .unwrap();
 
-    assert!(where_clause.contains("O''Brien"));
-    assert!(where_clause.contains("id IN"));
+    // Value is in params, not in SQL text (parameterized query)
+    assert_eq!(result.sql, "id IN ($1)");
+    assert_eq!(result.params, vec![json!("O'Brien")]);
+    assert!(!result.sql.contains("O'Brien"));
 }
 
 #[test]

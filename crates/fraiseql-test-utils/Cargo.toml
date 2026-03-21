@@ -12,6 +12,7 @@ uuid = {workspace = true}
 workspace = true
 
 [package]
+description = "Test utilities, builders, and mock adapters for the FraiseQL ecosystem"
 name = "fraiseql-test-utils"
 publish = false
 authors.workspace = true
@@ -21,6 +22,7 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
