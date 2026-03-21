@@ -554,6 +554,25 @@ pub(crate) enum FederationCommands {
         #[arg(short, long, value_name = "FORMAT", default_value = "json")]
         format: String,
     },
+
+    /// Start a federation gateway
+    ///
+    /// Loads a gateway configuration file, validates subgraph schemas,
+    /// and starts an HTTP server that routes GraphQL queries across
+    /// multiple FraiseQL subgraph instances.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql federation gateway gateway.toml
+    fraiseql federation gateway gateway.toml --check")]
+    Gateway {
+        /// Path to gateway configuration TOML file
+        #[arg(value_name = "CONFIG")]
+        config: String,
+
+        /// Validate configuration only, don't start the server
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Subcommand)]

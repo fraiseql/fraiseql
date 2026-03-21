@@ -5,6 +5,8 @@ path = "src/main.rs"
 [dependencies]
 # Error handling
 anyhow = "1.0"
+# Gateway HTTP server
+axum = {workspace = true}
 # CLI framework
 clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
@@ -13,11 +15,15 @@ deadpool-postgres = {workspace = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-server = {workspace = true, optional = true}
 glob = "0.3"
+# Gateway HTTP body utilities
+http-body-util = "0.1"
 # Serialization
 indexmap = {workspace = true}
 # File watching (for serve command)
 notify = "7.0"
 regex = {workspace = true}
+# Gateway subgraph HTTP client
+reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha2 = {workspace = true}
@@ -26,9 +32,13 @@ thiserror = "2.0"
 tokio = {version = "1.42", features = ["full"]}
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
 toml = "0.8"
+# Gateway HTTP test utilities
+tower = {version = "0.5", features = ["util"]}
 # Logging
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
+# URL validation
+url = "2"
 # Multi-file schema loading
 walkdir = "2"
 

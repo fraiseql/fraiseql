@@ -144,6 +144,26 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
+            FederationCommands::Gateway { config, check } => {
+                if check {
+                    match commands::gateway::validate(&config) {
+                        Ok(result) => {
+                            println!(
+                                "{}",
+                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                            );
+                            if result.status == "validation-failed" {
+                                Err(anyhow::anyhow!("Gateway configuration validation failed"))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    commands::gateway::run(&config).await
+                }
+            },
         },
 
         Commands::GenerateViews {

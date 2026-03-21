@@ -2613,14 +2613,17 @@ name = "fraiseql-cli"
 version = "2.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "deadpool-postgres",
  "fraiseql-core",
  "fraiseql-server",
  "glob",
+ "http-body-util",
  "indexmap 2.13.0",
  "notify",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",
@@ -2630,8 +2633,10 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "toml",
+ "tower",
  "tracing",
  "tracing-subscriber",
+ "url",
  "walkdir",
 ]
 
