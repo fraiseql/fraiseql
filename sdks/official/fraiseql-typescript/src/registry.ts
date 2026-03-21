@@ -249,7 +249,15 @@ export interface Schema {
  * the expected field names.  Handles all known camelCase keys used in decorator
  * config objects and performs structural transformations for inject and deprecated.
  */
-function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Valid HTTP methods for REST annotations.
+ */
+const VALID_REST_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+
+function normaliseConfig(
+  config: Record<string, unknown>,
+  defaultRestMethod: string = "GET"
+): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
     autoParams: "auto_params",
@@ -263,8 +271,14 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
     additionalViews: "additional_views",
   };
   const result: Record<string, unknown> = {};
+  let restPath: string | undefined;
+  let restMethod: string | undefined;
   for (const [key, value] of Object.entries(config)) {
-    if (key === "inject" && value !== null && typeof value === "object") {
+    if (key === "restPath") {
+      restPath = value as string;
+    } else if (key === "restMethod") {
+      restMethod = value as string;
+    } else if (key === "inject" && value !== null && typeof value === "object") {
       // Transform { param: "jwt:claim" } → inject_params: { param: { source: "jwt", claim: "claim" } }
       const injected: Record<string, { source: string; claim: string }> = {};
       for (const [param, spec] of Object.entries(value as Record<string, string>)) {
@@ -281,6 +295,21 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
       result[keyMap[key] ?? key] = value;
     }
   }
+
+  // Handle REST annotations
+  if (restMethod !== undefined && restPath === undefined) {
+    throw new Error("restMethod requires restPath to be set");
+  }
+  if (restPath !== undefined) {
+    const method = (restMethod ?? defaultRestMethod).toUpperCase();
+    if (!VALID_REST_METHODS.has(method)) {
+      throw new Error(
+        `Invalid REST method '${method}'. Must be one of: ${[...VALID_REST_METHODS].join(", ")}`
+      );
+    }
+    result["rest"] = { path: restPath, method };
+  }
+
   return result;
 }
 
@@ -535,7 +564,7 @@ export class SchemaRegistry {
     }
 
     // Normalise camelCase config keys to snake_case for the compiler
-    const normalisedConfig = config ? normaliseConfig(config) : undefined;
+    const normalisedConfig = config ? normaliseConfig(config, "GET") : undefined;
 
     this.queries.set(name, {
       name,
@@ -576,7 +605,7 @@ export class SchemaRegistry {
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 
     // Normalise camelCase config keys to snake_case for the compiler
-    const normalisedConfig = config ? normaliseConfig(config) : undefined;
+    const normalisedConfig = config ? normaliseConfig(config, "POST") : undefined;
 
     this.mutations.set(name, {
       name,

@@ -74,6 +74,10 @@ type QueryDefinition =
         cache_ttl_seconds: int option
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint path for this query.
+        rest_path: string option
+        /// Optional HTTP method for the REST endpoint.
+        rest_method: string option
     }
 
 /// Represents a GraphQL mutation (write operation).
@@ -92,6 +96,10 @@ type MutationDefinition =
         arguments: ArgumentDefinition list
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint path for this mutation.
+        rest_path: string option
+        /// Optional HTTP method for the REST endpoint.
+        rest_method: string option
     }
 
 /// The root schema record serialized to schema.json.

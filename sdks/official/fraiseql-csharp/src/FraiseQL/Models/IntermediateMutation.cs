@@ -13,6 +13,7 @@ namespace FraiseQL.Models;
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="InjectParams">Optional inject parameters, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="Rest">Optional REST annotation, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateMutation(
     [property: JsonPropertyName("name")]           string Name,
     [property: JsonPropertyName("return_type")]    string ReturnType,
@@ -20,4 +21,5 @@ public record IntermediateMutation(
     [property: JsonPropertyName("operation")]      string Operation,
     [property: JsonPropertyName("arguments")]      IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("description")]    string? Description = null,
-    [property: JsonPropertyName("inject_params")]  Dictionary<string, Dictionary<string, string>>? InjectParams = null);
+    [property: JsonPropertyName("inject_params")]  Dictionary<string, Dictionary<string, string>>? InjectParams = null,
+    [property: JsonPropertyName("rest")]           RestAnnotation? Rest = null);

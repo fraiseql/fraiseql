@@ -150,6 +150,8 @@ module SchemaRegistry =
                         arguments = getArgs
                         cache_ttl_seconds = None
                         description = Some(sprintf "Get a single %s by primary key." typeDef.name)
+                        rest_path = None
+                        rest_method = None
                     }
 
                 lock lockObj (fun () -> queries.Add(getQuery))
@@ -165,6 +167,8 @@ module SchemaRegistry =
                         arguments = []
                         cache_ttl_seconds = None
                         description = Some(sprintf "List all %s records." typeDef.name)
+                        rest_path = None
+                        rest_method = None
                     }
 
                 lock lockObj (fun () -> queries.Add(listQuery))
@@ -184,6 +188,8 @@ module SchemaRegistry =
                         operation = "insert"
                         arguments = createArgs
                         description = Some(sprintf "Create a new %s." typeDef.name)
+                        rest_path = None
+                        rest_method = None
                     }
 
                 lock lockObj (fun () -> mutations.Add(createMut))
@@ -209,6 +215,8 @@ module SchemaRegistry =
                         operation = "update"
                         arguments = updateArgs
                         description = Some(sprintf "Update an existing %s." typeDef.name)
+                        rest_path = None
+                        rest_method = None
                     }
 
                 lock lockObj (fun () -> mutations.Add(updateMut))
@@ -228,6 +236,8 @@ module SchemaRegistry =
                         operation = "delete"
                         arguments = deleteArgs
                         description = Some(sprintf "Delete a %s by primary key." typeDef.name)
+                        rest_path = None
+                        rest_method = None
                     }
 
                 lock lockObj (fun () -> mutations.Add(deleteMut))

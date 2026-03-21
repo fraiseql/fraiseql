@@ -129,6 +129,8 @@ export interface OperationConfig {
   operation?: string;
   jsonbColumn?: string;
   relay?: boolean;
+  restPath?: string;
+  restMethod?: string;
   [key: string]: unknown;
 }
 

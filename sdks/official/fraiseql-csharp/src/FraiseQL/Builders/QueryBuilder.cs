@@ -25,6 +25,8 @@ public sealed class QueryBuilder
     private string _sqlSource = string.Empty;
     private int? _cacheTtlSeconds;
     private string? _description;
+    private string? _restPath;
+    private string? _restMethod;
     private readonly List<IntermediateArgument> _arguments = new();
 
     private QueryBuilder(string name) => _name = name;
@@ -64,6 +66,16 @@ public sealed class QueryBuilder
     /// <returns>This builder for chaining.</returns>
     public QueryBuilder Description(string desc) { _description = desc; return this; }
 
+    /// <summary>Sets the REST endpoint path for this query.</summary>
+    /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder RestPath(string path) { _restPath = path; return this; }
+
+    /// <summary>Sets the HTTP method for the REST endpoint. Defaults to GET for queries.</summary>
+    /// <param name="method">The HTTP method (GET, POST, PUT, PATCH, DELETE).</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder RestMethod(string method) { _restMethod = method; return this; }
+
     /// <summary>Adds a typed argument to this query.</summary>
     /// <param name="name">The argument name.</param>
     /// <param name="type">The GraphQL type name.</param>
@@ -91,6 +103,10 @@ public sealed class QueryBuilder
             throw new InvalidOperationException(
                 $"QueryBuilder: SqlSource must be set before Build() (query: '{_name}')");
 
+        RestAnnotation? rest = _restPath != null
+            ? new RestAnnotation(_restPath, (_restMethod ?? "GET").ToUpperInvariant())
+            : null;
+
         return new IntermediateQuery(
             Name: _name,
             ReturnType: _returnType,
@@ -99,7 +115,8 @@ public sealed class QueryBuilder
             SqlSource: _sqlSource,
             Arguments: _arguments.AsReadOnly(),
             CacheTtlSeconds: _cacheTtlSeconds,
-            Description: _description);
+            Description: _description,
+            Rest: rest);
     }
 
     /// <summary>

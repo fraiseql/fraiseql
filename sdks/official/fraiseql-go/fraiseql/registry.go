@@ -54,7 +54,14 @@ type QueryDefinition struct {
 	AdditionalViews   []string               `json:"additional_views,omitempty"`
 	RequiresRole      string                 `json:"requires_role,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
+	Rest              *RestAnnotation        `json:"rest,omitempty"`
 	Config            map[string]interface{} `json:"config,omitempty"`
+}
+
+// RestAnnotation holds REST endpoint metadata for a query or mutation.
+type RestAnnotation struct {
+	Path   string `json:"path"`
+	Method string `json:"method"`
 }
 
 // MutationDefinition represents a GraphQL mutation
@@ -71,6 +78,7 @@ type MutationDefinition struct {
 	InvalidatesViews     []string               `json:"invalidates_views,omitempty"`
 	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
 	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
+	Rest                *RestAnnotation        `json:"rest,omitempty"`
 	Config               map[string]interface{} `json:"config,omitempty"`
 }
 

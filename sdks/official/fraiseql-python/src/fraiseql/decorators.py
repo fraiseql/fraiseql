@@ -398,6 +398,39 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 ap.pop("offset", None)
                 cfg["auto_params"] = ap
 
+        # REST annotation validation — fail fast at authoring time
+        if (rest_path := cfg.get("rest_path")) is not None:
+            if not isinstance(rest_path, str) or not rest_path:
+                msg = (
+                    f"@fraiseql.query rest_path= on {f.__name__!r} must be a "
+                    f"non-empty string (got {rest_path!r})."
+                )
+                raise ValueError(msg)
+            rest_method = cfg.pop("rest_method", "GET")
+            if not isinstance(rest_method, str):
+                msg = (
+                    f"@fraiseql.query rest_method= on {f.__name__!r} must be a "
+                    f"string (got {rest_method!r})."
+                )
+                raise TypeError(msg)
+            rest_method = rest_method.upper()
+            valid_methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+            if rest_method not in valid_methods:
+                msg = (
+                    f"@fraiseql.query rest_method= on {f.__name__!r}: "
+                    f"{rest_method!r} is not valid. Allowed: {', '.join(sorted(valid_methods))}."
+                )
+                raise ValueError(msg)
+            # Replace rest_path/rest_method with a structured rest block
+            cfg.pop("rest_path")
+            cfg["rest"] = {"path": rest_path, "method": rest_method}
+        elif "rest_method" in cfg:
+            msg = (
+                f"@fraiseql.query rest_method= on {f.__name__!r} has no effect "
+                "without rest_path."
+            )
+            raise ValueError(msg)
+
         # Register query with schema registry
         # description= in cfg overrides the docstring
         description = cfg.pop("description", f.__doc__)
@@ -539,6 +572,38 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                         "letter or underscore)."
                     )
                     raise ValueError(msg)
+
+        # REST annotation validation — fail fast at authoring time
+        if (rest_path := cfg.get("rest_path")) is not None:
+            if not isinstance(rest_path, str) or not rest_path:
+                msg = (
+                    f"@fraiseql.mutation rest_path= on {f.__name__!r} must be a "
+                    f"non-empty string (got {rest_path!r})."
+                )
+                raise ValueError(msg)
+            rest_method = cfg.pop("rest_method", "POST")
+            if not isinstance(rest_method, str):
+                msg = (
+                    f"@fraiseql.mutation rest_method= on {f.__name__!r} must be a "
+                    f"string (got {rest_method!r})."
+                )
+                raise TypeError(msg)
+            rest_method = rest_method.upper()
+            valid_methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+            if rest_method not in valid_methods:
+                msg = (
+                    f"@fraiseql.mutation rest_method= on {f.__name__!r}: "
+                    f"{rest_method!r} is not valid. Allowed: {', '.join(sorted(valid_methods))}."
+                )
+                raise ValueError(msg)
+            cfg.pop("rest_path")
+            cfg["rest"] = {"path": rest_path, "method": rest_method}
+        elif "rest_method" in cfg:
+            msg = (
+                f"@fraiseql.mutation rest_method= on {f.__name__!r} has no effect "
+                "without rest_path."
+            )
+            raise ValueError(msg)
 
         # Register mutation with schema registry
         # description= in cfg overrides the docstring

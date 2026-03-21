@@ -300,6 +300,13 @@ public class SchemaFormatter {
                 queryNode.set("additional_views", viewsArray);
             }
 
+            if (queryInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", queryInfo.restPath);
+                restNode.put("method", queryInfo.restMethod != null ? queryInfo.restMethod : "GET");
+                queryNode.set("rest", restNode);
+            }
+
             queriesNode.set(queryInfo.name, queryNode);
         }
 
@@ -387,6 +394,13 @@ public class SchemaFormatter {
                     tablesArray.add(table);
                 }
                 mutationNode.set("invalidates_fact_tables", tablesArray);
+            }
+
+            if (mutationInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", mutationInfo.restPath);
+                restNode.put("method", mutationInfo.restMethod != null ? mutationInfo.restMethod : "POST");
+                mutationNode.set("rest", restNode);
             }
 
             mutationsNode.set(mutationInfo.name, mutationNode);

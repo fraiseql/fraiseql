@@ -10,6 +10,7 @@
     <Compile Include="SchemaRegistryTests.fs" />
     <Compile Include="SchemaExporterTests.fs" />
     <Compile Include="DslTests.fs" />
+    <Compile Include="RestAnnotationTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />

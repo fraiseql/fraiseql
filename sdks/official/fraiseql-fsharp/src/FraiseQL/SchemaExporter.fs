@@ -120,6 +120,21 @@ module SchemaExporter =
         | Some d -> w.WriteString("description", d)
         | None -> ()
 
+        match q.rest_path with
+        | Some path ->
+            w.WritePropertyName("rest")
+            w.WriteStartObject()
+            w.WriteString("path", path)
+
+            let method =
+                match q.rest_method with
+                | Some m -> m.ToUpperInvariant()
+                | None -> "GET"
+
+            w.WriteString("method", method)
+            w.WriteEndObject()
+        | None -> ()
+
         w.WriteEndObject()
 
     /// Writes a mutation definition to the JSON writer.
@@ -140,6 +155,21 @@ module SchemaExporter =
 
         match m.description with
         | Some d -> w.WriteString("description", d)
+        | None -> ()
+
+        match m.rest_path with
+        | Some path ->
+            w.WritePropertyName("rest")
+            w.WriteStartObject()
+            w.WriteString("path", path)
+
+            let method =
+                match m.rest_method with
+                | Some m -> m.ToUpperInvariant()
+                | None -> "POST"
+
+            w.WriteString("method", method)
+            w.WriteEndObject()
         | None -> ()
 
         w.WriteEndObject()
