@@ -124,6 +124,8 @@ wiremock = "0.6"
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
+azure-blob = []
+gcs = []
 cors = []
 database = []
 # auth is included by default because auth middleware is wired into the core request pipeline.

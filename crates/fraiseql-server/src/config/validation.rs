@@ -358,6 +358,21 @@ impl<'a> ConfigValidator<'a> {
                         });
                     }
                 },
+                "azure" => {
+                    if storage.bucket.is_none() {
+                        self.result.add_error(ConfigError::ValidationError {
+                            field:   format!("storage.{}.bucket", name),
+                            message: "Container name (bucket) is required for Azure storage"
+                                .to_string(),
+                        });
+                    }
+                    if storage.account_name.is_none() {
+                        self.result.add_error(ConfigError::ValidationError {
+                            field:   format!("storage.{}.account_name", name),
+                            message: "Account name is required for Azure storage".to_string(),
+                        });
+                    }
+                },
                 "local" => {
                     if storage.path.is_none() {
                         self.result.add_error(ConfigError::ValidationError {

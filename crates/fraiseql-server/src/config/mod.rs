@@ -369,14 +369,26 @@ pub struct LoggingConfig {}
 /// Configuration for a single object-storage backend.
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
-    /// Storage backend identifier (e.g. `"s3"`, `"gcs"`, `"local"`).
-    pub backend: String,
+    /// Storage backend identifier (e.g. `"s3"`, `"r2"`, `"gcs"`, `"azure"`, `"local"`).
+    pub backend:      String,
     /// Bucket or container name (required for cloud backends).
     #[serde(default)]
-    pub bucket:  Option<String>,
+    pub bucket:       Option<String>,
     /// Local filesystem path (used by the `"local"` backend).
     #[serde(default)]
-    pub path:    Option<String>,
+    pub path:         Option<String>,
+    /// Cloud region (e.g. `"us-east-1"` for S3, `"auto"` for R2).
+    #[serde(default)]
+    pub region:       Option<String>,
+    /// Custom endpoint URL (used for S3-compatible services like R2 or MinIO).
+    #[serde(default)]
+    pub endpoint:     Option<String>,
+    /// GCS project ID.
+    #[serde(default)]
+    pub project_id:   Option<String>,
+    /// Azure storage account name (required for `"azure"` backend).
+    #[serde(default)]
+    pub account_name: Option<String>,
 }
 
 /// Reserved: placeholder for future full-text search indexing configuration.

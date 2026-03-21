@@ -174,6 +174,9 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
+// Object storage backends (local, S3, GCS, Azure)
+pub mod storage;
+
 // Connection pool management and auto-tuning
 pub mod pool;
 
