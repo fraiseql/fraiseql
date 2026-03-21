@@ -12,6 +12,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>graphql;fsharp;schema;fraiseql;codegen</PackageTags>
     <RepositoryUrl>https://github.com/fraiseql/fraiseql</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/fraiseql/fraiseql</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Types.fs" />
@@ -23,6 +25,9 @@
     <Compile Include="MutationBuilder.fs" />
     <Compile Include="SchemaExporter.fs" />
     <Compile Include="Dsl.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\README.md')" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="8.0.5" />

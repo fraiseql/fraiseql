@@ -13,6 +13,7 @@
     <PackageTags>graphql;fraiseql;schema;codegen;compile-time</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/fraiseql/fraiseql</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/fraiseql/fraiseql</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
