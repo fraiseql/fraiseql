@@ -140,11 +140,11 @@ cargo = {level = "deny", priority = -1}
 cargo_common_metadata = "deny"
 # Reason: negative-first guard clauses are sometimes more readable than positive-first.
 if_not_else = "allow"
-# Reason: public fallible functions should document errors — warn, not deny, because
-# coverage is an ongoing effort rather than a gating requirement.
-missing_errors_doc = "warn"
-# Reason: public functions that can panic should document when — same rationale as above.
-missing_panics_doc = "warn"
+# Reason: public fallible functions must document errors. Crates with blanket coverage
+# gaps use crate-level `#![allow(clippy::missing_errors_doc)]` until fully documented.
+missing_errors_doc = "deny"
+# Reason: public functions that can panic must document when. Same override strategy as above.
+missing_panics_doc = "deny"
 # Reason: the `fraiseql-*` naming convention triggers this for every type in every crate
 # (e.g., `fraiseql_core::FraiseQLError`, `fraiseql_server::ServerConfig`).
 # Applying the rule project-wide would require renaming stable public API.
