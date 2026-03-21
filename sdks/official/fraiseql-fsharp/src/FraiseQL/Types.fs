@@ -50,6 +50,8 @@ type TypeDefinition =
         relay: bool
         /// True if this type models a mutation error response.
         is_error: bool
+        /// True if this type is scoped to a tenant for multi-tenant schemas.
+        tenant_scoped: bool
     }
 
 /// Represents a GraphQL query (read operation).
@@ -105,6 +107,25 @@ type IntermediateSchema =
         /// All GraphQL mutations defined in this schema.
         mutations: MutationDefinition list
     }
+
+/// Three-state field for update mutation inputs.
+/// Distinguishes "not provided" from "explicitly null" from "has value".
+[<RequireQualifiedAccess>]
+type UpdateField<'T> =
+    | Unset
+    | Null
+    | Value of 'T
+
+module UpdateField =
+    let isUnset = function UpdateField.Unset -> true | _ -> false
+    let isNull = function UpdateField.Null -> true | _ -> false
+    let isValue = function UpdateField.Value _ -> true | _ -> false
+    let getValue = function
+        | UpdateField.Value v -> v
+        | _ -> failwith "Cannot get value from Unset or Null UpdateField"
+    let getValueOr defaultVal = function
+        | UpdateField.Value v -> v
+        | _ -> defaultVal
 
 /// Discriminated union of all GraphQL scalar types.
 type GraphQLScalar =

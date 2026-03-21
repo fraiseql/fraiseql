@@ -46,6 +46,17 @@ public class FraiseQL {
             }
         }
         registry.registerType(typeName, typeClass);
+
+        // Auto-generate CRUD operations if crud annotation is set
+        if (typeClass.isAnnotationPresent(GraphQLType.class)) {
+            GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
+            String[] crud = annotation.crud();
+            if (crud.length > 0) {
+                var typeInfo = registry.getType(typeName);
+                typeInfo.ifPresent(info ->
+                    registry.generateCrudOperations(info.name, info.fields, crud));
+            }
+        }
     }
 
     /**

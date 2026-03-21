@@ -35,6 +35,7 @@ let private singleType =
         is_input = false
         relay = false
         is_error = false
+        tenant_scoped = false
     }
 
 let private singleQuery: QueryDefinition =

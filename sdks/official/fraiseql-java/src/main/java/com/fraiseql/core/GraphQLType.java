@@ -38,4 +38,17 @@ public @interface GraphQLType {
      * Requires pk_{entity} (BIGINT) to be present in the view's data JSONB.
      */
     boolean relay() default false;
+
+    /**
+     * Whether this type is tenant-scoped.
+     * When true, the compiler enforces tenant isolation via RLS.
+     */
+    boolean tenantScoped() default false;
+
+    /**
+     * CRUD operations to auto-generate for this type.
+     * Empty (default) = disabled. Use {"all"} for all operations,
+     * or specific ops like {"read", "create", "update", "delete"}.
+     */
+    String[] crud() default {};
 }

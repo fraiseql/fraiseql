@@ -21,6 +21,10 @@ public class SchemaRegistry {
     private final Map<String, InputTypeInfo> inputTypes;
     private final Map<String, ObserverInfo> observers;
 
+    private Map<String, String> injectDefaults = new HashMap<>();
+    private Map<String, String> injectDefaultsQueries = new HashMap<>();
+    private Map<String, String> injectDefaultsMutations = new HashMap<>();
+
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
         this.queries = new ConcurrentHashMap<>();
@@ -61,6 +65,7 @@ public class SchemaRegistry {
         String name = typeName;
         String typeDescription = "";
         boolean relay = false;
+        boolean tenantScoped = false;
         if (hasGraphQLType) {
             GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
             if (annotation.name() != null && !annotation.name().isEmpty()) {
@@ -68,6 +73,7 @@ public class SchemaRegistry {
             }
             typeDescription = annotation.description();
             relay = annotation.relay();
+            tenantScoped = annotation.tenantScoped();
         } else if (hasFactTable) {
             GraphQLFactTable ftAnnotation = typeClass.getAnnotation(GraphQLFactTable.class);
             typeDescription = ftAnnotation.description();
@@ -95,7 +101,8 @@ public class SchemaRegistry {
             relay,
             false,
             requiresRole,
-            sqlSource
+            sqlSource,
+            tenantScoped
         );
 
         types.put(name, typeInfo);
@@ -126,7 +133,8 @@ public class SchemaRegistry {
             annotation.relay(),
             true,
             null,
-            sqlSource
+            sqlSource,
+            false
         );
 
         types.put(name, typeInfo);
@@ -143,6 +151,135 @@ public class SchemaRegistry {
             sb.append(Character.toLowerCase(c));
         }
         return sb.toString();
+    }
+
+    /**
+     * Convert PascalCase to snake_case without "v_" prefix.
+     * E.g. "OrderItem" -> "order_item".
+     */
+    static String pascalToSnake(String name) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c) && i > 0) {
+                sb.append('_');
+            }
+            sb.append(Character.toLowerCase(c));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Set global inject defaults for queries and mutations.
+     *
+     * @param base defaults applied to both queries and mutations
+     * @param queryDefaults additional defaults for queries only
+     * @param mutationDefaults additional defaults for mutations only
+     */
+    public void setInjectDefaults(Map<String, String> base, Map<String, String> queryDefaults, Map<String, String> mutationDefaults) {
+        this.injectDefaults = base != null ? new HashMap<>(base) : new HashMap<>();
+        this.injectDefaultsQueries = queryDefaults != null ? new HashMap<>(queryDefaults) : new HashMap<>();
+        this.injectDefaultsMutations = mutationDefaults != null ? new HashMap<>(mutationDefaults) : new HashMap<>();
+    }
+
+    /**
+     * Get the base inject defaults.
+     */
+    public Map<String, String> getInjectDefaults() {
+        return Collections.unmodifiableMap(injectDefaults);
+    }
+
+    /**
+     * Get query-specific inject defaults.
+     */
+    public Map<String, String> getInjectDefaultsQueries() {
+        return Collections.unmodifiableMap(injectDefaultsQueries);
+    }
+
+    /**
+     * Get mutation-specific inject defaults.
+     */
+    public Map<String, String> getInjectDefaultsMutations() {
+        return Collections.unmodifiableMap(injectDefaultsMutations);
+    }
+
+    /**
+     * Generate CRUD operations for a type.
+     *
+     * @param typeName the GraphQL type name
+     * @param fields the type's fields
+     * @param crud the CRUD operations to generate (e.g. {"all"}, {"read", "create"})
+     */
+    public void generateCrudOperations(String typeName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String[] crud) {
+        Set<String> ops = new HashSet<>(Arrays.asList(crud));
+        boolean all = ops.contains("all");
+
+        String snake = pascalToSnake(typeName);
+        String view = "v_" + snake;
+
+        // First field is the PK
+        String pkField = null;
+        String pkType = null;
+        for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fields.entrySet()) {
+            pkField = entry.getKey();
+            pkType = entry.getValue().type;
+            break;
+        }
+        if (pkField == null) {
+            return;
+        }
+
+        // read -> get by ID + list
+        if (all || ops.contains("read")) {
+            Map<String, String> getArgs = new LinkedHashMap<>();
+            getArgs.put(pkField, pkType + "!");
+            registerQuery("get_" + snake, typeName, getArgs, "Get " + typeName + " by ID",
+                false, view, null, null, null);
+
+            Map<String, String> listArgs = new LinkedHashMap<>();
+            listArgs.put("limit", "Int");
+            listArgs.put("offset", "Int");
+            registerQuery("list_" + snake + "s", "[" + typeName + "]", listArgs, "List " + typeName + " records",
+                false, view, null, null, null);
+        }
+
+        // create -> INSERT mutation
+        if (all || ops.contains("create")) {
+            Map<String, String> createArgs = new LinkedHashMap<>();
+            boolean first = true;
+            for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fields.entrySet()) {
+                if (first) { first = false; continue; } // skip PK
+                TypeConverter.GraphQLFieldInfo fi = entry.getValue();
+                createArgs.put(entry.getKey(), fi.nullable ? fi.type : fi.type + "!");
+            }
+            registerMutation("create_" + snake, typeName, createArgs, "Create a new " + typeName,
+                "fn_create_" + snake, "insert", null, List.of(view), null);
+        }
+
+        // update -> UPDATE mutation (non-PK fields nullable)
+        if (all || ops.contains("update")) {
+            Map<String, String> updateArgs = new LinkedHashMap<>();
+            boolean first = true;
+            for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fields.entrySet()) {
+                TypeConverter.GraphQLFieldInfo fi = entry.getValue();
+                if (first) {
+                    updateArgs.put(entry.getKey(), fi.type + "!");
+                    first = false;
+                } else {
+                    updateArgs.put(entry.getKey(), fi.type);
+                }
+            }
+            registerMutation("update_" + snake, typeName, updateArgs, "Update an existing " + typeName,
+                "fn_update_" + snake, "update", null, List.of(view), null);
+        }
+
+        // delete -> DELETE mutation (PK only)
+        if (all || ops.contains("delete")) {
+            Map<String, String> deleteArgs = new LinkedHashMap<>();
+            deleteArgs.put(pkField, pkType + "!");
+            registerMutation("delete_" + snake, "Boolean", deleteArgs, "Delete a " + typeName,
+                "fn_delete_" + snake, "delete", null, List.of(view), null);
+        }
     }
 
     /**
@@ -460,6 +597,9 @@ public class SchemaRegistry {
         unions.clear();
         inputTypes.clear();
         observers.clear();
+        injectDefaults = new HashMap<>();
+        injectDefaultsQueries = new HashMap<>();
+        injectDefaultsMutations = new HashMap<>();
     }
 
     /**
@@ -474,17 +614,19 @@ public class SchemaRegistry {
         public final boolean isError;
         public final String requiresRole;
         public final String sqlSource;
+        public final boolean tenantScoped;
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
-            this(name, javaClass, fields, description, false, false, null, null);
+            this(name, javaClass, fields, description, false, false, null, null, false);
         }
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description, boolean relay) {
-            this(name, javaClass, fields, description, relay, false, null, null);
+            this(name, javaClass, fields, description, relay, false, null, null, false);
         }
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
-                               String description, boolean relay, boolean isError, String requiresRole, String sqlSource) {
+                               String description, boolean relay, boolean isError, String requiresRole, String sqlSource,
+                               boolean tenantScoped) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -493,6 +635,7 @@ public class SchemaRegistry {
             this.isError = isError;
             this.requiresRole = requiresRole;
             this.sqlSource = sqlSource;
+            this.tenantScoped = tenantScoped;
         }
 
         @Override

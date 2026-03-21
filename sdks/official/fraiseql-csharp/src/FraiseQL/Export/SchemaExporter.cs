@@ -28,11 +28,24 @@ public static class SchemaExporter
             .ToList()
             .AsReadOnly();
 
+        var queryDefaults = registry.GetMergedQueryDefaults();
+        var mutationDefaults = registry.GetMergedMutationDefaults();
+
+        var queries = registry.GetAllQueries()
+            .Select(q => SchemaRegistry.ApplyInjectDefaults(q, queryDefaults))
+            .ToList()
+            .AsReadOnly();
+
+        var mutations = registry.GetAllMutations()
+            .Select(m => SchemaRegistry.ApplyInjectDefaults(m, mutationDefaults))
+            .ToList()
+            .AsReadOnly();
+
         return new IntermediateSchema(
             Version: SchemaVersion,
             Types: types,
-            Queries: registry.GetAllQueries(),
-            Mutations: registry.GetAllMutations());
+            Queries: queries,
+            Mutations: mutations);
     }
 
     /// <summary>
@@ -106,6 +119,7 @@ public static class SchemaExporter
             Name: td.Name,
             SqlSource: td.SqlSource,
             Description: td.Description,
-            Fields: fields);
+            Fields: fields,
+            TenantScoped: td.TenantScoped ? true : null);
     }
 }

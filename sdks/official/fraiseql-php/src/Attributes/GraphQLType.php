@@ -31,6 +31,9 @@ final readonly class GraphQLType
      * @param bool $isInput Whether this type represents a GraphQL input type.
      * @param bool $relay Whether this type implements the Relay Node interface.
      * @param bool $isError Whether this type represents a mutation error type.
+     * @param bool $tenantScoped Whether this type is tenant-scoped (adds tenant isolation).
+     * @param array|bool $crud Auto-generate CRUD operations. true or ['all'] for all ops,
+     *                         or list of: 'read', 'create', 'update', 'delete'.
      */
     public function __construct(
         public ?string $name = null,
@@ -39,6 +42,8 @@ final readonly class GraphQLType
         public bool $isInput = false,
         public bool $relay = false,
         public bool $isError = false,
+        public bool $tenantScoped = false,
+        public array|bool $crud = false,
     ) {
     }
 }

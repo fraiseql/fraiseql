@@ -161,7 +161,8 @@ public sealed class SchemaBuilder
             .ToList()
             .AsReadOnly();
 
-        return new IntermediateType(td.Name, td.SqlSource, td.Description, fields);
+        return new IntermediateType(td.Name, td.SqlSource, td.Description, fields,
+            td.TenantScoped ? true : null);
     }
 }
 

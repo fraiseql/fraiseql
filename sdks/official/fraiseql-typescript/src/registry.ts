@@ -37,6 +37,8 @@ export interface TypeDefinition {
   is_error?: boolean;
   requires_role?: string;
   implements?: string[];
+  tenant_scoped?: boolean;
+  crud?: boolean | string[];
 }
 
 /**
@@ -283,6 +285,122 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
 }
 
 /**
+ * Convert PascalCase to snake_case.
+ *
+ * @param name - PascalCase name (e.g., "OrderItem")
+ * @returns snake_case name (e.g., "order_item")
+ */
+export function pascalToSnake(name: string): string {
+  return name
+    .replace(/([A-Z])/g, "_$1")
+    .toLowerCase()
+    .replace(/^_/, "");
+}
+
+/**
+ * Parse an inject shorthand string into a structured inject param.
+ *
+ * @param spec - Shorthand like "jwt:claim_name"
+ * @returns Structured inject param or undefined if invalid
+ */
+function parseInjectSpec(spec: string): { source: string; claim: string } | undefined {
+  const colonIdx = spec.indexOf(":");
+  if (colonIdx > 0) {
+    return { source: spec.slice(0, colonIdx), claim: spec.slice(colonIdx + 1) };
+  }
+  return undefined;
+}
+
+/**
+ * Auto-generate CRUD queries and mutations for a type following the Trinity pattern.
+ *
+ * @param typeName - PascalCase type name (e.g., "OrderItem")
+ * @param fields - Field definitions for the type
+ * @param crud - true for all operations, or array of operation names
+ */
+function generateCrudOperations(
+  typeName: string,
+  fields: Field[],
+  crud: boolean | string[]
+): void {
+  const allOps = ["read", "create", "update", "delete"];
+  const ops: string[] = crud === true ? allOps : (Array.isArray(crud) ? crud : []);
+  const snake = pascalToSnake(typeName);
+  const pk = fields[0]; // First field is the PK by convention
+
+  if (!pk) return;
+
+  if (ops.includes("read")) {
+    // Single get by ID (nullable)
+    SchemaRegistry.registerQuery(
+      snake,
+      typeName,
+      false,
+      true,
+      [{ name: pk.name, type: pk.type, nullable: false }],
+      `Get ${typeName} by ID`,
+      { sqlSource: `v_${snake}` }
+    );
+    // List query
+    SchemaRegistry.registerQuery(
+      `${snake}s`,
+      typeName,
+      true,
+      false,
+      [],
+      `List ${typeName} records`,
+      { sqlSource: `v_${snake}`, autoParams: { limit: true, offset: true, where: true, order_by: true } }
+    );
+  }
+
+  if (ops.includes("create")) {
+    const args: ArgumentDefinition[] = fields.map((f) => ({
+      name: f.name,
+      type: f.type,
+      nullable: f.nullable,
+    }));
+    SchemaRegistry.registerMutation(
+      `create_${snake}`,
+      typeName,
+      false,
+      false,
+      args,
+      `Create a new ${typeName}`,
+      { sqlSource: `fn_create_${snake}`, operation: "CREATE" }
+    );
+  }
+
+  if (ops.includes("update")) {
+    const args: ArgumentDefinition[] = fields.map((f, idx) => ({
+      name: f.name,
+      type: f.type,
+      nullable: idx === 0 ? false : true, // PK required, others nullable
+    }));
+    SchemaRegistry.registerMutation(
+      `update_${snake}`,
+      typeName,
+      false,
+      false,
+      args,
+      `Update an existing ${typeName}`,
+      { sqlSource: `fn_update_${snake}`, operation: "UPDATE" }
+    );
+  }
+
+  if (ops.includes("delete")) {
+    SchemaRegistry.registerMutation(
+      `delete_${snake}`,
+      typeName,
+      false,
+      false,
+      [{ name: pk.name, type: pk.type, nullable: false }],
+      `Delete a ${typeName}`,
+      { sqlSource: `fn_delete_${snake}`, operation: "DELETE" }
+    );
+  }
+}
+
+/**
  * Global schema registry (singleton).
  *
  * Maintains maps of all registered types, queries, mutations, and analytics definitions.
@@ -301,6 +419,26 @@ export class SchemaRegistry {
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
   private static customScalars: Map<string, { class: any; description?: string }> = new Map();
+  private static injectDefaultsBase: Map<string, string> = new Map();
+  private static injectDefaultsQueries: Map<string, string> = new Map();
+  private static injectDefaultsMutations: Map<string, string> = new Map();
+
+  /**
+   * Set inject defaults loaded from TOML config.
+   *
+   * @param base - Base defaults applied to all operations
+   * @param queries - Defaults applied only to queries
+   * @param mutations - Defaults applied only to mutations
+   */
+  static setInjectDefaults(
+    base: Map<string, string>,
+    queries: Map<string, string>,
+    mutations: Map<string, string>
+  ): void {
+    this.injectDefaultsBase = base;
+    this.injectDefaultsQueries = queries;
+    this.injectDefaultsMutations = mutations;
+  }
 
   /**
    * Register a GraphQL type.
@@ -321,6 +459,8 @@ export class SchemaRegistry {
       isError?: boolean;
       requiresRole?: string;
       implements?: string[];
+      tenantScoped?: boolean;
+      crud?: boolean | string[];
     }
   ): void {
     if (this.types.has(name)) {
@@ -335,7 +475,13 @@ export class SchemaRegistry {
     if (options?.isError) typeDef.is_error = true;
     if (options?.requiresRole) typeDef.requires_role = options.requiresRole;
     if (options?.implements) typeDef.implements = options.implements;
+    if (options?.tenantScoped) typeDef.tenant_scoped = true;
     this.types.set(name, typeDef);
+
+    // Auto-generate CRUD operations if requested
+    if (options?.crud) {
+      generateCrudOperations(name, fields, options.crud);
+    }
   }
 
   /**
@@ -680,10 +826,59 @@ export class SchemaRegistry {
    * @returns Schema object with types, queries, mutations, subscriptions, and analytics sections
    */
   static getSchema(): Schema {
+    const queries = Array.from(this.queries.values());
+    const mutations = Array.from(this.mutations.values());
+
+    // Merge inject defaults into queries
+    if (this.injectDefaultsBase.size > 0 || this.injectDefaultsQueries.size > 0) {
+      for (const query of queries) {
+        const merged: Record<string, string> = {};
+        for (const [k, v] of this.injectDefaultsBase) merged[k] = v;
+        for (const [k, v] of this.injectDefaultsQueries) merged[k] = v;
+        const existing = (query.inject_params ?? {}) as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
+        for (const [param, spec] of Object.entries(merged)) {
+          if (!(param in existing)) {
+            const parsed = parseInjectSpec(spec);
+            if (parsed) result[param] = parsed;
+          }
+        }
+        for (const [param, val] of Object.entries(existing)) {
+          result[param] = val;
+        }
+        if (Object.keys(result).length > 0) {
+          query.inject_params = result;
+        }
+      }
+    }
+
+    // Merge inject defaults into mutations
+    if (this.injectDefaultsBase.size > 0 || this.injectDefaultsMutations.size > 0) {
+      for (const mutation of mutations) {
+        const merged: Record<string, string> = {};
+        for (const [k, v] of this.injectDefaultsBase) merged[k] = v;
+        for (const [k, v] of this.injectDefaultsMutations) merged[k] = v;
+        const existing = (mutation.inject_params ?? {}) as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
+        for (const [param, spec] of Object.entries(merged)) {
+          if (!(param in existing)) {
+            const parsed = parseInjectSpec(spec);
+            if (parsed) result[param] = parsed;
+          }
+        }
+        for (const [param, val] of Object.entries(existing)) {
+          result[param] = val;
+        }
+        if (Object.keys(result).length > 0) {
+          mutation.inject_params = result;
+        }
+      }
+    }
+
     const schema: Schema = {
       types: Array.from(this.types.values()),
-      queries: Array.from(this.queries.values()),
-      mutations: Array.from(this.mutations.values()),
+      queries,
+      mutations,
       subscriptions: Array.from(this.subscriptions.values()),
     };
 
@@ -746,5 +941,8 @@ export class SchemaRegistry {
     this.aggregateQueries.clear();
     this.observers.clear();
     this.customScalars.clear();
+    this.injectDefaultsBase.clear();
+    this.injectDefaultsQueries.clear();
+    this.injectDefaultsMutations.clear();
   }
 }

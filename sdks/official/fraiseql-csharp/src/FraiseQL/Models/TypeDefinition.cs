@@ -10,7 +10,9 @@ namespace FraiseQL.Models;
 /// <param name="IsInput">Whether this is a GraphQL input type.</param>
 /// <param name="Relay">Whether this type supports Relay cursor-based pagination.</param>
 /// <param name="IsError">Whether this type is a mutation error variant.</param>
+/// <param name="TenantScoped">Whether this type is scoped to a tenant.</param>
 /// <param name="Fields">Ordered list of fields on this type.</param>
+/// <param name="Crud">Optional CRUD operations to auto-generate.</param>
 public record TypeDefinition(
     string Name,
     string SqlSource,
@@ -18,4 +20,6 @@ public record TypeDefinition(
     bool IsInput,
     bool Relay,
     bool IsError,
-    IReadOnlyList<FieldDefinition> Fields);
+    bool TenantScoped,
+    IReadOnlyList<FieldDefinition> Fields,
+    string[]? Crud = null);
