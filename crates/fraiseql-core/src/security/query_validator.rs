@@ -185,6 +185,7 @@ impl QueryValidator {
             max_depth:      self.config.max_depth,
             max_complexity: self.config.max_complexity,
             max_aliases:    self.config.max_aliases,
+            ..ComplexityConfig::default()
         });
 
         let metrics =

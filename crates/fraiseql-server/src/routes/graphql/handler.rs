@@ -380,6 +380,12 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
             },
+            crate::validation::ValidationError::TooManyVariables {
+                max_variables,
+                actual_variables,
+            } => GraphQLError::validation(format!(
+                "Request exceeds maximum variable count: {actual_variables} > {max_variables}"
+            )),
             crate::validation::ValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
             crate::validation::ValidationError::TooManyAliases {
                 max_aliases,
