@@ -108,6 +108,43 @@ jobs:
         # Ratcheting floor: # Errors doc sections in runtime/ must not regress below 35.
         # v2.2.0 target: ≥60. Add # Errors sections to new public functions as you go.
 
+  # Check semver compatibility of public API changes
+  semver-checks:
+    name: API Semver Compatibility
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+
+      - name: Check semver compatibility
+        run: |
+          cargo semver-checks check-release \
+            -p fraiseql-error \
+            -p fraiseql-db \
+            -p fraiseql-core \
+            -p fraiseql-server \
+            -p fraiseql-auth \
+            -p fraiseql-federation \
+            -p fraiseql-wire \
+            -p fraiseql-arrow \
+            -p fraiseql-observers \
+            -p fraiseql-webhooks \
+            -p fraiseql-secrets
+
   # Build and test on multiple platforms
   test:
     name: Test Suite
