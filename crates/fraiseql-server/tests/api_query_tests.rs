@@ -48,8 +48,8 @@ async fn explain_returns_complexity_for_valid_query() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["status"], "success");
     assert!(json["data"]["complexity"]["depth"].is_number());
-    assert!(json["data"]["complexity"]["field_count"].is_number());
-    assert!(json["data"]["complexity"]["score"].is_number());
+    assert!(json["data"]["complexity"]["complexity"].is_number());
+    assert!(json["data"]["complexity"]["alias_count"].is_number());
     assert!(json["data"]["estimated_cost"].as_u64().unwrap() > 0);
 }
 
@@ -159,7 +159,7 @@ async fn validate_rejects_mismatched_braces() {
     assert_eq!(json["data"]["valid"], false);
     let errors = json["data"]["errors"].as_array().unwrap();
     assert!(!errors.is_empty());
-    assert!(errors[0].as_str().unwrap().contains("Mismatched"));
+    assert!(errors[0].as_str().unwrap().contains("Expected }"));
 }
 
 #[tokio::test]

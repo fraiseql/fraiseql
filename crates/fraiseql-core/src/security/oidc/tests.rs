@@ -275,8 +275,12 @@ async fn oidc_discovery_oversized_response_is_rejected() {
         .mount(&mock)
         .await;
 
+    // Use localhost (not the raw 127.0.0.1 from mock.uri()) to pass the HTTPS
+    // validation exception for development. The test targets the size check, not HTTPS.
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
     let config = OidcConfig {
-        issuer: mock.uri(),
+        issuer:   format!("http://localhost:{port}"),
+        audience: Some("test-api".to_string()),
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;
@@ -301,8 +305,10 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
         .mount(&mock)
         .await;
 
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
     let config = OidcConfig {
-        issuer: mock.uri(),
+        issuer:   format!("http://localhost:{port}"),
+        audience: Some("test-api".to_string()),
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;
