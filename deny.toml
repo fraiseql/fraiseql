@@ -6,15 +6,11 @@ db-path = "~/.cargo/advisory-db"
 ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
-  # Unmaintained crates — all blocked on upstream updates, no action available
-  {id = "RUSTSEC-2024-0384", reason = "instant: blocked on notify 7.x (latest stable)"},
-  {id = "RUSTSEC-2024-0436", reason = "paste: blocked on upstream parquet/arrow-flight"},
+  # Unmaintained crates — blocked on upstream updates, no action available
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
-  # rustls 0.21 EOL (GHSA-6g18-jhpc-69jc): tiberius switched to native-tls; aws-sdk-s3 (optional
-  # feature only) still depends on it via aws-smithy-http-client → hyper-rustls 0.24.
-  # Not in the active build graph when aws-s3 feature is disabled.
-  {id = "RUSTSEC-2024-0336", reason = "rustls 0.21 EOL: aws-sdk-s3 optional dep; not in default build; tracked for upstream AWS SDK upgrade"},
-  {id = "RUSTSEC-2026-0002", reason = "Tracked upstream; no fix available yet"}
+  # rustls-webpki CRL DP matching — transitive via tokio-rustls 0.24/0.25 (rustls 0.21/0.22).
+  # Requires compromised CA + CRL checking enabled. Low impact for FraiseQL.
+  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki CRL DP matching: transitive via tokio-rustls; low impact, tracked for upstream bump"},
 ]
 unmaintained = "workspace"
 

@@ -3,9 +3,9 @@ name: Performance Baseline
 # Runs on every push to main/dev to establish a regression baseline.
 # Results are archived as artifacts for trend analysis over time.
 #
-# The job intentionally does NOT fail the build when thresholds are exceeded —
-# performance varies by runner hardware. Threshold failures are surfaced as
-# annotations in the job summary for human review.
+# On pushes to main/dev the job FAILS when thresholds are exceeded, preventing
+# performance regressions from landing. On labeled PRs, threshold failures are
+# advisory because runner hardware varies between CI runs.
 #
 # To run locally:
 #   docker compose -f docker/docker-compose.test.yml up -d postgres
@@ -107,7 +107,9 @@ jobs:
         uses: grafana/setup-k6-action@v1
 
       - name: Run basic load test
-        continue-on-error: true  # Threshold failures are advisory, not blocking
+        # On pushes to main/dev, threshold failures block the build to prevent regressions.
+        # On labeled PRs, failures are advisory (runner hardware varies).
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: |
           k6 run benchmarks/load/basic.js \
             --out json=results-basic.json \

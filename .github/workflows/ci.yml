@@ -1388,6 +1388,32 @@ jobs:
       - name: Run parity tests
         run: make test-parity
 
+  # Track compiled binary sizes to catch bloat regressions
+  binary-size:
+    name: Binary size check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries
+        run: cargo build --release -p fraiseql-cli -p fraiseql-server
+
+      - name: Report binary sizes
+        run: |
+          echo "## Binary Sizes" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh target/release/fraiseql target/release/fraiseql-server 2>/dev/null \
+            | awk '{print $5, $9}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Hard ceiling: warn if CLI binary exceeds 100 MB
+          CLI_SIZE=$(stat -c%s target/release/fraiseql 2>/dev/null || echo 0)
+          if [ "$CLI_SIZE" -gt 104857600 ]; then
+            echo "::warning::fraiseql CLI binary exceeds 100 MB ($CLI_SIZE bytes)"
+          fi
+
   # All checks passed
   ci-success:
     name: CI Success
@@ -1413,6 +1439,7 @@ jobs:
       - docs
       - feature-flags
       - sdk-parity
+      - binary-size
     runs-on: ubuntu-latest
     steps:
       - name: Mark CI as successful

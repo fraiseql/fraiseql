@@ -16,6 +16,7 @@
 | Check database feature compatibility | [`docs/database-compatibility.md`](database-compatibility.md) |
 | Review the threat model | [`docs/security/`](security/) |
 | Check SLA commitments | [`docs/sla.md`](sla.md) |
+| Set up MCP for AI tools | [`docs/mcp.md`](mcp.md) |
 | Understand the test strategy | [`docs/testing.md`](testing.md) |
 | Why FraiseQL exists | [`docs/value-proposition.md`](value-proposition.md) |
 
@@ -49,6 +50,7 @@ docs/
 ├── database-compatibility.md    ← Feature matrix by database backend
 ├── fuzzing.md                   ← Fuzzing setup and targets
 ├── linting.md                   ← Lint policy and rationale
+├── mcp.md                       ← MCP integration for AI tools
 ├── sla.md                       ← Service level commitments
 ├── testing.md                   ← Testing strategy overview
 └── value-proposition.md         ← Why FraiseQL exists

@@ -2,7 +2,11 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::{AtomicU64, Ordering}},
+    hash::{Hash, Hasher},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use tokio::sync::RwLock;
@@ -22,17 +26,75 @@ use super::{
     token_bucket::TokenBucket,
 };
 
+/// Number of shards used to distribute rate-limit buckets.
+///
+/// 16 shards keeps per-shard contention low at high RPS while remaining
+/// small enough that iterating all shards (e.g. during cleanup) is cheap.
+const SHARD_COUNT: usize = 16;
+
+/// Sharded hash map that distributes `TokenBucket` entries across
+/// [`SHARD_COUNT`] independent `RwLock`-protected shards, reducing
+/// lock contention under concurrent access.
+struct ShardedBuckets {
+    shards: [RwLock<HashMap<String, TokenBucket>>; SHARD_COUNT],
+}
+
+impl ShardedBuckets {
+    /// Create a new `ShardedBuckets` with empty shards.
+    fn new() -> Self {
+        Self {
+            shards: std::array::from_fn(|_| RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Determine which shard a key belongs to.
+    fn shard_index(key: &str) -> usize {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish() as usize % SHARD_COUNT
+    }
+
+    /// Get a write lock on the shard for `key`.
+    async fn shard_for(
+        &self,
+        key: &str,
+    ) -> tokio::sync::RwLockWriteGuard<'_, HashMap<String, TokenBucket>> {
+        self.shards[Self::shard_index(key)].write().await
+    }
+
+    /// Retain entries across all shards, returning the total number evicted.
+    async fn retain(&self, mut predicate: impl FnMut(&str, &TokenBucket) -> bool) -> usize {
+        let mut evicted = 0;
+        for shard in &self.shards {
+            let mut map = shard.write().await;
+            let before = map.len();
+            map.retain(|k, v| predicate(k, v));
+            evicted += before - map.len();
+        }
+        evicted
+    }
+
+    /// Total number of entries across all shards.
+    async fn len(&self) -> usize {
+        let mut total = 0;
+        for shard in &self.shards {
+            total += shard.read().await.len();
+        }
+        total
+    }
+}
+
 /// In-memory token-bucket rate limiter.
 pub struct InMemoryRateLimiter {
-    pub(super) config:          RateLimitConfig,
-    // IP -> TokenBucket (global limit)
-    pub(super) ip_buckets:      Arc<RwLock<HashMap<String, TokenBucket>>>,
-    // User ID -> TokenBucket
-    pub(super) user_buckets:    Arc<RwLock<HashMap<String, TokenBucket>>>,
-    // Per-path rules (from [security.rate_limiting] auth endpoint fields)
-    pub(super) path_rules:      Vec<PathRateLimit>,
-    // (path_prefix, ip) -> TokenBucket
-    pub(super) path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
+    pub(super) config: RateLimitConfig,
+    /// IP -> `TokenBucket` (global limit), sharded.
+    ip_buckets: Arc<ShardedBuckets>,
+    /// User ID -> `TokenBucket`, sharded.
+    user_buckets: Arc<ShardedBuckets>,
+    /// Per-path rules (from `[security.rate_limiting]` auth endpoint fields).
+    pub(super) path_rules: Vec<PathRateLimit>,
+    /// `"path_prefix:ip"` -> `TokenBucket`, sharded.
+    path_ip_buckets: Arc<ShardedBuckets>,
 }
 
 impl InMemoryRateLimiter {
@@ -40,10 +102,10 @@ impl InMemoryRateLimiter {
     pub(super) fn new(config: RateLimitConfig) -> Self {
         Self {
             config,
-            ip_buckets: Arc::new(RwLock::new(HashMap::new())),
-            user_buckets: Arc::new(RwLock::new(HashMap::new())),
+            ip_buckets: Arc::new(ShardedBuckets::new()),
+            user_buckets: Arc::new(ShardedBuckets::new()),
             path_rules: Vec::new(),
-            path_ip_buckets: Arc::new(RwLock::new(HashMap::new())),
+            path_ip_buckets: Arc::new(ShardedBuckets::new()),
         }
     }
 
@@ -86,6 +148,15 @@ impl InMemoryRateLimiter {
         self
     }
 
+    /// Build the composite shard key for path+IP buckets.
+    fn path_ip_key(path_prefix: &str, ip: &str) -> String {
+        let mut key = String::with_capacity(path_prefix.len() + 1 + ip.len());
+        key.push_str(path_prefix);
+        key.push(':');
+        key.push_str(ip);
+        key
+    }
+
     /// Check if request to `path` from `ip` is within the per-path limit.
     ///
     /// Returns an allowed [`CheckResult`] when no rule governs the path.
@@ -102,15 +173,16 @@ impl InMemoryRateLimiter {
             return CheckResult::allow(f64::from(self.config.burst_size));
         };
 
-        let key = (rule.path_prefix.clone(), ip.to_string());
+        let key = Self::path_ip_key(&rule.path_prefix, ip);
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
 
-        let mut buckets = self.path_ip_buckets.write().await;
-        let bucket = buckets.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
+        let mut shard = self.path_ip_buckets.shard_for(&key).await;
+        let bucket =
+            shard.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
         let allowed = bucket.try_consume(1.0);
         let remaining = bucket.token_count();
-        drop(buckets);
+        drop(shard);
 
         if allowed {
             CheckResult::allow(remaining)
@@ -137,14 +209,14 @@ impl InMemoryRateLimiter {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
-        let mut buckets = self.ip_buckets.write().await;
-        let bucket = buckets.entry(ip.to_string()).or_insert_with(|| {
+        let mut shard = self.ip_buckets.shard_for(ip).await;
+        let bucket = shard.entry(ip.to_string()).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_ip))
         });
 
         let allowed = bucket.try_consume(1.0);
         let remaining = bucket.token_count();
-        drop(buckets);
+        drop(shard);
 
         if allowed {
             CheckResult::allow(remaining)
@@ -167,14 +239,14 @@ impl InMemoryRateLimiter {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
-        let mut buckets = self.user_buckets.write().await;
-        let bucket = buckets.entry(user_id.to_string()).or_insert_with(|| {
+        let mut shard = self.user_buckets.shard_for(user_id).await;
+        let bucket = shard.entry(user_id.to_string()).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_user))
         });
 
         let allowed = bucket.try_consume(1.0);
         let remaining = bucket.token_count();
-        drop(buckets);
+        drop(shard);
 
         if allowed {
             CheckResult::allow(remaining)
@@ -217,30 +289,30 @@ impl InMemoryRateLimiter {
             .checked_sub(std::time::Duration::from_secs_f64(user_refill_secs))
             .unwrap_or(now);
 
-        let mut ip_buckets = self.ip_buckets.write().await;
-        let before_ip = ip_buckets.len();
-        ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        let evicted_ip = before_ip - ip_buckets.len();
-        drop(ip_buckets);
+        let evicted_ip = self
+            .ip_buckets
+            .retain(|_, b| b.last_refill >= ip_threshold)
+            .await;
 
-        let mut user_buckets = self.user_buckets.write().await;
-        let before_user = user_buckets.len();
-        user_buckets.retain(|_, b| b.last_refill >= user_threshold);
-        let evicted_user = before_user - user_buckets.len();
-        drop(user_buckets);
+        let evicted_user = self
+            .user_buckets
+            .retain(|_, b| b.last_refill >= user_threshold)
+            .await;
 
-        let mut path_buckets = self.path_ip_buckets.write().await;
-        path_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        drop(path_buckets);
+        // Reason: path buckets share the IP refill threshold since they are keyed by IP.
+        let _evicted_path = self
+            .path_ip_buckets
+            .retain(|_, b| b.last_refill >= ip_threshold)
+            .await;
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }
 
     /// Number of active rate limit keys (IP + user + path buckets).
     pub(super) async fn active_key_count(&self) -> usize {
-        let ip = self.ip_buckets.read().await.len();
-        let user = self.user_buckets.read().await.len();
-        let path = self.path_ip_buckets.read().await.len();
+        let ip = self.ip_buckets.len().await;
+        let user = self.user_buckets.len().await;
+        let path = self.path_ip_buckets.len().await;
         ip + user + path
     }
 

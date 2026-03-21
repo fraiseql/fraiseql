@@ -13,7 +13,7 @@ use crate::error::ObserverError;
 ///
 /// Returns `ObserverError::InvalidConfig` if the URL is unparseable or targets
 /// a forbidden host.
-pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
+pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
         message: format!("Invalid URL '{url}': {e}"),
     })?;
@@ -57,7 +57,7 @@ pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
 ///
 /// Returns `ObserverError::InvalidConfig` if the URL is invalid or targets a forbidden host.
 #[cfg(feature = "nats")]
-pub(crate) fn validate_nats_url(url: &str) -> crate::error::Result<()> {
+pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     if !url.starts_with("nats://") && !url.starts_with("tls://") {
         return Err(ObserverError::InvalidConfig {
             message: format!("NATS URL must use nats:// or tls:// scheme (got: {url})"),

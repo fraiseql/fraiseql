@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    FraiseQLError, FactTableMetadata, OrderByClause, PartitionByColumn, Result,
+    SelectColumn, WindowExecutionPlan, WindowFunction, WindowFunctionRequest, WindowFunctionSpec,
+    WindowFunctionType, WindowOrderBy, WindowRequest, WindowSelectColumn,
+};
 
 // =============================================================================
 // WindowPlanner - Converts high-level WindowRequest to WindowExecutionPlan
