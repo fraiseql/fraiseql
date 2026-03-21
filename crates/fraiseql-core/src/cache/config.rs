@@ -193,6 +193,21 @@ pub struct CacheConfig {
     /// Default: `None` (no total limit). Suggested value: 1 GB (1_073_741_824).
     #[serde(default)]
     pub max_total_bytes: Option<usize>,
+
+    /// Number of internal LRU shards for reduced lock contention.
+    ///
+    /// Each shard holds `max_entries / shard_count` entries and has its own mutex,
+    /// so concurrent `get()`/`put()` calls on different shards never contend.
+    ///
+    /// Must be ≥ 1. Powers of two are not required but recommended.
+    ///
+    /// Default: 64 (matches typical 16–64 core servers).
+    #[serde(default = "default_shard_count")]
+    pub shard_count: usize,
+}
+
+const fn default_shard_count() -> usize {
+    64
 }
 
 impl Default for CacheConfig {
@@ -222,6 +237,7 @@ impl Default for CacheConfig {
             rls_enforcement:    RlsEnforcement::Error,
             max_entry_bytes:    None,
             max_total_bytes:    None,
+            shard_count:        64,
         }
     }
 }
@@ -254,6 +270,7 @@ impl CacheConfig {
             rls_enforcement: RlsEnforcement::Error,
             max_entry_bytes: None,
             max_total_bytes: None,
+            shard_count: 64,
         }
     }
 
@@ -284,6 +301,7 @@ impl CacheConfig {
             rls_enforcement: RlsEnforcement::Error,
             max_entry_bytes: None,
             max_total_bytes: None,
+            shard_count: 64,
         }
     }
 
@@ -311,6 +329,7 @@ impl CacheConfig {
             rls_enforcement:    RlsEnforcement::Error,
             max_entry_bytes:    None,
             max_total_bytes:    None,
+            shard_count:        64,
         }
     }
 
@@ -337,6 +356,7 @@ impl CacheConfig {
             rls_enforcement:    RlsEnforcement::Error,
             max_entry_bytes:    None,
             max_total_bytes:    None,
+            shard_count:        64,
         }
     }
 
