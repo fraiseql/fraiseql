@@ -186,18 +186,75 @@ async fn create_backend_unknown() {
 #[cfg(not(feature = "aws-s3"))]
 #[tokio::test]
 async fn create_backend_s3_feature_not_enabled() {
-    let config = crate::config::StorageConfig {
-        backend:      "s3".to_string(),
-        bucket:       Some("bucket".to_string()),
-        path:         None,
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: None,
-    };
+    for name in &["s3", "r2", "hetzner", "scaleway", "ovh", "exoscale", "backblaze"] {
+        let config = crate::config::StorageConfig {
+            backend:      name.to_string(),
+            bucket:       Some("bucket".to_string()),
+            path:         None,
+            region:       None,
+            endpoint:     None,
+            project_id:   None,
+            account_name: None,
+        };
 
-    let result = create_backend(&config).await;
-    assert!(matches!(result, Err(FileError::Storage { .. })));
+        let result = create_backend(&config).await;
+        assert!(
+            matches!(result, Err(FileError::Storage { .. })),
+            "expected Storage error for backend '{name}' without aws-s3 feature"
+        );
+    }
+}
+
+// ── S3-compatible provider defaults ──────────────────────────────────
+
+#[test]
+fn default_endpoint_hetzner() {
+    let ep = default_s3_endpoint("hetzner", None).unwrap();
+    assert!(ep.contains("fsn1"), "default region should be fsn1");
+    assert!(ep.starts_with("https://"));
+}
+
+#[test]
+fn default_endpoint_hetzner_custom_region() {
+    let ep = default_s3_endpoint("hetzner", Some("nbg1")).unwrap();
+    assert!(ep.contains("nbg1"));
+}
+
+#[test]
+fn default_endpoint_scaleway() {
+    let ep = default_s3_endpoint("scaleway", None).unwrap();
+    assert!(ep.contains("fr-par"));
+    assert!(ep.contains("scw.cloud"));
+}
+
+#[test]
+fn default_endpoint_ovh() {
+    let ep = default_s3_endpoint("ovh", None).unwrap();
+    assert!(ep.contains("gra"));
+    assert!(ep.contains("ovh.net"));
+}
+
+#[test]
+fn default_endpoint_exoscale() {
+    let ep = default_s3_endpoint("exoscale", None).unwrap();
+    assert!(ep.contains("de-fra-1"));
+    assert!(ep.contains("exo.io"));
+}
+
+#[test]
+fn default_endpoint_backblaze() {
+    let ep = default_s3_endpoint("backblaze", None).unwrap();
+    assert!(ep.contains("backblazeb2.com"));
+}
+
+#[test]
+fn default_endpoint_plain_s3_is_none() {
+    assert!(default_s3_endpoint("s3", None).is_none());
+}
+
+#[test]
+fn default_endpoint_r2_is_none() {
+    assert!(default_s3_endpoint("r2", None).is_none());
 }
 
 #[cfg(not(feature = "gcs"))]
