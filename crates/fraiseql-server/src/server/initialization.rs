@@ -283,9 +283,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[serde(default)]
             mode:                 String,
             manifest_path:        Option<String>,
-            // Reason: serde deserialization target — `manifest_url` is a valid config field
-            // used for hot-reload path detection; this minimal struct only reads `manifest_path`.
-            #[allow(dead_code)]
+            #[allow(dead_code)] // Reason: serde deserialization target; manifest_url is a valid config field but this minimal struct only reads manifest_path
             manifest_url:         Option<String>,
             #[serde(default)]
             reload_interval_secs: u64,

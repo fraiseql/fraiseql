@@ -292,8 +292,7 @@ impl DatabaseAdapter for MySqlAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: pool sizes are always ≪ u32::MAX in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are always far below u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();

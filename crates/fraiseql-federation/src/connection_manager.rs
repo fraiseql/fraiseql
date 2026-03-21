@@ -13,16 +13,12 @@ use fraiseql_db::ArcDatabaseAdapter;
 use fraiseql_error::{FraiseQLError, Result};
 
 /// Minimum acceptable pool size (at least 1 connection is required for any work).
-#[cfg(feature = "unstable")]
 const MIN_POOL_SIZE: u32 = 1;
 /// Maximum acceptable pool size — prevents accidental pool exhaustion on the target server.
-#[cfg(feature = "unstable")]
 const MAX_POOL_SIZE: u32 = 100;
 /// Minimum acceptable connection timeout in seconds.
-#[cfg(feature = "unstable")]
 const MIN_TIMEOUT_SECS: u32 = 1;
 /// Maximum acceptable connection timeout in seconds (2 minutes).
-#[cfg(feature = "unstable")]
 const MAX_TIMEOUT_SECS: u32 = 120;
 
 /// Configuration for a remote database connection
@@ -95,7 +91,6 @@ impl RemoteDatabaseConfig {
     ///
     /// Returns `FraiseQLError::Validation` if `pool_size` or `timeout_seconds`
     /// are outside their permitted ranges.
-    #[cfg(feature = "unstable")]
     pub fn validate(&self) -> fraiseql_error::Result<()> {
         if let Some(size) = self.pool_size {
             if !(MIN_POOL_SIZE..=MAX_POOL_SIZE).contains(&size) {
@@ -271,14 +266,12 @@ mod tests {
 
     // ── Bounds validation tests ────────────────────────────────────────────────
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_accepts_valid_defaults() {
         let config = RemoteDatabaseConfig::new("postgresql://host/db");
         assert!(config.validate().is_ok(), "no explicit values — defaults are always valid");
     }
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_accepts_pool_size_at_limits() {
         let lo = RemoteDatabaseConfig::new("postgresql://host/db").with_pool_size(MIN_POOL_SIZE);
@@ -288,7 +281,6 @@ mod tests {
         assert!(hi.validate().is_ok());
     }
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_rejects_pool_size_zero() {
         let config = RemoteDatabaseConfig::new("postgresql://host/db").with_pool_size(0);
@@ -296,7 +288,6 @@ mod tests {
         assert!(err.to_string().contains("pool_size"), "error must mention pool_size: {err}");
     }
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_rejects_pool_size_too_large() {
         let config =
@@ -305,7 +296,6 @@ mod tests {
         assert!(err.to_string().contains("pool_size"), "error must mention pool_size: {err}");
     }
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_rejects_timeout_zero() {
         let config = RemoteDatabaseConfig::new("postgresql://host/db").with_timeout(0);
@@ -313,7 +303,6 @@ mod tests {
         assert!(err.to_string().contains("timeout_seconds"), "error must mention timeout: {err}");
     }
 
-    #[cfg(feature = "unstable")]
     #[test]
     fn test_validate_rejects_timeout_too_large() {
         let config =

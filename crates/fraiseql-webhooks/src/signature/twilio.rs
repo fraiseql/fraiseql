@@ -40,8 +40,7 @@ fn percent_decode(s: &str) -> String {
             let hi = (bytes[i + 1] as char).to_digit(16);
             let lo = (bytes[i + 2] as char).to_digit(16);
             if let (Some(h), Some(l)) = (hi, lo) {
-                // Reason: h and l are hex digits (0–15), so (h << 4) | l is always 0–255.
-                #[allow(clippy::cast_possible_truncation)]
+                #[allow(clippy::cast_possible_truncation)] // Reason: h and l are hex digits (0-15), so (h << 4) | l is always 0-255
                 result.push(char::from(((h << 4) | l) as u8));
                 i += 3;
                 continue;

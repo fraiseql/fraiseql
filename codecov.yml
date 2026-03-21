@@ -15,7 +15,7 @@ coverage:
 
 ignore:
   # Adapter implementations require a live database and cannot be unit-tested
-  - "crates/fraiseql-core/src/db/postgres/adapter.rs"
-  - "crates/fraiseql-core/src/db/mysql/adapter.rs"
-  - "crates/fraiseql-core/src/db/sqlserver/adapter.rs"
-  - "crates/fraiseql-core/src/db/sqlite/adapter.rs"
+  - "crates/fraiseql-db/src/postgres/"
+  - "crates/fraiseql-db/src/mysql/"
+  - "crates/fraiseql-db/src/sqlserver/"
+  - "crates/fraiseql-db/src/sqlite/"

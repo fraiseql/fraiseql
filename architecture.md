@@ -1,5 +1,7 @@
 > **Navigation**: Full documentation index at [`docs/README.md`](docs/README.md) —
 > Architecture Decision Records at [`docs/adr/`](docs/adr/)
+>
+> For the detailed architecture reference, see [docs/architecture/overview.md](docs/architecture/overview.md).
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════════════╗

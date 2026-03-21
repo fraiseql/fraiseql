@@ -1,6 +1,6 @@
 # fraiseql-dart (official)
 
-> **Status: Not yet implemented.**
+> ⚠️ **Status: Not Yet Implemented** — This SDK is a planned stub. No community Dart SDK exists yet.
 
 The official v2 Dart/Flutter SDK for FraiseQL is a planned future addition.
 

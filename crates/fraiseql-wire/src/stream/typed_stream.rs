@@ -135,8 +135,7 @@ mod tests {
             TypedJsonStream::new(Box::new(futures::stream::empty()));
 
         #[derive(serde::Deserialize, Debug)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
         }
@@ -153,8 +152,7 @@ mod tests {
         });
 
         #[derive(serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             name: String,
@@ -175,8 +173,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             name: String,
@@ -203,8 +200,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             count: i32,

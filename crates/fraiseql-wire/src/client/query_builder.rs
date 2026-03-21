@@ -700,8 +700,7 @@ mod tests {
         use serde::Deserialize;
 
         #[derive(Deserialize, Debug)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestUser {
             id: String,
             active: bool,

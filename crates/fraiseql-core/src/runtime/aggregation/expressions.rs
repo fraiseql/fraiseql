@@ -130,8 +130,7 @@ impl AggregationSqlGenerator {
                 column, function, ..
             } => {
                 // Handle statistical functions with database-specific SQL
-                #[allow(clippy::enum_glob_use)]
-                // Reason: glob import reduces noise in exhaustive match arms
+                #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
                 use AggregateFunction::*;
                 match function {
                     Stddev => Ok(self.generate_stddev_sql(column)),
@@ -165,8 +164,7 @@ impl AggregationSqlGenerator {
         delimiter: Option<&str>,
         order_by: Option<&Vec<OrderByClause>>,
     ) -> Result<String> {
-        #[allow(clippy::enum_glob_use)]
-        // Reason: glob import reduces noise in exhaustive match arms
+        #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
         use AggregateFunction::*;
 
         match function {

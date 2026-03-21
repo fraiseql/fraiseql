@@ -129,10 +129,7 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: Connection pool counts are bounded by `max_pool_size` which defaults to 50 and
-    // is configured via `fraiseql.toml` (typically ≤1000). Truncation from usize to u32 cannot
-    // occur in practice; u32::MAX (4 billion) far exceeds any realistic pool size.
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool counts bounded by max_pool_size (typically <=1000); u32::MAX far exceeds any realistic pool size
     fn pool_metrics(&self) -> PoolMetrics {
         let status = self.pool.status();
 

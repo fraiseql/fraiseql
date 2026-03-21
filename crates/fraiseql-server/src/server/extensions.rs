@@ -134,7 +134,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+        #[allow(unused_variables)] // Reason: db_pool is only used when the "observers" or "arrow" features are enabled
+        db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.

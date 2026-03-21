@@ -476,7 +476,7 @@ At runtime, placeholders are substituted when building the actual SQL.
 - `crates/fraiseql-core/src/filters/operators.rs` - ExtendedOperator enum (single source of truth)
 - `crates/fraiseql-core/src/filters/validators.rs` - ValidationRule framework
 - `crates/fraiseql-core/src/filters/default_rules.rs` - 70+ default validation rules
-- `crates/fraiseql-core/src/db/{postgres,mysql,sqlite,sqlserver}/where_generator.rs` - SQL templates
+- `crates/fraiseql-db/src/{postgres,mysql,sqlite,sqlserver}/where_generator.rs` - SQL templates
 
 **Future (to build)**:
 

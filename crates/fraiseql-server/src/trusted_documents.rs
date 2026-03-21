@@ -39,9 +39,7 @@ pub enum TrustedDocumentMode {
 /// Manifest JSON format (compatible with Relay, Apollo Client, Envelop).
 #[derive(Debug, Deserialize)]
 struct Manifest {
-    // Reason: serde deserialization target — `version` is present in the manifest JSON
-    // for forward-compatibility but is not consumed by the current lookup logic.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: serde deserialization target; version field is present in manifest JSON for forward-compatibility
     version:   u32,
     documents: HashMap<String, String>,
 }

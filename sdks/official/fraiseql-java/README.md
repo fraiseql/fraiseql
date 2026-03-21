@@ -33,14 +33,14 @@ Java Code (annotations + builders)
 <dependency>
     <groupId>com.fraiseql</groupId>
     <artifactId>fraiseql-java</artifactId>
-    <version>1.0.0</version>
+    <version>2.1.0</version>
 </dependency>
 ```
 
 Or with Gradle:
 
 ```gradle
-implementation 'com.fraiseql:fraiseql-java:1.0.0'
+implementation 'com.fraiseql:fraiseql-java:2.1.0'
 ```
 
 ## Quick Start
