@@ -3,6 +3,7 @@ namespace FraiseQL
 open System
 open System.Reflection
 open System.Collections.Concurrent
+open System.Collections.Generic
 
 /// Thread-safe global registry that accumulates <see cref="TypeDefinition"/>,
 /// <see cref="QueryDefinition"/>, and <see cref="MutationDefinition"/> values
@@ -20,13 +21,48 @@ module SchemaRegistry =
     let private mutations = System.Collections.Generic.List<MutationDefinition>()
     let private lockObj = obj ()
 
+    let private injectDefaultsBase = Dictionary<string, string>()
+    let private injectDefaultsQueries = Dictionary<string, string>()
+    let private injectDefaultsMutations = Dictionary<string, string>()
+
+    /// Sets inject defaults for base, queries, and mutations.
+    /// Keys are parameter names; values are default expressions.
+    let setInjectDefaults
+        (baseDefaults: IDictionary<string, string>)
+        (queryDefaults: IDictionary<string, string>)
+        (mutationDefaults: IDictionary<string, string>)
+        : unit =
+        lock lockObj (fun () ->
+            injectDefaultsBase.Clear()
+            injectDefaultsQueries.Clear()
+            injectDefaultsMutations.Clear()
+
+            for kv in baseDefaults do
+                injectDefaultsBase.[kv.Key] <- kv.Value
+
+            for kv in queryDefaults do
+                injectDefaultsQueries.[kv.Key] <- kv.Value
+
+            for kv in mutationDefaults do
+                injectDefaultsMutations.[kv.Key] <- kv.Value)
+
+    /// Returns the current inject defaults as (base, queries, mutations) dictionaries.
+    let getInjectDefaults () : IDictionary<string, string> * IDictionary<string, string> * IDictionary<string, string> =
+        lock lockObj (fun () ->
+            (injectDefaultsBase :> IDictionary<_, _>,
+             injectDefaultsQueries :> IDictionary<_, _>,
+             injectDefaultsMutations :> IDictionary<_, _>))
+
     /// Clears all registered types, queries, and mutations. Required between test runs.
     let reset () =
         types.Clear()
 
         lock lockObj (fun () ->
             queries.Clear()
-            mutations.Clear())
+            mutations.Clear()
+            injectDefaultsBase.Clear()
+            injectDefaultsQueries.Clear()
+            injectDefaultsMutations.Clear())
 
     /// Reflects the fields of a type that carries <see cref="GraphQLFieldAttribute"/>.
     let private reflectFields (t: Type) : FieldDefinition list =
@@ -72,6 +108,132 @@ module SchemaRegistry =
                 }))
         |> Array.toList
 
+    /// Converts a PascalCase name to snake_case.
+    let private pascalToSnake (name: string) =
+        System.Text.RegularExpressions.Regex.Replace(name, "(?<!^)([A-Z])", "_$1").ToLowerInvariant()
+
+    /// Generates CRUD queries and mutations for a registered type.
+    let private generateCrud (typeDef: TypeDefinition) (crudOps: string[]) : unit =
+        let snake = pascalToSnake typeDef.name
+        let view = "v_" + snake
+
+        let expandedOps =
+            crudOps
+            |> Array.collect (fun op ->
+                if op = "all" then [| "read"; "create"; "update"; "delete" |]
+                else [| op |])
+            |> Array.distinct
+
+        let pkFields =
+            typeDef.fields
+            |> List.filter (fun f -> f.name.StartsWith("pk_") || f.name = "id" || f.type_ = "ID")
+
+        let nonPkFields =
+            typeDef.fields
+            |> List.filter (fun f -> not (f.name.StartsWith("pk_") || f.name = "id" || f.type_ = "ID"))
+
+        for op in expandedOps do
+            match op with
+            | "read" ->
+                // get by ID query
+                let getArgs =
+                    pkFields
+                    |> List.map (fun f -> { name = f.name; type_ = f.type_; nullable = false }: ArgumentDefinition)
+
+                let getQuery: QueryDefinition =
+                    {
+                        name = sprintf "get%s" typeDef.name
+                        return_type = typeDef.name
+                        returns_list = false
+                        nullable = true
+                        sql_source = view
+                        arguments = getArgs
+                        cache_ttl_seconds = None
+                        description = Some(sprintf "Get a single %s by primary key." typeDef.name)
+                    }
+
+                lock lockObj (fun () -> queries.Add(getQuery))
+
+                // list query
+                let listQuery: QueryDefinition =
+                    {
+                        name = sprintf "list%ss" typeDef.name
+                        return_type = typeDef.name
+                        returns_list = true
+                        nullable = false
+                        sql_source = view
+                        arguments = []
+                        cache_ttl_seconds = None
+                        description = Some(sprintf "List all %s records." typeDef.name)
+                    }
+
+                lock lockObj (fun () -> queries.Add(listQuery))
+
+            | "create" ->
+                let fnName = sprintf "fn_create_%s" snake
+
+                let createArgs =
+                    nonPkFields
+                    |> List.map (fun f -> { name = f.name; type_ = f.type_; nullable = f.nullable }: ArgumentDefinition)
+
+                let createMut: MutationDefinition =
+                    {
+                        name = sprintf "create%s" typeDef.name
+                        return_type = typeDef.name
+                        sql_source = fnName
+                        operation = "insert"
+                        arguments = createArgs
+                        description = Some(sprintf "Create a new %s." typeDef.name)
+                    }
+
+                lock lockObj (fun () -> mutations.Add(createMut))
+
+            | "update" ->
+                let fnName = sprintf "fn_update_%s" snake
+
+                let pkArgs =
+                    pkFields
+                    |> List.map (fun f -> { name = f.name; type_ = f.type_; nullable = false }: ArgumentDefinition)
+
+                let nonPkArgs =
+                    nonPkFields
+                    |> List.map (fun f -> { name = f.name; type_ = f.type_; nullable = true }: ArgumentDefinition)
+
+                let updateArgs = pkArgs @ nonPkArgs
+
+                let updateMut: MutationDefinition =
+                    {
+                        name = sprintf "update%s" typeDef.name
+                        return_type = typeDef.name
+                        sql_source = fnName
+                        operation = "update"
+                        arguments = updateArgs
+                        description = Some(sprintf "Update an existing %s." typeDef.name)
+                    }
+
+                lock lockObj (fun () -> mutations.Add(updateMut))
+
+            | "delete" ->
+                let fnName = sprintf "fn_delete_%s" snake
+
+                let deleteArgs =
+                    pkFields
+                    |> List.map (fun f -> { name = f.name; type_ = f.type_; nullable = false }: ArgumentDefinition)
+
+                let deleteMut: MutationDefinition =
+                    {
+                        name = sprintf "delete%s" typeDef.name
+                        return_type = typeDef.name
+                        sql_source = fnName
+                        operation = "delete"
+                        arguments = deleteArgs
+                        description = Some(sprintf "Delete a %s by primary key." typeDef.name)
+                    }
+
+                lock lockObj (fun () -> mutations.Add(deleteMut))
+
+            | _ -> ()
+
     /// Registers a .NET type that carries <see cref="GraphQLTypeAttribute"/>.
     /// Raises <see cref="ArgumentException"/> when the attribute is missing.
     let register (t: Type) : unit =
@@ -98,9 +260,13 @@ module SchemaRegistry =
                 is_input = attr.IsInput
                 relay = attr.Relay
                 is_error = attr.IsError
+                tenant_scoped = attr.TenantScoped
             }
 
         types.[name] <- typeDef
+
+        if attr.Crud.Length > 0 then
+            generateCrud typeDef attr.Crud
 
     /// Returns the <see cref="TypeDefinition"/> registered under the given name,
     /// or <c>None</c> if no such type has been registered.

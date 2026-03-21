@@ -18,6 +18,7 @@
     <Compile Include="Attributes.fs" />
     <Compile Include="TypeMapper.fs" />
     <Compile Include="SchemaRegistry.fs" />
+    <Compile Include="Config.fs" />
     <Compile Include="QueryBuilder.fs" />
     <Compile Include="MutationBuilder.fs" />
     <Compile Include="SchemaExporter.fs" />

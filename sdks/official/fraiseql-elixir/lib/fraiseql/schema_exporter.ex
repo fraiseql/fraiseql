@@ -119,6 +119,7 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_bool("relay", t.relay)
     |> maybe_put_bool("is_input", t.is_input)
     |> maybe_put_bool("is_error", t.is_error)
+    |> maybe_put_bool("tenant_scoped", t.tenant_scoped)
   end
 
   defp field_to_map(%FraiseQL.FieldDefinition{} = f) do
@@ -147,6 +148,7 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
+    |> maybe_put("inject_params", q.inject_params)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
@@ -161,6 +163,7 @@ defmodule FraiseQL.SchemaExporter do
 
     base
     |> maybe_put("description", m.description)
+    |> maybe_put("inject_params", m.inject_params)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 

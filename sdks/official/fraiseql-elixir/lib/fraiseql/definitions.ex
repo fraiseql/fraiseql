@@ -1,3 +1,20 @@
+defmodule FraiseQL.Sentinel do
+  @moduledoc """
+  Sentinel values for FraiseQL update inputs.
+
+  Use `:unset` as the default value for optional update fields to distinguish
+  "field not provided" from "explicitly set to nil".
+  """
+
+  @doc "The UNSET sentinel atom."
+  @spec unset() :: :unset
+  def unset, do: :unset
+
+  @doc "Returns true if the value is the UNSET sentinel."
+  @spec unset?(term()) :: boolean()
+  def unset?(value), do: value == :unset
+end
+
 defmodule FraiseQL.FieldDefinition do
   @moduledoc """
   Represents a field on a FraiseQL type.
@@ -68,6 +85,9 @@ defmodule FraiseQL.TypeDefinition do
     * `:is_input` — whether this is a GraphQL input type; defaults to `false`
     * `:relay` — whether this type participates in Relay pagination; defaults to `false`
     * `:is_error` — whether this type represents a mutation error shape; defaults to `false`
+    * `:tenant_scoped` — whether this type is scoped to a tenant; defaults to `false`
+    * `:crud` — auto-generate CRUD operations; `false`, `true`, or list of strings like
+      `["read", "create", "update", "delete"]`; defaults to `false`
   """
 
   @enforce_keys [:name, :sql_source]
@@ -78,7 +98,9 @@ defmodule FraiseQL.TypeDefinition do
     fields: [],
     is_input: false,
     relay: false,
-    is_error: false
+    is_error: false,
+    tenant_scoped: false,
+    crud: false
   ]
 
   @type t :: %__MODULE__{
@@ -88,7 +110,9 @@ defmodule FraiseQL.TypeDefinition do
           fields: [FraiseQL.FieldDefinition.t()],
           is_input: boolean(),
           relay: boolean(),
-          is_error: boolean()
+          is_error: boolean(),
+          tenant_scoped: boolean(),
+          crud: boolean() | [String.t()]
         }
 end
 
@@ -106,6 +130,7 @@ defmodule FraiseQL.QueryDefinition do
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:cache_ttl_seconds` — optional cache TTL in seconds
     * `:description` — optional human-readable description
+    * `:inject_params` — optional list of `%{"name" => ..., "source" => ..., "path" => ...}` maps
   """
 
   @enforce_keys [:name, :return_type, :sql_source]
@@ -119,7 +144,8 @@ defmodule FraiseQL.QueryDefinition do
     cache_ttl_seconds: nil,
     description: nil,
     rest_path: nil,
-    rest_method: nil
+    rest_method: nil,
+    inject_params: nil
   ]
 
   @type t :: %__MODULE__{
@@ -132,7 +158,8 @@ defmodule FraiseQL.QueryDefinition do
           cache_ttl_seconds: non_neg_integer() | nil,
           description: String.t() | nil,
           rest_path: String.t() | nil,
-          rest_method: String.t() | nil
+          rest_method: String.t() | nil,
+          inject_params: [map()] | nil
         }
 end
 
@@ -148,10 +175,11 @@ defmodule FraiseQL.MutationDefinition do
     * `:operation` — the mutation operation type: `"insert"`, `"update"`, or `"delete"`
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:description` — optional human-readable description
+    * `:inject_params` — optional list of `%{"name" => ..., "source" => ..., "path" => ...}` maps
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
-  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil]
+  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil, inject_params: nil]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -161,7 +189,8 @@ defmodule FraiseQL.MutationDefinition do
           arguments: [FraiseQL.ArgumentDefinition.t()],
           description: String.t() | nil,
           rest_path: String.t() | nil,
-          rest_method: String.t() | nil
+          rest_method: String.t() | nil,
+          inject_params: [map()] | nil
         }
 end
 

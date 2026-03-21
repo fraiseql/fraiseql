@@ -35,4 +35,14 @@ public sealed class GraphQLTypeAttribute : Attribute
 
     /// <summary>Gets or sets whether this type represents a mutation error variant.</summary>
     public bool IsError { get; set; } = false;
+
+    /// <summary>Gets or sets whether this type is scoped to a tenant (multi-tenancy).</summary>
+    public bool TenantScoped { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets CRUD operations to auto-generate for this type.
+    /// Use <c>new[] { "all" }</c> for all operations, or specific ones like
+    /// <c>new[] { "read", "create", "update", "delete" }</c>.
+    /// </summary>
+    public string[]? Crud { get; set; }
 }

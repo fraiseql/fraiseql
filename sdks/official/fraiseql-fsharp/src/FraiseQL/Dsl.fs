@@ -93,6 +93,7 @@ module Dsl =
             isInput: bool
             relay: bool
             isError: bool
+            tenantScoped: bool
         }
 
     /// Computation expression builder for a <see cref="TypeDefinition"/>.
@@ -109,6 +110,7 @@ module Dsl =
                 isInput = false
                 relay = false
                 isError = false
+                tenantScoped = false
             }
 
         member this.Zero() : TypeAccState = this.Yield(())
@@ -124,6 +126,7 @@ module Dsl =
                 is_input = s.isInput
                 relay = s.relay
                 is_error = s.isError
+                tenant_scoped = s.tenantScoped
             }
 
         /// Sets the SQL view backing this type.
@@ -146,6 +149,10 @@ module Dsl =
         /// Marks this type as a mutation error response.
         [<CustomOperation("isError")>]
         member _.IsError(s: TypeAccState, v: bool) : TypeAccState = { s with isError = v }
+
+        /// Marks this type as tenant-scoped for multi-tenant schemas.
+        [<CustomOperation("tenantScoped")>]
+        member _.TenantScoped(s: TypeAccState, v: bool) : TypeAccState = { s with tenantScoped = v }
 
         /// Adds a <see cref="FieldDefinition"/> to this type.
         [<CustomOperation("field")>]

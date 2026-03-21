@@ -129,6 +129,15 @@ final class SchemaExporter
                 if ($typeAttr->isError) {
                     $typeDef['is_error'] = true;
                 }
+
+                if ($typeAttr->tenantScoped) {
+                    $typeDef['tenant_scoped'] = true;
+                }
+            }
+
+            // Also check registry-level tenant_scoped flag (for builder-registered types)
+            if (!isset($typeDef['tenant_scoped']) && $registry->isTenantScoped($typeName)) {
+                $typeDef['tenant_scoped'] = true;
             }
 
             $types[] = $typeDef;
@@ -142,9 +151,13 @@ final class SchemaExporter
      */
     private static function buildQueries(SchemaRegistry $registry): array
     {
+        $merged = array_merge($registry->getInjectDefaults(), $registry->getInjectDefaultsQueries());
+
         $queries = [];
         foreach ($registry->getAllQueries() as $builder) {
-            $queries[] = $builder->toIntermediateArray();
+            $query = $builder->toIntermediateArray();
+            $query = self::mergeInjectDefaults($query, $merged);
+            $queries[] = $query;
         }
         return $queries;
     }
@@ -154,10 +167,49 @@ final class SchemaExporter
      */
     private static function buildMutations(SchemaRegistry $registry): array
     {
+        $merged = array_merge($registry->getInjectDefaults(), $registry->getInjectDefaultsMutations());
+
         $mutations = [];
         foreach ($registry->getAllMutations() as $builder) {
-            $mutations[] = $builder->toIntermediateArray();
+            $mutation = $builder->toIntermediateArray();
+            $mutation = self::mergeInjectDefaults($mutation, $merged);
+            $mutations[] = $mutation;
         }
         return $mutations;
+    }
+
+    /**
+     * Merge inject defaults into an operation array.
+     *
+     * For each param in defaults NOT already present in the operation's inject_params,
+     * parse "jwt:claim" into {"source":"jwt","claim":"claim"} and add it.
+     *
+     * @param array<string, mixed> $operation The operation array
+     * @param array<string, string> $defaults The inject defaults to merge
+     * @return array<string, mixed> The operation with merged inject_params
+     */
+    private static function mergeInjectDefaults(array $operation, array $defaults): array
+    {
+        if (empty($defaults)) {
+            return $operation;
+        }
+
+        $existing = $operation['inject_params'] ?? [];
+
+        foreach ($defaults as $param => $source) {
+            if (isset($existing[$param])) {
+                continue;
+            }
+            if (str_starts_with($source, 'jwt:')) {
+                $claim = substr($source, 4);
+                $existing[$param] = ['source' => 'jwt', 'claim' => $claim];
+            }
+        }
+
+        if (!empty($existing)) {
+            $operation['inject_params'] = $existing;
+        }
+
+        return $operation;
     }
 }

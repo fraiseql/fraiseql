@@ -1,0 +1,16 @@
+{
+  "types": [
+    {
+      "name": "Invoice",
+      "sql_source": "v_invoice",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "amount", "type": "Float", "nullable": false },
+        { "name": "tenant_id", "type": "String", "nullable": false }
+      ],
+      "tenant_scoped": true
+    }
+  ],
+  "queries": [],
+  "mutations": []
+}

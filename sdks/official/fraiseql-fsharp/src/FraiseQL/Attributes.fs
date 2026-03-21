@@ -37,6 +37,13 @@ type GraphQLTypeAttribute() =
     /// When true, this type models a mutation error response.
     member val IsError: bool = false with get, set
 
+    /// When true, this type is scoped to a tenant for multi-tenant schemas.
+    member val TenantScoped: bool = false with get, set
+
+    /// CRUD operations to auto-generate for this type.
+    /// Accepted values: "all", "read", "create", "update", "delete".
+    member val Crud: string[] = [||] with get, set
+
 /// Marks a property on a GraphQL type as a field to include in the schema.
 /// Apply this attribute to properties on classes decorated with <see cref="GraphQLTypeAttribute"/>.
 ///

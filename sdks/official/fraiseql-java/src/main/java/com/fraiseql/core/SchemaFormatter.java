@@ -44,10 +44,10 @@ public class SchemaFormatter {
         root.set("types", formatTypes(registry.getAllTypes()));
 
         // Format queries
-        root.set("queries", formatQueries(registry.getAllQueries()));
+        root.set("queries", formatQueries(registry.getAllQueries(), registry));
 
         // Format mutations
-        root.set("mutations", formatMutations(registry.getAllMutations()));
+        root.set("mutations", formatMutations(registry.getAllMutations(), registry));
 
         return root;
     }
@@ -107,6 +107,9 @@ public class SchemaFormatter {
             }
             if (typeInfo.sqlSource != null) {
                 typeNode.put("sql_source", typeInfo.sqlSource);
+            }
+            if (typeInfo.tenantScoped) {
+                typeNode.put("tenant_scoped", true);
             }
             // Format fields
             ObjectNode fieldsNode = mapper.createObjectNode();
@@ -177,6 +180,11 @@ public class SchemaFormatter {
                 typeNode.put("sql_source", typeInfo.sqlSource);
             }
 
+            // Add tenant_scoped flag
+            if (typeInfo.tenantScoped) {
+                typeNode.put("tenant_scoped", true);
+            }
+
             // Format fields
             ObjectNode fieldsNode = mapper.createObjectNode();
             for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
@@ -214,13 +222,18 @@ public class SchemaFormatter {
     }
 
     /**
-     * Format all registered queries.
+     * Format all registered queries, merging inject defaults from the registry.
      *
      * @param queries map of query name to QueryInfo
+     * @param registry the SchemaRegistry (for inject defaults)
      * @return ObjectNode with formatted queries
      */
-    private static ObjectNode formatQueries(Map<String, SchemaRegistry.QueryInfo> queries) {
+    private static ObjectNode formatQueries(Map<String, SchemaRegistry.QueryInfo> queries, SchemaRegistry registry) {
         ObjectNode queriesNode = mapper.createObjectNode();
+
+        // Build merged query defaults: base + query-specific overrides
+        Map<String, String> mergedDefaults = new LinkedHashMap<>(registry.getInjectDefaults());
+        mergedDefaults.putAll(registry.getInjectDefaultsQueries());
 
         for (SchemaRegistry.QueryInfo queryInfo : queries.values()) {
             ObjectNode queryNode = mapper.createObjectNode();
@@ -251,8 +264,12 @@ public class SchemaFormatter {
                 queryNode.put("cache_ttl_seconds", queryInfo.cacheTtlSeconds);
             }
 
+            // Collect existing inject params
+            Set<String> existingParams = queryInfo.injectParams != null ? queryInfo.injectParams.keySet() : Collections.emptySet();
+
+            // Build combined inject_params: explicit + defaults
+            ObjectNode ipNode = mapper.createObjectNode();
             if (queryInfo.injectParams != null && !queryInfo.injectParams.isEmpty()) {
-                ObjectNode ipNode = mapper.createObjectNode();
                 for (Map.Entry<String, String> entry : queryInfo.injectParams.entrySet()) {
                     String[] parts = entry.getValue().split(":", 2);
                     ObjectNode sourceNode = mapper.createObjectNode();
@@ -260,6 +277,18 @@ public class SchemaFormatter {
                     sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
                     ipNode.set(entry.getKey(), sourceNode);
                 }
+            }
+            // Merge defaults for params not already present
+            for (Map.Entry<String, String> def : mergedDefaults.entrySet()) {
+                if (!existingParams.contains(def.getKey())) {
+                    String[] parts = def.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(def.getKey(), sourceNode);
+                }
+            }
+            if (ipNode.size() > 0) {
                 queryNode.set("inject_params", ipNode);
             }
 
@@ -278,13 +307,18 @@ public class SchemaFormatter {
     }
 
     /**
-     * Format all registered mutations.
+     * Format all registered mutations, merging inject defaults from the registry.
      *
      * @param mutations map of mutation name to MutationInfo
+     * @param registry the SchemaRegistry (for inject defaults)
      * @return ObjectNode with formatted mutations
      */
-    private static ObjectNode formatMutations(Map<String, SchemaRegistry.MutationInfo> mutations) {
+    private static ObjectNode formatMutations(Map<String, SchemaRegistry.MutationInfo> mutations, SchemaRegistry registry) {
         ObjectNode mutationsNode = mapper.createObjectNode();
+
+        // Build merged mutation defaults: base + mutation-specific overrides
+        Map<String, String> mergedDefaults = new LinkedHashMap<>(registry.getInjectDefaults());
+        mergedDefaults.putAll(registry.getInjectDefaultsMutations());
 
         for (SchemaRegistry.MutationInfo mutationInfo : mutations.values()) {
             ObjectNode mutationNode = mapper.createObjectNode();
@@ -311,8 +345,12 @@ public class SchemaFormatter {
                 mutationNode.put("operation", mutationInfo.operation);
             }
 
+            // Collect existing inject params
+            Set<String> existingParams = mutationInfo.injectParams != null ? mutationInfo.injectParams.keySet() : Collections.emptySet();
+
+            // Build combined inject_params: explicit + defaults
+            ObjectNode ipNode = mapper.createObjectNode();
             if (mutationInfo.injectParams != null && !mutationInfo.injectParams.isEmpty()) {
-                ObjectNode ipNode = mapper.createObjectNode();
                 for (Map.Entry<String, String> entry : mutationInfo.injectParams.entrySet()) {
                     String[] parts = entry.getValue().split(":", 2);
                     ObjectNode sourceNode = mapper.createObjectNode();
@@ -320,6 +358,18 @@ public class SchemaFormatter {
                     sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
                     ipNode.set(entry.getKey(), sourceNode);
                 }
+            }
+            // Merge defaults for params not already present
+            for (Map.Entry<String, String> def : mergedDefaults.entrySet()) {
+                if (!existingParams.contains(def.getKey())) {
+                    String[] parts = def.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(def.getKey(), sourceNode);
+                }
+            }
+            if (ipNode.size() > 0) {
                 mutationNode.set("inject_params", ipNode);
             }
 

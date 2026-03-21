@@ -1,0 +1,42 @@
+{
+  "types": [
+    {
+      "name": "AuditLog",
+      "sql_source": "v_audit_log",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "action", "type": "String", "nullable": false },
+        { "name": "timestamp", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "audit_log",
+      "return_type": "AuditLog",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false }
+      ],
+      "description": "Get AuditLog by ID.",
+      "sql_source": "v_audit_log"
+    },
+    {
+      "name": "audit_logs",
+      "return_type": "AuditLog",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "List AuditLog records.",
+      "sql_source": "v_audit_log",
+      "auto_params": {
+        "where": true,
+        "order_by": true,
+        "limit": true,
+        "offset": true
+      }
+    }
+  ],
+  "mutations": []
+}

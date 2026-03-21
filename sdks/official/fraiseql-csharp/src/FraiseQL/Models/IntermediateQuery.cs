@@ -14,6 +14,8 @@ namespace FraiseQL.Models;
 /// <param name="Arguments">Ordered list of query arguments (always present, empty array if none).</param>
 /// <param name="CacheTtlSeconds">Optional cache TTL in seconds, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="InjectParams">Optional inject parameters, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="AutoParams">Optional auto-parameter configuration, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
@@ -22,4 +24,6 @@ public record IntermediateQuery(
     [property: JsonPropertyName("sql_source")]        string SqlSource,
     [property: JsonPropertyName("arguments")]         IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("cache_ttl_seconds")] int? CacheTtlSeconds = null,
-    [property: JsonPropertyName("description")]       string? Description = null);
+    [property: JsonPropertyName("description")]       string? Description = null,
+    [property: JsonPropertyName("inject_params")]     Dictionary<string, Dictionary<string, string>>? InjectParams = null,
+    [property: JsonPropertyName("auto_params")]       Dictionary<string, bool>? AutoParams = null);
