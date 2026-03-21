@@ -1,6 +1,6 @@
 name: fraiseql
 description: FraiseQL v2 Dart/Flutter SDK — not yet implemented. See README.md.
-version: 0.0.0
+version: 2.1.0
 homepage: https://github.com/fraiseql/fraiseql
 
 environment:

@@ -5,5 +5,5 @@
 # Status: Not yet implemented.
 # This is a placeholder. See README.md for details.
 module FraiseQL
-  VERSION = '0.0.0'
+  VERSION = '2.1.0'
 end
