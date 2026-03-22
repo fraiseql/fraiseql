@@ -2,11 +2,15 @@
 async-trait = {workspace = true}
 fraiseql-core = {workspace = true, features = ["test-utils"]}
 serde_json = {workspace = true}
+sqlx = {workspace = true, features = ["postgres"], optional = true}
 tempfile = {workspace = true}
-tokio = {workspace = true}
+tokio = {workspace = true, features = ["rt", "macros", "sync"]}
 uuid = {workspace = true}
 
 [dev-dependencies]
+
+[features]
+postgres = ["sqlx"]
 
 [lints]
 workspace = true

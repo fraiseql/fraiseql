@@ -4,24 +4,24 @@ name = "performance_benchmarks"
 
 [dependencies]
 # Encryption
-aes-gcm = "0.10"
+aes-gcm = {workspace = true}
 # Error handling
-anyhow = "1.0"
-async-trait = "0.1"
+anyhow = {workspace = true}
+async-trait = {workspace = true}
 aws-config = {version = "1", optional = true}
 # AWS S3 (optional)
 # V3: rustls 0.21 transitive via aws-smithy-http-client; blocked on AWS upstream
 aws-sdk-s3 = {version = "1", optional = true}
 # HTTP server
 axum = {workspace = true, features = ["macros", "ws"]}
-base64 = "0.22"
+base64 = {workspace = true}
 # File processing
-bytes = "1"
+bytes = {workspace = true}
 # AEAD encryption for state protection (PKCE)
 chacha20poly1305 = "0.10"
 # Date/time handling
-chrono = {version = "0.4", features = ["serde"]}
-dashmap = "6.1"
+chrono = {workspace = true}
+dashmap = {workspace = true}
 dirs = "5"
 ed25519-dalek = {version = "2", features = ["std"]}
 fraiseql-arrow = {workspace = true, optional = true}
@@ -36,17 +36,17 @@ fraiseql-observers = {workspace = true, optional = true}
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
 fraiseql-webhooks = {workspace = true, optional = true}
-futures = "0.3"
+futures = {workspace = true}
 # GraphQL AST parsing for secure query validation
 graphql-parser = {workspace = true}
-hex = "0.4"
+hex = {workspace = true}
 # Webhook signature verification
-hmac = "0.12"
+hmac = {workspace = true}
 http = "1"
 # CIDR matching for trusted proxy IP validation
 ipnet = {version = "2", features = ["serde"]}
 # Authentication (JWT, OAuth, OIDC)
-jsonwebtoken = "9.2"
+jsonwebtoken = {workspace = true}
 # Metrics (optional)
 metrics = {version = "0.22", optional = true}
 metrics-exporter-prometheus = {version = "0.18", optional = true}
@@ -56,7 +56,7 @@ opentelemetry-otlp = {version = "0.29", features = ["http-proto"], optional = tr
 opentelemetry_sdk = {version = "0.29", features = ["rt-tokio"], optional = true}
 parking_lot = {workspace = true}
 pin-project = "1"
-rand = "0.8"
+rand = {workspace = true}
 # Redis for rate limiting (optional)
 redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 reqwest = {workspace = true}
@@ -67,48 +67,48 @@ rustls = "0.23"
 rustls-pemfile = "2.2"
 schemars = {version = "1", optional = true}
 # Serialization
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
+serde = {workspace = true}
+serde_json = {workspace = true}
 sha1 = "0.10"
-sha2 = "0.10"
+sha2 = {workspace = true}
 # Database
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
+sqlx = {workspace = true, features = ["postgres", "uuid", "chrono"]}
 # Constant-time comparison (timing attack prevention)
 subtle = "2.5"
-thiserror = "2.0"
+thiserror = {workspace = true}
 # Async runtime
-tokio = {version = "1.45", features = ["full", "signal"]}
+tokio = {workspace = true, features = ["rt", "macros", "sync", "time", "net", "fs", "signal", "io-util", "io-std"]}
 tokio-rustls = "0.25"
 # Config and paths
-toml = "0.8"
+toml = {workspace = true}
 # Arrow Flight server (optional)
 tonic = {version = "0.14", optional = true}
-tower = {version = "0.5", features = ["full"]}
+tower = {workspace = true, features = ["full"]}
 tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
 # Tracing
-tracing = "0.1"
+tracing = {workspace = true}
 tracing-opentelemetry = {version = "0.32", optional = true}
-tracing-subscriber = {version = "0.3", features = ["env-filter", "json"]}
+tracing-subscriber = {workspace = true, features = ["json"]}
 urlencoding = "2.1"
 # UUID generation
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {workspace = true}
 zeroize = "1.8"
 
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-auth = {workspace = true}
-fraiseql-test-utils = {path = "../fraiseql-test-utils"}
-futures = "0.3"
+fraiseql-test-utils = {path = "../fraiseql-test-utils", features = ["postgres"]}
+futures = {workspace = true}
 proptest = {workspace = true}
 # HTTP testing
 reqwest = {workspace = true}
 # YAML parsing for deployment tests
 serde_yaml = "0.9"
 # Database testing
-sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
+sqlx = {workspace = true, features = ["postgres"]}
 temp-env = {workspace = true}
-tempfile = "3.13"
+tempfile = {workspace = true}
 # Container-based integration tests
 testcontainers = {version = "0.26", features = ["watchdog"]}
 testcontainers-modules = {version = "0.14", features = ["postgres"]}
@@ -116,7 +116,7 @@ tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"
 # Utilities for E2E tests
-tokio-util = "0.7"
+tokio-util = {workspace = true}
 wiremock = "0.6"
 
 [features]

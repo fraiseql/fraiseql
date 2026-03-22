@@ -18,35 +18,35 @@ name = "lazy_pause_resume"
 required-features = ["bench-with-postgres"]
 
 [dependencies]
-base64 = "0.22"  # Base64 encoding/decoding
+base64 = {workspace = true}  # Base64 encoding/decoding
 # Bytes manipulation
-bytes = "1"
-futures = "0.3"
-hmac = "0.12"  # HMAC-SHA256
+bytes = {workspace = true}
+futures = {workspace = true}
+hmac = {workspace = true}  # HMAC-SHA256
 # Metrics for observability
 metrics = "0.22"  # Metrics collection framework
 pbkdf2 = "0.12"  # Key derivation for SCRAM
-rand = "0.8"  # Random nonce generation
+rand = {workspace = true}  # Random nonce generation
 # TLS support
 rustls = {version = "0.23", features = ["ring"]}
 rustls-native-certs = "0.8.3"
 rustls-pemfile = "2.2"
 rustls-pki-types = "1"
 # Serialization
-serde = {version = "1", features = ["derive"]}
-serde_json = "1"
+serde = {workspace = true}
+serde_json = {workspace = true}
 # Cryptography for SCRAM authentication
-sha2 = "0.10"  # HMAC-SHA256 for SCRAM
+sha2 = {workspace = true}  # HMAC-SHA256 for SCRAM
 socket2 = {version = "0.5", features = ["all"]}
 subtle = "2"  # Constant-time comparison for SCRAM
 # Error handling
-thiserror = "2"
+thiserror = {workspace = true}
 # Async runtime
-tokio = {version = "1", features = ["full"]}
+tokio = {workspace = true, features = ["rt", "macros", "io-util", "net", "sync", "time"]}
 tokio-rustls = "0.26"
 # Tracing
-tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
 webpki-roots = "0.26"
 # User info for default values
 whoami = "1"
@@ -58,7 +58,7 @@ criterion = {version = "0.5", features = ["async_tokio"]}
 proptest = {workspace = true}
 testcontainers = {version = "0.26", features = ["watchdog"]}
 testcontainers-modules = {version = "0.14", features = ["postgres"]}
-tokio-postgres = "0.7"
+tokio-postgres = {workspace = true}
 tokio-test = "0.4"
 
 [[example]]

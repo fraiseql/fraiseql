@@ -13,46 +13,46 @@ arrow-flight = "57"
 arrow-schema = "57"
 # Async utilities
 async-stream = "0.3"
-async-trait = "0.1"
+async-trait = {workspace = true}
 # Date/time parsing
-chrono = {version = "0.4", features = ["serde"]}
+chrono = {workspace = true}
 # ClickHouse client (optional)
 clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
-dashmap = "6.1"
+dashmap = {workspace = true}
 # FraiseQL core (for Executor and query execution)
 fraiseql-core = {workspace = true}
-futures = "0.3"
+futures = {workspace = true}
 # JWT handling (for session token creation and validation)
-jsonwebtoken = "9"
+jsonwebtoken = {workspace = true}
 parquet = "57"
 prost = "0.14"
 # Serialization
-serde = {version = "1", features = ["derive"]}
-serde_json = "1"
+serde = {workspace = true}
+serde_json = {workspace = true}
 # Error handling
-thiserror = "2"
+thiserror = {workspace = true}
 # Async runtime
-tokio = {version = "1", features = ["full"]}
+tokio = {workspace = true, features = ["rt", "macros", "sync", "time"]}
 tokio-stream = "0.1"
 # gRPC framework
 tonic = "0.14"
 # Logging
-tracing = "0.1"
+tracing = {workspace = true}
 # UUID generation (used in handshake for session tokens)
-uuid = {version = "1", features = ["v4"]}
+uuid = {workspace = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
 fraiseql-core = {workspace = true, features = ["postgres"]}
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
+sqlx = {workspace = true, features = ["postgres", "chrono", "uuid"]}
 temp-env = {workspace = true}
-tempfile = "3"
+tempfile = {workspace = true}
 tokio-stream = "0.1"
 tokio-test = "0.4"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
-uuid = {version = "1", features = ["v4"]}
+tracing-subscriber = {workspace = true}
+uuid = {workspace = true}
 
 [features]
 clickhouse = ["dep:clickhouse"]

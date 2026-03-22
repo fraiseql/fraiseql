@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Error handling
-anyhow = "1.0"
+anyhow = {workspace = true}
 # Gateway HTTP server
 axum = {workspace = true}
 # CLI framework
@@ -24,19 +24,19 @@ notify = "7.0"
 regex = {workspace = true}
 # Gateway subgraph HTTP client
 reqwest = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
+serde = {workspace = true}
+serde_json = {workspace = true}
 sha2 = {workspace = true}
-thiserror = "2.0"
+thiserror = {workspace = true}
 # Async runtime
-tokio = {version = "1.42", features = ["full"]}
+tokio = {workspace = true, features = ["rt-multi-thread", "macros", "net", "sync", "time"]}
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
-toml = "0.8"
+toml = {workspace = true}
 # Gateway HTTP test utilities
-tower = {version = "0.5", features = ["util"]}
+tower = {workspace = true, features = ["util"]}
 # Logging
-tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true, features = ["fmt", "ansi"]}
 # URL validation
 url = "2"
 # Multi-file schema loading
@@ -44,7 +44,7 @@ walkdir = "2"
 
 [dev-dependencies]
 temp-env = {workspace = true}
-tempfile = "3.25"
+tempfile = {workspace = true}
 
 [features]
 default = []
