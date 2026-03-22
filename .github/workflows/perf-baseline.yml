@@ -116,6 +116,33 @@ jobs:
             --summary-export=summary-basic.json \
             -e BASE_URL=http://localhost:8000
 
+      - name: Download baseline
+        if: github.event_name == 'pull_request'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: perf-baseline-${{ github.base_ref }}
+          path: /tmp/baseline
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Compare against baseline
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          if [ -f /tmp/baseline/summary-basic.json ]; then
+            echo "## Performance Comparison" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            python3 benchmarks/compare.py \
+              --baseline /tmp/baseline/summary-basic.json \
+              --current summary-basic.json \
+              --threshold-p99 10 \
+              --threshold-throughput 5 \
+              | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No baseline artifact found — skipping comparison (first run)." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Print summary
         if: always()
         run: |
@@ -141,6 +168,16 @@ jobs:
         if: always()
         run: |
           [ -f /tmp/fraiseql.pid ] && kill $(cat /tmp/fraiseql.pid) || true
+
+      - name: Save baseline artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline-${{ github.ref_name }}
+          path: |
+            summary-basic.json
+          retention-days: 30
+          overwrite: true
 
       - name: Archive load test results
         if: always()
