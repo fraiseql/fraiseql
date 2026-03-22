@@ -4,6 +4,7 @@
 //! Uses `tiberius` for native Rust TDS protocol support.
 
 mod adapter;
+mod helpers;
 mod where_generator;
 
 pub use adapter::SqlServerAdapter;

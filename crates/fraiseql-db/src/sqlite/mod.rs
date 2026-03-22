@@ -4,6 +4,7 @@
 //! Ideal for local development and testing.
 
 mod adapter;
+mod helpers;
 mod where_generator;
 
 pub use adapter::SqliteAdapter;

@@ -3,6 +3,7 @@
 //! Provides connection pooling and query execution for MySQL.
 
 mod adapter;
+mod helpers;
 mod where_generator;
 
 pub use adapter::MySqlAdapter;
