@@ -200,6 +200,15 @@ jobs:
             cargo test --doc --all-features --verbose
           fi
 
+      - name: Check documentation warnings
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            RUSTDOCFLAGS="-D warnings" cargo doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --no-deps
+          else
+            RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps
+          fi
+
   # Integration tests with PostgreSQL
   integration-postgres:
     name: Integration Tests (PostgreSQL)

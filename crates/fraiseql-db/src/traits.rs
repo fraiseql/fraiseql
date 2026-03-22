@@ -103,7 +103,10 @@ pub struct DirectMutationContext<'a> {
 /// To add support for a new database (e.g., Oracle, Snowflake):
 ///
 /// 1. **Create a new module** in `src/db/your_database/`
-/// 2. **Implement the trait**: ```rust,ignore pub struct YourDatabaseAdapter { /* fields */ }
+/// 2. **Implement the trait**:
+///
+///    ```rust,ignore
+///    pub struct YourDatabaseAdapter { /* fields */ }
 ///
 ///    #[async_trait]
 ///    impl DatabaseAdapter for YourDatabaseAdapter {
