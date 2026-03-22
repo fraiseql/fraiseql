@@ -13,6 +13,7 @@ jobs:
   criterion-benchmarks:
     name: Criterion Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +33,7 @@ jobs:
 
       - name: Upload baseline artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: criterion-baseline-dev
           path: target/criterion/
@@ -41,7 +42,7 @@ jobs:
       # On PRs: compare against dev baseline
       - name: Download dev baseline
         if: github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: criterion-baseline-dev
           path: target/criterion/

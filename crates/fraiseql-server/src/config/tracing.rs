@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 /// Distributed-tracing and structured-logging configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TracingConfig {
     /// Whether tracing/logging is active.  Default: `true`.
     #[serde(default = "default_enabled")]

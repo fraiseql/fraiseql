@@ -11,7 +11,7 @@ use crate::error::{ErrorCode, GraphQLError};
 /// Configuration for error sanitization (mirrors `ErrorSanitizationConfig` from
 /// `fraiseql-cli`, deserialized from `compiled.security.error_sanitization`).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization (default: false — opt-in for backwards compat).
     pub enabled:                     bool,

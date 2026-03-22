@@ -23,6 +23,7 @@ jobs:
   load-test:
     name: Load test (k6)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # Only run if this is a push or a PR with the "perf" label
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'perf')
 
@@ -171,7 +172,7 @@ jobs:
 
       - name: Save baseline artifact
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perf-baseline-${{ github.ref_name }}
           path: |
@@ -181,7 +182,7 @@ jobs:
 
       - name: Archive load test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perf-results-${{ github.sha }}
           path: |

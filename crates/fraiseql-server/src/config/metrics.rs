@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 /// Prometheus metrics endpoint and SLO tracking configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MetricsConfig {
     /// Whether to expose the metrics endpoint.  Default: `true`.
     #[serde(default = "default_enabled")]
@@ -46,6 +47,7 @@ fn default_format() -> String {
 
 /// Service Level Objective (SLO) targets for latency, availability, and error rate.
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct SloConfig {
     /// Target latency percentiles to track
     #[serde(default = "default_latency_percentiles")]
@@ -76,6 +78,7 @@ const fn default_error_rate_target() -> f64 {
 
 /// SLO latency targets in milliseconds (p99) per operation type.
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct LatencyTargets {
     /// GraphQL query p99 latency target in milliseconds.  Default: `100`.
     #[serde(default = "default_graphql_latency")]

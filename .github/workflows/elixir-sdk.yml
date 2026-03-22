@@ -14,6 +14,7 @@ jobs:
   test:
     name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdks/official/fraiseql-elixir
@@ -28,7 +29,7 @@ jobs:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
       - name: Restore deps cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             sdks/official/fraiseql-elixir/deps
@@ -41,6 +42,7 @@ jobs:
   dialyzer:
     name: Dialyzer
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdks/official/fraiseql-elixir
@@ -51,7 +53,7 @@ jobs:
           elixir-version: '1.17'
           otp-version: '27'
       - name: Restore PLT cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: sdks/official/fraiseql-elixir/priv/plts
           key: ${{ runner.os }}-dialyzer-1.17-27-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
@@ -61,6 +63,7 @@ jobs:
   publish:
     name: Publish to Hex.pm
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     needs: [test, dialyzer]
     if: startsWith(github.ref, 'refs/tags/elixir-sdk/v')
     defaults:

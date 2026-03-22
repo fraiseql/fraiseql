@@ -26,6 +26,7 @@ jobs:
   mutants-core:
     name: cargo-mutants (fraiseql-core)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +46,7 @@ jobs:
             --file src/security/query_validator.rs \
             --timeout 60 \
             --output mutants-report-core/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mutants-report-core
@@ -56,6 +57,7 @@ jobs:
   mutants-auth:
     name: cargo-mutants (fraiseql-auth)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +74,7 @@ jobs:
             --file src/jwks.rs \
             --timeout 60 \
             --output mutants-report-auth/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mutants-report-auth
@@ -83,6 +85,7 @@ jobs:
   mutants-db:
     name: cargo-mutants (fraiseql-db)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +101,7 @@ jobs:
             --file src/where_sql_generator.rs \
             --timeout 60 \
             --output mutants-report-db/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mutants-report-db
@@ -109,6 +112,7 @@ jobs:
   mutants-federation:
     name: cargo-mutants (fraiseql-federation)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +128,7 @@ jobs:
             --file src/http_resolver.rs \
             --timeout 60 \
             --output mutants-report-federation/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mutants-report-federation

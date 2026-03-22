@@ -33,6 +33,7 @@ pub use tracing::TracingConfig;
 
 /// Root configuration structure loaded from `fraiseql.toml`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeConfig {
     /// HTTP server binding, TLS, and connection-limit settings.
     pub server:   HttpServerConfig,
@@ -114,6 +115,7 @@ pub struct RuntimeConfig {
 
 /// HTTP server binding configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HttpServerConfig {
     /// TCP port to listen on.  Default: `4000`.
     #[serde(default = "default_port")]
@@ -145,6 +147,7 @@ fn default_host() -> String {
 
 /// TLS certificate and private key paths for HTTPS listeners.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TlsConfig {
     /// Path to the PEM-encoded TLS certificate (or certificate chain).
     pub cert_file: PathBuf,
@@ -154,6 +157,7 @@ pub struct TlsConfig {
 
 /// Per-request body size and concurrency limits for the HTTP server.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerLimitsConfig {
     /// Maximum allowed request body size as a human-readable string (e.g. `"10MB"`).  Default:
     /// `"10MB"`.
@@ -188,6 +192,7 @@ const fn default_max_queue_depth() -> usize {
 
 /// Primary database connection and connection-pool configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DatabaseConfig {
     /// Name of the environment variable that holds the database connection URL.
     pub url_env: String,
@@ -219,6 +224,7 @@ const fn default_pool_size() -> u32 {
 
 /// Connection configuration for a single read replica.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReplicaConfig {
     /// Name of the environment variable that holds this replica's connection URL.
     pub url_env: String,
@@ -234,6 +240,7 @@ const fn default_weight() -> u32 {
 
 /// Lifecycle configuration for graceful shutdown
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LifecycleConfig {
     /// Time to wait for in-flight requests to complete
     #[serde(default = "default_shutdown_timeout")]
@@ -278,6 +285,7 @@ fn default_ready_path() -> String {
 
 /// Configuration for a single incoming webhook route.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
     pub secret_env: String,
@@ -290,6 +298,7 @@ pub struct WebhookRouteConfig {
 
 /// Configuration for a file-upload route.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileConfig {
     /// Named storage backend (must match a key in `storage`).
     pub storage:  String,
@@ -302,6 +311,7 @@ pub struct FileConfig {
 
 /// JWT authentication and OAuth provider configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthConfig {
     /// JWT signing secret configuration.
     pub jwt:               JwtConfig,
@@ -315,6 +325,7 @@ pub struct AuthConfig {
 
 /// JWT signing-secret configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct JwtConfig {
     /// Name of the environment variable that holds the JWT signing secret.
     pub secret_env: String,
@@ -322,6 +333,7 @@ pub struct JwtConfig {
 
 /// Configuration for a single OAuth2/OIDC provider.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OAuthProviderConfig {
     /// Well-known provider type identifier (e.g. `"auth0"`, `"github"`, `"google"`).
     pub provider_type:     String,
@@ -336,10 +348,12 @@ pub struct OAuthProviderConfig {
 
 /// Reserved: placeholder for future notification system configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NotificationsConfig {}
 
 /// Configuration for a single event observer (entity-event → action).
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ObserverConfig {
     /// GraphQL entity type name to watch (e.g. `"User"`).
     pub entity:  String,
@@ -351,6 +365,7 @@ pub struct ObserverConfig {
 
 /// A single action within an observer pipeline.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActionConfig {
     /// Action type identifier (e.g. `"webhook"`, `"email"`, `"queue"`).
     #[serde(rename = "type")]
@@ -364,10 +379,12 @@ pub struct ActionConfig {
 
 /// Reserved: placeholder for future structured-logging configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoggingConfig {}
 
 /// Configuration for a single object-storage backend.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StorageConfig {
     /// Storage backend identifier (e.g. `"s3"`, `"r2"`, `"gcs"`, `"azure"`, `"local"`).
     pub backend:      String,
@@ -393,20 +410,25 @@ pub struct StorageConfig {
 
 /// Reserved: placeholder for future full-text search indexing configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SearchConfig {}
 
 /// Reserved: placeholder for future advanced query-result caching configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CacheConfig {}
 
 /// Reserved: placeholder for future background job-queue configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QueueConfig {}
 
 /// Reserved: placeholder for future real-time subscription update configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RealtimeConfig {}
 
 /// Reserved: placeholder for future custom HTTP endpoint configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CustomEndpointsConfig {}

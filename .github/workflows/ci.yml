@@ -22,6 +22,7 @@ jobs:
   fmt:
     name: Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +38,7 @@ jobs:
   check-test-imports:
     name: Check Test Imports
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +49,7 @@ jobs:
   clippy:
     name: Clippy Lints
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -107,6 +110,7 @@ jobs:
   semver-checks:
     name: API Semver Compatibility
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [fmt]
     if: github.event_name == 'pull_request'
     steps:
@@ -144,6 +148,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -213,6 +218,7 @@ jobs:
   integration-postgres:
     name: Integration Tests (PostgreSQL)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -280,6 +286,7 @@ jobs:
   integration-mysql:
     name: Integration Tests (MySQL)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       mysql:
@@ -331,6 +338,7 @@ jobs:
   integration-sqlite:
     name: Integration Tests (SQLite)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -361,6 +369,7 @@ jobs:
   integration-sqlserver:
     name: Integration Tests (SQL Server)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       sqlserver:
@@ -408,6 +417,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -555,7 +565,7 @@ jobs:
 
       - name: Archive coverage data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-${{ github.sha }}
           path: |
@@ -567,6 +577,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -587,6 +598,7 @@ jobs:
   dependency-audit:
     name: Dependency Duplication Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -629,6 +641,7 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -661,6 +674,7 @@ jobs:
   integration-cross-db:
     name: Integration Tests (Cross-DB Parity)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -725,6 +739,7 @@ jobs:
   integration-redis:
     name: Integration Tests (Redis)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       redis:
@@ -788,6 +803,7 @@ jobs:
   integration-nats:
     name: Integration Tests (NATS)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -840,6 +856,7 @@ jobs:
   integration-observers:
     name: Integration Tests (Observers)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -926,6 +943,7 @@ jobs:
   integration-tls:
     name: Integration Tests (TLS Wire Protocol)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -999,6 +1017,7 @@ jobs:
   integration-vault:
     name: Integration Tests (Vault Secrets Manager)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -1057,6 +1076,7 @@ jobs:
   integration-server:
     name: Integration Tests (Server Database)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -1110,6 +1130,7 @@ jobs:
   integration-http-e2e:
     name: Integration Tests (HTTP E2E Server)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -1186,6 +1207,7 @@ jobs:
   ignored-tests:
     name: Ignored Tests (Manual)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch'
     services:
       postgres:
@@ -1290,6 +1312,7 @@ jobs:
   bench:
     name: Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: github.ref == 'refs/heads/dev'
 
     services:
@@ -1350,6 +1373,7 @@ jobs:
   feature-flags:
     name: Feature Flag Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -1389,6 +1413,7 @@ jobs:
   sdk-parity:
     name: Cross-SDK Schema Parity
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -1454,6 +1479,7 @@ jobs:
   binary-size:
     name: Binary size check
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -1503,6 +1529,7 @@ jobs:
       - sdk-parity
       - binary-size
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Mark CI as successful
         run: echo "All CI checks passed!"
