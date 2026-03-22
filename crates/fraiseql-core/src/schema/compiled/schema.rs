@@ -785,6 +785,142 @@ impl CompiledSchema {
     }
 }
 
+/// Inject synthetic Cascade types into the schema when any mutation has `cascade: true`.
+///
+/// Adds the following types: `CascadeEntity`, `CascadeInvalidation`,
+/// `CascadeMetadata`, and `Cascade`. These are synthetic types (no DB source)
+/// following the same pattern as Relay's `PageInfo`.
+pub fn inject_cascade_types(schema: &mut CompiledSchema) {
+    use crate::schema::{FieldDefinition, FieldDenyPolicy, FieldType};
+    use crate::schema::graphql_type_defs::TypeDefinition;
+
+    let has_cascade_mutation = schema.mutations.iter().any(|m| m.cascade);
+    if !has_cascade_mutation {
+        return;
+    }
+
+    let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
+        name: name.into(),
+        field_type: ft,
+        nullable,
+        description: Some(desc.to_string()),
+        default_value: None,
+        vector_config: None,
+        alias: None,
+        deprecation: None,
+        requires_scope: None,
+        on_deny: FieldDenyPolicy::default(),
+        encryption: None,
+    };
+
+    let mut new_types: Vec<TypeDefinition> = Vec::new();
+
+    // CascadeEntity
+    if !schema.types.iter().any(|t| t.name == "CascadeEntity") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeEntity".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field("id", FieldType::String, false, "Entity identifier."),
+                make_field("typename", FieldType::String, false, "GraphQL type name."),
+                make_field("operation", FieldType::String, false, "Operation performed (created, updated, deleted)."),
+                make_field("entity", FieldType::Json, false, "Full entity data as JSON."),
+            ],
+            description:         Some("An entity affected by a cascade operation.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+        });
+    }
+
+    // CascadeInvalidation
+    if !schema.types.iter().any(|t| t.name == "CascadeInvalidation") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeInvalidation".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field("queryName", FieldType::String, false, "Name of the query to invalidate."),
+                make_field("strategy", FieldType::String, false, "Invalidation strategy (e.g., exact, pattern)."),
+                make_field("scope", FieldType::String, false, "Invalidation scope (e.g., global, tenant)."),
+            ],
+            description:         Some("A cache invalidation directive from a cascade operation.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+        });
+    }
+
+    // CascadeMetadata
+    if !schema.types.iter().any(|t| t.name == "CascadeMetadata") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeMetadata".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field("timestamp", FieldType::String, false, "When the cascade was processed."),
+                make_field("affectedCount", FieldType::Int, false, "Number of entities affected."),
+                make_field("depth", FieldType::Int, false, "Cascade depth level."),
+                make_field("transactionId", FieldType::String, true, "Database transaction identifier."),
+            ],
+            description:         Some("Metadata about a cascade operation.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+        });
+    }
+
+    // Cascade (top-level envelope)
+    if !schema.types.iter().any(|t| t.name == "Cascade") {
+        new_types.push(TypeDefinition {
+            name:                "Cascade".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field(
+                    "updated",
+                    FieldType::List(Box::new(FieldType::Object("CascadeEntity".to_string()))),
+                    false,
+                    "Entities updated by the cascade.",
+                ),
+                make_field(
+                    "deleted",
+                    FieldType::List(Box::new(FieldType::Object("CascadeEntity".to_string()))),
+                    false,
+                    "Entities deleted by the cascade.",
+                ),
+                make_field(
+                    "invalidations",
+                    FieldType::List(Box::new(FieldType::Object("CascadeInvalidation".to_string()))),
+                    false,
+                    "Cache invalidation directives.",
+                ),
+                make_field(
+                    "metadata",
+                    FieldType::Object("CascadeMetadata".to_string()),
+                    false,
+                    "Cascade operation metadata.",
+                ),
+            ],
+            description:         Some("Cascade data from a mutation with cascade enabled.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+        });
+    }
+
+    schema.types.extend(new_types);
+}
+
 /// Check if a type name is a built-in scalar type.
 fn is_builtin_type(name: &str) -> bool {
     matches!(

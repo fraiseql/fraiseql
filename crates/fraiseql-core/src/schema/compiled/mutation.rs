@@ -97,6 +97,16 @@ pub struct MutationDefinition {
     /// Each entry must be a valid SQL identifier validated at compile time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// Whether this mutation returns cascade data in its response.
+    ///
+    /// When `true`, the mutation executor includes the `cascade` JSONB from the
+    /// database function's `mutation_response` row in the GraphQL response, and
+    /// triggers entity-level cache invalidation via `invalidate_cascade_entities`.
+    ///
+    /// Set via `@fraiseql.mutation(cascade=True)` in the authoring layer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cascade: bool,
 }
 
 impl MutationDefinition {
@@ -114,6 +124,7 @@ impl MutationDefinition {
             inject_params:           IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
+            cascade:                 false,
         }
     }
 

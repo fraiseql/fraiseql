@@ -440,6 +440,7 @@ fn test_e2e_full_field_assertion() {
             inject:                  IndexMap::default(),
             invalidates_fact_tables: vec![],
             invalidates_views:       vec![],
+            cascade:                 false,
         }],
         enums:                vec![],
         input_types:          vec![],

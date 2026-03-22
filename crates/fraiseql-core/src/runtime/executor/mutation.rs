@@ -84,7 +84,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: live database adapter.
     /// // See: tests/integration/ for runnable examples.
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
@@ -358,7 +358,20 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Cascade entity invalidation: when cascade data is present and the
+        // mutation has cascade enabled, use it for precise cache invalidation.
+        if let MutationOutcome::Success {
+            cascade: Some(ref cascade_data),
+            ..
+        } = &outcome
+        {
+            if mutation_def.cascade {
+                self.adapter.invalidate_cascade_entities(cascade_data).await?;
+            }
+        }
+
         // Clone name and return_type to avoid borrow issues after schema lookups
+        let cascade_enabled = mutation_def.cascade;
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();
 
@@ -366,6 +379,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             MutationOutcome::Success {
                 entity,
                 entity_type,
+                cascade,
                 ..
             } => {
                 // Determine the GraphQL __typename
@@ -385,6 +399,14 @@ impl<A: DatabaseAdapter> Executor<A> {
 
                 let mut obj = entity.as_object().cloned().unwrap_or_default();
                 obj.insert("__typename".to_string(), serde_json::Value::String(typename));
+
+                // Include cascade data in the response when the mutation has cascade enabled
+                if cascade_enabled {
+                    if let Some(cascade_data) = cascade {
+                        obj.insert("cascade".to_string(), cascade_data);
+                    }
+                }
+
                 serde_json::Value::Object(obj)
             },
             MutationOutcome::Error {

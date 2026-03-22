@@ -179,6 +179,9 @@ impl SchemaConverter {
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
         relay::inject_relay_types(&mut compiled);
 
+        // Inject synthetic Cascade types when any mutation has cascade enabled.
+        fraiseql_core::schema::inject_cascade_types(&mut compiled);
+
         // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
         let rich_filter_config = RichFilterConfig::default();
         compile_rich_filters(&mut compiled, &rich_filter_config)

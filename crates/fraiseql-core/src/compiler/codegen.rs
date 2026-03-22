@@ -331,6 +331,7 @@ impl CodeGenerator {
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
             invalidates_views: vec![],
+            cascade: false,
         }
     }
 

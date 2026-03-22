@@ -672,6 +672,29 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(0)
     }
 
+    /// Invalidate cache entries based on cascade response data.
+    ///
+    /// Called by the mutation executor after a successful cascade-enabled mutation.
+    /// Parses the cascade JSONB to identify affected entities and invalidates
+    /// corresponding cache entries.
+    ///
+    /// The default implementation is a no-op. `CachedDatabaseAdapter` overrides
+    /// this to perform entity-level cache invalidation.
+    ///
+    /// # Returns
+    ///
+    /// The number of cache entries invalidated.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the cascade response fails to parse.
+    async fn invalidate_cascade_entities(
+        &self,
+        _cascade_response: &serde_json::Value,
+    ) -> Result<u64> {
+        Ok(0)
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

@@ -25,18 +25,17 @@
 //! # Usage
 //!
 //! ```no_run
-//! // Requires: a compiled schema JSON file from `fraiseql-cli compile`.
 //! use fraiseql_core::schema::CompiledSchema;
-//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // From schema.compiled.json produced by `fraiseql-cli compile`
-//! let schema = CompiledSchema::from_json(json_str)?;
-//!
-//! // From CLI config file
-//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json")?)?;
+//! let json_str = std::fs::read_to_string("schema.compiled.json")?;
+//! let schema = CompiledSchema::from_json(&json_str)?;
 //!
 //! // Access schema info
 //! println!("Types: {}", schema.types.len());
 //! println!("Queries: {}", schema.queries.len());
+//! # Ok(())
+//! # }
 //! ```
 
 mod compiled;
@@ -56,7 +55,7 @@ mod subscription_types;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
-    QueryDefinition, is_safe_sql_identifier,
+    QueryDefinition, inject_cascade_types, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,

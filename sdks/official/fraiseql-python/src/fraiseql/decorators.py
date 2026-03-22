@@ -586,6 +586,15 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                     )
                     raise ValueError(msg)
 
+        # cascade validation — fail fast at authoring time
+        if (cascade := cfg.get("cascade")) is not None:
+            if not isinstance(cascade, bool):
+                msg = (
+                    f"@fraiseql.mutation cascade= on {f.__name__!r} must be a "
+                    f"bool (got {cascade!r})."
+                )
+                raise TypeError(msg)
+
         # REST annotation validation — fail fast at authoring time
         if (rest_path := cfg.get("rest_path")) is not None:
             if not isinstance(rest_path, str) or not rest_path:

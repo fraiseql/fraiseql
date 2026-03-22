@@ -157,6 +157,10 @@ pub struct IntermediateMutation {
     /// mutation succeeds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// Whether this mutation returns cascade data in its GraphQL response.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cascade: bool,
 }
 
 /// Auto-params configuration in intermediate format.
