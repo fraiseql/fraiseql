@@ -391,6 +391,10 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Current saga status
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if the saga cannot be loaded from the store.
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
         // In full implementation, would load from store
 
@@ -421,6 +425,10 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result after cancellation
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if the saga cannot be found or state transition fails.
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga cancellation requested");
 
@@ -448,6 +456,10 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result with all step outcomes
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if the saga cannot be loaded from the store.
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         debug!(saga_id = %saga_id, "Saga result queried");
 
@@ -468,6 +480,10 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// List of in-flight saga IDs
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if the store query fails.
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
         // In full implementation, would query store for Executing/Compensating states
         let sagas = vec![];

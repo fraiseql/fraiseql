@@ -554,6 +554,12 @@ impl VaultBackend {
     ///
     /// # Returns
     /// Encrypted ciphertext in Vault's standard format.
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the key name is invalid.
+    /// - `SecretsError::BackendError` if the Vault request fails.
+    /// - `SecretsError::NotFound` if the transit key does not exist.
     pub async fn encrypt_field(
         &self,
         key_name: &str,
@@ -592,6 +598,12 @@ impl VaultBackend {
     ///
     /// # Returns
     /// Decrypted plaintext.
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the key name is invalid.
+    /// - `SecretsError::BackendError` if the Vault request fails.
+    /// - `SecretsError::EncryptionError` if Transit decryption fails.
     pub async fn decrypt_field(
         &self,
         key_name: &str,

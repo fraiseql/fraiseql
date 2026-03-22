@@ -215,6 +215,10 @@ impl SchemaRegistry {
     ///
     /// Ok(version) with new version number, or error if query fails
     ///
+    /// # Errors
+    ///
+    /// Returns `ArrowFlightError::SchemaNotFound` if the database query fails or the view is empty.
+    ///
     /// # Copy-on-Write Safety
     ///
     /// Old queries keep their old schema Arc references while new queries get the new version.
@@ -273,6 +277,10 @@ impl SchemaRegistry {
     /// # Returns
     ///
     /// Ok(count) with number of successfully reloaded schemas
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if none of the known views could be reloaded.
     pub async fn reload_all_schemas(&self, db_adapter: &dyn DatabaseAdapter) -> Result<usize> {
         use tracing::warn;
 
@@ -411,6 +419,10 @@ impl SchemaRegistry {
     /// # Returns
     ///
     /// Ok(()) with count of preloaded schemas, or error if database query fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database adapter fails to execute discovery queries.
     ///
     /// # Note
     ///

@@ -213,7 +213,10 @@ pub fn log_security_config(config: &SecurityConfigFromSchema) {
 ///
 /// # Returns
 ///
-/// Returns Ok(()) if configuration is valid, Err with description if not
+/// # Errors
+///
+/// Returns `AuthError::ConfigError` if the configuration has dangerous or invalid settings
+/// (e.g., `leak_sensitive_details` enabled, zero-value rate limits, or incorrect key sizes).
 pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()> {
     // Check if sensitive data leaking is disabled (security requirement)
     if config.error_sanitization.leak_sensitive_details {

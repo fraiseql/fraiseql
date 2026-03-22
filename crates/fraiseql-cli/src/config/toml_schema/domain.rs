@@ -46,6 +46,10 @@ pub struct Domain {
 
 impl DomainDiscovery {
     /// Discover all domains in root_dir
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn resolve_domains(&self) -> Result<Vec<Domain>> {
         if !self.enabled {
             return Ok(Vec::new());
@@ -112,6 +116,10 @@ impl SchemaIncludes {
     ///
     /// # Returns
     /// ResolvedIncludes with expanded file paths, or error if resolution fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn resolve_globs(&self) -> Result<ResolvedIncludes> {
         use glob::glob as glob_pattern;
 

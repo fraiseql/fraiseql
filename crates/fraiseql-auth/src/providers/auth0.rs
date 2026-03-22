@@ -53,6 +53,10 @@ impl Auth0OAuth {
     /// * `client_secret` - Auth0 application client secret
     /// * `auth0_domain` - Auth0 tenant domain (e.g., "example.auth0.com")
     /// * `redirect_uri` - Redirect URI after authentication (e.g., "http://localhost:8000/auth/callback")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,

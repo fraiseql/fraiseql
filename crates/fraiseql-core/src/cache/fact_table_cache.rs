@@ -118,6 +118,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying database query fails or if
+    /// the cache mutex is poisoned.
     pub async fn execute_aggregation_query(
         &self,
         sql: &str,

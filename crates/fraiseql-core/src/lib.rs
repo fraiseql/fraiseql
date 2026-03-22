@@ -75,9 +75,6 @@
 // Reason: ~300+ existing doc comments use backticks without code fencing; converting
 //         all of them is a separate cleanup tracked in the v2.2.0 backlog.
 #![allow(clippy::doc_markdown)]
-// Reason: ~300+ public fallible functions lack `# Errors` sections; doc coverage
-//         is a separate effort tracked in the v2.2.0 backlog.
-#![allow(clippy::missing_errors_doc)]
 // Reason: explicit duplicate match arms clarify intent in complex match expressions
 //         throughout the compiler; collapsing them would harm readability.
 #![allow(clippy::match_same_arms)]
@@ -87,9 +84,6 @@
 // Reason: `push_str(&format!(...))` is used in ~12 SQL builder sites (window.rs,
 //         aggregation/, explain.rs, schema.rs) where it is clearer than `write!`.
 #![allow(clippy::format_push_string)]
-// Reason: ~300+ public functions lack `# Panics` sections; doc coverage is
-//         tracked in roadmap.md (v2.2.0 cleanup).
-#![allow(clippy::missing_panics_doc)]
 // Reason: `from_str`/`from_value` are schema-specific constructors intentionally
 //         named to avoid confusion with the `FromStr` standard trait.
 #![allow(clippy::should_implement_trait)]

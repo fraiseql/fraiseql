@@ -291,21 +291,6 @@ lint-gate-core:
 	fi; \
 	echo "OK: $$count narrow cast allows (≤$(FRAISEQL_CORE_CAST_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
 
-# Gate: ensure executor error-documentation coverage does not regress.
-# Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
-# v2.2.0 target: ≥60.  Current baseline: 35.
-FRAISEQL_CORE_ERRORS_DOC_MIN ?= 35
-.PHONY: lint-gate-errors-doc
-lint-gate-errors-doc:
-	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \
-	echo "fraiseql-core runtime # Errors doc sections: $$count (min: $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
-	if [ "$$count" -lt "$(FRAISEQL_CORE_ERRORS_DOC_MIN)" ]; then \
-	  echo "ERROR: # Errors doc coverage regressed ($$count < $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
-	  echo "  Add '# Errors' doc sections to public functions in crates/fraiseql-core/src/runtime/"; \
-	  exit 1; \
-	fi; \
-	echo "OK: $$count sections (≥$(FRAISEQL_CORE_ERRORS_DOC_MIN))"
-
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
 	cargo +nightly fmt --all

@@ -499,6 +499,10 @@ impl SagaCompensator {
     /// - Compensation mutation execution fails
     /// - Subgraph unavailable
     ///
+    /// # Panics
+    ///
+    /// Panics if the internal store reference is inconsistent (unreachable in practice).
+    ///
     /// # Example
     ///
     /// ```no_run

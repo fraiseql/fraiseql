@@ -79,6 +79,11 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// // let result = executor.execute_with_context(query, None, &ctx).await;
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Cancelled` if the context is cancelled before or
+    /// during execution, or any error from the underlying `execute()` call.
     pub async fn execute_with_context(
         &self,
         query: &str,
@@ -242,6 +247,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Returns
     ///
     /// `Ok(())` if access is allowed, `Err(FieldAccessError)` if denied
+    ///
+    /// # Errors
+    ///
+    /// Returns `FieldAccessError` if the user lacks the required scope for the field.
     pub fn check_field_access(
         &self,
         type_name: &str,
@@ -305,6 +314,11 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a query and return parsed JSON.
     ///
     /// Same as `execute()` but returns parsed `serde_json::Value` instead of string.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from `execute()`, or `FraiseQLError` if the result
+    /// string is not valid JSON.
     pub async fn execute_json(
         &self,
         query: &str,

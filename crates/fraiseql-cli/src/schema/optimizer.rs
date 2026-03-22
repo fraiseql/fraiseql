@@ -21,6 +21,10 @@ impl SchemaOptimizer {
     /// - Join order hints
     /// - Projection optimization
     /// - Predicate pushdown opportunities
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn optimize(schema: &mut CompiledSchema) -> Result<OptimizationReport> {
         info!("Optimizing compiled schema");
 

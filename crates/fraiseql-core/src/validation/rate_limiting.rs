@@ -217,27 +217,47 @@ impl ValidationRateLimiter {
         }
     }
 
-    /// Check rate limit for validation errors
+    /// Check rate limit for validation errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if the key has exceeded the validation error limit.
     pub fn check_validation_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.validation_errors.check(key)
     }
 
-    /// Check rate limit for depth errors
+    /// Check rate limit for depth errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if the key has exceeded the depth error limit.
     pub fn check_depth_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.depth_errors.check(key)
     }
 
-    /// Check rate limit for complexity errors
+    /// Check rate limit for complexity errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if the key has exceeded the complexity error limit.
     pub fn check_complexity_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.complexity_errors.check(key)
     }
 
-    /// Check rate limit for malformed errors
+    /// Check rate limit for malformed errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if the key has exceeded the malformed error limit.
     pub fn check_malformed_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.malformed_errors.check(key)
     }
 
-    /// Check rate limit for async validation errors
+    /// Check rate limit for async validation errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if the key has exceeded the async validation error limit.
     pub fn check_async_validation_errors(&self, key: &str) -> Result<(), FraiseQLError> {
         self.async_validation_errors.check(key)
     }

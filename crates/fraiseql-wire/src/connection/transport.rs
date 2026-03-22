@@ -101,6 +101,10 @@ pub enum Transport {
 
 impl Transport {
     /// Connect via plain TCP
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the TCP connection fails.
     pub async fn connect_tcp(host: &str, port: u16) -> Result<Self> {
         let stream = TcpStream::connect((host, port)).await?;
         Ok(Transport::Tcp(TcpVariant::Plain(stream)))
@@ -112,6 +116,12 @@ impl Transport {
     /// 1. Send `SSLRequest` message (8 bytes)
     /// 2. Server responds with 'S' (accept) or 'N' (reject)
     /// 3. If accepted, perform TLS handshake
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the TCP connection or SSL negotiation fails.
+    /// Returns `Error::Config` if the server rejects SSL, sends an unexpected response,
+    /// the hostname is invalid for TLS, or the TLS handshake fails.
     pub async fn connect_tcp_tls(
         host: &str,
         port: u16,
@@ -170,12 +180,20 @@ impl Transport {
     }
 
     /// Connect via Unix socket
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the Unix socket connection fails.
     pub async fn connect_unix(path: &Path) -> Result<Self> {
         let stream = UnixStream::connect(path).await?;
         Ok(Transport::Unix(stream))
     }
 
     /// Write bytes to the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the write operation fails.
     pub async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.write_all(buf).await?,
@@ -185,6 +203,10 @@ impl Transport {
     }
 
     /// Flush the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the flush operation fails.
     pub async fn flush(&mut self) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.flush().await?,
@@ -194,6 +216,10 @@ impl Transport {
     }
 
     /// Read bytes into buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the read operation fails.
     pub async fn read_buf(&mut self, buf: &mut BytesMut) -> Result<usize> {
         let n = match self {
             Transport::Tcp(variant) => variant.read_buf(buf).await?,
@@ -203,6 +229,10 @@ impl Transport {
     }
 
     /// Shutdown the transport
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if the shutdown operation fails.
     pub async fn shutdown(&mut self) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.shutdown().await?,
@@ -216,6 +246,10 @@ impl Transport {
     /// A no-op for Unix socket transports (keepalive is a TCP-layer feature).
     /// Logs a warning and returns `Ok(())` rather than failing if the platform
     /// does not support the requested keepalive interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` if setting the TCP keepalive option fails.
     pub fn apply_keepalive(&self, idle: Duration) -> Result<()> {
         match self {
             Transport::Tcp(variant) => variant.apply_keepalive(idle),

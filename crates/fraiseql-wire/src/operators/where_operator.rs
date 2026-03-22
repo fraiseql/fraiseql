@@ -512,6 +512,10 @@ impl WhereOperator {
     }
 
     /// Validate operator for basic correctness
+    ///
+    /// # Errors
+    ///
+    /// Returns a descriptive error string if any field within the operator fails validation.
     pub fn validate(&self) -> Result<(), String> {
         match self {
             WhereOperator::Eq(f, _)

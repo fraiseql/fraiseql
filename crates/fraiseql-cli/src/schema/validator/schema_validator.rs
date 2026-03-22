@@ -16,6 +16,10 @@ pub struct SchemaValidator;
 
 impl SchemaValidator {
     /// Validate an intermediate schema with detailed error reporting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(schema: &IntermediateSchema) -> Result<ValidationReport> {
         info!("Validating schema structure");
 

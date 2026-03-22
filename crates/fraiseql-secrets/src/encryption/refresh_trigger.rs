@@ -295,6 +295,10 @@ impl RefreshJob {
     }
 
     /// Mark job as running
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the status mutex is poisoned or the job is not idle.
     pub fn start(&self) -> Result<(), String> {
         let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
 
@@ -312,6 +316,10 @@ impl RefreshJob {
     }
 
     /// Mark job as succeeded
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the status mutex is poisoned.
     pub fn complete_success(&self) -> Result<(), String> {
         let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         *status = RefreshJobStatus::Success;
@@ -319,6 +327,10 @@ impl RefreshJob {
     }
 
     /// Mark job as failed with error
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the status or error mutex is poisoned.
     pub fn complete_failure(&self, error: impl Into<String>) -> Result<(), String> {
         let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         *status = RefreshJobStatus::Failed;
@@ -341,12 +353,20 @@ impl RefreshJob {
     }
 
     /// Get current job status
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the status mutex is poisoned.
     pub fn status(&self) -> Result<RefreshJobStatus, String> {
         let status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         Ok(*status)
     }
 
     /// Get job duration if running or completed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the start-time mutex is poisoned.
     pub fn duration(&self) -> Result<Option<std::time::Duration>, String> {
         let start = self
             .start_time
@@ -357,6 +377,10 @@ impl RefreshJob {
     }
 
     /// Get last error message
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the error mutex is poisoned.
     pub fn last_error(&self) -> Result<Option<String>, String> {
         let error = self.last_error.lock().map_err(|e| format!("Failed to lock error: {}", e))?;
         Ok(error.clone())
@@ -399,17 +423,29 @@ impl RefreshManager {
     }
 
     /// Start refresh job
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the job mutex is poisoned or the job is not idle.
     pub fn start_job(&self) -> Result<(), String> {
         self.job.start()
     }
 
     /// Complete refresh job successfully
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the job status mutex is poisoned.
     pub fn complete_job_success(&self) -> Result<(), String> {
         self.trigger.clear_pending();
         self.job.complete_success()
     }
 
     /// Complete refresh job with failure
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the job status or error mutex is poisoned.
     pub fn complete_job_failure(&self, error: impl Into<String>) -> Result<(), String> {
         // Don't clear pending - allow retry
         self.job.complete_failure(error)
@@ -436,6 +472,10 @@ impl RefreshManager {
     }
 
     /// Manually trigger refresh (bypass TTL check)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a refresh is already pending.
     pub fn trigger_manual(&self) -> Result<(), String> {
         if self.trigger.is_pending() {
             Err("Refresh already pending".to_string())

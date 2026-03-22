@@ -153,6 +153,10 @@ impl ObserverExecutor {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run_with_transport(
         &self,
         transport: Arc<dyn crate::transport::EventTransport>,
@@ -235,6 +239,10 @@ impl ObserverExecutor {
     /// - Implements exponential backoff on database errors (up to 10 retries)
     /// - Skips malformed entries and continues processing
     /// - Continues indefinitely until listener stops or error occurs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run_listener_loop(
         &self,
         listener: &mut crate::listener::ChangeLogListener,

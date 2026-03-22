@@ -375,6 +375,11 @@ impl ResultProjector {
     /// // Result: { "id": "123", "name": "Alice", "__typename": "User" }
     /// assert_eq!(result["__typename"], "User");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the projected data contains a non-object,
+    /// non-array value that cannot receive a `__typename` field.
     pub fn add_typename_only(
         &self,
         projected_data: &JsonbValue,

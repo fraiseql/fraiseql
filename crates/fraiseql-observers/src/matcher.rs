@@ -40,6 +40,10 @@ impl EventMatcher {
     ///
     /// # Returns
     /// `EventMatcher` with all observers indexed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn build(observers: HashMap<String, ObserverDefinition>) -> Result<Self> {
         let mut matcher = Self::new();
 

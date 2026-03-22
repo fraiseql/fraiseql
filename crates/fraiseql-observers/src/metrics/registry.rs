@@ -61,7 +61,11 @@ pub struct MetricsRegistry {
 }
 
 impl MetricsRegistry {
-    /// Create a new metrics registry and register with default Prometheus registry
+    /// Create a new metrics registry and register with default Prometheus registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Prometheus error if any metric fails to register with the global registry.
     pub fn new() -> PrometheusResult<Self> {
         // Get the default Prometheus registry
         let registry = prometheus::default_registry();
@@ -367,7 +371,15 @@ impl MetricsRegistry {
         }
     }
 
-    /// Get or create the global singleton metrics registry
+    /// Get or create the global singleton metrics registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Prometheus error if the registry cannot be cloned (infallible in practice).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the first call to `Self::new()` inside `OnceLock::get_or_init` fails.
     pub fn global() -> PrometheusResult<Self> {
         Ok(GLOBAL_REGISTRY
             .get_or_init(|| Self::new().expect("Failed to initialize global metrics registry"))

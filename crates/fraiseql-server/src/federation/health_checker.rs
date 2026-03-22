@@ -66,6 +66,10 @@ impl RollingErrorWindow {
     }
 
     /// Record a success.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal buckets mutex is poisoned.
     pub fn record_success(&self) {
         let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
@@ -80,6 +84,10 @@ impl RollingErrorWindow {
     }
 
     /// Record an error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal buckets mutex is poisoned.
     pub fn record_error(&self) {
         let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
@@ -95,6 +103,10 @@ impl RollingErrorWindow {
     }
 
     /// Get error count in last 60 seconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal buckets mutex is poisoned.
     pub fn error_count(&self) -> u32 {
         let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
@@ -106,6 +118,10 @@ impl RollingErrorWindow {
     }
 
     /// Get error rate percentage over last 300 seconds (5 minutes).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal buckets mutex is poisoned.
     pub fn error_rate_percent(&self) -> f64 {
         let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
@@ -249,6 +265,10 @@ impl SubgraphHealthChecker {
     }
 
     /// Run background health checks (every 30 seconds).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `status_cache` or `error_windows` mutex is poisoned.
     pub async fn run_background_checks(self: Arc<Self>) {
         info!("Starting federation health check background task");
 
@@ -286,6 +306,10 @@ impl SubgraphHealthChecker {
     }
 
     /// Get cached health statuses.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `status_cache` mutex is poisoned.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
         self.status_cache
             .lock()

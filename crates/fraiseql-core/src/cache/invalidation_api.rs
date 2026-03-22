@@ -103,6 +103,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Expected improvement:
     /// - **View-level**: 60-70% hit rate (many false positives)
     /// - **Entity-level**: 90-95% hit rate (only true positives)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cascade response fails to parse or if
+    /// the underlying cache invalidation encounters a poisoned mutex.
     pub fn invalidate_cascade_entities(
         &self,
         cascade_response: &serde_json::Value,

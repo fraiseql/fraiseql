@@ -430,6 +430,12 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidSchema` if the SQL query cannot be built from the configured predicates.
+    /// Returns `Error::Io` or `Error::Protocol` if the streaming query fails to start.
+    /// Returns `Error::Sql` if the database rejects the query.
     pub async fn execute(self) -> Result<QueryStream<T>> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);

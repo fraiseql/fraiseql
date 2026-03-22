@@ -56,6 +56,10 @@ impl Field {
     ///
     /// Allows: alphanumeric, underscore
     /// Disallows: quotes, brackets, dashes, special characters
+    ///
+    /// # Errors
+    ///
+    /// Returns a descriptive error string if any field name contains invalid characters.
     pub fn validate(&self) -> Result<(), String> {
         let name = match self {
             Field::JsonbField(n) => n,

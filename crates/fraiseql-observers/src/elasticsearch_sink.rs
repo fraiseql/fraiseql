@@ -109,6 +109,10 @@ impl ElasticsearchSinkConfig {
     ///
     /// In addition to field sanity checks, validates the URL for SSRF risks:
     /// private/loopback/link-local addresses are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -143,6 +147,10 @@ pub struct ElasticsearchSink {
 
 impl ElasticsearchSink {
     /// Create a new Elasticsearch sink
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn new(config: ElasticsearchSinkConfig) -> Result<Self> {
         config.validate()?;
 
@@ -172,6 +180,10 @@ impl ElasticsearchSink {
     }
 
     /// Health check - verify Elasticsearch is reachable
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn health_check(&self) -> Result<()> {
         let response = self
             .client
@@ -193,6 +205,10 @@ impl ElasticsearchSink {
     }
 
     /// Run the sink, consuming events from the channel and indexing them
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run(&self, mut rx: mpsc::Receiver<EntityEvent>) -> Result<()> {
         info!("Starting Elasticsearch sink");
 

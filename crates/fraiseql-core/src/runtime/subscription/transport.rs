@@ -104,6 +104,10 @@ impl TransportManager {
     ///
     /// Delivers in parallel and collects results. Returns Ok if at least one
     /// delivery succeeded, or the last error if all failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError` if all transport adapters fail to deliver.
     pub async fn deliver_all(
         &self,
         event: &SubscriptionEvent,

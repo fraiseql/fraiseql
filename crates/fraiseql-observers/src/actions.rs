@@ -220,6 +220,10 @@ impl WebhookAction {
     }
 
     /// Execute webhook action
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn execute(
         &self,
         url: &str,
@@ -323,6 +327,10 @@ impl SlackAction {
     }
 
     /// Execute Slack action
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn execute(
         &self,
         webhook_url: &str,
@@ -509,6 +517,10 @@ impl EmailAction {
     /// constructor exists so that `ObserverExecutor::new()` compiles without
     /// requiring an `SmtpConfig` — calls to `execute()` will fail at send
     /// time unless a local SMTP server (e.g. MailHog) is running.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hard-coded stub address `"stub@localhost"` fails to parse (never in practice).
     #[cfg(feature = "email")]
     #[must_use]
     pub fn new() -> Self {
@@ -526,6 +538,12 @@ impl EmailAction {
     }
 
     /// Execute email action — sends a real email via SMTP.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::ActionPermanentlyFailed` for invalid addresses or
+    /// message construction failures, `ObserverError::ActionExecutionFailed` for
+    /// SMTP transport errors.
     #[cfg(feature = "email")]
     pub async fn execute(
         &self,
@@ -587,6 +605,10 @@ impl EmailAction {
     }
 
     /// Execute email action (stub — `email` feature disabled).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(feature = "email"))]
     pub async fn execute(
         &self,

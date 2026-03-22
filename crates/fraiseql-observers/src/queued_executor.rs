@@ -91,6 +91,10 @@ impl QueuedObserverExecutor {
     /// - `successful_actions`: Number of jobs successfully queued
     /// - `failed_actions`: Number of jobs that failed to queue
     /// - `job_ids`: List of queued job UUIDs (stored in ExecutionSummary errors for now)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if condition evaluation or job enqueue fails fatally.
     pub async fn process_event(&self, event: &EntityEvent) -> Result<QueuedExecutionSummary> {
         let mut summary = QueuedExecutionSummary::new();
         let matching_observers = self.matcher.find_matches(event);

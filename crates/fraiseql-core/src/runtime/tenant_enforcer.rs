@@ -59,6 +59,10 @@ impl TenantEnforcer {
     /// # Returns
     /// * Modified WHERE clause with tenant filter added
     /// * Or error if tenant enforcement is required but org_id not provided
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `require_tenant` is true but no `org_id` is set.
     pub fn enforce_tenant_scope(
         &self,
         where_clause: Option<&WhereClause>,
@@ -104,6 +108,10 @@ impl TenantEnforcer {
     ///
     /// # Returns
     /// * Modified SQL with tenant filter, or original if no org_id
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `require_tenant` is true but no `org_id` is set.
     pub fn enforce_tenant_scope_sql(&self, sql: &str) -> Result<String, String> {
         // Check if tenant enforcement is required
         if self.require_tenant && self.org_id.is_none() {

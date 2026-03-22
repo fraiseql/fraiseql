@@ -55,6 +55,10 @@ impl OktaOAuth {
     /// * `client_secret` - Okta application client secret
     /// * `okta_domain` - Okta tenant domain (e.g., "company.okta.com")
     /// * `redirect_uri` - Redirect URI after authentication (e.g., "http://localhost:8000/auth/callback")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,

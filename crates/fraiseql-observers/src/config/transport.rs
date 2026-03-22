@@ -101,6 +101,10 @@ impl TransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         // NATS transport requires NATS URL
         if self.transport == TransportKind::Nats && self.nats.url.is_empty() {
@@ -202,6 +206,10 @@ impl NatsTransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.subject_prefix.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -325,6 +333,10 @@ impl JetStreamConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.dedup_window_minutes == 0 || self.dedup_window_minutes > 60 {
             return Err(ObserverError::InvalidConfig {
@@ -420,6 +432,10 @@ impl BridgeTransportConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.transport_name.is_empty() {
             return Err(ObserverError::InvalidConfig {

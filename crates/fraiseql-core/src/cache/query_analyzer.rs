@@ -192,6 +192,11 @@ impl QueryAnalyzer {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice but returns `Result` for forward
+    /// compatibility with future validation steps.
     pub fn analyze_query(
         &self,
         query_def: &IRQuery,

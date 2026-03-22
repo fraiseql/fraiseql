@@ -50,6 +50,10 @@ pub mod mocks {
         }
 
         /// Register a successful response for the given action type.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn expect_ok(&self, action_type: &str, duration_ms: f64) {
             let result = ActionResult {
                 action_type: action_type.to_string(),
@@ -61,16 +65,28 @@ pub mod mocks {
         }
 
         /// Register an error response for the given action type.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn expect_err(&self, action_type: &str, err: ObserverError) {
             self.responses.lock().unwrap().insert(action_type.to_string(), Err(err));
         }
 
         /// Return the ordered list of action types that were dispatched.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn calls(&self) -> Vec<String> {
             self.call_log.lock().unwrap().clone()
         }
 
         /// Return the number of times `dispatch` was called.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn call_count(&self) -> usize {
             self.call_log.lock().unwrap().len()
         }
@@ -129,7 +145,11 @@ pub mod mocks {
             }
         }
 
-        /// Add an event to the source
+        /// Add an event to the source.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn add_event(&self, event: EntityEvent) {
             self.events.lock().unwrap().push_back(event);
         }
@@ -162,18 +182,30 @@ pub mod mocks {
             }
         }
 
-        /// Configure to fail all actions
+        /// Configure to fail all actions.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn set_should_fail(&self, should_fail: bool, reason: Option<String>) {
             *self.should_fail.lock().unwrap() = should_fail;
             *self.failure_reason.lock().unwrap() = reason;
         }
 
-        /// Get recorded executions
+        /// Get recorded executions.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn executions(&self) -> Vec<(String, bool)> {
             self.executions.lock().unwrap().clone()
         }
 
-        /// Get execution count
+        /// Get execution count.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn execution_count(&self) -> usize {
             self.executions.lock().unwrap().len()
         }
@@ -230,12 +262,20 @@ pub mod mocks {
             }
         }
 
-        /// Get all items in the DLQ
+        /// Get all items in the DLQ.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn items(&self) -> Vec<DlqItem> {
             self.items.lock().unwrap().clone()
         }
 
-        /// Get item count
+        /// Get item count.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn item_count(&self) -> usize {
             self.items.lock().unwrap().len()
         }
@@ -300,7 +340,11 @@ pub mod mocks {
             }
         }
 
-        /// Set the result for a condition
+        /// Set the result for a condition.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn set_result(&self, condition: String, result: bool) {
             self.results.lock().unwrap().insert(condition, result);
         }
@@ -333,7 +377,11 @@ pub mod mocks {
             }
         }
 
-        /// Set the output for a template
+        /// Set the output for a template.
+        ///
+        /// # Panics
+        ///
+        /// Panics if the internal mutex is poisoned.
         pub fn set_output(&self, template: String, output: String) {
             self.templates.lock().unwrap().insert(template, output);
         }

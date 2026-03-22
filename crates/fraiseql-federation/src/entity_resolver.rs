@@ -182,7 +182,12 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     }
 }
 
-/// Batch load entities from database
+/// Batch load entities from database.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -193,6 +198,11 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
 }
 
 /// Batch load entities from database with optional distributed tracing and metrics.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -214,6 +224,11 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 /// Batch load entities with full metrics for observability.
 ///
 /// Returns both entities and timing information for metrics recording.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,

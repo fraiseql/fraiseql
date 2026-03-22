@@ -220,6 +220,10 @@ impl OAuth2Client {
     }
 
     /// Exchange authorization code for tokens.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the HTTP request fails or the response cannot be parsed.
     pub async fn exchange_code(
         &self,
         code: &str,
@@ -236,6 +240,10 @@ impl OAuth2Client {
     }
 
     /// Refresh access token using a refresh token.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the HTTP request fails or the response cannot be parsed.
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
         let params = [
             ("grant_type", "refresh_token"),

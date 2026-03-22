@@ -25,6 +25,10 @@ use tracing::{error, info};
 /// # Future Enhancement
 ///
 /// Will integrate with fraiseql-server to provide hot-reload of the GraphQL endpoint
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub async fn run(schema: &str, port: u16) -> Result<()> {
     info!("Starting development server");
     println!("🚀 FraiseQL Dev Server");

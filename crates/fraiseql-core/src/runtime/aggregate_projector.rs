@@ -74,6 +74,11 @@ impl AggregationProjector {
     /// // let result = AggregationProjector::project(rows, &plan)?;
     /// // result: [{"category": "Electronics", "count": 42, "revenue_sum": 5280.50}]
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is reserved
+    /// for future type-coercion and null-handling extensions.
     pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
         // For simple projection: just convert rows to JSON array
         // Future improvements could include:
@@ -145,6 +150,11 @@ impl AggregationProjector {
     /// // let result = AggregationProjector::project_single(row, &plan)?;
     /// // result: {"count": 100, "revenue_sum": 5000.0}
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is reserved
+    /// for future type-coercion extensions.
     pub fn project_single(row: HashMap<String, Value>, _plan: &AggregationPlan) -> Result<Value> {
         // Convert HashMap to JSON object
         let mut obj = serde_json::Map::new();

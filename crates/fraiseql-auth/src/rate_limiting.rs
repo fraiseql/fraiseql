@@ -247,10 +247,10 @@ impl KeyedRateLimiter {
     /// time-of-check-time-of-use (TOCTOU) race conditions where multiple threads
     /// simultaneously exceed the rate limit.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// - Ok(()) if the request is allowed and counter has been incremented
-    /// - Err(AuthError::RateLimited) if the key has exceeded the rate limit
+    /// Returns `AuthError::RateLimited` if the key has exceeded the rate limit
+    /// within the current window.
     ///
     /// # Panics
     ///
@@ -325,7 +325,11 @@ impl KeyedRateLimiter {
         }
     }
 
-    /// Get the number of active rate limiters (for monitoring)
+    /// Get the number of active rate limiters (for monitoring).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     pub fn active_limiters(&self) -> usize {
         let records = self
             .records
@@ -334,7 +338,11 @@ impl KeyedRateLimiter {
         records.len()
     }
 
-    /// Clear all rate limiters (for testing or reset)
+    /// Clear all rate limiters (for testing or reset).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     pub fn clear(&self) {
         let mut records = self
             .records

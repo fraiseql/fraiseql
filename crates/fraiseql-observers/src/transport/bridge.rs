@@ -185,6 +185,10 @@ pub struct ChangeLogEntry {
 
 impl ChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the modification type is unrecognized.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -387,6 +391,10 @@ impl PostgresNatsBridge {
     /// 3. Save cursor checkpoint
     /// 4. Wait for NOTIFY or timeout
     /// 5. Repeat
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence fails.
     pub async fn run(&self) -> Result<()> {
         info!("Starting PostgreSQL → NATS bridge: {}", self.config.transport_name);
 
@@ -499,6 +507,10 @@ impl PostgresNatsBridge {
     /// Run the bridge with graceful shutdown support.
     ///
     /// Stops when the shutdown signal is received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence fails.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

@@ -155,6 +155,10 @@ pub struct GraphStats {
 }
 
 /// Run the dependency graph command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     // Load and parse schema
     let schema_content = fs::read_to_string(schema_path)?;

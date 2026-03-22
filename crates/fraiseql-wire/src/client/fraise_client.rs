@@ -30,6 +30,12 @@ impl FraiseClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the connection string is invalid or missing required fields.
+    /// Returns `Error::Io` if the TCP/Unix connection fails.
+    /// Returns `Error::Authentication` if startup authentication fails.
     pub async fn connect(connection_string: &str) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
 
@@ -82,6 +88,13 @@ impl FraiseClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the connection string is invalid, TLS is attempted over Unix socket,
+    /// or the server rejects the SSL request or TLS handshake fails.
+    /// Returns `Error::Io` if the TCP connection fails.
+    /// Returns `Error::Authentication` if startup authentication fails.
     pub async fn connect_tls(
         connection_string: &str,
         tls_config: crate::connection::TlsConfig,
@@ -140,6 +153,12 @@ impl FraiseClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the connection string is invalid or missing required fields.
+    /// Returns `Error::Io` if the TCP/Unix connection fails.
+    /// Returns `Error::Authentication` if startup authentication fails.
     pub async fn connect_with_config(
         connection_string: &str,
         config: ConnectionConfig,
@@ -211,6 +230,13 @@ impl FraiseClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the connection string is invalid, TLS is attempted over Unix socket,
+    /// or the server rejects the SSL request or TLS handshake fails.
+    /// Returns `Error::Io` if the TCP connection fails.
+    /// Returns `Error::Authentication` if startup authentication fails.
     pub async fn connect_with_config_and_tls(
         connection_string: &str,
         config: ConnectionConfig,

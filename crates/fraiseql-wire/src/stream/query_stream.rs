@@ -41,11 +41,19 @@ impl<T: DeserializeOwned + Unpin> QueryStream<T> {
     }
 
     /// Pause the stream
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed.
     pub async fn pause(&mut self) -> Result<()> {
         self.inner.pause().await
     }
 
     /// Resume the stream
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed.
     pub async fn resume(&mut self) -> Result<()> {
         self.inner.resume().await
     }
@@ -66,6 +74,10 @@ impl<T: DeserializeOwned + Unpin> QueryStream<T> {
     }
 
     /// Pause with diagnostic reason
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed.
     pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
         self.inner.pause_with_reason(reason).await
     }

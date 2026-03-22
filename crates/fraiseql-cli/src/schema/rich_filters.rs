@@ -32,6 +32,10 @@ impl Default for RichFilterConfig {
 }
 
 /// Compile rich filters: generate artifacts for rich scalar types
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn compile_rich_filters(
     schema: &mut CompiledSchema,
     config: &RichFilterConfig,

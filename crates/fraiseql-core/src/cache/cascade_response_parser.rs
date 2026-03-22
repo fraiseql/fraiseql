@@ -149,6 +149,11 @@ impl CascadeResponseParser {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if a cascade entity is missing
+    /// `__typename` or `id`, or if the cascade field has an unexpected type.
     pub fn parse_cascade_response(&self, response: &Value) -> Result<CascadeEntities> {
         // Find cascade field in response
         let cascade = self.find_cascade_field(response)?;

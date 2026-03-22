@@ -70,6 +70,10 @@ impl FailoverManager {
     ///
     /// A listener is considered failed if it is not in `Running` state or its
     /// last heartbeat is older than `failover_threshold_ms`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn detect_failures(&self) -> Result<Vec<String>> {
         let health = self.coordinator.check_listener_health().await?;
         let threshold = Duration::from_millis(self.failover_threshold_ms);
@@ -84,6 +88,10 @@ impl FailoverManager {
     }
 
     /// Trigger failover from a failed listener to a healthy one
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn trigger_failover(&self, failed_listener_id: &str) -> Result<FailoverEvent> {
         // Get checkpoint from failed listener
         let checkpoint = self
@@ -109,6 +117,10 @@ impl FailoverManager {
     }
 
     /// Resume processing from a checkpoint
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn resume_from_checkpoint(&self, listener_id: &str, checkpoint: i64) -> Result<()> {
         // Get listener and update checkpoint
         self.coordinator.update_checkpoint(listener_id, checkpoint)?;

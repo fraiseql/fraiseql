@@ -28,6 +28,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// Combined IntermediateSchema
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_files(types_path: &str, toml_path: &str) -> Result<IntermediateSchema> {
         // Load types.json
         let types_json = fs::read_to_string(types_path)
@@ -53,6 +57,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_toml_only(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -72,6 +80,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_from_directory(toml_path: &str, schema_dir: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -142,6 +154,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_explicit_files(
         toml_path: &str,
         type_files: &[String],
@@ -179,6 +195,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from all domains (types.json, queries.json, mutations.json)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_from_domains(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -236,6 +256,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_with_includes(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;

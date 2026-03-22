@@ -37,6 +37,10 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Execute a call through the appropriate endpoint breaker
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn call<F, T>(&self, endpoint: &str, f: F) -> Result<T>
     where
         F: FnOnce() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>,

@@ -44,6 +44,12 @@ impl Connection {
     }
 
     /// Perform startup and authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidState` if the connection is not in the initial state.
+    /// Returns `Error::Authentication` if authentication fails.
+    /// Returns `Error::Io` if sending or receiving protocol messages fails.
     pub async fn startup(&mut self, config: &ConnectionConfig) -> Result<()> {
         async {
             self.state.transition(ConnectionState::AwaitingAuth)?;
@@ -272,6 +278,12 @@ impl Connection {
     }
 
     /// Execute a simple query (returns all backend messages)
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::ConnectionBusy` if the connection is not idle.
+    /// Returns `Error::InvalidState` if a state transition is invalid.
+    /// Returns `Error::Io` if sending or receiving protocol messages fails.
     pub async fn simple_query(&mut self, query: &str) -> Result<Vec<BackendMessage>> {
         if self.state != ConnectionState::Idle {
             return Err(Error::ConnectionBusy(format!(
@@ -329,6 +341,11 @@ impl Connection {
     }
 
     /// Close the connection
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidState` if the connection cannot transition to closed.
+    /// Returns `Error::Io` if the transport shutdown fails.
     pub async fn close(mut self) -> Result<()> {
         self.state.transition(ConnectionState::Closed)?;
         let _ = self.send_message(&FrontendMessage::Terminate).await;
@@ -340,6 +357,15 @@ impl Connection {
     ///
     /// Note: This method consumes the connection. The stream maintains the connection
     /// internally. Once the stream is exhausted or dropped, the connection is closed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::ConnectionBusy` if the connection is not idle.
+    /// Returns `Error::InvalidState` if a state transition is invalid.
+    /// Returns `Error::Sql` if the database returns an error response.
+    /// Returns `Error::Protocol` if the query produces no result set or an unexpected message.
+    /// Returns `Error::InvalidSchema` if the row description does not match requirements.
+    /// Returns `Error::Io` if sending or receiving protocol messages fails.
     #[allow(clippy::too_many_arguments)] // Reason: streaming query requires all chunking parameters; a config struct would add allocation overhead
     pub async fn streaming_query(
         mut self,

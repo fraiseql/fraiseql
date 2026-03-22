@@ -59,6 +59,11 @@ impl EntityKey {
     /// - `Ok(EntityKey)` - If both arguments are valid
     /// - `Err(_)` - If either argument is empty
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if `entity_type` is empty, contains a colon,
+    /// or if `entity_id` is empty.
+    ///
     /// # Examples
     ///
     /// ```
@@ -126,6 +131,11 @@ impl EntityKey {
     ///
     /// - `Ok(EntityKey)` - If format is valid
     /// - `Err(_)` - If format is invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the key does not contain a `':'` separator
+    /// or if the parsed components fail `EntityKey::new` validation.
     ///
     /// # Examples
     ///

@@ -132,6 +132,10 @@ impl DesignAudit {
     }
 
     /// Analyze a schema from JSON string
+    ///
+    /// # Errors
+    ///
+    /// Returns `serde_json::Error` if `json` is not valid JSON.
     pub fn from_schema_json(json: &str) -> Result<Self, serde_json::Error> {
         // Parse the schema JSON
         let schema: serde_json::Value = serde_json::from_str(json)?;

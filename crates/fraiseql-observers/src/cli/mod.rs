@@ -209,7 +209,11 @@ pub enum DlqSubcommand {
     },
 }
 
-/// Run the CLI
+/// Run the CLI.
+///
+/// # Errors
+///
+/// Returns an error if the subcommand execution fails.
 pub async fn run() -> crate::error::Result<()> {
     let cli = Cli::parse();
 

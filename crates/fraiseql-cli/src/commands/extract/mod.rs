@@ -55,6 +55,10 @@ trait SchemaExtractor {
 // =============================================================================
 
 /// Run the extract command.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(
     inputs: &[String],
     language_override: Option<&str>,

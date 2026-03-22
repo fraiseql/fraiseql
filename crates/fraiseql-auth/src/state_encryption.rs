@@ -48,7 +48,11 @@ impl EncryptedState {
         bytes
     }
 
-    /// Deserialize from bytes
+    /// Deserialize from bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::InvalidState` if the input is shorter than 12 bytes (nonce size).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < 12 {
             return Err(AuthError::InvalidState);
@@ -153,13 +157,22 @@ impl StateEncryption {
         String::from_utf8(plaintext).map_err(|_| AuthError::InvalidState)
     }
 
-    /// Encrypt state and serialize to bytes
+    /// Encrypt state and serialize to bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if encryption fails.
     pub fn encrypt_to_bytes(&self, state: &str) -> Result<Vec<u8>> {
         let encrypted = self.encrypt(state)?;
         Ok(encrypted.to_bytes())
     }
 
-    /// Decrypt state from serialized bytes
+    /// Decrypt state from serialized bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::InvalidState` if the bytes are too short, decryption fails, or
+    /// the result is not valid UTF-8.
     pub fn decrypt_from_bytes(&self, bytes: &[u8]) -> Result<String> {
         let encrypted = EncryptedState::from_bytes(bytes)?;
         self.decrypt(&encrypted)

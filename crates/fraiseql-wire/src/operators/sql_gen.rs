@@ -71,6 +71,10 @@ const fn infer_type_cast(value: &Value) -> &'static str {
 /// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
 /// assert_eq!(sql, "(data->'name')::text = $1");
 /// ```
+///
+/// # Errors
+///
+/// Returns `Error::InvalidSchema` if operator field validation fails.
 pub fn generate_where_operator_sql(
     operator: &WhereOperator,
     param_index: &mut usize,

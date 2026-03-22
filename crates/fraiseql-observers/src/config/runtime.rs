@@ -361,6 +361,10 @@ impl ActionConfig {
     }
 
     /// Validate the action configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Webhook {
@@ -644,6 +648,10 @@ impl MultiListenerConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.lease_duration_ms == 0 {
             return Err(ObserverError::InvalidConfig {

@@ -92,6 +92,11 @@ pub fn validate_custom_scalar_from_schema(
 ///
 /// This function recursively validates a JSON value against a set of
 /// validation rules, collecting all errors that occur.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` (with collected field errors) if any
+/// rule is violated.
 pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule]) -> Result<()> {
     let mut errors = ValidationErrorCollection::new();
 

@@ -166,6 +166,11 @@ pub trait RLSPolicy: Send + Sync {
     /// // filter is Some(RlsWhereClause) wrapping the evaluated WhereClause
     /// let filter = rls.evaluate(&context, "Post").unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if policy evaluation fails (e.g., missing
+    /// required context fields or rule compilation error).
     fn evaluate(
         &self,
         context: &SecurityContext,

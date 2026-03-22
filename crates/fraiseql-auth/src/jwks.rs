@@ -75,6 +75,10 @@ impl JwksCache {
 
     /// Get a decoding key by `kid`, fetching from the remote JWKS endpoint if
     /// the cache is stale or the key is missing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if fetching or parsing the remote JWKS document fails.
     pub async fn get_key(&self, kid: &str) -> Result<Option<DecodingKey>, String> {
         // Fast path: cache is fresh and key exists
         if let Some(key) = self.get_key_from_cache(kid) {
@@ -93,6 +97,10 @@ impl JwksCache {
     }
 
     /// Force a refresh of the JWKS keys from the remote endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if fetching or parsing the remote JWKS document fails.
     pub async fn force_refresh(&self) -> Result<(), String> {
         self.fetch_keys().await
     }

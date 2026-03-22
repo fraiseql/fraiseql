@@ -176,6 +176,14 @@ impl CompilationCache {
     /// # Returns
     ///
     /// Compiled schema (cached if possible)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if schema compilation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal cache or metrics mutex is poisoned.
     pub fn compile(
         &self,
         compiler: &crate::compiler::Compiler,
@@ -230,12 +238,28 @@ impl CompilationCache {
     }
 
     /// Get current cache metrics.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the metrics mutex is poisoned.
     pub fn metrics(&self) -> Result<CompilationCacheMetrics> {
         let metrics = self.metrics.lock().expect("metrics lock poisoned");
         Ok(metrics.clone())
     }
 
     /// Clear all cached compilations.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache or metrics mutex is poisoned.
     pub fn clear(&self) -> Result<()> {
         self.cache.lock().expect("cache lock poisoned").clear();
         let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
@@ -244,6 +268,14 @@ impl CompilationCache {
     }
 
     /// Get cache hit rate as percentage (0-100).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the metrics mutex is poisoned.
     pub fn hit_rate(&self) -> Result<f64> {
         let metrics = self.metrics.lock().expect("metrics lock poisoned");
         if metrics.total_compilations == 0 {

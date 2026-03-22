@@ -270,6 +270,10 @@ pub struct RotationConfigUpdateRequest {
 
 impl RotationConfigUpdateRequest {
     /// Validate configuration values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any field value is out of its valid range.
     pub fn validate(&self) -> Result<(), String> {
         if let Some(threshold) = self.refresh_threshold_percent {
             if !(1..=99).contains(&threshold) {

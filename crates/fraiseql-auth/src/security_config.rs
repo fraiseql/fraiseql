@@ -142,7 +142,11 @@ impl Default for SecurityConfigFromSchema {
 }
 
 impl SecurityConfigFromSchema {
-    /// Parse security configuration from JSON (from schema.compiled.json)
+    /// Parse security configuration from JSON (from schema.compiled.json).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if required configuration fields are missing or have invalid values.
     pub fn from_json(value: &JsonValue) -> anyhow::Result<Self> {
         let mut config = Self::default();
 

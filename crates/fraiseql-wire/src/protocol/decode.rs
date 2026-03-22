@@ -48,6 +48,11 @@ const MAX_PARAMETER_VALUE_BYTES: usize = 64 * 1024; // 64 KiB
 /// # Performance
 /// This version avoids the expensive `buf.clone().freeze()` call by working directly
 /// with references, reducing allocations and copies in the hot path.
+///
+/// # Errors
+///
+/// Returns `io::Error` with `UnexpectedEof` if the buffer is too small for a complete message.
+/// Returns `io::Error` with `InvalidData` if the message length or content is malformed.
 pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)> {
     if data.len() < 5 {
         return Err(io::Error::new(

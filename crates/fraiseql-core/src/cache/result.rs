@@ -260,6 +260,10 @@ impl QueryResultCache {
     /// Look up a cached result by its cache key.
     ///
     /// Returns `None` when caching is disabled or the key is not present or expired.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the shard mutex is poisoned.
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);

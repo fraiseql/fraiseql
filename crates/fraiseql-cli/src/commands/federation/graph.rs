@@ -80,6 +80,10 @@ pub struct Edge {
 }
 
 /// Run federation graph command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     // Load schema file
     let schema_content = fs::read_to_string(schema_path)?;

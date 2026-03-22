@@ -87,9 +87,9 @@ impl fmt::Display for CompositeOperator {
 /// * `field_name` - Name of the field for error reporting
 /// * `is_present` - Whether the field is present/non-null
 ///
-/// # Returns
-/// - `Ok(())` if all rules pass
-/// - `Err` if any rule fails, containing all error messages
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if any rule fails, with all error messages aggregated.
 pub fn validate_all(
     rules: &[ValidationRule],
     field_value: &str,
@@ -129,9 +129,9 @@ pub fn validate_all(
 /// * `field_name` - Name of the field for error reporting
 /// * `is_present` - Whether the field is present/non-null
 ///
-/// # Returns
-/// - `Ok(())` if at least one rule passes
-/// - `Err` if all rules fail, containing all error messages
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if all rules fail, with all error messages aggregated.
 pub fn validate_any(
     rules: &[ValidationRule],
     field_value: &str,
@@ -177,9 +177,9 @@ pub fn validate_any(
 /// * `field_name` - Name of the field for error reporting
 /// * `is_present` - Whether the field is present/non-null
 ///
-/// # Returns
-/// - `Ok(())` if the rule fails (as expected)
-/// - `Err` if the rule passes (when it should fail)
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the inner rule passes (negation means passing is failure).
 pub fn validate_not(
     rule: &ValidationRule,
     field_value: &str,
@@ -206,9 +206,9 @@ pub fn validate_not(
 /// * `field_name` - Name of the field for error reporting
 /// * `is_present` - Whether the field is present/non-null
 ///
-/// # Returns
-/// - `Ok(())` if field is absent or if rule passes
-/// - `Err` if field is present and rule fails
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the field is present and the rule fails.
 pub fn validate_optional(
     rule: &ValidationRule,
     field_value: &str,

@@ -239,6 +239,10 @@ impl AuditLogger {
     }
 
     /// Log encryption operation
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; always returns `Ok(())`.
     pub fn log_entry(&mut self, entry: AuditLogEntry) -> Result<(), SecretsError> {
         // Keep bounded history
         if self.entries.len() >= self.max_entries {

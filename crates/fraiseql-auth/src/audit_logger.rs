@@ -354,7 +354,11 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
 ///     .audit_log(AuditEventType::JwtValidation, SecretType::JwtToken, None, "validate")?;
 /// ```
 pub trait AuditableResult<T, E> {
-    /// Log success or failure of a result
+    /// Log success or failure of a result.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original `Err(E)` unchanged after logging the failure.
     fn audit_log(
         self,
         event_type: AuditEventType,

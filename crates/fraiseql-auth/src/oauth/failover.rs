@@ -29,7 +29,11 @@ impl ProviderFailoverManager {
         }
     }
 
-    /// Get next available provider
+    /// Get next available provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned or no providers are available.
     pub fn get_available_provider(&self) -> std::result::Result<String, AuthError> {
         let unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
             message: "failover manager mutex poisoned".to_string(),
@@ -56,7 +60,11 @@ impl ProviderFailoverManager {
         })
     }
 
-    /// Mark provider as unavailable
+    /// Mark provider as unavailable.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn mark_unavailable(
         &self,
         provider: String,
@@ -69,7 +77,11 @@ impl ProviderFailoverManager {
         Ok(())
     }
 
-    /// Mark provider as available
+    /// Mark provider as available.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn mark_available(&self, provider: &str) -> std::result::Result<(), AuthError> {
         let mut unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
             message: "failover manager mutex poisoned".to_string(),

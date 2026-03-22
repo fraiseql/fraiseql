@@ -5,8 +5,6 @@
 // Allow common pedantic lints that are too noisy for this codebase
 #![allow(clippy::struct_excessive_bools)] // Reason: config structs have independent boolean flags; splitting would not improve clarity
 #![allow(clippy::cast_possible_truncation)] // Reason: index casts are bounded by validated input sizes
-#![allow(clippy::missing_errors_doc)] // Reason: error variants are self-documenting; repeating them in doc comments adds noise
-#![allow(clippy::missing_panics_doc)] // Reason: panics only in impossible branches (pre-validated state)
 #![allow(clippy::unused_self)] // Reason: trait impls require &self for consistency even when the method doesn't use it
 #![allow(clippy::unnecessary_wraps)] // Reason: trait methods must return Result for mock/real symmetry
 #![allow(clippy::needless_pass_by_value)] // Reason: trait method signatures must match; consuming at the boundary is intentional

@@ -5,6 +5,10 @@ use bytes::{BufMut, BytesMut};
 use std::io;
 
 /// Encode a frontend message into bytes
+///
+/// # Errors
+///
+/// Returns `io::Error` if the message contains invalid data that cannot be encoded.
 pub fn encode_message(msg: &FrontendMessage) -> io::Result<BytesMut> {
     let mut buf = BytesMut::new();
 

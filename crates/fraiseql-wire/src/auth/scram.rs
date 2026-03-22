@@ -82,6 +82,12 @@ impl ScramClient {
     /// Process server first message and generate client final message
     ///
     /// Returns (`client_final_message`, `internal_state`)
+    ///
+    /// # Errors
+    ///
+    /// Returns `ScramError::InvalidServerMessage` if the server message is malformed or the nonce is invalid.
+    /// Returns `ScramError::Base64Error` if the salt encoding is invalid.
+    /// Returns `ScramError::Utf8Error` if HMAC key derivation fails.
     pub fn client_final(&mut self, server_first: &str) -> Result<(String, ScramState), ScramError> {
         // Parse server first message: r=<client_nonce><server_nonce>,s=<salt>,i=<iterations>
         let (server_nonce, salt, iterations) = parse_server_first(server_first)?;
@@ -138,6 +144,12 @@ impl ScramClient {
     }
 
     /// Verify server final message and confirm authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns `ScramError::InvalidServerMessage` if the server final message is missing the `v=` prefix.
+    /// Returns `ScramError::Base64Error` if the server signature encoding is invalid.
+    /// Returns `ScramError::InvalidServerProof` if the server signature does not match.
     pub fn verify_server_final(
         &self,
         server_final: &str,

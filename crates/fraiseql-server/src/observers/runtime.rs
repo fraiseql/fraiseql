@@ -240,6 +240,11 @@ impl ObserverRuntime {
     /// # Errors
     ///
     /// Returns `ServerError` if the runtime is already running or initialization fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal matcher or executor is not initialized before the
+    /// processing loop starts (indicates a logic bug).
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));

@@ -103,7 +103,11 @@ pub struct PkceChallenge {
 }
 
 impl PkceChallenge {
-    /// Generate a new PKCE challenge
+    /// Generate a new PKCE challenge.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PKCE verifier generation fails.
     pub fn generate() -> Result<Self> {
         use sha2::{Digest, Sha256};
 

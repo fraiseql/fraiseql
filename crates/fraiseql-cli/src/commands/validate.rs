@@ -84,6 +84,10 @@ pub struct TypeAnalysis {
 }
 
 /// Run validation with options and return structured result
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandResult> {
     // Load and parse schema
     let schema_content = fs::read_to_string(input)?;

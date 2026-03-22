@@ -173,6 +173,10 @@ pub struct MySQLChangeLogEntry {
 #[cfg(feature = "mysql")]
 impl MySQLChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the modification type is unknown.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -395,6 +399,10 @@ impl MySQLNatsBridge {
     ///
     /// Unlike PostgreSQL, MySQL has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run(&self) -> Result<()> {
         info!("Starting MySQL → NATS bridge: {}", self.config.transport_name);
 
@@ -471,6 +479,10 @@ impl MySQLNatsBridge {
     }
 
     /// Run with graceful shutdown support.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

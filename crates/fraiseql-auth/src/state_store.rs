@@ -165,6 +165,10 @@ impl RedisStateStore {
     /// # Arguments
     /// * `redis_url` - Connection string (e.g., "redis://localhost:6379")
     ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::ConfigError` if the Redis URL is invalid or the connection fails.
+    ///
     /// # Example
     /// ```no_run
     /// // Requires: live Redis server.

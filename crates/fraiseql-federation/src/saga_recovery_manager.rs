@@ -199,6 +199,10 @@ impl SagaRecoveryManager {
     /// Returns a snapshot of metrics tracked during recovery operations.
     /// Useful for monitoring and debugging recovery behavior.
     ///
+    /// # Panics
+    ///
+    /// Panics if the stats mutex is poisoned.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -290,6 +294,10 @@ impl SagaRecoveryManager {
     ///
     /// Useful for manual recovery triggers or testing. Performs the same
     /// operations as a single background loop iteration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if loading or recovering sagas fails.
     ///
     /// # Example
     ///

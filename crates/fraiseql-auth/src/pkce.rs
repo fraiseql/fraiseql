@@ -379,6 +379,8 @@ impl PkceStateStore {
 
     /// Consume a state token, atomically removing it from the store.
     ///
+    /// # Errors
+    ///
     /// Returns [`PkceError::StateNotFound`] for:
     /// - tokens that were never issued,
     /// - tokens that have already been consumed (one-time use), and

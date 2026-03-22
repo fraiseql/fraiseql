@@ -198,6 +198,10 @@ pub struct InitConfig {
 }
 
 /// Run the init command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(config: &InitConfig) -> Result<()> {
     let project_dir = PathBuf::from(&config.project_name);
 

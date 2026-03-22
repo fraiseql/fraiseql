@@ -143,6 +143,10 @@ pub struct TomlSchema {
 
 impl TomlSchema {
     /// Load schema from TOML file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn from_file(path: &str) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
@@ -152,12 +156,20 @@ impl TomlSchema {
     /// Parse schema from TOML string.
     ///
     /// Expands `${VAR}` environment variable placeholders before parsing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn parse_toml(content: &str) -> Result<Self> {
         let expanded = expand_env_vars(content);
         toml::from_str(&expanded).context("Failed to parse TOML schema")
     }
 
     /// Validate schema
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         // Validate that all query return types exist
         for (query_name, query_def) in &self.queries {

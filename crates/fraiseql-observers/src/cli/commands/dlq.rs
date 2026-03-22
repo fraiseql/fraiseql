@@ -5,7 +5,11 @@ use serde_json::json;
 
 use crate::{cli::DlqSubcommand, error::Result};
 
-/// Execute DLQ subcommands
+/// Execute DLQ subcommands.
+///
+/// # Errors
+///
+/// Returns an error if the subcommand execution fails.
 pub async fn execute(format: crate::cli::OutputFormat, subcommand: DlqSubcommand) -> Result<()> {
     match subcommand {
         DlqSubcommand::List {

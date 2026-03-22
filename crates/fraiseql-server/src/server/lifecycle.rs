@@ -219,7 +219,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(())
     }
 
-    /// Listen for shutdown signals (Ctrl+C or SIGTERM)
+    /// Listen for shutdown signals (Ctrl+C or SIGTERM).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the Ctrl+C or SIGTERM signal handler cannot be installed.
     pub async fn shutdown_signal() {
         use tokio::signal;
 

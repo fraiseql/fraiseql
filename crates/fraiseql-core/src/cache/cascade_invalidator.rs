@@ -106,6 +106,11 @@ impl CascadeInvalidator {
     ///
     /// # Example
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the view depends on itself or if
+    /// the new edge would create a cycle in the dependency graph.
+    ///
     /// ```rust
     /// use fraiseql_core::cache::cascade_invalidator::CascadeInvalidator;
     ///
@@ -202,6 +207,11 @@ impl CascadeInvalidator {
     /// # Returns
     ///
     /// Set of all invalidated views (including the target)
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice but returns `Result` for API
+    /// consistency with the invalidation pipeline.
     ///
     /// # Example
     ///

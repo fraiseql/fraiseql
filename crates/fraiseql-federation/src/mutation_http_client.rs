@@ -92,7 +92,12 @@ impl HttpMutationClient {
         })
     }
 
-    /// Execute a mutation on a remote subgraph
+    /// Execute a mutation on a remote subgraph.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SSRF validation fails, the federation type is not found,
+    /// query building fails, or the HTTP request fails after retries.
     pub async fn execute_mutation(
         &self,
         subgraph_url: &str,
@@ -122,7 +127,11 @@ impl HttpMutationClient {
         self.parse_response(response, mutation_name)
     }
 
-    /// Build a GraphQL mutation query
+    /// Build a GraphQL mutation query.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if variable type inference fails.
     pub fn build_mutation_query(
         &self,
         _typename: &str,
@@ -165,7 +174,11 @@ impl HttpMutationClient {
         })
     }
 
-    /// Build GraphQL variable definitions from input variables
+    /// Build GraphQL variable definitions from input variables.
+    ///
+    /// # Errors
+    ///
+    /// This function is infallible in practice but returns `Result` for API consistency.
     pub fn build_variable_definitions(&self, variables: &Value) -> Result<String> {
         let mut var_defs = Vec::new();
 
@@ -250,7 +263,12 @@ impl HttpMutationClient {
         })
     }
 
-    /// Parse mutation response
+    /// Parse mutation response.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the response contains GraphQL errors
+    /// or the mutation field is missing from the response data.
     pub fn parse_response(&self, response: GraphQLResponse, mutation_name: &str) -> Result<Value> {
         // Check for GraphQL errors
         if let Some(errors) = response.errors {

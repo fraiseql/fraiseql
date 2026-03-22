@@ -103,11 +103,6 @@ jobs:
         # Ensures narrow cast allows in fraiseql-core do not exceed 20 per-site annotations.
         # All casts must have a Reason: comment explaining why truncation/precision loss is safe.
 
-      - name: Check executor error-doc coverage floor
-        run: make lint-gate-errors-doc
-        # Ratcheting floor: # Errors doc sections in runtime/ must not regress below 35.
-        # v2.2.0 target: ≥60. Add # Errors sections to new public functions as you go.
-
   # Check semver compatibility of public API changes
   semver-checks:
     name: API Semver Compatibility

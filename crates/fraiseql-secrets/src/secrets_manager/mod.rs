@@ -124,6 +124,10 @@ impl SecretsManager {
     }
 
     /// Get secret by name from backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::NotFound` or a backend-specific error if retrieval fails.
     pub async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         self.backend.get_secret(name).await
     }
@@ -132,6 +136,10 @@ impl SecretsManager {
     ///
     /// Returns tuple of (secret_value, expiry_datetime).
     /// Useful for dynamic credentials with lease durations.
+    ///
+    /// # Errors
+    ///
+    /// Returns a backend-specific error if retrieval fails.
     pub async fn get_secret_with_expiry(
         &self,
         name: &str,
@@ -142,6 +150,10 @@ impl SecretsManager {
     /// Rotate secret to new value.
     ///
     /// For backends that support it (e.g., Vault), generates new credential.
+    ///
+    /// # Errors
+    ///
+    /// Returns a backend-specific error if rotation fails or is unsupported.
     pub async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         self.backend.rotate_secret(name).await
     }

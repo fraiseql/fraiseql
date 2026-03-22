@@ -46,6 +46,10 @@ impl ConnectionState {
     }
 
     /// Transition to new state
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidState` if the transition from the current state to `next` is not allowed.
     pub fn transition(&mut self, next: ConnectionState) -> Result<()> {
         if !self.can_transition_to(next) {
             return Err(Error::InvalidState {

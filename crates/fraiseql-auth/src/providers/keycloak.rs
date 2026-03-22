@@ -64,6 +64,10 @@ impl KeycloakOAuth {
     /// * `keycloak_url` - Base Keycloak URL (e.g., <https://keycloak.example.com>)
     /// * `realm` - Keycloak realm name (e.g., "master", "fraiseql")
     /// * `redirect_uri` - Redirect URI after authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,
