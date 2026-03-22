@@ -1,11 +1,8 @@
 # fraiseql-ruby (official)
 
-> ⚠️ **Status: Not Yet Implemented** — This SDK is a planned stub. For a community Ruby SDK, see `sdks/community/fraiseql-ruby/`.
+> ⚠️ **Status: Not Yet Implemented** — This SDK is a planned stub.
 
 The official v2 Ruby SDK for FraiseQL is a planned future addition.
-
-A community v1 Ruby SDK exists at [`sdks/community/fraiseql-ruby/`](../../community/fraiseql-ruby/) but is
-not compatible with the v2 compiled schema format and is no longer maintained.
 
 ## Contributing
 

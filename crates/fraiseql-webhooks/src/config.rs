@@ -6,7 +6,23 @@ use serde::Deserialize;
 
 use crate::WebhookError;
 
-/// Webhook endpoint configuration
+/// Webhook endpoint configuration.
+///
+/// ```
+/// use fraiseql_webhooks::WebhookConfig;
+///
+/// let json = r#"{
+///     "secret_env": "STRIPE_WEBHOOK_SECRET",
+///     "provider": "stripe",
+///     "events": {}
+/// }"#;
+///
+/// let config: WebhookConfig = serde_json::from_str(json).unwrap();
+/// assert_eq!(config.secret_env, "STRIPE_WEBHOOK_SECRET");
+/// assert_eq!(config.timestamp_tolerance, 300); // default
+/// assert!(config.idempotent); // default
+/// assert!(config.validate_secret_env().is_ok());
+/// ```
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebhookConfig {
     /// Provider type (stripe, github, etc.) - inferred from key if not specified
@@ -45,6 +61,22 @@ impl WebhookConfig {
     ///
     /// Accepts `[A-Za-z_][A-Za-z0-9_]*`. Rejects `=`, NUL bytes, and empty strings
     /// which are OS-undefined or could cause environment injection.
+    ///
+    /// ```
+    /// use fraiseql_webhooks::WebhookConfig;
+    ///
+    /// let valid: WebhookConfig = serde_json::from_str(r#"{
+    ///     "secret_env": "MY_SECRET_KEY",
+    ///     "events": {}
+    /// }"#).unwrap();
+    /// assert!(valid.validate_secret_env().is_ok());
+    ///
+    /// let invalid: WebhookConfig = serde_json::from_str(r#"{
+    ///     "secret_env": "bad=value",
+    ///     "events": {}
+    /// }"#).unwrap();
+    /// assert!(invalid.validate_secret_env().is_err());
+    /// ```
     ///
     /// # Errors
     ///

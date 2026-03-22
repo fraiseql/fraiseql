@@ -26,7 +26,7 @@ Archived: 2026-03-05 (Remediation Campaign 2, SDK-4)
 
 Community Dart SDK — deprecated as of FraiseQL v2.0.0.
 
-**Authoritative replacement**: `sdks/official/fraiseql-dart/`
+**Authoritative replacement**: `sdks/planned/fraiseql-dart/`
 
 FraiseQL is a server-side execution engine. Dart/Flutter clients connect
 to a FraiseQL GraphQL endpoint over HTTP using existing Dart GraphQL

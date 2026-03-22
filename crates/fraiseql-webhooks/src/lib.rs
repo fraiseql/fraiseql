@@ -77,6 +77,16 @@ pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, Signatur
 pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Errors that can occur during webhook request processing.
+///
+/// ```
+/// use fraiseql_webhooks::WebhookError;
+///
+/// let err = WebhookError::MissingSignature;
+/// assert_eq!(err.to_string(), "Missing signature header");
+///
+/// let err = WebhookError::UnknownProvider("custom".to_string());
+/// assert_eq!(err.to_string(), "Unknown webhook provider: custom");
+/// ```
 #[derive(Debug, thiserror::Error)]
 pub enum WebhookError {
     /// The incoming request did not include the expected signature header for the provider.

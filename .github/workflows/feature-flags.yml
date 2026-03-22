@@ -21,6 +21,10 @@ jobs:
           - "arrow,wire-backend"
           - "mcp,auth,cors"
           - "observers-enterprise,redis-apq,redis-pkce"
+          - "federation"                                                               # federation standalone
+          - "secrets"                                                                   # secrets standalone
+          - "wire-backend"                                                              # wire protocol standalone
+          - "auth,observers,secrets,federation"                                         # kitchen sink
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

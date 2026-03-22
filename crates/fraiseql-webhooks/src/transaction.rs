@@ -10,7 +10,16 @@ use sqlx::{PgPool, Postgres, Transaction};
 
 use super::{Result, WebhookError};
 
-/// Transaction isolation levels for webhook processing
+/// Transaction isolation levels for webhook processing.
+///
+/// ```
+/// use fraiseql_webhooks::WebhookIsolation;
+///
+/// let isolation = WebhookIsolation::default();
+/// assert_eq!(isolation.as_sql(), "READ COMMITTED");
+///
+/// assert_eq!(WebhookIsolation::Serializable.as_sql(), "SERIALIZABLE");
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub enum WebhookIsolation {
     /// Read Committed - default, good for most cases
