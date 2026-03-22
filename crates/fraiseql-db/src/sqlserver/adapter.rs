@@ -52,6 +52,9 @@ fn map_mssql_error_code(code: u32) -> Option<String> {
     Some(sqlstate.to_string())
 }
 
+/// Hard upper bound on pool size to prevent connection exhaustion on the database server.
+const MAX_POOL_SIZE: u32 = 200;
+
 /// SQL Server database adapter with connection pooling.
 ///
 /// Uses `tiberius` for native TDS protocol support and `bb8` for connection pooling.
@@ -156,6 +159,15 @@ impl SqlServerAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: u32) -> Result<Self> {
+        if max_size == 0 || max_size > MAX_POOL_SIZE {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
+                ),
+                path:    None,
+            });
+        }
+
         // Parse connection string into tiberius Config
         let config = Config::from_ado_string(connection_string).map_err(|e| {
             FraiseQLError::ConnectionPool {

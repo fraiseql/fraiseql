@@ -77,7 +77,7 @@ pub const fn default_pool_min_size() -> usize {
 }
 
 pub const fn default_pool_max_size() -> usize {
-    20
+    25
 }
 
 pub const fn default_pool_timeout() -> u64 {

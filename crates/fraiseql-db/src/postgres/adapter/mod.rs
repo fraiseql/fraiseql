@@ -27,6 +27,9 @@ use crate::{
 /// nested query load (fixes Issue #41).
 const DEFAULT_POOL_SIZE: usize = 25;
 
+/// Hard upper bound on pool size to prevent connection exhaustion on the database server.
+const MAX_POOL_SIZE: usize = 200;
+
 /// Maximum retries for connection acquisition with exponential backoff.
 const MAX_CONNECTION_RETRIES: u32 = 3;
 
@@ -137,6 +140,15 @@ impl PostgresAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: usize) -> Result<Self> {
+        if max_size == 0 || max_size > MAX_POOL_SIZE {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
+                ),
+                path:    None,
+            });
+        }
+
         let mut cfg = Config::new();
         cfg.url = Some(connection_string.to_string());
         cfg.manager = Some(ManagerConfig {

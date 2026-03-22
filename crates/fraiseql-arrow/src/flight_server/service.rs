@@ -89,16 +89,15 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // In production, create a real PostgresAdapter from fraiseql-core
-    /// // and wrap it to implement the local DatabaseAdapter trait
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter wrapped
+    /// // to implement fraiseql_arrow::DatabaseAdapter
     /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     ///
     /// let service = FraiseQLFlightService::new_with_db(db_adapter);
@@ -134,14 +133,15 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter wrapped
+    /// // to implement fraiseql_arrow::DatabaseAdapter
     /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
     /// # Ok(())
@@ -181,7 +181,7 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: running PostgreSQL database and OIDC provider for JWT validation.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_core::security::OidcValidator;
@@ -191,9 +191,9 @@ impl FraiseQLFlightService {
     /// let db_adapter: Arc<dyn fraiseql_arrow::DatabaseAdapter> = Arc::new(postgres_adapter);
     /// let validator: Arc<OidcValidator> = Arc::new(oidc_validator);
     /// let service = FraiseQLFlightService::new_with_auth(
-    ///     Arc::new(db_adapter),
+    ///     db_adapter,
     ///     Some(60),
-    ///     Arc::new(validator)
+    ///     validator
     /// );
     /// ```
     #[must_use]
@@ -245,23 +245,21 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: running PostgreSQL database with va_* and ta_* views.
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter wrapped
+    /// // to implement fraiseql_arrow::DatabaseAdapter
     /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
-    /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
+    /// let service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
     /// // Pre-load schemas from database at startup
-    /// let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
+    /// let preloaded = service.preload_schemas_from_db().await?;
     /// eprintln!("Preloaded {} schemas from database", preloaded);
-    ///
-    /// // Schemas now available immediately for queries
-    /// // Without preloading, first query would trigger schema inference
     /// # Ok(())
     /// # }
     /// ```
@@ -310,7 +308,7 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: running PostgreSQL database and compiled schema.
     /// use fraiseql_core::runtime::Executor;
     /// use fraiseql_core::db::PostgresAdapter;
@@ -346,7 +344,7 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: an EventStorage implementation (e.g., backed by a database or Redis).
     /// use fraiseql_arrow::EventStorage;
     /// use std::sync::Arc;

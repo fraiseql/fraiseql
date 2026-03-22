@@ -8,9 +8,11 @@
 
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
+
+use dashmap::DashMap;
 
 /// Timeout for subgraph health-check HTTP requests.
 ///
@@ -168,8 +170,8 @@ impl Default for RollingErrorWindow {
 pub struct SubgraphHealthChecker {
     subgraphs:     Vec<SubgraphConfig>,
     http_client:   reqwest::Client,
-    error_windows: Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
-    status_cache:  Arc<Mutex<Vec<SubgraphHealthStatus>>>,
+    error_windows: Arc<DashMap<String, RollingErrorWindow>>,
+    status_cache:  Arc<RwLock<Vec<SubgraphHealthStatus>>>,
 }
 
 /// Configuration for a single subgraph.
@@ -185,7 +187,7 @@ pub struct SubgraphConfig {
 impl SubgraphHealthChecker {
     /// Create new health checker with subgraph configurations.
     pub fn new(subgraphs: Vec<SubgraphConfig>) -> Self {
-        let mut error_windows = std::collections::HashMap::new();
+        let error_windows = DashMap::new();
         for config in &subgraphs {
             error_windows.insert(config.name.clone(), RollingErrorWindow::new());
         }
@@ -196,8 +198,8 @@ impl SubgraphHealthChecker {
                 .timeout(HEALTH_CHECK_TIMEOUT)
                 .build()
                 .unwrap_or_default(),
-            error_windows: Arc::new(Mutex::new(error_windows)),
-            status_cache: Arc::new(Mutex::new(Vec::new())),
+            error_windows: Arc::new(error_windows),
+            status_cache: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -225,8 +227,7 @@ impl SubgraphHealthChecker {
 
         // Record result and get updated stats
         let (error_count, error_rate) = {
-            let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
-            let window = windows.get(&config.name).expect(
+            let window = self.error_windows.get(&config.name).expect(
                 "RollingErrorWindow created for each subgraph in constructor; window must exist",
             );
 
@@ -268,7 +269,7 @@ impl SubgraphHealthChecker {
     ///
     /// # Panics
     ///
-    /// Panics if the `status_cache` or `error_windows` mutex is poisoned.
+    /// Panics if the `status_cache` RwLock is poisoned.
     pub async fn run_background_checks(self: Arc<Self>) {
         info!("Starting federation health check background task");
 
@@ -288,16 +289,13 @@ impl SubgraphHealthChecker {
 
             // Update cache
             {
-                let mut cache = self.status_cache.lock().expect("status_cache mutex poisoned");
+                let mut cache = self.status_cache.write().expect("status_cache rwlock poisoned");
                 *cache = statuses;
             }
 
             // Cleanup old error buckets
-            {
-                let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
-                for window in windows.values() {
-                    window.cleanup();
-                }
+            for entry in &*self.error_windows {
+                entry.value().cleanup();
             }
 
             // Sleep for 30 seconds
@@ -309,14 +307,12 @@ impl SubgraphHealthChecker {
     ///
     /// # Panics
     ///
-    /// Panics if the `status_cache` mutex is poisoned.
+    /// Panics if the `status_cache` RwLock is poisoned.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
         self.status_cache
-            .lock()
-            .expect("status_cache mutex poisoned")
-            .iter()
-            .cloned()
-            .collect()
+            .read()
+            .expect("status_cache rwlock poisoned")
+            .clone()
     }
 
     /// Get overall federation health status.

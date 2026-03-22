@@ -42,6 +42,9 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// Hard upper bound on pool size to prevent resource exhaustion.
+const MAX_POOL_SIZE: u32 = 200;
+
 /// SQLite database adapter with connection pooling.
 ///
 /// Uses `sqlx` for connection pooling and async queries.
@@ -135,6 +138,15 @@ impl SqliteAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: u32) -> Result<Self> {
+        if max_size == 0 || max_size > MAX_POOL_SIZE {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
+                ),
+                path:    None,
+            });
+        }
+
         let pool = SqlitePoolOptions::new()
             .max_connections(max_size)
             .connect(connection_string)

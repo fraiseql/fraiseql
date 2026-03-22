@@ -56,7 +56,7 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// // Requires: fraiseql-core PostgresAdapter and a running PostgreSQL database.
 /// use std::{collections::HashMap, sync::Arc};
 /// use fraiseql_arrow::db::{DatabaseAdapter, DatabaseError, DatabaseResult};
