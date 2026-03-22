@@ -327,6 +327,24 @@ export function pascalToSnake(name: string): string {
 }
 
 /**
+ * Pluralize a snake_case name using basic English rules.
+ *
+ * Rules (ordered):
+ * 1. Already ends in 's' (but not 'ss') -> no change (e.g. 'statistics')
+ * 2. Ends in 'ss', 'sh', 'ch', 'x', 'z' -> append 'es'
+ * 3. Ends in consonant + 'y' -> replace 'y' with 'ies'
+ * 4. Default -> append 's'
+ */
+export function pluralize(name: string): string {
+  if (name.endsWith("s") && !name.endsWith("ss")) return name;
+  if (/(?:ss|sh|ch|x|z)$/.test(name)) return name + "es";
+  if (name.length >= 2 && name.endsWith("y") && !"aeiou".includes(name[name.length - 2])) {
+    return name.slice(0, -1) + "ies";
+  }
+  return name + "s";
+}
+
+/**
  * Parse an inject shorthand string into a structured inject param.
  *
  * @param spec - Shorthand like "jwt:claim_name"
@@ -350,11 +368,13 @@ function parseInjectSpec(spec: string): { source: string; claim: string } | unde
 function generateCrudOperations(
   typeName: string,
   fields: Field[],
-  crud: boolean | string[]
+  crud: boolean | string[],
+  sqlSource?: string
 ): void {
   const allOps = ["read", "create", "update", "delete"];
   const ops: string[] = crud === true ? allOps : (Array.isArray(crud) ? crud : []);
   const snake = pascalToSnake(typeName);
+  const view = sqlSource ?? `v_${snake}`;
   const pk = fields[0]; // First field is the PK by convention
 
   if (!pk) return;
@@ -368,17 +388,17 @@ function generateCrudOperations(
       true,
       [{ name: pk.name, type: pk.type, nullable: false }],
       `Get ${typeName} by ID`,
-      { sqlSource: `v_${snake}` }
+      { sqlSource: view }
     );
     // List query
     SchemaRegistry.registerQuery(
-      `${snake}s`,
+      pluralize(snake),
       typeName,
       true,
       false,
       [],
       `List ${typeName} records`,
-      { sqlSource: `v_${snake}`, autoParams: { limit: true, offset: true, where: true, order_by: true } }
+      { sqlSource: view, autoParams: { limit: true, offset: true, where: true, order_by: true } }
     );
   }
 
@@ -509,7 +529,7 @@ export class SchemaRegistry {
 
     // Auto-generate CRUD operations if requested
     if (options?.crud) {
-      generateCrudOperations(name, fields, options.crud);
+      generateCrudOperations(name, fields, options.crud, options.sqlSource);
     }
   }
 

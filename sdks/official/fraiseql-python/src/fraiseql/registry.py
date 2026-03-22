@@ -13,6 +13,24 @@ def _pascal_to_snake(name: str) -> str:
     return _CAMEL_RE.sub("_", name).lower()
 
 
+def _pluralize(snake: str) -> str:
+    """Pluralize a snake_case name using basic English rules.
+
+    Rules (ordered):
+    1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+    2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+    3. Ends in consonant + 'y' → replace 'y' with 'ies'
+    4. Default → append 's'
+    """
+    if snake.endswith("s") and not snake.endswith("ss"):
+        return snake
+    if snake.endswith(("ss", "sh", "ch", "x", "z")):
+        return snake + "es"
+    if snake.endswith("y") and len(snake) >= 2 and snake[-2] not in "aeiou":
+        return snake[:-1] + "ies"
+    return snake + "s"
+
+
 class SchemaRegistry:
     """Global registry for schema definitions.
 
@@ -358,6 +376,8 @@ class SchemaRegistry:
         type_name: str,
         fields: dict[str, dict[str, Any]],
         crud: bool | list[str],
+        sql_source: str | None = None,
+        plural_name: str | None = None,
     ) -> None:
         """Auto-generate CRUD queries and mutations for a type.
 
@@ -366,6 +386,10 @@ class SchemaRegistry:
             fields: The type's field definitions from ``extract_field_info``.
             crud: ``True`` for all operations, or a list of specific operations
                   to generate (subset of ``["read", "create", "update", "delete"]``).
+            sql_source: Optional explicit SQL view source. Defaults to
+                ``v_<snake_case(type_name)>``.
+            plural_name: Optional explicit plural form for list query names.
+                Defaults to ``_pluralize(snake)``.
 
         Raises:
             ValueError: If the type has no fields.
@@ -387,7 +411,7 @@ class SchemaRegistry:
             raise ValueError(msg)
 
         snake = _pascal_to_snake(type_name)
-        view = f"v_{snake}"
+        view = sql_source or f"v_{snake}"
         pk_name, pk_info = field_list[0]
 
         if "read" in ops:
@@ -402,8 +426,9 @@ class SchemaRegistry:
                 sql_source=view,
             )
             # List query with auto_params
+            list_name = plural_name or _pluralize(snake)
             cls.register_query(
-                name=f"{snake}s",
+                name=list_name,
                 return_type=type_name,
                 returns_list=True,
                 nullable=False,

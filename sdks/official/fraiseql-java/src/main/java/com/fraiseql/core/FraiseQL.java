@@ -54,7 +54,7 @@ public class FraiseQL {
             if (crud.length > 0) {
                 var typeInfo = registry.getType(typeName);
                 typeInfo.ifPresent(info ->
-                    registry.generateCrudOperations(info.name, info.fields, crud));
+                    registry.generateCrudOperations(info.name, info.fields, crud, info.sqlSource));
             }
         }
     }

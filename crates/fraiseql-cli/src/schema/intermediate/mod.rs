@@ -120,7 +120,7 @@ pub struct IntermediateSchema {
     ///
     /// Contains Apollo Federation settings and circuit breaker configuration compiled
     /// from the `[federation]` TOML section. Embedded verbatim into the compiled schema.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "federation")]
     pub federation_config: Option<serde_json::Value>,
 
     /// WebSocket subscription configuration (hooks, limits).
@@ -612,6 +612,40 @@ mod tests {
         assert_eq!(union_def.name, "SearchResult");
         assert_eq!(union_def.member_types, vec!["User", "Post"]);
         assert_eq!(union_def.description, Some("Result from a search query".to_string()));
+    }
+
+    #[test]
+    fn test_federation_key_alias() {
+        let json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": [],
+            "federation": {
+                "enabled": true,
+                "entities": [{"name": "User", "key_fields": ["id"]}]
+            }
+        }"#;
+
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        assert!(schema.federation_config.is_some());
+        let fed = schema.federation_config.unwrap();
+        assert_eq!(fed["enabled"], true);
+    }
+
+    #[test]
+    fn test_federation_config_key_also_works() {
+        let json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": [],
+            "federation_config": {
+                "enabled": true,
+                "entities": []
+            }
+        }"#;
+
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        assert!(schema.federation_config.is_some());
     }
 
     #[test]

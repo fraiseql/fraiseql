@@ -192,6 +192,7 @@ def type(
     tenant_scoped: bool = False,
     crud: bool | list[str] = False,
     sql_source: str | None = None,
+    plural_name: str | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -269,7 +270,9 @@ def type(
 
         # Auto-generate CRUD operations if requested
         if crud:
-            SchemaRegistry.register_crud(c.__name__, fields, crud)
+            SchemaRegistry.register_crud(
+                c.__name__, fields, crud, sql_source=sql_source, plural_name=plural_name,
+            )
 
         # Return original class unmodified (no runtime behavior)
         return c

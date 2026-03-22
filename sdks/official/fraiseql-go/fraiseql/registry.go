@@ -263,7 +263,7 @@ func RegisterTypeAdvanced(def TypeDefinition) error {
 	// Generate CRUD operations if requested
 	if def.Crud != nil {
 		reg.mu.Unlock()
-		err := generateCrudOperations(def.Name, def.Fields, def.Crud)
+		err := generateCrudOperations(def.Name, def.Fields, def.Crud, def.SqlSource)
 		reg.mu.Lock()
 		if err != nil {
 			return fmt.Errorf("CRUD generation for type %q failed: %w", def.Name, err)

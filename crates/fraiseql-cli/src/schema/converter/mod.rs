@@ -206,12 +206,32 @@ impl SchemaConverter {
             interface_names.insert(interface_def.name.clone());
         }
 
-        // Add built-in scalars
+        // Add built-in GraphQL scalars
         type_names.insert("Int".to_string());
         type_names.insert("Float".to_string());
         type_names.insert("String".to_string());
         type_names.insert("Boolean".to_string());
         type_names.insert("ID".to_string());
+
+        // Add built-in FraiseQL scalars
+        for name in ["DateTime", "Date", "Time", "Json", "UUID", "Decimal", "Vector"] {
+            type_names.insert((*name).to_string());
+        }
+
+        // Add custom scalars
+        for (name, _) in schema.custom_scalars.list_all() {
+            type_names.insert(name);
+        }
+
+        // Add enum names
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
+        // Add input type names
+        for input in &schema.input_types {
+            type_names.insert(input.name.clone());
+        }
 
         // Validate queries
         for query in &schema.queries {

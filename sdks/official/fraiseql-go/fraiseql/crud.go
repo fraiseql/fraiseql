@@ -1,6 +1,9 @@
 package fraiseql
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // generateCrudOperations generates standard CRUD queries and mutations for a type.
 // The crud parameter is either bool (true = all operations) or []string of specific
@@ -11,14 +14,17 @@ import "fmt"
 //   - Create: mutation create_<snake> with all fields as arguments
 //   - Update: mutation update_<snake> with PK required, other fields nullable
 //   - Delete: mutation delete_<snake> with PK only
-func generateCrudOperations(typeName string, fields []FieldInfo, crud interface{}) error {
+func generateCrudOperations(typeName string, fields []FieldInfo, crud interface{}, sqlSource string) error {
 	ops := parseCrudOps(crud)
 	if len(ops) == 0 {
 		return nil
 	}
 
 	snake := pascalToSnake(typeName)
-	view := "v_" + snake
+	view := sqlSource
+	if view == "" {
+		view = "v_" + snake
+	}
 
 	var pkField FieldInfo
 	if len(fields) > 0 {
@@ -67,6 +73,28 @@ func parseCrudOps(crud interface{}) map[string]bool {
 	return nil
 }
 
+// pluralize applies basic English pluralization rules to a snake_case name.
+//
+// Rules (ordered):
+//  1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+//  2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+//  3. Ends in consonant + 'y' → replace 'y' with 'ies'
+//  4. Default → append 's'
+func pluralize(name string) string {
+	if strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") {
+		return name
+	}
+	for _, suffix := range []string{"ss", "sh", "ch", "x", "z"} {
+		if strings.HasSuffix(name, suffix) {
+			return name + "es"
+		}
+	}
+	if len(name) >= 2 && name[len(name)-1] == 'y' && !strings.ContainsRune("aeiou", rune(name[len(name)-2])) {
+		return name[:len(name)-1] + "ies"
+	}
+	return name + "s"
+}
+
 func generateReadOps(typeName, snake, view string, pkField FieldInfo) error {
 	// Get-by-ID query
 	err := RegisterQuery(QueryDefinition{
@@ -86,7 +114,7 @@ func generateReadOps(typeName, snake, view string, pkField FieldInfo) error {
 
 	// List query with auto_params
 	return RegisterQuery(QueryDefinition{
-		Name:        snake + "s",
+		Name:        pluralize(snake),
 		ReturnType:  typeName,
 		ReturnsList: true,
 		Nullable:    false,

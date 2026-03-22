@@ -126,7 +126,7 @@ final class SchemaRegistry
 
         // Generate CRUD operations if requested
         if ($typeAttribute->crud !== false) {
-            $this->generateCrudOperations($typeName, $fields, $typeAttribute->crud);
+            $this->generateCrudOperations($typeName, $fields, $typeAttribute->crud, $typeAttribute->sqlSource ?? null);
         }
 
         return $this;
@@ -375,10 +375,10 @@ final class SchemaRegistry
      * @param array<string, FieldDefinition> $fields The type's field definitions
      * @param array|bool $crud CRUD configuration: true, ['all'], or list of operations
      */
-    private function generateCrudOperations(string $typeName, array $fields, array|bool $crud): void
+    private function generateCrudOperations(string $typeName, array $fields, array|bool $crud, ?string $sqlSource = null): void
     {
         $snake = self::pascalToSnake($typeName);
-        $view = 'v_' . $snake;
+        $view = $sqlSource ?? ('v_' . $snake);
 
         // Determine which operations to generate
         $ops = [];
@@ -445,7 +445,7 @@ final class SchemaRegistry
         }
 
         // List query with auto_params
-        $listQuery = QueryBuilder::query($snake . 's')
+        $listQuery = QueryBuilder::query(self::pluralize($snake))
             ->returnType($typeName)
             ->returnsList(true)
             ->sqlSource($view)
@@ -524,6 +524,32 @@ final class SchemaRegistry
         $mutation->argument($pkField->name, $pkField->type, nullable: false);
 
         $this->registerMutation($mutation);
+    }
+
+    /**
+     * Pluralize a snake_case name using basic English rules.
+     *
+     * Rules (ordered):
+     * 1. Already ends in 's' (but not 'ss') -> no change (e.g. 'statistics')
+     * 2. Ends in 'ss', 'sh', 'ch', 'x', 'z' -> append 'es'
+     * 3. Ends in consonant + 'y' -> replace 'y' with 'ies'
+     * 4. Default -> append 's'
+     *
+     * @param string $name The name to pluralize
+     * @return string The pluralized name
+     */
+    private static function pluralize(string $name): string
+    {
+        if (str_ends_with($name, 's') && !str_ends_with($name, 'ss')) {
+            return $name;
+        }
+        if (preg_match('/(?:ss|sh|ch|x|z)$/', $name)) {
+            return $name . 'es';
+        }
+        if (strlen($name) >= 2 && str_ends_with($name, 'y') && !str_contains('aeiou', $name[strlen($name) - 2])) {
+            return substr($name, 0, -1) . 'ies';
+        }
+        return $name . 's';
     }
 
     /**

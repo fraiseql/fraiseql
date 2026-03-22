@@ -236,6 +236,28 @@ public sealed class SchemaRegistry
         return char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
     }
 
+    /// <summary>
+    /// Pluralizes a snake_case name using basic English rules.
+    /// <list type="number">
+    /// <item>Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')</item>
+    /// <item>Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'</item>
+    /// <item>Ends in consonant + 'y' → replace 'y' with 'ies'</item>
+    /// <item>Default → append 's'</item>
+    /// </list>
+    /// </summary>
+    internal static string Pluralize(string name)
+    {
+        if (name.EndsWith("s") && !name.EndsWith("ss"))
+            return name;
+        if (name.EndsWith("ss") || name.EndsWith("sh") || name.EndsWith("ch")
+            || name.EndsWith("x") || name.EndsWith("z"))
+            return name + "es";
+        if (name.Length >= 2 && name.EndsWith("y")
+            && !"aeiou".Contains(name[name.Length - 2]))
+            return name[..^1] + "ies";
+        return name + "s";
+    }
+
     /// <summary>Converts a PascalCase name to snake_case.</summary>
     internal static string PascalToSnake(string name)
     {
@@ -381,7 +403,7 @@ public sealed class SchemaRegistry
 
             // list: returns_list with auto_params
             _queries.Add(new IntermediateQuery(
-                Name: snake + "s",
+                Name: Pluralize(snake),
                 ReturnType: typeName,
                 ReturnsList: true,
                 Nullable: false,

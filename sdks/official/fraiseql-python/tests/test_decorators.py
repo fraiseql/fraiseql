@@ -1555,3 +1555,132 @@ def test_crud_pascal_to_snake_multi_word() -> None:
     assert "create_order_item" in mutation_names
     assert "update_order_item" in mutation_names
     assert "delete_order_item" in mutation_names
+
+
+def test_crud_uses_explicit_sql_source() -> None:
+    """Test that @type(crud=True, sql_source=...) uses the explicit sql_source."""
+
+    @fraiseql.type(crud=True, sql_source="tv_organization")
+    class Organization:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+
+    # The read queries should use the explicit sql_source
+    get_query = next(q for q in schema["queries"] if q["name"] == "organization")
+    assert get_query["sql_source"] == "tv_organization"
+
+    list_query = next(q for q in schema["queries"] if q["name"] == "organizations")
+    assert list_query["sql_source"] == "tv_organization"
+
+    # Mutations still use function naming convention
+    create_mut = next(m for m in schema["mutations"] if m["name"] == "create_organization")
+    assert create_mut["sql_source"] == "fn_create_organization"
+
+
+def test_crud_defaults_sql_source_when_not_specified() -> None:
+    """Test that CRUD defaults to v_<snake> when no sql_source given."""
+
+    @fraiseql.type(crud=["read"])
+    class Widget:
+        id: int
+        label: str
+
+    schema = SchemaRegistry.get_schema()
+
+    get_query = next(q for q in schema["queries"] if q["name"] == "widget")
+    assert get_query["sql_source"] == "v_widget"
+
+
+# --- Pluralization tests (#137) ---
+
+
+def test_pluralize_y_to_ies() -> None:
+    """Test -y → -ies pluralization (consonant + y)."""
+
+    @fraiseql.type(crud=["read"])
+    class Category:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "categories" in query_names
+
+
+def test_pluralize_ss_to_sses() -> None:
+    """Test -ss → -sses pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Address:
+        id: int
+        street: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "addresses" in query_names
+
+
+def test_pluralize_ch_to_ches() -> None:
+    """Test -ch → -ches pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Branch:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "branches" in query_names
+
+
+def test_pluralize_x_to_xes() -> None:
+    """Test -x → -xes pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Tax:
+        id: int
+        amount: float
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "taxes" in query_names
+
+
+def test_pluralize_already_plural() -> None:
+    """Test already-plural words ending in s (but not ss) are unchanged."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("statistics") == "statistics"
+    assert _pluralize("news") == "news"
+
+
+def test_pluralize_vowel_y() -> None:
+    """Test vowel + y gets regular -s (not -ies)."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("key") == "keys"
+    assert _pluralize("day") == "days"
+
+
+def test_pluralize_default_s() -> None:
+    """Test default pluralization adds -s."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("user") == "users"
+    assert _pluralize("product") == "products"
+
+
+def test_explicit_plural_name() -> None:
+    """Test explicit plural_name overrides automatic pluralization."""
+
+    @fraiseql.type(crud=["read"], plural_name="people")
+    class Person:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "people" in query_names
+    assert "persons" not in query_names

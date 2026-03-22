@@ -423,6 +423,33 @@ defmodule FraiseQL.Schema do
     |> String.trim_leading("_")
   end
 
+  @doc """
+  Pluralizes a snake_case name using basic English rules.
+
+  Rules (ordered):
+  1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+  2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+  3. Ends in consonant + 'y' → replace 'y' with 'ies'
+  4. Default → append 's'
+  """
+  @spec pluralize(String.t()) :: String.t()
+  def pluralize(name) do
+    cond do
+      String.ends_with?(name, "s") and not String.ends_with?(name, "ss") ->
+        name
+
+      String.ends_with?(name, ["ss", "sh", "ch", "x", "z"]) ->
+        name <> "es"
+
+      String.ends_with?(name, "y") and byte_size(name) >= 2 and
+          String.at(name, String.length(name) - 2) not in ~w(a e i o u) ->
+        String.slice(name, 0..-2//1) <> "ies"
+
+      true ->
+        name <> "s"
+    end
+  end
+
   defp generate_crud_operations(types) do
     Enum.reduce(types, {[], []}, fn type, {queries_acc, mutations_acc} ->
       case type.crud do
@@ -461,7 +488,7 @@ defmodule FraiseQL.Schema do
             ]
           },
           %FraiseQL.QueryDefinition{
-            name: snake <> "s",
+            name: pluralize(snake),
             return_type: type.name,
             sql_source: type.sql_source,
             returns_list: true,

@@ -154,6 +154,30 @@ public class SchemaRegistry {
     }
 
     /**
+     * Pluralize a snake_case name using basic English rules.
+     *
+     * Rules (ordered):
+     * 1. Already ends in 's' (but not 'ss') -> no change (e.g. 'statistics')
+     * 2. Ends in 'ss', 'sh', 'ch', 'x', 'z' -> append 'es'
+     * 3. Ends in consonant + 'y' -> replace 'y' with 'ies'
+     * 4. Default -> append 's'
+     */
+    static String pluralize(String name) {
+        if (name.endsWith("s") && !name.endsWith("ss")) {
+            return name;
+        }
+        if (name.endsWith("ss") || name.endsWith("sh") || name.endsWith("ch")
+                || name.endsWith("x") || name.endsWith("z")) {
+            return name + "es";
+        }
+        if (name.length() >= 2 && name.endsWith("y")
+                && "aeiou".indexOf(name.charAt(name.length() - 2)) < 0) {
+            return name.substring(0, name.length() - 1) + "ies";
+        }
+        return name + "s";
+    }
+
+    /**
      * Convert PascalCase to snake_case without "v_" prefix.
      * E.g. "OrderItem" -> "order_item".
      */
@@ -211,11 +235,23 @@ public class SchemaRegistry {
      * @param crud the CRUD operations to generate (e.g. {"all"}, {"read", "create"})
      */
     public void generateCrudOperations(String typeName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String[] crud) {
+        generateCrudOperations(typeName, fields, crud, null);
+    }
+
+    /**
+     * Generate CRUD operations for a type.
+     *
+     * @param typeName the GraphQL type name
+     * @param fields the type's fields
+     * @param crud the CRUD operations to generate (e.g. {"all"}, {"read", "create"})
+     * @param sqlSource optional sql_source override for read queries; defaults to "v_" + snake_case(typeName)
+     */
+    public void generateCrudOperations(String typeName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String[] crud, String sqlSource) {
         Set<String> ops = new HashSet<>(Arrays.asList(crud));
         boolean all = ops.contains("all");
 
         String snake = pascalToSnake(typeName);
-        String view = "v_" + snake;
+        String view = (sqlSource != null && !sqlSource.isEmpty()) ? sqlSource : "v_" + snake;
 
         // First field is the PK
         String pkField = null;
@@ -239,7 +275,7 @@ public class SchemaRegistry {
             Map<String, String> listArgs = new LinkedHashMap<>();
             listArgs.put("limit", "Int");
             listArgs.put("offset", "Int");
-            registerQuery("list_" + snake + "s", "[" + typeName + "]", listArgs, "List " + typeName + " records",
+            registerQuery("list_" + pluralize(snake), "[" + typeName + "]", listArgs, "List " + typeName + " records",
                 false, view, null, null, null);
         }
 

@@ -17,7 +17,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
+use super::{
+    argument::ArgumentDefinition, directive::DirectiveDefinition, mutation::MutationDefinition,
+    query::QueryDefinition,
+};
 use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
@@ -644,14 +647,67 @@ impl CompiledSchema {
     #[must_use]
     pub fn raw_schema(&self) -> String {
         self.schema_sdl.clone().unwrap_or_else(|| {
-            // Generate basic SDL from type definitions if not provided
             let mut sdl = String::new();
 
-            // Add types
+            // Enum definitions
+            for enum_def in &self.enums {
+                sdl.push_str(&format!("enum {} {{\n", enum_def.name));
+                for value in &enum_def.values {
+                    sdl.push_str(&format!("  {}\n", value.name));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Input type definitions
+            for input in &self.input_types {
+                sdl.push_str(&format!("input {} {{\n", input.name));
+                for f in &input.fields {
+                    sdl.push_str(&format!("  {}: {}\n", f.name, f.field_type));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Object type definitions
             for type_def in &self.types {
-                sdl.push_str(&format!("type {} {{\n", type_def.name));
+                if type_def.implements.is_empty() {
+                    sdl.push_str(&format!("type {} {{\n", type_def.name));
+                } else {
+                    sdl.push_str(&format!(
+                        "type {} implements {} {{\n",
+                        type_def.name,
+                        type_def.implements.join(" & ")
+                    ));
+                }
                 for field in &type_def.fields {
-                    sdl.push_str(&format!("  {}: {}\n", field.name, field.field_type));
+                    let bang = if field.nullable { "" } else { "!" };
+                    sdl.push_str(&format!("  {}: {}{}\n", field.name, field.field_type, bang));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Query root type
+            if !self.queries.is_empty() {
+                sdl.push_str("type Query {\n");
+                for query in &self.queries {
+                    let args_str = format_args_sdl(&query.arguments);
+                    let return_str = format_return_type_sdl(
+                        &query.return_type,
+                        query.returns_list,
+                        query.nullable,
+                    );
+                    sdl.push_str(&format!("  {}{}: {}\n", query.name, args_str, return_str));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Mutation root type
+            if !self.mutations.is_empty() {
+                sdl.push_str("type Mutation {\n");
+                for mutation in &self.mutations {
+                    let args_str = format_args_sdl(&mutation.arguments);
+                    // Mutations always return a single non-null result
+                    let return_str = format!("{}!", mutation.return_type);
+                    sdl.push_str(&format!("  {}{}: {}\n", mutation.name, args_str, return_str));
                 }
                 sdl.push_str("}\n\n");
             }
@@ -745,4 +801,100 @@ fn is_builtin_type(name: &str) -> bool {
             | "UUID"
             | "Decimal"
     )
+}
+
+/// Format an argument list as SDL (e.g., `(id: ID!, name: String)`).
+/// Returns empty string when there are no arguments.
+fn format_args_sdl(args: &[ArgumentDefinition]) -> String {
+    if args.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = args
+        .iter()
+        .map(|a| {
+            let bang = if a.nullable { "" } else { "!" };
+            format!("{}: {}{}", a.name, a.arg_type.to_graphql_string(), bang)
+        })
+        .collect();
+    format!("({})", parts.join(", "))
+}
+
+/// Format a return type as SDL (e.g., `User!`, `[User!]!`, `User`).
+fn format_return_type_sdl(type_name: &str, is_list: bool, nullable: bool) -> String {
+    if is_list {
+        if nullable {
+            format!("[{type_name}!]")
+        } else {
+            format!("[{type_name}!]!")
+        }
+    } else if nullable {
+        type_name.to_string()
+    } else {
+        format!("{type_name}!")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::FieldType;
+
+    fn make_arg(name: &str, arg_type: FieldType) -> ArgumentDefinition {
+        ArgumentDefinition {
+            name:          name.to_string(),
+            arg_type,
+            nullable:      false,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        }
+    }
+
+    #[test]
+    fn test_raw_schema_includes_query_type() {
+        let mut q = QueryDefinition::new("user", "User");
+        q.nullable = true;
+        q.arguments = vec![make_arg("id", FieldType::Id)];
+
+        let schema = CompiledSchema {
+            queries: vec![q],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("type Query {"), "SDL should contain Query type:\n{sdl}");
+        assert!(sdl.contains("user(id: ID!): User"), "SDL should contain user query:\n{sdl}");
+    }
+
+    #[test]
+    fn test_raw_schema_includes_mutation_type() {
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.arguments = vec![make_arg("name", FieldType::String)];
+
+        let schema = CompiledSchema {
+            mutations: vec![m],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("type Mutation {"), "SDL should contain Mutation type:\n{sdl}");
+        assert!(
+            sdl.contains("createUser(name: String!): User!"),
+            "SDL should contain createUser mutation:\n{sdl}"
+        );
+    }
+
+    #[test]
+    fn test_raw_schema_list_query() {
+        let mut q = QueryDefinition::new("users", "User");
+        q.returns_list = true;
+
+        let schema = CompiledSchema {
+            queries: vec![q],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("users: [User!]!"), "SDL should contain list return type:\n{sdl}");
+    }
 }

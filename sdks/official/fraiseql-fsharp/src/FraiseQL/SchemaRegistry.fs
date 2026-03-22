@@ -112,10 +112,25 @@ module SchemaRegistry =
     let private pascalToSnake (name: string) =
         System.Text.RegularExpressions.Regex.Replace(name, "(?<!^)([A-Z])", "_$1").ToLowerInvariant()
 
+    /// Pluralizes a snake_case name using basic English rules.
+    ///
+    /// Rules (ordered):
+    /// 1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+    /// 2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+    /// 3. Ends in consonant + 'y' → replace 'y' with 'ies'
+    /// 4. Default → append 's'
+    let private pluralize (name: string) =
+        if name.EndsWith("s") && not (name.EndsWith("ss")) then name
+        elif name.EndsWith("ss") || name.EndsWith("sh") || name.EndsWith("ch")
+             || name.EndsWith("x") || name.EndsWith("z") then name + "es"
+        elif name.Length >= 2 && name.EndsWith("y")
+             && not ("aeiou".Contains(name.[name.Length - 2])) then name.[.. name.Length - 2] + "ies"
+        else name + "s"
+
     /// Generates CRUD queries and mutations for a registered type.
     let private generateCrud (typeDef: TypeDefinition) (crudOps: string[]) : unit =
         let snake = pascalToSnake typeDef.name
-        let view = "v_" + snake
+        let view = if System.String.IsNullOrEmpty(typeDef.sql_source) then "v_" + snake else typeDef.sql_source
 
         let expandedOps =
             crudOps
@@ -159,7 +174,7 @@ module SchemaRegistry =
                 // list query
                 let listQuery: QueryDefinition =
                     {
-                        name = sprintf "list%ss" typeDef.name
+                        name = sprintf "list%s" (pluralize typeDef.name)
                         return_type = typeDef.name
                         returns_list = true
                         nullable = false
