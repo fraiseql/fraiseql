@@ -186,6 +186,70 @@ fraiseql compile schema.json --output schema.compiled.json
 
 The compiled schema is then loaded by the FraiseQL server at startup to initialize all GraphQL query handlers.
 
+## Field authorization
+
+Restrict field access by JWT scope using either approach:
+
+### Attributes
+
+```fsharp
+[<GraphQLType(Name = "User", SqlSource = "v_user")>]
+type UserEntity() =
+    [<GraphQLField(Nullable = false)>]
+    member val Id: int = 0 with get, set
+
+    [<GraphQLField(Nullable = false)>]
+    member val Name: string = "" with get, set
+
+    // Only visible to tokens with the "admin" scope
+    [<GraphQLField(Nullable = true, Scope = "admin")>]
+    member val Email: string = null with get, set
+
+    // Visible to tokens with ANY of these scopes
+    [<GraphQLField(Nullable = true, Scopes = [| "hr"; "admin" |])>]
+    member val Phone: string = null with get, set
+```
+
+### Computation Expression
+
+```fsharp
+let schema =
+    fraiseql {
+        type' (TypeCEBuilder("User") {
+            sqlSource "v_user"
+            field (FieldBuilder("id", "ID") { nullable false })
+            field (FieldBuilder("name", "String") { nullable false })
+            field (FieldBuilder("email", "String") { nullable true; scope "admin" })
+        })
+    }
+```
+
+Fields with `scope`/`scopes` are omitted from the response when the JWT lacks the required claim.
+
+## Development
+
+### Prerequisites
+
+```bash
+dotnet restore
+```
+
+### Running tests
+
+```bash
+dotnet test
+```
+
+### Building
+
+```bash
+dotnet build
+```
+
+### Parity check
+
+The test suite includes cross-SDK parity validation to ensure the F# SDK produces output identical to the Python and TypeScript SDKs.
+
 ## License
 
 MIT — see [LICENSE](../../../LICENSE) for details.

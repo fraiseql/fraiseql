@@ -194,6 +194,64 @@ PHP types are automatically mapped to GraphQL scalar types:
 
 Use `#[GraphQLField(type: 'ID')]` to override the inferred type.
 
+## Field authorization
+
+Restrict field access by JWT scope:
+
+```php
+#[GraphQLType(name: 'User', sqlSource: 'v_user')]
+final class User
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public int $id;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $name;
+
+    // Only visible to tokens with the "admin" scope
+    #[GraphQLField(type: 'String', nullable: true, scope: 'admin')]
+    public ?string $email;
+
+    // Visible to tokens with ANY of these scopes
+    #[GraphQLField(type: 'String', nullable: true, scopes: ['hr', 'admin'])]
+    public ?string $phone;
+}
+```
+
+Fields with `scope`/`scopes` are omitted from the response when the JWT lacks the required claim. No error is returned — the field simply does not appear.
+
+## Development
+
+### Prerequisites
+
+```bash
+composer install
+```
+
+### Running tests
+
+```bash
+vendor/bin/phpunit
+```
+
+### Linting
+
+```bash
+# Static analysis
+vendor/bin/phpstan analyse
+
+# Code style
+vendor/bin/php-cs-fixer fix --dry-run --diff
+```
+
+### Parity check
+
+The `GenerateParitySchema.php` test generates a canonical schema for cross-SDK parity validation:
+
+```bash
+vendor/bin/phpunit --filter GenerateParitySchema
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
