@@ -1684,3 +1684,70 @@ def test_explicit_plural_name() -> None:
     query_names = [q["name"] for q in schema["queries"]]
     assert "people" in query_names
     assert "persons" not in query_names
+
+
+# =============================================================================
+# Cascade Protocol tests (#142)
+# =============================================================================
+
+
+def test_mutation_cascade_bool_validation() -> None:
+    """Non-bool cascade= raises TypeError."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a bool"):
+
+        @fraiseql.mutation(sql_source="fn_create_widget", cascade="not_a_bool")
+        def create_widget(name: str) -> Widget:
+            pass
+
+
+def test_mutation_cascade_true_registers() -> None:
+    """cascade=True is stored in the schema registry."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_order", cascade=True)
+    def create_order(total: float) -> Order:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    assert mut["cascade"] is True
+
+
+def test_mutation_cascade_false_registers() -> None:
+    """cascade=False is stored in the schema registry."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_item", cascade=False)
+    def create_item(name: str) -> Item:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_item")
+    assert mut["cascade"] is False
+
+
+def test_mutation_cascade_omitted_not_in_schema() -> None:
+    """When cascade= is not specified, the key is absent from the schema entry."""
+
+    @fraiseql.type
+    class Thing:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_thing")
+    def create_thing(name: str) -> Thing:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_thing")
+    assert "cascade" not in mut
