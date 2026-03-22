@@ -4,6 +4,14 @@ import pytest
 
 import fraiseql
 from fraiseql.registry import SchemaRegistry
+from fraiseql.scalars import ID
+
+
+class User:
+    """Dummy type for return-type annotations in tests."""
+
+    id: ID
+    name: str
 
 
 @pytest.fixture(autouse=True)
@@ -140,8 +148,6 @@ def test_mutation_without_rest_omits_rest_block():
 def test_mutation_rest_method_without_path_raises():
     with pytest.raises(ValueError, match="no effect"):
 
-        @fraiseql.mutation(
-            sql_source="fn_create_user", operation="CREATE", rest_method="POST"
-        )
+        @fraiseql.mutation(sql_source="fn_create_user", operation="CREATE", rest_method="POST")
         def create_user(name: str) -> "User":
             pass

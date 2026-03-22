@@ -74,6 +74,8 @@ class SchemaRegistry:
         is_error: bool = False,
         tenant_scoped: bool = False,
         sql_source: str | None = None,
+        key_fields: list[str] | None = None,
+        extends: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -91,6 +93,10 @@ class SchemaRegistry:
                 injects a tenant_id filter into all queries for this type.
             sql_source: Optional explicit SQL source (view name). Defaults to
                 ``v_<snake_case(name)>``.
+            key_fields: Federation key fields for entity resolution. Defaults to
+                ``["id"]`` when federation is enabled on export. Set explicitly to
+                override (e.g. ``["id", "region"]`` for compound keys).
+            extends: Whether this type extends a type defined in another subgraph.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -121,6 +127,12 @@ class SchemaRegistry:
 
         if tenant_scoped:
             type_def["tenant_scoped"] = True
+
+        # Federation metadata — stored on the type, emitted when federation is enabled
+        if key_fields is not None:
+            type_def["key_fields"] = key_fields
+        if extends:
+            type_def["extends"] = True
 
         cls._types[name] = type_def
 

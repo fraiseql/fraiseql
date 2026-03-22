@@ -1355,11 +1355,11 @@ def test_type_explicit_sql_source() -> None:
 
 def test_unset_is_singleton() -> None:
     """UNSET is a singleton — all references are the same object."""
-    from fraiseql.unset import UNSET as u1
-    from fraiseql.unset import UNSET as u2
+    from fraiseql.unset import UNSET as U1
+    from fraiseql.unset import UNSET as U2
 
-    assert u1 is u2
-    assert u1 is fraiseql.UNSET
+    assert U1 is U2
+    assert U1 is fraiseql.UNSET
 
 
 def test_unset_is_falsy() -> None:

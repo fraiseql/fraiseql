@@ -46,11 +46,29 @@ def _validate_schema_before_export(schema: dict[str, Any]) -> None:
 
 
 class Federation:
-    """Federation metadata container."""
+    """Federation configuration for export_schema().
 
-    def __init__(self, enabled: bool = False, version: str = "v2") -> None:
-        self.enabled = enabled
+    When passed to ``export_schema(federation=...)``, a top-level ``"federation"``
+    block is emitted in the JSON with ``enabled: true`` and an auto-derived
+    ``entities`` list. Each registered type becomes a federation entity; types
+    with explicit ``key_fields`` use those, all others default to ``["id"]``.
+
+    Args:
+        service_name: Logical name of this subgraph (e.g. "users-service").
+        version: Apollo Federation spec version (default ``"v2"``).
+        default_key_fields: Default key fields for types that don't declare their
+            own ``key_fields``. Defaults to ``["id"]``.
+    """
+
+    def __init__(
+        self,
+        service_name: str,
+        version: str = "v2",
+        default_key_fields: list[str] | None = None,
+    ) -> None:
+        self.service_name = service_name
         self.version = version
+        self.default_key_fields = default_key_fields or ["id"]
 
 
 class Schema:
@@ -248,8 +266,40 @@ def config(**kwargs: Any) -> None:
     _ConfigHolder._pending_config = kwargs
 
 
+def _build_federation_block(
+    schema: dict[str, Any],
+    federation: Federation,
+) -> dict[str, Any]:
+    """Build the top-level ``"federation"`` dict for the exported JSON.
+
+    Auto-derives entities from registered types. Types with explicit
+    ``key_fields`` use those; all others get ``federation.default_key_fields``
+    (which defaults to ``["id"]``).
+
+    Extended types (``extends=True``) are included but marked separately — the
+    Rust compiler uses the entity list for ``_entities`` resolver generation.
+    """
+    entities: list[dict[str, Any]] = []
+    for type_def in schema.get("types", []):
+        # Skip error types — they are not federation entities
+        if type_def.get("is_error"):
+            continue
+        key_fields = type_def.get("key_fields") or list(federation.default_key_fields)
+        entities.append({"name": type_def["name"], "key_fields": key_fields})
+
+    return {
+        "enabled": True,
+        "service_name": federation.service_name,
+        "apollo_version": 2 if federation.version == "v2" else 1,
+        "entities": entities,
+    }
+
+
 def export_schema(
-    output_path: str, pretty: bool = True, include_custom_scalars: bool = True
+    output_path: str,
+    pretty: bool = True,
+    include_custom_scalars: bool = True,
+    federation: Federation | None = None,
 ) -> None:
     """Export the schema registry to a JSON file.
 
@@ -260,11 +310,22 @@ def export_schema(
         output_path: Path to output schema.json file
         pretty: If True, format JSON with indentation (default: True)
         include_custom_scalars: If True, include custom scalars in output (default: True)
+        federation: Optional federation config. When provided, a ``"federation"``
+            block is emitted with ``enabled: true`` and an auto-derived entity list.
+            Each type becomes an entity; types without explicit ``key_fields``
+            default to ``["id"]``.
 
     Examples:
-        >>> # At end of schema.py
+        >>> # Basic export
         >>> if __name__ == "__main__":
         ...     fraiseql.export_schema("schema.json")
+
+        >>> # Federation export
+        >>> if __name__ == "__main__":
+        ...     fraiseql.export_schema(
+        ...         "schema.json",
+        ...         federation=fraiseql.Federation(service_name="users-service"),
+        ...     )
 
     Notes:
         - Call this after all @fraiseql decorators have been applied
@@ -276,6 +337,10 @@ def export_schema(
         schema = {k: v for k, v in schema.items() if k != "custom_scalars"}
 
     _validate_schema_before_export(schema)
+
+    # Add federation block when requested
+    if federation is not None:
+        schema["federation"] = _build_federation_block(schema, federation)
 
     # Write to file
     with open(output_path, "w", encoding="utf-8") as f:
@@ -291,6 +356,9 @@ def export_schema(
     print(f"   Mutations: {len(schema['mutations'])}")
     if "observers" in schema:
         print(f"   Observers: {len(schema['observers'])}")
+    if federation is not None:
+        entities = schema["federation"]["entities"]
+        print(f"   Federation: {federation.service_name} ({len(entities)} entities)")
 
 
 def export_types(output_path: str, pretty: bool = True) -> None:
@@ -348,15 +416,28 @@ def export_types(output_path: str, pretty: bool = True) -> None:
     print(f"   → Use with: fraiseql compile fraiseql.toml --types {output_path}")
 
 
-def get_schema_dict() -> dict[str, Any]:
+def get_schema_dict(federation: Federation | None = None) -> dict[str, Any]:
     """Get the current schema as a dictionary (without exporting to file).
 
+    Args:
+        federation: Optional federation config. When provided, a ``"federation"``
+            block is included with auto-derived entities.
+
     Returns:
-        Schema dictionary with "types", "queries", and "mutations"
+        Schema dictionary with "types", "queries", "mutations", and optionally
+        "federation".
 
     Examples:
         >>> schema = fraiseql.get_schema_dict()
         >>> print(schema["types"])
         [{"name": "User", "fields": [...]}]
+
+        >>> schema = fraiseql.get_schema_dict(
+        ...     federation=fraiseql.Federation(service_name="orders"),
+        ... )
+        >>> print(schema["federation"]["entities"])
     """
-    return SchemaRegistry.get_schema()
+    schema = SchemaRegistry.get_schema()
+    if federation is not None:
+        schema["federation"] = _build_federation_block(schema, federation)
+    return schema

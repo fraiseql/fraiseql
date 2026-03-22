@@ -193,6 +193,8 @@ def type(
     crud: bool | list[str] = False,
     sql_source: str | None = None,
     plural_name: str | None = None,
+    key_fields: list[str] | None = None,
+    extends: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -256,6 +258,15 @@ def type(
         if sql_source is not None:
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
 
+        # Validate key_fields if provided
+        if key_fields is not None:
+            if not isinstance(key_fields, list) or not all(isinstance(k, str) for k in key_fields):
+                raise TypeError(
+                    f"@fraiseql.type key_fields= on {c.__name__!r} must be a list of strings."
+                )
+            if not key_fields:
+                raise ValueError(f"@fraiseql.type key_fields= on {c.__name__!r} must not be empty.")
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -266,12 +277,18 @@ def type(
             requires_role=requires_role,
             tenant_scoped=tenant_scoped,
             sql_source=sql_source,
+            key_fields=key_fields,
+            extends=extends,
         )
 
         # Auto-generate CRUD operations if requested
         if crud:
             SchemaRegistry.register_crud(
-                c.__name__, fields, crud, sql_source=sql_source, plural_name=plural_name,
+                c.__name__,
+                fields,
+                crud,
+                sql_source=sql_source,
+                plural_name=plural_name,
             )
 
         # Return original class unmodified (no runtime behavior)
@@ -587,13 +604,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                     raise ValueError(msg)
 
         # cascade validation — fail fast at authoring time
-        if (cascade := cfg.get("cascade")) is not None:
-            if not isinstance(cascade, bool):
-                msg = (
-                    f"@fraiseql.mutation cascade= on {f.__name__!r} must be a "
-                    f"bool (got {cascade!r})."
-                )
-                raise TypeError(msg)
+        if (cascade := cfg.get("cascade")) is not None and not isinstance(cascade, bool):
+            msg = f"@fraiseql.mutation cascade= on {f.__name__!r} must be a bool (got {cascade!r})."
+            raise TypeError(msg)
 
         # REST annotation validation — fail fast at authoring time
         if (rest_path := cfg.get("rest_path")) is not None:
