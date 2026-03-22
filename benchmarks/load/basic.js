@@ -71,6 +71,29 @@ const QUERIES = [
       query: '{ __schema { queryType { name } } }',
     }),
   },
+  // Deep nesting — stresses SQL join generation (4 levels)
+  {
+    name: 'nested_query',
+    body: JSON.stringify({
+      query: `{
+        users(first: 5) {
+          id name
+          posts(first: 3) {
+            id title
+            comments(first: 3) {
+              id body
+              author { id name }
+            }
+          }
+        }
+      }`,
+    }),
+  },
+  // Cache bypass — unique variable per request to measure uncached path
+  {
+    name: 'cache_bypass',
+    dynamic: true,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -96,8 +119,16 @@ export default function () {
   // Cycle through query types
   const query = QUERIES[Math.floor(Math.random() * QUERIES.length)];
 
+  // Dynamic queries generate a unique body per request (cache bypass)
+  const body = query.dynamic
+    ? JSON.stringify({
+        query: '{ user(id: $id) { id name email } }',
+        variables: { id: String(Math.floor(Math.random() * 100000)) },
+      })
+    : query.body;
+
   const start = Date.now();
-  const res = http.post(GRAPHQL_URL, query.body, { headers: HEADERS });
+  const res = http.post(GRAPHQL_URL, body, { headers: HEADERS });
   const duration = Date.now() - start;
 
   queryDuration.add(duration, { query: query.name });
