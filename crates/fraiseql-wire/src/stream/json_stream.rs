@@ -192,10 +192,10 @@ impl JsonStream {
     /// # Examples
     ///
     /// ```no_run
-    /// // Requires: live Postgres connection via FraiseClient.
-    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use std::time::Duration;
-    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
+    /// use fraiseql_wire::stream::JsonStream;
+    ///
+    /// # async fn example(mut stream: JsonStream) -> fraiseql_wire::Result<()> {
     /// stream.set_pause_timeout(Duration::from_secs(5));
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
     /// # Ok(())

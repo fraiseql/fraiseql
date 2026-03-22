@@ -32,19 +32,21 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_federation::saga_recovery_manager::{
 //!     SagaRecoveryManager, RecoveryConfig,
 //! };
+//! use fraiseql_federation::saga_store::PostgresSagaStore;
 //! use std::sync::Arc;
+//! use std::time::Duration;
 //!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = RecoveryConfig {
 //!     check_interval: Duration::from_secs(10),
 //!     max_sagas_per_iteration: 100,
 //!     stale_age_hours: 48,
 //! };
 //!
+//! let saga_store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
 //! let manager = SagaRecoveryManager::new(
 //!     Arc::new(saga_store),
 //!     config,
@@ -61,6 +63,8 @@
 //!
 //! // Stop gracefully
 //! manager.stop_background_loop().await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::{
@@ -162,10 +166,16 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let config = RecoveryConfig::default();
+    /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
     /// let manager = SagaRecoveryManager::new(Arc::new(store), config);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(store: Arc<PostgresSagaStore>, config: RecoveryConfig) -> Self {
         Self {
@@ -184,11 +194,18 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # let manager = SagaRecoveryManager::new(Arc::new(store), RecoveryConfig::default());
     /// assert!(!manager.is_running());
     /// manager.start_background_loop().await?;
     /// assert!(manager.is_running());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::Acquire)
@@ -206,10 +223,17 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # let manager = SagaRecoveryManager::new(Arc::new(store), RecoveryConfig::default());
     /// let stats = manager.get_stats();
     /// println!("Processed {} sagas in {} iterations", stats.sagas_processed, stats.iterations);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get_stats(&self) -> RecoveryStats {
         self.stats.lock().expect("stats mutex poisoned").clone()
@@ -227,10 +251,17 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # let manager = SagaRecoveryManager::new(Arc::new(store), RecoveryConfig::default());
     /// manager.start_background_loop().await?;
     /// // Loop now runs in background
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn start_background_loop(&self) -> SagaStoreResult<()> {
         if self
@@ -274,10 +305,18 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # let manager = SagaRecoveryManager::new(Arc::new(store), RecoveryConfig::default());
+    /// # manager.start_background_loop().await?;
     /// manager.stop_background_loop().await?;
     /// // Loop stops after current iteration
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn stop_background_loop(&self) -> SagaStoreResult<()> {
         if self
@@ -302,11 +341,18 @@ impl SagaRecoveryManager {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_recovery_manager::{SagaRecoveryManager, RecoveryConfig};
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    /// use std::sync::Arc;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # let manager = SagaRecoveryManager::new(Arc::new(store), RecoveryConfig::default());
     /// manager.run_iteration().await?;
     /// let stats = manager.get_stats();
     /// assert!(stats.iterations > 0);
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn run_iteration(&self) -> SagaStoreResult<()> {
         Self::run_recovery_iteration(&self.store, self.config, &self.stats).await

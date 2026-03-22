@@ -77,10 +77,10 @@ pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
 /// # Example
 ///
 /// ```no_run
-/// // Requires: running Axum application.
-/// # use axum::Router;
-/// # use fraiseql_server::middleware::security_headers_middleware;
-/// let app = Router::new()
+/// use axum::Router;
+/// use fraiseql_server::middleware::security_headers_middleware;
+///
+/// let app: Router = Router::new()
 ///     .layer(axum::middleware::from_fn(security_headers_middleware));
 /// ```
 ///

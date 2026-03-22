@@ -22,8 +22,10 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! use fraiseql_federation::saga_store::{PostgresSagaStore, Saga, SagaState};
+//! use uuid::Uuid;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
 //! store.migrate_schema().await?;
 //!
@@ -36,6 +38,8 @@
 //! };
 //!
 //! store.save_saga(&saga).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::sync::Arc;
@@ -303,9 +307,12 @@ impl PostgresSagaStore {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn new(connection_string: &str) -> Result<Self> {
         let cfg = deadpool_postgres::Config {

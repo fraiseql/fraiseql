@@ -19,9 +19,9 @@
 //! # Usage Pattern
 //!
 //! ```no_run
-//! // Requires: DatabaseFieldAdapter backed by a live SecretsManager.
-//! # async fn example(adapter: fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+//! # async fn example(adapter: std::sync::Arc<fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter>) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
 //! use fraiseql_secrets::encryption::mapper::FieldMapper;
+//!
 //! // Create mapper with encrypted field configuration
 //! let mapper = FieldMapper::new(
 //!     adapter,

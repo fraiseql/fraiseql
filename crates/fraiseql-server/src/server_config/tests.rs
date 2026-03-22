@@ -45,7 +45,7 @@ fn test_config_with_custom_database_url() {
 fn test_default_pool_config() {
     let config = ServerConfig::default();
     assert_eq!(config.pool_min_size, 5);
-    assert_eq!(config.pool_max_size, 20);
+    assert_eq!(config.pool_max_size, 25);
     assert_eq!(config.pool_timeout_secs, 30);
 }
 

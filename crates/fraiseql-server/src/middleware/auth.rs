@@ -42,13 +42,14 @@ impl BearerAuthState {
 /// # Example
 ///
 /// ```no_run
-/// // Requires: running Axum application with a route handler.
-/// use axum::{Router, middleware};
+/// use axum::{Router, middleware, routing::get};
 /// use fraiseql_server::middleware::{bearer_auth_middleware, BearerAuthState};
+///
+/// async fn handler() -> &'static str { "ok" }
 ///
 /// let auth_state = BearerAuthState::new("my-secret-token".to_string());
 ///
-/// let app = Router::new()
+/// let app: Router = Router::new()
 ///     .route("/protected", get(handler))
 ///     .layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
 /// ```

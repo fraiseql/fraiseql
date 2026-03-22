@@ -202,8 +202,8 @@ impl PostgresIntrospector {
     /// # Example
     ///
     /// ```no_run
-    /// use fraiseql_core::db::postgres::PostgresIntrospector;
-    /// # use fraiseql_core::error::Result;
+    /// use fraiseql_db::postgres::PostgresIntrospector;
+    /// # use fraiseql_error::Result;
     /// use deadpool_postgres::Pool;
     ///
     /// # async fn example(pool: Pool) -> Result<()> {

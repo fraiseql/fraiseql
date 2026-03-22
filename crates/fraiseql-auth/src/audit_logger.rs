@@ -348,10 +348,17 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
 /// global [`AuditLogger`] and then returns the result unchanged.  This allows
 /// audit logging to be inserted into call chains without altering the return type:
 ///
-/// ```ignore
-/// let claims = validator
-///     .validate(token, &public_key)
-///     .audit_log(AuditEventType::JwtValidation, SecretType::JwtToken, None, "validate")?;
+/// ```
+/// use fraiseql_auth::audit_logger::{AuditableResult, AuditEventType, SecretType};
+///
+/// let result: Result<&str, String> = Ok("valid_claims");
+/// let claims = result.audit_log(
+///     AuditEventType::JwtValidation,
+///     SecretType::JwtToken,
+///     None,
+///     "validate",
+/// ).unwrap();
+/// assert_eq!(claims, "valid_claims");
 /// ```
 pub trait AuditableResult<T, E> {
     /// Log success or failure of a result.

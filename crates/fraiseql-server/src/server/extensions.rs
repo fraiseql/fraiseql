@@ -26,9 +26,15 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// // Requires: running PostgreSQL database and compiled schema file.
+    /// ```ignore
+    /// // Requires a running PostgreSQL database and a compiled schema file on disk.
+    /// use std::sync::Arc;
+    /// use fraiseql_server::{Server, ServerConfig};
+    /// use fraiseql_core::schema::CompiledSchema;
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config = ServerConfig::default();
+    /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
     /// server.serve().await?;

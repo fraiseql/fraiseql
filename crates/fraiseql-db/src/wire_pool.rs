@@ -26,7 +26,7 @@ impl WireClientFactory {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use fraiseql_core::db::wire_pool::WireClientFactory;
+    /// use fraiseql_db::wire_pool::WireClientFactory;
     ///
     /// let factory = WireClientFactory::new("postgres://localhost/fraiseql");
     /// ```
@@ -54,7 +54,7 @@ impl WireClientFactory {
     ///
     /// ```rust,no_run
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use fraiseql_core::db::wire_pool::WireClientFactory;
+    /// use fraiseql_db::wire_pool::WireClientFactory;
     ///
     /// let factory = WireClientFactory::new("postgres://localhost/fraiseql");
     /// let client = factory.create_client().await?;

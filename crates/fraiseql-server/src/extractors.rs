@@ -24,12 +24,18 @@ use crate::middleware::AuthUser;
 /// # Example
 ///
 /// ```no_run
-/// // Requires: running Axum server with authentication middleware configured.
+/// use axum::extract::State;
+/// use axum::response::Response;
+/// use fraiseql_server::extractors::OptionalSecurityContext;
+///
+/// // In an Axum handler, extract the optional security context:
 /// async fn graphql_handler(
-///     State(state): State<AppState>,
 ///     OptionalSecurityContext(context): OptionalSecurityContext,
-/// ) -> Result<Response> {
-///     // context is Option<SecurityContext>
+/// ) -> String {
+///     match context {
+///         Some(ctx) => format!("user: {}", ctx.request_id),
+///         None => "anonymous".to_string(),
+///     }
 /// }
 /// ```
 #[derive(Debug, Clone)]

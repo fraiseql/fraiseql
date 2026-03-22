@@ -23,18 +23,25 @@
 //! # Examples
 //!
 //! ```no_run
-//! // Requires: Redis (when dedup/caching enabled) and a config.toml file.
-//! use fraiseql_observers::factory::ExecutorFactory;
+//! use std::sync::Arc;
+//! use fraiseql_observers::factory::{ExecutorFactory, ProcessEvent};
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
+//! use fraiseql_observers::DeadLetterQueue;
+//! use fraiseql_observers::event::{EntityEvent, EventKind};
 //!
-//! // Load configuration
-//! # async fn example() -> fraiseql_observers::Result<()> {
-//! let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
+//! # async fn example(dlq: Arc<dyn DeadLetterQueue>) -> fraiseql_observers::Result<()> {
+//! let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
 //!
 //! // Build executor stack (automatically wraps based on config)
-//! let executor_stack = ExecutorFactory::build(&config).await?;
+//! let executor_stack = ExecutorFactory::build(&config, dlq).await?;
 //!
 //! // Process events
+//! let event = EntityEvent::new(
+//!     EventKind::Created,
+//!     "Order".to_string(),
+//!     uuid::Uuid::new_v4(),
+//!     serde_json::json!({"total": 100}),
+//! );
 //! executor_stack.process_event(&event).await?;
 //! # Ok(())
 //! # }
@@ -90,12 +97,10 @@ impl ExecutorFactory {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
     /// # use std::sync::Arc;
-    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
-    /// # async fn example() -> fraiseql_observers::Result<()> {
-    /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
-    /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
+    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig, DeadLetterQueue};
+    /// # async fn example(dlq: Arc<dyn DeadLetterQueue>) -> fraiseql_observers::Result<()> {
+    /// let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
     ///
     /// // Automatically wraps with dedup/cache based on config
     /// let executor = ExecutorFactory::build(&config, dlq).await?;

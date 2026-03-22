@@ -19,20 +19,36 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! ```
+//! use std::collections::HashMap;
+//! use fraiseql_federation::requires_provides_validator::{
+//!     RequiresProvidesValidator, RequiresProvidesRuntimeValidator,
+//! };
+//! use fraiseql_federation::types::{
+//!     FederationMetadata, FieldFederationDirectives, FieldPathSelection,
+//! };
+//!
 //! // Compile-time validation
+//! let metadata = FederationMetadata::default();
 //! let validator = RequiresProvidesValidator::new(metadata);
-//! validator.validate_all()?;
+//! validator.validate_all().unwrap();
 //!
 //! // Runtime validation
+//! let directives = FieldFederationDirectives::new()
+//!     .with_requires(vec![FieldPathSelection {
+//!         path: vec!["id".to_string()],
+//!         typename: "User".to_string(),
+//!     }]);
+//! let mut entity_fields = HashMap::new();
+//! entity_fields.insert("id".to_string(), serde_json::json!("123"));
+//!
 //! let result = RequiresProvidesRuntimeValidator::validate_required_fields(
 //!     "User",
 //!     "orders",
 //!     &directives,
-//!     &entity_fields
+//!     &entity_fields,
 //! );
+//! assert!(result.is_ok());
 //! ```
 //!
 //! # Circular Dependency Detection
@@ -193,11 +209,13 @@ impl RequiresProvidesValidator {
     /// - `metadata`: FederationMetadata containing all federated types and directives
     ///
     /// # Example
-    /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// ```
+    /// use fraiseql_federation::requires_provides_validator::RequiresProvidesValidator;
+    /// use fraiseql_federation::types::FederationMetadata;
+    ///
+    /// let metadata = FederationMetadata::default();
     /// let validator = RequiresProvidesValidator::new(metadata);
-    /// validator.validate_all()?;
+    /// validator.validate_all().unwrap();
     /// ```
     pub const fn new(metadata: FederationMetadata) -> Self {
         Self { metadata }
@@ -501,15 +519,26 @@ impl RequiresProvidesRuntimeValidator {
     /// the entity resolution to fail rather than attempting to proceed.
     ///
     /// # Example
-    /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// ```
+    /// use std::collections::HashMap;
+    /// use fraiseql_federation::requires_provides_validator::RequiresProvidesRuntimeValidator;
+    /// use fraiseql_federation::types::{FieldFederationDirectives, FieldPathSelection};
+    ///
+    /// let directives = FieldFederationDirectives::new()
+    ///     .with_requires(vec![FieldPathSelection {
+    ///         path: vec!["id".to_string()],
+    ///         typename: "User".to_string(),
+    ///     }]);
+    /// let mut entity_data = HashMap::new();
+    /// entity_data.insert("id".to_string(), serde_json::json!("123"));
+    ///
     /// let result = RequiresProvidesRuntimeValidator::validate_required_fields(
     ///     "User",
     ///     "orders",
     ///     &directives,
-    ///     &entity_data
+    ///     &entity_data,
     /// );
+    /// assert!(result.is_ok());
     /// ```
     pub fn validate_required_fields(
         typename: &str,

@@ -31,7 +31,7 @@ use super::{
 /// # Example
 ///
 /// ```rust,no_run
-/// use fraiseql_core::db::{FraiseWireAdapter, WhereClause, WhereOperator, DatabaseAdapter};
+/// use fraiseql_db::{FraiseWireAdapter, WhereClause, WhereOperator, DatabaseAdapter};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,7 +70,7 @@ impl FraiseWireAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use fraiseql_core::db::FraiseWireAdapter;
+    /// use fraiseql_db::FraiseWireAdapter;
     ///
     /// let adapter = FraiseWireAdapter::new("postgres://localhost/fraiseql");
     /// ```
@@ -94,7 +94,7 @@ impl FraiseWireAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use fraiseql_core::db::FraiseWireAdapter;
+    /// use fraiseql_db::FraiseWireAdapter;
     ///
     /// let adapter = FraiseWireAdapter::new("postgres://localhost/fraiseql")
     ///     .with_chunk_size(512);

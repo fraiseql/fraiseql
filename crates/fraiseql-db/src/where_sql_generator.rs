@@ -36,7 +36,7 @@ impl WhereSqlGenerator {
     /// # Example
     ///
     /// ```rust,no_run
-    /// // fraiseql-db can be used directly or via `fraiseql_core::db` (re-export).
+    /// // fraiseql-db can be used directly or via `fraiseql_core::db` re-export.
     /// use fraiseql_db::{WhereClause, WhereOperator, where_sql_generator::WhereSqlGenerator};
     /// use serde_json::json;
     ///

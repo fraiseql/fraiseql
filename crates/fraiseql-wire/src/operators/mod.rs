@@ -8,22 +8,21 @@
 //! fraiseql-wire maintains backward compatibility with the existing string-based API
 //! while offering operator abstractions for type safety and auditability:
 //!
-//! ```no_run
-//! // Requires: live Postgres connection via FraiseClient.
-//! // Old style (still works)
-//! client.query("users")
-//!     .where_sql("data->>'name' = 'John'")
-//!     .execute()
-//!     .await?;
+//! ```
+//! use std::collections::HashMap;
+//! use fraiseql_wire::operators::{WhereOperator, Field, Value, generate_where_operator_sql};
 //!
-//! // New style (type-safe)
-//! client.query("users")
-//!     .where_operator(WhereOperator::Eq(
-//!         Field::JsonbField("name".to_string()),
-//!         Value::String("John".to_string()),
-//!     ))
-//!     .execute()
-//!     .await?;
+//! // Build a type-safe operator
+//! let op = WhereOperator::Eq(
+//!     Field::JsonbField("name".to_string()),
+//!     Value::String("John".to_string()),
+//! );
+//!
+//! // Generate parameterized SQL
+//! let mut idx = 1;
+//! let mut params = HashMap::new();
+//! let sql = generate_where_operator_sql(&op, &mut idx, &mut params).unwrap();
+//! assert!(sql.contains("name"));
 //! ```
 //!
 //! # Operator Coverage

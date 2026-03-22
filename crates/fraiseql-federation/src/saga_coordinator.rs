@@ -38,8 +38,10 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! use fraiseql_federation::saga_coordinator::{SagaCoordinator, SagaStep, CompensationStrategy};
+//! use fraiseql_federation::saga_store::SagaState;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create saga coordinator
 //! let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
 //!
@@ -47,13 +49,13 @@
 //! let steps = vec![
 //!     SagaStep::new(
 //!         1, "orders-service", "Order", "createOrder",
-//!         json!({"id": "order-1", "total": 100.0}),
-//!         "deleteOrder", json!({"id": "order-1"})
+//!         serde_json::json!({"id": "order-1", "total": 100.0}),
+//!         "deleteOrder", serde_json::json!({"id": "order-1"}),
 //!     ),
 //!     SagaStep::new(
 //!         2, "inventory-service", "Inventory", "reserveInventory",
-//!         json!({"orderId": "order-1", "items": [...]}),
-//!         "releaseInventory", json!({"orderId": "order-1"})
+//!         serde_json::json!({"orderId": "order-1", "items": []}),
+//!         "releaseInventory", serde_json::json!({"orderId": "order-1"}),
 //!     ),
 //! ];
 //!
@@ -66,6 +68,8 @@
 //!     SagaState::Compensated => println!("Failed and rolled back"),
 //!     _ => println!("Unknown state"),
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Observability
@@ -131,18 +135,20 @@ impl SagaStep {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// ```
+    /// use fraiseql_federation::saga_coordinator::SagaStep;
+    ///
     /// let step = SagaStep::new(
     ///     1,
     ///     "orders-service",
     ///     "Order",
     ///     "createOrder",
-    ///     json!({"id": "order-1", "amount": 100.0}),
+    ///     serde_json::json!({"id": "order-1", "amount": 100.0}),
     ///     "deleteOrder",
-    ///     json!({"id": "order-1"})
+    ///     serde_json::json!({"id": "order-1"}),
     /// );
+    /// assert_eq!(step.number, 1);
+    /// assert_eq!(step.subgraph, "orders-service");
     /// ```
     pub fn new(
         number: u32,
@@ -264,14 +270,17 @@ impl SagaCoordinator {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_coordinator::{SagaCoordinator, SagaStep, CompensationStrategy};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
     /// let steps = vec![
-    ///     SagaStep::new(1, "svc1", "Type1", "mut1", ..., "comp1", ...),
-    ///     SagaStep::new(2, "svc2", "Type2", "mut2", ..., "comp2", ...),
+    ///     SagaStep::new(1, "svc1", "Type1", "mut1", serde_json::json!({}), "comp1", serde_json::json!({})),
+    ///     SagaStep::new(2, "svc2", "Type2", "mut2", serde_json::json!({}), "comp2", serde_json::json!({})),
     /// ];
     /// let saga_id = coordinator.create_saga(steps).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         // Validate at least one step
@@ -341,14 +350,22 @@ impl SagaCoordinator {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_coordinator::{SagaCoordinator, SagaStep, CompensationStrategy};
+    /// use fraiseql_federation::saga_store::SagaState;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
+    /// # let saga_id = coordinator.create_saga(vec![
+    /// #     SagaStep::new(1, "svc", "T", "m", serde_json::json!({}), "c", serde_json::json!({})),
+    /// # ]).await?;
     /// let result = coordinator.execute_saga(saga_id).await?;
     /// match result.state {
     ///     SagaState::Completed => println!("All steps succeeded!"),
     ///     SagaState::Compensated => println!("Failed and rolled back"),
     ///     _ => println!("Partial or unknown state"),
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga execution started");

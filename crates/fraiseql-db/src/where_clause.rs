@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_core::db::{WhereClause, WhereOperator};
+/// use fraiseql_db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// // Simple condition: email ILIKE '%example.com%'
@@ -339,7 +339,7 @@ pub enum WhereOperator {
     // ========================================================================
     /// Extended operator for rich scalar types (Email, VIN, CountryCode, etc.)
     /// These operators are specialized filters enabled via feature flags.
-    /// See `fraiseql_core::filters::ExtendedOperator` for available operators.
+    /// See `fraiseql_db::filters::ExtendedOperator` for available operators.
     #[serde(skip)]
     Extended(crate::filters::ExtendedOperator),
 }
@@ -471,7 +471,7 @@ impl WhereOperator {
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_core::db::{HavingClause, WhereOperator};
+/// use fraiseql_db::{HavingClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// // Simple condition: COUNT(*) > 10

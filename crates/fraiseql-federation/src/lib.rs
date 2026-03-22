@@ -52,9 +52,10 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: live database adapter and federation metadata.
-//! // See: tests/integration/ for runnable examples.
+//! ```ignore
+//! // FederationExecutor requires a live DatabaseAdapter implementation and
+//! // populated FederationMetadata, which cannot be constructed without a
+//! // running database.
 //! let executor = FederationExecutor::new(adapter, metadata);
 //! let response = executor.handle_entities_query(input).await?;
 //! ```
