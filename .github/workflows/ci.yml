@@ -481,11 +481,10 @@ jobs:
       - name: Check fraiseql-core coverage
         run: |
           # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
-          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
           cargo llvm-cov \
             --all-features \
             -p fraiseql-core \
-            --fail-under-lines 65 \
+            --fail-under-lines 70 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
@@ -493,11 +492,57 @@ jobs:
       - name: Check fraiseql-db coverage
         run: |
           # fraiseql-db contains dialect SQL output and injection-escaping logic.
-          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
           cargo llvm-cov \
             --all-features \
             -p fraiseql-db \
             --fail-under-lines 65 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-server coverage
+        run: |
+          # fraiseql-server is integration-heavy with many feature-gated paths.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-server \
+            --fail-under-lines 60 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-federation coverage
+        run: |
+          # fraiseql-federation has infrastructure-dependent test paths.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-federation \
+            --fail-under-lines 60 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check remaining crate coverage
+        run: |
+          # All other crates must maintain ≥50% line coverage.
+          for crate in fraiseql-error fraiseql-wire fraiseql-cli fraiseql-arrow fraiseql-observers; do
+            echo "Checking coverage for $crate..."
+            cargo llvm-cov \
+              --all-features \
+              -p "$crate" \
+              --fail-under-lines 50 \
+              -- --test-threads=1 || exit 1
+          done
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Generate coverage JSON for trend tracking
+        run: |
+          cargo llvm-cov \
+            --all-features \
+            --workspace \
+            --json \
+            --output-path coverage.json \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
@@ -507,6 +552,16 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: true
+
+      - name: Archive coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: |
+            lcov.info
+            coverage.json
+          retention-days: 30
 
   # Security audit
   security:
