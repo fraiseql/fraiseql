@@ -1,0 +1,65 @@
+name: Benchmark Regression Detection
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  criterion-benchmarks:
+    name: Criterion Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # On dev pushes: save baseline for future PR comparisons
+      - name: Run benchmarks (save baseline)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          cargo bench --workspace -- --save-baseline dev 2>&1 | tee /tmp/bench-output.txt
+          # Criterion stores baselines in target/criterion/*/dev/
+
+      - name: Upload baseline artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-baseline-dev
+          path: target/criterion/
+          retention-days: 14
+
+      # On PRs: compare against dev baseline
+      - name: Download dev baseline
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: criterion-baseline-dev
+          path: target/criterion/
+        continue-on-error: true  # First PR run has no baseline yet
+
+      - name: Run benchmarks (compare against baseline)
+        if: github.event_name == 'pull_request'
+        run: |
+          cargo bench --workspace -- --baseline dev 2>&1 | tee /tmp/bench-output.txt || true
+
+      - name: Check for regressions
+        if: github.event_name == 'pull_request'
+        run: |
+          # Parse Criterion output for regressions (lines containing "regressed")
+          if grep -qi "regressed" /tmp/bench-output.txt; then
+            echo "::warning::Performance regressions detected in Criterion benchmarks"
+            grep -i "regressed" /tmp/bench-output.txt
+            # Non-blocking for now — enable exit 1 once baseline is stable
+          else
+            echo "No regressions detected"
+          fi

@@ -33,6 +33,32 @@ jobs:
             cargo check -p fraiseql-server --features "${{ matrix.features }}"
           fi
 
+  feature-integration-tests:
+    name: "test (${{ matrix.name }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mcp
+            features: "mcp,auth"
+            test: mcp_integration_test
+          - name: metrics
+            features: "auth"
+            test: metrics_integration_test
+          - name: apq-memory
+            features: "auth"
+            test: redis_apq_integration_test
+          - name: tracing
+            features: "auth"
+            test: tracing_integration_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run feature-gated integration tests
+        run: cargo test --test "${{ matrix.test }}" -p fraiseql-server --features "${{ matrix.features }}"
+
   database-matrix:
     name: "check core (${{ matrix.features }})"
     runs-on: ubuntu-latest
