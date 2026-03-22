@@ -32,3 +32,21 @@ jobs:
           else
             cargo check -p fraiseql-server --features "${{ matrix.features }}"
           fi
+
+  database-matrix:
+    name: "check core (${{ matrix.features }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "postgres"                              # minimal single-backend
+          - "mysql,rich-filters"                    # secondary backend + filters
+          - "sqlite,sqlserver"                      # lightweight + enterprise, no postgres
+          - "postgres,mysql,sqlite,sqlserver"        # all backends, no extras
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check
+        run: cargo check -p fraiseql-core --no-default-features --features "${{ matrix.features }}"
