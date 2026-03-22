@@ -12,6 +12,7 @@
 //! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
+#![allow(unused_imports)] // Reason: shared module included from multiple test binaries
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
@@ -30,7 +31,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fraiseql_test_utils::database_url;
+pub use fraiseql_test_utils::create_test_pool;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::Mutex;
@@ -38,15 +39,6 @@ use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
 };
-
-/// Create a PostgreSQL connection pool for tests
-pub async fn create_test_pool() -> PgPool {
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url())
-        .await
-        .expect("Failed to connect to test database")
-}
 
 /// Set up all observer-related tables for testing
 pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {

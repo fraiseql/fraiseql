@@ -607,41 +607,23 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
+    use crate::compiler::fact_table::{FilterColumn, SqlType, test_sales_metadata};
 
     fn create_test_metadata() -> FactTableMetadata {
-        FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
-                paths: vec![],
+        let mut m = test_sales_metadata();
+        m.denormalized_filters = vec![
+            FilterColumn {
+                name:     "customer_id".to_string(),
+                sql_type: SqlType::Uuid,
+                indexed:  true,
             },
-            denormalized_filters: vec![
-                FilterColumn {
-                    name:     "customer_id".to_string(),
-                    sql_type: SqlType::Uuid,
-                    indexed:  true,
-                },
-                FilterColumn {
-                    name:     "occurred_at".to_string(),
-                    sql_type: SqlType::Timestamp,
-                    indexed:  true,
-                },
-            ],
-            calendar_dimensions:  vec![],
-        }
+            FilterColumn {
+                name:     "occurred_at".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed:  true,
+            },
+        ];
+        m
     }
 
     #[test]

@@ -21,8 +21,8 @@ use fraiseql_core::{
         aggregate_types::{AggregateFunction, TemporalBucket},
         aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
         fact_table::{
-            CalendarBucket, CalendarDimension, CalendarGranularity, DimensionColumn, DimensionPath,
-            FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+            CalendarBucket, CalendarDimension, CalendarGranularity, DimensionPath,
+            FactTableMetadata, FilterColumn, SqlType, test_sales_metadata,
         },
     },
     runtime::{AggregateQueryParser, AggregationProjector, AggregationSqlGenerator},
@@ -31,59 +31,44 @@ use serde_json::json;
 
 /// Helper to create test fact table metadata for `tf_sales`
 fn create_test_metadata() -> FactTableMetadata {
-    FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
-            MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
-            },
-            MeasureColumn {
-                name:     "quantity".to_string(),
-                sql_type: SqlType::Int,
-                nullable: false,
-            },
-        ],
-        dimensions:           DimensionColumn {
-            name:  "data".to_string(),
-            paths: vec![
-                DimensionPath {
-                    name:      "category".to_string(),
-                    json_path: "data->>'category'".to_string(),
-                    data_type: "text".to_string(),
+    let mut m = test_sales_metadata();
+    m.dimensions.name = "data".to_string();
+    m.dimensions.paths = vec![
+        DimensionPath {
+            name:      "category".to_string(),
+            json_path: "data->>'category'".to_string(),
+            data_type: "text".to_string(),
+        },
+        DimensionPath {
+            name:      "product".to_string(),
+            json_path: "data->>'product'".to_string(),
+            data_type: "text".to_string(),
+        },
+    ];
+    m.denormalized_filters = vec![FilterColumn {
+        name:     "occurred_at".to_string(),
+        sql_type: SqlType::Timestamp,
+        indexed:  true,
+    }];
+    m.calendar_dimensions = vec![CalendarDimension {
+        source_column: "occurred_at".to_string(),
+        granularities: vec![CalendarGranularity {
+            column_name: "date_info".to_string(),
+            buckets:     vec![
+                CalendarBucket {
+                    json_key:    "day".to_string(),
+                    bucket_type: TemporalBucket::Day,
+                    data_type:   "date".to_string(),
                 },
-                DimensionPath {
-                    name:      "product".to_string(),
-                    json_path: "data->>'product'".to_string(),
-                    data_type: "text".to_string(),
+                CalendarBucket {
+                    json_key:    "month".to_string(),
+                    bucket_type: TemporalBucket::Month,
+                    data_type:   "integer".to_string(),
                 },
             ],
-        },
-        denormalized_filters: vec![FilterColumn {
-            name:     "occurred_at".to_string(),
-            sql_type: SqlType::Timestamp,
-            indexed:  true,
         }],
-        calendar_dimensions:  vec![CalendarDimension {
-            source_column: "occurred_at".to_string(),
-            granularities: vec![CalendarGranularity {
-                column_name: "date_info".to_string(),
-                buckets:     vec![
-                    CalendarBucket {
-                        json_key:    "day".to_string(),
-                        bucket_type: TemporalBucket::Day,
-                        data_type:   "date".to_string(),
-                    },
-                    CalendarBucket {
-                        json_key:    "month".to_string(),
-                        bucket_type: TemporalBucket::Month,
-                        data_type:   "integer".to_string(),
-                    },
-                ],
-            }],
-        }],
-    }
+    }];
+    m
 }
 
 // ============================================================================

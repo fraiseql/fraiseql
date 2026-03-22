@@ -7,6 +7,7 @@
 //! | Helper | Module | Purpose |
 //! |--------|--------|---------|
 //! | `database_url()` | `db` | Resolve `DATABASE_URL` or panic with actionable message |
+//! | `create_test_pool()` | `db` | Create a PostgreSQL pool for tests (requires `postgres` feature) |
 //! | `setup_test_schema()` | `schema` | Compile a schema string into `CompiledSchema` |
 //! | `assert_graphql_success()` | `assertions` | Assert response has no errors |
 //! | `assert_no_graphql_errors()` | `assertions` | Assert `errors` field is absent |
@@ -49,6 +50,9 @@ pub use assertions::{
 };
 // Re-export database URL helper
 pub use db::database_url;
+// Re-export pool creation helper (requires `postgres` feature)
+#[cfg(feature = "postgres")]
+pub use db::create_test_pool;
 // Re-export clock utilities for time-controlled testing
 pub use fraiseql_core::utils::clock::{Clock, ManualClock, SystemClock};
 // Re-export observer helpers

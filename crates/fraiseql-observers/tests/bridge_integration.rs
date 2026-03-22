@@ -43,21 +43,12 @@ mod bridge_tests {
             PostgresCheckpointStore,
         },
     };
-    use fraiseql_test_utils::database_url;
+    use fraiseql_test_utils::create_test_pool;
     use futures::StreamExt;
     use serde_json::json;
-    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use sqlx::PgPool;
 
     use super::*;
-
-    /// Create a test database pool
-    async fn create_test_pool() -> PgPool {
-        PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url())
-            .await
-            .expect("Failed to connect to test database")
-    }
 
     /// Set up test schema (checkpoint table and change log columns)
     async fn setup_test_schema(pool: &PgPool) {

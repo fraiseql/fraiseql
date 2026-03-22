@@ -38,13 +38,6 @@ use fraiseql_core::{
 use fraiseql_server::subscriptions::{EntityEvent, EventBridge, EventBridgeConfig};
 use serde_json::json;
 
-// Mock schema for testing
-fn create_test_schema() -> CompiledSchema {
-    // For now, create a minimal schema for testing
-    // In a real scenario, this would be loaded from a compiled schema file
-    CompiledSchema::new()
-}
-
 // ============================================================================
 // SubscriptionManager Integration Tests
 // ============================================================================
@@ -52,7 +45,7 @@ fn create_test_schema() -> CompiledSchema {
 /// Test 1: `SubscriptionManager` initialization
 #[test]
 fn test_subscription_manager_initialization() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Verify manager is created with correct initial state
@@ -63,7 +56,7 @@ fn test_subscription_manager_initialization() {
 /// Test 2: `SubscriptionManager` with custom capacity
 #[test]
 fn test_subscription_manager_with_capacity() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::with_capacity(schema, 512);
 
     // Verify manager is created with custom capacity
@@ -75,7 +68,7 @@ fn test_subscription_manager_with_capacity() {
 /// Test 3: Subscribe to a subscription type
 #[test]
 fn test_subscribe_to_subscription_type() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Try to subscribe - this will fail because schema has no subscriptions
@@ -89,7 +82,7 @@ fn test_subscribe_to_subscription_type() {
 /// Test 4: Get subscription returns None for non-existent subscription
 #[test]
 fn test_get_subscription_returns_none() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Create a test ID
@@ -104,7 +97,7 @@ fn test_get_subscription_returns_none() {
 /// Test 5: Unsubscribe removes subscription
 #[test]
 fn test_unsubscribe_removes_subscription() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Create a test ID (would be created by subscribe in real code)
@@ -120,7 +113,7 @@ fn test_unsubscribe_removes_subscription() {
 /// Test 6: Unsubscribe connection removes all subscriptions
 #[test]
 fn test_unsubscribe_connection_removes_all() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // This test verifies that unsubscribe_connection works
@@ -132,7 +125,7 @@ fn test_unsubscribe_connection_removes_all() {
 /// Test 7: Get connection subscriptions
 #[test]
 fn test_get_connection_subscriptions() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Get subscriptions for a connection with no subscriptions
@@ -144,7 +137,7 @@ fn test_get_connection_subscriptions() {
 /// Test 8: Publish event creates broadcast payload
 #[test]
 fn test_publish_event_creates_payload() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Create a test event
@@ -167,7 +160,7 @@ fn test_publish_event_creates_payload() {
 /// Test 9: Event receiver gets broadcast messages
 #[tokio::test]
 async fn test_event_receiver_gets_messages() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Get a receiver
@@ -203,7 +196,7 @@ async fn test_event_receiver_gets_messages() {
 /// Test 10: Multiple subscription instances
 #[test]
 fn test_multiple_subscription_instances() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Verify manager can track count
@@ -218,7 +211,7 @@ fn test_multiple_subscription_instances() {
 /// Test 11: `EventBridge` initialization
 #[test]
 fn test_event_bridge_initialization() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -250,7 +243,7 @@ fn test_entity_event_conversion() {
 /// Test 13: Event routing to subscription manager
 #[tokio::test]
 async fn test_event_routing_to_manager() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -278,7 +271,7 @@ async fn test_multiple_subscriptions_fanout() {
     // This test verifies that a single event can be delivered to
     // multiple subscriptions that match the event filter
 
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
 
     // Verify we can create a bridge with multiple subscriptions support
@@ -293,7 +286,7 @@ async fn test_multiple_subscriptions_fanout() {
 /// Test 15: Filtering by entity type
 #[test]
 fn test_filtering_by_entity_type() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -321,7 +314,7 @@ fn test_listener_error_handling() {
     // This test verifies that EventBridge can handle channel errors
     // when the receiver is dropped
 
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -335,7 +328,7 @@ fn test_listener_error_handling() {
 /// Test 17: Handle subscription manager errors
 #[test]
 fn test_subscription_manager_errors() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Subscribe to non-existent subscription
@@ -351,7 +344,7 @@ fn test_subscription_manager_errors() {
 /// Test 18: Shutdown and cleanup
 #[tokio::test]
 async fn test_shutdown_cleanup() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -368,7 +361,7 @@ async fn test_shutdown_cleanup() {
 /// Test 19: `WebSocket` disconnect cleanup
 #[test]
 fn test_websocket_disconnect_cleanup() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Verify cleanup works
@@ -380,7 +373,7 @@ fn test_websocket_disconnect_cleanup() {
 /// Test 20: Event sequence ordering
 #[test]
 fn test_event_sequence_ordering() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = SubscriptionManager::new(schema);
 
     // Events published to the manager should get sequence numbers
@@ -405,7 +398,7 @@ fn test_event_sequence_ordering() {
 /// Test 21: `WebSocket` end-to-end delivery
 #[tokio::test]
 async fn test_websocket_end_to_end_delivery() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -422,7 +415,7 @@ async fn test_websocket_end_to_end_delivery() {
 /// Test 22: Listener recovery after restart
 #[tokio::test]
 async fn test_listener_recovery_after_restart() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -446,7 +439,7 @@ async fn test_listener_recovery_after_restart() {
 /// Test 23: Subscription with projection filters
 #[test]
 fn test_subscription_projection_filters() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
@@ -473,7 +466,7 @@ fn test_subscription_projection_filters() {
 /// Test 24: Concurrent client subscriptions
 #[tokio::test]
 async fn test_concurrent_client_subscriptions() {
-    let schema = Arc::new(create_test_schema());
+    let schema = Arc::new(CompiledSchema::new());
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
