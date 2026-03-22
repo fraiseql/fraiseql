@@ -81,8 +81,12 @@ pub fn classify_field_access(
 /// # Example
 ///
 /// ```no_run
-/// // Requires: SecurityContext and SecurityConfig from compiled schema.
+/// # use fraiseql_core::security::SecurityContext;
+/// # use fraiseql_core::schema::{SecurityConfig, FieldDefinition};
+/// # use fraiseql_core::runtime::filter_fields;
+/// # fn example(context: &SecurityContext, config: &SecurityConfig, all_fields: &[FieldDefinition]) {
 /// let accessible = filter_fields(&context, &config, &all_fields);
+/// # }
 /// ```
 pub fn filter_fields<'a>(
     context: &SecurityContext,

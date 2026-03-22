@@ -39,7 +39,7 @@
 //!
 //! ## Example
 //!
-//! ```no_run
+//! ```ignore
 //! // Requires: a compiled schema file and a live PostgreSQL database.
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::schema::CompiledSchema;

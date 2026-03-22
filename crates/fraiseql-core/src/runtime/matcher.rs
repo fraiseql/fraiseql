@@ -73,12 +73,17 @@ impl QueryMatcher {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: compiled schema.
-    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::runtime::QueryMatcher;
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let json = std::fs::read_to_string("schema.compiled.json")?;
+    /// # let schema = CompiledSchema::from_json(&json)?;
     /// let matcher = QueryMatcher::new(schema);
     /// let query = "query { users { id name } }";
     /// let matched = matcher.match_query(query, None)?;
     /// assert_eq!(matched.query_def.name, "users");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn match_query(
         &self,

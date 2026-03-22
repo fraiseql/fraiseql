@@ -74,10 +74,18 @@ impl QueryPlanner {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: a QueryMatch from compiled schema matching.
+    /// # use fraiseql_core::runtime::{QueryPlanner, QueryMatcher, QueryMatch};
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let json = std::fs::read_to_string("schema.compiled.json")?;
+    /// # let schema = CompiledSchema::from_json(&json)?;
+    /// # let matcher = QueryMatcher::new(schema);
+    /// # let query_match = matcher.match_query("{ users { id } }", None)?;
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn plan(&self, query_match: &QueryMatch) -> Result<ExecutionPlan> {
         // Note: FraiseQL uses compiled SQL templates, so "query planning" means

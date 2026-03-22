@@ -135,15 +135,20 @@ impl WebhookPayload {
 /// # Example
 ///
 /// ```no_run
-/// // Requires: live HTTP endpoint for webhook delivery.
-/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookTransportConfig};
-///
+/// use fraiseql_core::runtime::subscription::{
+///     WebhookAdapter, WebhookTransportConfig, TransportAdapter,
+///     SubscriptionEvent, SubscriptionOperation,
+/// };
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);
 ///
 /// let adapter = WebhookAdapter::new(config)?;
+/// # let event = SubscriptionEvent::new("Order", "1", SubscriptionOperation::Create, serde_json::json!({}));
 /// adapter.deliver(&event, "orderCreated").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct WebhookAdapter {
     config: WebhookTransportConfig,

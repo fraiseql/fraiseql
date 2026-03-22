@@ -124,11 +124,11 @@ impl SecurityContext {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: a live AuthenticatedUser from JWT validation.
-    /// // See: tests/integration/ for runnable examples.
-    /// # use fraiseql_core::security::SecurityContext;
-    /// # use fraiseql_core::security::AuthenticatedUser;
+    /// use fraiseql_core::security::{SecurityContext, AuthenticatedUser};
+    /// # fn main() {
+    /// # let authenticated_user = AuthenticatedUser { user_id: "u1".into(), scopes: vec![], expires_at: chrono::Utc::now() };
     /// let context = SecurityContext::from_user(authenticated_user, "req-123".to_string());
+    /// # }
     /// ```
     pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
@@ -283,11 +283,14 @@ impl SecurityContext {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: a SecurityConfig from a compiled schema.
-    /// // See: tests/integration/ for runnable examples.
-    /// # use fraiseql_core::security::SecurityContext;
-    /// # use fraiseql_core::schema::SecurityConfig;
+    /// use fraiseql_core::security::{SecurityContext, AuthenticatedUser};
+    /// use fraiseql_core::schema::SecurityConfig;
+    /// # fn main() {
+    /// # let user = AuthenticatedUser { user_id: "u1".into(), scopes: vec![], expires_at: chrono::Utc::now() };
+    /// # let context = SecurityContext::from_user(user, "req-1".into());
+    /// # let config = SecurityConfig::default();
     /// let can_access = context.can_access_scope(&config, "read:User.email");
+    /// # }
     /// ```
     #[must_use]
     pub fn can_access_scope(

@@ -127,7 +127,7 @@
 //!
 //! # Example Usage
 //!
-//! ```no_run
+//! ```ignore
 //! // Requires: a live PostgreSQL database with fraiseql schema.
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;

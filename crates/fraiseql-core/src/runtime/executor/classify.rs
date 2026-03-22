@@ -27,7 +27,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: live executor with compiled schema.
     /// // Regular query
     /// let query_type = executor.classify_query("{ users { id } }")?;

@@ -19,16 +19,13 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: a compiled AuthoringIR from schema parsing.
-//! use fraiseql_core::compiler::lowering::{SqlTemplateGenerator, DatabaseTarget};
-//! use fraiseql_core::compiler::ir::AuthoringIR;
-//! # use fraiseql_core::error::Result;
-//! # fn example() -> Result<()> {
+//! use fraiseql_core::compiler::{SqlTemplateGenerator, DatabaseTarget, AuthoringIR};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let ir = AuthoringIR::new();
 //! let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 //! let templates = generator.generate(&ir)?;
 //!
-//! for template in templates {
+//! for template in &templates {
 //!     println!("{}: {}", template.name, template.template);
 //! }
 //! # Ok(())

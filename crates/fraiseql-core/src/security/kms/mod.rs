@@ -15,9 +15,8 @@
 //! # Usage
 //!
 //! ```no_run
-//! // Requires: live HashiCorp Vault instance.
 //! use fraiseql_core::security::kms::{VaultConfig, VaultKmsProvider, BaseKmsProvider};
-//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = VaultConfig::new("https://vault.local".to_string(), "token".to_string());
 //! let provider = VaultKmsProvider::new(config)?;
 //!
@@ -26,6 +25,8 @@
 //!
 //! // Decrypt data
 //! let plaintext = provider.decrypt(&encrypted, None).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod base;
