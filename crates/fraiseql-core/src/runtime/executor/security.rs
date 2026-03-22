@@ -120,14 +120,14 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// incoming request to the appropriate handler based on the query type:
     ///
     /// - **Regular queries**: RLS `WHERE` clauses are applied so each user only sees their own
-    ///   rows, as determined by the RLS policy in [`RuntimeConfig`].
+    ///   rows, as determined by the RLS policy in `RuntimeConfig`.
     /// - **Mutations**: The security context is forwarded to `execute_mutation_query_with_security`
     ///   so server-side `inject` parameters (e.g. `jwt:sub`) are resolved from the caller's JWT
     ///   claims.
     /// - **Aggregations, window queries, federation, introspection**: Delegated to their respective
     ///   handlers (security context is not yet applied to these).
     ///
-    /// If `query_timeout_ms` is non-zero in the [`RuntimeConfig`], the entire
+    /// If `query_timeout_ms` is non-zero in the `RuntimeConfig`, the entire
     /// execution is raced against a Tokio deadline and returns
     /// [`FraiseQLError::Timeout`] when the deadline is exceeded.
     ///

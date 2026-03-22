@@ -135,7 +135,7 @@ impl QueryCache {
     ///
     /// # Arguments
     ///
-    /// * `view_names` - View names to invalidate (e.g., ["`v_user`"])
+    /// * `view_names` - View names to invalidate (e.g., `v_user`)
     ///
     /// # Returns
     ///

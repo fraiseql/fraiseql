@@ -66,7 +66,7 @@ impl Clock for SystemClock {
 /// Manually advanceable clock for deterministic tests.
 ///
 /// Starts at `UNIX_EPOCH + 1_000_000 s` to avoid edge cases near the epoch.
-/// All clones share the same underlying time via an [`Arc`].
+/// All clones share the same underlying time via an `Arc`.
 ///
 /// # Example
 ///

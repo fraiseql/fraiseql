@@ -76,7 +76,7 @@ use crate::{
 /// by [`RLSPolicy::evaluate()`] rather than arbitrary user code.
 ///
 /// `RlsWhereClause` can only be constructed within `fraiseql-core` via
-/// [`RlsWhereClause::new()`], ensuring all instances originate from RLS evaluation.
+/// `RlsWhereClause::new()`, ensuring all instances originate from RLS evaluation.
 ///
 /// # Invariant
 ///

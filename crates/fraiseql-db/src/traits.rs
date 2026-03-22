@@ -501,7 +501,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// placeholders for string and array values; numeric and NULL values may be inlined.
     /// `params` are the corresponding values in placeholder order.
     ///
-    /// Unlike [`execute_raw_query`], this method accepts bind parameters so that
+    /// Unlike `execute_raw_query`, this method accepts bind parameters so that
     /// user-supplied filter values never appear as string literals in the SQL text,
     /// eliminating the injection risk that `escape_sql_string` mitigated previously.
     ///
@@ -847,12 +847,12 @@ pub enum CursorValue {
 ///
 /// - [`PostgresAdapter`](crate::postgres::PostgresAdapter) — full keyset pagination
 /// - [`MySqlAdapter`](crate::mysql::MySqlAdapter) — keyset pagination with `?` params
-/// - [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) — delegates to inner `A`
+/// - `CachedDatabaseAdapter<A>` — delegates to inner `A`
 ///
 /// # Usage
 ///
-/// Construct an [`Executor`](crate::runtime::Executor) with
-/// [`Executor::new_with_relay`](crate::runtime::Executor::new_with_relay) to enable relay
+/// Construct an `Executor` with
+/// `Executor::new_with_relay` to enable relay
 /// query execution. The bound `A: RelayDatabaseAdapter` is enforced at that call site.
 pub trait RelayDatabaseAdapter: DatabaseAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
@@ -914,7 +914,7 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// | [`SqlServerAdapter`](crate::sqlserver::SqlServerAdapter) | ✅ Yes | `FunctionCall` |
 /// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ✅ Yes | `DirectSql` |
 /// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol | — |
-/// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` | Delegates |
+/// | `CachedDatabaseAdapter<A>` | ✅ When `A: MutationCapable` | Delegates |
 pub trait MutationCapable: DatabaseAdapter {}
 
 /// Type alias for boxed dynamic database adapters.

@@ -31,7 +31,7 @@ pub mod mocks {
     ///
     /// Pre-register per-action-type canned responses via [`MockActionDispatcher::expect_ok`]
     /// and [`MockActionDispatcher::expect_err`], then inject the mock through
-    /// [`ObserverExecutor::with_dispatcher`].
+    /// `ObserverExecutor::with_dispatcher`.
     pub struct MockActionDispatcher {
         /// Canned responses keyed by `action_type` string (e.g. `"webhook"`)
         pub responses: Mutex<HashMap<String, std::result::Result<ActionResult, ObserverError>>>,

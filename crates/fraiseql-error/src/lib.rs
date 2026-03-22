@@ -6,7 +6,7 @@
 //!
 //! [`RuntimeError`] is the domain-level error enum that aggregates all business-logic errors
 //! (auth, webhooks, files, notifications, etc.). It implements [`axum::response::IntoResponse`]
-//! via [`http::IntoResponse`], which converts it to an [`ErrorResponse`] JSON body with the
+//! via `http::IntoResponse`, which converts it to an [`ErrorResponse`] JSON body with the
 //! appropriate HTTP status code:
 //!
 //! ```text
