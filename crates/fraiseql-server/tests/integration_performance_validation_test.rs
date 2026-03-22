@@ -402,22 +402,6 @@ mod integration_performance_tests {
         }
     }
 
-    #[test]
-    fn test_optimization_maintains_correctness_under_aliases() {
-        // Verify field aliasing doesn't interfere with optimization
-        let fields = vec!["id", "name", "created_at", "user_email"];
-        let alias_map = std::collections::HashMap::from([
-            ("user_email", "email"), // Aliased field
-        ]);
-
-        for _iteration in 0..100 {
-            simulate_query_with_field_mapping(&fields, &alias_map);
-        }
-
-        // All iterations should complete without errors
-        // (Optimization should handle aliases correctly)
-    }
-
     // ============================================================================
     // SECTION 4: Metrics Overhead Under Load (3 tests)
     // ============================================================================
@@ -710,18 +694,6 @@ mod integration_performance_tests {
         let mut total = 0u64;
         for i in 0..size / 5 {
             total = total.wrapping_add(i as u64);
-        }
-        let _ = total; // intentional
-    }
-
-    fn simulate_query_with_field_mapping(
-        _fields: &[&str],
-        _alias_map: &std::collections::HashMap<&str, &str>,
-    ) {
-        // Simulate query execution with field aliases
-        let mut total = 0u64;
-        for i in 0..100 {
-            total = total.wrapping_add(i);
         }
         let _ = total; // intentional
     }

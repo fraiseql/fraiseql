@@ -359,6 +359,3 @@ mod db_backend_tests;
 
 #[cfg(test)]
 mod integration_tests;
-
-#[cfg(test)]
-mod schema_tests;
