@@ -82,8 +82,8 @@ pub struct BackpressureConfig {
     pub queue_timeout: String,
 
     /// Shed load when queue is full (503 vs queue)
-    #[serde(default = "default_load_shed")]
-    pub load_shed: bool,
+    #[serde(default = "default_load_shed_enabled", alias = "load_shed")]
+    pub load_shed_enabled: bool,
 }
 
 impl Default for BackpressureConfig {
@@ -92,7 +92,7 @@ impl Default for BackpressureConfig {
             queue_enabled:  false,
             max_queue_size: default_queue_size(),
             queue_timeout:  default_queue_timeout(),
-            load_shed:      default_load_shed(),
+            load_shed_enabled: default_load_shed_enabled(),
         }
     }
 }
@@ -103,6 +103,6 @@ const fn default_queue_size() -> usize {
 fn default_queue_timeout() -> String {
     "5s".to_string()
 }
-const fn default_load_shed() -> bool {
+const fn default_load_shed_enabled() -> bool {
     true
 }

@@ -27,8 +27,8 @@ pub struct CorsConfig {
     pub credentials: bool,
 
     /// Preflight cache duration in seconds
-    #[serde(default = "default_max_age")]
-    pub max_age: u64,
+    #[serde(default = "default_max_age_secs", alias = "max_age")]
+    pub max_age_secs: u64,
 
     /// Exposed headers (returned to browser)
     #[serde(default)]
@@ -47,7 +47,7 @@ impl Default for CorsConfig {
             methods:         default_methods(),
             headers:         default_headers(),
             credentials:     false,
-            max_age:         default_max_age(),
+            max_age_secs:    default_max_age_secs(),
             expose_headers:  Vec::new(),
             private_network: false,
         }
@@ -70,6 +70,6 @@ fn default_headers() -> Vec<String> {
         "X-Request-ID".to_string(),
     ]
 }
-const fn default_max_age() -> u64 {
+const fn default_max_age_secs() -> u64 {
     86400
 }
