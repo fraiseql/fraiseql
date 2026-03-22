@@ -31,7 +31,9 @@ use crate::{
 pub struct CachedResult {
     /// The actual query result (JSONB array from database).
     ///
-    /// Wrapped in `Arc` for cheap cloning on cache hits (zero-copy).
+    /// Wrapped in `Arc` so cache hits return an O(1) reference-count increment
+    /// instead of an O(n) deep copy — the key optimization that makes the
+    /// 64-shard LRU cache viable under high concurrency.
     pub result: Arc<Vec<JsonbValue>>,
 
     /// Which views/tables this query accesses.
