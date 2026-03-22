@@ -133,6 +133,15 @@ public sealed class SchemaBuilder
         SchemaExporter.Serialize(ToSchema(), pretty);
 
     /// <summary>
+    /// Exports the schema with federation metadata to a JSON string.
+    /// </summary>
+    /// <param name="federation">Federation configuration specifying the service name and defaults.</param>
+    /// <param name="pretty">When <see langword="true"/>, the JSON is indented.</param>
+    /// <returns>The JSON string with federation block.</returns>
+    public string Export(FederationConfig federation, bool pretty = true) =>
+        SchemaExporter.Serialize(ApplyFederation(ToSchema(), federation), pretty);
+
+    /// <summary>
     /// Exports the schema to a file at the given path. Parent directories are created automatically.
     /// </summary>
     /// <param name="path">The output file path.</param>
@@ -144,6 +153,58 @@ public sealed class SchemaBuilder
             Directory.CreateDirectory(dir);
 
         File.WriteAllText(path, Export(pretty));
+    }
+
+    /// <summary>
+    /// Exports the schema with federation metadata to a file.
+    /// Parent directories are created automatically.
+    /// </summary>
+    /// <param name="path">The output file path.</param>
+    /// <param name="federation">Federation configuration specifying the service name and defaults.</param>
+    /// <param name="pretty">When <see langword="true"/>, the JSON is indented.</param>
+    public void ExportToFile(string path, FederationConfig federation, bool pretty = true)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        File.WriteAllText(path, Export(federation, pretty));
+    }
+
+    /// <summary>
+    /// Builds a federation block from the schema types and attaches it.
+    /// Uses the fluent-built types (which lack IsError), plus registry types for error filtering.
+    /// </summary>
+    private static IntermediateSchema ApplyFederation(
+        IntermediateSchema schema, FederationConfig federation)
+    {
+        var registry = SchemaRegistry.Instance;
+        var registryErrorNames = new HashSet<string>(
+            registry.GetAllTypes().Where(t => t.IsError).Select(t => t.Name));
+
+        var entities = new List<FederationEntity>();
+        foreach (var typeDef in schema.Types)
+        {
+            // Skip error types — they are not federation entities
+            if (registryErrorNames.Contains(typeDef.Name))
+                continue;
+
+            var keyFields = typeDef.KeyFields is { Count: > 0 }
+                ? typeDef.KeyFields
+                : federation.DefaultKeyFields;
+
+            entities.Add(new FederationEntity(typeDef.Name, keyFields));
+        }
+
+        var apolloVersion = federation.Version == "v2" ? 2 : 1;
+
+        var block = new FederationBlock(
+            Enabled: true,
+            ServiceName: federation.ServiceName,
+            ApolloVersion: apolloVersion,
+            Entities: entities.AsReadOnly());
+
+        return schema with { Federation = block };
     }
 
     private static IntermediateType TypeDefinitionToIntermediate(
@@ -162,7 +223,10 @@ public sealed class SchemaBuilder
             .AsReadOnly();
 
         return new IntermediateType(td.Name, td.SqlSource, td.Description, fields,
-            td.TenantScoped ? true : null);
+            td.TenantScoped ? true : null,
+            KeyFields: td.KeyFields is { Length: > 0 }
+                ? td.KeyFields.ToList().AsReadOnly()
+                : null);
     }
 }
 
@@ -174,6 +238,8 @@ public sealed class TypeConfigurator
     internal string Name { get; }
     private string _sqlSource = string.Empty;
     private string? _description;
+    private string[]? _keyFields;
+    private bool _extends;
     private readonly List<IntermediateField> _fields = new();
 
     internal TypeConfigurator(string name) => Name = name;
@@ -187,6 +253,22 @@ public sealed class TypeConfigurator
     /// <param name="desc">The description text.</param>
     /// <returns>This configurator for chaining.</returns>
     public TypeConfigurator Description(string desc) { _description = desc; return this; }
+
+    /// <summary>
+    /// Sets federation key fields for entity resolution.
+    /// Defaults to <c>["id"]</c> when federation is enabled on export.
+    /// Set explicitly for compound keys, e.g. <c>new[] { "id", "region" }</c>.
+    /// </summary>
+    /// <param name="fields">The key field names.</param>
+    /// <returns>This configurator for chaining.</returns>
+    public TypeConfigurator KeyFields(params string[] fields) { _keyFields = fields; return this; }
+
+    /// <summary>
+    /// Marks this type as extending a type defined in another subgraph.
+    /// </summary>
+    /// <param name="extends_">Whether this type extends a remote type.</param>
+    /// <returns>This configurator for chaining.</returns>
+    public TypeConfigurator Extends(bool extends_ = true) { _extends = extends_; return this; }
 
     /// <summary>Adds a field to this type.</summary>
     /// <param name="name">The GraphQL field name.</param>
@@ -207,5 +289,8 @@ public sealed class TypeConfigurator
     }
 
     internal IntermediateType Build() =>
-        new(Name, _sqlSource, _description, _fields.AsReadOnly());
+        new(Name, _sqlSource, _description, _fields.AsReadOnly(),
+            KeyFields: _keyFields is { Length: > 0 }
+                ? _keyFields.ToList().AsReadOnly()
+                : null);
 }

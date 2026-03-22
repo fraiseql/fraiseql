@@ -36,6 +36,8 @@ let private singleType =
         relay = false
         is_error = false
         tenant_scoped = false
+        key_fields = [||]
+        extends_type = false
     }
 
 let private singleQuery: QueryDefinition =

@@ -94,6 +94,8 @@ module Dsl =
             relay: bool
             isError: bool
             tenantScoped: bool
+            keyFields: string[]
+            extendsType: bool
         }
 
     /// Computation expression builder for a <see cref="TypeDefinition"/>.
@@ -111,6 +113,8 @@ module Dsl =
                 relay = false
                 isError = false
                 tenantScoped = false
+                keyFields = [||]
+                extendsType = false
             }
 
         member this.Zero() : TypeAccState = this.Yield(())
@@ -127,6 +131,8 @@ module Dsl =
                 relay = s.relay
                 is_error = s.isError
                 tenant_scoped = s.tenantScoped
+                key_fields = s.keyFields
+                extends_type = s.extendsType
             }
 
         /// Sets the SQL view backing this type.
@@ -153,6 +159,14 @@ module Dsl =
         /// Marks this type as tenant-scoped for multi-tenant schemas.
         [<CustomOperation("tenantScoped")>]
         member _.TenantScoped(s: TypeAccState, v: bool) : TypeAccState = { s with tenantScoped = v }
+
+        /// Sets federation key fields for entity resolution.
+        [<CustomOperation("keyFields")>]
+        member _.KeyFields(s: TypeAccState, v: string[]) : TypeAccState = { s with keyFields = v }
+
+        /// Marks this type as extending a type defined in another subgraph.
+        [<CustomOperation("extendsType")>]
+        member _.ExtendsType(s: TypeAccState, v: bool) : TypeAccState = { s with extendsType = v }
 
         /// Adds a <see cref="FieldDefinition"/> to this type.
         [<CustomOperation("field")>]

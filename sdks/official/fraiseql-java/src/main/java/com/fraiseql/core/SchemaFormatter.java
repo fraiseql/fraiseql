@@ -85,6 +85,58 @@ public class SchemaFormatter {
     }
 
     /**
+     * Format the schema with Apollo Federation v2 metadata.
+     * Iterates all registered types (skipping error types), builds an entity list
+     * with key fields (defaulting to ["id"] when not explicitly set), and appends
+     * a top-level "federation" block to the output.
+     *
+     * @param registry the SchemaRegistry to format
+     * @param serviceName the federation service name for this subgraph
+     * @return ObjectNode representing the complete federated schema
+     */
+    public static ObjectNode formatFederatedSchema(SchemaRegistry registry, String serviceName) {
+        ObjectNode root = formatSchema(registry);
+
+        // Build federation block
+        ObjectNode federationNode = mapper.createObjectNode();
+        federationNode.put("enabled", true);
+        federationNode.put("service_name", serviceName);
+        federationNode.put("apollo_version", 2);
+
+        ArrayNode entitiesArray = mapper.createArrayNode();
+        for (SchemaRegistry.GraphQLTypeInfo typeInfo : registry.getAllTypes().values()) {
+            if (typeInfo.isError) {
+                continue;
+            }
+
+            ObjectNode entityNode = mapper.createObjectNode();
+            entityNode.put("name", typeInfo.name);
+
+            // Use explicit keyFields if set, otherwise default to ["id"]
+            ArrayNode keysArray = mapper.createArrayNode();
+            if (typeInfo.keyFields != null && !typeInfo.keyFields.isEmpty()) {
+                for (String key : typeInfo.keyFields) {
+                    keysArray.add(key);
+                }
+            } else {
+                keysArray.add("id");
+            }
+            entityNode.set("key_fields", keysArray);
+
+            if (typeInfo.extendsType) {
+                entityNode.put("extends", true);
+            }
+
+            entitiesArray.add(entityNode);
+        }
+
+        federationNode.set("entities", entitiesArray);
+        root.set("federation", federationNode);
+
+        return root;
+    }
+
+    /**
      * Format types as an ArrayNode (for minimal schema export).
      * Each type is an object element including its fields.
      */

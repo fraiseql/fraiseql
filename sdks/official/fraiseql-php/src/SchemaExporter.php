@@ -86,6 +86,84 @@ final class SchemaExporter
     }
 
     /**
+     * Export the schema with federation metadata.
+     *
+     * Wraps the base schema with a `federation` block that declares this subgraph
+     * and lists entity types with their key fields. Error types are excluded from
+     * the entity list.
+     *
+     * @param string $serviceName Logical subgraph name
+     * @param string[] $defaultKeyFields Default key fields for types without explicit keyFields
+     * @param bool $pretty Pretty-print the JSON
+     * @return string JSON string
+     */
+    public static function exportWithFederation(
+        string $serviceName,
+        array $defaultKeyFields = ['id'],
+        bool $pretty = true,
+    ): string {
+        $schema = self::toArray();
+
+        $entities = [];
+        foreach ($schema['types'] as $type) {
+            if (!empty($type['is_error'])) {
+                continue;
+            }
+
+            $keyFields = $type['key_fields'] ?? $defaultKeyFields;
+            $entity = [
+                'name'       => $type['name'],
+                'key_fields' => $keyFields,
+            ];
+
+            if (!empty($type['extends'])) {
+                $entity['extends'] = true;
+            }
+
+            $entities[] = $entity;
+        }
+
+        $schema['federation'] = [
+            'enabled'        => true,
+            'service_name'   => $serviceName,
+            'apollo_version' => 2,
+            'entities'       => $entities,
+        ];
+
+        $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+        if ($pretty) {
+            $flags |= JSON_PRETTY_PRINT;
+        }
+
+        $json = json_encode($schema, $flags);
+        if ($json === false) {
+            throw new FraiseQLException('Failed to encode schema as JSON: ' . json_last_error_msg());
+        }
+
+        return $json;
+    }
+
+    /**
+     * Export the schema with federation metadata to a file.
+     *
+     * @param string $outputPath Destination file path (typically schema.json)
+     * @param string $serviceName Logical subgraph name
+     * @param string[] $defaultKeyFields Default key fields for types without explicit keyFields
+     * @return void
+     */
+    public static function exportToFileWithFederation(
+        string $outputPath,
+        string $serviceName,
+        array $defaultKeyFields = ['id'],
+    ): void {
+        $json = self::exportWithFederation($serviceName, $defaultKeyFields, pretty: true);
+
+        if (file_put_contents($outputPath, $json) === false) {
+            throw new FraiseQLException("Failed to write schema to: $outputPath");
+        }
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private static function buildTypes(SchemaRegistry $registry): array
@@ -132,6 +210,14 @@ final class SchemaExporter
 
                 if ($typeAttr->tenantScoped) {
                     $typeDef['tenant_scoped'] = true;
+                }
+
+                if ($typeAttr->keyFields !== null) {
+                    $typeDef['key_fields'] = $typeAttr->keyFields;
+                }
+
+                if ($typeAttr->extends) {
+                    $typeDef['extends'] = true;
                 }
             }
 

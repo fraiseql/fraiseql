@@ -66,6 +66,8 @@ public class SchemaRegistry {
         String typeDescription = "";
         boolean relay = false;
         boolean tenantScoped = false;
+        List<String> keyFields = null;
+        boolean extendsType = false;
         if (hasGraphQLType) {
             GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
             if (annotation.name() != null && !annotation.name().isEmpty()) {
@@ -74,6 +76,10 @@ public class SchemaRegistry {
             typeDescription = annotation.description();
             relay = annotation.relay();
             tenantScoped = annotation.tenantScoped();
+            if (annotation.keyFields().length > 0) {
+                keyFields = Arrays.asList(annotation.keyFields());
+            }
+            extendsType = annotation.extends_();
         } else if (hasFactTable) {
             GraphQLFactTable ftAnnotation = typeClass.getAnnotation(GraphQLFactTable.class);
             typeDescription = ftAnnotation.description();
@@ -102,7 +108,9 @@ public class SchemaRegistry {
             false,
             requiresRole,
             sqlSource,
-            tenantScoped
+            tenantScoped,
+            keyFields,
+            extendsType
         );
 
         types.put(name, typeInfo);
@@ -671,18 +679,26 @@ public class SchemaRegistry {
         public final String requiresRole;
         public final String sqlSource;
         public final boolean tenantScoped;
+        public final List<String> keyFields;
+        public final boolean extendsType;
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
-            this(name, javaClass, fields, description, false, false, null, null, false);
+            this(name, javaClass, fields, description, false, false, null, null, false, null, false);
         }
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description, boolean relay) {
-            this(name, javaClass, fields, description, relay, false, null, null, false);
+            this(name, javaClass, fields, description, relay, false, null, null, false, null, false);
         }
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
                                String description, boolean relay, boolean isError, String requiresRole, String sqlSource,
                                boolean tenantScoped) {
+            this(name, javaClass, fields, description, relay, isError, requiresRole, sqlSource, tenantScoped, null, false);
+        }
+
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                               String description, boolean relay, boolean isError, String requiresRole, String sqlSource,
+                               boolean tenantScoped, List<String> keyFields, boolean extendsType) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -692,6 +708,9 @@ public class SchemaRegistry {
             this.requiresRole = requiresRole;
             this.sqlSource = sqlSource;
             this.tenantScoped = tenantScoped;
+            this.keyFields = keyFields != null
+                ? Collections.unmodifiableList(new ArrayList<>(keyFields)) : null;
+            this.extendsType = extendsType;
         }
 
         @Override

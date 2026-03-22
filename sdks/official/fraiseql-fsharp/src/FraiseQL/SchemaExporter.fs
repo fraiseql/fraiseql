@@ -85,6 +85,18 @@ module SchemaExporter =
         if td.tenant_scoped then
             w.WriteBoolean("tenant_scoped", true)
 
+        if td.key_fields.Length > 0 then
+            w.WritePropertyName("key_fields")
+            w.WriteStartArray()
+
+            for kf in td.key_fields do
+                w.WriteStringValue(kf)
+
+            w.WriteEndArray()
+
+        if td.extends_type then
+            w.WriteBoolean("extends", true)
+
         w.WriteEndObject()
 
     /// Writes an argument definition to the JSON writer.
@@ -273,3 +285,98 @@ module SchemaExporter =
             Directory.CreateDirectory(dir) |> ignore
 
         File.WriteAllText(path, export ())
+
+    /// Writes the ``"federation"`` block into the JSON writer.
+    /// Iterates all types, skipping error types, and builds an entity list.
+    /// Types with explicit key_fields use those; others default to ``["id"]``.
+    let private writeFederation (w: Utf8JsonWriter) (serviceName: string) (types: TypeDefinition list) =
+        w.WritePropertyName("federation")
+        w.WriteStartObject()
+        w.WriteBoolean("enabled", true)
+        w.WriteString("service_name", serviceName)
+        w.WriteNumber("apollo_version", 2)
+
+        w.WritePropertyName("entities")
+        w.WriteStartArray()
+
+        for td in types do
+            if not td.is_error then
+                w.WriteStartObject()
+                w.WriteString("name", td.name)
+                w.WritePropertyName("key_fields")
+                w.WriteStartArray()
+
+                let keys =
+                    if td.key_fields.Length > 0 then td.key_fields
+                    else [| "id" |]
+
+                for kf in keys do
+                    w.WriteStringValue(kf)
+
+                w.WriteEndArray()
+                w.WriteEndObject()
+
+        w.WriteEndArray()
+        w.WriteEndObject()
+
+    /// Serializes an IntermediateSchema to JSON with a federation block.
+    let private writeSchemaWithFederation (schema: IntermediateSchema) (serviceName: string) (writeIndented: bool) : string =
+        let options = JsonWriterOptions(Indented = writeIndented)
+        use stream = new System.IO.MemoryStream()
+        use w = new Utf8JsonWriter(stream, options)
+
+        w.WriteStartObject()
+        w.WriteString("version", schema.version)
+
+        w.WritePropertyName("types")
+        w.WriteStartArray()
+
+        for td in schema.types do
+            writeType w td
+
+        w.WriteEndArray()
+
+        w.WritePropertyName("queries")
+        w.WriteStartArray()
+
+        for q in schema.queries do
+            writeQuery w q
+
+        w.WriteEndArray()
+
+        w.WritePropertyName("mutations")
+        w.WriteStartArray()
+
+        for m in schema.mutations do
+            writeMutation w m
+
+        w.WriteEndArray()
+
+        writeInjectDefaults w
+        writeFederation w serviceName schema.types
+
+        w.WriteEndObject()
+        w.Flush()
+
+        System.Text.Encoding.UTF8.GetString(stream.ToArray())
+
+    /// Serializes an <see cref="IntermediateSchema"/> to a pretty-printed JSON string
+    /// with a federation block. Types without explicit key_fields default to ``["id"]``.
+    /// Error types are excluded from the federation entity list.
+    let exportSchemaWithFederation (serviceName: string) (schema: IntermediateSchema) : string =
+        writeSchemaWithFederation schema serviceName true
+
+    /// Reads all registered definitions from <see cref="SchemaRegistry"/> and serializes
+    /// them to a pretty-printed JSON string with a federation block.
+    let exportWithFederation (serviceName: string) : string =
+        exportSchemaWithFederation serviceName (SchemaRegistry.toIntermediateSchema ())
+
+    /// Reads all registered definitions from <see cref="SchemaRegistry"/> and writes them
+    /// to the given file path with a federation block. Creates any missing parent directories.
+    let exportWithFederationToFile (serviceName: string) (path: string) : unit =
+        let dir = Path.GetDirectoryName(path)
+
+        if not (System.String.IsNullOrEmpty(dir)) then
+            Directory.CreateDirectory(dir) |> ignore
+
+        File.WriteAllText(path, exportWithFederation serviceName)

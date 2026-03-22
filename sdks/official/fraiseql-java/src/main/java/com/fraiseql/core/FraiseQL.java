@@ -115,6 +115,19 @@ public class FraiseQL {
     }
 
     /**
+     * Export the schema with Apollo Federation v2 metadata.
+     * Includes a "federation" block with service name, entity list, and key fields.
+     *
+     * @param filePath the output file path
+     * @param serviceName the federation service name for this subgraph
+     * @throws IOException if writing to file fails
+     */
+    public static void exportFederatedSchema(String filePath, String serviceName) throws IOException {
+        var schema = SchemaFormatter.formatFederatedSchema(registry, serviceName);
+        SchemaFormatter.writeToFile(schema, filePath);
+    }
+
+    /**
      * Export minimal types.json (types only, no queries/mutations).
      * For TOML-based workflow: Java generates types.json, fraiseql.toml provides config.
      *

@@ -13,6 +13,8 @@ namespace FraiseQL.Models;
 /// <param name="TenantScoped">Whether this type is scoped to a tenant.</param>
 /// <param name="Fields">Ordered list of fields on this type.</param>
 /// <param name="Crud">Optional CRUD operations to auto-generate.</param>
+/// <param name="KeyFields">Optional federation key fields for entity resolution.</param>
+/// <param name="Extends">Whether this type extends a type defined in another subgraph.</param>
 public record TypeDefinition(
     string Name,
     string SqlSource,
@@ -22,4 +24,6 @@ public record TypeDefinition(
     bool IsError,
     bool TenantScoped,
     IReadOnlyList<FieldDefinition> Fields,
-    string[]? Crud = null);
+    string[]? Crud = null,
+    string[]? KeyFields = null,
+    bool Extends = false);

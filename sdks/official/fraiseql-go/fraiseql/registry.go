@@ -35,6 +35,8 @@ type TypeDefinition struct {
 	Implements   []string    `json:"implements,omitempty"`
 	TenantScoped bool        `json:"tenant_scoped,omitempty"`
 	Crud         interface{} `json:"-"` // bool or []string; not serialized, used for CRUD generation
+	KeyFields    []string    `json:"key_fields,omitempty"`
+	Extends      bool        `json:"extends,omitempty"`
 }
 
 // QueryDefinition represents a GraphQL query
@@ -115,6 +117,20 @@ type SubscriptionDefinition struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
+// FederationConfig is the top-level federation block in the exported JSON.
+type FederationConfig struct {
+	Enabled       bool               `json:"enabled"`
+	ServiceName   string             `json:"service_name"`
+	ApolloVersion int                `json:"apollo_version"`
+	Entities      []FederationEntity `json:"entities"`
+}
+
+// FederationEntity represents a single federation entity.
+type FederationEntity struct {
+	Name      string   `json:"name"`
+	KeyFields []string `json:"key_fields"`
+}
+
 // Schema represents the complete GraphQL schema
 type Schema struct {
 	Types            []TypeDefinition           `json:"types"`
@@ -124,6 +140,7 @@ type Schema struct {
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
 	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
+	Federation       *FederationConfig          `json:"federation,omitempty"`
 }
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions

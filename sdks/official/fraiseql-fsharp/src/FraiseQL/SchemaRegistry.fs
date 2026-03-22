@@ -286,6 +286,8 @@ module SchemaRegistry =
                 relay = attr.Relay
                 is_error = attr.IsError
                 tenant_scoped = attr.TenantScoped
+                key_fields = attr.KeyFields
+                extends_type = attr.Extends
             }
 
         types.[name] <- typeDef

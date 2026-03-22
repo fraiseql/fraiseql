@@ -44,6 +44,13 @@ type GraphQLTypeAttribute() =
     /// Accepted values: "all", "read", "create", "update", "delete".
     member val Crud: string[] = [||] with get, set
 
+    /// Federation key fields for entity resolution.
+    /// Defaults to ["id"] when federation is enabled on export.
+    member val KeyFields: string[] = [||] with get, set
+
+    /// Whether this type extends a type defined in another subgraph.
+    member val Extends: bool = false with get, set
+
 /// Marks a property on a GraphQL type as a field to include in the schema.
 /// Apply this attribute to properties on classes decorated with <see cref="GraphQLTypeAttribute"/>.
 ///

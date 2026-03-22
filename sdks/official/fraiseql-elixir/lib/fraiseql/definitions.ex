@@ -88,6 +88,8 @@ defmodule FraiseQL.TypeDefinition do
     * `:tenant_scoped` — whether this type is scoped to a tenant; defaults to `false`
     * `:crud` — auto-generate CRUD operations; `false`, `true`, or list of strings like
       `["read", "create", "update", "delete"]`; defaults to `false`
+    * `:key_fields` — list of federation key field names (default `nil`; defaults to `["id"]` at export)
+    * `:extends_type` — boolean, marks this type as extending a type from another subgraph (default `false`)
   """
 
   @enforce_keys [:name, :sql_source]
@@ -100,7 +102,9 @@ defmodule FraiseQL.TypeDefinition do
     relay: false,
     is_error: false,
     tenant_scoped: false,
-    crud: false
+    crud: false,
+    key_fields: nil,
+    extends_type: false
   ]
 
   @type t :: %__MODULE__{
@@ -112,7 +116,9 @@ defmodule FraiseQL.TypeDefinition do
           relay: boolean(),
           is_error: boolean(),
           tenant_scoped: boolean(),
-          crud: boolean() | [String.t()]
+          crud: boolean() | [String.t()],
+          key_fields: [String.t()] | nil,
+          extends_type: boolean()
         }
 end
 

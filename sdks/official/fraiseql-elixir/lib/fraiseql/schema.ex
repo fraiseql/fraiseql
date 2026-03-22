@@ -87,6 +87,8 @@ defmodule FraiseQL.Schema do
     * `:tenant_scoped` — boolean, scopes this type to a tenant (default `false`)
     * `:crud` — auto-generate CRUD operations; `true`, `false`, or list of strings
       like `["read", "create", "update", "delete"]` (default `false`)
+    * `:key_fields` — list of federation key field names (default `nil`; defaults to `["id"]` at export)
+    * `:extends_type` — boolean, marks this type as extending a type from another subgraph (default `false`)
 
   ## Examples
 
@@ -120,7 +122,9 @@ defmodule FraiseQL.Schema do
           relay: unquote(Keyword.get(type_opts, :relay, false)),
           is_error: unquote(Keyword.get(type_opts, :is_error, false)),
           tenant_scoped: unquote(Keyword.get(type_opts, :tenant_scoped, false)),
-          crud: unquote(Keyword.get(type_opts, :crud, false))
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          key_fields: unquote(type_opts[:key_fields]),
+          extends_type: unquote(Keyword.get(type_opts, :extends_type, false))
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
@@ -139,7 +143,9 @@ defmodule FraiseQL.Schema do
           relay: unquote(Keyword.get(type_opts, :relay, false)),
           is_error: unquote(Keyword.get(type_opts, :is_error, false)),
           tenant_scoped: unquote(Keyword.get(type_opts, :tenant_scoped, false)),
-          crud: unquote(Keyword.get(type_opts, :crud, false))
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          key_fields: unquote(type_opts[:key_fields]),
+          extends_type: unquote(Keyword.get(type_opts, :extends_type, false))
         }
       end
     end

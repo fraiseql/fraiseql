@@ -52,6 +52,10 @@ type TypeDefinition =
         is_error: bool
         /// True if this type is scoped to a tenant for multi-tenant schemas.
         tenant_scoped: bool
+        /// Federation key fields for entity resolution (empty when not set).
+        key_fields: string[]
+        /// True if this type extends a type defined in another subgraph.
+        extends_type: bool
     }
 
 /// Represents a GraphQL query (read operation).

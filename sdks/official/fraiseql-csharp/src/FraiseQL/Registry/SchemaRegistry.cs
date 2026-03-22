@@ -60,7 +60,9 @@ public sealed class SchemaRegistry
             IsError: typeAttr.IsError,
             TenantScoped: typeAttr.TenantScoped,
             Fields: fields,
-            Crud: typeAttr.Crud);
+            Crud: typeAttr.Crud,
+            KeyFields: typeAttr.KeyFields,
+            Extends: typeAttr.Extends);
 
         lock (_lock)
         {

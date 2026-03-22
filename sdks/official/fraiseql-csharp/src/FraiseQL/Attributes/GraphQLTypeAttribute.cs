@@ -45,4 +45,16 @@ public sealed class GraphQLTypeAttribute : Attribute
     /// <c>new[] { "read", "create", "update", "delete" }</c>.
     /// </summary>
     public string[]? Crud { get; set; }
+
+    /// <summary>
+    /// Federation key fields for entity resolution.
+    /// Defaults to <c>["id"]</c> when federation is enabled on export.
+    /// Set explicitly for compound keys, e.g. <c>new[] { "id", "region" }</c>.
+    /// </summary>
+    public string[]? KeyFields { get; set; }
+
+    /// <summary>
+    /// Whether this type extends a type defined in another subgraph.
+    /// </summary>
+    public bool Extends { get; set; } = false;
 }
