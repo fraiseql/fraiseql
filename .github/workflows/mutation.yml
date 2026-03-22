@@ -3,17 +3,36 @@ name: Mutation Testing
 on:
   schedule:
     - cron: '0 2 * * 1'  # Weekly, Monday 02:00 UTC
+  pull_request:
+    paths:
+      - 'crates/fraiseql-auth/src/pkce.rs'
+      - 'crates/fraiseql-auth/src/jwks.rs'
+      - 'crates/fraiseql-db/src/where_sql_generator.rs'
+      - 'crates/fraiseql-core/src/cache/key.rs'
+      - 'crates/fraiseql-core/src/security/query_validator.rs'
+      - 'crates/fraiseql-core/src/runtime/executor/query.rs'
+      - 'crates/fraiseql-core/src/compiler/aggregation.rs'
+      - 'crates/fraiseql-core/src/cache/adapter/query.rs'
+      - 'crates/fraiseql-federation/src/http_resolver.rs'
   workflow_dispatch:
 
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  mutants:
-    name: cargo-mutants (fraiseql-core priority files)
+  # Core engine mutation tests (original scope)
+  mutants-core:
+    name: cargo-mutants (fraiseql-core)
     runs-on: ubuntu-latest
-    continue-on-error: true  # Non-blocking until baseline survival rate is established
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants-core
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
       - name: Run mutation tests
@@ -23,10 +42,91 @@ jobs:
             --file src/runtime/executor/query.rs \
             --file src/compiler/aggregation.rs \
             --file src/cache/adapter/query.rs \
+            --file src/security/query_validator.rs \
             --timeout 60 \
-            --output mutants-report/
+            --output mutants-report-core/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mutants-report
-          path: mutants-report/
+          name: mutants-report-core
+          path: mutants-report-core/
+          retention-days: 30
+
+  # Security-critical: auth (PKCE + JWKS)
+  mutants-auth:
+    name: cargo-mutants (fraiseql-auth)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants-auth
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run mutation tests
+        run: |
+          cargo mutants --package fraiseql-auth \
+            --file src/pkce.rs \
+            --file src/jwks.rs \
+            --timeout 60 \
+            --output mutants-report-auth/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-report-auth
+          path: mutants-report-auth/
+          retention-days: 30
+
+  # Security-critical: SQL generation (injection prevention)
+  mutants-db:
+    name: cargo-mutants (fraiseql-db)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants-db
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run mutation tests
+        run: |
+          cargo mutants --package fraiseql-db \
+            --file src/where_sql_generator.rs \
+            --timeout 60 \
+            --output mutants-report-db/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-report-db
+          path: mutants-report-db/
+          retention-days: 30
+
+  # Security-critical: federation SSRF protection
+  mutants-federation:
+    name: cargo-mutants (fraiseql-federation)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants-federation
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run mutation tests
+        run: |
+          cargo mutants --package fraiseql-federation \
+            --file src/http_resolver.rs \
+            --timeout 60 \
+            --output mutants-report-federation/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-report-federation
+          path: mutants-report-federation/
+          retention-days: 30
