@@ -26,7 +26,8 @@ build/
 
 # Dependencies
 node_modules/
-vendor/
+# Note: vendor/ is NOT excluded — vendor/graphql-parser is a patched dependency
+# required by Cargo.toml [patch.crates-io]
 
 # Documentation
 docs/

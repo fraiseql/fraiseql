@@ -5,7 +5,7 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # Stage 1: Builder - use rust image for target arch
-FROM --platform=$BUILDPLATFORM rust:1.88-slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1.92-slim AS builder
 
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -29,6 +29,7 @@ ARG CARGO_FEATURES=""
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY vendor ./vendor
 
 RUN TARGET=$(cat /tmp/rust_target.txt) && \
     if [ -n "$CARGO_FEATURES" ]; then \
