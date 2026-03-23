@@ -52,6 +52,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             FieldDefinition {
                 name:           "name".into(),
@@ -65,6 +67,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             // Protected fields
             FieldDefinition {
@@ -79,6 +83,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("read:User.email".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             FieldDefinition {
                 name:           "phone".into(),
@@ -92,6 +98,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("read:User.phone".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -106,6 +114,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             FieldDefinition {
                 name:           "ssn".into(),
@@ -119,6 +129,8 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
         ],
         description:         Some("User type with field-level scopes".to_string()),

@@ -48,6 +48,8 @@ fn arb_field_def() -> impl Strategy<Value = FieldDefinition> {
             requires_scope: None,
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
+            auto_generated: false,
+            computed:       false,
         },
     )
 }

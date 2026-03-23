@@ -580,6 +580,12 @@ impl SchemaMerger {
                 serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
         }
 
+        // Embed REST config when enabled
+        if toml_schema.rest.enabled {
+            merged["rest_config"] = serde_json::to_value(&toml_schema.rest)
+                .context("Failed to serialize REST config")?;
+        }
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

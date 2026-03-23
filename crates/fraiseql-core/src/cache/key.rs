@@ -509,6 +509,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -542,6 +544,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -570,6 +574,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         };
 
         let views = extract_accessed_views(&query_def);

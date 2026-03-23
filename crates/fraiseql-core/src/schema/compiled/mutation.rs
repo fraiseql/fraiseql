@@ -107,6 +107,18 @@ pub struct MutationDefinition {
     /// Set via `@fraiseql.mutation(cascade=True)` in the authoring layer.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cascade: bool,
+
+    /// Custom REST path override (from `@fraiseql.mutation(rest_path="/custom/path")`).
+    ///
+    /// When set, the REST transport uses this path instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_path: Option<String>,
+
+    /// Custom REST HTTP method override (from `@fraiseql.mutation(rest_method="PUT")`).
+    ///
+    /// When set, the REST transport uses this method instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_method: Option<String>,
 }
 
 impl MutationDefinition {
@@ -125,6 +137,8 @@ impl MutationDefinition {
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
             cascade:                 false,
+            rest_path:               None,
+            rest_method:             None,
         }
     }
 
@@ -185,4 +199,36 @@ pub enum MutationOperation {
     /// Custom mutation (for complex operations).
     #[default]
     Custom,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rest_path_defaults_none() {
+        let m = MutationDefinition::new("createUser", "User");
+        assert!(m.rest_path.is_none());
+        assert!(m.rest_method.is_none());
+    }
+
+    #[test]
+    fn test_rest_path_roundtrip() {
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.rest_path = Some("/users".to_string());
+        m.rest_method = Some("PUT".to_string());
+        let json = serde_json::to_string(&m).unwrap();
+        let restored: MutationDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.rest_path.as_deref(), Some("/users"));
+        assert_eq!(restored.rest_method.as_deref(), Some("PUT"));
+    }
+
+    #[test]
+    fn test_deserialization_without_rest_fields() {
+        let json = r#"{"name":"createUser","return_type":"User"}"#;
+        let m: MutationDefinition = serde_json::from_str(json).unwrap();
+        assert!(m.rest_path.is_none());
+        assert!(m.rest_method.is_none());
+    }
 }

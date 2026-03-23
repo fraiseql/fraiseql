@@ -33,6 +33,7 @@ fn test_convert_minimal_schema() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -94,6 +95,7 @@ fn test_convert_type_with_fields() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -147,6 +149,7 @@ fn test_validate_unknown_type_reference() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -216,6 +219,7 @@ fn test_convert_query_with_arguments() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -276,6 +280,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -337,6 +342,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -405,6 +411,7 @@ fn test_convert_field_with_deprecated_directive() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -476,6 +483,7 @@ fn test_convert_enum() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -560,6 +568,7 @@ fn test_convert_input_object() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -614,6 +623,7 @@ fn test_rich_filter_types_generated() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -672,6 +682,7 @@ fn test_rich_filter_types_have_sql_templates() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -742,6 +753,7 @@ fn test_lookup_data_embedded_in_schema() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -835,6 +847,7 @@ fn test_convert_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -915,6 +928,7 @@ fn test_convert_type_implements_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -972,6 +986,7 @@ fn test_validate_unknown_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -1038,6 +1053,7 @@ fn test_validate_missing_interface_field() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -1112,6 +1128,7 @@ fn test_convert_union() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -1197,6 +1214,7 @@ fn test_convert_field_requires_scope() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 

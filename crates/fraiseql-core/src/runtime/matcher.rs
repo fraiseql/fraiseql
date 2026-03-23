@@ -281,6 +281,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         schema
     }
@@ -478,6 +480,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let matcher = QueryMatcher::new(schema);
 

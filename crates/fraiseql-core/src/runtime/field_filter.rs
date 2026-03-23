@@ -157,6 +157,8 @@ mod tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
+            auto_generated: false,
+            computed:       false,
         }
     }
 
@@ -279,6 +281,8 @@ mod tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny,
             encryption: None,
+            auto_generated: false,
+            computed: false,
         }
     }
 

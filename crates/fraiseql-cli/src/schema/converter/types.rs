@@ -172,6 +172,8 @@ impl SchemaConverter {
                 }
             }),
             encryption: None,
+            auto_generated: false,
+            computed: false,
         })
     }
 

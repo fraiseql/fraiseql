@@ -358,6 +358,64 @@ impl Default for McpConfig {
     }
 }
 
+/// REST transport configuration (compiled from `[rest]` in `fraiseql.toml`).
+///
+/// Embedded in `CompiledSchema.rest_config` alongside `mcp_config`.
+/// Follows the same dual-location pattern as `McpConfig`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RestConfig {
+    /// Whether REST transport is enabled.
+    pub enabled: bool,
+    /// Base path for REST endpoints (e.g., "/rest/v1").
+    pub path: String,
+    /// Require authentication for REST requests.
+    pub require_auth: bool,
+    /// Whitelist of resource names to expose (empty = all).
+    pub include: Vec<String>,
+    /// Blacklist of resource names to hide.
+    pub exclude: Vec<String>,
+    /// Response behavior for DELETE operations.
+    pub delete_response: DeleteResponse,
+    /// Maximum page size for list queries.
+    pub max_page_size: u64,
+    /// Default page size when not specified by client.
+    pub default_page_size: u64,
+    /// Whether to generate ETag headers for responses.
+    pub etag: bool,
+    /// Maximum allowed size in bytes for filter query parameters.
+    pub max_filter_bytes: usize,
+}
+
+impl Default for RestConfig {
+    fn default() -> Self {
+        Self {
+            enabled:           false,
+            path:              "/rest/v1".to_string(),
+            require_auth:      true,
+            include:           Vec::new(),
+            exclude:           Vec::new(),
+            delete_response:   DeleteResponse::NoContent,
+            max_page_size:     100,
+            default_page_size: 20,
+            etag:              true,
+            max_filter_bytes:  4096,
+        }
+    }
+}
+
+/// Response behavior for REST DELETE operations.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum DeleteResponse {
+    /// Return 204 No Content (default).
+    #[default]
+    NoContent,
+    /// Return 200 with the deleted entity body.
+    Entity,
+}
+
 /// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -407,6 +465,7 @@ mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::*;
+    use crate::schema::compiled::schema::CompiledSchema;
 
     #[test]
     fn test_federation_config_default() {
@@ -504,5 +563,96 @@ mod tests {
         let restored: FederationConfig = serde_json::from_str(&json).unwrap();
 
         assert_eq!(config, restored);
+    }
+
+    // =========================================================================
+    // RestConfig tests
+    // =========================================================================
+
+    #[test]
+    fn test_rest_config_defaults() {
+        let config = RestConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.path, "/rest/v1");
+        assert!(config.require_auth);
+        assert!(config.include.is_empty());
+        assert!(config.exclude.is_empty());
+        assert_eq!(config.delete_response, DeleteResponse::NoContent);
+        assert_eq!(config.max_page_size, 100);
+        assert_eq!(config.default_page_size, 20);
+        assert!(config.etag);
+        assert_eq!(config.max_filter_bytes, 4096);
+    }
+
+    #[test]
+    fn test_rest_config_roundtrip() {
+        let config = RestConfig {
+            enabled:           true,
+            path:              "/api/v2".to_string(),
+            require_auth:      false,
+            include:           vec!["users".to_string()],
+            exclude:           vec!["secrets".to_string()],
+            delete_response:   DeleteResponse::Entity,
+            max_page_size:     500,
+            default_page_size: 50,
+            etag:              false,
+            max_filter_bytes:  8192,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let restored: RestConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(config, restored);
+    }
+
+    #[test]
+    fn test_rest_config_serde_defaults() {
+        // Minimal JSON should fill in defaults
+        let json = r#"{"enabled": true}"#;
+        let config: RestConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enabled);
+        assert_eq!(config.path, "/rest/v1");
+        assert_eq!(config.max_page_size, 100);
+    }
+
+    #[test]
+    fn test_delete_response_serialization() {
+        assert_eq!(
+            serde_json::to_string(&DeleteResponse::NoContent).unwrap(),
+            r#""no_content""#
+        );
+        assert_eq!(
+            serde_json::to_string(&DeleteResponse::Entity).unwrap(),
+            r#""entity""#
+        );
+    }
+
+    #[test]
+    fn test_delete_response_deserialization() {
+        let no_content: DeleteResponse = serde_json::from_str(r#""no_content""#).unwrap();
+        assert_eq!(no_content, DeleteResponse::NoContent);
+
+        let entity: DeleteResponse = serde_json::from_str(r#""entity""#).unwrap();
+        assert_eq!(entity, DeleteResponse::Entity);
+    }
+
+    #[test]
+    fn test_rest_config_none_skipped_in_compiled_schema() {
+        let schema = CompiledSchema::new();
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(!json.contains("rest_config"));
+    }
+
+    #[test]
+    fn test_rest_config_present_in_compiled_schema() {
+        let mut schema = CompiledSchema::new();
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            ..RestConfig::default()
+        });
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(json.contains("rest_config"));
+
+        let restored: CompiledSchema = serde_json::from_str(&json).unwrap();
+        assert!(restored.rest_config.is_some());
+        assert!(restored.rest_config.unwrap().enabled);
     }
 }

@@ -175,6 +175,16 @@ impl TypeDefinition {
     pub fn typename(&self) -> &str {
         self.name.as_str()
     }
+
+    /// Returns fields that are writable via mutations.
+    ///
+    /// Excludes primary keys, auto-generated, computed, and encrypted fields.
+    /// Used by the REST transport for PUT/PATCH full-coverage detection and
+    /// OpenAPI schema generation.
+    #[must_use]
+    pub fn writable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields.iter().filter(|f| f.is_writable()).collect()
+    }
 }
 
 // =============================================================================
@@ -659,5 +669,88 @@ impl UnionDefinition {
     #[must_use]
     pub fn contains_type(&self, type_name: &str) -> bool {
         self.member_types.iter().any(|t| t == type_name)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod tests {
+    use super::*;
+    use crate::schema::{FieldEncryptionConfig, FieldType};
+
+    #[test]
+    fn test_writable_fields_excludes_pk() {
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("pk_user", FieldType::Int))
+            .with_field(FieldDefinition::new("email", FieldType::String));
+
+        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_auto_generated() {
+        let mut created = FieldDefinition::new("created_at", FieldType::DateTime);
+        created.auto_generated = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(created);
+
+        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_computed() {
+        let mut full_name = FieldDefinition::new("full_name", FieldType::String);
+        full_name.computed = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(full_name);
+
+        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_encrypted() {
+        let ssn = FieldDefinition::new("ssn", FieldType::String).with_encryption(
+            FieldEncryptionConfig {
+                key_reference: "keys/ssn".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            },
+        );
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(ssn);
+
+        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_mixed() {
+        let mut auto = FieldDefinition::new("created_at", FieldType::DateTime);
+        auto.auto_generated = true;
+        let mut computed = FieldDefinition::new("full_name", FieldType::String);
+        computed.computed = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("pk_user", FieldType::Int))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(FieldDefinition::new("name", FieldType::String))
+            .with_field(auto)
+            .with_field(computed);
+
+        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email", "name"]);
     }
 }

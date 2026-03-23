@@ -165,6 +165,18 @@ pub struct QueryDefinition {
     /// to prevent role enumeration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Custom REST path override (from `@fraiseql.query(rest_path="/custom/path")`).
+    ///
+    /// When set, the REST transport uses this path instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_path: Option<String>,
+
+    /// Custom REST HTTP method override (from `@fraiseql.query(rest_method="POST")`).
+    ///
+    /// When set, the REST transport uses this method instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_method: Option<String>,
 }
 
 impl QueryDefinition {
@@ -189,6 +201,8 @@ impl QueryDefinition {
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         }
     }
 
@@ -233,5 +247,45 @@ impl QueryDefinition {
     #[must_use]
     pub fn deprecation_reason(&self) -> Option<&str> {
         self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rest_path_defaults_none() {
+        let q = QueryDefinition::new("users", "User");
+        assert!(q.rest_path.is_none());
+        assert!(q.rest_method.is_none());
+    }
+
+    #[test]
+    fn test_rest_path_skipped_when_none() {
+        let q = QueryDefinition::new("users", "User");
+        let json = serde_json::to_string(&q).unwrap();
+        assert!(!json.contains("rest_path"));
+        assert!(!json.contains("rest_method"));
+    }
+
+    #[test]
+    fn test_rest_path_roundtrip() {
+        let mut q = QueryDefinition::new("users", "User");
+        q.rest_path = Some("/custom/users".to_string());
+        q.rest_method = Some("POST".to_string());
+        let json = serde_json::to_string(&q).unwrap();
+        let restored: QueryDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.rest_path.as_deref(), Some("/custom/users"));
+        assert_eq!(restored.rest_method.as_deref(), Some("POST"));
+    }
+
+    #[test]
+    fn test_deserialization_without_rest_fields() {
+        let json = r#"{"name":"users","return_type":"User"}"#;
+        let q: QueryDefinition = serde_json::from_str(json).unwrap();
+        assert!(q.rest_path.is_none());
+        assert!(q.rest_method.is_none());
     }
 }

@@ -25,8 +25,8 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig,
-            ValidationConfig,
+            DebugConfig, FederationConfig, McpConfig, ObserversConfig, RestConfig,
+            SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -148,6 +148,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
 
+    /// REST transport configuration.
+    /// Compiled from the `[rest]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_config: Option<RestConfig>,
+
     /// Schema format version emitted by the compiler.
     ///
     /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
@@ -211,6 +216,7 @@ impl PartialEq for CompiledSchema {
             && self.validation_config == other.validation_config
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
+            && self.rest_config == other.rest_config
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -811,6 +817,8 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
         requires_scope: None,
         on_deny: FieldDenyPolicy::default(),
         encryption: None,
+        auto_generated: false,
+        computed: false,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();

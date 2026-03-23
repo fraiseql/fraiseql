@@ -34,7 +34,7 @@ pub use security::{
     TrustedDocumentsConfig,
 };
 use serde::{Deserialize, Serialize};
-pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
+pub use server_settings::{DebugConfig, McpConfig, RestConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
 pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 
@@ -139,6 +139,10 @@ pub struct TomlSchema {
     /// MCP (Model Context Protocol) server configuration.
     #[serde(default)]
     pub mcp: McpConfig,
+
+    /// REST transport configuration.
+    #[serde(default)]
+    pub rest: RestConfig,
 }
 
 impl TomlSchema {

@@ -43,6 +43,8 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             FieldDefinition {
                 name:           "title".into(),
@@ -56,6 +58,8 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             // Protected fields
             FieldDefinition {
@@ -70,6 +74,8 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("read:Post.content".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             FieldDefinition {
                 name:           "draft".into(),
@@ -83,6 +89,8 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("write:Post.draft".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -97,6 +105,8 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
             },
         ],
         description:         Some("Post type with field-level scopes".to_string()),

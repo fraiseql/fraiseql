@@ -32,6 +32,7 @@ fn test_validate_empty_schema() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -81,6 +82,7 @@ fn test_detect_unknown_return_type() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -160,6 +162,7 @@ fn test_detect_duplicate_query_names() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -218,6 +221,7 @@ fn test_warning_for_query_without_sql_source() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -279,6 +283,7 @@ fn test_valid_observer() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -328,6 +333,7 @@ fn test_observer_with_unknown_entity() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -385,6 +391,7 @@ fn test_observer_with_invalid_event() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -442,6 +449,7 @@ fn test_observer_with_invalid_action_type() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -499,6 +507,7 @@ fn test_observer_with_invalid_retry_config() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -557,6 +566,7 @@ fn test_query_injection_in_sql_source_rejected() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 
@@ -615,6 +625,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
         query_defaults:       None,
     };
 

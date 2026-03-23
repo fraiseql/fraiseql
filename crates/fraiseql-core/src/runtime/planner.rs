@@ -205,6 +205,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

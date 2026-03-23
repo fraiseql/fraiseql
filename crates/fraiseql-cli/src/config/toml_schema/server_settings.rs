@@ -1,5 +1,6 @@
-//! Server settings configuration for TOML schema (validation, debug, MCP).
+//! Server settings configuration for TOML schema (validation, debug, MCP, REST).
 
+use fraiseql_core::schema::DeleteResponse;
 use serde::{Deserialize, Serialize};
 
 /// MCP (Model Context Protocol) server configuration.
@@ -90,6 +91,62 @@ impl Default for DebugConfig {
             enabled:          false,
             database_explain: false,
             expose_sql:       true,
+        }
+    }
+}
+
+/// REST transport configuration (TOML authoring struct).
+///
+/// ```toml
+/// [rest]
+/// enabled = true
+/// path = "/rest/v1"
+/// require_auth = true
+/// max_page_size = 100
+/// default_page_size = 20
+/// delete_response = "no_content"
+/// etag = true
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RestConfig {
+    /// Enable REST transport endpoints.
+    pub enabled: bool,
+    /// Base path for REST endpoints (must start with `/`).
+    pub path: String,
+    /// Require authentication for REST requests.
+    pub require_auth: bool,
+    /// Whitelist of resource names to expose (empty = all).
+    #[serde(default)]
+    pub include: Vec<String>,
+    /// Blacklist of resource names to hide.
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    /// Response behavior for DELETE operations.
+    pub delete_response: DeleteResponse,
+    /// Maximum page size for list queries. Must be > 0.
+    pub max_page_size: u64,
+    /// Default page size when not specified by client.
+    pub default_page_size: u64,
+    /// Whether to generate ETag headers for responses.
+    pub etag: bool,
+    /// Maximum allowed size in bytes for filter query parameters.
+    pub max_filter_bytes: usize,
+}
+
+impl Default for RestConfig {
+    fn default() -> Self {
+        Self {
+            enabled:           false,
+            path:              "/rest/v1".to_string(),
+            require_auth:      true,
+            include:           Vec::new(),
+            exclude:           Vec::new(),
+            delete_response:   DeleteResponse::NoContent,
+            max_page_size:     100,
+            default_page_size: 20,
+            etag:              true,
+            max_filter_bytes:  4096,
         }
     }
 }

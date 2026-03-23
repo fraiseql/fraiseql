@@ -135,6 +135,8 @@ database = []
 default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
+# REST transport (resource-centric REST API auto-generated from compiled schema)
+rest = []
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]
