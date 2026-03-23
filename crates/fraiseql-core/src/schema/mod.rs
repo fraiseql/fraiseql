@@ -60,7 +60,7 @@ pub use compiled::{
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
     CompiledSecurityConfig, DebugConfig, DevConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride,
-    EventHandler, DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, McpConfig,
+    EventHandler, DeleteResponse, FederationConfig, FederationEntity, FieldAuthRule, GrpcConfig, McpConfig,
     ObserversConfig, RelationshipDef, RestConfig, SessionVariableMapping, SessionVariableSource,
     SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
     ConflictTarget, DEFAULT_MAX_EMBEDDING_DEPTH, DEFAULT_MAX_BULK_AFFECTED,

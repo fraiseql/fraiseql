@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// MySQL dialect for [`GenericWhereGenerator`].
 ///
@@ -82,5 +82,43 @@ impl SqlDialect for MySqlDialect {
         } else {
             Ok(format!("{lhs} REGEXP {rhs}"))
         }
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        target_type: &RowViewColumnType,
+    ) -> String {
+        let mysql_type = match target_type {
+            RowViewColumnType::Text | RowViewColumnType::Uuid => "CHAR",
+            RowViewColumnType::Int32 | RowViewColumnType::Int64 => "SIGNED",
+            RowViewColumnType::Float64 => "DECIMAL",
+            RowViewColumnType::Boolean => "UNSIGNED",
+            RowViewColumnType::Timestamptz => "DATETIME(6)",
+            RowViewColumnType::Date => "DATE",
+            RowViewColumnType::Json => {
+                return format!("JSON_EXTRACT({json_column}, '$.{field_name}')");
+            }
+        };
+        format!("CAST(JSON_UNQUOTE(JSON_EXTRACT({json_column}, '$.{field_name}')) AS {mysql_type})")
+    }
+
+    fn create_row_view_ddl(
+        &self,
+        view_name: &str,
+        source_table: &str,
+        columns: &[(String, String)],
+    ) -> String {
+        let quoted_view = self.quote_identifier(view_name);
+        let quoted_table = self.quote_identifier(source_table);
+        let col_list: Vec<String> = columns
+            .iter()
+            .map(|(alias, expr)| format!("  {expr} AS {}", self.quote_identifier(alias)))
+            .collect();
+        format!(
+            "CREATE OR REPLACE VIEW {quoted_view} AS\nSELECT\n{}\nFROM {quoted_table};",
+            col_list.join(",\n")
+        )
     }
 }

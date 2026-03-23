@@ -88,6 +88,7 @@ mutations:            vec![],
         debug_config:         None,
         mcp_config:           None,
         rest_config:          None,
+        grpc_config:          None,
         dev_config:           None,
         query_defaults:       None,
     }

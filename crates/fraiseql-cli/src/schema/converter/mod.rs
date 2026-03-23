@@ -160,6 +160,7 @@ impl SchemaConverter {
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
             rest_config: intermediate.rest_config,             // REST config from TOML
+            grpc_config: intermediate.grpc_config,             // gRPC config from TOML
             dev_config: intermediate.dev_config,               // Dev mode config from TOML
             schema_sdl: None,                                  // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry

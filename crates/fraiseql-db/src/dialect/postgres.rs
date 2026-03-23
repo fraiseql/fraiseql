@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// PostgreSQL dialect for [`GenericWhereGenerator`].
 ///
@@ -238,5 +238,51 @@ impl SqlDialect for PostgresDialect {
                 "Extended operator not yet implemented for PostgreSQL: {operator}"
             ))),
         }
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        target_type: &RowViewColumnType,
+    ) -> String {
+        match target_type {
+            // JSON uses -> (returns jsonb), all others use ->> (returns text) + cast
+            RowViewColumnType::Json => {
+                format!("({json_column}->'{field_name}')::jsonb")
+            }
+            _ => {
+                let pg_type = match target_type {
+                    RowViewColumnType::Text => "text",
+                    RowViewColumnType::Int32 => "integer",
+                    RowViewColumnType::Int64 => "bigint",
+                    RowViewColumnType::Float64 => "double precision",
+                    RowViewColumnType::Boolean => "boolean",
+                    RowViewColumnType::Uuid => "uuid",
+                    RowViewColumnType::Timestamptz => "timestamptz",
+                    RowViewColumnType::Date => "date",
+                    RowViewColumnType::Json => unreachable!(),
+                };
+                format!("({json_column}->>'{field_name}')::{pg_type}")
+            }
+        }
+    }
+
+    fn create_row_view_ddl(
+        &self,
+        view_name: &str,
+        source_table: &str,
+        columns: &[(String, String)],
+    ) -> String {
+        let quoted_view = self.quote_identifier(view_name);
+        let quoted_table = self.quote_identifier(source_table);
+        let col_list: Vec<String> = columns
+            .iter()
+            .map(|(alias, expr)| format!("  {expr} AS {}", self.quote_identifier(alias)))
+            .collect();
+        format!(
+            "CREATE OR REPLACE VIEW {quoted_view} AS\nSELECT\n{}\nFROM {quoted_table};",
+            col_list.join(",\n")
+        )
     }
 }

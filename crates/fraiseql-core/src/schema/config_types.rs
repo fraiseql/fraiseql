@@ -481,6 +481,44 @@ impl Default for RestConfig {
     }
 }
 
+/// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
+///
+/// Embedded in `CompiledSchema.grpc_config`. Controls the dedicated tonic gRPC
+/// server that serves queries via row-shaped `vr_*` database views and protobuf
+/// wire encoding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GrpcConfig {
+    /// Whether gRPC transport is enabled.
+    pub enabled: bool,
+    /// Port for the gRPC server. Default: 50052.
+    pub port: u16,
+    /// Enable gRPC server reflection (for `grpcurl` discovery). Default: true.
+    pub reflection: bool,
+    /// Maximum inbound message size in bytes. Default: 4 MiB.
+    pub max_message_size_bytes: usize,
+    /// Path to the compiled `FileDescriptorSet` binary (`.binpb`).
+    pub descriptor_path: String,
+    /// Whitelist of type names to expose as gRPC services (empty = all).
+    pub include_types: Vec<String>,
+    /// Blacklist of type names to hide from gRPC services.
+    pub exclude_types: Vec<String>,
+}
+
+impl Default for GrpcConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                false,
+            port:                   50052,
+            reflection:             true,
+            max_message_size_bytes: 4 * 1024 * 1024,
+            descriptor_path:        "proto/descriptor.binpb".to_string(),
+            include_types:          Vec::new(),
+            exclude_types:          Vec::new(),
+        }
+    }
+}
+
 /// Response behavior for REST DELETE operations.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1007,5 +1045,71 @@ mod tests {
         let schema = CompiledSchema::new();
         let json = serde_json::to_string(&schema).unwrap();
         assert!(!json.contains("session_variables_config"));
+    }
+
+    // =========================================================================
+    // GrpcConfig tests
+    // =========================================================================
+
+    #[test]
+    fn test_grpc_config_defaults() {
+        let config = GrpcConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.port, 50052);
+        assert!(config.reflection);
+        assert_eq!(config.max_message_size_bytes, 4 * 1024 * 1024);
+        assert_eq!(config.descriptor_path, "proto/descriptor.binpb");
+        assert!(config.include_types.is_empty());
+        assert!(config.exclude_types.is_empty());
+    }
+
+    #[test]
+    fn test_grpc_config_roundtrip() {
+        let config = GrpcConfig {
+            enabled:                true,
+            port:                   50053,
+            reflection:             false,
+            max_message_size_bytes: 8 * 1024 * 1024,
+            descriptor_path:        "custom/desc.binpb".to_string(),
+            include_types:          vec!["User".to_string()],
+            exclude_types:          vec!["Secret".to_string()],
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let restored: GrpcConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(config, restored);
+    }
+
+    #[test]
+    fn test_grpc_config_serde_defaults() {
+        let json = r#"{"enabled": true}"#;
+        let config: GrpcConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enabled);
+        assert_eq!(config.port, 50052);
+        assert!(config.reflection);
+        assert_eq!(config.max_message_size_bytes, 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_grpc_config_none_skipped_in_compiled_schema() {
+        let schema = CompiledSchema::new();
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(!json.contains("grpc_config"));
+    }
+
+    #[test]
+    fn test_grpc_config_present_in_compiled_schema() {
+        let mut schema = CompiledSchema::new();
+        schema.grpc_config = Some(GrpcConfig {
+            enabled: true,
+            ..GrpcConfig::default()
+        });
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(json.contains("grpc_config"));
+
+        let restored: CompiledSchema = serde_json::from_str(&json).unwrap();
+        assert!(restored.grpc_config.is_some());
+        let grpc = restored.grpc_config.unwrap();
+        assert!(grpc.enabled);
+        assert_eq!(grpc.port, 50052);
     }
 }

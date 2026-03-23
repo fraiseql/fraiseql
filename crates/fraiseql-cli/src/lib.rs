@@ -17,6 +17,7 @@
 #![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used here
 
 pub mod cli;
+pub mod codegen;
 pub mod commands;
 pub mod config;
 pub mod introspection;

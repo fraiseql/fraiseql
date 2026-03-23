@@ -34,7 +34,7 @@ pub use security::{
     TrustedDocumentsConfig,
 };
 use serde::{Deserialize, Serialize};
-pub use server_settings::{DebugConfig, DevConfig, McpConfig, RestConfig, ValidationConfig};
+pub use server_settings::{DebugConfig, DevConfig, GrpcConfig, McpConfig, RestConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
 pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 
@@ -143,6 +143,10 @@ pub struct TomlSchema {
     /// REST transport configuration.
     #[serde(default)]
     pub rest: RestConfig,
+
+    /// gRPC transport configuration.
+    #[serde(default)]
+    pub grpc: GrpcConfig,
 
     /// Development mode configuration.
     #[serde(default)]

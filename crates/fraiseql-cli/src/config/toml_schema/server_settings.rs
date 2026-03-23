@@ -197,3 +197,48 @@ impl Default for RestConfig {
         }
     }
 }
+
+/// gRPC transport configuration (TOML authoring struct).
+///
+/// ```toml
+/// [grpc]
+/// enabled = true
+/// port = 50052
+/// reflection = true
+/// max_message_size_bytes = 4194304
+/// descriptor_path = "proto/descriptor.binpb"
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GrpcConfig {
+    /// Enable gRPC transport.
+    pub enabled: bool,
+    /// Port for the gRPC server.
+    pub port: u16,
+    /// Enable gRPC server reflection.
+    pub reflection: bool,
+    /// Maximum inbound message size in bytes.
+    pub max_message_size_bytes: usize,
+    /// Path to the compiled `FileDescriptorSet` binary.
+    pub descriptor_path: String,
+    /// Whitelist of type names to expose (empty = all).
+    #[serde(default)]
+    pub include_types: Vec<String>,
+    /// Blacklist of type names to hide.
+    #[serde(default)]
+    pub exclude_types: Vec<String>,
+}
+
+impl Default for GrpcConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                false,
+            port:                   50052,
+            reflection:             true,
+            max_message_size_bytes: 4 * 1024 * 1024,
+            descriptor_path:        "proto/descriptor.binpb".to_string(),
+            include_types:          Vec::new(),
+            exclude_types:          Vec::new(),
+        }
+    }
+}

@@ -25,7 +25,7 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, DevConfig, FederationConfig, McpConfig, ObserversConfig, RestConfig,
+            DebugConfig, DevConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig, RestConfig,
             SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
@@ -153,6 +153,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
 
+    /// gRPC transport configuration.
+    /// Compiled from the `[grpc]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_config: Option<GrpcConfig>,
+
     /// Development mode configuration.
     /// Compiled from the `[dev]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -234,6 +239,7 @@ impl PartialEq for CompiledSchema {
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
             && self.rest_config == other.rest_config
+            && self.grpc_config == other.grpc_config
             && self.schema_sdl == other.schema_sdl
     }
 }

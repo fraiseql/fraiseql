@@ -586,6 +586,12 @@ impl SchemaMerger {
                 .context("Failed to serialize REST config")?;
         }
 
+        // Embed gRPC config when enabled
+        if toml_schema.grpc.enabled {
+            merged["grpc_config"] = serde_json::to_value(&toml_schema.grpc)
+                .context("Failed to serialize gRPC config")?;
+        }
+
         // Embed dev config when enabled
         if toml_schema.dev.enabled {
             let dev_config = fraiseql_core::schema::DevConfig {

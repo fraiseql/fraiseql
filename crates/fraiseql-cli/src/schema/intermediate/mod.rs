@@ -22,7 +22,7 @@ pub use fragments::{
     IntermediateFragmentField, IntermediateFragmentFieldDef,
 };
 use fraiseql_core::schema::{
-    DebugConfig, McpConfig, RestConfig, SubscriptionsConfig, ValidationConfig,
+    DebugConfig, GrpcConfig, McpConfig, RestConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
@@ -159,6 +159,13 @@ pub struct IntermediateSchema {
     /// schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
+
+    /// gRPC transport configuration.
+    ///
+    /// Compiled from `[grpc]` in `fraiseql.toml`. Embedded into the compiled
+    /// schema for server-side consumption.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_config: Option<GrpcConfig>,
 
     /// Development mode configuration.
     ///
