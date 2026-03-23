@@ -15,7 +15,7 @@ namespace FraiseQL;
  */
 final class PerformanceMonitor
 {
-    /** @var array<string, array> Operation metrics indexed by operation name */
+    /** @var array<string, array<string, mixed>> Operation metrics indexed by operation name */
     private array $metrics = [];
 
     /** @var array<string, float> Active operation start times */
@@ -104,14 +104,17 @@ final class PerformanceMonitor
     /**
      * Get all recorded metrics.
      *
-     * @return array<string, array>
+     * @return array<string, array<string, mixed>>
      */
     public function getAllMetrics(): array
     {
         $results = [];
 
         foreach (array_keys($this->metrics) as $operationName) {
-            $results[$operationName] = $this->getOperationMetrics($operationName);
+            $metrics = $this->getOperationMetrics($operationName);
+            if ($metrics !== null) {
+                $results[$operationName] = $metrics;
+            }
         }
 
         return $results;
@@ -216,11 +219,11 @@ final class PerformanceMonitor
      * Get top N slowest operations.
      *
      * @param int $count Number of operations to return
-     * @return array<string, array>
+     * @return list<array<string, mixed>>
      */
     public function getTopSlowOperations(int $count = 5): array
     {
-        $all = $this->getAllMetrics();
+        $all = array_values($this->getAllMetrics());
 
         usort($all, static fn(array $a, array $b) => $b['total_time'] <=> $a['total_time']);
 

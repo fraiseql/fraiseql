@@ -32,8 +32,8 @@ final readonly class GraphQLType
      * @param bool $relay Whether this type implements the Relay Node interface.
      * @param bool $isError Whether this type represents a mutation error type.
      * @param bool $tenantScoped Whether this type is tenant-scoped (adds tenant isolation).
-     * @param array|bool $crud Auto-generate CRUD operations. true or ['all'] for all ops,
-     *                         or list of: 'read', 'create', 'update', 'delete'.
+     * @param array<string>|bool $crud Auto-generate CRUD operations. true or ['all'] for all ops,
+     *                                or list of: 'read', 'create', 'update', 'delete'.
      * @param string[]|null $keyFields Federation key fields for entity resolution.
      *                                 Defaults to ["id"] when federation is enabled.
      * @param bool $extends Whether this type extends a type from another subgraph.

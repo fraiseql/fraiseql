@@ -167,7 +167,8 @@ final class CacheKey
      */
     private static function hash(array $data): string
     {
-        $json = json_encode($data, JSON_SORT_KEYS | JSON_UNESCAPED_SLASHES);
+        ksort($data);
+        $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
         if ($json === false) {
             throw new FraiseQLException('Failed to JSON encode cache key data');
