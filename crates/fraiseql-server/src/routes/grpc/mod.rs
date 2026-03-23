@@ -2,8 +2,8 @@
 //!
 //! This module implements a tonic gRPC service that accepts protobuf
 //! requests, translates filters into a WHERE clause via
-//! [`GenericWhereGenerator`], calls [`DatabaseAdapter::execute_row_query()`],
-//! and encodes the resulting [`ColumnValue`] rows into protobuf responses.
+//! `GenericWhereGenerator`, calls `DatabaseAdapter::execute_row_query()`,
+//! and encodes the resulting `ColumnValue` rows into protobuf responses.
 //!
 //! The service is built dynamically from the compiled schema's descriptor pool
 //! at server startup — no generated Rust protobuf code is needed.

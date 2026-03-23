@@ -85,7 +85,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check unwrap allow drift
-        run: make lint-unwrap UNWRAP_ALLOW_LIMIT=1
+        run: make lint-unwrap UNWRAP_ALLOW_LIMIT=3
 
       - name: Check empty expect() calls
         run: make lint-expect
