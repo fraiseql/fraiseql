@@ -317,7 +317,7 @@ pub struct EventHandler {
 #[serde(default)]
 pub struct DevConfig {
     /// Enable dev mode. Default: false.
-    pub enabled: bool,
+    pub enabled:        bool,
     /// Default claims injected when no `Authorization` header is present.
     ///
     /// Keys map to `SecurityContext` fields:
@@ -403,50 +403,50 @@ impl Default for McpConfig {
 #[serde(default)]
 pub struct RestConfig {
     /// Whether REST transport is enabled.
-    pub enabled: bool,
+    pub enabled:                 bool,
     /// Base path for REST endpoints (e.g., "/rest/v1").
-    pub path: String,
+    pub path:                    String,
     /// Require authentication for REST requests.
-    pub require_auth: bool,
+    pub require_auth:            bool,
     /// Whitelist of resource names to expose (empty = all).
-    pub include: Vec<String>,
+    pub include:                 Vec<String>,
     /// Blacklist of resource names to hide.
-    pub exclude: Vec<String>,
+    pub exclude:                 Vec<String>,
     /// Response behavior for DELETE operations.
-    pub delete_response: DeleteResponse,
+    pub delete_response:         DeleteResponse,
     /// Maximum page size for list queries.
-    pub max_page_size: u64,
+    pub max_page_size:           u64,
     /// Default page size when not specified by client.
-    pub default_page_size: u64,
+    pub default_page_size:       u64,
     /// Whether to generate ETag headers for responses.
-    pub etag: bool,
+    pub etag:                    bool,
     /// Maximum allowed size in bytes for filter query parameters.
-    pub max_filter_bytes: usize,
+    pub max_filter_bytes:        usize,
     /// Maximum nesting depth for resource embedding (default 3).
-    pub max_embedding_depth: usize,
+    pub max_embedding_depth:     usize,
     /// Maximum number of rows a single bulk update/delete may affect.
     ///
     /// Acts as a server-side safety limit.  Clients may request a lower limit
     /// via `Prefer: max-affected=N`.  Default: 1000.
-    pub max_bulk_affected: u64,
+    pub max_bulk_affected:       u64,
     /// Default `Cache-Control: max-age` for GET responses (seconds).
     ///
     /// Overridden per-query by `QueryDefinition.cache_ttl_seconds`.
     /// Set to 0 to disable caching. Default: 60.
-    pub default_cache_ttl: u64,
+    pub default_cache_ttl:       u64,
     /// TTL for idempotency keys in seconds. Default: 86400 (24 hours).
     pub idempotency_ttl_seconds: u64,
     /// SSE heartbeat interval in seconds. Default: 30.
     #[serde(default = "default_sse_heartbeat_seconds")]
-    pub sse_heartbeat_seconds: u64,
+    pub sse_heartbeat_seconds:   u64,
     /// CDN/shared-cache TTL in seconds. When set, appends `s-maxage={value}`
     /// to `Cache-Control` on public GET responses. `None` = no s-maxage directive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cdn_max_age: Option<u64>,
+    pub cdn_max_age:             Option<u64>,
     /// Batch size for NDJSON streaming responses. Each batch is fetched from the
     /// database and serialized to the client before fetching the next. Default: 500.
     #[serde(default = "default_ndjson_batch_size")]
-    pub ndjson_batch_size: u64,
+    pub ndjson_batch_size:       u64,
 }
 
 const fn default_ndjson_batch_size() -> u64 {
@@ -460,23 +460,23 @@ const fn default_sse_heartbeat_seconds() -> u64 {
 impl Default for RestConfig {
     fn default() -> Self {
         Self {
-            enabled:             false,
-            path:                "/rest/v1".to_string(),
-            require_auth:        true,
-            include:             Vec::new(),
-            exclude:             Vec::new(),
-            delete_response:     DeleteResponse::NoContent,
-            max_page_size:       100,
-            default_page_size:   20,
-            etag:                true,
-            max_filter_bytes:    4096,
-            max_embedding_depth:      DEFAULT_MAX_EMBEDDING_DEPTH,
-            max_bulk_affected:        DEFAULT_MAX_BULK_AFFECTED,
-            default_cache_ttl:        60,
-            idempotency_ttl_seconds:  86_400,
-            sse_heartbeat_seconds:    30,
-            cdn_max_age:              None,
-            ndjson_batch_size:        500,
+            enabled:                 false,
+            path:                    "/rest/v1".to_string(),
+            require_auth:            true,
+            include:                 Vec::new(),
+            exclude:                 Vec::new(),
+            delete_response:         DeleteResponse::NoContent,
+            max_page_size:           100,
+            default_page_size:       20,
+            etag:                    true,
+            max_filter_bytes:        4096,
+            max_embedding_depth:     DEFAULT_MAX_EMBEDDING_DEPTH,
+            max_bulk_affected:       DEFAULT_MAX_BULK_AFFECTED,
+            default_cache_ttl:       60,
+            idempotency_ttl_seconds: 86_400,
+            sse_heartbeat_seconds:   30,
+            cdn_max_age:             None,
+            ndjson_batch_size:       500,
         }
     }
 }
@@ -490,21 +490,21 @@ impl Default for RestConfig {
 #[serde(default)]
 pub struct GrpcConfig {
     /// Whether gRPC transport is enabled.
-    pub enabled: bool,
+    pub enabled:                bool,
     /// Port for the gRPC server. Default: 50052.
-    pub port: u16,
+    pub port:                   u16,
     /// Enable gRPC server reflection (for `grpcurl` discovery). Default: true.
-    pub reflection: bool,
+    pub reflection:             bool,
     /// Maximum inbound message size in bytes. Default: 4 MiB.
     pub max_message_size_bytes: usize,
     /// Path to the compiled `FileDescriptorSet` binary (`.binpb`).
-    pub descriptor_path: String,
+    pub descriptor_path:        String,
     /// Whitelist of type names to expose as gRPC services (empty = all).
-    pub include_types: Vec<String>,
+    pub include_types:          Vec<String>,
     /// Blacklist of type names to hide from gRPC services.
-    pub exclude_types: Vec<String>,
+    pub exclude_types:          Vec<String>,
     /// Batch size for server-streaming RPCs (list queries). Default: 500.
-    pub stream_batch_size: u32,
+    pub stream_batch_size:      u32,
 }
 
 impl Default for GrpcConfig {
@@ -541,15 +541,15 @@ pub enum DeleteResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RelationshipDef {
     /// Name of the relationship (e.g., "posts", "author").
-    pub name: String,
+    pub name:           String,
     /// Target type name (e.g., "Post", "User").
-    pub target_type: String,
+    pub target_type:    String,
     /// Foreign key column on the owning side (e.g., "fk_user").
-    pub foreign_key: String,
+    pub foreign_key:    String,
     /// Referenced key column on the target side (e.g., "pk_user").
     pub referenced_key: String,
     /// Cardinality of the relationship.
-    pub cardinality: Cardinality,
+    pub cardinality:    Cardinality,
 }
 
 /// Cardinality of a relationship between types.
@@ -579,7 +579,7 @@ pub const DEFAULT_MAX_EMBEDDING_DEPTH: usize = 3;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConflictTarget {
     /// Constraint or index name (e.g., "uq_user_email").
-    pub name: String,
+    pub name:    String,
     /// Column names that form the unique constraint.
     pub columns: Vec<String>,
 }
@@ -876,9 +876,9 @@ mod tests {
             max_bulk_affected:       500,
             default_cache_ttl:       120,
             idempotency_ttl_seconds: 3600,
-            sse_heartbeat_seconds:  15,
-            cdn_max_age:            Some(300),
-            ndjson_batch_size:      1000,
+            sse_heartbeat_seconds:   15,
+            cdn_max_age:             Some(300),
+            ndjson_batch_size:       1000,
         };
         let json = serde_json::to_string(&config).unwrap();
         let restored: RestConfig = serde_json::from_str(&json).unwrap();
@@ -897,14 +897,8 @@ mod tests {
 
     #[test]
     fn test_delete_response_serialization() {
-        assert_eq!(
-            serde_json::to_string(&DeleteResponse::NoContent).unwrap(),
-            r#""no_content""#
-        );
-        assert_eq!(
-            serde_json::to_string(&DeleteResponse::Entity).unwrap(),
-            r#""entity""#
-        );
+        assert_eq!(serde_json::to_string(&DeleteResponse::NoContent).unwrap(), r#""no_content""#);
+        assert_eq!(serde_json::to_string(&DeleteResponse::Entity).unwrap(), r#""entity""#);
     }
 
     #[test]
@@ -958,7 +952,7 @@ mod tests {
     #[test]
     fn test_conflict_target_serde() {
         let target = ConflictTarget {
-            name: "uq_user_email".to_string(),
+            name:    "uq_user_email".to_string(),
             columns: vec!["email".to_string()],
         };
         let json = serde_json::to_string(&target).unwrap();
@@ -970,7 +964,7 @@ mod tests {
     #[test]
     fn test_conflict_target_multi_column() {
         let target = ConflictTarget {
-            name: "uq_user_org_email".to_string(),
+            name:    "uq_user_org_email".to_string(),
             columns: vec!["fk_org".to_string(), "email".to_string()],
         };
         let json = serde_json::to_string(&target).unwrap();
@@ -991,14 +985,18 @@ mod tests {
     fn test_session_variable_jwt_source_roundtrip() {
         let mapping = SessionVariableMapping {
             pg_name: "app.tenant_id".to_string(),
-            source:  SessionVariableSource::Jwt { claim: "tenant_id".to_string() },
+            source:  SessionVariableSource::Jwt {
+                claim: "tenant_id".to_string(),
+            },
         };
         let json = serde_json::to_string(&mapping).unwrap();
         let restored: SessionVariableMapping = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.pg_name, "app.tenant_id");
         assert_eq!(
             restored.source,
-            SessionVariableSource::Jwt { claim: "tenant_id".to_string() }
+            SessionVariableSource::Jwt {
+                claim: "tenant_id".to_string(),
+            }
         );
     }
 
@@ -1006,14 +1004,18 @@ mod tests {
     fn test_session_variable_header_source_roundtrip() {
         let mapping = SessionVariableMapping {
             pg_name: "app.locale".to_string(),
-            source:  SessionVariableSource::Header { name: "Accept-Language".to_string() },
+            source:  SessionVariableSource::Header {
+                name: "Accept-Language".to_string(),
+            },
         };
         let json = serde_json::to_string(&mapping).unwrap();
         let restored: SessionVariableMapping = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.pg_name, "app.locale");
         assert_eq!(
             restored.source,
-            SessionVariableSource::Header { name: "Accept-Language".to_string() }
+            SessionVariableSource::Header {
+                name: "Accept-Language".to_string(),
+            }
         );
     }
 
@@ -1021,14 +1023,18 @@ mod tests {
     fn test_session_variables_config_in_compiled_schema() {
         let mut schema = CompiledSchema::new();
         schema.session_variables_config = Some(SessionVariablesConfig {
-            variables: vec![
+            variables:         vec![
                 SessionVariableMapping {
                     pg_name: "app.tenant_id".to_string(),
-                    source:  SessionVariableSource::Jwt { claim: "tenant_id".to_string() },
+                    source:  SessionVariableSource::Jwt {
+                        claim: "tenant_id".to_string(),
+                    },
                 },
                 SessionVariableMapping {
                     pg_name: "app.locale".to_string(),
-                    source:  SessionVariableSource::Header { name: "Accept-Language".to_string() },
+                    source:  SessionVariableSource::Header {
+                        name: "Accept-Language".to_string(),
+                    },
                 },
             ],
             inject_started_at: true,

@@ -86,7 +86,9 @@ pub enum ValidationError {
     },
 
     /// Request contains too many variables (DoS protection).
-    #[error("Request exceeds maximum variable count of {max_variables}: count = {actual_variables}")]
+    #[error(
+        "Request exceeds maximum variable count of {max_variables}: count = {actual_variables}"
+    )]
     TooManyVariables {
         /// Maximum allowed variable count
         max_variables:    usize,
@@ -490,7 +492,9 @@ fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<S
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             if let graphql_parser::query::Value::Int(n) = value {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: value is clamped to [1, 100] immediately after; truncation and sign loss are safe
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: value is clamped to [1, 100] immediately after; truncation and sign loss
+                // are safe
                 let limit = n.as_i64().unwrap_or(10) as usize;
                 return limit.clamp(1, 100);
             }
@@ -719,7 +723,7 @@ mod tests {
             matches!(
                 validator.validate_variables(Some(&vars)),
                 Err(ValidationError::TooManyVariables {
-                    max_variables: 1_000,
+                    max_variables:    1_000,
                     actual_variables: 1_001,
                 })
             ),
@@ -756,9 +760,9 @@ mod tests {
     #[test]
     fn test_from_config() {
         let config = ComplexityConfig {
-            max_depth:      5,
+            max_depth: 5,
             max_complexity: 20,
-            max_aliases:    3,
+            max_aliases: 3,
             ..ComplexityConfig::default()
         };
         let validator = RequestValidator::from_config(config);

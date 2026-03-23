@@ -7,8 +7,10 @@
 
 use std::collections::HashMap;
 
-use fraiseql_core::schema::{FieldType, QueryDefinition, RestConfig, TypeDefinition};
-use fraiseql_core::utils::operators::OPERATOR_REGISTRY;
+use fraiseql_core::{
+    schema::{FieldType, QueryDefinition, RestConfig, TypeDefinition},
+    utils::operators::OPERATOR_REGISTRY,
+};
 use fraiseql_error::FraiseQLError;
 
 // ---------------------------------------------------------------------------
@@ -49,8 +51,8 @@ const MAX_LOGICAL_DEPTH: usize = 64;
 
 /// Known query-string parameter names that are *not* filter keys.
 const RESERVED_PARAMS: &[&str] = &[
-    "select", "sort", "limit", "offset", "first", "after", "last", "before", "filter",
-    "search", "or", "and", "not",
+    "select", "sort", "limit", "offset", "first", "after", "last", "before", "filter", "search",
+    "or", "and", "not",
 ];
 
 // ---------------------------------------------------------------------------
@@ -62,23 +64,23 @@ const RESERVED_PARAMS: &[&str] = &[
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
-    pub path_params: Vec<(String, serde_json::Value)>,
+    pub path_params:       Vec<(String, serde_json::Value)>,
     /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
-    pub where_clause: Option<serde_json::Value>,
+    pub where_clause:      Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
-    pub order_by: Option<serde_json::Value>,
+    pub order_by:          Option<serde_json::Value>,
     /// Pagination parameters.
-    pub pagination: PaginationParams,
+    pub pagination:        PaginationParams,
     /// Field selection (from `?select=`).
-    pub field_selection: RestFieldSpec,
+    pub field_selection:   RestFieldSpec,
     /// Full-text search query (from `?search=`).
-    pub search_query: Option<String>,
+    pub search_query:      Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
-    pub embeddings: Vec<EmbeddedSpec>,
+    pub embeddings:        Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
     pub embedding_filters: HashMap<String, serde_json::Value>,
     /// Count-only embeddings (from `?select=id,posts.count`).
-    pub embedding_counts: Vec<String>,
+    pub embedding_counts:  Vec<String>,
 }
 
 /// Pagination mode and parameters.
@@ -137,9 +139,9 @@ pub struct EmbeddedSpec {
     /// Relationship name (e.g., "posts") or FK column (e.g., "fk_user").
     pub relationship: String,
     /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
-    pub rename: Option<String>,
+    pub rename:       Option<String>,
     /// Sub-selected fields (may include nested `EmbeddedSpec`).
-    pub fields: Vec<SelectEntry>,
+    pub fields:       Vec<SelectEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +260,7 @@ impl<'a> RestParamExtractor<'a> {
                         } else {
                             return Err(self.unknown_param_error(key));
                         }
-                    }
+                    },
                 }
             }
         }
@@ -266,8 +268,10 @@ impl<'a> RestParamExtractor<'a> {
         // 3. Cross-pagination guards.
         if is_list {
             let has_offset_params = limit_raw.is_some() || offset_raw.is_some();
-            let has_cursor_params =
-                first_raw.is_some() || after_raw.is_some() || last_raw.is_some() || before_raw.is_some();
+            let has_cursor_params = first_raw.is_some()
+                || after_raw.is_some()
+                || last_raw.is_some()
+                || before_raw.is_some();
 
             if is_relay && has_offset_params {
                 return Err(validation_error(
@@ -314,7 +318,10 @@ impl<'a> RestParamExtractor<'a> {
         // 6c. Build where clause (excluding embedding filters).
         let filter_where = self.parse_filter(filter_json)?;
         let where_clause = self.merge_where_with_logical(
-            simple_filters, bracket_filters, filter_where, parsed_logical,
+            simple_filters,
+            bracket_filters,
+            filter_where,
+            parsed_logical,
         )?;
 
         // 7. Parse pagination.
@@ -332,12 +339,17 @@ impl<'a> RestParamExtractor<'a> {
             + order_by.as_ref().map_or(0, |_| 1)
             + match &pagination {
                 PaginationParams::Offset { .. } => 2,
-                PaginationParams::Cursor { first, after, last, before } => {
+                PaginationParams::Cursor {
+                    first,
+                    after,
+                    last,
+                    before,
+                } => {
                     first.is_some() as usize
                         + after.is_some() as usize
                         + last.is_some() as usize
                         + before.is_some() as usize
-                }
+                },
                 PaginationParams::None => 0,
             }
             + match &field_selection {
@@ -419,16 +431,16 @@ impl<'a> RestParamExtractor<'a> {
                 SelectEntry::Field(name) => {
                     self.validate_field_name(&name)?;
                     flat_fields.push(name);
-                }
+                },
                 SelectEntry::Embedded(spec) => {
                     validate_embedding_depth(&spec, 1, max_depth)?;
                     self.validate_embedding_relationship(&spec)?;
                     embedded.push(spec);
-                }
+                },
                 SelectEntry::Count(name) => {
                     self.validate_embedding_relationship_name(&name)?;
                     counts.push(name);
-                }
+                },
             }
         }
 
@@ -490,10 +502,7 @@ impl<'a> RestParamExtractor<'a> {
                         .entry(rel_name.to_string())
                         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
                     if let Some(obj) = entry.as_object_mut() {
-                        obj.insert(
-                            field_name.to_string(),
-                            serde_json::json!({ op: value }),
-                        );
+                        obj.insert(field_name.to_string(), serde_json::json!({ op: value }));
                     }
                     continue;
                 }
@@ -508,10 +517,7 @@ impl<'a> RestParamExtractor<'a> {
                         .entry(rel_name.to_string())
                         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
                     if let Some(obj) = entry.as_object_mut() {
-                        obj.insert(
-                            field_name.to_string(),
-                            serde_json::json!({ "eq": value }),
-                        );
+                        obj.insert(field_name.to_string(), serde_json::json!({ "eq": value }));
                     }
                 }
             }
@@ -524,10 +530,7 @@ impl<'a> RestParamExtractor<'a> {
     // Sort
     // -----------------------------------------------------------------------
 
-    fn parse_sort(
-        &self,
-        raw: Option<&str>,
-    ) -> Result<Option<serde_json::Value>, FraiseQLError> {
+    fn parse_sort(&self, raw: Option<&str>) -> Result<Option<serde_json::Value>, FraiseQLError> {
         let Some(raw) = raw else {
             return Ok(None);
         };
@@ -557,10 +560,7 @@ impl<'a> RestParamExtractor<'a> {
     // Filter (JSON DSL)
     // -----------------------------------------------------------------------
 
-    fn parse_filter(
-        &self,
-        raw: Option<&str>,
-    ) -> Result<Option<serde_json::Value>, FraiseQLError> {
+    fn parse_filter(&self, raw: Option<&str>) -> Result<Option<serde_json::Value>, FraiseQLError> {
         let Some(raw) = raw else {
             return Ok(None);
         };
@@ -575,9 +575,8 @@ impl<'a> RestParamExtractor<'a> {
             )));
         }
 
-        let parsed: serde_json::Value = serde_json::from_str(raw).map_err(|e| {
-            validation_error(format!("Invalid filter JSON: {e}"))
-        })?;
+        let parsed: serde_json::Value = serde_json::from_str(raw)
+            .map_err(|e| validation_error(format!("Invalid filter JSON: {e}")))?;
 
         // Depth check.
         if json_depth(&parsed) > MAX_FILTER_DEPTH {
@@ -592,10 +591,7 @@ impl<'a> RestParamExtractor<'a> {
         Ok(Some(parsed))
     }
 
-    fn validate_filter_value(
-        &self,
-        value: &serde_json::Value,
-    ) -> Result<(), FraiseQLError> {
+    fn validate_filter_value(&self, value: &serde_json::Value) -> Result<(), FraiseQLError> {
         let Some(obj) = value.as_object() else {
             return Ok(());
         };
@@ -619,8 +615,7 @@ impl<'a> RestParamExtractor<'a> {
                 for op_name in ops.keys() {
                     if !OPERATOR_REGISTRY.contains_key(op_name.as_str()) {
                         let available: Vec<&str> = {
-                            let mut ops: Vec<&str> =
-                                OPERATOR_REGISTRY.keys().copied().collect();
+                            let mut ops: Vec<&str> = OPERATOR_REGISTRY.keys().copied().collect();
                             ops.sort_unstable();
                             ops
                         };
@@ -750,15 +745,15 @@ impl<'a> RestParamExtractor<'a> {
                 let mut and_parts = vec![regular_where];
                 and_parts.extend(logical);
                 Ok(Some(serde_json::json!({ "_and": and_parts })))
-            }
+            },
             None if logical.len() == 1 => {
                 // Single logical group with no other filters.
                 Ok(Some(logical.into_iter().next().expect("len checked")))
-            }
+            },
             None => {
                 // Multiple logical groups, no regular filters — wrap in _and.
                 Ok(Some(serde_json::json!({ "_and": logical })))
-            }
+            },
         }
     }
 
@@ -774,15 +769,19 @@ impl<'a> RestParamExtractor<'a> {
         let limit = match limit_raw {
             Some(s) => {
                 let v: u64 = s.parse().map_err(|_| {
-                    validation_error(format!("Invalid `limit` value: '{s}'. Expected a positive integer."))
+                    validation_error(format!(
+                        "Invalid `limit` value: '{s}'. Expected a positive integer."
+                    ))
                 })?;
                 v.min(self.config.max_page_size)
-            }
+            },
             None => self.config.default_page_size,
         };
         let offset = match offset_raw {
             Some(s) => s.parse().map_err(|_| {
-                validation_error(format!("Invalid `offset` value: '{s}'. Expected a non-negative integer."))
+                validation_error(format!(
+                    "Invalid `offset` value: '{s}'. Expected a non-negative integer."
+                ))
             })?,
             None => 0,
         };
@@ -799,20 +798,24 @@ impl<'a> RestParamExtractor<'a> {
         let first = match first_raw {
             Some(s) => {
                 let v: u64 = s.parse().map_err(|_| {
-                    validation_error(format!("Invalid `first` value: '{s}'. Expected a positive integer."))
+                    validation_error(format!(
+                        "Invalid `first` value: '{s}'. Expected a positive integer."
+                    ))
                 })?;
                 Some(v.min(self.config.max_page_size))
-            }
+            },
             None if after_raw.is_none() && last_raw.is_none() && before_raw.is_none() => {
                 // No cursor params at all — default page size.
                 Some(self.config.default_page_size)
-            }
+            },
             None => None,
         };
         let after = after_raw.map(String::from);
         let last = match last_raw {
             Some(s) => Some(s.parse().map_err(|_| {
-                validation_error(format!("Invalid `last` value: '{s}'. Expected a positive integer."))
+                validation_error(format!(
+                    "Invalid `last` value: '{s}'. Expected a positive integer."
+                ))
             })?),
             None => None,
         };
@@ -900,25 +903,22 @@ impl<'a> RestParamExtractor<'a> {
 ///
 /// Returns `FraiseQLError::Validation` if the value cannot be parsed as the
 /// expected type.
-fn coerce_to_type(
-    raw: &str,
-    field_type: &FieldType,
-) -> Result<serde_json::Value, FraiseQLError> {
+fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value, FraiseQLError> {
     match field_type {
         FieldType::Int => {
-            let v: i64 = raw.parse().map_err(|_| {
-                validation_error(format!("Expected integer value, got '{raw}'."))
-            })?;
+            let v: i64 = raw
+                .parse()
+                .map_err(|_| validation_error(format!("Expected integer value, got '{raw}'.")))?;
             Ok(serde_json::Value::Number(v.into()))
-        }
+        },
         FieldType::Float | FieldType::Decimal => {
-            let v: f64 = raw.parse().map_err(|_| {
-                validation_error(format!("Expected numeric value, got '{raw}'."))
-            })?;
+            let v: f64 = raw
+                .parse()
+                .map_err(|_| validation_error(format!("Expected numeric value, got '{raw}'.")))?;
             Ok(serde_json::Number::from_f64(v)
                 .map(serde_json::Value::Number)
                 .unwrap_or_else(|| serde_json::Value::String(raw.to_string())))
-        }
+        },
         FieldType::Boolean => {
             let v = match raw {
                 "true" | "1" | "yes" => true,
@@ -927,19 +927,18 @@ fn coerce_to_type(
                     return Err(validation_error(format!(
                         "Expected boolean value (true/false/1/0), got '{raw}'."
                     )));
-                }
+                },
             };
             Ok(serde_json::Value::Bool(v))
-        }
-        FieldType::Id | FieldType::Uuid | FieldType::String | FieldType::DateTime
-        | FieldType::Date | FieldType::Time => {
-            Ok(serde_json::Value::String(raw.to_string()))
-        }
-        FieldType::Json => {
-            serde_json::from_str(raw).map_err(|e| {
-                validation_error(format!("Expected JSON value, got '{raw}': {e}"))
-            })
-        }
+        },
+        FieldType::Id
+        | FieldType::Uuid
+        | FieldType::String
+        | FieldType::DateTime
+        | FieldType::Date
+        | FieldType::Time => Ok(serde_json::Value::String(raw.to_string())),
+        FieldType::Json => serde_json::from_str(raw)
+            .map_err(|e| validation_error(format!("Expected JSON value, got '{raw}': {e}"))),
         FieldType::List(_) => {
             // Try JSON array first, then comma-separated.
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
@@ -948,10 +947,12 @@ fn coerce_to_type(
                 }
             }
             // Comma-separated string values.
-            let items: Vec<serde_json::Value> =
-                raw.split(',').map(|s| serde_json::Value::String(s.trim().to_string())).collect();
+            let items: Vec<serde_json::Value> = raw
+                .split(',')
+                .map(|s| serde_json::Value::String(s.trim().to_string()))
+                .collect();
             Ok(serde_json::Value::Array(items))
-        }
+        },
         // Scalar, Enum, Object, etc. — pass through as string.
         _ => Ok(serde_json::Value::String(raw.to_string())),
     }
@@ -1048,15 +1049,15 @@ fn split_logical_parts(input: &str) -> Vec<String> {
             '(' => {
                 depth += 1;
                 current.push(ch);
-            }
+            },
             ')' => {
                 depth -= 1;
                 current.push(ch);
-            }
+            },
             ',' if depth == 0 => {
                 parts.push(current.clone());
                 current.clear();
-            }
+            },
             _ => current.push(ch),
         }
     }
@@ -1095,7 +1096,7 @@ fn parse_logical_value(raw: &str) -> serde_json::Value {
     match raw {
         "true" => return serde_json::Value::Bool(true),
         "false" => return serde_json::Value::Bool(false),
-        _ => {}
+        _ => {},
     }
     // Default to string.
     serde_json::Value::String(raw.to_string())
@@ -1104,12 +1105,8 @@ fn parse_logical_value(raw: &str) -> serde_json::Value {
 /// Compute the nesting depth of a JSON value.
 fn json_depth(value: &serde_json::Value) -> usize {
     match value {
-        serde_json::Value::Object(map) => {
-            1 + map.values().map(json_depth).max().unwrap_or(0)
-        }
-        serde_json::Value::Array(arr) => {
-            1 + arr.iter().map(json_depth).max().unwrap_or(0)
-        }
+        serde_json::Value::Object(map) => 1 + map.values().map(json_depth).max().unwrap_or(0),
+        serde_json::Value::Array(arr) => 1 + arr.iter().map(json_depth).max().unwrap_or(0),
         _ => 1,
     }
 }
@@ -1177,9 +1174,7 @@ pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLErr
         let name = name.trim();
 
         if name.is_empty() {
-            return Err(validation_error(
-                "Empty field name in `select` parameter".to_string(),
-            ));
+            return Err(validation_error("Empty field name in `select` parameter".to_string()));
         }
 
         // Skip whitespace.
@@ -1205,10 +1200,7 @@ pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLErr
         } else if i < len && chars[i] == '(' {
             // Embedded resource: posts(id,title) or author:rel_name(id,name)
             let (rename, relationship) = if let Some(colon_pos) = name.find(':') {
-                (
-                    Some(name[..colon_pos].to_string()),
-                    name[colon_pos + 1..].to_string(),
-                )
+                (Some(name[..colon_pos].to_string()), name[colon_pos + 1..].to_string())
             } else {
                 (None, name.to_string())
             };
@@ -1292,9 +1284,9 @@ mod tests {
 
     fn test_config() -> RestConfig {
         RestConfig {
-            max_page_size:     100,
+            max_page_size: 100,
             default_page_size: 20,
-            max_filter_bytes:  4096,
+            max_filter_bytes: 4096,
             ..RestConfig::default()
         }
     }
@@ -1391,10 +1383,7 @@ mod tests {
 
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
         let result = ext.extract(&[("id", uuid)], &[]).unwrap();
-        assert_eq!(
-            result.path_params,
-            vec![("id".to_string(), serde_json::json!(uuid))]
-        );
+        assert_eq!(result.path_params, vec![("id".to_string(), serde_json::json!(uuid))]);
     }
 
     // -----------------------------------------------------------------------
@@ -1409,7 +1398,13 @@ mod tests {
         let ext = extractor_list(&config, &qd, &td);
 
         let result = ext.extract(&[], &[("limit", "10"), ("offset", "5")]).unwrap();
-        assert_eq!(result.pagination, PaginationParams::Offset { limit: 10, offset: 5 });
+        assert_eq!(
+            result.pagination,
+            PaginationParams::Offset {
+                limit:  10,
+                offset: 5,
+            }
+        );
     }
 
     #[test]
@@ -1423,7 +1418,7 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Offset {
-                limit: 20, // default_page_size
+                limit:  20, // default_page_size
                 offset: 0,
             }
         );
@@ -1437,7 +1432,13 @@ mod tests {
         let ext = extractor_list(&config, &qd, &td);
 
         let result = ext.extract(&[], &[("limit", "500")]).unwrap();
-        assert_eq!(result.pagination, PaginationParams::Offset { limit: 100, offset: 0 });
+        assert_eq!(
+            result.pagination,
+            PaginationParams::Offset {
+                limit:  100,
+                offset: 0,
+            }
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -1451,9 +1452,7 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext
-            .extract(&[], &[("first", "10"), ("after", "abc")])
-            .unwrap();
+        let result = ext.extract(&[], &[("first", "10"), ("after", "abc")]).unwrap();
         assert_eq!(
             result.pagination,
             PaginationParams::Cursor {
@@ -1540,10 +1539,7 @@ mod tests {
         let ext = extractor_list(&config, &qd, &td);
 
         let result = ext.extract(&[], &[("name", "Alice")]).unwrap();
-        assert_eq!(
-            result.where_clause,
-            Some(serde_json::json!({ "name": { "eq": "Alice" } }))
-        );
+        assert_eq!(result.where_clause, Some(serde_json::json!({ "name": { "eq": "Alice" } })));
     }
 
     // -----------------------------------------------------------------------
@@ -1590,10 +1586,7 @@ mod tests {
 
         let filter = r#"{"name":{"startswith":"A"}}"#;
         let result = ext.extract(&[], &[("filter", filter)]).unwrap();
-        assert_eq!(
-            result.where_clause,
-            Some(serde_json::json!({ "name": { "startswith": "A" } }))
-        );
+        assert_eq!(result.where_clause, Some(serde_json::json!({ "name": { "startswith": "A" } })));
     }
 
     #[test]
@@ -1787,7 +1780,8 @@ mod tests {
 
     #[test]
     fn coerce_list_csv() {
-        let result = coerce_to_type("a,b,c", &FieldType::List(Box::new(FieldType::String))).unwrap();
+        let result =
+            coerce_to_type("a,b,c", &FieldType::List(Box::new(FieldType::String))).unwrap();
         assert_eq!(result, serde_json::json!(["a", "b", "c"]));
     }
 
@@ -1825,9 +1819,8 @@ mod tests {
         let ext = RestParamExtractor::new(&config, &qd, None);
 
         // Build > 1000 simple filters.
-        let pairs: Vec<(String, String)> = (0..1001)
-            .map(|i| (format!("f{i}"), format!("v{i}")))
-            .collect();
+        let pairs: Vec<(String, String)> =
+            (0..1001).map(|i| (format!("f{i}"), format!("v{i}"))).collect();
         let query_pairs: Vec<(&str, &str)> =
             pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
@@ -1889,11 +1882,14 @@ mod tests {
     #[test]
     fn parse_select_entries_flat_fields() {
         let entries = parse_select_entries("id,name,email").unwrap();
-        assert_eq!(entries, vec![
-            SelectEntry::Field("id".to_string()),
-            SelectEntry::Field("name".to_string()),
-            SelectEntry::Field("email".to_string()),
-        ]);
+        assert_eq!(
+            entries,
+            vec![
+                SelectEntry::Field("id".to_string()),
+                SelectEntry::Field("name".to_string()),
+                SelectEntry::Field("email".to_string()),
+            ]
+        );
     }
 
     #[test]
@@ -1906,11 +1902,14 @@ mod tests {
             SelectEntry::Embedded(spec) => {
                 assert_eq!(spec.relationship, "posts");
                 assert!(spec.rename.is_none());
-                assert_eq!(spec.fields, vec![
-                    SelectEntry::Field("id".to_string()),
-                    SelectEntry::Field("title".to_string()),
-                ]);
-            }
+                assert_eq!(
+                    spec.fields,
+                    vec![
+                        SelectEntry::Field("id".to_string()),
+                        SelectEntry::Field("title".to_string()),
+                    ]
+                );
+            },
             _ => panic!("Expected Embedded"),
         }
     }
@@ -1926,14 +1925,17 @@ mod tests {
                 match &spec.fields[2] {
                     SelectEntry::Embedded(inner) => {
                         assert_eq!(inner.relationship, "comments");
-                        assert_eq!(inner.fields, vec![
-                            SelectEntry::Field("id".to_string()),
-                            SelectEntry::Field("body".to_string()),
-                        ]);
-                    }
+                        assert_eq!(
+                            inner.fields,
+                            vec![
+                                SelectEntry::Field("id".to_string()),
+                                SelectEntry::Field("body".to_string()),
+                            ]
+                        );
+                    },
                     _ => panic!("Expected nested Embedded"),
                 }
-            }
+            },
             _ => panic!("Expected Embedded"),
         }
     }
@@ -1946,11 +1948,14 @@ mod tests {
             SelectEntry::Embedded(spec) => {
                 assert_eq!(spec.relationship, "fk_user");
                 assert_eq!(spec.rename, Some("author".to_string()));
-                assert_eq!(spec.fields, vec![
-                    SelectEntry::Field("id".to_string()),
-                    SelectEntry::Field("name".to_string()),
-                ]);
-            }
+                assert_eq!(
+                    spec.fields,
+                    vec![
+                        SelectEntry::Field("id".to_string()),
+                        SelectEntry::Field("name".to_string()),
+                    ]
+                );
+            },
             _ => panic!("Expected Embedded"),
         }
     }
@@ -1958,10 +1963,13 @@ mod tests {
     #[test]
     fn parse_select_entries_count_only() {
         let entries = parse_select_entries("id,posts.count").unwrap();
-        assert_eq!(entries, vec![
-            SelectEntry::Field("id".to_string()),
-            SelectEntry::Count("posts".to_string()),
-        ]);
+        assert_eq!(
+            entries,
+            vec![
+                SelectEntry::Field("id".to_string()),
+                SelectEntry::Count("posts".to_string()),
+            ]
+        );
     }
 
     #[test]
@@ -1984,8 +1992,8 @@ mod tests {
     fn embedding_depth_within_limit() {
         let spec = EmbeddedSpec {
             relationship: "posts".to_string(),
-            rename: None,
-            fields: vec![SelectEntry::Field("id".to_string())],
+            rename:       None,
+            fields:       vec![SelectEntry::Field("id".to_string())],
         };
         assert!(validate_embedding_depth(&spec, 1, 3).is_ok());
     }
@@ -1994,13 +2002,13 @@ mod tests {
     fn embedding_depth_exceeds_limit() {
         let inner = EmbeddedSpec {
             relationship: "comments".to_string(),
-            rename: None,
-            fields: vec![SelectEntry::Field("id".to_string())],
+            rename:       None,
+            fields:       vec![SelectEntry::Field("id".to_string())],
         };
         let outer = EmbeddedSpec {
             relationship: "posts".to_string(),
-            rename: None,
-            fields: vec![SelectEntry::Embedded(inner)],
+            rename:       None,
+            fields:       vec![SelectEntry::Embedded(inner)],
         };
         // depth=1, max=1 -> inner at depth=2 should fail
         let err = validate_embedding_depth(&outer, 1, 1).unwrap_err();
@@ -2013,15 +2021,13 @@ mod tests {
 
     fn user_type_with_relationships() -> TypeDefinition {
         let mut td = user_type_def();
-        td.relationships = vec![
-            RelationshipDef {
-                name: "posts".to_string(),
-                target_type: "Post".to_string(),
-                foreign_key: "fk_user".to_string(),
-                referenced_key: "pk_user".to_string(),
-                cardinality: Cardinality::OneToMany,
-            },
-        ];
+        td.relationships = vec![RelationshipDef {
+            name:           "posts".to_string(),
+            target_type:    "Post".to_string(),
+            foreign_key:    "fk_user".to_string(),
+            referenced_key: "pk_user".to_string(),
+            cardinality:    Cardinality::OneToMany,
+        }];
         td
     }
 
@@ -2032,10 +2038,7 @@ mod tests {
         let td = user_type_with_relationships();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("select", "id,name,posts(id,title)")],
-        );
+        let result = ext.extract(&[], &[("select", "id,name,posts(id,title)")]);
         let params = result.unwrap();
         assert_eq!(params.embeddings.len(), 1);
         assert_eq!(params.embeddings[0].relationship, "posts");
@@ -2048,10 +2051,7 @@ mod tests {
         let td = user_type_def(); // No relationships
         let ext = extractor_list(&config, &qd, &td);
 
-        let err = ext.extract(
-            &[],
-            &[("select", "id,comments(id,body)")],
-        ).unwrap_err();
+        let err = ext.extract(&[], &[("select", "id,comments(id,body)")]).unwrap_err();
         assert!(err.to_string().contains("has no relationship 'comments'"));
         assert!(err.to_string().contains("Available: none"));
     }
@@ -2073,10 +2073,7 @@ mod tests {
         let params = result.unwrap();
         assert_eq!(params.embedding_filters.len(), 1);
         let posts_filter = params.embedding_filters.get("posts").unwrap();
-        assert_eq!(
-            posts_filter,
-            &serde_json::json!({"status": {"eq": "published"}}),
-        );
+        assert_eq!(posts_filter, &serde_json::json!({"status": {"eq": "published"}}),);
     }
 
     #[test]
@@ -2086,10 +2083,7 @@ mod tests {
         let td = user_type_with_relationships();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("select", "id,posts.count")],
-        );
+        let result = ext.extract(&[], &[("select", "id,posts.count")]);
         let params = result.unwrap();
         assert_eq!(params.embedding_counts, vec!["posts"]);
     }
@@ -2103,10 +2097,7 @@ mod tests {
         let ext = extractor_list(&config, &qd, &td);
 
         // Depth 2: posts -> comments (but max is 1)
-        let err = ext.extract(
-            &[],
-            &[("select", "id,posts(id,comments(id,body))")],
-        ).unwrap_err();
+        let err = ext.extract(&[], &[("select", "id,posts(id,comments(id,body))")]).unwrap_err();
         assert!(err.to_string().contains("exceeds maximum"));
     }
 
@@ -2161,10 +2152,7 @@ mod tests {
         let td = article_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("search", "rust"), ("status[eq]", "published")],
-        ).unwrap();
+        let result = ext.extract(&[], &[("search", "rust"), ("status[eq]", "published")]).unwrap();
         assert_eq!(result.search_query, Some("rust".to_string()));
         assert_eq!(
             result.where_clause,
@@ -2192,10 +2180,7 @@ mod tests {
         let td = article_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("search", "rust"), ("sort", "title")],
-        ).unwrap();
+        let result = ext.extract(&[], &[("search", "rust"), ("sort", "title")]).unwrap();
         assert_eq!(result.search_query, Some("rust".to_string()));
         assert!(result.order_by.is_some());
     }
@@ -2209,7 +2194,9 @@ mod tests {
         let td = user_type_def();
         let ext = RestParamExtractor::new(&config, &qd, Some(&td));
 
-        let err = ext.extract(&[("id", "550e8400-e29b-41d4-a716-446655440000")], &[("search", "x")]).unwrap_err();
+        let err = ext
+            .extract(&[("id", "550e8400-e29b-41d4-a716-446655440000")], &[("search", "x")])
+            .unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("Full-text search not available"), "got: {msg}");
     }
@@ -2225,10 +2212,7 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("or", "(name[eq]=Alice,name[eq]=Bob)")],
-        ).unwrap();
+        let result = ext.extract(&[], &[("or", "(name[eq]=Alice,name[eq]=Bob)")]).unwrap();
         assert_eq!(
             result.where_clause,
             Some(serde_json::json!({
@@ -2247,10 +2231,7 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("and", "(age[gte]=18,age[lte]=65)")],
-        ).unwrap();
+        let result = ext.extract(&[], &[("and", "(age[gte]=18,age[lte]=65)")]).unwrap();
         assert_eq!(
             result.where_clause,
             Some(serde_json::json!({
@@ -2269,10 +2250,7 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("not", "(active[eq]=false)")],
-        ).unwrap();
+        let result = ext.extract(&[], &[("not", "(active[eq]=false)")]).unwrap();
         assert_eq!(
             result.where_clause,
             Some(serde_json::json!({
@@ -2290,10 +2268,9 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("or", "(and=(age[gte]=18,active[eq]=true),name[eq]=admin)")],
-        ).unwrap();
+        let result = ext
+            .extract(&[], &[("or", "(and=(age[gte]=18,active[eq]=true),name[eq]=admin)")])
+            .unwrap();
         let wc = result.where_clause.unwrap();
         assert!(wc.get("_or").is_some(), "expected _or in {wc}");
         let or_arr = wc["_or"].as_array().unwrap();
@@ -2308,10 +2285,15 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let result = ext.extract(
-            &[],
-            &[("active[eq]", "true"), ("or", "(name[eq]=Alice,name[eq]=Bob)")],
-        ).unwrap();
+        let result = ext
+            .extract(
+                &[],
+                &[
+                    ("active[eq]", "true"),
+                    ("or", "(name[eq]=Alice,name[eq]=Bob)"),
+                ],
+            )
+            .unwrap();
 
         let wc = result.where_clause.unwrap();
         // Should have _and wrapping the regular filter + the or group.
@@ -2368,11 +2350,11 @@ mod tests {
         let td = user_type_def();
         let ext = extractor_list(&config, &qd, &td);
 
-        let err = ext.extract(
-            &[],
-            &[("or", "not-parenthetical")],
-        ).unwrap_err();
+        let err = ext.extract(&[], &[("or", "not-parenthetical")]).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("must be enclosed in parentheses") || msg.contains("syntax"), "got: {msg}");
+        assert!(
+            msg.contains("must be enclosed in parentheses") || msg.contains("syntax"),
+            "got: {msg}"
+        );
     }
 }

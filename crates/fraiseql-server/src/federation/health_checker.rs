@@ -309,10 +309,7 @@ impl SubgraphHealthChecker {
     ///
     /// Panics if the `status_cache` RwLock is poisoned.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
-        self.status_cache
-            .read()
-            .expect("status_cache rwlock poisoned")
-            .clone()
+        self.status_cache.read().expect("status_cache rwlock poisoned").clone()
     }
 
     /// Get overall federation health status.

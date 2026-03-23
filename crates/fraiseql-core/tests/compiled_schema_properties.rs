@@ -37,35 +37,32 @@ fn arb_field_type() -> impl Strategy<Value = FieldType> {
 fn arb_field_def() -> impl Strategy<Value = FieldDefinition> {
     (arb_field_name(), arb_field_type(), prop::bool::ANY).prop_map(
         |(name, field_type, nullable)| FieldDefinition {
-            name:           name.into(),
+            name: name.into(),
             field_type,
             nullable,
-            description:    None,
-            default_value:  None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
+            description: None,
+            default_value: None,
+            vector_config: None,
+            alias: None,
+            deprecation: None,
             requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
+            on_deny: FieldDenyPolicy::default(),
+            encryption: None,
             auto_generated: false,
-            computed:       false,
-            searchable:     false,
+            computed: false,
+            searchable: false,
         },
     )
 }
 
 fn arb_type_def() -> impl Strategy<Value = TypeDefinition> {
-    (
-        arb_type_name(),
-        arb_field_name(),
-        prop::collection::vec(arb_field_def(), 1..5),
-    )
-        .prop_map(|(name, sql_source, fields)| {
+    (arb_type_name(), arb_field_name(), prop::collection::vec(arb_field_def(), 1..5)).prop_map(
+        |(name, sql_source, fields)| {
             let mut td = TypeDefinition::new(&name, format!("v_{sql_source}"));
             td.fields = fields;
             td
-        })
+        },
+    )
 }
 
 fn arb_query_def() -> impl Strategy<Value = QueryDefinition> {

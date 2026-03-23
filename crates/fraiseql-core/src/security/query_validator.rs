@@ -190,9 +190,9 @@ impl QueryValidator {
 
         // Checks 2–5: AST-based analysis via RequestValidator
         let rv = RequestValidator::from_config(ComplexityConfig {
-            max_depth:      self.config.max_depth,
+            max_depth: self.config.max_depth,
             max_complexity: self.config.max_complexity,
-            max_aliases:    self.config.max_aliases,
+            max_aliases: self.config.max_aliases,
             ..ComplexityConfig::default()
         });
 

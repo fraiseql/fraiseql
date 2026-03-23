@@ -207,7 +207,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             let (count_sql, count_typed_params) = if let Some(clause) = where_clause {
                 let generator = PostgresWhereGenerator::new(PostgresDialect);
                 let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
-                // SAFETY: quoted_view is schema-derived (validated at compile time), not user input.
+                // SAFETY: quoted_view is schema-derived (validated at compile time), not user
+                // input.
                 let sql = format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({where_sql})");
                 let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
                 (sql, typed)

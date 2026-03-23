@@ -384,7 +384,8 @@ impl ExecutorFactory {
     ///
     /// # Errors
     ///
-    /// Returns `ObserverError::InvalidConfig` if job queue config is missing or Redis connection fails.
+    /// Returns `ObserverError::InvalidConfig` if job queue config is missing or Redis connection
+    /// fails.
     #[cfg(feature = "queue")]
     pub async fn build_with_queue(
         config: &ObserverRuntimeConfig,

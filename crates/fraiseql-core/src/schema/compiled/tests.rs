@@ -236,8 +236,7 @@ fn test_has_rls_configured_no_policies_key() {
 // inject_cascade_types tests
 // =========================================================================
 
-use super::mutation::MutationDefinition;
-use super::schema::inject_cascade_types;
+use super::{mutation::MutationDefinition, schema::inject_cascade_types};
 
 #[test]
 fn test_inject_cascade_types_when_cascade_mutation_present() {
@@ -254,7 +253,10 @@ fn test_inject_cascade_types_when_cascade_mutation_present() {
 
     let type_names: Vec<&str> = schema.types.iter().map(|t| t.name.as_str()).collect();
     assert!(type_names.contains(&"CascadeEntity"), "CascadeEntity must be injected");
-    assert!(type_names.contains(&"CascadeInvalidation"), "CascadeInvalidation must be injected");
+    assert!(
+        type_names.contains(&"CascadeInvalidation"),
+        "CascadeInvalidation must be injected"
+    );
     assert!(type_names.contains(&"CascadeMetadata"), "CascadeMetadata must be injected");
     assert!(type_names.contains(&"Cascade"), "Cascade must be injected");
 

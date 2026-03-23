@@ -6,13 +6,13 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use fraiseql_error::FileError;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use super::{validate_key, StorageBackend, StorageResult};
+use super::{StorageBackend, StorageResult, validate_key};
 
 const AZURE_API_VERSION: &str = "2023-11-03";
 
@@ -40,15 +40,13 @@ impl AzureBlobStorageBackend {
             source:  None,
         })?;
         let account_key =
-            general_purpose::STANDARD
-                .decode(&key_b64)
-                .map_err(|e| FileError::Storage {
-                    message: format!("Invalid AZURE_STORAGE_KEY (not valid base64): {e}"),
-                    source:  None,
-                })?;
+            general_purpose::STANDARD.decode(&key_b64).map_err(|e| FileError::Storage {
+                message: format!("Invalid AZURE_STORAGE_KEY (not valid base64): {e}"),
+                source:  None,
+            })?;
 
         Ok(Self {
-            account:   account.to_owned(),
+            account: account.to_owned(),
             container: container.to_owned(),
             account_key,
             client: reqwest::Client::new(),
@@ -56,10 +54,7 @@ impl AzureBlobStorageBackend {
     }
 
     fn blob_url(&self, key: &str) -> String {
-        format!(
-            "https://{}.blob.core.windows.net/{}/{}",
-            self.account, self.container, key
-        )
+        format!("https://{}.blob.core.windows.net/{}/{}", self.account, self.container, key)
     }
 
     /// Computes the `Authorization: SharedKey` header value.
@@ -75,8 +70,7 @@ impl AzureBlobStorageBackend {
         date: &str,
         extra_canonical_headers: &str,
     ) -> String {
-        let canonicalized_resource =
-            format!("/{}/{}/{}", self.account, self.container, key);
+        let canonicalized_resource = format!("/{}/{}/{}", self.account, self.container, key);
 
         // Azure SharedKey string-to-sign (Blob service, 2023-11-03):
         // VERB\nContent-Encoding\nContent-Language\nContent-Length\nContent-MD5\n
@@ -227,10 +221,7 @@ impl StorageBackend for AzureBlobStorageBackend {
         match resp.status() {
             s if s.is_success() => Ok(true),
             reqwest::StatusCode::NOT_FOUND => Ok(false),
-            _ => Err(azure_err(
-                "exists check response",
-                resp.status().to_string(),
-            )),
+            _ => Err(azure_err("exists check response", resp.status().to_string())),
         }
     }
 
@@ -240,8 +231,9 @@ impl StorageBackend for AzureBlobStorageBackend {
         // expiry.  This is planned but not yet implemented — use the Azure CLI
         // (`az storage blob generate-sas`) in the meantime.
         Err(FileError::Storage {
-            message: "Presigned URLs for Azure Blob require SAS token generation (not yet implemented)"
-                .to_string(),
+            message:
+                "Presigned URLs for Azure Blob require SAS token generation (not yet implemented)"
+                    .to_string(),
             source:  None,
         })
     }

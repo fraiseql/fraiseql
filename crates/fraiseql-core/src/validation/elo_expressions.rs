@@ -4,9 +4,8 @@
 //! as a validation framework, enabling concise, portable validation rules that can be compiled to
 //! multiple targets (Rust, JavaScript, SQL).
 
-use serde_json::{Value, json};
-
 use chrono::Datelike;
+use serde_json::{Value, json};
 
 use crate::error::{FraiseQLError, Result};
 
@@ -83,7 +82,8 @@ impl EloExpressionEvaluator {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` if the expression references unknown fields or functions.
+    /// Returns `FraiseQLError::Validation` if the expression references unknown fields or
+    /// functions.
     pub fn evaluate(&self, context: &Value) -> Result<EloValidationResult> {
         // Parse and evaluate the expression
         self.evaluate_expression(&self.expression, context)

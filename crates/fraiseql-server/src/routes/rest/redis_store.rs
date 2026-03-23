@@ -14,7 +14,7 @@ use super::{IdempotencyCheck, IdempotencyStore, StoredResponse};
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RedisEntry {
     body_hash: u64,
-    response: StoredResponse,
+    response:  StoredResponse,
 }
 
 /// Redis-backed idempotency store.
@@ -22,8 +22,8 @@ struct RedisEntry {
 /// Each key is stored as `fraiseql:idempotency:{key}` with TTL set via `SET EX`.
 /// Value is MessagePack-encoded `RedisEntry`.
 pub struct RedisIdempotencyStore {
-    pool: redis::aio::ConnectionManager,
-    ttl: Duration,
+    pool:   redis::aio::ConnectionManager,
+    ttl:    Duration,
     prefix: String,
 }
 
@@ -58,7 +58,7 @@ impl IdempotencyStore for RedisIdempotencyStore {
                 Err(e) => {
                     warn!("Redis idempotency check failed, treating as new: {e}");
                     return IdempotencyCheck::New;
-                }
+                },
             };
 
             match raw {
@@ -69,14 +69,14 @@ impl IdempotencyStore for RedisIdempotencyStore {
                         Err(e) => {
                             warn!("Failed to deserialize idempotency entry: {e}");
                             return IdempotencyCheck::New;
-                        }
+                        },
                     };
                     if entry.body_hash == body_hash {
                         IdempotencyCheck::Replay(entry.response)
                     } else {
                         IdempotencyCheck::Conflict
                     }
-                }
+                },
             }
         })
     }
@@ -99,7 +99,7 @@ impl IdempotencyStore for RedisIdempotencyStore {
                 Err(e) => {
                     warn!("Failed to serialize idempotency entry: {e}");
                     return;
-                }
+                },
             };
 
             let mut conn = self.pool.clone();

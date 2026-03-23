@@ -125,7 +125,8 @@ fn days_between(left: (u32, u32, u32), right: (u32, u32, u32)) -> i64 {
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` if either date is malformed or the date is before the minimum.
+/// Returns `FraiseQLError::Validation` if either date is malformed or the date is before the
+/// minimum.
 pub fn validate_min_date(date_str: &str, min_date_str: &str) -> Result<()> {
     let date = parse_date(date_str)?;
     let min_date = parse_date(min_date_str)?;
@@ -144,7 +145,8 @@ pub fn validate_min_date(date_str: &str, min_date_str: &str) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` if either date is malformed or the date is after the maximum.
+/// Returns `FraiseQLError::Validation` if either date is malformed or the date is after the
+/// maximum.
 pub fn validate_max_date(date_str: &str, max_date_str: &str) -> Result<()> {
     let date = parse_date(date_str)?;
     let max_date = parse_date(max_date_str)?;

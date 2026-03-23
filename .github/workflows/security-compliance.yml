@@ -173,7 +173,7 @@ jobs:
          # Generate SBOM in CycloneDX format for government compliance
          docker run --rm \
            -v /var/run/docker.sock:/var/run/docker.sock \
-           aquasec/trivy image \
+           ghcr.io/aquasecurity/trivy:latest image \
            --format cyclonedx \
            --output sbom-${{ matrix.dockerfile.label }}.json \
            ${{ matrix.dockerfile.tag }}

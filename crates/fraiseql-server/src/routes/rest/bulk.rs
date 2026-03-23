@@ -6,15 +6,19 @@
 use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use fraiseql_core::db::traits::{DatabaseAdapter, MutationCapable};
-use fraiseql_core::runtime::{Executor, QueryMatch};
-use fraiseql_core::schema::{CompiledSchema, MutationOperation, RestConfig};
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::traits::{DatabaseAdapter, MutationCapable},
+    runtime::{Executor, QueryMatch},
+    schema::{CompiledSchema, MutationOperation, RestConfig},
+    security::SecurityContext,
+};
 use serde_json::json;
 
-use super::handler::{set_preference_applied, set_request_id, PreferHeader, RestError, RestResponse};
-use super::params::RestParamExtractor;
-use super::resource::{RestRouteTable, RouteSource};
+use super::{
+    handler::{PreferHeader, RestError, RestResponse, set_preference_applied, set_request_id},
+    params::RestParamExtractor,
+    resource::{RestRouteTable, RouteSource},
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -25,7 +29,7 @@ const MAX_BULK_INSERT_ITEMS: usize = 1_000;
 
 /// Operation-specific parameters for filter-based bulk operations.
 struct BulkFilterOp<'a> {
-    operation: &'a str,
+    operation:          &'a str,
     missing_filter_msg: &'a str,
 }
 
@@ -35,9 +39,9 @@ struct BulkFilterOp<'a> {
 
 /// Handles bulk operations for the REST transport.
 pub struct BulkHandler<'a, A: DatabaseAdapter> {
-    executor: &'a Arc<Executor<A>>,
-    schema: &'a CompiledSchema,
-    config: &'a RestConfig,
+    executor:    &'a Arc<Executor<A>>,
+    schema:      &'a CompiledSchema,
+    config:      &'a RestConfig,
     route_table: &'a RestRouteTable,
 }
 
@@ -72,9 +76,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
     ) -> Result<RestResponse, RestError> {
         // Validate array is non-empty
         if items.is_empty() {
-            return Err(RestError::bad_request(
-                "Bulk insert requires at least one item",
-            ));
+            return Err(RestError::bad_request("Bulk insert requires at least one item"));
         }
 
         // Validate size limit
@@ -92,16 +94,14 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             })?;
 
             match resolution.as_str() {
-                "merge-duplicates" | "ignore-duplicates" => {
-                    match &mutation_def.upsert_function {
-                        Some(upsert_fn) => upsert_fn.as_str(),
-                        None => {
-                            return Err(RestError::bad_request(
-                                "Upsert not available — no compiler-generated upsert function exists",
-                            ));
-                        }
-                    }
-                }
+                "merge-duplicates" | "ignore-duplicates" => match &mutation_def.upsert_function {
+                    Some(upsert_fn) => upsert_fn.as_str(),
+                    None => {
+                        return Err(RestError::bad_request(
+                            "Upsert not available — no compiler-generated upsert function exists",
+                        ));
+                    },
+                },
                 _ => mutation_name,
             }
         } else {
@@ -135,16 +135,14 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             let refs: Vec<&str> = applied.iter().map(String::as_str).collect();
             set_preference_applied(&mut response_headers, &refs);
             Ok(RestResponse {
-                status: StatusCode::CREATED,
+                status:  StatusCode::CREATED,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         } else {
             // Parse and collect entity data from results
-            let entities: Vec<serde_json::Value> = results
-                .iter()
-                .filter_map(|r| extract_entity_from_result(r))
-                .collect();
+            let entities: Vec<serde_json::Value> =
+                results.iter().filter_map(|r| extract_entity_from_result(r)).collect();
 
             if prefer.return_representation {
                 applied.push("return=representation".to_string());
@@ -153,9 +151,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             set_preference_applied(&mut response_headers, &refs);
 
             Ok(RestResponse {
-                status: StatusCode::CREATED,
+                status:  StatusCode::CREATED,
                 headers: response_headers,
-                body: Some(json!(entities)),
+                body:    Some(json!(entities)),
             })
         }
     }
@@ -182,7 +180,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             headers,
             security_context,
             BulkFilterOp {
-                operation: "update",
+                operation:          "update",
                 missing_filter_msg: "Bulk update requires at least one filter parameter",
             },
         )
@@ -211,7 +209,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             headers,
             security_context,
             BulkFilterOp {
-                operation: "delete",
+                operation:          "delete",
                 missing_filter_msg: "Bulk delete requires at least one filter parameter",
             },
         )
@@ -244,15 +242,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
 
         let id_field = resource.id_arg.as_deref().unwrap_or("id");
 
-        let query_match = self.build_filter_query_match(
-            list_query_name,
-            query_params,
-            &resource.type_name,
-        )?;
+        let query_match =
+            self.build_filter_query_match(list_query_name, query_params, &resource.type_name)?;
 
-        let max_affected = prefer
-            .max_affected
-            .unwrap_or(self.config.max_bulk_affected);
+        let max_affected = prefer.max_affected.unwrap_or(self.config.max_bulk_affected);
 
         let bulk_result = self
             .executor
@@ -291,12 +284,10 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
 
         let resource_name = path_segments.first().copied().unwrap_or("");
 
-        let resource = self
-            .route_table
-            .resources
-            .iter()
-            .find(|r| r.name == resource_name)
-            .ok_or_else(|| RestError::not_found(format!("Resource '{resource_name}' not found")))?;
+        let resource =
+            self.route_table.resources.iter().find(|r| r.name == resource_name).ok_or_else(
+                || RestError::not_found(format!("Resource '{resource_name}' not found")),
+            )?;
 
         // Find the appropriate mutation (update or delete) for this resource
         let mutation_name = resource
@@ -310,8 +301,12 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
                         (MutationOperation::Update { .. }, "update")
                             | (MutationOperation::Delete { .. }, "delete")
                     );
-                    if op_matches { Some(name.as_str()) } else { None }
-                }
+                    if op_matches {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                },
                 RouteSource::Query { .. } => None,
             })
             .ok_or_else(|| {
@@ -325,17 +320,13 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             .routes
             .iter()
             .find_map(|route| match &route.source {
-                RouteSource::Query { name }
-                    if route.path == format!("/{resource_name}") =>
-                {
+                RouteSource::Query { name } if route.path == format!("/{resource_name}") => {
                     Some(name.as_str())
-                }
+                },
                 _ => None,
             })
             .ok_or_else(|| {
-                RestError::internal(format!(
-                    "No list query found for resource '{resource_name}'"
-                ))
+                RestError::internal(format!("No list query found for resource '{resource_name}'"))
             })?;
 
         Ok((resource, mutation_name, list_query_name))
@@ -356,15 +347,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
 
         let type_def = self.schema.find_type(type_name);
 
-        let extractor = RestParamExtractor::new(
-            self.config,
-            &query_def,
-            type_def,
-        );
+        let extractor = RestParamExtractor::new(self.config, &query_def, type_def);
 
-        let params = extractor
-            .extract(&[], query_params)
-            .map_err(RestError::from)?;
+        let params = extractor.extract(&[], query_params).map_err(RestError::from)?;
 
         // Build QueryMatch with only the ID field for bulk operations
         let id_fields = type_def
@@ -388,13 +373,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             arguments.insert("where".to_string(), where_clause.clone());
         }
 
-        QueryMatch::from_operation(
-            query_def,
-            fields,
-            arguments,
-            type_def,
-        )
-        .map_err(RestError::from)
+        QueryMatch::from_operation(query_def, fields, arguments, type_def).map_err(RestError::from)
     }
 
     /// Build the HTTP response for a bulk operation result.
@@ -431,9 +410,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             set_preference_applied(&mut response_headers, &applied);
 
             Ok(RestResponse {
-                status: StatusCode::OK,
+                status:  StatusCode::OK,
                 headers: response_headers,
-                body: Some(json!(entities)),
+                body:    Some(json!(entities)),
             })
         } else if prefer.return_minimal || bulk_result.affected_rows == 0 {
             if prefer.return_minimal {
@@ -441,16 +420,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             }
             set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
-                status: StatusCode::NO_CONTENT,
+                status:  StatusCode::NO_CONTENT,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         } else {
             set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
-                status: StatusCode::OK,
+                status:  StatusCode::OK,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         }
     }
@@ -574,10 +553,7 @@ mod tests {
 
     #[test]
     fn filter_mixed_with_reserved() {
-        let params = vec![
-            ("limit", "10"),
-            ("status[eq]", "inactive"),
-        ];
+        let params = vec![("limit", "10"), ("status[eq]", "inactive")];
         assert!(has_filter_params(&params));
     }
 
@@ -621,19 +597,13 @@ mod tests {
     fn rows_affected_header() {
         let mut headers = HeaderMap::new();
         set_rows_affected(&mut headers, 42);
-        assert_eq!(
-            headers.get("x-rows-affected").unwrap().to_str().unwrap(),
-            "42"
-        );
+        assert_eq!(headers.get("x-rows-affected").unwrap().to_str().unwrap(), "42");
     }
 
     #[test]
     fn rows_affected_zero() {
         let mut headers = HeaderMap::new();
         set_rows_affected(&mut headers, 0);
-        assert_eq!(
-            headers.get("x-rows-affected").unwrap().to_str().unwrap(),
-            "0"
-        );
+        assert_eq!(headers.get("x-rows-affected").unwrap().to_str().unwrap(), "0");
     }
 }

@@ -645,9 +645,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::compiler::fact_table::{
-        DimensionPath, FilterColumn, SqlType, test_sales_metadata,
-    };
+    use crate::compiler::fact_table::{DimensionPath, FilterColumn, SqlType, test_sales_metadata};
 
     fn create_test_metadata() -> FactTableMetadata {
         let mut m = test_sales_metadata();

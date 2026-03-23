@@ -11,21 +11,20 @@
 pub mod handler;
 pub mod streaming;
 
-use std::convert::Infallible;
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::schema::CompiledSchema;
-use fraiseql_core::security::{OidcValidator, SecurityContext};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    schema::CompiledSchema,
+    security::{OidcValidator, SecurityContext},
+};
 use fraiseql_error::FraiseQLError;
+use handler::{RpcDispatchTable, build_dispatch_table};
 use prost_reflect::DescriptorPool;
-use tonic::body::Body as TonicBody;
-use tonic::server::NamedService;
-use tracing::{debug, info, info_span, warn, Instrument as _};
+use tonic::{body::Body as TonicBody, server::NamedService};
+use tracing::{Instrument as _, debug, info, info_span, warn};
 
 use crate::middleware::RateLimiter;
-
-use handler::{RpcDispatchTable, build_dispatch_table};
 
 // ---------------------------------------------------------------------------
 // Service bundle returned by `build_grpc_service()`
@@ -37,12 +36,12 @@ use handler::{RpcDispatchTable, build_dispatch_table};
 /// reflection, and the fully-qualified service name.
 pub struct GrpcServices<A: DatabaseAdapter> {
     /// The dynamic gRPC service that dispatches RPCs.
-    pub service: DynamicGrpcService<A>,
+    pub service:                     DynamicGrpcService<A>,
     /// Raw `FileDescriptorSet` bytes for building reflection at serve time.
     /// Present when `GrpcConfig.reflection` is true.
     pub reflection_descriptor_bytes: Option<Vec<u8>>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    pub service_name: String,
+    pub service_name:                String,
 }
 
 // ---------------------------------------------------------------------------
@@ -57,15 +56,15 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 /// `fraiseql-cli generate-proto`.
 pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// Shared database adapter for executing row queries.
-    adapter: Arc<A>,
+    adapter:        Arc<A>,
     /// Compiled schema (for type lookups during request processing).
-    schema: Arc<CompiledSchema>,
+    schema:         Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
-    dispatch: Arc<RpcDispatchTable>,
+    dispatch:       Arc<RpcDispatchTable>,
     /// Protobuf descriptor pool (for decoding/encoding dynamic messages).
-    pool: Arc<DescriptorPool>,
+    pool:           Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    service_name: Arc<str>,
+    service_name:   Arc<str>,
     /// Optional OIDC validator for JWT authentication.
     /// When present, incoming requests must carry a valid `authorization`
     /// metadata header (`Bearer <jwt>`). The validated token is converted
@@ -73,7 +72,7 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     oidc_validator: Option<Arc<OidcValidator>>,
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
-    rate_limiter: Option<Arc<RateLimiter>>,
+    rate_limiter:   Option<Arc<RateLimiter>>,
 }
 
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
@@ -114,7 +113,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
 
         let op = match self.dispatch.get(method) {
             Some(op) => op,
-            None => return grpc_error_response(tonic::Code::Unimplemented, &format!("Method not found: {method}")),
+            None => {
+                return grpc_error_response(
+                    tonic::Code::Unimplemented,
+                    &format!("Method not found: {method}"),
+                );
+            },
         };
 
         // ── Auth interceptor ──────────────────────────────────────────
@@ -140,10 +144,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             .and_then(|v| v.split(',').next())
             .map(|s| s.trim().to_string())
             .or_else(|| {
-                req.headers()
-                    .get("x-real-ip")
-                    .and_then(|v| v.to_str().ok())
-                    .map(String::from)
+                req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()).map(String::from)
             })
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -176,17 +177,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                     method = %method,
                     "gRPC rate limit exceeded"
                 );
-                return grpc_error_response(
-                    tonic::Code::ResourceExhausted,
-                    "Rate limit exceeded",
-                );
+                return grpc_error_response(tonic::Code::ResourceExhausted, "Rate limit exceeded");
             }
         }
 
         // Collect the body bytes.
         let body_bytes: bytes::Bytes = match req.into_body().collect().await {
             Ok(collected) => collected.to_bytes(),
-            Err(e) => return grpc_error_response(tonic::Code::Internal, &format!("Failed to read request body: {e}")),
+            Err(e) => {
+                return grpc_error_response(
+                    tonic::Code::Internal,
+                    &format!("Failed to read request body: {e}"),
+                );
+            },
         };
 
         // Skip the gRPC frame header (1 byte compression flag + 4 bytes length).
@@ -198,36 +201,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         // Find the request message descriptor.
         let service_desc = match self.pool.get_service_by_name(&self.service_name) {
             Some(s) => s,
-            None => return grpc_error_response(tonic::Code::Internal, "Service descriptor not found"),
+            None => {
+                return grpc_error_response(tonic::Code::Internal, "Service descriptor not found");
+            },
         };
 
         let method_name = method.rsplit('/').next().unwrap_or(method);
         let method_desc = match service_desc.methods().find(|m| m.name() == method_name) {
             Some(m) => m,
-            None => return grpc_error_response(tonic::Code::Unimplemented, &format!("Method not found: {method_name}")),
+            None => {
+                return grpc_error_response(
+                    tonic::Code::Unimplemented,
+                    &format!("Method not found: {method_name}"),
+                );
+            },
         };
 
         let request_desc = method_desc.input();
         let request_msg = match prost_reflect::DynamicMessage::decode(request_desc, msg_bytes) {
             Ok(m) => m,
-            Err(e) => return grpc_error_response(tonic::Code::InvalidArgument, &format!("Failed to decode request: {e}")),
+            Err(e) => {
+                return grpc_error_response(
+                    tonic::Code::InvalidArgument,
+                    &format!("Failed to decode request: {e}"),
+                );
+            },
         };
 
         // Dispatch based on RPC kind.
         //
         // Server-streaming RPCs return early with a streaming body;
         // unary RPCs continue to the framing code below.
-        if let handler::RpcKind::ServerStream { view_name, columns, row_descriptor } = &op.kind {
+        if let handler::RpcKind::ServerStream {
+            view_name,
+            columns,
+            row_descriptor,
+        } = &op.kind
+        {
             let type_def = match self.schema.find_type(&op.type_name) {
                 Some(t) => t.clone(),
-                None => return grpc_error_response(tonic::Code::Internal, &format!("Type '{}' not found in schema", op.type_name)),
+                None => {
+                    return grpc_error_response(
+                        tonic::Code::Internal,
+                        &format!("Type '{}' not found in schema", op.type_name),
+                    );
+                },
             };
 
-            let batch_size = self
-                .schema
-                .grpc_config
-                .as_ref()
-                .map_or(500, |c| c.stream_batch_size);
+            let batch_size = self.schema.grpc_config.as_ref().map_or(500, |c| c.stream_batch_size);
 
             debug!(method = %method, batch_size, "Starting gRPC server-streaming response");
 
@@ -244,19 +265,28 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
 
             let body = http_body_util::StreamBody::new(body_stream);
             let mut response = http::Response::new(TonicBody::new(body));
-            response.headers_mut().insert(
-                "content-type",
-                http::HeaderValue::from_static("application/grpc"),
-            );
+            response
+                .headers_mut()
+                .insert("content-type", http::HeaderValue::from_static("application/grpc"));
             return response;
         }
 
         let response_msg = match &op.kind {
-            handler::RpcKind::Query { view_name, returns_list, columns, row_descriptor } => {
+            handler::RpcKind::Query {
+                view_name,
+                returns_list,
+                columns,
+                row_descriptor,
+            } => {
                 // Look up the type definition.
                 let type_def = match self.schema.find_type(&op.type_name) {
                     Some(t) => t,
-                    None => return grpc_error_response(tonic::Code::Internal, &format!("Type '{}' not found in schema", op.type_name)),
+                    None => {
+                        return grpc_error_response(
+                            tonic::Code::Internal,
+                            &format!("Type '{}' not found in schema", op.type_name),
+                        );
+                    },
                 };
 
                 let rows = match handler::execute_grpc_query(
@@ -267,7 +297,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                     &request_msg,
                     type_def,
                     security_context.as_ref(),
-                ).await {
+                )
+                .await
+                {
                     Ok(rows) => rows,
                     Err(FraiseQLError::Validation { message, .. }) => {
                         return grpc_error_response(tonic::Code::InvalidArgument, &message);
@@ -280,7 +312,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
 
                 debug!(method = %method, row_count = rows.len(), "gRPC query returned results");
 
-                handler::encode_response(rows, columns, *returns_list, row_descriptor, &op.response_descriptor)
+                handler::encode_response(
+                    rows,
+                    columns,
+                    *returns_list,
+                    row_descriptor,
+                    &op.response_descriptor,
+                )
             },
             handler::RpcKind::ServerStream { .. } => {
                 // Handled above — unreachable.
@@ -291,7 +329,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                     self.adapter.as_ref(),
                     function_name,
                     &request_msg,
-                ).await {
+                )
+                .await
+                {
                     Ok(r) => r,
                     Err(FraiseQLError::Validation { message, .. }) => {
                         return grpc_error_response(tonic::Code::InvalidArgument, &message);
@@ -313,19 +353,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         let response_bytes = response_msg.encode_to_vec();
         let mut framed = Vec::with_capacity(5 + response_bytes.len());
         framed.push(0); // no compression
-        framed.extend_from_slice(&(u32::try_from(response_bytes.len()).unwrap_or(u32::MAX)).to_be_bytes());
+        framed.extend_from_slice(
+            &(u32::try_from(response_bytes.len()).unwrap_or(u32::MAX)).to_be_bytes(),
+        );
         framed.extend_from_slice(&response_bytes);
 
         let mut response = http::Response::new(TonicBody::new(axum::body::Body::from(framed)));
-        response.headers_mut().insert(
-            "content-type",
-            http::HeaderValue::from_static("application/grpc"),
-        );
+        response
+            .headers_mut()
+            .insert("content-type", http::HeaderValue::from_static("application/grpc"));
         // gRPC trailers: status OK
-        response.headers_mut().insert(
-            "grpc-status",
-            http::HeaderValue::from_static("0"),
-        );
+        response
+            .headers_mut()
+            .insert("grpc-status", http::HeaderValue::from_static("0"));
         response
     }
 }
@@ -379,10 +419,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             },
             Err(e) => {
                 warn!(error = %e, "gRPC token validation failed");
-                Err(grpc_error_response(
-                    tonic::Code::Unauthenticated,
-                    "Invalid or expired token",
-                ))
+                Err(grpc_error_response(tonic::Code::Unauthenticated, "Invalid or expired token"))
             },
         }
     }
@@ -391,14 +428,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
 /// Build an HTTP response with a gRPC error status.
 fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<TonicBody> {
     let mut response = http::Response::new(TonicBody::empty());
-    response.headers_mut().insert(
-        "content-type",
-        http::HeaderValue::from_static("application/grpc"),
-    );
-    response.headers_mut().insert(
-        "grpc-status",
-        http::HeaderValue::from(code as i32),
-    );
+    response
+        .headers_mut()
+        .insert("content-type", http::HeaderValue::from_static("application/grpc"));
+    response
+        .headers_mut()
+        .insert("grpc-status", http::HeaderValue::from(code as i32));
     if let Ok(msg) = http::HeaderValue::from_str(message) {
         response.headers_mut().insert("grpc-message", msg);
     }
@@ -406,14 +441,14 @@ fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<Tonic
 }
 
 /// Implement the [`tower::Service`] trait for routing gRPC requests.
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static>
-    tower::Service<http::Request<TonicBody>> for DynamicGrpcService<A>
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> tower::Service<http::Request<TonicBody>>
+    for DynamicGrpcService<A>
 {
-    type Response = http::Response<TonicBody>;
     type Error = Infallible;
     type Future = std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
     >;
+    type Response = http::Response<TonicBody>;
 
     fn poll_ready(
         &mut self,
@@ -488,14 +523,9 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     })?;
 
     // Find the service name. Convention: first service in the descriptor pool.
-    let service_name = pool
-        .services()
-        .next()
-        .map(|s| s.full_name().to_string())
-        .ok_or_else(|| {
-            FraiseQLError::validation(
-                "No gRPC service found in descriptor pool".to_string(),
-            )
+    let service_name =
+        pool.services().next().map(|s| s.full_name().to_string()).ok_or_else(|| {
+            FraiseQLError::validation("No gRPC service found in descriptor pool".to_string())
         })?;
 
     info!(
@@ -514,7 +544,12 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     for (method, op) in &dispatch {
         match &op.kind {
-            handler::RpcKind::Query { view_name, columns, returns_list, .. } => {
+            handler::RpcKind::Query {
+                view_name,
+                columns,
+                returns_list,
+                ..
+            } => {
                 debug!(
                     method = %method,
                     view = %view_name,
@@ -523,7 +558,9 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                     "Registered gRPC query RPC"
                 );
             },
-            handler::RpcKind::ServerStream { view_name, columns, .. } => {
+            handler::RpcKind::ServerStream {
+                view_name, columns, ..
+            } => {
                 debug!(
                     method = %method,
                     view = %view_name,

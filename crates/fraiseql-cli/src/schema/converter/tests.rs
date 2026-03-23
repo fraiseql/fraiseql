@@ -1,4 +1,3 @@
-
 use indexmap::IndexMap;
 
 use super::*;
@@ -1305,18 +1304,18 @@ fn arg(name: &str, arg_type: &str) -> IntermediateArgument {
 #[test]
 fn test_validate_accepts_custom_scalar_in_mutation_arg() {
     let intermediate = IntermediateSchema {
-        types:            vec![IntermediateType {
-            name:   "User".to_string(),
+        types: vec![IntermediateType {
+            name: "User".to_string(),
             fields: vec![field("id", "Int"), field("email", "String")],
             ..Default::default()
         }],
-        mutations:        vec![IntermediateMutation {
-            name:        "createUser".to_string(),
+        mutations: vec![IntermediateMutation {
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
-            arguments:   vec![arg("email", "Email")],
+            arguments: vec![arg("email", "Email")],
             ..Default::default()
         }],
-        custom_scalars:   Some(vec![IntermediateScalar {
+        custom_scalars: Some(vec![IntermediateScalar {
             name:             "Email".to_string(),
             description:      Some("Email address scalar".to_string()),
             specified_by_url: None,
@@ -1336,39 +1335,47 @@ fn test_validate_accepts_custom_scalar_in_mutation_arg() {
 #[test]
 fn test_validate_accepts_enum_in_query_arg() {
     let intermediate = IntermediateSchema {
-        types:   vec![IntermediateType {
-            name:   "User".to_string(),
+        types: vec![IntermediateType {
+            name: "User".to_string(),
             fields: vec![field("id", "Int")],
             ..Default::default()
         }],
-        enums:   vec![IntermediateEnum {
+        enums: vec![IntermediateEnum {
             name:        "Role".to_string(),
             values:      vec![
-                IntermediateEnumValue { name: "ADMIN".to_string(), description: None, deprecated: None },
-                IntermediateEnumValue { name: "USER".to_string(), description: None, deprecated: None },
+                IntermediateEnumValue {
+                    name:        "ADMIN".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
+                IntermediateEnumValue {
+                    name:        "USER".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
             ],
             description: None,
         }],
         queries: vec![IntermediateQuery {
-            name:         "usersByRole".to_string(),
-            return_type:  "User".to_string(),
+            name: "usersByRole".to_string(),
+            return_type: "User".to_string(),
             returns_list: true,
-            arguments:    vec![arg("role", "Role")],
+            arguments: vec![arg("role", "Role")],
             ..Default::default()
         }],
         ..Default::default()
     };
 
-    let compiled = SchemaConverter::convert(intermediate)
-        .expect("enum in query arg should validate");
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("enum in query arg should validate");
     assert_eq!(compiled.queries.len(), 1);
 }
 
 #[test]
 fn test_validate_accepts_input_type_in_mutation_arg() {
     let intermediate = IntermediateSchema {
-        types:       vec![IntermediateType {
-            name:   "User".to_string(),
+        types: vec![IntermediateType {
+            name: "User".to_string(),
             fields: vec![field("id", "Int")],
             ..Default::default()
         }],
@@ -1384,39 +1391,39 @@ fn test_validate_accepts_input_type_in_mutation_arg() {
             }],
             description: None,
         }],
-        mutations:   vec![IntermediateMutation {
-            name:        "createUser".to_string(),
+        mutations: vec![IntermediateMutation {
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
-            arguments:   vec![arg("input", "CreateUserInput")],
+            arguments: vec![arg("input", "CreateUserInput")],
             ..Default::default()
         }],
         ..Default::default()
     };
 
-    let compiled = SchemaConverter::convert(intermediate)
-        .expect("input type in mutation arg should validate");
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("input type in mutation arg should validate");
     assert_eq!(compiled.mutations.len(), 1);
 }
 
 #[test]
 fn test_validate_accepts_builtin_fraiseql_scalar_datetime() {
     let intermediate = IntermediateSchema {
-        types:   vec![IntermediateType {
-            name:   "Event".to_string(),
+        types: vec![IntermediateType {
+            name: "Event".to_string(),
             fields: vec![field("id", "Int")],
             ..Default::default()
         }],
         queries: vec![IntermediateQuery {
-            name:         "eventsByDate".to_string(),
-            return_type:  "Event".to_string(),
+            name: "eventsByDate".to_string(),
+            return_type: "Event".to_string(),
             returns_list: true,
-            arguments:    vec![arg("after", "DateTime")],
+            arguments: vec![arg("after", "DateTime")],
             ..Default::default()
         }],
         ..Default::default()
     };
 
-    let compiled = SchemaConverter::convert(intermediate)
-        .expect("DateTime in query arg should validate");
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("DateTime in query arg should validate");
     assert_eq!(compiled.queries.len(), 1);
 }

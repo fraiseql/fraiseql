@@ -10,9 +10,9 @@ pub struct RelationInfo {
     /// Schema name (e.g., "public", "dbo", "main").
     pub schema: String,
     /// Relation name (e.g., "v_pipeline_health_summary").
-    pub name: String,
+    pub name:   String,
     /// Kind of relation.
-    pub kind: RelationKind,
+    pub kind:   RelationKind,
 }
 
 /// The kind of a database relation.
@@ -84,10 +84,6 @@ pub trait DatabaseIntrospector: Send + Sync {
         column_name: &str,
         _limit: usize,
     ) -> Result<Vec<serde_json::Value>> {
-        Ok(self
-            .get_sample_jsonb(table_name, column_name)
-            .await?
-            .into_iter()
-            .collect())
+        Ok(self.get_sample_jsonb(table_name, column_name).await?.into_iter().collect())
     }
 }

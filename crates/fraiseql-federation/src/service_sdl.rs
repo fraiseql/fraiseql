@@ -62,7 +62,8 @@ scalar _Any
 
     // Merge federation fields into existing Query type if present,
     // otherwise use `extend type Query`.
-    let federation_fields = "  _service: _Service!\n  _entities(representations: [_Any!]!): [_Entity]!\n";
+    let federation_fields =
+        "  _service: _Service!\n  _entities(representations: [_Any!]!): [_Entity]!\n";
     let has_query_type = modified_schema.contains("type Query {");
 
     if has_query_type {
@@ -73,10 +74,8 @@ scalar _Any
             1,
         );
         // Remove the double newline that results from the original fields starting with \n
-        modified_schema = modified_schema.replace(
-            &format!("{federation_fields}\n"),
-            federation_fields,
-        );
+        modified_schema =
+            modified_schema.replace(&format!("{federation_fields}\n"), federation_fields);
     }
 
     // Build complete schema
@@ -198,10 +197,7 @@ mod tests {
         let sdl = generate_service_sdl(base_schema, &metadata);
 
         // Federation fields should be merged into the existing Query type
-        assert!(
-            sdl.contains("_service: _Service!"),
-            "SDL should contain _service field:\n{sdl}"
-        );
+        assert!(sdl.contains("_service: _Service!"), "SDL should contain _service field:\n{sdl}");
         assert!(
             sdl.contains("_entities(representations: [_Any!]!): [_Entity]!"),
             "SDL should contain _entities field:\n{sdl}"
@@ -212,10 +208,7 @@ mod tests {
             "SDL should merge into existing Query, not extend:\n{sdl}"
         );
         // Original fields should still be present
-        assert!(
-            sdl.contains("users: [User!]!"),
-            "SDL should keep original query fields:\n{sdl}"
-        );
+        assert!(sdl.contains("users: [User!]!"), "SDL should keep original query fields:\n{sdl}");
     }
 
     #[test]

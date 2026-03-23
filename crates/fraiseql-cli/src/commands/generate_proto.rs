@@ -1,16 +1,17 @@
 //! `generate-proto` command: produce service.proto, vr_migrations.sql, and descriptor.binpb.
 
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 use anyhow::Context;
-use fraiseql_core::db::dialect::{
-    MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect, SqliteDialect,
+use fraiseql_core::{
+    db::dialect::{MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect, SqliteDialect},
+    schema::CompiledSchema,
 };
-use fraiseql_core::schema::CompiledSchema;
 
-use crate::codegen::{proto_gen, row_views};
-use crate::output::OutputFormatter;
+use crate::{
+    codegen::{proto_gen, row_views},
+    output::OutputFormatter,
+};
 
 /// Resolve a SQL dialect from its CLI string name.
 ///
@@ -51,21 +52,16 @@ fn build_file_descriptor_set(proto_source: &str, package: &str) -> anyhow::Resul
 
     // Add well-known type dependencies detected in the proto source.
     if proto_source.contains("google/protobuf/timestamp.proto") {
-        file.dependency
-            .push("google/protobuf/timestamp.proto".to_string());
+        file.dependency.push("google/protobuf/timestamp.proto".to_string());
     }
     if proto_source.contains("google/protobuf/struct.proto") {
-        file.dependency
-            .push("google/protobuf/struct.proto".to_string());
+        file.dependency.push("google/protobuf/struct.proto".to_string());
     }
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let mut buf = Vec::with_capacity(fds.encoded_len());
-    fds.encode(&mut buf)
-        .context("Failed to encode FileDescriptorSet")?;
+    fds.encode(&mut buf).context("Failed to encode FileDescriptorSet")?;
     Ok(buf)
 }
 
@@ -89,8 +85,7 @@ pub fn run(
 ) -> anyhow::Result<()> {
     formatter.progress("Loading compiled schema...");
 
-    let content =
-        fs::read_to_string(schema_path).context("Failed to read compiled schema file")?;
+    let content = fs::read_to_string(schema_path).context("Failed to read compiled schema file")?;
     let schema: CompiledSchema =
         serde_json::from_str(&content).context("Failed to parse compiled schema JSON")?;
 
@@ -147,13 +142,15 @@ pub fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::io::Write as _;
+
     use fraiseql_core::schema::{
         CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy,
         FieldType, TypeDefinition,
     };
-    use std::io::Write as _;
     use tempfile::TempDir;
+
+    use super::*;
 
     fn make_field(name: &str, ft: FieldType, nullable: bool) -> FieldDefinition {
         FieldDefinition {
@@ -294,14 +291,8 @@ mod tests {
         let out_dir = tmp.path().join("out");
         let formatter = OutputFormatter::new(false, true);
 
-        run(
-            &schema_path,
-            &out_dir.to_string_lossy(),
-            "test.v1",
-            "postgres",
-            &formatter,
-        )
-        .expect("run should succeed");
+        run(&schema_path, &out_dir.to_string_lossy(), "test.v1", "postgres", &formatter)
+            .expect("run should succeed");
 
         assert!(out_dir.join("service.proto").exists());
         assert!(out_dir.join("vr_migrations.sql").exists());
@@ -319,9 +310,9 @@ mod tests {
         let tmp = TempDir::new().expect("temp dir");
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name: "Status".to_string(),
-            values: vec![EnumValueDefinition {
-                name: "ACTIVE".to_string(),
+            name:        "Status".to_string(),
+            values:      vec![EnumValueDefinition {
+                name:        "ACTIVE".to_string(),
                 description: None,
                 deprecation: None,
             }],
@@ -341,14 +332,8 @@ mod tests {
         let out_dir = tmp.path().join("out");
         let formatter = OutputFormatter::new(false, true);
 
-        run(
-            &schema_path,
-            &out_dir.to_string_lossy(),
-            "fraiseql.v1",
-            "postgres",
-            &formatter,
-        )
-        .expect("run should succeed");
+        run(&schema_path, &out_dir.to_string_lossy(), "fraiseql.v1", "postgres", &formatter)
+            .expect("run should succeed");
 
         let proto = fs::read_to_string(out_dir.join("service.proto")).expect("read proto");
         assert!(proto.contains("import \"google/protobuf/timestamp.proto\""));
@@ -377,14 +362,8 @@ mod tests {
         let out_dir = tmp.path().join("out");
         let formatter = OutputFormatter::new(false, true);
 
-        run(
-            &schema_path,
-            &out_dir.to_string_lossy(),
-            "test.v1",
-            "mysql",
-            &formatter,
-        )
-        .expect("run with mysql should succeed");
+        run(&schema_path, &out_dir.to_string_lossy(), "test.v1", "mysql", &formatter)
+            .expect("run with mysql should succeed");
 
         let sql = fs::read_to_string(out_dir.join("vr_migrations.sql")).expect("read sql");
         assert!(sql.contains("JSON_EXTRACT"));
@@ -410,22 +389,15 @@ mod tests {
     fn test_run_bad_dialect() {
         let tmp = TempDir::new().expect("temp dir");
         let mut schema = CompiledSchema::new();
-        schema.types.push(make_type(
-            "User",
-            vec![make_field("id", FieldType::Id, false)],
-        ));
+        schema
+            .types
+            .push(make_type("User", vec![make_field("id", FieldType::Id, false)]));
 
         let schema_path = write_schema_file(tmp.path(), &schema);
         let out_dir = tmp.path().join("out");
         let formatter = OutputFormatter::new(false, true);
 
-        let result = run(
-            &schema_path,
-            &out_dir.to_string_lossy(),
-            "test.v1",
-            "oracle",
-            &formatter,
-        );
+        let result = run(&schema_path, &out_dir.to_string_lossy(), "test.v1", "oracle", &formatter);
         assert!(result.is_err());
         match result {
             Ok(()) => panic!("expected error for oracle dialect"),

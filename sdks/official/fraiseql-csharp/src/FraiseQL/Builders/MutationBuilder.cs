@@ -20,7 +20,7 @@ namespace FraiseQL.Builders;
 public sealed class MutationBuilder
 {
     private static readonly HashSet<string> ValidOperations =
-        new(StringComparer.OrdinalIgnoreCase) { "insert", "update", "delete", "upsert" };
+        new(StringComparer.OrdinalIgnoreCase) { "insert", "update", "delete", "upsert", "create", "custom" };
 
     private readonly string _name;
     private string _returnType = string.Empty;
@@ -51,14 +51,14 @@ public sealed class MutationBuilder
     /// <summary>
     /// Sets the mutation operation kind.
     /// </summary>
-    /// <param name="operation">One of <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
+    /// <param name="operation">One of <c>"CREATE"</c>, <c>"UPDATE"</c>, <c>"DELETE"</c>, <c>"CUSTOM"</c>, <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c> (case-insensitive).</param>
     /// <returns>This builder for chaining.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="operation"/> is not a valid operation.</exception>
     public MutationBuilder Operation(string operation)
     {
         if (!ValidOperations.Contains(operation))
             throw new ArgumentException(
-                $"Invalid operation '{operation}'. Must be one of: insert, update, delete, upsert.",
+                $"Invalid operation '{operation}'. Must be one of: CREATE, UPDATE, DELETE, CUSTOM, insert, update, delete, upsert.",
                 nameof(operation));
         _operation = operation;
         return this;

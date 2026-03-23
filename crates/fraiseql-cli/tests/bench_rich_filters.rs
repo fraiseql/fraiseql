@@ -36,7 +36,7 @@ fn bench_compile_empty_schema_rich_types() {
             custom_scalars:       None,
             observers_config:     None,
             subscriptions_config: None,
-validation_config:    None,
+            validation_config:    None,
             federation_config:    None,
             debug_config:         None,
             mcp_config:           None,
@@ -68,7 +68,7 @@ validation_config:    None,
 #[test]
 fn bench_metadata_access_performance() {
     let intermediate = IntermediateSchema {
-security:             None,
+        security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -124,7 +124,7 @@ security:             None,
 #[test]
 fn bench_operator_metadata_parsing() {
     let intermediate = IntermediateSchema {
-security:             None,
+        security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -184,7 +184,7 @@ security:             None,
 #[test]
 fn bench_database_template_access() {
     let intermediate = IntermediateSchema {
-security:             None,
+        security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -250,7 +250,7 @@ security:             None,
 #[test]
 fn bench_lookup_data_access() {
     let intermediate = IntermediateSchema {
-security:             None,
+        security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],
@@ -310,7 +310,7 @@ security:             None,
 #[test]
 fn bench_full_operator_traversal() {
     let intermediate = IntermediateSchema {
-security:             None,
+        security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
         enums:                vec![],

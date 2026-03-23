@@ -648,9 +648,7 @@ mod tests {
     #[test]
     fn test_mysql_create_row_view_ddl() {
         let d = MySqlDialect;
-        let cols = vec![
-            ("id".to_string(), "expr1".to_string()),
-        ];
+        let cols = vec![("id".to_string(), "expr1".to_string())];
         let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
         assert!(ddl.contains("CREATE OR REPLACE VIEW"));
         assert!(ddl.contains("`vr_user`"));
@@ -660,9 +658,7 @@ mod tests {
     #[test]
     fn test_sqlserver_create_row_view_ddl() {
         let d = SqlServerDialect;
-        let cols = vec![
-            ("id".to_string(), "expr1".to_string()),
-        ];
+        let cols = vec![("id".to_string(), "expr1".to_string())];
         let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
         assert!(ddl.contains("CREATE OR ALTER VIEW"));
         assert!(ddl.contains("[vr_user]"));
@@ -671,9 +667,7 @@ mod tests {
     #[test]
     fn test_sqlite_create_row_view_ddl() {
         let d = SqliteDialect;
-        let cols = vec![
-            ("id".to_string(), "expr1".to_string()),
-        ];
+        let cols = vec![("id".to_string(), "expr1".to_string())];
         let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
         // SQLite has no OR REPLACE — must DROP first
         assert!(ddl.contains("DROP VIEW IF EXISTS"));

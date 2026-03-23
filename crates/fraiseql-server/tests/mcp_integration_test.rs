@@ -302,8 +302,9 @@ async fn call_tool_with_arguments_builds_valid_query() {
 
 #[tokio::test]
 async fn call_tool_executor_tracks_results() {
-    use fraiseql_server::mcp::handler::{MCP_TOOL_CALLS_TOTAL, MCP_TOOL_ERRORS_TOTAL};
     use std::sync::atomic::Ordering;
+
+    use fraiseql_server::mcp::handler::{MCP_TOOL_CALLS_TOTAL, MCP_TOOL_ERRORS_TOTAL};
 
     // The global counters are incremented by the ServerHandler::call_tool impl,
     // not by executor::call_tool directly. We verify they exist and are readable.

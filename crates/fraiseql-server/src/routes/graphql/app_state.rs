@@ -70,7 +70,7 @@ pub struct AppState<A: DatabaseAdapter> {
     pub rate_limiter:          Option<Arc<crate::middleware::rate_limit::RateLimiter>>,
     /// Event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
-    pub event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
+    pub event_transport:       Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {

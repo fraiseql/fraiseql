@@ -22,10 +22,11 @@ use serde_json::json;
 use tower_http::compression::CompressionLayer;
 use tracing::info;
 
-use super::handler::{RestError, RestHandler, RestResponse};
-use super::resource::{HttpMethod, RestRouteTable, RouteSource};
-use crate::extractors::OptionalSecurityContext;
-use crate::routes::graphql::AppState;
+use super::{
+    handler::{RestError, RestHandler, RestResponse},
+    resource::{HttpMethod, RestRouteTable, RouteSource},
+};
+use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -54,10 +55,10 @@ where
         Some(_) => {
             info!("REST transport disabled (rest.enabled = false)");
             return None;
-        }
+        },
         None => {
             return None;
-        }
+        },
     };
 
     let route_table = match RestRouteTable::from_compiled_schema(schema) {
@@ -65,7 +66,7 @@ where
         Err(e) => {
             tracing::warn!(error = %e, "REST route derivation failed — REST transport disabled");
             return None;
-        }
+        },
     };
 
     // Log diagnostics from derivation.
@@ -73,19 +74,18 @@ where
         match diag.level {
             super::resource::DiagnosticLevel::Info => {
                 tracing::debug!(message = %diag.message, "REST derivation");
-            }
+            },
             super::resource::DiagnosticLevel::Warning => {
                 tracing::warn!(message = %diag.message, "REST derivation");
-            }
+            },
             super::resource::DiagnosticLevel::Error => {
                 tracing::error!(message = %diag.message, "REST derivation");
-            }
+            },
         }
     }
 
     let base_path = config.path;
-    let idempotency_store =
-        super::idempotency::create_store(config.idempotency_ttl_seconds);
+    let idempotency_store = super::idempotency::create_store(config.idempotency_ttl_seconds);
 
     let rest_state = RestState {
         executor: state.executor.load_full(),
@@ -139,9 +139,7 @@ where
     }
 
     // Finalize state and apply compression.
-    let mut router = router
-        .with_state(rest_state)
-        .layer(CompressionLayer::new());
+    let mut router = router.with_state(rest_state).layer(CompressionLayer::new());
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
@@ -150,7 +148,7 @@ where
         Err(e) => {
             tracing::warn!(error = %e, "OpenAPI spec generation failed");
             Arc::new(json!({"error": "OpenAPI generation failed"}))
-        }
+        },
     };
     router = router.route(
         &openapi_path,
@@ -227,12 +225,12 @@ where
                     let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
                     collection_patch_paths.insert(collection_path);
                     router.route(&axum_path, patch(rest_patch_handler::<A>))
-                }
+                },
                 HttpMethod::Delete => {
                     let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
                     collection_delete_paths.insert(collection_path);
                     router.route(&axum_path, delete(rest_delete_handler::<A>))
-                }
+                },
             };
         }
 
@@ -266,9 +264,7 @@ where
     }
 
     // Finalize state and apply compression.
-    let mut router = router
-        .with_state(rest_state)
-        .layer(CompressionLayer::new());
+    let mut router = router.with_state(rest_state).layer(CompressionLayer::new());
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
@@ -277,7 +273,7 @@ where
         Err(e) => {
             tracing::warn!(error = %e, "OpenAPI spec generation failed");
             Arc::new(json!({"error": "OpenAPI generation failed"}))
-        }
+        },
     };
     router = router.route(
         &openapi_path,
@@ -313,12 +309,12 @@ where
 /// Shared state for REST handlers.
 #[derive(Clone)]
 struct RestState<A: DatabaseAdapter> {
-    executor: Arc<Executor<A>>,
-    route_table: Arc<RestRouteTable>,
+    executor:          Arc<Executor<A>>,
+    route_table:       Arc<RestRouteTable>,
     idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
-    event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
+    event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -342,10 +338,8 @@ where
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
-    let query_refs: Vec<(&str, &str)> = query_pairs
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
+    let query_refs: Vec<(&str, &str)> =
+        query_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
     // NDJSON content negotiation
     if super::streaming::accepts_ndjson(&parts.headers) {
@@ -367,15 +361,13 @@ where
                 for (key, value) in &ndjson.headers {
                     builder = builder.header(key, value);
                 }
-                builder
-                    .body(ndjson.body.into_body())
-                    .unwrap_or_else(|_| {
-                        Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(Body::empty())
-                            .expect("fallback response")
-                    })
-            }
+                builder.body(ndjson.body.into_body()).unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .expect("fallback response")
+                })
+            },
             Err(rest_err) => rest_result_to_response(Err(rest_err)),
         };
     }
@@ -461,10 +453,8 @@ where
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
-    let query_refs: Vec<(&str, &str)> = query_pairs
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
+    let query_refs: Vec<(&str, &str)> =
+        query_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
     let body_value = match read_json_body(body).await {
         Ok(v) => v,
@@ -476,7 +466,13 @@ where
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
-        .handle_patch(&relative_path, &body_value, &query_refs, &parts.headers, security_ctx.as_ref())
+        .handle_patch(
+            &relative_path,
+            &body_value,
+            &query_refs,
+            &parts.headers,
+            security_ctx.as_ref(),
+        )
         .await;
 
     rest_result_to_response(result)
@@ -495,10 +491,8 @@ where
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
-    let query_refs: Vec<(&str, &str)> = query_pairs
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
+    let query_refs: Vec<(&str, &str)> =
+        query_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist");
@@ -533,16 +527,12 @@ where
             return rest_result_to_response(Err(super::handler::RestError::not_found(
                 "Stream endpoint not found",
             )));
-        }
+        },
     };
 
     // Verify the resource exists
     let schema = rest.executor.schema();
-    let has_resource = rest
-        .route_table
-        .resources
-        .iter()
-        .any(|r| r.name == resource_name);
+    let has_resource = rest.route_table.resources.iter().any(|r| r.name == resource_name);
 
     if !has_resource {
         return rest_result_to_response(Err(super::handler::RestError::not_found(format!(
@@ -554,8 +544,8 @@ where
     if let Some(config) = &schema.rest_config {
         if config.require_auth && security_ctx.is_none() {
             return rest_result_to_response(Err(super::handler::RestError {
-                status: StatusCode::UNAUTHORIZED,
-                code: "UNAUTHENTICATED",
+                status:  StatusCode::UNAUTHORIZED,
+                code:    "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
             }));
@@ -595,9 +585,7 @@ where
                     // Merge entity events with heartbeat ticks.
                     let heartbeat = futures::stream::unfold((), move |()| async move {
                         tokio::time::sleep(heartbeat_interval).await;
-                        let event = axum::response::sse::Event::default()
-                            .event("ping")
-                            .data("");
+                        let event = axum::response::sse::Event::default().event("ping").data("");
                         Some((event, ()))
                     });
 
@@ -613,57 +601,46 @@ where
                                     .json_data(&entity_event.data)
                                     .ok()?;
                                 Some(event)
-                            }
+                            },
                             Err(e) => {
                                 tracing::warn!(error = %e, "SSE event stream error");
                                 None
-                            }
+                            },
                         }
                     });
 
                     // Select between entity events and heartbeat pings.
-                    let merged = futures::stream::select(
-                        entity_events,
-                        heartbeat,
-                    )
-                    .map(Ok::<_, std::convert::Infallible>);
+                    let merged = futures::stream::select(entity_events, heartbeat)
+                        .map(Ok::<_, std::convert::Infallible>);
 
-                    let sse = axum::response::sse::Sse::new(merged)
-                        .keep_alive(
-                            axum::response::sse::KeepAlive::new()
-                                .interval(heartbeat_interval)
-                                .text(""),
-                        );
+                    let sse = axum::response::sse::Sse::new(merged).keep_alive(
+                        axum::response::sse::KeepAlive::new().interval(heartbeat_interval).text(""),
+                    );
 
                     return axum::response::IntoResponse::into_response(sse);
-                }
+                },
                 Err(e) => {
                     tracing::warn!(error = %e, resource = %resource_name, "Failed to subscribe to event stream");
                     return rest_result_to_response(Err(super::handler::RestError {
-                        status: StatusCode::SERVICE_UNAVAILABLE,
-                        code: "EVENT_STREAM_UNAVAILABLE",
+                        status:  StatusCode::SERVICE_UNAVAILABLE,
+                        code:    "EVENT_STREAM_UNAVAILABLE",
                         message: "Could not connect to event stream".to_string(),
                         details: None,
                     }));
-                }
+                },
             }
         }
 
         // Fallback: no event transport configured — heartbeat-only stream.
         let stream = futures::stream::unfold((), move |()| async move {
             tokio::time::sleep(heartbeat_interval).await;
-            let event = axum::response::sse::Event::default()
-                .event("ping")
-                .data("");
+            let event = axum::response::sse::Event::default().event("ping").data("");
             Some((Ok::<_, std::convert::Infallible>(event), ()))
         });
 
-        let sse = axum::response::sse::Sse::new(stream)
-            .keep_alive(
-                axum::response::sse::KeepAlive::new()
-                    .interval(heartbeat_interval)
-                    .text(""),
-            );
+        let sse = axum::response::sse::Sse::new(stream).keep_alive(
+            axum::response::sse::KeepAlive::new().interval(heartbeat_interval).text(""),
+        );
 
         axum::response::IntoResponse::into_response(sse)
     }
@@ -690,9 +667,7 @@ fn to_axum_path(base_path: &str, route_path: &str) -> String {
 /// Strip the REST base path prefix from a request path.
 fn strip_base_path(base_path: &str, request_path: &str) -> String {
     let base = base_path.trim_end_matches('/');
-    let stripped = request_path
-        .strip_prefix(base)
-        .unwrap_or(request_path);
+    let stripped = request_path.strip_prefix(base).unwrap_or(request_path);
     if stripped.is_empty() {
         "/".to_string()
     } else {
@@ -715,7 +690,9 @@ fn parse_query_pairs(query: &str) -> Vec<(String, String)> {
             let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
             (
                 urlencoding::decode(key).unwrap_or(std::borrow::Cow::Borrowed(key)).into_owned(),
-                urlencoding::decode(value).unwrap_or(std::borrow::Cow::Borrowed(value)).into_owned(),
+                urlencoding::decode(value)
+                    .unwrap_or(std::borrow::Cow::Borrowed(value))
+                    .into_owned(),
             )
         })
         .collect()
@@ -731,7 +708,7 @@ async fn read_json_body(body: Body) -> Result<serde_json::Value, Response> {
                 "PAYLOAD_TOO_LARGE",
                 "Request body too large",
             ));
-        }
+        },
     };
 
     if bytes.is_empty() {
@@ -739,11 +716,7 @@ async fn read_json_body(body: Body) -> Result<serde_json::Value, Response> {
     }
 
     serde_json::from_slice(&bytes).map_err(|e| {
-        error_response(
-            StatusCode::BAD_REQUEST,
-            "INVALID_JSON",
-            &format!("Invalid JSON body: {e}"),
-        )
+        error_response(StatusCode::BAD_REQUEST, "INVALID_JSON", &format!("Invalid JSON body: {e}"))
     })
 }
 
@@ -768,7 +741,7 @@ fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response 
                             .body(Body::empty())
                             .expect("fallback response")
                     })
-                }
+                },
                 None => builder.body(Body::empty()).unwrap_or_else(|_| {
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -776,7 +749,7 @@ fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response 
                         .expect("fallback response")
                 }),
             }
-        }
+        },
         Err(rest_err) => {
             let body = rest_err.to_json();
             let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
@@ -790,7 +763,7 @@ fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response 
                     .body(Body::empty())
                     .expect("fallback response")
             })
-        }
+        },
     }
 }
 
@@ -817,16 +790,14 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
-
     use std::sync::Arc;
 
-    use fraiseql_core::schema::{
-        FieldType, MutationDefinition, MutationOperation, RestConfig,
-    };
+    use fraiseql_core::schema::{FieldType, MutationDefinition, MutationOperation, RestConfig};
     use fraiseql_test_utils::schema_builder::{
         TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder,
     };
+
+    use super::*;
 
     fn mutation(name: &str, op: MutationOperation) -> MutationDefinition {
         let mut m = MutationDefinition::new(name, "User");
@@ -841,16 +812,24 @@ mod tests {
         let mut schema = TestSchemaBuilder::new()
             .with_simple_query("users", "User", true)
             .with_simple_query("user", "User", false)
-            .with_mutation(mutation("create_user", MutationOperation::Insert { table: table.clone() }))
-            .with_mutation(mutation("update_user", MutationOperation::Update { table: table.clone() }))
+            .with_mutation(mutation(
+                "create_user",
+                MutationOperation::Insert {
+                    table: table.clone(),
+                },
+            ))
+            .with_mutation(mutation(
+                "update_user",
+                MutationOperation::Update {
+                    table: table.clone(),
+                },
+            ))
             .with_mutation(mutation("delete_user", MutationOperation::Delete { table }))
             .with_type(
                 TestTypeBuilder::new("User", "v_user")
                     .with_field(TestFieldBuilder::new("pk_user_id", FieldType::Int).build())
                     .with_field(TestFieldBuilder::new("name", FieldType::String).build())
-                    .with_field(
-                        TestFieldBuilder::nullable("email", FieldType::String).build(),
-                    )
+                    .with_field(TestFieldBuilder::nullable("email", FieldType::String).build())
                     .build(),
             )
             .build();
@@ -889,9 +868,7 @@ mod tests {
         schema: fraiseql_core::schema::CompiledSchema,
     ) -> AppState<fraiseql_test_utils::failing_adapter::FailingAdapter> {
         let adapter = Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::default());
-        let executor = Arc::new(
-            fraiseql_core::runtime::Executor::new(schema, adapter),
-        );
+        let executor = Arc::new(fraiseql_core::runtime::Executor::new(schema, adapter));
         AppState::new(executor)
     }
 
@@ -1016,9 +993,6 @@ mod tests {
     fn parse_query_pairs_encoded() {
         let result = parse_query_pairs("name%5Bicontains%5D=alice");
         assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0],
-            ("name[icontains]".to_string(), "alice".to_string())
-        );
+        assert_eq!(result[0], ("name[icontains]".to_string(), "alice".to_string()));
     }
 }

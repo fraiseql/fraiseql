@@ -74,10 +74,7 @@ impl DatabaseTarget {
         };
 
         if name.contains('.') {
-            name.split('.')
-                .map(quote_one)
-                .collect::<Vec<_>>()
-                .join(".")
+            name.split('.').map(quote_one).collect::<Vec<_>>().join(".")
         } else {
             quote_one(name)
         }

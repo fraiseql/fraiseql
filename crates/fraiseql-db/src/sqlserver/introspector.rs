@@ -2,12 +2,11 @@
 
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
-
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
-    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
     DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
 };
 
 /// SQL Server introspector for database metadata.

@@ -300,7 +300,7 @@ pub enum ColumnValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnSpec {
     /// Column name in the row-shaped view (e.g., `"id"`, `"name"`).
-    pub name: String,
+    pub name:        String,
     /// Expected column type, used to select the correct extraction method.
     pub column_type: crate::dialect::RowViewColumnType,
 }
@@ -391,7 +391,9 @@ mod tests {
                 ColumnValue::Bool(true),
                 ColumnValue::Uuid(uuid::Uuid::nil()),
                 ColumnValue::Timestamp(chrono::DateTime::<chrono::Utc>::default()),
-                ColumnValue::Date(chrono::NaiveDate::from_ymd_opt(2026, 3, 20).expect("valid date")),
+                ColumnValue::Date(
+                    chrono::NaiveDate::from_ymd_opt(2026, 3, 20).expect("valid date"),
+                ),
                 ColumnValue::Json(serde_json::json!({"key": "value"})),
             ];
 
@@ -414,72 +416,88 @@ mod tests {
         #[test]
         fn row_query_sql_generation_postgres() {
             let cols = [
-                ColumnSpec { name: "id".into(),   column_type: RowViewColumnType::Uuid },
-                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
             ];
             let col_list: String = cols
                 .iter()
                 .map(|c| crate::quote_postgres_identifier(&c.name))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let sql = format!(
-                "SELECT {col_list} FROM {}",
-                crate::quote_postgres_identifier("vr_user")
-            );
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_postgres_identifier("vr_user"));
             assert_eq!(sql, r#"SELECT "id", "name" FROM "vr_user""#);
         }
 
         #[test]
         fn row_query_sql_generation_mysql() {
             let cols = [
-                ColumnSpec { name: "id".into(),   column_type: RowViewColumnType::Uuid },
-                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
             ];
             let col_list: String = cols
                 .iter()
                 .map(|c| crate::quote_mysql_identifier(&c.name))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let sql = format!(
-                "SELECT {col_list} FROM {}",
-                crate::quote_mysql_identifier("vr_user")
-            );
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_mysql_identifier("vr_user"));
             assert_eq!(sql, "SELECT `id`, `name` FROM `vr_user`");
         }
 
         #[test]
         fn row_query_sql_generation_sqlite() {
             let cols = [
-                ColumnSpec { name: "id".into(),   column_type: RowViewColumnType::Uuid },
-                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
             ];
             let col_list: String = cols
                 .iter()
                 .map(|c| crate::quote_sqlite_identifier(&c.name))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let sql = format!(
-                "SELECT {col_list} FROM {}",
-                crate::quote_sqlite_identifier("vr_user")
-            );
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_sqlite_identifier("vr_user"));
             assert_eq!(sql, r#"SELECT "id", "name" FROM "vr_user""#);
         }
 
         #[test]
         fn row_query_sql_generation_sqlserver() {
             let cols = [
-                ColumnSpec { name: "id".into(),   column_type: RowViewColumnType::Uuid },
-                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
             ];
             let col_list: String = cols
                 .iter()
                 .map(|c| crate::quote_sqlserver_identifier(&c.name))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let sql = format!(
-                "SELECT {col_list} FROM {}",
-                crate::quote_sqlserver_identifier("vr_user")
-            );
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_sqlserver_identifier("vr_user"));
             assert_eq!(sql, "SELECT [id], [name] FROM [vr_user]");
         }
 

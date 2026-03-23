@@ -571,7 +571,8 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             },
 
             // ── Unknown / future operators ────────────────────────────────────
-            #[allow(unreachable_patterns)] // Reason: WhereOperator is #[non_exhaustive]; this arm covers future variants
+            #[allow(unreachable_patterns)]
+            // Reason: WhereOperator is #[non_exhaustive]; this arm covers future variants
             _ => Err(FraiseQLError::Validation {
                 message: format!(
                     "Operator {operator:?} is not supported by the {} dialect",

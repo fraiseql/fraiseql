@@ -221,22 +221,19 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         for mapping in &config.variables {
             let value = match &mapping.source {
-                SessionVariableSource::Jwt { claim } => {
-                    match claim.as_str() {
-                        "sub" => security_context.user_id.clone(),
-                        "tenant_id" | "org_id" => security_context
-                            .tenant_id
-                            .clone()
-                            .unwrap_or_default(),
-                        other => security_context
-                            .attributes
-                            .get(other)
-                            .map(|v| match v {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            })
-                            .unwrap_or_default(),
-                    }
+                SessionVariableSource::Jwt { claim } => match claim.as_str() {
+                    "sub" => security_context.user_id.clone(),
+                    "tenant_id" | "org_id" => {
+                        security_context.tenant_id.clone().unwrap_or_default()
+                    },
+                    other => security_context
+                        .attributes
+                        .get(other)
+                        .map(|v| match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        })
+                        .unwrap_or_default(),
                 },
                 SessionVariableSource::Header { name } => {
                     // Headers are forwarded via SecurityContext.attributes with "header:" prefix
@@ -252,20 +249,15 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Built-in: fraiseql.started_at for mutations
         if is_mutation && config.inject_started_at {
-            resolved.push((
-                "fraiseql.started_at".to_string(),
-                chrono::Utc::now().to_rfc3339(),
-            ));
+            resolved.push(("fraiseql.started_at".to_string(), chrono::Utc::now().to_rfc3339()));
         }
 
         if resolved.is_empty() {
             return Ok(());
         }
 
-        let pairs: Vec<(&str, &str)> = resolved
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let pairs: Vec<(&str, &str)> =
+            resolved.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         self.adapter.set_session_variables(&pairs).await
     }
 

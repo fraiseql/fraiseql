@@ -39,8 +39,7 @@ use serde::{Deserialize, Serialize};
 
 mod detector;
 // Re-export from fraiseql-db to avoid duplication
-pub use fraiseql_db::introspector::DatabaseIntrospector;
-pub use fraiseql_db::types::DatabaseType;
+pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
 pub use self::detector::FactTableDetector;
 

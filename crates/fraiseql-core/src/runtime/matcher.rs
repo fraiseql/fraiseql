@@ -66,7 +66,7 @@ impl QueryMatch {
                         "Nested field selection not supported: '{name}'. \
                          Use the parent field name to include the full nested object."
                     ),
-                    path: Some("select".to_string()),
+                    path:    Some("select".to_string()),
                 });
             }
         }
@@ -82,7 +82,7 @@ impl QueryMatch {
                             td.name,
                             available.join(", ")
                         ),
-                        path: Some("select".to_string()),
+                        path:    Some("select".to_string()),
                     });
                 }
             }
@@ -101,11 +101,11 @@ impl QueryMatch {
             .collect();
 
         let root_selection = FieldSelection {
-            name:          query_def.name.clone(),
-            alias:         None,
-            arguments:     vec![],
+            name: query_def.name.clone(),
+            alias: None,
+            arguments: vec![],
             nested_fields,
-            directives:    vec![],
+            directives: vec![],
         };
 
         Ok(Self {
@@ -642,13 +642,8 @@ mod tests {
 
     #[test]
     fn test_from_operation_empty_field_list() {
-        let qm = QueryMatch::from_operation(
-            test_query_def(),
-            vec![],
-            HashMap::new(),
-            None,
-        )
-        .unwrap();
+        let qm =
+            QueryMatch::from_operation(test_query_def(), vec![], HashMap::new(), None).unwrap();
 
         assert_eq!(qm.selections.len(), 1);
         assert!(qm.selections[0].nested_fields.is_empty());

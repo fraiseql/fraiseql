@@ -9,23 +9,21 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test code
 #![allow(clippy::missing_errors_doc)] // Reason: test code
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::body::Body;
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::runtime::Executor;
-use fraiseql_core::schema::{
-    ArgumentDefinition, FieldType, MutationDefinition, MutationOperation, RestConfig,
+use fraiseql_core::{
+    db::types::JsonbValue,
+    runtime::Executor,
+    schema::{ArgumentDefinition, FieldType, MutationDefinition, MutationOperation, RestConfig},
 };
-use fraiseql_server::routes::graphql::AppState;
-use fraiseql_server::routes::rest::rest_router;
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
-use fraiseql_test_utils::schema_builder::{
-    TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+use fraiseql_server::routes::{graphql::AppState, rest::rest_router};
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder},
 };
 use http::{Request, StatusCode};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 // ---------------------------------------------------------------------------
@@ -60,12 +58,12 @@ fn mutation_success_row_with_id(entity: Value, entity_id: &str) -> Vec<HashMap<S
 
 fn arg(name: &str, ty: FieldType) -> ArgumentDefinition {
     ArgumentDefinition {
-        name: name.to_string(),
-        arg_type: ty,
-        nullable: false,
+        name:          name.to_string(),
+        arg_type:      ty,
+        nullable:      false,
         default_value: None,
-        description: None,
-        deprecation: None,
+        description:   None,
+        deprecation:   None,
     }
 }
 
@@ -74,7 +72,9 @@ fn build_rest_schema() -> fraiseql_core::schema::CompiledSchema {
 
     // Create mutation with name + email args
     let mut create_user = MutationDefinition::new("create_user", "User");
-    create_user.operation = MutationOperation::Insert { table: table.clone() };
+    create_user.operation = MutationOperation::Insert {
+        table: table.clone(),
+    };
     create_user.sql_source = Some("fn_create_user".to_string());
     create_user.arguments = vec![
         arg("name", FieldType::String),
@@ -84,7 +84,9 @@ fn build_rest_schema() -> fraiseql_core::schema::CompiledSchema {
     // Update mutation with id + name + email args (full coverage of writable fields)
     // Non-ID arguments are nullable so PATCH can send partial data.
     let mut update_user = MutationDefinition::new("update_user", "User");
-    update_user.operation = MutationOperation::Update { table: table.clone() };
+    update_user.operation = MutationOperation::Update {
+        table: table.clone(),
+    };
     update_user.sql_source = Some("fn_update_user".to_string());
     update_user.arguments = vec![
         arg("pk_user_id", FieldType::Int),
@@ -102,7 +104,9 @@ fn build_rest_schema() -> fraiseql_core::schema::CompiledSchema {
 
     // Delete mutation with id arg
     let mut delete_user = MutationDefinition::new("delete_user", "User");
-    delete_user.operation = MutationOperation::Delete { table: table.clone() };
+    delete_user.operation = MutationOperation::Delete {
+        table: table.clone(),
+    };
     delete_user.sql_source = Some("fn_delete_user".to_string());
     delete_user.arguments = vec![arg("pk_user_id", FieldType::Int)];
 
@@ -143,9 +147,7 @@ fn build_rest_schema() -> fraiseql_core::schema::CompiledSchema {
             TestTypeBuilder::new("User", "v_user")
                 .with_field(TestFieldBuilder::new("pk_user_id", FieldType::Int).build())
                 .with_field(TestFieldBuilder::new("name", FieldType::String).build())
-                .with_field(
-                    TestFieldBuilder::nullable("email", FieldType::String).build(),
-                )
+                .with_field(TestFieldBuilder::nullable("email", FieldType::String).build())
                 .build(),
         )
         .build();
@@ -168,9 +170,7 @@ fn build_rest_schema_with_posts() -> fraiseql_core::schema::CompiledSchema {
         TestTypeBuilder::new("Post", "v_post")
             .with_field(TestFieldBuilder::new("pk_post_id", FieldType::Int).build())
             .with_field(TestFieldBuilder::new("title", FieldType::String).build())
-            .with_field(
-                TestFieldBuilder::nullable("body", FieldType::String).build(),
-            )
+            .with_field(TestFieldBuilder::nullable("body", FieldType::String).build())
             .build(),
     );
 
@@ -191,24 +191,29 @@ fn build_rest_schema_with_posts() -> fraiseql_core::schema::CompiledSchema {
 // Helper: build router + send requests
 // ---------------------------------------------------------------------------
 
-fn build_router(adapter: FailingAdapter, schema: fraiseql_core::schema::CompiledSchema) -> axum::Router {
+fn build_router(
+    adapter: FailingAdapter,
+    schema: fraiseql_core::schema::CompiledSchema,
+) -> axum::Router {
     let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
     rest_router(state).expect("REST router should be created")
 }
 
-fn build_router_with_relay(adapter: FailingAdapter, schema: fraiseql_core::schema::CompiledSchema) -> axum::Router {
+fn build_router_with_relay(
+    adapter: FailingAdapter,
+    schema: fraiseql_core::schema::CompiledSchema,
+) -> axum::Router {
     let executor = Arc::new(Executor::new_with_relay(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
     rest_router(state).expect("REST router should be created")
 }
 
-async fn send_request(router: &axum::Router, request: Request<Body>) -> (StatusCode, http::HeaderMap, Vec<u8>) {
-    let response = router
-        .clone()
-        .oneshot(request)
-        .await
-        .unwrap();
+async fn send_request(
+    router: &axum::Router,
+    request: Request<Body>,
+) -> (StatusCode, http::HeaderMap, Vec<u8>) {
+    let response = router.clone().oneshot(request).await.unwrap();
     let status = response.status();
     let headers = response.headers().clone();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -216,10 +221,7 @@ async fn send_request(router: &axum::Router, request: Request<Body>) -> (StatusC
 }
 
 async fn send_get(router: &axum::Router, uri: &str) -> (StatusCode, http::HeaderMap, Value) {
-    let request = Request::builder()
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().uri(uri).body(Body::empty()).unwrap();
     let (status, headers, body) = send_request(router, request).await;
     let json: Value = if body.is_empty() {
         Value::Null
@@ -248,7 +250,11 @@ async fn send_get_with_headers(
     (status, headers, json)
 }
 
-async fn send_post(router: &axum::Router, uri: &str, body: Value) -> (StatusCode, http::HeaderMap, Value) {
+async fn send_post(
+    router: &axum::Router,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, http::HeaderMap, Value) {
     let request = Request::builder()
         .method("POST")
         .uri(uri)
@@ -264,7 +270,11 @@ async fn send_post(router: &axum::Router, uri: &str, body: Value) -> (StatusCode
     (status, headers, json)
 }
 
-async fn send_put(router: &axum::Router, uri: &str, body: Value) -> (StatusCode, http::HeaderMap, Value) {
+async fn send_put(
+    router: &axum::Router,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, http::HeaderMap, Value) {
     let request = Request::builder()
         .method("PUT")
         .uri(uri)
@@ -301,11 +311,7 @@ async fn send_patch(
 }
 
 async fn send_delete(router: &axum::Router, uri: &str) -> (StatusCode, http::HeaderMap, Vec<u8>) {
-    let request = Request::builder()
-        .method("DELETE")
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().method("DELETE").uri(uri).body(Body::empty()).unwrap();
     send_request(router, request).await
 }
 
@@ -323,18 +329,13 @@ async fn send_delete_with_headers(
 }
 
 async fn send_head(router: &axum::Router, uri: &str) -> (StatusCode, http::HeaderMap, Vec<u8>) {
-    let request = Request::builder()
-        .method("HEAD")
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().method("HEAD").uri(uri).body(Body::empty()).unwrap();
     send_request(router, request).await
 }
 
 // ===========================================================================
 // Tests
 // ===========================================================================
-
 
 // ---------------------------------------------------------------------------
 // 1. POST /rest/v1/users -> 201 + body
@@ -348,12 +349,9 @@ async fn test_post_create_user_returns_201() {
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, headers, _body) = send_post(
-        &router,
-        "/rest/v1/users",
-        json!({"name": "Alice", "email": "alice@test.com"}),
-    )
-    .await;
+    let (status, headers, _body) =
+        send_post(&router, "/rest/v1/users", json!({"name": "Alice", "email": "alice@test.com"}))
+            .await;
 
     assert_eq!(status, StatusCode::CREATED);
     assert!(headers.contains_key("x-request-id"));
@@ -365,8 +363,7 @@ async fn test_post_create_user_returns_201() {
 #[tokio::test]
 async fn test_get_single_user_returns_200() {
     let user_data = json!({"pk_user_id": 42, "name": "Alice", "email": "alice@test.com"});
-    let adapter = FailingAdapter::new()
-        .with_response("v_user", vec![JsonbValue::new(user_data)]);
+    let adapter = FailingAdapter::new().with_response("v_user", vec![JsonbValue::new(user_data)]);
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -436,12 +433,8 @@ async fn test_put_missing_field_returns_422() {
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, _headers, json) = send_put(
-        &router,
-        "/rest/v1/users/42",
-        json!({"name": "Alice"}),
-    )
-    .await;
+    let (status, _headers, json) =
+        send_put(&router, "/rest/v1/users/42", json!({"name": "Alice"})).await;
 
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(json["error"]["code"], "UNPROCESSABLE_ENTITY");
@@ -464,12 +457,8 @@ async fn test_patch_partial_update_returns_200() {
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, _headers, json) = send_patch(
-        &router,
-        "/rest/v1/users/42",
-        json!({"email": "new@test.com"}),
-    )
-    .await;
+    let (status, _headers, json) =
+        send_patch(&router, "/rest/v1/users/42", json!({"email": "new@test.com"})).await;
 
     assert_eq!(status, StatusCode::OK, "PATCH failed with body: {json}");
 }
@@ -487,12 +476,9 @@ async fn test_patch_sub_resource_action_returns_200() {
     let router = build_router(adapter, schema);
 
     // Derived action path: "update_user_email" on type "User" -> strips "user" -> "update__email"
-    let (status, _headers, _json) = send_patch(
-        &router,
-        "/rest/v1/users/42/update__email",
-        json!({"email": "new@test.com"}),
-    )
-    .await;
+    let (status, _headers, _json) =
+        send_patch(&router, "/rest/v1/users/42/update__email", json!({"email": "new@test.com"}))
+            .await;
 
     assert_eq!(status, StatusCode::OK);
 }
@@ -502,9 +488,9 @@ async fn test_patch_sub_resource_action_returns_200() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_get_collection_with_filter_sort_select() {
-    let users = vec![
-        JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice", "email": "alice@test.com"})),
-    ];
+    let users = vec![JsonbValue::new(
+        json!({"pk_user_id": 1, "name": "Alice", "email": "alice@test.com"}),
+    )];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let schema = build_rest_schema();
@@ -526,20 +512,14 @@ async fn test_get_collection_with_filter_sort_select() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_get_with_prefer_count_exact() {
-    let users = vec![
-        JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"})),
-    ];
+    let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, headers, json) = send_get_with_headers(
-        &router,
-        "/rest/v1/users",
-        &[("prefer", "count=exact")],
-    )
-    .await;
+    let (status, headers, json) =
+        send_get_with_headers(&router, "/rest/v1/users", &[("prefer", "count=exact")]).await;
 
     assert_eq!(status, StatusCode::OK);
     // count_rows returns 0 for FailingAdapter (empty raw query), but the
@@ -557,9 +537,7 @@ async fn test_get_with_prefer_count_exact() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_get_without_prefer_no_total() {
-    let users = vec![
-        JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"})),
-    ];
+    let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let schema = build_rest_schema();
@@ -585,12 +563,8 @@ async fn test_post_custom_action_returns_200() {
     let router = build_router(adapter, schema);
 
     // Derived action path: "archive_user" on type "User" -> strips "user" -> "archive_"
-    let (status, _headers, _json) = send_post(
-        &router,
-        "/rest/v1/users/42/archive_",
-        json!({}),
-    )
-    .await;
+    let (status, _headers, _json) =
+        send_post(&router, "/rest/v1/users/42/archive_", json!({})).await;
 
     assert_eq!(status, StatusCode::OK);
 }
@@ -601,10 +575,7 @@ async fn test_post_custom_action_returns_200() {
 #[tokio::test]
 async fn test_delete_returns_204() {
     let adapter = FailingAdapter::new()
-        .with_function_response(
-            "fn_delete_user",
-            mutation_success_row_with_id(json!(null), "42"),
-        );
+        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -640,16 +611,15 @@ async fn test_get_after_delete_returns_404_when_empty() {
 #[tokio::test]
 async fn test_delete_with_prefer_return_representation() {
     let entity = json!({"pk_user_id": 42, "name": "Alice", "email": "alice@test.com"});
-    let adapter = FailingAdapter::new()
-        .with_function_response("fn_delete_user", {
-            let mut row = HashMap::new();
-            row.insert("status".to_string(), json!("success"));
-            row.insert("message".to_string(), json!(""));
-            row.insert("entity".to_string(), entity);
-            row.insert("entity_type".to_string(), json!("User"));
-            row.insert("entity_id".to_string(), json!("42"));
-            vec![row]
-        });
+    let adapter = FailingAdapter::new().with_function_response("fn_delete_user", {
+        let mut row = HashMap::new();
+        row.insert("status".to_string(), json!("success"));
+        row.insert("message".to_string(), json!(""));
+        row.insert("entity".to_string(), entity);
+        row.insert("entity_type".to_string(), json!("User"));
+        row.insert("entity_id".to_string(), json!("42"));
+        vec![row]
+    });
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -693,9 +663,7 @@ async fn test_openapi_endpoint_returns_spec() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_head_collection_returns_200_empty_body() {
-    let users = vec![
-        JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"})),
-    ];
+    let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let schema = build_rest_schema();
@@ -713,9 +681,7 @@ async fn test_head_collection_returns_200_empty_body() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_auth_enforcement_with_require_auth() {
-    let users = vec![
-        JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"})),
-    ];
+    let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let mut schema = build_rest_schema();
@@ -747,18 +713,12 @@ async fn test_x_request_id_echoed() {
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, headers, _json) = send_get_with_headers(
-        &router,
-        "/rest/v1/users/1",
-        &[("x-request-id", "test-req-123")],
-    )
-    .await;
+    let (status, headers, _json) =
+        send_get_with_headers(&router, "/rest/v1/users/1", &[("x-request-id", "test-req-123")])
+            .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        headers.get("x-request-id").map(|v| v.to_str().unwrap()),
-        Some("test-req-123")
-    );
+    assert_eq!(headers.get("x-request-id").map(|v| v.to_str().unwrap()), Some("test-req-123"));
 }
 
 #[tokio::test]
@@ -782,9 +742,9 @@ async fn test_x_request_id_generated_when_absent() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_relay_endpoint_cursor_pagination() {
-    let posts = vec![
-        JsonbValue::new(json!({"pk_post_id": 1, "title": "First Post", "body": "Hello"})),
-    ];
+    let posts = vec![JsonbValue::new(
+        json!({"pk_post_id": 1, "title": "First Post", "body": "Hello"}),
+    )];
     let adapter = FailingAdapter::new().with_response("v_post", posts);
 
     let schema = build_rest_schema_with_posts();
@@ -839,11 +799,8 @@ async fn test_unknown_operator_returns_400() {
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, _headers, json) = send_get(
-        &router,
-        "/rest/v1/users?name%5Bbogus_op%5D=Alice",
-    )
-    .await;
+    let (status, _headers, json) =
+        send_get(&router, "/rest/v1/users?name%5Bbogus_op%5D=Alice").await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(json["error"]["code"], "BAD_REQUEST");
@@ -863,12 +820,9 @@ async fn test_crud_cycle_post_then_get() {
     let router = build_router(adapter, schema);
 
     // CREATE
-    let (status, _headers, _json) = send_post(
-        &router,
-        "/rest/v1/users",
-        json!({"name": "Alice", "email": "alice@test.com"}),
-    )
-    .await;
+    let (status, _headers, _json) =
+        send_post(&router, "/rest/v1/users", json!({"name": "Alice", "email": "alice@test.com"}))
+            .await;
     assert_eq!(status, StatusCode::CREATED);
 
     // READ
@@ -928,20 +882,14 @@ async fn test_patch_with_invalid_content_type_returns_400() {
 #[tokio::test]
 async fn test_delete_with_prefer_return_minimal() {
     let adapter = FailingAdapter::new()
-        .with_function_response(
-            "fn_delete_user",
-            mutation_success_row_with_id(json!(null), "42"),
-        );
+        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
 
-    let (status, headers, body) = send_delete_with_headers(
-        &router,
-        "/rest/v1/users/42",
-        &[("prefer", "return=minimal")],
-    )
-    .await;
+    let (status, headers, body) =
+        send_delete_with_headers(&router, "/rest/v1/users/42", &[("prefer", "return=minimal")])
+            .await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert!(body.is_empty());
@@ -961,10 +909,7 @@ async fn test_get_nonexistent_route_returns_404() {
     let router = build_router(adapter, schema);
 
     // /rest/v1/nonexistent doesn't exist
-    let request = Request::builder()
-        .uri("/rest/v1/nonexistent")
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().uri("/rest/v1/nonexistent").body(Body::empty()).unwrap();
     let response = router.clone().oneshot(request).await.unwrap();
     // axum returns 404 for unmatched routes
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

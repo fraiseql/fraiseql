@@ -1,7 +1,7 @@
 //! Parameterized WHERE and HAVING clause SQL generation.
 
 use super::{
-    AggregationSqlGenerator, DatabaseType, FraiseQLError, FactTableMetadata, Result,
+    AggregationSqlGenerator, DatabaseType, FactTableMetadata, FraiseQLError, Result,
     ValidatedHavingCondition, WhereClause, WhereOperator, to_snake_case,
 };
 

@@ -72,12 +72,8 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
                 path:    Some("request.authorization".to_string()),
             });
         }
-        self.execute_mutation_query_with_security(
-            mutation_name,
-            variables,
-            Some(security_context),
-        )
-        .await
+        self.execute_mutation_query_with_security(mutation_name, variables, Some(security_context))
+            .await
     }
 }
 

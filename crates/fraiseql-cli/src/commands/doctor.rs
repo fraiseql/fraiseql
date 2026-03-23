@@ -5,11 +5,7 @@
 //!   fraiseql doctor --config fraiseql.toml --schema schema.compiled.json
 //!   fraiseql doctor --json
 
-use std::{
-    net::TcpStream,
-    path::Path,
-    time::Duration,
-};
+use std::{net::TcpStream, path::Path, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +41,12 @@ pub struct DoctorCheck {
 
 impl DoctorCheck {
     fn pass(name: &'static str, detail: impl Into<String>) -> Self {
-        Self { name, status: CheckStatus::Pass, detail: detail.into(), hint: None }
+        Self {
+            name,
+            status: CheckStatus::Pass,
+            detail: detail.into(),
+            hint: None,
+        }
     }
 
     fn warn(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
@@ -53,7 +54,7 @@ impl DoctorCheck {
             name,
             status: CheckStatus::Warn,
             detail: detail.into(),
-            hint:   Some(hint.into()),
+            hint: Some(hint.into()),
         }
     }
 
@@ -62,7 +63,7 @@ impl DoctorCheck {
             name,
             status: CheckStatus::Fail,
             detail: detail.into(),
-            hint:   Some(hint.into()),
+            hint: Some(hint.into()),
         }
     }
 }
@@ -229,10 +230,7 @@ pub fn check_db_reachable(db_url_override: Option<&str>) -> DoctorCheck {
             let addr = format!("{host}:{port}");
             // Parse the socket addr; fall back to a guaranteed-refused addr on parse failure.
             let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
-                    0,
-                )
+                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
             });
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
                 Ok(_) => DoctorCheck::pass("DATABASE_URL reachable", addr),
@@ -277,10 +275,7 @@ pub fn check_redis_reachable() -> DoctorCheck {
         Some((host, port)) => {
             let addr = format!("{host}:{port}");
             let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
-                    0,
-                )
+                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
             });
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
                 Ok(_) => DoctorCheck::pass("FRAISEQL_REDIS_URL", format!("reachable ({addr})")),

@@ -34,7 +34,9 @@ pub use security::{
     TrustedDocumentsConfig,
 };
 use serde::{Deserialize, Serialize};
-pub use server_settings::{DebugConfig, DevConfig, GrpcConfig, McpConfig, RestConfig, ValidationConfig};
+pub use server_settings::{
+    DebugConfig, DevConfig, GrpcConfig, McpConfig, RestConfig, ValidationConfig,
+};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
 pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 

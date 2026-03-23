@@ -19,12 +19,11 @@ pub fn run(schema_path: &str, output: &str) -> Result<()> {
     let schema: CompiledSchema = serde_json::from_str(&schema_json)
         .with_context(|| format!("Failed to parse compiled schema: {schema_path}"))?;
 
-    let config = schema
-        .rest_config
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!(
+    let config = schema.rest_config.as_ref().ok_or_else(|| {
+        anyhow::anyhow!(
             "No REST configuration found in schema. Add [rest] section to fraiseql.toml."
-        ))?;
+        )
+    })?;
 
     if !config.enabled {
         anyhow::bail!("REST transport is disabled (rest.enabled = false)");
@@ -32,8 +31,7 @@ pub fn run(schema_path: &str, output: &str) -> Result<()> {
 
     let spec = generate_spec(&schema)?;
 
-    let pretty = serde_json::to_string_pretty(&spec)
-        .context("Failed to serialize OpenAPI spec")?;
+    let pretty = serde_json::to_string_pretty(&spec).context("Failed to serialize OpenAPI spec")?;
 
     if output == "-" {
         println!("{pretty}");
@@ -54,10 +52,7 @@ fn generate_spec(schema: &CompiledSchema) -> Result<serde_json::Value> {
     // For the CLI, we generate a simplified spec without full route derivation.
     // The full spec is generated at runtime by the server.
     // This CLI command provides a preview based on schema metadata.
-    let config = schema
-        .rest_config
-        .as_ref()
-        .expect("rest_config already validated");
+    let config = schema.rest_config.as_ref().expect("rest_config already validated");
     let base_path = &config.path;
 
     let mut paths = serde_json::Map::new();
@@ -116,10 +111,7 @@ fn generate_spec(schema: &CompiledSchema) -> Result<serde_json::Value> {
         let mut required = Vec::new();
 
         for field in &type_def.fields {
-            properties.insert(
-                field.name.to_string(),
-                field_type_to_json_schema(&field.field_type),
-            );
+            properties.insert(field.name.to_string(), field_type_to_json_schema(&field.field_type));
             if !field.nullable {
                 required.push(serde_json::json!(field.name.to_string()));
             }
@@ -161,7 +153,9 @@ fn field_type_to_json_schema(ft: &FieldType) -> serde_json::Value {
         FieldType::Int => serde_json::json!({ "type": "integer" }),
         FieldType::Float => serde_json::json!({ "type": "number" }),
         FieldType::Boolean => serde_json::json!({ "type": "boolean" }),
-        FieldType::Id | FieldType::Uuid => serde_json::json!({ "type": "string", "format": "uuid" }),
+        FieldType::Id | FieldType::Uuid => {
+            serde_json::json!({ "type": "string", "format": "uuid" })
+        },
         FieldType::DateTime => serde_json::json!({ "type": "string", "format": "date-time" }),
         FieldType::Date => serde_json::json!({ "type": "string", "format": "date" }),
         FieldType::Time => serde_json::json!({ "type": "string", "format": "time" }),
@@ -169,13 +163,21 @@ fn field_type_to_json_schema(ft: &FieldType) -> serde_json::Value {
         FieldType::Decimal => serde_json::json!({ "type": "string", "format": "decimal" }),
         FieldType::Vector => serde_json::json!({ "type": "array", "items": { "type": "number" } }),
         FieldType::Scalar(_) => serde_json::json!({ "type": "string" }),
-        FieldType::List(inner) => serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) }),
-        FieldType::Object(name) => serde_json::json!({ "$ref": format!("#/components/schemas/{name}") }),
-        FieldType::Enum(name) => serde_json::json!({ "$ref": format!("#/components/schemas/{name}") }),
-        FieldType::Input(name) => serde_json::json!({ "$ref": format!("#/components/schemas/{name}") }),
+        FieldType::List(inner) => {
+            serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) })
+        },
+        FieldType::Object(name) => {
+            serde_json::json!({ "$ref": format!("#/components/schemas/{name}") })
+        },
+        FieldType::Enum(name) => {
+            serde_json::json!({ "$ref": format!("#/components/schemas/{name}") })
+        },
+        FieldType::Input(name) => {
+            serde_json::json!({ "$ref": format!("#/components/schemas/{name}") })
+        },
         FieldType::Interface(name) | FieldType::Union(name) => {
             serde_json::json!({ "type": "object", "description": format!("See {name}") })
-        }
+        },
     }
 }
 
@@ -190,9 +192,11 @@ fn capitalize(s: &str) -> String {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+
+    use tempfile::NamedTempFile;
+
+    use super::*;
 
     fn minimal_schema_json() -> String {
         serde_json::json!({
@@ -214,7 +218,8 @@ mod tests {
                 "enabled": true,
                 "path": "/rest/v1"
             }
-        }).to_string()
+        })
+        .to_string()
     }
 
     #[test]

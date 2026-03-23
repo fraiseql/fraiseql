@@ -137,8 +137,9 @@ fn apq_metrics_json_output() {
 #[cfg(feature = "redis-apq")]
 mod redis_tests {
     #![allow(clippy::unwrap_used)]
-    use super::*;
     use fraiseql_core::apq::redis_storage::RedisApqStorage;
+
+    use super::*;
 
     /// Helper to get Redis URL from env or skip.
     fn redis_url() -> String {
@@ -207,10 +208,7 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis (set REDIS_URL or run Redis on localhost:6379)"]
     async fn redis_apq_custom_ttl() {
-        let store = RedisApqStorage::new(&redis_url())
-            .await
-            .unwrap()
-            .with_ttl_secs(60);
+        let store = RedisApqStorage::new(&redis_url()).await.unwrap().with_ttl_secs(60);
 
         store.set("ttl_test".to_string(), "query".to_string()).await.unwrap();
         let result = store.get("ttl_test").await.unwrap();

@@ -36,10 +36,7 @@ async fn local_upload_download_roundtrip() {
     let backend = LocalStorageBackend::new(dir.path().to_str().unwrap());
 
     let data = b"hello, world!";
-    backend
-        .upload("test/file.txt", data, "text/plain")
-        .await
-        .unwrap();
+    backend.upload("test/file.txt", data, "text/plain").await.unwrap();
 
     let downloaded = backend.download("test/file.txt").await.unwrap();
     assert_eq!(downloaded, data);
@@ -52,10 +49,7 @@ async fn local_exists() {
 
     assert!(!backend.exists("missing.txt").await.unwrap());
 
-    backend
-        .upload("exists.txt", b"data", "text/plain")
-        .await
-        .unwrap();
+    backend.upload("exists.txt", b"data", "text/plain").await.unwrap();
     assert!(backend.exists("exists.txt").await.unwrap());
 }
 
@@ -64,10 +58,7 @@ async fn local_delete() {
     let dir = tempfile::tempdir().unwrap();
     let backend = LocalStorageBackend::new(dir.path().to_str().unwrap());
 
-    backend
-        .upload("to_delete.txt", b"data", "text/plain")
-        .await
-        .unwrap();
+    backend.upload("to_delete.txt", b"data", "text/plain").await.unwrap();
     assert!(backend.exists("to_delete.txt").await.unwrap());
 
     backend.delete("to_delete.txt").await.unwrap();
@@ -97,9 +88,7 @@ async fn local_presigned_url_unsupported() {
     let dir = tempfile::tempdir().unwrap();
     let backend = LocalStorageBackend::new(dir.path().to_str().unwrap());
 
-    let result = backend
-        .presigned_url("file.txt", Duration::from_secs(3600))
-        .await;
+    let result = backend.presigned_url("file.txt", Duration::from_secs(3600)).await;
     assert!(matches!(result, Err(FileError::Storage { .. })));
 }
 
@@ -108,9 +97,7 @@ async fn local_path_traversal_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let backend = LocalStorageBackend::new(dir.path().to_str().unwrap());
 
-    let result = backend
-        .upload("../escape.txt", b"data", "text/plain")
-        .await;
+    let result = backend.upload("../escape.txt", b"data", "text/plain").await;
     assert!(matches!(result, Err(FileError::Storage { .. })));
 }
 
@@ -119,10 +106,7 @@ async fn local_nested_directory_creation() {
     let dir = tempfile::tempdir().unwrap();
     let backend = LocalStorageBackend::new(dir.path().to_str().unwrap());
 
-    backend
-        .upload("a/b/c/deep.txt", b"deep data", "text/plain")
-        .await
-        .unwrap();
+    backend.upload("a/b/c/deep.txt", b"deep data", "text/plain").await.unwrap();
     let data = backend.download("a/b/c/deep.txt").await.unwrap();
     assert_eq!(data, b"deep data");
 }
@@ -143,10 +127,7 @@ async fn create_backend_local() {
     };
 
     let backend = create_backend(&config).await.unwrap();
-    backend
-        .upload("test.txt", b"data", "text/plain")
-        .await
-        .unwrap();
+    backend.upload("test.txt", b"data", "text/plain").await.unwrap();
     let data = backend.download("test.txt").await.unwrap();
     assert_eq!(data, b"data");
 }
@@ -186,7 +167,15 @@ async fn create_backend_unknown() {
 #[cfg(not(feature = "aws-s3"))]
 #[tokio::test]
 async fn create_backend_s3_feature_not_enabled() {
-    for name in &["s3", "r2", "hetzner", "scaleway", "ovh", "exoscale", "backblaze"] {
+    for name in &[
+        "s3",
+        "r2",
+        "hetzner",
+        "scaleway",
+        "ovh",
+        "exoscale",
+        "backblaze",
+    ] {
         let config = crate::config::StorageConfig {
             backend:      name.to_string(),
             bucket:       Some("bucket".to_string()),

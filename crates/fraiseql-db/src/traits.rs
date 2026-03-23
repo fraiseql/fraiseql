@@ -56,15 +56,15 @@ pub enum DirectMutationOp {
 #[derive(Debug)]
 pub struct DirectMutationContext<'a> {
     /// The kind of mutation (INSERT, UPDATE, DELETE).
-    pub operation: DirectMutationOp,
+    pub operation:      DirectMutationOp,
     /// Target table name (will be identifier-quoted by the adapter).
-    pub table: &'a str,
+    pub table:          &'a str,
     /// Column names from client-supplied mutation arguments, in positional order.
     ///
     /// For UPDATE/DELETE the first column is the primary key (used in the WHERE clause).
-    pub columns: &'a [String],
+    pub columns:        &'a [String],
     /// All argument values: client args followed by inject params, in positional order.
-    pub values: &'a [serde_json::Value],
+    pub values:         &'a [serde_json::Value],
     /// Column names from server-injected parameters (JWT claims etc.).
     ///
     /// These are appended after `columns` in the SQL statement:
@@ -73,7 +73,7 @@ pub struct DirectMutationContext<'a> {
     /// - DELETE: additional WHERE conditions (AND inject_col = ?)
     pub inject_columns: &'a [String],
     /// The GraphQL return type name (used as `entity_type` in the mutation response).
-    pub return_type: &'a str,
+    pub return_type:    &'a str,
 }
 
 /// Database adapter for executing queries against views.
@@ -712,8 +712,8 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `variables` - Pairs of `(pg_guc_name, value)`. Names must be prefixed
-    ///   with `app.` or `fraiseql.` to avoid collisions with built-in settings.
+    /// * `variables` - Pairs of `(pg_guc_name, value)`. Names must be prefixed with `app.` or
+    ///   `fraiseql.` to avoid collisions with built-in settings.
     ///
     /// # Errors
     ///

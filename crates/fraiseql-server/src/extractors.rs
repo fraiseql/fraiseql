@@ -8,8 +8,10 @@ use axum::{
     extract::{FromRequestParts, rejection::ExtensionRejection},
     http::request::Parts,
 };
-use fraiseql_core::schema::DevConfig;
-use fraiseql_core::security::{SecurityContext, is_dev_mode_active, security_context_from_dev_claims};
+use fraiseql_core::{
+    schema::DevConfig,
+    security::{SecurityContext, is_dev_mode_active, security_context_from_dev_claims},
+};
 
 use crate::middleware::AuthUser;
 

@@ -2,8 +2,10 @@
 //!
 //! Defines the TOML configuration format for `fraiseql federation gateway`.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -131,7 +133,7 @@ impl Default for TimeoutConfig {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            failure_threshold:  default_failure_threshold(),
+            failure_threshold:   default_failure_threshold(),
             recovery_timeout_ms: default_recovery_timeout(),
         }
     }
@@ -147,14 +149,14 @@ pub enum ConfigError {
         /// Number of subgraphs found.
         count: usize,
         /// Maximum allowed.
-        max: usize,
+        max:   usize,
     },
     /// Invalid subgraph URL.
     InvalidUrl {
         /// Subgraph name.
-        name: String,
+        name:   String,
         /// The invalid URL.
-        url: String,
+        url:    String,
         /// Parse error reason.
         reason: String,
     },
@@ -170,7 +172,7 @@ pub enum ConfigError {
     /// Total timeout exceeds maximum.
     TotalTimeoutTooLarge {
         /// Configured value.
-        ms: u64,
+        ms:  u64,
         /// Maximum allowed.
         max: u64,
     },
@@ -271,7 +273,11 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
         });
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -365,10 +371,13 @@ url = "http://localhost:4001/graphql"
     #[test]
     fn test_validate_invalid_url() {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("bad".to_string(), SubgraphConfig {
-            url:    "not a url".to_string(),
-            schema: None,
-        });
+        subgraphs.insert(
+            "bad".to_string(),
+            SubgraphConfig {
+                url:    "not a url".to_string(),
+                schema: None,
+            },
+        );
         let config = GatewayConfig {
             listen: "127.0.0.1:4000".to_string(),
             playground: false,
@@ -385,10 +394,13 @@ url = "http://localhost:4001/graphql"
     #[test]
     fn test_validate_timeout_sanity() {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("svc".to_string(), SubgraphConfig {
-            url:    "http://localhost:4001/graphql".to_string(),
-            schema: None,
-        });
+        subgraphs.insert(
+            "svc".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4001/graphql".to_string(),
+                schema: None,
+            },
+        );
         let config = GatewayConfig {
             listen: "127.0.0.1:4000".to_string(),
             playground: false,
@@ -408,10 +420,13 @@ url = "http://localhost:4001/graphql"
     #[test]
     fn test_validate_total_timeout_too_large() {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("svc".to_string(), SubgraphConfig {
-            url:    "http://localhost:4001/graphql".to_string(),
-            schema: None,
-        });
+        subgraphs.insert(
+            "svc".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4001/graphql".to_string(),
+                schema: None,
+            },
+        );
         let config = GatewayConfig {
             listen: "127.0.0.1:4000".to_string(),
             playground: false,
@@ -431,14 +446,20 @@ url = "http://localhost:4001/graphql"
     #[test]
     fn test_validate_valid_config() {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("users".to_string(), SubgraphConfig {
-            url:    "http://localhost:4001/graphql".to_string(),
-            schema: None,
-        });
-        subgraphs.insert("products".to_string(), SubgraphConfig {
-            url:    "http://localhost:4002/graphql".to_string(),
-            schema: None,
-        });
+        subgraphs.insert(
+            "users".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4001/graphql".to_string(),
+                schema: None,
+            },
+        );
+        subgraphs.insert(
+            "products".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4002/graphql".to_string(),
+                schema: None,
+            },
+        );
         let config = GatewayConfig {
             listen: "0.0.0.0:4000".to_string(),
             playground: true,
@@ -452,10 +473,13 @@ url = "http://localhost:4001/graphql"
     #[test]
     fn test_validate_schema_file_not_found() {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("svc".to_string(), SubgraphConfig {
-            url:    "http://localhost:4001/graphql".to_string(),
-            schema: Some(PathBuf::from("./nonexistent.graphql")),
-        });
+        subgraphs.insert(
+            "svc".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4001/graphql".to_string(),
+                schema: Some(PathBuf::from("./nonexistent.graphql")),
+            },
+        );
         let config = GatewayConfig {
             listen: "127.0.0.1:4000".to_string(),
             playground: false,

@@ -7,22 +7,24 @@
 //! 4. Merges responses and returns to the client
 //! 5. Exposes `/health` and `/ready` endpoints
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use super::config::{GatewayConfig, SubgraphConfig};
-use super::merger::{self, MergedResponse, SubgraphResponse};
-use super::planner::{self, FieldOwnership, QueryPlan};
+use super::{
+    config::{GatewayConfig, SubgraphConfig},
+    merger::{self, MergedResponse, SubgraphResponse},
+    planner::{self, FieldOwnership, QueryPlan},
+};
 
 /// Shared gateway state passed to all request handlers.
 #[derive(Clone)]
@@ -43,9 +45,9 @@ pub struct GatewayState {
 /// Incoming GraphQL request body.
 #[derive(Debug, Deserialize)]
 struct GraphQLRequest {
-    query:     String,
+    query:          String,
     #[serde(default)]
-    variables: Option<Value>,
+    variables:      Option<Value>,
     #[serde(default, rename = "operationName")]
     operation_name: Option<String>,
 }
@@ -153,17 +155,18 @@ async fn execute_plan(
         let variables = original.variables.clone().unwrap_or(Value::Null);
         let operation_name = original.operation_name.clone();
 
-        let url = state
-            .subgraphs
-            .get(&fetch.subgraph)
-            .map(|s| s.url.clone())
-            .unwrap_or_default();
+        let url = state.subgraphs.get(&fetch.subgraph).map(|s| s.url.clone()).unwrap_or_default();
 
         let timeout = state.subgraph_timeout;
 
         handles.push(tokio::spawn(async move {
             let result = execute_subgraph_request(
-                &client, &url, &query, &variables, operation_name.as_deref(), timeout,
+                &client,
+                &url,
+                &query,
+                &variables,
+                operation_name.as_deref(),
+                timeout,
             )
             .await;
 
@@ -268,10 +271,13 @@ mod tests {
 
     fn test_state() -> GatewayState {
         let mut subgraphs = HashMap::new();
-        subgraphs.insert("users".to_string(), SubgraphConfig {
-            url:    "http://localhost:4001/graphql".to_string(),
-            schema: None,
-        });
+        subgraphs.insert(
+            "users".to_string(),
+            SubgraphConfig {
+                url:    "http://localhost:4001/graphql".to_string(),
+                schema: None,
+            },
+        );
 
         let mut ownership = FieldOwnership::default();
         ownership.insert("users".to_string(), "users".to_string());
@@ -289,12 +295,7 @@ mod tests {
         let app = build_router(test_state());
 
         let response = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(axum::http::Request::builder().uri("/health").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
@@ -310,12 +311,7 @@ mod tests {
         let app = build_router(test_state());
 
         let response = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri("/ready")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(axum::http::Request::builder().uri("/ready").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
@@ -366,9 +362,6 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: Value = serde_json::from_slice(&body).unwrap();
-        assert!(json["errors"][0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("nonexistent"));
+        assert!(json["errors"][0]["message"].as_str().unwrap().contains("nonexistent"));
     }
 }

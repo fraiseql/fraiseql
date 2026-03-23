@@ -11,12 +11,16 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::db::types::ColumnValue;
-use fraiseql_core::schema::{CompiledSchema, GrpcConfig};
+use fraiseql_core::{
+    db::types::ColumnValue,
+    schema::{CompiledSchema, GrpcConfig},
+};
 use fraiseql_server::routes::grpc::{self, DynamicGrpcService};
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
-use fraiseql_test_utils::schema_builder::{
-    TestFieldBuilder, TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{
+        TestFieldBuilder, TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+    },
 };
 use http_body_util::BodyExt as _;
 use prost::Message as _;
@@ -39,15 +43,8 @@ const SERVICE_NAME: &str = "fraiseql.v1.FraiseqlService";
 
 fn build_grpc_schema(descriptor_path: &str) -> CompiledSchema {
     let mut schema = TestSchemaBuilder::new()
-        .with_query(
-            TestQueryBuilder::new("user", "User")
-                .build(),
-        )
-        .with_query(
-            TestQueryBuilder::new("users", "User")
-                .returns_list(true)
-                .build(),
-        )
+        .with_query(TestQueryBuilder::new("user", "User").build())
+        .with_query(TestQueryBuilder::new("users", "User").returns_list(true).build())
         .with_mutation(
             TestMutationBuilder::new("createUser", "User")
                 .with_sql_source("fn_create_user")
@@ -55,10 +52,19 @@ fn build_grpc_schema(descriptor_path: &str) -> CompiledSchema {
         )
         .with_type(
             TestTypeBuilder::new("User", "tb_users")
-                .with_field(TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::Id).build())
-                .with_field(TestFieldBuilder::new("name", fraiseql_core::schema::FieldType::String).build())
-                .with_field(TestFieldBuilder::nullable("email", fraiseql_core::schema::FieldType::String).build())
-                .with_field(TestFieldBuilder::new("age", fraiseql_core::schema::FieldType::Int).build())
+                .with_field(
+                    TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::Id).build(),
+                )
+                .with_field(
+                    TestFieldBuilder::new("name", fraiseql_core::schema::FieldType::String).build(),
+                )
+                .with_field(
+                    TestFieldBuilder::nullable("email", fraiseql_core::schema::FieldType::String)
+                        .build(),
+                )
+                .with_field(
+                    TestFieldBuilder::new("age", fraiseql_core::schema::FieldType::Int).build(),
+                )
                 .build(),
         )
         .build();
@@ -84,31 +90,31 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("User".into()),
         field: vec![
             FieldDescriptorProto {
-                name:   Some("age".into()),
+                name: Some("age".into()),
                 number: Some(1),
                 r#type: Some(field_descriptor_proto::Type::Int32.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("email".into()),
+                name: Some("email".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("id".into()),
+                name: Some("id".into()),
                 number: Some(3),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("name".into()),
+                name: Some("name".into()),
                 number: Some(4),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -118,15 +124,13 @@ fn build_descriptor_set() -> FileDescriptorSet {
     // GetUserRequest (for single-item query "user" → GetUser)
     let get_user_request = DescriptorProto {
         name: Some("GetUserRequest".into()),
-        field: vec![
-            FieldDescriptorProto {
-                name:   Some("id".into()),
-                number: Some(1),
-                r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
-                ..Default::default()
-            },
-        ],
+        field: vec![FieldDescriptorProto {
+            name: Some("id".into()),
+            number: Some(1),
+            r#type: Some(field_descriptor_proto::Type::String.into()),
+            label: Some(field_descriptor_proto::Label::Optional.into()),
+            ..Default::default()
+        }],
         ..Default::default()
     };
 
@@ -135,17 +139,17 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("ListUsersRequest".into()),
         field: vec![
             FieldDescriptorProto {
-                name:   Some("limit".into()),
+                name: Some("limit".into()),
                 number: Some(1),
                 r#type: Some(field_descriptor_proto::Type::Int32.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("offset".into()),
+                name: Some("offset".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::Int32.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -157,18 +161,18 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("ListUsersResponse".into()),
         field: vec![
             FieldDescriptorProto {
-                name:      Some("items".into()),
-                number:    Some(1),
-                r#type:    Some(field_descriptor_proto::Type::Message.into()),
-                label:     Some(field_descriptor_proto::Label::Repeated.into()),
+                name: Some("items".into()),
+                number: Some(1),
+                r#type: Some(field_descriptor_proto::Type::Message.into()),
+                label: Some(field_descriptor_proto::Label::Repeated.into()),
                 type_name: Some(".fraiseql.v1.User".into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("total_count".into()),
+                name: Some("total_count".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::Int32.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -180,17 +184,17 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("CreateUserRequest".into()),
         field: vec![
             FieldDescriptorProto {
-                name:   Some("name".into()),
+                name: Some("name".into()),
                 number: Some(1),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("email".into()),
+                name: Some("email".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -202,24 +206,24 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("MutationResponse".into()),
         field: vec![
             FieldDescriptorProto {
-                name:   Some("success".into()),
+                name: Some("success".into()),
                 number: Some(1),
                 r#type: Some(field_descriptor_proto::Type::Bool.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("id".into()),
+                name: Some("id".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("error".into()),
+                name: Some("error".into()),
                 number: Some(3),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -231,21 +235,21 @@ fn build_descriptor_set() -> FileDescriptorSet {
         name: Some("FraiseqlService".into()),
         method: vec![
             MethodDescriptorProto {
-                name:       Some("GetUser".into()),
+                name: Some("GetUser".into()),
                 input_type: Some(".fraiseql.v1.GetUserRequest".into()),
                 output_type: Some(".fraiseql.v1.User".into()),
                 ..Default::default()
             },
             MethodDescriptorProto {
-                name:             Some("ListUsers".into()),
-                input_type:       Some(".fraiseql.v1.ListUsersRequest".into()),
-                output_type:      Some(".fraiseql.v1.User".into()),
+                name: Some("ListUsers".into()),
+                input_type: Some(".fraiseql.v1.ListUsersRequest".into()),
+                output_type: Some(".fraiseql.v1.User".into()),
                 server_streaming: Some(true),
                 ..Default::default()
             },
             MethodDescriptorProto {
-                name:        Some("CreateUser".into()),
-                input_type:  Some(".fraiseql.v1.CreateUserRequest".into()),
+                name: Some("CreateUser".into()),
+                input_type: Some(".fraiseql.v1.CreateUserRequest".into()),
                 output_type: Some(".fraiseql.v1.MutationResponse".into()),
                 ..Default::default()
             },
@@ -254,9 +258,9 @@ fn build_descriptor_set() -> FileDescriptorSet {
     };
 
     let file = FileDescriptorProto {
-        name:         Some("service.proto".into()),
-        package:      Some(PACKAGE.into()),
-        syntax:       Some("proto3".into()),
+        name: Some("service.proto".into()),
+        package: Some(PACKAGE.into()),
+        syntax: Some("proto3".into()),
         message_type: vec![
             user_msg,
             get_user_request,
@@ -339,13 +343,8 @@ async fn send_grpc(
         .and_then(|v| v.to_str().ok())
         .map(String::from);
 
-    let body_bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes()
-        .to_vec();
+    let body_bytes =
+        response.into_body().collect().await.expect("collect body").to_bytes().to_vec();
 
     (status, grpc_status, body_bytes)
 }
@@ -354,10 +353,7 @@ async fn send_grpc(
 ///
 /// Each frame: 1 byte compression flag + 4 bytes big-endian length + payload.
 /// Returns a vec of decoded `DynamicMessage` values.
-fn decode_streaming_frames(
-    body: &[u8],
-    message_name: &str,
-) -> Vec<prost_reflect::DynamicMessage> {
+fn decode_streaming_frames(body: &[u8], message_name: &str) -> Vec<prost_reflect::DynamicMessage> {
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
     let desc = pool
@@ -425,15 +421,8 @@ async fn send_grpc_streaming(
 }
 
 /// Decode a gRPC response body (skip 5-byte frame header) into a `DynamicMessage`.
-fn decode_response(
-    body: &[u8],
-    message_name: &str,
-) -> prost_reflect::DynamicMessage {
-    assert!(
-        body.len() >= 5,
-        "gRPC response body too short: {} bytes",
-        body.len()
-    );
+fn decode_response(body: &[u8], message_name: &str) -> prost_reflect::DynamicMessage {
+    assert!(body.len() >= 5, "gRPC response body too short: {} bytes", body.len());
     let msg_bytes = &body[5..];
 
     let fds = build_descriptor_set();
@@ -442,8 +431,7 @@ fn decode_response(
         .get_message_by_name(&format!("{PACKAGE}.{message_name}"))
         .unwrap_or_else(|| panic!("Message {message_name} not found in pool"));
 
-    prost_reflect::DynamicMessage::decode(desc, msg_bytes)
-        .expect("decode response message")
+    prost_reflect::DynamicMessage::decode(desc, msg_bytes).expect("decode response message")
 }
 
 // ---------------------------------------------------------------------------
@@ -452,10 +440,10 @@ fn decode_response(
 
 fn alice_row() -> Vec<ColumnValue> {
     vec![
-        ColumnValue::Text("a1b2c3".into()),   // id (Uuid rendered as text by handler)
-        ColumnValue::Text("Alice".into()),     // name
+        ColumnValue::Text("a1b2c3".into()), // id (Uuid rendered as text by handler)
+        ColumnValue::Text("Alice".into()),  // name
         ColumnValue::Text("alice@example.com".into()), // email
-        ColumnValue::Int32(30),                // age
+        ColumnValue::Int32(30),             // age
     ]
 }
 
@@ -463,7 +451,7 @@ fn bob_row() -> Vec<ColumnValue> {
     vec![
         ColumnValue::Text("d4e5f6".into()),
         ColumnValue::Text("Bob".into()),
-        ColumnValue::Null,                     // email is null
+        ColumnValue::Null, // email is null
         ColumnValue::Int32(25),
     ]
 }
@@ -478,17 +466,14 @@ async fn get_user_returns_single_row() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     let svc = build_service(adapter, schema);
 
     // Build an empty GetUserRequest (no filter fields set).
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.GetUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -518,10 +503,7 @@ async fn get_user_returns_single_row() {
         response.get_field(&email_field).into_owned(),
         prost_reflect::Value::String("alice@example.com".into())
     );
-    assert_eq!(
-        response.get_field(&age_field).into_owned(),
-        prost_reflect::Value::I32(30)
-    );
+    assert_eq!(response.get_field(&age_field).into_owned(), prost_reflect::Value::I32(30));
 }
 
 #[tokio::test]
@@ -530,17 +512,15 @@ async fn list_users_streams_individual_rows() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row(), bob_row()]);
+    let adapter =
+        FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row(), bob_row()]);
 
     let svc = build_service(adapter, schema);
 
     // Build an empty ListUsersRequest.
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.ListUsersRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -584,9 +564,7 @@ async fn get_user_empty_result_returns_default_message() {
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.GetUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -613,9 +591,7 @@ async fn list_users_empty_result_streams_zero_messages() {
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.ListUsersRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -694,7 +670,9 @@ async fn no_grpc_config_returns_none() {
     let mut schema = TestSchemaBuilder::new()
         .with_type(
             TestTypeBuilder::new("User", "tb_users")
-                .with_field(TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::Id).build())
+                .with_field(
+                    TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::Id).build(),
+                )
                 .build(),
         )
         .build();
@@ -718,9 +696,7 @@ async fn adapter_failure_propagates_as_grpc_error() {
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.GetUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -737,17 +713,14 @@ async fn dispatch_table_has_correct_view_names() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     let svc = build_service(adapter.clone(), schema);
 
     // Send a GetUser request — the adapter should receive a query to "vr_tb_users".
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.GetUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -774,17 +747,15 @@ async fn create_user_mutation_returns_mutation_response() {
     function_row.insert("status".to_string(), serde_json::json!("success"));
     function_row.insert("entity_id".to_string(), serde_json::json!("new-user-123"));
 
-    let adapter = FailingAdapter::new()
-        .with_function_response("fn_create_user", vec![function_row]);
+    let adapter =
+        FailingAdapter::new().with_function_response("fn_create_user", vec![function_row]);
 
     let svc = build_service(adapter, schema);
 
     // Build a CreateUserRequest with name and email fields.
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.CreateUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.CreateUserRequest").unwrap();
     let mut req_msg = prost_reflect::DynamicMessage::new(req_desc.clone());
 
     let name_field = req_desc.get_field_by_name("name").unwrap();
@@ -802,9 +773,7 @@ async fn create_user_mutation_returns_mutation_response() {
 
     // Decode response as MutationResponse.
     let response = decode_response(&body, "MutationResponse");
-    let resp_desc = pool
-        .get_message_by_name("fraiseql.v1.MutationResponse")
-        .unwrap();
+    let resp_desc = pool.get_message_by_name("fraiseql.v1.MutationResponse").unwrap();
 
     let success_field = resp_desc.get_field_by_name("success").unwrap();
     assert_eq!(
@@ -830,16 +799,14 @@ async fn create_user_mutation_failure_returns_error_in_response() {
     function_row.insert("status".to_string(), serde_json::json!("error"));
     function_row.insert("message".to_string(), serde_json::json!("email already exists"));
 
-    let adapter = FailingAdapter::new()
-        .with_function_response("fn_create_user", vec![function_row]);
+    let adapter =
+        FailingAdapter::new().with_function_response("fn_create_user", vec![function_row]);
 
     let svc = build_service(adapter, schema);
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.CreateUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.CreateUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -849,9 +816,7 @@ async fn create_user_mutation_failure_returns_error_in_response() {
     assert_eq!(grpc_status.as_deref(), Some("0"));
 
     let response = decode_response(&body, "MutationResponse");
-    let resp_desc = pool
-        .get_message_by_name("fraiseql.v1.MutationResponse")
-        .unwrap();
+    let resp_desc = pool.get_message_by_name("fraiseql.v1.MutationResponse").unwrap();
 
     let success_field = resp_desc.get_field_by_name("success").unwrap();
     assert_eq!(
@@ -878,9 +843,7 @@ async fn mutation_adapter_failure_propagates_as_grpc_error() {
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
-    let req_desc = pool
-        .get_message_by_name("fraiseql.v1.CreateUserRequest")
-        .unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.CreateUserRequest").unwrap();
     let req_msg = prost_reflect::DynamicMessage::new(req_desc);
     let req_bytes = req_msg.encode_to_vec();
 
@@ -949,7 +912,7 @@ fn build_service_with_auth(
     use fraiseql_core::security::{OidcConfig, OidcValidator};
 
     let config = OidcConfig {
-        issuer:   "https://test-issuer.example.com".to_string(),
+        issuer: "https://test-issuer.example.com".to_string(),
         audience: Some("test-audience".to_string()),
         required: true,
         ..OidcConfig::default()
@@ -967,7 +930,11 @@ fn build_service_with_auth(
 }
 
 /// Build a gRPC request with an Authorization header.
-fn grpc_request_with_auth(method: &str, msg_bytes: &[u8], bearer_token: &str) -> http::Request<tonic::body::Body> {
+fn grpc_request_with_auth(
+    method: &str,
+    msg_bytes: &[u8],
+    bearer_token: &str,
+) -> http::Request<tonic::body::Body> {
     let mut framed = Vec::with_capacity(5 + msg_bytes.len());
     framed.push(0);
     let len = u32::try_from(msg_bytes.len()).unwrap();
@@ -992,8 +959,7 @@ async fn request_without_token_returns_unauthenticated() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     let svc = build_service_with_auth(adapter, schema);
 
@@ -1008,7 +974,11 @@ async fn request_without_token_returns_unauthenticated() {
 
     assert_eq!(status, http::StatusCode::OK); // gRPC always returns 200
     // gRPC status 16 = UNAUTHENTICATED
-    assert_eq!(grpc_status.as_deref(), Some("16"), "Missing token should return UNAUTHENTICATED");
+    assert_eq!(
+        grpc_status.as_deref(),
+        Some("16"),
+        "Missing token should return UNAUTHENTICATED"
+    );
 }
 
 #[tokio::test]
@@ -1037,7 +1007,11 @@ async fn request_with_invalid_token_returns_unauthenticated() {
         .map(String::from);
 
     // gRPC status 16 = UNAUTHENTICATED
-    assert_eq!(grpc_status.as_deref(), Some("16"), "Invalid token should return UNAUTHENTICATED");
+    assert_eq!(
+        grpc_status.as_deref(),
+        Some("16"),
+        "Invalid token should return UNAUTHENTICATED"
+    );
 }
 
 #[tokio::test]
@@ -1073,16 +1047,16 @@ async fn request_with_bad_auth_scheme_returns_unauthenticated() {
 /// RLS WHERE clauses (`DefaultRLSPolicy`: owner-based filtering).
 #[tokio::test]
 async fn query_with_security_context_applies_rls_where_clause() {
+    use std::collections::HashMap;
+
     use fraiseql_core::security::SecurityContext;
     use fraiseql_server::routes::grpc::handler;
-    use std::collections::HashMap;
 
     let tmp = tempfile::tempdir().unwrap();
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     // Build a SecurityContext for user "user-42" (non-admin).
     let ctx = SecurityContext {
@@ -1129,10 +1103,7 @@ async fn query_with_security_context_applies_rls_where_clause() {
     // Verify the adapter received a WHERE clause containing the RLS filter.
     // The DefaultRLSPolicy generates: author_id = $1 (parameterized).
     let where_clauses = adapter.recorded_where_clauses();
-    assert!(
-        !where_clauses.is_empty(),
-        "RLS should have generated a WHERE clause"
-    );
+    assert!(!where_clauses.is_empty(), "RLS should have generated a WHERE clause");
     let where_sql = &where_clauses[0];
     assert!(
         where_sql.as_ref().is_some_and(|s| s.contains("author_id")),
@@ -1149,8 +1120,7 @@ async fn query_without_security_context_has_no_rls() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     let fds = build_descriptor_set();
     let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
@@ -1210,8 +1180,7 @@ async fn rate_limited_request_returns_resource_exhausted() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     // Create a rate limiter that allows only 1 request per second per IP.
     let config = RateLimitConfig {
@@ -1255,8 +1224,7 @@ async fn rate_limiter_allows_requests_within_budget() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     // Generous rate limit: 100 rps with burst of 100.
     let config = RateLimitConfig {
@@ -1290,8 +1258,7 @@ async fn no_rate_limiter_allows_all_requests() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
     // No rate limiter — all requests allowed.
     let svc = build_service(adapter, schema);
@@ -1320,14 +1287,9 @@ fn reflection_descriptor_bytes_present_when_enabled() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
-        Arc::new(schema),
-        Arc::new(adapter),
-        None,
-        None,
-    )
-    .expect("build_grpc_service should succeed")
-    .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
 
     // Default: reflection = true → descriptor bytes should be present.
     assert!(
@@ -1347,14 +1309,9 @@ fn reflection_descriptor_bytes_absent_when_disabled() {
     schema.grpc_config.as_mut().unwrap().reflection = false;
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
-        Arc::new(schema),
-        Arc::new(adapter),
-        None,
-        None,
-    )
-    .expect("build_grpc_service should succeed")
-    .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
 
     assert!(
         services.reflection_descriptor_bytes.is_none(),
@@ -1369,14 +1326,9 @@ fn reflection_service_builds_from_descriptor_bytes() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
-        Arc::new(schema),
-        Arc::new(adapter),
-        None,
-        None,
-    )
-    .expect("build_grpc_service should succeed")
-    .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
 
     let bytes = services
         .reflection_descriptor_bytes
@@ -1387,7 +1339,10 @@ fn reflection_service_builds_from_descriptor_bytes() {
         .register_encoded_file_descriptor_set(&bytes)
         .build_v1();
 
-    assert!(result.is_ok(), "Reflection service should build successfully from descriptor bytes");
+    assert!(
+        result.is_ok(),
+        "Reflection service should build successfully from descriptor bytes"
+    );
 }
 
 #[tokio::test]
@@ -1397,17 +1352,11 @@ async fn reflection_service_accepts_tonic_add_service() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    let adapter = FailingAdapter::new()
-        .with_row_response("vr_tb_users", vec![alice_row()]);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
-    let services = grpc::build_grpc_service(
-        Arc::new(schema),
-        Arc::new(adapter),
-        None,
-        None,
-    )
-    .expect("build_grpc_service should succeed")
-    .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
+        .expect("build_grpc_service should succeed")
+        .expect("gRPC should be enabled");
 
     let bytes = services
         .reflection_descriptor_bytes
@@ -1420,7 +1369,5 @@ async fn reflection_service_accepts_tonic_add_service() {
 
     // Build a tonic server with both services — verifies type compatibility.
     let mut builder = tonic::transport::Server::builder();
-    let _router = builder
-        .add_service(services.service)
-        .add_service(reflection_svc);
+    let _router = builder.add_service(services.service).add_service(reflection_svc);
 }

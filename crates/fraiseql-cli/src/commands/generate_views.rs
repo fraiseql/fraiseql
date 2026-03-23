@@ -284,7 +284,8 @@ fn generate_view_sql(
 
 /// Generate a Vector Arrow (va_*) view for vector search and analytics
 fn generate_vector_arrow_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
-    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not user input.
+    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not
+    // user input.
     sql.push_str(&format!("CREATE VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
@@ -297,7 +298,8 @@ fn generate_vector_arrow_view(sql: &mut String, entity: &str, sql_source: &str, 
 
 /// Generate a Table Vector (tv_*) view for materialized table vectors
 fn generate_table_vector_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
-    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not user input.
+    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not
+    // user input.
     sql.push_str(&format!("CREATE MATERIALIZED VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
@@ -312,7 +314,8 @@ fn generate_table_vector_view(sql: &mut String, entity: &str, sql_source: &str, 
 
 /// Generate a Table Arrow (ta_*) view for Arrow Flight streaming
 fn generate_table_arrow_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
-    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not user input.
+    // SAFETY: view_name, sql_source, entity are schema-derived (validated at compile time), not
+    // user input.
     sql.push_str(&format!("CREATE VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
@@ -325,7 +328,6 @@ fn generate_table_arrow_view(sql: &mut String, entity: &str, sql_source: &str, v
 }
 
 /// Generate helper composition views
-///
 // SAFETY: view_name and base_name are schema-derived (validated at compile time), not user input.
 fn generate_composition_views(sql: &mut String, _entity: &str, view_name: &str) {
     let base_name = view_name
@@ -345,7 +347,6 @@ fn generate_composition_views(sql: &mut String, _entity: &str, view_name: &str) 
 }
 
 /// Generate monitoring functions for the view
-///
 // SAFETY: view_name and func_name are schema-derived (validated at compile time), not user input.
 fn generate_monitoring_functions(sql: &mut String, view_name: &str) {
     let func_name = format!("monitor_{view_name}");

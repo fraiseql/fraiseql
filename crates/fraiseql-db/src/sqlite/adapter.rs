@@ -31,8 +31,10 @@ use sqlx::{
     sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},
 };
 
-use super::helpers::{build_direct_mutation_sql, sqlite_row_to_json};
-use super::where_generator::SqliteWhereGenerator;
+use super::{
+    helpers::{build_direct_mutation_sql, sqlite_row_to_json},
+    where_generator::SqliteWhereGenerator,
+};
 use crate::{
     dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
@@ -141,9 +143,7 @@ impl SqliteAdapter {
     pub async fn with_pool_size(connection_string: &str, max_size: u32) -> Result<Self> {
         if max_size == 0 || max_size > MAX_POOL_SIZE {
             return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
-                ),
+                message: format!("Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"),
                 path:    None,
             });
         }
@@ -332,8 +332,7 @@ impl DatabaseAdapter for SqliteAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
-        use crate::dialect::RowViewColumnType;
-        use crate::types::ColumnValue;
+        use crate::{dialect::RowViewColumnType, types::ColumnValue};
 
         let col_list: String = columns
             .iter()
@@ -359,10 +358,13 @@ impl DatabaseAdapter for SqliteAdapter {
         }
 
         let rows: Vec<SqliteRow> =
-            sqlx::query(&sql).fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQLite row query on view '{view}' failed: {e}"),
-                sql_state: None,
-            })?;
+            sqlx::query(&sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("SQLite row query on view '{view}' failed: {e}"),
+                    sql_state: None,
+                })?;
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -412,8 +414,7 @@ impl DatabaseAdapter for SqliteAdapter {
                             sql_state: None,
                         })?
                         .map_or(ColumnValue::Null, |s| {
-                            s.parse::<uuid::Uuid>()
-                                .map_or(ColumnValue::Text(s), ColumnValue::Uuid)
+                            s.parse::<uuid::Uuid>().map_or(ColumnValue::Text(s), ColumnValue::Uuid)
                         }),
                     RowViewColumnType::Timestamptz => row
                         .try_get::<Option<String>, _>(name)
@@ -442,8 +443,7 @@ impl DatabaseAdapter for SqliteAdapter {
                             sql_state: None,
                         })?
                         .map_or(ColumnValue::Null, |s| {
-                            serde_json::from_str(&s)
-                                .map_or(ColumnValue::Null, ColumnValue::Json)
+                            serde_json::from_str(&s).map_or(ColumnValue::Null, ColumnValue::Json)
                         }),
                     #[allow(unreachable_patterns)]
                     // Reason: RowViewColumnType is #[non_exhaustive]; wildcard
@@ -498,10 +498,8 @@ impl DatabaseAdapter for SqliteAdapter {
             };
         }
 
-        let row_opt = query
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let row_opt =
+            query.fetch_optional(&self.pool).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("SQLite direct mutation failed: {e}"),
                 sql_state: None,
             })?;
@@ -513,7 +511,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     "Mutation on table '{}' affected no rows (entity not found)",
                     ctx.table
                 ),
-                path: None,
+                path:    None,
             });
         };
 
@@ -1173,8 +1171,8 @@ mod tests {
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {
             database:                    crate::DatabaseType::SQLite,
-            projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
-                .to_string(),
+            projection_template:
+                "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
             estimated_reduction_percent: 50,
         };
         let results = adapter
@@ -1193,12 +1191,14 @@ mod tests {
 
     #[cfg(feature = "grpc")]
     mod grpc_row_query {
-        use crate::dialect::RowViewColumnType;
-        use crate::types::{ColumnSpec, ColumnValue};
-        use crate::traits::DatabaseAdapter;
         use sqlx::Executor as _;
 
         use super::*;
+        use crate::{
+            dialect::RowViewColumnType,
+            traits::DatabaseAdapter,
+            types::{ColumnSpec, ColumnValue},
+        };
 
         /// Create an in-memory adapter with a `tb_user` table and a `vr_user`
         /// row-shaped view that extracts typed columns from the JSON `data` column.
@@ -1256,13 +1256,34 @@ mod tests {
 
         fn user_columns() -> Vec<ColumnSpec> {
             vec![
-                ColumnSpec { name: "id".into(),         column_type: RowViewColumnType::Uuid },
-                ColumnSpec { name: "name".into(),       column_type: RowViewColumnType::Text },
-                ColumnSpec { name: "age".into(),        column_type: RowViewColumnType::Int32 },
-                ColumnSpec { name: "active".into(),     column_type: RowViewColumnType::Boolean },
-                ColumnSpec { name: "score".into(),      column_type: RowViewColumnType::Float64 },
-                ColumnSpec { name: "created_at".into(), column_type: RowViewColumnType::Date },
-                ColumnSpec { name: "metadata".into(),   column_type: RowViewColumnType::Json },
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+                ColumnSpec {
+                    name:        "age".into(),
+                    column_type: RowViewColumnType::Int32,
+                },
+                ColumnSpec {
+                    name:        "active".into(),
+                    column_type: RowViewColumnType::Boolean,
+                },
+                ColumnSpec {
+                    name:        "score".into(),
+                    column_type: RowViewColumnType::Float64,
+                },
+                ColumnSpec {
+                    name:        "created_at".into(),
+                    column_type: RowViewColumnType::Date,
+                },
+                ColumnSpec {
+                    name:        "metadata".into(),
+                    column_type: RowViewColumnType::Json,
+                },
             ]
         }
 
@@ -1295,10 +1316,7 @@ mod tests {
                 alice[5],
                 ColumnValue::Date(chrono::NaiveDate::from_ymd_opt(2026, 3, 20).unwrap())
             );
-            assert_eq!(
-                alice[6],
-                ColumnValue::Json(serde_json::json!({"role": "admin"}))
-            );
+            assert_eq!(alice[6], ColumnValue::Json(serde_json::json!({"role": "admin"})));
         }
 
         #[tokio::test]
@@ -1339,14 +1357,7 @@ mod tests {
             let cols = user_columns();
 
             let rows = adapter
-                .execute_row_query(
-                    "vr_user",
-                    &cols,
-                    Some("\"name\" = 'Charlie'"),
-                    None,
-                    None,
-                    None,
-                )
+                .execute_row_query("vr_user", &cols, Some("\"name\" = 'Charlie'"), None, None, None)
                 .await
                 .expect("execute_row_query with WHERE failed");
 
@@ -1374,8 +1385,14 @@ mod tests {
         async fn execute_row_query_subset_columns() {
             let adapter = setup_row_view().await;
             let cols = vec![
-                ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
-                ColumnSpec { name: "score".into(), column_type: RowViewColumnType::Float64 },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+                ColumnSpec {
+                    name:        "score".into(),
+                    column_type: RowViewColumnType::Float64,
+                },
             ];
 
             let rows = adapter

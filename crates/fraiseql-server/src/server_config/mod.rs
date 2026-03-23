@@ -437,10 +437,10 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,                                               // No auth by default
-            tls: None,                                                // TLS disabled by default
-            database_tls: None,                                       /* Database TLS disabled
-                                                                       * by default */
+            auth: None, // No auth by default
+            tls: None,  // TLS disabled by default
+            database_tls: None, /* Database TLS disabled
+                         * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
             rate_limiting: None,             // Rate limiting uses defaults

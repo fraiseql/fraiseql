@@ -35,7 +35,7 @@ var scalarRegistry = &customScalarRegistry{
 func RegisterCustomScalar(scalar CustomScalar) {
 	name := scalar.Name()
 	if name == "" {
-		panic(fmt.Sprintf("CustomScalar must have a non-empty name"))
+		panic("CustomScalar must have a non-empty name")
 	}
 
 	scalarRegistry.mu.Lock()

@@ -598,8 +598,8 @@ impl SchemaMerger {
                 enabled:        toml_schema.dev.enabled,
                 default_claims: toml_schema.dev.default_claims.clone(),
             };
-            merged["dev_config"] = serde_json::to_value(&dev_config)
-                .context("Failed to serialize dev config")?;
+            merged["dev_config"] =
+                serde_json::to_value(&dev_config).context("Failed to serialize dev config")?;
         }
 
         // Convert to IntermediateSchema

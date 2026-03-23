@@ -188,10 +188,7 @@ impl JsCodegen {
 
     /// Produce a JS string literal (double-quoted, escaped).
     fn js_string_literal(s: &str) -> String {
-        let escaped = s
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n");
+        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
         format!("\"{escaped}\"")
     }
 }

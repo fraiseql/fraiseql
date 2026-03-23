@@ -9,11 +9,15 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
-use fraiseql_core::db::where_clause::WhereClause;
-use fraiseql_core::schema::TypeDefinition;
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{ColumnSpec, ColumnValue},
+        where_clause::WhereClause,
+    },
+    schema::TypeDefinition,
+    security::SecurityContext,
+};
 use futures::stream;
 use http_body::Frame;
 use prost::Message as _;
@@ -27,7 +31,8 @@ fn grpc_frame(msg_bytes: &[u8]) -> Bytes {
     let len = msg_bytes.len();
     let mut framed = Vec::with_capacity(5 + len);
     framed.push(0); // no compression
-    #[allow(clippy::cast_possible_truncation)] // Reason: individual protobuf messages won't exceed u32::MAX
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: individual protobuf messages won't exceed u32::MAX
     framed.extend_from_slice(&(len as u32).to_be_bytes());
     framed.extend_from_slice(msg_bytes);
     Bytes::from(framed)
@@ -35,16 +40,16 @@ fn grpc_frame(msg_bytes: &[u8]) -> Bytes {
 
 /// Internal state for the streaming unfold loop.
 struct StreamState<A: DatabaseAdapter> {
-    adapter: Arc<A>,
-    view_name: String,
-    columns: Vec<ColumnSpec>,
+    adapter:        Arc<A>,
+    view_name:      String,
+    columns:        Vec<ColumnSpec>,
     row_descriptor: MessageDescriptor,
-    where_sql: Option<String>,
-    order_by: Option<String>,
-    batch_size: u32,
-    offset: u32,
-    done: bool,
-    sent_trailers: bool,
+    where_sql:      Option<String>,
+    order_by:       Option<String>,
+    batch_size:     u32,
+    offset:         u32,
+    done:           bool,
+    sent_trailers:  bool,
 }
 
 /// Build a gRPC server-streaming response body for a list query.
@@ -72,8 +77,7 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
     let user_where = handler::extract_filters(request_msg, &type_def);
 
     let rls_where = security_context.and_then(|ctx| {
-        use fraiseql_core::security::DefaultRLSPolicy;
-        use fraiseql_core::security::RLSPolicy as _;
+        use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy as _};
         let policy = DefaultRLSPolicy::new();
         policy
             .evaluate(ctx, type_def.name.as_str())
@@ -89,8 +93,7 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
     };
 
     let where_sql = combined.and_then(|clause| {
-        use fraiseql_core::db::dialect::PostgresDialect;
-        use fraiseql_core::db::where_generator::GenericWhereGenerator;
+        use fraiseql_core::db::{dialect::PostgresDialect, where_generator::GenericWhereGenerator};
         let gen = GenericWhereGenerator::new(PostgresDialect);
         gen.generate(&clause).ok().map(|(sql, _)| sql)
     });
@@ -119,10 +122,7 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
                 // Send final trailers with gRPC status OK.
                 state.sent_trailers = true;
                 let mut trailers = http::HeaderMap::new();
-                trailers.insert(
-                    "grpc-status",
-                    http::HeaderValue::from_static("0"),
-                );
+                trailers.insert("grpc-status", http::HeaderValue::from_static("0"));
                 return Some((Ok(Frame::trailers(trailers)), state));
             }
 
@@ -132,10 +132,7 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
                     // No more rows — send trailers.
                     state.sent_trailers = true;
                     let mut trailers = http::HeaderMap::new();
-                    trailers.insert(
-                        "grpc-status",
-                        http::HeaderValue::from_static("0"),
-                    );
+                    trailers.insert("grpc-status", http::HeaderValue::from_static("0"));
                     Some((Ok(Frame::trailers(trailers)), state))
                 },
                 Err(e) => {

@@ -83,9 +83,7 @@ fn extract_valid_traceparent() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "traceparent",
-        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            .parse()
-            .unwrap(),
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".parse().unwrap(),
     );
 
     let ctx = extract_trace_context(&headers).unwrap();
@@ -99,9 +97,7 @@ fn extract_traceparent_unsampled() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "traceparent",
-        "00-abcdef1234567890abcdef1234567890-1234567890abcdef-00"
-            .parse()
-            .unwrap(),
+        "00-abcdef1234567890abcdef1234567890-1234567890abcdef-00".parse().unwrap(),
     );
 
     let ctx = extract_trace_context(&headers).unwrap();
@@ -141,9 +137,7 @@ fn extract_wrong_version_traceparent_returns_none() {
     // Version 01 is rejected — only version "00" is accepted.
     headers.insert(
         "traceparent",
-        "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            .parse()
-            .unwrap(),
+        "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".parse().unwrap(),
     );
     assert!(extract_trace_context(&headers).is_none());
 }

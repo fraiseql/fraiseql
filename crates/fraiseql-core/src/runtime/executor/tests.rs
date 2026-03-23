@@ -824,14 +824,15 @@ mod planning {
 // ── mod cascade: cascade protocol in mutation responses ───────────────────
 
 mod cascade {
-    use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::*;
 
     /// Mock adapter that returns a configurable `execute_function_call` result,
     /// including cascade data, and tracks `invalidate_cascade_entities` calls.
     struct CascadeMockAdapter {
         /// The row returned by `execute_function_call`.
-        function_result: Vec<std::collections::HashMap<String, serde_json::Value>>,
+        function_result:            Vec<std::collections::HashMap<String, serde_json::Value>>,
         /// Number of times `invalidate_cascade_entities` was called.
         cascade_invalidation_count: AtomicU64,
     }
@@ -839,7 +840,7 @@ mod cascade {
     impl CascadeMockAdapter {
         fn new(row: std::collections::HashMap<String, serde_json::Value>) -> Self {
             Self {
-                function_result: vec![row],
+                function_result:            vec![row],
                 cascade_invalidation_count: AtomicU64::new(0),
             }
         }
@@ -931,10 +932,7 @@ mod cascade {
         let mut row = std::collections::HashMap::new();
         row.insert("status".to_string(), serde_json::json!("new"));
         row.insert("message".to_string(), serde_json::json!("created"));
-        row.insert(
-            "entity".to_string(),
-            serde_json::json!({"id": "order-1", "total": 42}),
-        );
+        row.insert("entity".to_string(), serde_json::json!({"id": "order-1", "total": 42}));
         row.insert("entity_type".to_string(), serde_json::json!("Order"));
         if let Some(c) = cascade {
             row.insert("cascade".to_string(), c);
@@ -971,10 +969,7 @@ mod cascade {
         });
 
         let executor = Executor::new(schema, adapter);
-        let result = executor
-            .execute("mutation { createOrder { id } }", None)
-            .await
-            .unwrap();
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let cascade = &parsed["data"]["createOrder"]["cascade"];
@@ -1002,10 +997,7 @@ mod cascade {
         });
 
         let executor = Executor::new(schema, adapter);
-        let result = executor
-            .execute("mutation { createOrder { id } }", None)
-            .await
-            .unwrap();
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let order = &parsed["data"]["createOrder"];
@@ -1032,10 +1024,7 @@ mod cascade {
         });
 
         let executor = Executor::new(schema, adapter.clone());
-        executor
-            .execute("mutation { createOrder { id } }", None)
-            .await
-            .unwrap();
+        executor.execute("mutation { createOrder { id } }", None).await.unwrap();
 
         assert_eq!(
             adapter.cascade_invalidation_count(),
@@ -1061,10 +1050,7 @@ mod cascade {
         });
 
         let executor = Executor::new(schema, adapter.clone());
-        executor
-            .execute("mutation { createOrder { id } }", None)
-            .await
-            .unwrap();
+        executor.execute("mutation { createOrder { id } }", None).await.unwrap();
 
         assert_eq!(
             adapter.cascade_invalidation_count(),
@@ -1090,10 +1076,7 @@ mod cascade {
         });
 
         let executor = Executor::new(schema, adapter.clone());
-        let result = executor
-            .execute("mutation { createOrder { id } }", None)
-            .await
-            .unwrap();
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let order = &parsed["data"]["createOrder"];

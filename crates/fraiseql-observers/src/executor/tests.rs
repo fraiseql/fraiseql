@@ -937,11 +937,11 @@ async fn test_process_event_with_mock_dispatcher_success() {
     dispatcher.expect_ok("webhook", 10.0);
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -977,11 +977,11 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
     );
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1012,11 +1012,11 @@ async fn test_process_event_condition_false_skips_action() {
     // Condition always false: id == 99999 won't match json({"id":42})
     // Using a numeric field that exists so eval_comparison returns Ok(false)
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("id == 99999".to_string()),
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig::default(),
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("id == 99999".to_string()),
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig::default(),
         on_failure:  FP::Log,
         synchronous: false,
     };
@@ -1046,11 +1046,11 @@ async fn test_process_event_multiple_observers_all_succeed() {
     let mut observers_map = std::collections::HashMap::new();
     for i in 0..3usize {
         let observer = ObserverDefinition {
-            event_type: "INSERT".to_string(),
-            entity:     "Order".to_string(),
-            condition:  None,
-            actions:    vec![webhook_action()],
-            retry:      RetryConfig {
+            event_type:  "INSERT".to_string(),
+            entity:      "Order".to_string(),
+            condition:   None,
+            actions:     vec![webhook_action()],
+            retry:       RetryConfig {
                 max_attempts: 1,
                 initial_delay_ms: 0,
                 ..RetryConfig::default()
@@ -1080,17 +1080,17 @@ async fn test_process_event_multiple_actions_in_one_observer() {
     dispatcher.expect_ok("cache", 2.0);
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![
             webhook_action(),
             ActionConfig::Cache {
                 key_pattern: "orders:*".to_string(),
                 action:      "invalidate".to_string(),
             },
         ],
-        retry:      RetryConfig {
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1124,11 +1124,11 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
     );
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1392,11 +1392,11 @@ async fn test_dlq_size_limit_none_allows_unbounded_pushes() {
 fn test_compile_condition_returns_ast_for_valid_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("total > 100".to_string()),
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("total > 100".to_string()),
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
         on_failure:  crate::config::FailurePolicy::Log,
         synchronous: false,
     };
@@ -1409,11 +1409,11 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
 fn test_compile_condition_returns_none_when_no_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
         on_failure:  crate::config::FailurePolicy::Log,
         synchronous: false,
     };
@@ -1429,11 +1429,11 @@ fn test_compile_condition_returns_none_when_no_condition() {
 fn test_compile_condition_returns_error_for_invalid_dsl() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("@@@invalid$$$".to_string()),
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("@@@invalid$$$".to_string()),
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
         on_failure:  crate::config::FailurePolicy::Log,
         synchronous: false,
     };

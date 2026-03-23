@@ -260,7 +260,7 @@ mod tests {
         use crate::schema::config_types::ConflictTarget;
         let mut m = MutationDefinition::new("createUser", "User");
         m.conflict_targets = vec![ConflictTarget {
-            name: "uq_user_email".to_string(),
+            name:    "uq_user_email".to_string(),
             columns: vec!["email".to_string()],
         }];
         m.upsert_function = Some("fn_upsert_user".to_string());

@@ -118,7 +118,8 @@ impl RateLimiter {
         match self {
             Self::InMemory(_) => super::in_memory::denials_total(),
             #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(_) => super::in_memory::denials_total(), // Redis denials tracked in middleware
+            Self::Redis(_) => super::in_memory::denials_total(), /* Redis denials tracked in
+                                                                  * middleware */
         }
     }
 

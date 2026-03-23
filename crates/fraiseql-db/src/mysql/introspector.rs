@@ -1,15 +1,11 @@
 //! MySQL database introspection for compile-time validation.
 
-use sqlx::{
-    Row,
-    mysql::MySqlPool,
-};
-
 use fraiseql_error::{FraiseQLError, Result};
+use sqlx::{Row, mysql::MySqlPool};
 
 use crate::{
-    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
     DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
 };
 
 /// MySQL introspector for database metadata.
@@ -134,13 +130,12 @@ impl DatabaseIntrospector for MySqlIntrospector {
             column = column_name,
         );
 
-        let rows = sqlx::query(&query)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("Failed to query sample JSON rows: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {

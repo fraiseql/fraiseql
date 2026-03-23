@@ -8,8 +8,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 
-use crate::schema::DevConfig;
-use crate::security::SecurityContext;
+use crate::{schema::DevConfig, security::SecurityContext};
 
 /// Create a synthetic [`SecurityContext`] from dev-mode default claims.
 ///
@@ -29,11 +28,7 @@ pub fn security_context_from_dev_claims(
     claims: &HashMap<String, serde_json::Value>,
     request_id: String,
 ) -> SecurityContext {
-    let user_id = claims
-        .get("sub")
-        .and_then(|v| v.as_str())
-        .unwrap_or("dev-user")
-        .to_string();
+    let user_id = claims.get("sub").and_then(|v| v.as_str()).unwrap_or("dev-user").to_string();
 
     let tenant_id = claims
         .get("tenant_id")
@@ -44,11 +39,7 @@ pub fn security_context_from_dev_claims(
     let roles = claims
         .get("roles")
         .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
     let scopes = claims
@@ -59,9 +50,7 @@ pub fn security_context_from_dev_claims(
                 .map(|s| s.split_whitespace().map(String::from).collect())
                 .or_else(|| {
                     v.as_array().map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
+                        arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
                     })
                 })
         })
@@ -130,10 +119,7 @@ mod tests {
 
         assert_eq!(ctx.user_id, "u1");
         assert_eq!(ctx.tenant_id, Some("t1".to_string()));
-        assert_eq!(
-            ctx.attributes.get("custom"),
-            Some(&serde_json::json!("val"))
-        );
+        assert_eq!(ctx.attributes.get("custom"), Some(&serde_json::json!("val")));
         assert_eq!(ctx.issuer, Some("fraiseql-dev-mode".to_string()));
     }
 
@@ -156,10 +142,7 @@ mod tests {
     #[test]
     fn roles_from_array() {
         let mut claims = HashMap::new();
-        claims.insert(
-            "roles".to_string(),
-            serde_json::json!(["admin", "viewer"]),
-        );
+        claims.insert("roles".to_string(), serde_json::json!(["admin", "viewer"]));
 
         let ctx = security_context_from_dev_claims(&claims, "req-4".to_string());
         assert_eq!(ctx.roles, vec!["admin", "viewer"]);
@@ -168,10 +151,7 @@ mod tests {
     #[test]
     fn scopes_from_space_delimited_string() {
         let mut claims = HashMap::new();
-        claims.insert(
-            "scope".to_string(),
-            serde_json::json!("read:user write:post"),
-        );
+        claims.insert("scope".to_string(), serde_json::json!("read:user write:post"));
 
         let ctx = security_context_from_dev_claims(&claims, "req-5".to_string());
         assert_eq!(ctx.scopes, vec!["read:user", "write:post"]);
@@ -180,10 +160,7 @@ mod tests {
     #[test]
     fn scopes_from_array() {
         let mut claims = HashMap::new();
-        claims.insert(
-            "scopes".to_string(),
-            serde_json::json!(["read:user", "write:post"]),
-        );
+        claims.insert("scopes".to_string(), serde_json::json!(["read:user", "write:post"]));
 
         let ctx = security_context_from_dev_claims(&claims, "req-6".to_string());
         assert_eq!(ctx.scopes, vec!["read:user", "write:post"]);

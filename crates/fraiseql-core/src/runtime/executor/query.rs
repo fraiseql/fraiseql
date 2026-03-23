@@ -113,14 +113,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         let plan = self.planner.plan(query_match)?;
 
         // 2. Evaluate RLS policy and build WHERE clause filter.
-        let rls_where_clause: Option<RlsWhereClause> =
-            if let (Some(ref rls_policy), Some(ctx)) =
-                (&self.config.rls_policy, security_context)
-            {
-                rls_policy.evaluate(ctx, &query_match.query_def.name)?
-            } else {
-                None
-            };
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
 
         // 3. Get SQL source from query definition
         let sql_source =
@@ -153,42 +152,42 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // 5. AND inject conditions onto the RLS WHERE clause.
-        //    Inject conditions always come after RLS so they cannot bypass it.
-        let combined_where: Option<WhereClause> =
-            if query_match.query_def.inject_params.is_empty() {
-                rls_where_clause.map(RlsWhereClause::into_where_clause)
-            } else {
-                let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
-                    message: format!(
-                        "Query '{}' has inject params but was called without a security context",
-                        query_match.query_def.name
-                    ),
-                    path: None,
-                })?;
-                let mut conditions: Vec<WhereClause> = query_match
-                    .query_def
-                    .inject_params
-                    .iter()
-                    .map(|(col, source)| {
-                        let value = resolve_inject_value(col, source, ctx)?;
-                        Ok(WhereClause::Field {
-                            path:     vec![col.clone()],
-                            operator: WhereOperator::Eq,
-                            value,
-                        })
+        // 5. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
+        //    RLS so they cannot bypass it.
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
                     })
-                    .collect::<Result<Vec<_>>>()?;
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-                if let Some(rls) = rls_where_clause {
-                    conditions.insert(0, rls.into_where_clause());
-                }
-                match conditions.len() {
-                    0 => None,
-                    1 => Some(conditions.remove(0)),
-                    _ => Some(WhereClause::And(conditions)),
-                }
-            };
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
 
         // 6. Execute query with combined WHERE clause filter
         let results = self
@@ -295,7 +294,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                             "Query '{}' not found in schema",
                             query_match.query_def.name
                         ),
-                        path: None,
+                        path:    None,
                     });
                 },
             }
@@ -308,7 +307,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_match.query_def.name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -319,8 +318,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Apply query timeout if configured
         if self.config.query_timeout_ms > 0 {
-            let timeout_duration =
-                std::time::Duration::from_millis(self.config.query_timeout_ms);
+            let timeout_duration = std::time::Duration::from_millis(self.config.query_timeout_ms);
             tokio::time::timeout(
                 timeout_duration,
                 self.execute_from_match(query_match, security_context),
@@ -359,14 +357,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_context: Option<&SecurityContext>,
     ) -> Result<u64> {
         // 1. Evaluate RLS policy
-        let rls_where_clause: Option<RlsWhereClause> =
-            if let (Some(ref rls_policy), Some(ctx)) =
-                (&self.config.rls_policy, security_context)
-            {
-                rls_policy.evaluate(ctx, &query_match.query_def.name)?
-            } else {
-                None
-            };
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
 
         // 2. Get SQL source
         let sql_source =
@@ -380,40 +377,40 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })?;
 
         // 3. Build combined WHERE clause (RLS + inject)
-        let combined_where: Option<WhereClause> =
-            if query_match.query_def.inject_params.is_empty() {
-                rls_where_clause.map(RlsWhereClause::into_where_clause)
-            } else {
-                let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
-                    message: format!(
-                        "Query '{}' has inject params but no security context is available",
-                        query_match.query_def.name
-                    ),
-                    path: None,
-                })?;
-                let mut conditions: Vec<WhereClause> = query_match
-                    .query_def
-                    .inject_params
-                    .iter()
-                    .map(|(col, source)| {
-                        let value = resolve_inject_value(col, source, ctx)?;
-                        Ok(WhereClause::Field {
-                            path:     vec![col.clone()],
-                            operator: WhereOperator::Eq,
-                            value,
-                        })
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but no security context is available",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
                     })
-                    .collect::<Result<Vec<_>>>()?;
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-                if let Some(rls) = rls_where_clause {
-                    conditions.insert(0, rls.into_where_clause());
-                }
-                match conditions.len() {
-                    0 => None,
-                    1 => Some(conditions.remove(0)),
-                    _ => Some(WhereClause::And(conditions)),
-                }
-            };
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
 
         // 4. Execute COUNT query via adapter
         let rows = self

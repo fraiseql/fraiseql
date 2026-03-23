@@ -17,16 +17,16 @@
 
 mod common;
 
-use std::sync::{
-    Arc,
-    atomic::Ordering,
-};
+use std::sync::{Arc, atomic::Ordering};
 
 use axum::{Router, routing::get};
 use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use fraiseql_server::{
     metrics_server::MetricsCollector,
-    routes::{graphql::AppState, metrics::{metrics_handler, metrics_json_handler}},
+    routes::{
+        graphql::AppState,
+        metrics::{metrics_handler, metrics_json_handler},
+    },
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::StatusCode;

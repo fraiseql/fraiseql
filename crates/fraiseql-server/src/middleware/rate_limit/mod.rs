@@ -119,10 +119,13 @@ mod tests {
         };
         let limiter = RateLimiter::new(config);
         // Use a unique IP to avoid interference with other tests
-        let ip = format!("denial-test-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos());
+        let ip = format!(
+            "denial-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
         limiter.check_ip_limit(&ip).await; // allowed
         limiter.check_ip_limit(&ip).await; // denied
         assert!(denials_total() > before, "denial counter should increment");

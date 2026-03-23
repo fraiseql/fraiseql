@@ -1,15 +1,11 @@
 //! SQLite database introspection for compile-time validation.
 
-use sqlx::{
-    Row,
-    sqlite::SqlitePool,
-};
-
 use fraiseql_error::{FraiseQLError, Result};
+use sqlx::{Row, sqlite::SqlitePool};
 
 use crate::{
-    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
     DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
 };
 
 /// SQLite introspector for database metadata.
@@ -44,15 +40,16 @@ impl DatabaseIntrospector for SqliteIntrospector {
     }
 
     async fn get_columns(&self, table_name: &str) -> Result<Vec<(String, String, bool)>> {
-        let query = format!("SELECT name, type, \"notnull\" FROM pragma_table_info('{table_name}') ORDER BY cid");
+        let query = format!(
+            "SELECT name, type, \"notnull\" FROM pragma_table_info('{table_name}') ORDER BY cid"
+        );
 
-        let rows = sqlx::query(&query)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("Failed to query column information: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         let mut columns = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -83,13 +80,12 @@ impl DatabaseIntrospector for SqliteIntrospector {
              WHERE sm.name = '{table_name}'"
         );
 
-        let rows = sqlx::query(&query)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("Failed to query index information: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         let mut columns = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -150,13 +146,12 @@ impl DatabaseIntrospector for SqliteIntrospector {
             column = column_name,
         );
 
-        let rows = sqlx::query(&query)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("Failed to query sample JSON rows: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {

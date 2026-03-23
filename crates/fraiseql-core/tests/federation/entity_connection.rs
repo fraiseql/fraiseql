@@ -242,13 +242,9 @@ fn test_database_parameterized_queries() {
         all_fields: rep_all,
     };
 
-    let result = construct_where_in_clause(
-        "User",
-        &[representation],
-        &metadata,
-        DatabaseType::PostgreSQL,
-    )
-    .unwrap();
+    let result =
+        construct_where_in_clause("User", &[representation], &metadata, DatabaseType::PostgreSQL)
+            .unwrap();
 
     // Value is in params, not in SQL text (parameterized query)
     assert_eq!(result.sql, "id IN ($1)");

@@ -6,7 +6,6 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
 use parking_lot::Mutex;
-
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -259,13 +258,14 @@ impl CompilationCache {
     /// # Errors
     ///
     /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
-    ///
     pub fn hit_rate(&self) -> Result<f64> {
         let metrics = self.metrics.lock();
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
-        #[allow(clippy::cast_precision_loss)] // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is acceptable
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
+        // acceptable
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
     }
 }

@@ -5,11 +5,10 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_sdk_s3::primitives::ByteStream;
-use aws_sdk_s3::Client;
+use aws_sdk_s3::{Client, primitives::ByteStream};
 use fraiseql_error::FileError;
 
-use super::{validate_key, StorageBackend, StorageResult};
+use super::{StorageBackend, StorageResult, validate_key};
 
 /// Stores files in an AWS S3 bucket (or S3-compatible service).
 pub struct S3StorageBackend {
@@ -73,29 +72,25 @@ impl StorageBackend for S3StorageBackend {
 
     async fn download(&self, key: &str) -> StorageResult<Vec<u8>> {
         validate_key(key)?;
-        let resp = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await
-            .map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("NoSuchKey") || msg.contains("404") {
-                    FileError::NotFound {
-                        id: key.to_string(),
+        let resp =
+            self.client
+                .get_object()
+                .bucket(&self.bucket)
+                .key(key)
+                .send()
+                .await
+                .map_err(|e| {
+                    let msg = e.to_string();
+                    if msg.contains("NoSuchKey") || msg.contains("404") {
+                        FileError::NotFound {
+                            id: key.to_string(),
+                        }
+                    } else {
+                        storage_err("get_object", e)
                     }
-                } else {
-                    storage_err("get_object", e)
-                }
-            })?;
+                })?;
 
-        let body = resp
-            .body
-            .collect()
-            .await
-            .map_err(|e| storage_err("get_object body", e))?;
+        let body = resp.body.collect().await.map_err(|e| storage_err("get_object body", e))?;
         Ok(body.into_bytes().to_vec())
     }
 
@@ -113,26 +108,16 @@ impl StorageBackend for S3StorageBackend {
 
     async fn exists(&self, key: &str) -> StorageResult<bool> {
         validate_key(key)?;
-        match self
-            .client
-            .head_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await
-        {
+        match self.client.head_object().bucket(&self.bucket).key(key).send().await {
             Ok(_) => Ok(true),
             Err(err) => {
                 let msg = err.to_string();
-                if msg.contains("NotFound")
-                    || msg.contains("NoSuchKey")
-                    || msg.contains("404")
-                {
+                if msg.contains("NotFound") || msg.contains("NoSuchKey") || msg.contains("404") {
                     Ok(false)
                 } else {
                     Err(storage_err("head_object", err))
                 }
-            }
+            },
         }
     }
 

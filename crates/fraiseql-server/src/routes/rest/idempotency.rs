@@ -12,8 +12,10 @@
 //! expiry.  A Redis-backed implementation is available under the
 //! `redis-idempotency` feature flag.
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use dashmap::DashMap;
 use serde_json::Value;
@@ -36,20 +38,23 @@ pub enum IdempotencyCheck {
 
 /// A stored response for idempotency replay.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "redis-idempotency", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "redis-idempotency",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct StoredResponse {
     /// HTTP status code.
-    pub status: u16,
+    pub status:  u16,
     /// Response headers (key, value) pairs.
     pub headers: Vec<(String, String)>,
     /// Response body (if any).
-    pub body: Option<Value>,
+    pub body:    Option<Value>,
 }
 
 /// Entry in the in-memory idempotency store.
 struct Entry {
-    response: StoredResponse,
-    body_hash: u64,
+    response:   StoredResponse,
+    body_hash:  u64,
     created_at: Instant,
 }
 
@@ -91,8 +96,8 @@ pub trait IdempotencyStore: Send + Sync {
 /// Entries expire after the configured TTL.  Expired entries are lazily evicted
 /// on access and periodically during insertions.
 pub struct InMemoryIdempotencyStore {
-    entries: DashMap<String, Entry>,
-    ttl: Duration,
+    entries:     DashMap<String, Entry>,
+    ttl:         Duration,
     max_entries: usize,
 }
 
@@ -124,10 +129,7 @@ impl InMemoryIdempotencyStore {
 
     /// Find the key of the oldest entry.
     fn find_oldest_key(&self) -> Option<String> {
-        self.entries
-            .iter()
-            .min_by_key(|e| e.created_at)
-            .map(|e| e.key().clone())
+        self.entries.iter().min_by_key(|e| e.created_at).map(|e| e.key().clone())
     }
 }
 
@@ -210,10 +212,7 @@ pub fn hash_body(body: &Value) -> u64 {
 /// * `ttl_seconds` - TTL for stored responses
 #[must_use]
 pub fn create_store(ttl_seconds: u64) -> Arc<dyn IdempotencyStore> {
-    Arc::new(InMemoryIdempotencyStore::new(
-        Duration::from_secs(ttl_seconds),
-        10_000,
-    ))
+    Arc::new(InMemoryIdempotencyStore::new(Duration::from_secs(ttl_seconds), 10_000))
 }
 
 /// Create an idempotency store, preferring Redis when available.
@@ -226,10 +225,7 @@ pub fn create_store_with_redis(
     redis_pool: Option<redis::aio::ConnectionManager>,
 ) -> Arc<dyn IdempotencyStore> {
     if let Some(pool) = redis_pool {
-        Arc::new(RedisIdempotencyStore::new(
-            pool,
-            Duration::from_secs(ttl_seconds),
-        ))
+        Arc::new(RedisIdempotencyStore::new(pool, Duration::from_secs(ttl_seconds)))
     } else {
         create_store(ttl_seconds)
     }
@@ -242,8 +238,9 @@ pub fn create_store_with_redis(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     fn make_store(ttl_secs: u64) -> InMemoryIdempotencyStore {
         InMemoryIdempotencyStore::new(Duration::from_secs(ttl_secs), 100)
@@ -251,9 +248,9 @@ mod tests {
 
     fn make_response() -> StoredResponse {
         StoredResponse {
-            status: 201,
+            status:  201,
             headers: vec![("x-request-id".to_string(), "abc".to_string())],
-            body: Some(json!({"id": 1, "name": "Alice"})),
+            body:    Some(json!({"id": 1, "name": "Alice"})),
         }
     }
 
@@ -277,7 +274,7 @@ mod tests {
             IdempotencyCheck::Replay(stored) => {
                 assert_eq!(stored.status, 201);
                 assert_eq!(stored.body.as_ref().unwrap()["name"], "Alice");
-            }
+            },
             other => panic!("Expected Replay, got {other:?}"),
         }
     }
@@ -292,10 +289,7 @@ mod tests {
 
         store.store("key1".to_string(), hash1, make_response()).await;
 
-        assert!(matches!(
-            store.check("key1", hash2).await,
-            IdempotencyCheck::Conflict
-        ));
+        assert!(matches!(store.check("key1", hash2).await, IdempotencyCheck::Conflict));
     }
 
     #[tokio::test]
@@ -309,10 +303,7 @@ mod tests {
         // Wait for TTL to expire
         tokio::time::sleep(Duration::from_millis(5)).await;
 
-        assert!(matches!(
-            store.check("key1", body_hash).await,
-            IdempotencyCheck::New
-        ));
+        assert!(matches!(store.check("key1", body_hash).await, IdempotencyCheck::New));
     }
 
     #[tokio::test]

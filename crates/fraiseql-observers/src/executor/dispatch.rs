@@ -267,7 +267,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         crate::actions::render_template(tmpl, &event.data)
                     } else {
                         return Err(ObserverError::InvalidActionConfig {
-                            reason: "Email 'subject' or 'subject_template' not provided".to_string(),
+                            reason: "Email 'subject' or 'subject_template' not provided"
+                                .to_string(),
                         });
                     };
 

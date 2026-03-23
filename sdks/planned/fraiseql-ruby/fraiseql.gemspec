@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'lib/fraiseql/version'
+
 Gem::Specification.new do |spec|
   spec.name    = 'fraiseql'
   spec.version = FraiseQL::VERSION

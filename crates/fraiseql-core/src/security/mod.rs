@@ -35,6 +35,7 @@ pub mod validation_audit;
 // Re-export key types for convenience
 pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
 pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser, SigningKey};
+pub use dev_context::{is_dev_mode_active, security_context_from_dev_claims};
 pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::{Result, SecurityError};
 pub use field_filter::{FieldAccessError, FieldFilter, FieldFilterBuilder, FieldFilterConfig};
@@ -49,7 +50,6 @@ pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
-pub use dev_context::{is_dev_mode_active, security_context_from_dev_claims};
 pub use security_context::SecurityContext;
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
 pub use validation_audit::{

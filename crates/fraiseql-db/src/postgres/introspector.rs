@@ -4,8 +4,8 @@ use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
 use crate::{
-    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
     DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
 };
 
 /// PostgreSQL introspector for fact table metadata.

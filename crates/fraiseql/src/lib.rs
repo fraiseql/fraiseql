@@ -88,12 +88,15 @@ pub mod prelude {
     // Core types
     // Database access
     // GraphQL parsing
-    pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
     // Runtime executor
     pub use fraiseql_core::runtime::Executor;
     // Tenancy support
     pub use fraiseql_core::tenancy::TenantContext as Tenant;
-    pub use fraiseql_core::{db, runtime::ExecutorAdapter};
+    pub use fraiseql_core::{
+        db,
+        graphql::{ParsedQuery, parse_query},
+        runtime::ExecutorAdapter,
+    };
 
     // Optional: Observer system
     #[cfg(feature = "observers")]

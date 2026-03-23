@@ -5,8 +5,7 @@
 //! These views are CQRS read projections optimized for protobuf wire encoding —
 //! the database returns native typed columns instead of JSON.
 
-use fraiseql_core::db::dialect::SqlDialect;
-use fraiseql_core::schema::TypeDefinition;
+use fraiseql_core::{db::dialect::SqlDialect, schema::TypeDefinition};
 
 use super::proto_gen::graphql_to_row_view_type;
 
@@ -34,11 +33,8 @@ pub fn generate_row_view_sql(dialect: &dyn SqlDialect, type_def: &TypeDefinition
         .filter(|f| f.field_type.is_scalar())
         .map(|f| {
             let col_type = graphql_to_row_view_type(&f.field_type.to_graphql_string());
-            let expr = dialect.row_view_column_expr(
-                &type_def.jsonb_column,
-                f.name.as_ref(),
-                &col_type,
-            );
+            let expr =
+                dialect.row_view_column_expr(&type_def.jsonb_column, f.name.as_ref(), &col_type);
             (f.name.to_string(), expr)
         })
         .collect();
@@ -87,30 +83,31 @@ pub fn generate_all_row_views(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use fraiseql_core::db::dialect::{
-        MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect,
+    use fraiseql_core::{
+        db::dialect::{MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect},
+        schema::{FieldDefinition, FieldDenyPolicy, FieldType},
     };
-    use fraiseql_core::schema::{FieldDenyPolicy, FieldDefinition, FieldType};
+
+    use super::*;
 
     fn make_user_type() -> TypeDefinition {
         TypeDefinition {
-            name: "user".into(),
-            sql_source: "user".into(),
-            jsonb_column: "data".to_string(),
-            fields: vec![
+            name:                "user".into(),
+            sql_source:          "user".into(),
+            jsonb_column:        "data".to_string(),
+            fields:              vec![
                 make_field("id", FieldType::Id, false),
                 make_field("name", FieldType::String, false),
                 make_field("email", FieldType::String, true),
                 make_field("created_at", FieldType::DateTime, false),
             ],
-            description: None,
+            description:         None,
             sql_projection_hint: None,
-            implements: vec![],
-            requires_role: None,
-            is_error: false,
-            relay: false,
-            relationships: vec![],
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       vec![],
         }
     }
 
@@ -193,28 +190,24 @@ mod tests {
     #[test]
     fn test_non_scalar_fields_excluded() {
         let td = TypeDefinition {
-            name: "post".into(),
-            sql_source: "post".into(),
-            jsonb_column: "data".to_string(),
-            fields: vec![
+            name:                "post".into(),
+            sql_source:          "post".into(),
+            jsonb_column:        "data".to_string(),
+            fields:              vec![
                 make_field("id", FieldType::Id, false),
                 make_field("title", FieldType::String, false),
                 // Object reference — should be excluded from vr_* view
                 make_field("author", FieldType::Object("User".to_string()), false),
                 // List — should be excluded
-                make_field(
-                    "tags",
-                    FieldType::List(Box::new(FieldType::String)),
-                    false,
-                ),
+                make_field("tags", FieldType::List(Box::new(FieldType::String)), false),
             ],
-            description: None,
+            description:         None,
             sql_projection_hint: None,
-            implements: vec![],
-            requires_role: None,
-            is_error: false,
-            relay: false,
-            relationships: vec![],
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       vec![],
         };
 
         let ddl = generate_row_view_sql(&PostgresDialect, &td);
@@ -247,26 +240,21 @@ mod tests {
         let types = vec![
             make_user_type(),
             TypeDefinition {
-                name: "secret".into(),
-                sql_source: "secret".into(),
-                jsonb_column: "data".to_string(),
-                fields: vec![make_field("id", FieldType::Id, false)],
-                description: None,
+                name:                "secret".into(),
+                sql_source:          "secret".into(),
+                jsonb_column:        "data".to_string(),
+                fields:              vec![make_field("id", FieldType::Id, false)],
+                description:         None,
                 sql_projection_hint: None,
-                implements: vec![],
-                requires_role: None,
-                is_error: false,
-                relay: false,
-                relationships: vec![],
+                implements:          vec![],
+                requires_role:       None,
+                is_error:            false,
+                relay:               false,
+                relationships:       vec![],
             },
         ];
 
-        let ddl = generate_all_row_views(
-            &PostgresDialect,
-            &types,
-            &[],
-            &["secret".to_string()],
-        );
+        let ddl = generate_all_row_views(&PostgresDialect, &types, &[], &["secret".to_string()]);
 
         assert!(ddl.contains("vr_user"));
         assert!(!ddl.contains("vr_secret"));

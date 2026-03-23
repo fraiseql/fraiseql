@@ -354,8 +354,7 @@ impl<'a> ConfigValidator<'a> {
         // Validate storage backends
         for (name, storage) in &self.config.storage {
             match storage.backend.as_str() {
-                "s3" | "r2" | "gcs" | "hetzner" | "scaleway" | "ovh" | "exoscale"
-                | "backblaze" => {
+                "s3" | "r2" | "gcs" | "hetzner" | "scaleway" | "ovh" | "exoscale" | "backblaze" => {
                     if storage.bucket.is_none() {
                         self.result.add_error(ConfigError::ValidationError {
                             field:   format!("storage.{}.bucket", name),

@@ -73,7 +73,7 @@ pub enum PlanError {
         /// Current depth.
         depth: usize,
         /// Maximum allowed depth.
-        max: usize,
+        max:   usize,
     },
     /// The query body is empty / unparseable at the planner level.
     EmptyQuery,
@@ -116,11 +116,9 @@ pub fn plan_query(
     // Group fields by subgraph
     let mut groups: HashMap<String, Vec<String>> = HashMap::new();
     for field in root_fields {
-        let owner = ownership
-            .owner(field)
-            .ok_or_else(|| PlanError::UnknownField {
-                field: field.clone(),
-            })?;
+        let owner = ownership.owner(field).ok_or_else(|| PlanError::UnknownField {
+            field: field.clone(),
+        })?;
         groups.entry(owner.to_string()).or_default().push(field.clone());
     }
 

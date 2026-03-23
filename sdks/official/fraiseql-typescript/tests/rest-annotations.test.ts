@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { SchemaRegistry } from "../src/registry";
 import { registerQuery, registerMutation } from "../src/decorators";
 

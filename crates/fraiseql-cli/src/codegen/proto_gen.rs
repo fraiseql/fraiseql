@@ -2,9 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use fraiseql_core::db::dialect::RowViewColumnType;
-use fraiseql_core::schema::CompiledSchema;
-use fraiseql_core::schema::{FieldDefinition, FieldType};
+use fraiseql_core::{
+    db::dialect::RowViewColumnType,
+    schema::{CompiledSchema, FieldDefinition, FieldType},
+};
 
 /// Map a GraphQL type name to a Protobuf type name.
 ///
@@ -69,10 +70,7 @@ pub fn graphql_to_row_view_type(graphql_type: &str) -> RowViewColumnType {
 /// well-known type `.proto` file.
 #[must_use]
 pub fn needs_well_known_import(proto_type: &str) -> bool {
-    matches!(
-        proto_type,
-        "google.protobuf.Timestamp" | "google.protobuf.Struct"
-    )
+    matches!(proto_type, "google.protobuf.Timestamp" | "google.protobuf.Struct")
 }
 
 /// Map a [`FieldType`] to a protobuf type string.
@@ -94,33 +92,33 @@ fn field_type_to_proto(ft: &FieldType) -> ProtoFieldType {
         FieldType::Enum(name) => ProtoFieldType::scalar(name),
         FieldType::Object(name) | FieldType::Interface(name) | FieldType::Union(name) => {
             ProtoFieldType::scalar(name)
-        }
+        },
         FieldType::Input(name) => ProtoFieldType::scalar(name),
         FieldType::List(inner) => {
             let inner_proto = field_type_to_proto(inner);
             ProtoFieldType::repeated(&inner_proto.type_name)
-        }
+        },
     }
 }
 
 /// Intermediate representation of a protobuf field type.
 struct ProtoFieldType {
     type_name: String,
-    repeated: bool,
+    repeated:  bool,
 }
 
 impl ProtoFieldType {
     fn scalar(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated: false,
+            repeated:  false,
         }
     }
 
     fn repeated(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated: true,
+            repeated:  true,
         }
     }
 }
@@ -228,24 +226,16 @@ pub fn generate_proto_file(
         let req = format!("{rpc_name}Request");
         if q.returns_list {
             // Server-streaming RPC: each response frame is a single entity message.
-            out.push_str(&format!(
-                "  rpc {rpc_name}({req}) returns (stream {});\n",
-                q.return_type
-            ));
+            out.push_str(&format!("  rpc {rpc_name}({req}) returns (stream {});\n", q.return_type));
         } else {
-            out.push_str(&format!(
-                "  rpc {rpc_name}({req}) returns ({});\n",
-                q.return_type
-            ));
+            out.push_str(&format!("  rpc {rpc_name}({req}) returns ({});\n", q.return_type));
         }
     }
 
     for m in &schema.mutations {
         let rpc_name = to_pascal_case(&m.name);
         let req = format!("{rpc_name}Request");
-        out.push_str(&format!(
-            "  rpc {rpc_name}({req}) returns (MutationResponse);\n"
-        ));
+        out.push_str(&format!("  rpc {rpc_name}({req}) returns (MutationResponse);\n"));
     }
 
     out.push_str("}\n");
@@ -287,10 +277,7 @@ fn generate_enum(
     values: &[fraiseql_core::schema::EnumValueDefinition],
 ) {
     out.push_str(&format!("enum {name} {{\n"));
-    out.push_str(&format!(
-        "  {}_UNSPECIFIED = 0;\n",
-        to_screaming_snake(name)
-    ));
+    out.push_str(&format!("  {}_UNSPECIFIED = 0;\n", to_screaming_snake(name)));
 
     for (i, val) in values.iter().enumerate() {
         out.push_str(&format!("  {} = {};\n", val.name, i + 1));
@@ -300,10 +287,7 @@ fn generate_enum(
 }
 
 /// Generate request/response messages for a query.
-fn generate_query_messages(
-    out: &mut String,
-    q: &fraiseql_core::schema::QueryDefinition,
-) {
+fn generate_query_messages(out: &mut String, q: &fraiseql_core::schema::QueryDefinition) {
     let rpc_name = to_pascal_case(&q.name);
 
     // Request message
@@ -373,11 +357,7 @@ fn generate_mutation_request_message(
 }
 
 /// Check if a type should be included based on include/exclude lists.
-fn should_include_type(
-    name: &str,
-    include_types: &[String],
-    exclude_types: &[String],
-) -> bool {
+fn should_include_type(name: &str, include_types: &[String], exclude_types: &[String]) -> bool {
     if !include_types.is_empty() && !include_types.iter().any(|t| t == name) {
         return false;
     }
@@ -394,7 +374,7 @@ fn to_pascal_case(name: &str) -> String {
                     let mut s = c.to_uppercase().to_string();
                     s.push_str(&chars.collect::<String>());
                     s
-                }
+                },
                 None => String::new(),
             }
         })
@@ -427,21 +407,22 @@ fn add_import_for_type(proto_type: &str, imports: &mut BTreeSet<String>) {
     match proto_type {
         "google.protobuf.Timestamp" => {
             imports.insert("google/protobuf/timestamp.proto".to_string());
-        }
+        },
         "google.protobuf.Struct" => {
             imports.insert("google/protobuf/struct.proto".to_string());
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use fraiseql_core::schema::CompiledSchema;
     use fraiseql_core::schema::{
-        EnumDefinition, EnumValueDefinition, FieldDenyPolicy, FieldType, TypeDefinition,
+        CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDenyPolicy, FieldType,
+        TypeDefinition,
     };
+
+    use super::*;
 
     fn make_field(name: &str, ft: FieldType, nullable: bool) -> FieldDefinition {
         FieldDefinition {
@@ -551,10 +532,7 @@ mod tests {
 
     #[test]
     fn test_proto_type_datetime() {
-        assert_eq!(
-            graphql_to_proto_type("DateTime"),
-            "google.protobuf.Timestamp"
-        );
+        assert_eq!(graphql_to_proto_type("DateTime"), "google.protobuf.Timestamp");
     }
 
     #[test]
@@ -597,18 +575,12 @@ mod tests {
 
     #[test]
     fn test_row_view_type_float() {
-        assert_eq!(
-            graphql_to_row_view_type("Float"),
-            RowViewColumnType::Float64
-        );
+        assert_eq!(graphql_to_row_view_type("Float"), RowViewColumnType::Float64);
     }
 
     #[test]
     fn test_row_view_type_boolean() {
-        assert_eq!(
-            graphql_to_row_view_type("Boolean"),
-            RowViewColumnType::Boolean
-        );
+        assert_eq!(graphql_to_row_view_type("Boolean"), RowViewColumnType::Boolean);
     }
 
     #[test]
@@ -618,10 +590,7 @@ mod tests {
 
     #[test]
     fn test_row_view_type_datetime() {
-        assert_eq!(
-            graphql_to_row_view_type("DateTime"),
-            RowViewColumnType::Timestamptz
-        );
+        assert_eq!(graphql_to_row_view_type("DateTime"), RowViewColumnType::Timestamptz);
     }
 
     #[test]
@@ -691,30 +660,14 @@ mod tests {
 
     #[test]
     fn test_include_whitelist() {
-        assert!(should_include_type(
-            "User",
-            &["User".to_string()],
-            &[]
-        ));
-        assert!(!should_include_type(
-            "Post",
-            &["User".to_string()],
-            &[]
-        ));
+        assert!(should_include_type("User", &["User".to_string()], &[]));
+        assert!(!should_include_type("Post", &["User".to_string()], &[]));
     }
 
     #[test]
     fn test_exclude_blacklist() {
-        assert!(!should_include_type(
-            "Secret",
-            &[],
-            &["Secret".to_string()]
-        ));
-        assert!(should_include_type(
-            "User",
-            &[],
-            &["Secret".to_string()]
-        ));
+        assert!(!should_include_type("Secret", &[], &["Secret".to_string()]));
+        assert!(should_include_type("User", &[], &["Secret".to_string()]));
     }
 
     // ── generate_proto_file ─────────────────────────────────────────────
@@ -769,10 +722,9 @@ mod tests {
     #[test]
     fn test_generate_proto_with_mutations() {
         let mut schema = CompiledSchema::new();
-        schema.types.push(make_type(
-            "User",
-            vec![make_field("id", FieldType::Id, false)],
-        ));
+        schema
+            .types
+            .push(make_type("User", vec![make_field("id", FieldType::Id, false)]));
         schema.mutations.push(make_mutation(
             "create_user",
             vec![
@@ -795,15 +747,15 @@ mod tests {
     fn test_generate_proto_with_enum() {
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name: "OrderStatus".to_string(),
-            values: vec![
+            name:        "OrderStatus".to_string(),
+            values:      vec![
                 EnumValueDefinition {
-                    name: "PENDING".to_string(),
+                    name:        "PENDING".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name: "SHIPPED".to_string(),
+                    name:        "SHIPPED".to_string(),
                     description: None,
                     deprecation: None,
                 },
@@ -831,23 +783,16 @@ mod tests {
     #[test]
     fn test_generate_proto_exclude_types() {
         let mut schema = CompiledSchema::new();
-        schema.types.push(make_type(
-            "User",
-            vec![make_field("id", FieldType::Id, false)],
-        ));
-        schema.types.push(make_type(
-            "Secret",
-            vec![make_field("id", FieldType::Id, false)],
-        ));
+        schema
+            .types
+            .push(make_type("User", vec![make_field("id", FieldType::Id, false)]));
+        schema
+            .types
+            .push(make_type("Secret", vec![make_field("id", FieldType::Id, false)]));
         schema.queries.push(make_query("get_user", "User", false));
         schema.queries.push(make_query("get_secret", "Secret", false));
 
-        let proto = generate_proto_file(
-            &schema,
-            "fraiseql.v1",
-            &[],
-            &["Secret".to_string()],
-        );
+        let proto = generate_proto_file(&schema, "fraiseql.v1", &[], &["Secret".to_string()]);
 
         assert!(proto.contains("message User {"));
         assert!(!proto.contains("message Secret {"));
@@ -858,10 +803,9 @@ mod tests {
     #[test]
     fn test_generate_proto_list_query_pagination() {
         let mut schema = CompiledSchema::new();
-        schema.types.push(make_type(
-            "User",
-            vec![make_field("id", FieldType::Id, false)],
-        ));
+        schema
+            .types
+            .push(make_type("User", vec![make_field("id", FieldType::Id, false)]));
         schema.queries.push(make_query("list_users", "User", true));
 
         let proto = generate_proto_file(&schema, "fraiseql.v1", &[], &[]);

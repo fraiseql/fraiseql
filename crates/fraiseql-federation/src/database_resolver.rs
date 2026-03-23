@@ -134,10 +134,7 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             where_result.sql
         );
 
-        let rows = self
-            .adapter
-            .execute_parameterized_aggregate(&sql, &where_result.params)
-            .await?;
+        let rows = self.adapter.execute_parameterized_aggregate(&sql, &where_result.params).await?;
 
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)

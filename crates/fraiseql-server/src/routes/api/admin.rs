@@ -8,11 +8,7 @@
 use std::{collections::HashMap, fs, sync::Arc};
 
 use axum::{Json, extract::State};
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::Executor,
-    schema::CompiledSchema,
-};
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -145,10 +141,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         status: "success".to_string(),
         data:   ReloadSchemaResponse {
             success: true,
-            message: format!(
-                "Schema reloaded from {} (hash: {new_hash})",
-                req.schema_path,
-            ),
+            message: format!("Schema reloaded from {} (hash: {new_hash})", req.schema_path,),
         },
     }))
 }

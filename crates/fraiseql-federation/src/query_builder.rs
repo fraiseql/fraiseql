@@ -67,7 +67,7 @@ pub fn construct_where_in_clause(
         }
 
         Ok(ParameterizedWhereClause {
-            sql:    format!("{} IN ({})", key_field, placeholders.join(", ")),
+            sql: format!("{} IN ({})", key_field, placeholders.join(", ")),
             params,
         })
     } else {
@@ -132,7 +132,7 @@ fn construct_composite_where_in(
     let tuples_str = value_tuples.join(", ");
 
     Ok(ParameterizedWhereClause {
-        sql:    format!("({}) IN ({})", fields_list, tuples_str),
+        sql: format!("({}) IN ({})", fields_list, tuples_str),
         params,
     })
 }

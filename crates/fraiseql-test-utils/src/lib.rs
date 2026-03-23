@@ -48,11 +48,11 @@ pub use assertions::{
     assert_field_path, assert_graphql_error_code, assert_graphql_error_contains,
     assert_graphql_success, assert_has_data, assert_no_graphql_errors,
 };
-// Re-export database URL helper
-pub use db::database_url;
 // Re-export pool creation helper (requires `postgres` feature)
 #[cfg(feature = "postgres")]
 pub use db::create_test_pool;
+// Re-export database URL helper
+pub use db::database_url;
 // Re-export clock utilities for time-controlled testing
 pub use fraiseql_core::utils::clock::{Clock, ManualClock, SystemClock};
 // Re-export observer helpers

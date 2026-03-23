@@ -223,30 +223,23 @@ pub async fn compile_to_schema(
     if let Some(db_url) = opts.database {
         info!("Validating schema against database...");
 
-        let introspector =
-            crate::schema::database_validator::create_introspector(db_url).await?;
+        let introspector = crate::schema::database_validator::create_introspector(db_url).await?;
 
-        let report =
-            crate::schema::database_validator::validate_schema_against_database(
-                &schema,
-                &introspector,
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!("Database validation failed: {e}"))?;
+        let report = crate::schema::database_validator::validate_schema_against_database(
+            &schema,
+            &introspector,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Database validation failed: {e}"))?;
 
         for warning in &report.warnings {
             warn!("{warning}");
         }
 
         if report.warnings.is_empty() {
-            info!(
-                "Database validation passed: all relations, columns, and JSON keys verified."
-            );
+            info!("Database validation passed: all relations, columns, and JSON keys verified.");
         } else {
-            warn!(
-                "Database validation completed with {} warning(s).",
-                report.warnings.len()
-            );
+            warn!("Database validation completed with {} warning(s).", report.warnings.len());
         }
 
         // Legacy indexed column validation (PostgreSQL-only, kept for backward compat)

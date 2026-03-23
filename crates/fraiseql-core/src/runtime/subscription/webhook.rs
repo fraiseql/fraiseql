@@ -180,7 +180,8 @@ impl WebhookAdapter {
 
         let secret = self.config.secret.as_ref()?;
 
-        #[allow(clippy::expect_used)] // Reason: SHA-256 HMAC accepts keys of any size; new_from_slice cannot fail here
+        #[allow(clippy::expect_used)]
+        // Reason: SHA-256 HMAC accepts keys of any size; new_from_slice cannot fail here
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .expect("SHA-256 HMAC accepts any key size");
         mac.update(payload.as_bytes());

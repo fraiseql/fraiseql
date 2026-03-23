@@ -25,8 +25,8 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, DevConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig, RestConfig,
-            SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
+            DebugConfig, DevConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig,
+            RestConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -820,8 +820,9 @@ impl CompiledSchema {
 /// `CascadeMetadata`, and `Cascade`. These are synthetic types (no DB source)
 /// following the same pattern as Relay's `PageInfo`.
 pub fn inject_cascade_types(schema: &mut CompiledSchema) {
-    use crate::schema::{FieldDefinition, FieldDenyPolicy, FieldType};
-    use crate::schema::graphql_type_defs::TypeDefinition;
+    use crate::schema::{
+        FieldDefinition, FieldDenyPolicy, FieldType, graphql_type_defs::TypeDefinition,
+    };
 
     let has_cascade_mutation = schema.mutations.iter().any(|m| m.cascade);
     if !has_cascade_mutation {
@@ -856,7 +857,12 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             fields:              vec![
                 make_field("id", FieldType::String, false, "Entity identifier."),
                 make_field("typename", FieldType::String, false, "GraphQL type name."),
-                make_field("operation", FieldType::String, false, "Operation performed (created, updated, deleted)."),
+                make_field(
+                    "operation",
+                    FieldType::String,
+                    false,
+                    "Operation performed (created, updated, deleted).",
+                ),
                 make_field("entity", FieldType::Json, false, "Full entity data as JSON."),
             ],
             description:         Some("An entity affected by a cascade operation.".to_string()),
@@ -876,11 +882,28 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             sql_source:          String::new().into(),
             jsonb_column:        String::new(),
             fields:              vec![
-                make_field("queryName", FieldType::String, false, "Name of the query to invalidate."),
-                make_field("strategy", FieldType::String, false, "Invalidation strategy (e.g., exact, pattern)."),
-                make_field("scope", FieldType::String, false, "Invalidation scope (e.g., global, tenant)."),
+                make_field(
+                    "queryName",
+                    FieldType::String,
+                    false,
+                    "Name of the query to invalidate.",
+                ),
+                make_field(
+                    "strategy",
+                    FieldType::String,
+                    false,
+                    "Invalidation strategy (e.g., exact, pattern).",
+                ),
+                make_field(
+                    "scope",
+                    FieldType::String,
+                    false,
+                    "Invalidation scope (e.g., global, tenant).",
+                ),
             ],
-            description:         Some("A cache invalidation directive from a cascade operation.".to_string()),
+            description:         Some(
+                "A cache invalidation directive from a cascade operation.".to_string(),
+            ),
             sql_projection_hint: None,
             implements:          Vec::new(),
             requires_role:       None,
@@ -897,10 +920,20 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             sql_source:          String::new().into(),
             jsonb_column:        String::new(),
             fields:              vec![
-                make_field("timestamp", FieldType::String, false, "When the cascade was processed."),
+                make_field(
+                    "timestamp",
+                    FieldType::String,
+                    false,
+                    "When the cascade was processed.",
+                ),
                 make_field("affectedCount", FieldType::Int, false, "Number of entities affected."),
                 make_field("depth", FieldType::Int, false, "Cascade depth level."),
-                make_field("transactionId", FieldType::String, true, "Database transaction identifier."),
+                make_field(
+                    "transactionId",
+                    FieldType::String,
+                    true,
+                    "Database transaction identifier.",
+                ),
             ],
             description:         Some("Metadata about a cascade operation.".to_string()),
             sql_projection_hint: None,
@@ -944,7 +977,9 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
                     "Cascade operation metadata.",
                 ),
             ],
-            description:         Some("Cascade data from a mutation with cascade enabled.".to_string()),
+            description:         Some(
+                "Cascade data from a mutation with cascade enabled.".to_string(),
+            ),
             sql_projection_hint: None,
             implements:          Vec::new(),
             requires_role:       None,
@@ -1013,12 +1048,12 @@ mod tests {
 
     fn make_arg(name: &str, arg_type: FieldType) -> ArgumentDefinition {
         ArgumentDefinition {
-            name:          name.to_string(),
+            name: name.to_string(),
             arg_type,
-            nullable:      false,
+            nullable: false,
             default_value: None,
-            description:   None,
-            deprecation:   None,
+            description: None,
+            deprecation: None,
         }
     }
 

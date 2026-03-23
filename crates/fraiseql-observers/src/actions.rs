@@ -423,7 +423,7 @@ pub struct EmailAction {
     #[cfg(feature = "email")]
     transport: std::sync::Arc<lettre::AsyncSmtpTransport<lettre::Tokio1Executor>>,
     #[cfg(feature = "email")]
-    from: lettre::message::Mailbox,
+    from:      lettre::message::Mailbox,
 
     #[cfg(not(feature = "email"))]
     _private: (),
@@ -438,19 +438,18 @@ impl EmailAction {
     /// built (e.g. invalid host, missing credentials env var).
     #[cfg(feature = "email")]
     pub fn from_config(config: &crate::config::SmtpConfig) -> Result<Self> {
-        use lettre::{AsyncSmtpTransport, Tokio1Executor, transport::smtp::authentication::Credentials};
+        use lettre::{
+            AsyncSmtpTransport, Tokio1Executor, transport::smtp::authentication::Credentials,
+        };
 
         config.validate()?;
 
         let credentials = if let Some(username) = &config.smtp_username {
             let password_var = config.smtp_password_env.as_deref().unwrap_or("");
-            let password = std::env::var(password_var).map_err(|_| {
-                ObserverError::InvalidConfig {
-                    message: format!(
-                        "SMTP password env var '{password_var}' not set"
-                    ),
-                }
-            })?;
+            let password =
+                std::env::var(password_var).map_err(|_| ObserverError::InvalidConfig {
+                    message: format!("SMTP password env var '{password_var}' not set"),
+                })?;
             Some(Credentials::new(username.clone(), password))
         } else {
             None

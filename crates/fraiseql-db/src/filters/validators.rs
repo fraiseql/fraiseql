@@ -207,7 +207,9 @@ impl ValidationRule {
                 // Length rule
                 if let Some(Value::Number(n)) = map.get("length") {
                     if let Some(length) = n.as_u64() {
-                        #[allow(clippy::cast_possible_truncation)] // Reason: length from schema config; values exceeding usize::MAX are saturated (32-bit only)
+                        #[allow(clippy::cast_possible_truncation)]
+                        // Reason: length from schema config; values exceeding usize::MAX are
+                        // saturated (32-bit only)
                         let length_usize = usize::try_from(length).unwrap_or(usize::MAX);
                         rules.push(ValidationRule::Length(length_usize));
                     }
@@ -218,7 +220,9 @@ impl ValidationRule {
                     (map.get("min_length"), map.get("max_length"))
                 {
                     if let (Some(min_val), Some(max_val)) = (min.as_u64(), max.as_u64()) {
-                        #[allow(clippy::cast_possible_truncation)] // Reason: min/max length from schema config; values exceeding usize::MAX are saturated
+                        #[allow(clippy::cast_possible_truncation)]
+                        // Reason: min/max length from schema config; values exceeding usize::MAX
+                        // are saturated
                         let (min, max) = (
                             usize::try_from(min_val).unwrap_or(usize::MAX),
                             usize::try_from(max_val).unwrap_or(usize::MAX),

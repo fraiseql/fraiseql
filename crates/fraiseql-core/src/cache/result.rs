@@ -196,9 +196,7 @@ impl QueryResultCache {
         let per_shard = config.max_entries.div_ceil(shard_count);
         let per_shard_nz = NonZeroUsize::new(per_shard).expect("per_shard must be > 0");
 
-        let shards = (0..shard_count)
-            .map(|_| Mutex::new(LruCache::new(per_shard_nz)))
-            .collect();
+        let shards = (0..shard_count).map(|_| Mutex::new(LruCache::new(per_shard_nz))).collect();
 
         Self {
             shards,
@@ -218,7 +216,8 @@ impl QueryResultCache {
     fn shard_for(&self, key: &str) -> &Mutex<LruCache<String, CachedResult>> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         key.hash(&mut hasher);
-        #[allow(clippy::cast_possible_truncation)] // Reason: truncation is intentional; we only need a uniform index into shard_count
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: truncation is intentional; we only need a uniform index into shard_count
         let idx = (hasher.finish() as usize) % self.shard_count;
         &self.shards[idx]
     }
@@ -655,7 +654,8 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)] // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
         {
             self.hits as f64 / total as f64
         }

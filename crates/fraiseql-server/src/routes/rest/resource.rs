@@ -3,8 +3,7 @@
 //! Derives REST resources and routes from a [`CompiledSchema`] by grouping
 //! operations by return type and mapping them to HTTP methods and paths.
 
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, DeleteResponse, FieldType, MutationDefinition,
@@ -71,15 +70,15 @@ pub enum RouteSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestRoute {
     /// HTTP method.
-    pub method: HttpMethod,
+    pub method:          HttpMethod,
     /// Path relative to the REST base (e.g., `/users` or `/users/{id}`).
-    pub path: String,
+    pub path:            String,
     /// The operation backing this route.
-    pub source: RouteSource,
+    pub source:          RouteSource,
     /// For Update mutations, the coverage classification.
     pub update_coverage: Option<UpdateCoverage>,
     /// Expected successful HTTP status code.
-    pub success_status: u16,
+    pub success_status:  u16,
 }
 
 /// A REST resource groups routes under a common base path derived from a
@@ -87,22 +86,22 @@ pub struct RestRoute {
 #[derive(Debug, Clone)]
 pub struct RestResource {
     /// Resource base name (e.g., `users`).
-    pub name: String,
+    pub name:      String,
     /// GraphQL return type name (e.g., `User`).
     pub type_name: String,
     /// Name of the ID argument for single-resource routes (e.g., `id`).
-    pub id_arg: Option<String>,
+    pub id_arg:    Option<String>,
     /// Routes for this resource.
-    pub routes: Vec<RestRoute>,
+    pub routes:    Vec<RestRoute>,
 }
 
 /// Complete route table derived from a compiled schema.
 #[derive(Debug, Clone)]
 pub struct RestRouteTable {
     /// REST base path (e.g., `/rest/v1`).
-    pub base_path: String,
+    pub base_path:   String,
     /// Resources keyed by resource name.
-    pub resources: Vec<RestResource>,
+    pub resources:   Vec<RestResource>,
     /// Diagnostics emitted during derivation.
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -111,7 +110,7 @@ pub struct RestRouteTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Severity level.
-    pub level: DiagnosticLevel,
+    pub level:   DiagnosticLevel,
     /// Human-readable diagnostic message.
     pub message: String,
 }
@@ -197,14 +196,8 @@ impl RestRouteTable {
             let queries = query_groups.get(type_name).map_or(&[][..], |v| v.as_slice());
             let mutations = mutation_groups.get(type_name).map_or(&[][..], |v| v.as_slice());
 
-            let resource = derive_resource(
-                type_name,
-                type_def,
-                queries,
-                mutations,
-                &config,
-                &mut diagnostics,
-            );
+            let resource =
+                derive_resource(type_name, type_def, queries, mutations, &config, &mut diagnostics);
 
             if let Some(r) = resource {
                 resources.push(r);
@@ -279,7 +272,7 @@ fn derive_resource_name(
     let base = type_name_to_snake(type_name);
     let name = simple_pluralize(&base);
     diagnostics.push(Diagnostic {
-        level: DiagnosticLevel::Info,
+        level:   DiagnosticLevel::Info,
         message: format!(
             "No list query for type '{type_name}'; derived resource name '{name}' from type name"
         ),
@@ -319,7 +312,11 @@ fn simple_pluralize(word: &str) -> String {
     } else if word.ends_with('s') {
         // Words ending in single 's' (like "address", "status") — assume already plural-ish.
         format!("{word}es")
-    } else if word.ends_with('y') && !word.ends_with("ey") && !word.ends_with("ay") && !word.ends_with("oy") {
+    } else if word.ends_with('y')
+        && !word.ends_with("ey")
+        && !word.ends_with("ay")
+        && !word.ends_with("oy")
+    {
         format!("{}ies", &word[..word.len() - 1])
     } else {
         format!("{word}s")
@@ -348,10 +345,13 @@ fn detect_id_arg(
     }
 
     // Fall back to pk_* argument.
-    if let Some(arg) = all_args.iter().find(|a| a.name.starts_with("pk_") && is_id_like_type(&a.arg_type)) {
+    if let Some(arg) = all_args
+        .iter()
+        .find(|a| a.name.starts_with("pk_") && is_id_like_type(&a.arg_type))
+    {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Info,
+            level:   DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 arg.name
@@ -367,7 +367,7 @@ fn detect_id_arg(
     if let Some(pk) = type_def.fields.iter().find(|f| f.name.as_str().starts_with("pk_")) {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Info,
+            level:   DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 pk.name
@@ -416,15 +416,14 @@ fn derive_resource(
     // --- Query routes ---
     for q in queries {
         if let Some(ref override_path) = q.rest_path {
-            let method = q
-                .rest_method
-                .as_deref()
-                .and_then(parse_http_method)
-                .unwrap_or(HttpMethod::Get);
+            let method =
+                q.rest_method.as_deref().and_then(parse_http_method).unwrap_or(HttpMethod::Get);
             routes.push(RestRoute {
                 method,
                 path: override_path.clone(),
-                source: RouteSource::Query { name: q.name.clone() },
+                source: RouteSource::Query {
+                    name: q.name.clone(),
+                },
                 update_coverage: None,
                 success_status: 200,
             });
@@ -433,19 +432,23 @@ fn derive_resource(
 
         if q.returns_list {
             routes.push(RestRoute {
-                method: HttpMethod::Get,
-                path: format!("/{resource_name}"),
-                source: RouteSource::Query { name: q.name.clone() },
+                method:          HttpMethod::Get,
+                path:            format!("/{resource_name}"),
+                source:          RouteSource::Query {
+                    name: q.name.clone(),
+                },
                 update_coverage: None,
-                success_status: 200,
+                success_status:  200,
             });
         } else if let Some(ref id) = id_arg {
             routes.push(RestRoute {
-                method: HttpMethod::Get,
-                path: format!("/{resource_name}/{{{id}}}"),
-                source: RouteSource::Query { name: q.name.clone() },
+                method:          HttpMethod::Get,
+                path:            format!("/{resource_name}/{{{id}}}"),
+                source:          RouteSource::Query {
+                    name: q.name.clone(),
+                },
                 update_coverage: None,
-                success_status: 200,
+                success_status:  200,
             });
         }
     }
@@ -456,15 +459,14 @@ fn derive_resource(
 
     for m in mutations {
         if let Some(ref override_path) = m.rest_path {
-            let method = m
-                .rest_method
-                .as_deref()
-                .and_then(parse_http_method)
-                .unwrap_or(HttpMethod::Post);
+            let method =
+                m.rest_method.as_deref().and_then(parse_http_method).unwrap_or(HttpMethod::Post);
             routes.push(RestRoute {
                 method,
                 path: override_path.clone(),
-                source: RouteSource::Mutation { name: m.name.clone() },
+                source: RouteSource::Mutation {
+                    name: m.name.clone(),
+                },
                 update_coverage: None,
                 success_status: 200,
             });
@@ -510,17 +512,19 @@ fn derive_mutation_routes(
     match &m.operation {
         MutationOperation::Insert { .. } => {
             routes.push(RestRoute {
-                method: HttpMethod::Post,
-                path: format!("/{resource_name}"),
-                source: RouteSource::Mutation { name: m.name.clone() },
+                method:          HttpMethod::Post,
+                path:            format!("/{resource_name}"),
+                source:          RouteSource::Mutation {
+                    name: m.name.clone(),
+                },
                 update_coverage: None,
-                success_status: 201,
+                success_status:  201,
             });
-        }
+        },
         MutationOperation::Update { .. } => {
             let coverage = classify_update_coverage(m, writable_names);
             diagnostics.push(Diagnostic {
-                level: DiagnosticLevel::Info,
+                level:   DiagnosticLevel::Info,
                 message: format!(
                     "Mutation '{}' classified as {:?} coverage update for type '{type_name}'",
                     m.name, coverage
@@ -531,35 +535,41 @@ fn derive_mutation_routes(
                 UpdateCoverage::Full => {
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method: HttpMethod::Put,
-                            path: format!("/{resource_name}/{{{id}}}"),
-                            source: RouteSource::Mutation { name: m.name.clone() },
+                            method:          HttpMethod::Put,
+                            path:            format!("/{resource_name}/{{{id}}}"),
+                            source:          RouteSource::Mutation {
+                                name: m.name.clone(),
+                            },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status: 200,
+                            success_status:  200,
                         });
                         routes.push(RestRoute {
-                            method: HttpMethod::Patch,
-                            path: format!("/{resource_name}/{{{id}}}"),
-                            source: RouteSource::Mutation { name: m.name.clone() },
+                            method:          HttpMethod::Patch,
+                            path:            format!("/{resource_name}/{{{id}}}"),
+                            source:          RouteSource::Mutation {
+                                name: m.name.clone(),
+                            },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status: 200,
+                            success_status:  200,
                         });
                     }
-                }
+                },
                 UpdateCoverage::Partial => {
                     let action = derive_action_name(&m.name, type_name);
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method: HttpMethod::Patch,
-                            path: format!("/{resource_name}/{{{id}}}/{action}"),
-                            source: RouteSource::Mutation { name: m.name.clone() },
+                            method:          HttpMethod::Patch,
+                            path:            format!("/{resource_name}/{{{id}}}/{action}"),
+                            source:          RouteSource::Mutation {
+                                name: m.name.clone(),
+                            },
                             update_coverage: Some(UpdateCoverage::Partial),
-                            success_status: 200,
+                            success_status:  200,
                         });
                     }
-                }
+                },
             }
-        }
+        },
         MutationOperation::Delete { .. } => {
             let status = match config.delete_response {
                 DeleteResponse::NoContent => 204,
@@ -569,34 +579,40 @@ fn derive_mutation_routes(
             };
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method: HttpMethod::Delete,
-                    path: format!("/{resource_name}/{{{id}}}"),
-                    source: RouteSource::Mutation { name: m.name.clone() },
+                    method:          HttpMethod::Delete,
+                    path:            format!("/{resource_name}/{{{id}}}"),
+                    source:          RouteSource::Mutation {
+                        name: m.name.clone(),
+                    },
                     update_coverage: None,
-                    success_status: status,
+                    success_status:  status,
                 });
             }
-        }
+        },
         MutationOperation::Custom => {
             let action = derive_action_name(&m.name, type_name);
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method: HttpMethod::Post,
-                    path: format!("/{resource_name}/{{{id}}}/{action}"),
-                    source: RouteSource::Mutation { name: m.name.clone() },
+                    method:          HttpMethod::Post,
+                    path:            format!("/{resource_name}/{{{id}}}/{action}"),
+                    source:          RouteSource::Mutation {
+                        name: m.name.clone(),
+                    },
                     update_coverage: None,
-                    success_status: 200,
+                    success_status:  200,
                 });
             } else {
                 routes.push(RestRoute {
-                    method: HttpMethod::Post,
-                    path: format!("/{resource_name}/{action}"),
-                    source: RouteSource::Mutation { name: m.name.clone() },
+                    method:          HttpMethod::Post,
+                    path:            format!("/{resource_name}/{action}"),
+                    source:          RouteSource::Mutation {
+                        name: m.name.clone(),
+                    },
                     update_coverage: None,
-                    success_status: 200,
+                    success_status:  200,
                 });
             }
-        }
+        },
     }
 }
 
@@ -667,7 +683,7 @@ fn camel_to_kebab(s: &str) -> String {
 fn validate_cqrs_query(sql_source: &str, query_name: &str, diagnostics: &mut Vec<Diagnostic>) {
     if sql_source.starts_with("tb_") {
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Warning,
+            level:   DiagnosticLevel::Warning,
             message: format!(
                 "Query '{query_name}' reads from write table '{sql_source}' \
                  — expected `v_` or `tv_` prefix. This may indicate a CQRS violation."
@@ -691,7 +707,7 @@ fn validate_cqrs_mutation(
 
     if table.starts_with("v_") || table.starts_with("tv_") {
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Warning,
+            level:   DiagnosticLevel::Warning,
             message: format!(
                 "Mutation '{mutation_name}' writes to view '{table}' — expected `tb_` prefix"
             ),
@@ -706,7 +722,7 @@ fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut Vec<Diagnos
         if name.starts_with("pk_") || name.starts_with("fk_") {
             if !matches!(field.field_type, FieldType::Int | FieldType::Id) {
                 diagnostics.push(Diagnostic {
-                    level: DiagnosticLevel::Warning,
+                    level:   DiagnosticLevel::Warning,
                     message: format!(
                         "pk_/fk_ field '{name}' is {:?}, expected Int or BigInt",
                         field.field_type
@@ -715,7 +731,7 @@ fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut Vec<Diagnos
             }
         } else if name == "id" && matches!(field.field_type, FieldType::Int) {
             diagnostics.push(Diagnostic {
-                level: DiagnosticLevel::Warning,
+                level:   DiagnosticLevel::Warning,
                 message: format!(
                     "id field on '{}' is Int, expected UUID or ID",
                     type_def.name.as_str()
@@ -745,7 +761,7 @@ fn detect_conflicts(
                     route.method, route.path, prev_op, current_op
                 );
                 diagnostics.push(Diagnostic {
-                    level: DiagnosticLevel::Error,
+                    level:   DiagnosticLevel::Error,
                     message: err.clone(),
                 });
                 return Err(err);
@@ -779,10 +795,9 @@ fn parse_http_method(s: &str) -> Option<HttpMethod> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
+    use fraiseql_core::schema::{FieldDefinition, FieldEncryptionConfig, FieldType};
+
     use super::*;
-    use fraiseql_core::schema::{
-        FieldDefinition, FieldEncryptionConfig, FieldType,
-    };
 
     // -----------------------------------------------------------------------
     // Test helpers
@@ -801,14 +816,12 @@ mod tests {
             .with_field(FieldDefinition::new("name", FieldType::String))
             .with_field(auto)
             .with_field(computed)
-            .with_field(
-                FieldDefinition::new("ssn", FieldType::String).with_encryption(
-                    FieldEncryptionConfig {
-                        key_reference: "keys/ssn".to_string(),
-                        algorithm: "AES-256-GCM".to_string(),
-                    },
-                ),
-            )
+            .with_field(FieldDefinition::new("ssn", FieldType::String).with_encryption(
+                FieldEncryptionConfig {
+                    key_reference: "keys/ssn".to_string(),
+                    algorithm:     "AES-256-GCM".to_string(),
+                },
+            ))
     }
 
     fn list_query(name: &str, return_type: &str) -> QueryDefinition {
@@ -823,7 +836,9 @@ mod tests {
 
     fn insert_mutation(name: &str, return_type: &str, table: &str) -> MutationDefinition {
         let mut m = MutationDefinition::new(name, return_type);
-        m.operation = MutationOperation::Insert { table: table.to_string() };
+        m.operation = MutationOperation::Insert {
+            table: table.to_string(),
+        };
         m.arguments.push(ArgumentDefinition::new("email", FieldType::String));
         m.arguments.push(ArgumentDefinition::new("name", FieldType::String));
         m
@@ -831,7 +846,9 @@ mod tests {
 
     fn full_update_mutation(name: &str, return_type: &str, table: &str) -> MutationDefinition {
         let mut m = MutationDefinition::new(name, return_type);
-        m.operation = MutationOperation::Update { table: table.to_string() };
+        m.operation = MutationOperation::Update {
+            table: table.to_string(),
+        };
         m.arguments.push(ArgumentDefinition::new("id", FieldType::Uuid));
         // All writable fields of user_type_def: email, name.
         m.arguments.push(ArgumentDefinition::new("email", FieldType::String));
@@ -841,7 +858,9 @@ mod tests {
 
     fn partial_update_mutation(name: &str, return_type: &str, table: &str) -> MutationDefinition {
         let mut m = MutationDefinition::new(name, return_type);
-        m.operation = MutationOperation::Update { table: table.to_string() };
+        m.operation = MutationOperation::Update {
+            table: table.to_string(),
+        };
         m.arguments.push(ArgumentDefinition::new("id", FieldType::Uuid));
         // Only email — partial coverage.
         m.arguments.push(ArgumentDefinition::new("email", FieldType::String));
@@ -850,7 +869,9 @@ mod tests {
 
     fn delete_mutation(name: &str, return_type: &str, table: &str) -> MutationDefinition {
         let mut m = MutationDefinition::new(name, return_type);
-        m.operation = MutationOperation::Delete { table: table.to_string() };
+        m.operation = MutationOperation::Delete {
+            table: table.to_string(),
+        };
         m.arguments.push(ArgumentDefinition::new("id", FieldType::Uuid));
         m
     }
@@ -922,7 +943,9 @@ mod tests {
         let mut schema = schema_with_rest_config(Some(RestConfig::default()));
         schema.types.push(user_type_def());
         schema.queries.push(list_query("users", "User"));
-        schema.mutations.push(partial_update_mutation("updateUserEmail", "User", "tb_user"));
+        schema
+            .mutations
+            .push(partial_update_mutation("updateUserEmail", "User", "tb_user"));
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         let r = &table.resources[0];
@@ -1095,8 +1118,10 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(
-            !table.diagnostics.iter().any(|d| d.level == DiagnosticLevel::Warning
-                && d.message.contains("CQRS"))
+            !table
+                .diagnostics
+                .iter()
+                .any(|d| d.level == DiagnosticLevel::Warning && d.message.contains("CQRS"))
         );
     }
 
@@ -1108,8 +1133,7 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(table.diagnostics.iter().any(|d| {
-            d.level == DiagnosticLevel::Warning
-                && d.message.contains("reads from write table")
+            d.level == DiagnosticLevel::Warning && d.message.contains("reads from write table")
         }));
     }
 
@@ -1118,12 +1142,16 @@ mod tests {
         let mut schema = schema_with_rest_config(Some(RestConfig::default()));
         let td = TypeDefinition::new("Analytics", "tv_analytics");
         schema.types.push(td);
-        schema.queries.push(list_query("analytics", "Analytics").with_sql_source("tv_analytics"));
+        schema
+            .queries
+            .push(list_query("analytics", "Analytics").with_sql_source("tv_analytics"));
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(
-            !table.diagnostics.iter().any(|d| d.level == DiagnosticLevel::Warning
-                && d.message.contains("CQRS"))
+            !table
+                .diagnostics
+                .iter()
+                .any(|d| d.level == DiagnosticLevel::Warning && d.message.contains("CQRS"))
         );
     }
 
@@ -1136,8 +1164,7 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(table.diagnostics.iter().any(|d| {
-            d.level == DiagnosticLevel::Warning
-                && d.message.contains("writes to view")
+            d.level == DiagnosticLevel::Warning && d.message.contains("writes to view")
         }));
     }
 
@@ -1150,8 +1177,10 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(
-            !table.diagnostics.iter().any(|d| d.level == DiagnosticLevel::Warning
-                && d.message.contains("writes to"))
+            !table
+                .diagnostics
+                .iter()
+                .any(|d| d.level == DiagnosticLevel::Warning && d.message.contains("writes to"))
         );
     }
 
@@ -1169,8 +1198,7 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(table.diagnostics.iter().any(|d| {
-            d.level == DiagnosticLevel::Warning
-                && d.message.contains("pk_/fk_ field 'pk_user'")
+            d.level == DiagnosticLevel::Warning && d.message.contains("pk_/fk_ field 'pk_user'")
         }));
     }
 
@@ -1185,8 +1213,7 @@ mod tests {
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
         assert!(table.diagnostics.iter().any(|d| {
-            d.level == DiagnosticLevel::Warning
-                && d.message.contains("id field on 'User' is Int")
+            d.level == DiagnosticLevel::Warning && d.message.contains("id field on 'User' is Int")
         }));
     }
 
@@ -1202,7 +1229,9 @@ mod tests {
             .with_field(FieldDefinition::new("email", FieldType::String));
         schema.types.push(td);
         let mut m = MutationDefinition::new("updateUser", "User");
-        m.operation = MutationOperation::Update { table: "tb_user".to_string() };
+        m.operation = MutationOperation::Update {
+            table: "tb_user".to_string(),
+        };
         m.arguments.push(ArgumentDefinition::new("pk_user", FieldType::Int));
         m.arguments.push(ArgumentDefinition::new("email", FieldType::String));
         schema.mutations.push(m);
@@ -1278,7 +1307,11 @@ mod tests {
         schema.mutations.push(delete_mutation("deleteUser", "User", "tb_user"));
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
-        let del = table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Delete).unwrap();
+        let del = table.resources[0]
+            .routes
+            .iter()
+            .find(|r| r.method == HttpMethod::Delete)
+            .unwrap();
         assert_eq!(del.success_status, 204);
     }
 
@@ -1294,7 +1327,11 @@ mod tests {
         schema.mutations.push(delete_mutation("deleteUser", "User", "tb_user"));
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
-        let del = table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Delete).unwrap();
+        let del = table.resources[0]
+            .routes
+            .iter()
+            .find(|r| r.method == HttpMethod::Delete)
+            .unwrap();
         assert_eq!(del.success_status, 200);
     }
 
@@ -1390,11 +1427,8 @@ mod tests {
         schema.mutations.push(insert_mutation("createUser", "User", "tb_user"));
 
         let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
-        let create = table.resources[0]
-            .routes
-            .iter()
-            .find(|r| r.method == HttpMethod::Post)
-            .unwrap();
+        let create =
+            table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Post).unwrap();
         assert_eq!(create.success_status, 201);
     }
 }

@@ -1,6 +1,6 @@
 use super::{
-    FraiseQLError, FactTableMetadata, OrderByClause, PartitionByColumn, Result,
-    SelectColumn, WindowExecutionPlan, WindowFunction, WindowFunctionRequest, WindowFunctionSpec,
+    FactTableMetadata, FraiseQLError, OrderByClause, PartitionByColumn, Result, SelectColumn,
+    WindowExecutionPlan, WindowFunction, WindowFunctionRequest, WindowFunctionSpec,
     WindowFunctionType, WindowOrderBy, WindowRequest, WindowSelectColumn,
 };
 

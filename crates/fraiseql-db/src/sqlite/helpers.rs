@@ -78,8 +78,7 @@ pub(super) fn build_direct_mutation_sql<'a>(
                 placeholders.join(", ")
             );
             // Bind all values in order (client args + inject args)
-            let bind_values: Vec<&serde_json::Value> =
-                ctx.values.iter().collect();
+            let bind_values: Vec<&serde_json::Value> = ctx.values.iter().collect();
             Ok((sql, bind_values))
         },
         DirectMutationOp::Update => {
@@ -87,9 +86,8 @@ pub(super) fn build_direct_mutation_sql<'a>(
             // First client column is PK (for WHERE), rest are SET columns
             if ctx.columns.is_empty() {
                 return Err(FraiseQLError::Validation {
-                    message: "UPDATE mutation requires at least one argument (primary key)"
-                        .into(),
-                    path: None,
+                    message: "UPDATE mutation requires at least one argument (primary key)".into(),
+                    path:    None,
                 });
             }
             let pk_col = quote_sqlite_identifier(&ctx.columns[0]);
@@ -104,7 +102,7 @@ pub(super) fn build_direct_mutation_sql<'a>(
             if set_columns.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "UPDATE mutation requires at least one column to update".into(),
-                    path: None,
+                    path:    None,
                 });
             }
 
@@ -133,9 +131,8 @@ pub(super) fn build_direct_mutation_sql<'a>(
             // DELETE FROM "table" WHERE "pk_col" = ? [AND "inject_col" = ?] RETURNING *
             if ctx.columns.is_empty() {
                 return Err(FraiseQLError::Validation {
-                    message: "DELETE mutation requires at least one argument (primary key)"
-                        .into(),
-                    path: None,
+                    message: "DELETE mutation requires at least one argument (primary key)".into(),
+                    path:    None,
                 });
             }
             let pk_col = quote_sqlite_identifier(&ctx.columns[0]);

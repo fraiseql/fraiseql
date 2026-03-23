@@ -57,11 +57,13 @@ mod error_code_tests {
 }
 
 mod relay_sql_tests {
-    use crate::sqlserver::helpers::{
-        build_relay_backward_outer_order_sql, build_relay_order_sql, build_relay_where_sql,
-        is_valid_uuid_format,
+    use crate::{
+        sqlserver::helpers::{
+            build_relay_backward_outer_order_sql, build_relay_order_sql, build_relay_where_sql,
+            is_valid_uuid_format,
+        },
+        types::sql_hints::{OrderByClause, OrderDirection},
     };
-    use crate::types::sql_hints::{OrderByClause, OrderDirection};
 
     // ── build_relay_order_sql ──────────────────────────────────────────────
 

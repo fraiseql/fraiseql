@@ -59,13 +59,13 @@ impl SqlDialect for SqliteDialect {
             | RowViewColumnType::Uuid
             | RowViewColumnType::Timestamptz
             | RowViewColumnType::Date => "TEXT",
-            RowViewColumnType::Int32
-            | RowViewColumnType::Int64
-            | RowViewColumnType::Boolean => "INTEGER",
+            RowViewColumnType::Int32 | RowViewColumnType::Int64 | RowViewColumnType::Boolean => {
+                "INTEGER"
+            },
             RowViewColumnType::Float64 => "REAL",
             RowViewColumnType::Json => {
                 return format!("json_extract({json_column}, '$.{field_name}')");
-            }
+            },
         };
         format!("CAST(json_extract({json_column}, '$.{field_name}') AS {sqlite_type})")
     }

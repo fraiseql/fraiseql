@@ -13,18 +13,18 @@ use std::{
 };
 
 use async_trait::async_trait;
+#[cfg(feature = "grpc")]
+use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
 use fraiseql_core::{
     db::{
         CursorValue, DatabaseAdapter, DatabaseType, MutationCapable, RelayDatabaseAdapter,
         WhereClause,
-        types::{JsonbValue, PoolMetrics},
         traits::RelayPageResult,
+        types::{JsonbValue, PoolMetrics},
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
 };
-#[cfg(feature = "grpc")]
-use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
 
 /// Configuration for failure injection.
 ///
@@ -124,15 +124,15 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:          Arc::new(Mutex::new(HashMap::new())),
+            responses: Arc::new(Mutex::new(HashMap::new())),
             function_responses: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "grpc")]
-            row_responses:      Arc::new(Mutex::new(HashMap::new())),
+            row_responses: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "grpc")]
-            where_clause_log:   Arc::new(Mutex::new(Vec::new())),
-            fail_config:        Arc::new(Mutex::new(FailConfig::default())),
-            query_count:        Arc::new(AtomicU64::new(0)),
-            query_log:          Arc::new(Mutex::new(Vec::new())),
+            where_clause_log: Arc::new(Mutex::new(Vec::new())),
+            fail_config: Arc::new(Mutex::new(FailConfig::default())),
+            query_count: Arc::new(AtomicU64::new(0)),
+            query_log: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -158,10 +158,7 @@ impl FailingAdapter {
         function_name: &str,
         data: Vec<HashMap<String, serde_json::Value>>,
     ) -> Self {
-        self.function_responses
-            .lock()
-            .unwrap()
-            .insert(function_name.to_string(), data);
+        self.function_responses.lock().unwrap().insert(function_name.to_string(), data);
         self
     }
 
@@ -173,10 +170,7 @@ impl FailingAdapter {
     #[cfg(feature = "grpc")]
     #[must_use]
     pub fn with_row_response(self, view: &str, data: Vec<Vec<ColumnValue>>) -> Self {
-        self.row_responses
-            .lock()
-            .unwrap()
-            .insert(view.to_string(), data);
+        self.row_responses.lock().unwrap().insert(view.to_string(), data);
         self
     }
 
@@ -435,14 +429,10 @@ impl DatabaseAdapter for FailingAdapter {
         _offset: Option<u32>,
     ) -> Result<Vec<Vec<ColumnValue>>> {
         self.check_failure(view)?;
-        self.where_clause_log
-            .lock()
-            .unwrap()
-            .push(where_clause.map(String::from));
+        self.where_clause_log.lock().unwrap().push(where_clause.map(String::from));
         let responses = self.row_responses.lock().unwrap();
         Ok(responses.get(view).cloned().unwrap_or_default())
     }
-
 }
 
 impl MutationCapable for FailingAdapter {}

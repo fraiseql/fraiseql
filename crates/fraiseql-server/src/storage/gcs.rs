@@ -2,8 +2,8 @@
 //!
 //! Authentication is resolved in order:
 //! 1. `GOOGLE_CLOUD_TOKEN` env var — static bearer token (simplest; suitable for short-lived tasks)
-//! 2. `GOOGLE_APPLICATION_CREDENTIALS` env var — path to a service account JSON file
-//!    (tokens are auto-refreshed via JWT exchange)
+//! 2. `GOOGLE_APPLICATION_CREDENTIALS` env var — path to a service account JSON file (tokens are
+//!    auto-refreshed via JWT exchange)
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use fraiseql_error::FileError;
 use parking_lot::RwLock;
 
-use super::{validate_key, StorageBackend, StorageResult};
+use super::{StorageBackend, StorageResult, validate_key};
 
 const GCS_API_BASE: &str = "https://storage.googleapis.com";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -112,9 +112,10 @@ impl GcsStorageBackend {
                 let new_token = self.exchange_jwt(&jwt).await?;
 
                 // Cache for ~58 minutes (tokens last 60 minutes)
-                *token.write() = Some((new_token.clone(), Instant::now() + Duration::from_secs(3500)));
+                *token.write() =
+                    Some((new_token.clone(), Instant::now() + Duration::from_secs(3500)));
                 Ok(new_token)
-            }
+            },
         }
     }
 
@@ -247,20 +248,14 @@ impl StorageBackend for GcsStorageBackend {
             return Err(gcs_err("download response", body));
         }
 
-        resp.bytes()
-            .await
-            .map(|b| b.to_vec())
-            .map_err(|e| gcs_err("download body", e))
+        resp.bytes().await.map(|b| b.to_vec()).map_err(|e| gcs_err("download body", e))
     }
 
     async fn delete(&self, key: &str) -> StorageResult<()> {
         validate_key(key)?;
         let token = self.get_token().await?;
-        let url = format!(
-            "{GCS_API_BASE}/storage/v1/b/{}/o/{}",
-            self.bucket,
-            urlencoding::encode(key)
-        );
+        let url =
+            format!("{GCS_API_BASE}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
 
         let resp = self
             .client
@@ -287,11 +282,8 @@ impl StorageBackend for GcsStorageBackend {
         validate_key(key)?;
         let token = self.get_token().await?;
         // Metadata-only request (no ?alt=media) to check existence.
-        let url = format!(
-            "{GCS_API_BASE}/storage/v1/b/{}/o/{}",
-            self.bucket,
-            urlencoding::encode(key)
-        );
+        let url =
+            format!("{GCS_API_BASE}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
 
         let resp = self
             .client
@@ -307,7 +299,7 @@ impl StorageBackend for GcsStorageBackend {
             _ => {
                 let body = resp.text().await.unwrap_or_default();
                 Err(gcs_err("exists check response", body))
-            }
+            },
         }
     }
 

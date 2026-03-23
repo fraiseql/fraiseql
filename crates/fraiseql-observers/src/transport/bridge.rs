@@ -335,7 +335,8 @@ impl PostgresNatsBridge {
     /// - Bridge restarted mid-run
     /// - Multiple publishers existed in the past
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<ChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)] // Reason: batch_size is a small positive config value, well within i64 range
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<ChangeLogEntry> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,
@@ -394,7 +395,8 @@ impl PostgresNatsBridge {
     ///
     /// # Errors
     ///
-    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence fails.
+    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence
+    /// fails.
     pub async fn run(&self) -> Result<()> {
         info!("Starting PostgreSQL → NATS bridge: {}", self.config.transport_name);
 
@@ -510,7 +512,8 @@ impl PostgresNatsBridge {
     ///
     /// # Errors
     ///
-    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence fails.
+    /// Returns an error if the PgListener connection, NATS publishing, or checkpoint persistence
+    /// fails.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

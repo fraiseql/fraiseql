@@ -2,11 +2,13 @@
 
 use indexmap::IndexMap;
 
-use crate::schema::intermediate::{
-    IntermediateArgument, IntermediateEnum, IntermediateEnumValue, IntermediateInputObject,
-    IntermediateMutation, IntermediateQuery, IntermediateSchema, IntermediateType,
+use crate::schema::{
+    intermediate::{
+        IntermediateArgument, IntermediateEnum, IntermediateEnumValue, IntermediateInputObject,
+        IntermediateMutation, IntermediateQuery, IntermediateSchema, IntermediateType,
+    },
+    validator::schema_validator::SchemaValidator,
 };
-use crate::schema::validator::schema_validator::SchemaValidator;
 
 #[test]
 fn test_validate_empty_schema() {
@@ -679,25 +681,25 @@ fn test_mutation_arg_referencing_input_type_is_valid() {
             description: None,
         }],
         mutations: vec![IntermediateMutation {
-            name:          "create_order".to_string(),
-            return_type:   "Order".to_string(),
-            returns_list:  false,
-            nullable:      false,
-            arguments:     vec![IntermediateArgument {
+            name:                    "create_order".to_string(),
+            return_type:             "Order".to_string(),
+            returns_list:            false,
+            nullable:                false,
+            arguments:               vec![IntermediateArgument {
                 name:       "input".to_string(),
                 arg_type:   "CreateOrderInput".to_string(),
                 nullable:   false,
                 default:    None,
                 deprecated: None,
             }],
-            description:   None,
-            sql_source:    Some("fn_create_order".to_string()),
-            operation:              None,
-            deprecated:             None,
-            inject:                 IndexMap::default(),
+            description:             None,
+            sql_source:              Some("fn_create_order".to_string()),
+            operation:               None,
+            deprecated:              None,
+            inject:                  IndexMap::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:      vec![],
-            cascade:                false,
+            invalidates_views:       vec![],
+            cascade:                 false,
         }],
         ..IntermediateSchema::default()
     };
@@ -721,31 +723,39 @@ fn test_mutation_arg_referencing_enum_type_is_valid() {
         enums: vec![IntermediateEnum {
             name:        "Status".to_string(),
             values:      vec![
-                IntermediateEnumValue { name: "ACTIVE".to_string(), description: None, deprecated: None },
-                IntermediateEnumValue { name: "CANCELLED".to_string(), description: None, deprecated: None },
+                IntermediateEnumValue {
+                    name:        "ACTIVE".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
+                IntermediateEnumValue {
+                    name:        "CANCELLED".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
             ],
             description: None,
         }],
         mutations: vec![IntermediateMutation {
-            name:          "update_status".to_string(),
-            return_type:   "Order".to_string(),
-            returns_list:  false,
-            nullable:      false,
-            arguments:     vec![IntermediateArgument {
+            name:                    "update_status".to_string(),
+            return_type:             "Order".to_string(),
+            returns_list:            false,
+            nullable:                false,
+            arguments:               vec![IntermediateArgument {
                 name:       "status".to_string(),
                 arg_type:   "Status".to_string(),
                 nullable:   false,
                 default:    None,
                 deprecated: None,
             }],
-            description:   None,
-            sql_source:    Some("fn_update_status".to_string()),
-            operation:              None,
-            deprecated:             None,
-            inject:                 IndexMap::default(),
+            description:             None,
+            sql_source:              Some("fn_update_status".to_string()),
+            operation:               None,
+            deprecated:              None,
+            inject:                  IndexMap::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:      vec![],
-            cascade:                false,
+            invalidates_views:       vec![],
+            cascade:                 false,
         }],
         ..IntermediateSchema::default()
     };
@@ -767,25 +777,25 @@ fn test_unknown_input_type_is_rejected() {
             relay:         false,
         }],
         mutations: vec![IntermediateMutation {
-            name:          "create_order".to_string(),
-            return_type:   "Order".to_string(),
-            returns_list:  false,
-            nullable:      false,
-            arguments:     vec![IntermediateArgument {
+            name:                    "create_order".to_string(),
+            return_type:             "Order".to_string(),
+            returns_list:            false,
+            nullable:                false,
+            arguments:               vec![IntermediateArgument {
                 name:       "input".to_string(),
                 arg_type:   "NonExistentInput".to_string(),
                 nullable:   false,
                 default:    None,
                 deprecated: None,
             }],
-            description:   None,
-            sql_source:    Some("fn_create_order".to_string()),
-            operation:              None,
-            deprecated:             None,
-            inject:                 IndexMap::default(),
+            description:             None,
+            sql_source:              Some("fn_create_order".to_string()),
+            operation:               None,
+            deprecated:              None,
+            inject:                  IndexMap::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:      vec![],
-            cascade:                false,
+            invalidates_views:       vec![],
+            cascade:                 false,
         }],
         ..IntermediateSchema::default()
     };

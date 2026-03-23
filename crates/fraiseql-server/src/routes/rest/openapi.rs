@@ -48,9 +48,9 @@ pub fn generate_openapi(
 
 /// Generates an OpenAPI 3.0.3 spec from schema metadata.
 struct OpenApiGenerator<'a> {
-    schema: &'a CompiledSchema,
+    schema:      &'a CompiledSchema,
     route_table: &'a RestRouteTable,
-    config: &'a RestConfig,
+    config:      &'a RestConfig,
 }
 
 impl<'a> OpenApiGenerator<'a> {
@@ -129,9 +129,8 @@ impl<'a> OpenApiGenerator<'a> {
                 let operation = self.build_operation(resource, route);
 
                 // Ensure path object exists.
-                let path_obj = paths
-                    .entry(path_key.clone())
-                    .or_insert_with(|| Value::Object(Map::new()));
+                let path_obj =
+                    paths.entry(path_key.clone()).or_insert_with(|| Value::Object(Map::new()));
 
                 if let Value::Object(ref mut map) = path_obj {
                     map.insert(method_key.to_string(), operation);
@@ -152,10 +151,7 @@ impl<'a> OpenApiGenerator<'a> {
         let mut op = Map::new();
 
         // Tags.
-        op.insert(
-            "tags".to_string(),
-            json!([capitalize(&resource.name)]),
-        );
+        op.insert("tags".to_string(), json!([capitalize(&resource.name)]));
 
         // Summary and operation ID.
         let (summary, operation_id) = self.operation_summary(resource, route);
@@ -208,9 +204,7 @@ impl<'a> OpenApiGenerator<'a> {
                         MutationOperation::Delete { .. })))
         });
 
-        let path_obj = paths
-            .entry(collection_path)
-            .or_insert_with(|| Value::Object(Map::new()));
+        let path_obj = paths.entry(collection_path).or_insert_with(|| Value::Object(Map::new()));
         let Value::Object(ref mut map) = path_obj else {
             return;
         };
@@ -398,57 +392,39 @@ impl<'a> OpenApiGenerator<'a> {
                     .is_some_and(|q| q.returns_list);
 
                 if is_list {
-                    (
-                        format!("List {res_name}"),
-                        format!("list_{res_name}"),
-                    )
+                    (format!("List {res_name}"), format!("list_{res_name}"))
                 } else {
-                    (
-                        format!("Get {type_name} by ID"),
-                        format!("get_{}", to_snake(type_name)),
-                    )
+                    (format!("Get {type_name} by ID"), format!("get_{}", to_snake(type_name)))
                 }
-            }
+            },
             (RouteSource::Mutation { name }, HttpMethod::Post) => {
                 let mutation = self.schema.mutations.iter().find(|m| m.name == *name);
                 match mutation.map(|m| &m.operation) {
-                    Some(MutationOperation::Insert { .. }) => (
-                        format!("Create {type_name}"),
-                        format!("create_{}", to_snake(type_name)),
-                    ),
+                    Some(MutationOperation::Insert { .. }) => {
+                        (format!("Create {type_name}"), format!("create_{}", to_snake(type_name)))
+                    },
                     _ => {
                         // Custom action.
                         let action = extract_action(name, type_name);
-                        (
-                            format!("{} {type_name}", capitalize(&action)),
-                            name.clone(),
-                        )
-                    }
+                        (format!("{} {type_name}", capitalize(&action)), name.clone())
+                    },
                 }
-            }
-            (RouteSource::Mutation { name: _ }, HttpMethod::Put) => (
-                format!("Replace {type_name}"),
-                format!("replace_{}", to_snake(type_name)),
-            ),
+            },
+            (RouteSource::Mutation { name: _ }, HttpMethod::Put) => {
+                (format!("Replace {type_name}"), format!("replace_{}", to_snake(type_name)))
+            },
             (RouteSource::Mutation { name }, HttpMethod::Patch) => {
                 // Check if it's a partial action or full patch.
                 if route.path.contains('/') && route.path.matches('/').count() > 1 {
                     let action = extract_action(name, type_name);
-                    (
-                        format!("{} {type_name}", capitalize(&action)),
-                        name.clone(),
-                    )
+                    (format!("{} {type_name}", capitalize(&action)), name.clone())
                 } else {
-                    (
-                        format!("Update {type_name}"),
-                        format!("update_{}", to_snake(type_name)),
-                    )
+                    (format!("Update {type_name}"), format!("update_{}", to_snake(type_name)))
                 }
-            }
-            (RouteSource::Mutation { .. }, HttpMethod::Delete) => (
-                format!("Delete {type_name}"),
-                format!("delete_{}", to_snake(type_name)),
-            ),
+            },
+            (RouteSource::Mutation { .. }, HttpMethod::Delete) => {
+                (format!("Delete {type_name}"), format!("delete_{}", to_snake(type_name)))
+            },
             _ => ("Operation".to_string(), "operation".to_string()),
         }
     }
@@ -647,8 +623,7 @@ impl<'a> OpenApiGenerator<'a> {
                 for field in &td.fields {
                     let desc = format!(
                         "Filter by {}. Bracket operators: {}",
-                        field.name,
-                        BRACKET_OPERATORS_DESC
+                        field.name, BRACKET_OPERATORS_DESC
                     );
                     params.push(json!({
                         "name": format!("{}[operator]", field.name),
@@ -671,8 +646,14 @@ impl<'a> OpenApiGenerator<'a> {
 
             // Logical operators.
             for (op, desc) in &[
-                ("or", "OR group: `or=(field[op]=val,field[op]=val)`. Conditions within are OR'd together."),
-                ("and", "AND group: `and=(field[op]=val,field[op]=val)`. Explicit AND (equivalent to multiple filters)."),
+                (
+                    "or",
+                    "OR group: `or=(field[op]=val,field[op]=val)`. Conditions within are OR'd together.",
+                ),
+                (
+                    "and",
+                    "AND group: `and=(field[op]=val,field[op]=val)`. Explicit AND (equivalent to multiple filters).",
+                ),
                 ("not", "NOT group: `not=(field[op]=val)`. Negates the enclosed conditions."),
             ] {
                 params.push(json!({
@@ -688,11 +669,8 @@ impl<'a> OpenApiGenerator<'a> {
         // Full-text search parameter (only when type has searchable fields).
         if let Some(td) = type_def {
             if !td.searchable_fields().is_empty() {
-                let searchable_names: Vec<&str> = td
-                    .searchable_fields()
-                    .iter()
-                    .map(|f| f.name.as_str())
-                    .collect();
+                let searchable_names: Vec<&str> =
+                    td.searchable_fields().iter().map(|f| f.name.as_str()).collect();
                 params.push(json!({
                     "name": "search",
                     "in": "query",
@@ -728,7 +706,7 @@ impl<'a> OpenApiGenerator<'a> {
 
     fn build_request_body(&self, resource: &RestResource, route: &RestRoute) -> Option<Value> {
         match route.method {
-            HttpMethod::Post | HttpMethod::Put | HttpMethod::Patch => {}
+            HttpMethod::Post | HttpMethod::Put | HttpMethod::Patch => {},
             _ => return None,
         }
 
@@ -753,7 +731,7 @@ impl<'a> OpenApiGenerator<'a> {
                         }
                     ]
                 })
-            }
+            },
             HttpMethod::Put => {
                 // Full update: all writable fields required.
                 if let Some(td) = type_def {
@@ -761,7 +739,7 @@ impl<'a> OpenApiGenerator<'a> {
                 } else {
                     self.mutation_args_schema(mutation)
                 }
-            }
+            },
             HttpMethod::Patch => {
                 // Partial update: writable fields, none required.
                 if let Some(td) = type_def {
@@ -769,7 +747,7 @@ impl<'a> OpenApiGenerator<'a> {
                 } else {
                     self.mutation_args_schema(mutation)
                 }
-            }
+            },
             _ => return None,
         };
 
@@ -792,10 +770,7 @@ impl<'a> OpenApiGenerator<'a> {
             if arg.name == "id" || arg.name.starts_with("pk_") {
                 continue;
             }
-            properties.insert(
-                arg.name.clone(),
-                field_type_to_json_schema(&arg.arg_type),
-            );
+            properties.insert(arg.name.clone(), field_type_to_json_schema(&arg.arg_type));
             if !arg.nullable {
                 required.push(json!(arg.name));
             }
@@ -817,10 +792,7 @@ impl<'a> OpenApiGenerator<'a> {
         let mut required = Vec::new();
 
         for field in &writable {
-            properties.insert(
-                field.name.to_string(),
-                field_type_to_json_schema(&field.field_type),
-            );
+            properties.insert(field.name.to_string(), field_type_to_json_schema(&field.field_type));
             if all_required && !field.nullable {
                 required.push(json!(field.name.to_string()));
             }
@@ -906,12 +878,9 @@ impl<'a> OpenApiGenerator<'a> {
                         "304".to_string(),
                         json!({ "description": "Not Modified (ETag match)" }),
                     );
-                    responses.insert(
-                        "404".to_string(),
-                        json!({ "description": "Not found" }),
-                    );
+                    responses.insert("404".to_string(), json!({ "description": "Not found" }));
                 }
-            }
+            },
             HttpMethod::Post => {
                 let status = route.success_status.to_string();
                 responses.insert(
@@ -931,7 +900,7 @@ impl<'a> OpenApiGenerator<'a> {
                         }
                     }),
                 );
-            }
+            },
             HttpMethod::Put | HttpMethod::Patch => {
                 responses.insert(
                     "200".to_string(),
@@ -950,11 +919,8 @@ impl<'a> OpenApiGenerator<'a> {
                         json!({ "description": "Unprocessable entity (missing required fields)" }),
                     );
                 }
-                responses.insert(
-                    "404".to_string(),
-                    json!({ "description": "Not found" }),
-                );
-            }
+                responses.insert("404".to_string(), json!({ "description": "Not found" }));
+            },
             HttpMethod::Delete => {
                 match self.config.delete_response {
                     DeleteResponse::NoContent => {
@@ -962,7 +928,7 @@ impl<'a> OpenApiGenerator<'a> {
                             "204".to_string(),
                             json!({ "description": "Deleted (no content)" }),
                         );
-                    }
+                    },
                     DeleteResponse::Entity | _ => {
                         responses.insert(
                             "200".to_string(),
@@ -975,32 +941,20 @@ impl<'a> OpenApiGenerator<'a> {
                                 }
                             }),
                         );
-                    }
+                    },
                 }
-                responses.insert(
-                    "404".to_string(),
-                    json!({ "description": "Not found" }),
-                );
-            }
+                responses.insert("404".to_string(), json!({ "description": "Not found" }));
+            },
         }
 
         // Common error responses.
         if !responses.contains_key("400") {
-            responses.insert(
-                "400".to_string(),
-                json!({ "description": "Bad request" }),
-            );
+            responses.insert("400".to_string(), json!({ "description": "Bad request" }));
         }
 
         if self.config.require_auth {
-            responses.insert(
-                "401".to_string(),
-                json!({ "description": "Unauthorized" }),
-            );
-            responses.insert(
-                "403".to_string(),
-                json!({ "description": "Forbidden" }),
-            );
+            responses.insert("401".to_string(), json!({ "description": "Unauthorized" }));
+            responses.insert("403".to_string(), json!({ "description": "Forbidden" }));
         }
 
         Value::Object(responses)
@@ -1022,28 +976,18 @@ impl<'a> OpenApiGenerator<'a> {
         let mut schemas = Map::new();
 
         // Build type schemas for all types referenced by routes.
-        let referenced_types: Vec<&str> = self
-            .route_table
-            .resources
-            .iter()
-            .map(|r| r.type_name.as_str())
-            .collect();
+        let referenced_types: Vec<&str> =
+            self.route_table.resources.iter().map(|r| r.type_name.as_str()).collect();
 
         for type_name in &referenced_types {
             if let Some(td) = self.schema.find_type(type_name) {
-                schemas.insert(
-                    type_name.to_string(),
-                    self.type_to_schema(td),
-                );
+                schemas.insert(type_name.to_string(), self.type_to_schema(td));
             }
         }
 
         // Walk nested object references.
         let mut to_process: Vec<String> = Vec::new();
-        for td in referenced_types
-            .iter()
-            .filter_map(|tn| self.schema.find_type(tn))
-        {
+        for td in referenced_types.iter().filter_map(|tn| self.schema.find_type(tn)) {
             for field in &td.fields {
                 if let FieldType::Object(ref name) = field.field_type {
                     if !schemas.contains_key(name.as_str()) {
@@ -1071,11 +1015,7 @@ impl<'a> OpenApiGenerator<'a> {
 
         // Enum schemas.
         for enum_def in &self.schema.enums {
-            let values: Vec<Value> = enum_def
-                .values
-                .iter()
-                .map(|v| json!(v.name))
-                .collect();
+            let values: Vec<Value> = enum_def.values.iter().map(|v| json!(v.name)).collect();
             schemas.insert(
                 enum_def.name.clone(),
                 json!({
@@ -1163,18 +1103,21 @@ impl<'a> OpenApiGenerator<'a> {
                         "items": ref_schema,
                         "description": format!("Embedded {} (use ?select={}(fields) to include)", rel.target_type, rel.name),
                     })
-                }
+                },
                 Cardinality::ManyToOne | Cardinality::OneToOne => {
                     let mut s = ref_schema;
                     if let Some(obj) = s.as_object_mut() {
                         obj.insert(
                             "description".to_string(),
-                            json!(format!("Embedded {} (use ?select={}(fields) to include)", rel.target_type, rel.name)),
+                            json!(format!(
+                                "Embedded {} (use ?select={}(fields) to include)",
+                                rel.target_type, rel.name
+                            )),
                         );
                         obj.insert("nullable".to_string(), json!(true));
                     }
                     s
-                }
+                },
                 _ => ref_schema,
             };
             properties.insert(rel.name.clone(), rel_schema);
@@ -1196,8 +1139,7 @@ impl<'a> OpenApiGenerator<'a> {
 // ---------------------------------------------------------------------------
 
 /// Bracket operators documented in filter parameter descriptions.
-const BRACKET_OPERATORS_DESC: &str =
-    "eq, ne, gt, gte, lt, lte, in, nin, like, ilike, is_null, contains, icontains, startswith, endswith";
+const BRACKET_OPERATORS_DESC: &str = "eq, ne, gt, gte, lt, lte, in, nin, like, ilike, is_null, contains, icontains, startswith, endswith";
 
 /// Map a `FieldType` to a JSON Schema type object.
 fn field_type_to_json_schema(ft: &FieldType) -> Value {
@@ -1217,13 +1159,13 @@ fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Scalar(name) => scalar_to_json_schema(name),
         FieldType::List(inner) => {
             json!({ "type": "array", "items": field_type_to_json_schema(inner) })
-        }
+        },
         FieldType::Object(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
         FieldType::Enum(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
         FieldType::Input(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
         FieldType::Interface(name) | FieldType::Union(name) => {
             json!({ "type": "object", "description": format!("See {name}") })
-        }
+        },
     }
 }
 
@@ -1253,7 +1195,7 @@ fn should_have_prefer_header(route: &RestRoute) -> bool {
         HttpMethod::Get => {
             // Collection GET endpoints (no path parameter).
             !route.path.contains('{')
-        }
+        },
         HttpMethod::Post | HttpMethod::Patch | HttpMethod::Delete => true,
         HttpMethod::Put => false,
     }
@@ -1292,9 +1234,7 @@ fn extract_action(mutation_name: &str, type_name: &str) -> String {
 
     if let Some(prefix) = lower_name.strip_suffix(&lower_type) {
         if !prefix.is_empty() {
-            return prefix
-                .trim_end_matches('_')
-                .replace('_', "-");
+            return prefix.trim_end_matches('_').replace('_', "-");
         }
     }
 
@@ -1317,15 +1257,14 @@ fn extract_action(mutation_name: &str, type_name: &str) -> String {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
-
     use fraiseql_core::schema::{
-        FieldType, MutationDefinition, MutationOperation, RestConfig,
+        DeprecationInfo, FieldType, MutationDefinition, MutationOperation, RestConfig,
     };
-    use fraiseql_core::schema::DeprecationInfo;
     use fraiseql_test_utils::schema_builder::{
         TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder,
     };
+
+    use super::*;
 
     // -- Helpers -------------------------------------------------------------
 
@@ -1335,18 +1274,15 @@ mod tests {
         m.sql_source = Some(format!("fn_{name}"));
         // Add `id` argument for single-resource mutations.
         if name != "create_user" {
-            m.arguments.push(fraiseql_core::schema::ArgumentDefinition::new(
-                "id", FieldType::Int,
-            ));
+            m.arguments
+                .push(fraiseql_core::schema::ArgumentDefinition::new("id", FieldType::Int));
         }
         // Add writable field arguments for update mutations.
         if name.starts_with("update") {
-            m.arguments.push(fraiseql_core::schema::ArgumentDefinition::new(
-                "name", FieldType::String,
-            ));
-            m.arguments.push(fraiseql_core::schema::ArgumentDefinition::new(
-                "email", FieldType::String,
-            ));
+            m.arguments
+                .push(fraiseql_core::schema::ArgumentDefinition::new("name", FieldType::String));
+            m.arguments
+                .push(fraiseql_core::schema::ArgumentDefinition::new("email", FieldType::String));
         }
         m
     }
@@ -1363,23 +1299,22 @@ mod tests {
             .with_simple_query("user", "User", false)
             .with_mutation(mutation(
                 "create_user",
-                MutationOperation::Insert { table: table.clone() },
+                MutationOperation::Insert {
+                    table: table.clone(),
+                },
             ))
             .with_mutation(mutation(
                 "update_user",
-                MutationOperation::Update { table: table.clone() },
+                MutationOperation::Update {
+                    table: table.clone(),
+                },
             ))
-            .with_mutation(mutation(
-                "delete_user",
-                MutationOperation::Delete { table },
-            ))
+            .with_mutation(mutation("delete_user", MutationOperation::Delete { table }))
             .with_type(
                 TestTypeBuilder::new("User", "v_user")
                     .with_field(TestFieldBuilder::new("pk_user_id", FieldType::Int).build())
                     .with_field(TestFieldBuilder::new("name", FieldType::String).build())
-                    .with_field(
-                        TestFieldBuilder::nullable("email", FieldType::String).build(),
-                    )
+                    .with_field(TestFieldBuilder::nullable("email", FieldType::String).build())
                     .build(),
             )
             .build();
@@ -1475,15 +1410,15 @@ mod tests {
     fn enum_field_produces_ref() {
         let mut schema = rest_schema();
         schema.enums.push(fraiseql_core::schema::EnumDefinition {
-            name: "Status".to_string(),
-            values: vec![
+            name:        "Status".to_string(),
+            values:      vec![
                 fraiseql_core::schema::EnumValueDefinition {
-                    name: "ACTIVE".to_string(),
+                    name:        "ACTIVE".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 fraiseql_core::schema::EnumValueDefinition {
-                    name: "INACTIVE".to_string(),
+                    name:        "INACTIVE".to_string(),
                     description: None,
                     deprecation: None,
                 },
@@ -1493,8 +1428,7 @@ mod tests {
         for td in &mut schema.types {
             if td.name == "User" {
                 td.fields.push(
-                    TestFieldBuilder::new("status", FieldType::Enum("Status".to_string()))
-                        .build(),
+                    TestFieldBuilder::new("status", FieldType::Enum("Status".to_string())).build(),
                 );
             }
         }
@@ -1526,19 +1460,19 @@ mod tests {
         let paths = spec["paths"].as_object().unwrap();
         // The test schema uses pk_user_id, so the path is /users/{pk_user_id}.
         let user_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users"));
-        assert!(user_path.is_some(), "Expected /users/{{pk_user_id}} path, found: {:?}", paths.keys().collect::<Vec<_>>());
+        assert!(
+            user_path.is_some(),
+            "Expected /users/{{pk_user_id}} path, found: {:?}",
+            paths.keys().collect::<Vec<_>>()
+        );
     }
 
     #[test]
     fn collection_get_has_pagination_params() {
         let spec = generate(&rest_schema());
         let params = &spec["paths"]["/users"]["get"]["parameters"];
-        let param_names: Vec<&str> = params
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(|p| p["name"].as_str())
-            .collect();
+        let param_names: Vec<&str> =
+            params.as_array().unwrap().iter().filter_map(|p| p["name"].as_str()).collect();
         assert!(param_names.contains(&"limit"));
         assert!(param_names.contains(&"offset"));
         assert!(param_names.contains(&"select"));
@@ -1556,12 +1490,8 @@ mod tests {
 
         let spec = generate(&schema);
         let params = &spec["paths"]["/users"]["get"]["parameters"];
-        let param_names: Vec<&str> = params
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(|p| p["name"].as_str())
-            .collect();
+        let param_names: Vec<&str> =
+            params.as_array().unwrap().iter().filter_map(|p| p["name"].as_str()).collect();
         assert!(param_names.contains(&"first"));
         assert!(param_names.contains(&"after"));
         assert!(param_names.contains(&"last"));
@@ -1582,10 +1512,7 @@ mod tests {
         let spec = generate(&rest_schema());
         let paths = spec["paths"].as_object().unwrap();
         // Look for PUT and PATCH on user ID path.
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         assert!(paths[id_path]["put"].is_object() || paths[id_path]["patch"].is_object());
     }
 
@@ -1593,10 +1520,7 @@ mod tests {
     fn delete_mutation_produces_delete_path() {
         let spec = generate(&rest_schema());
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         assert!(paths[id_path]["delete"].is_object());
     }
 
@@ -1612,10 +1536,7 @@ mod tests {
     fn put_has_422_response() {
         let spec = generate(&rest_schema());
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         if let Some(put_op) = paths[id_path].get("put") {
             assert!(put_op["responses"]["422"].is_object());
         }
@@ -1655,10 +1576,7 @@ mod tests {
 
         let spec = generate(&schema);
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         let get_op = &paths[id_path]["get"];
         assert_eq!(get_op["deprecated"], true);
     }
@@ -1700,11 +1618,7 @@ mod tests {
     fn collection_get_has_prefer_header() {
         let spec = generate(&rest_schema());
         let params = &spec["paths"]["/users"]["get"]["parameters"];
-        let has_prefer = params
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|p| p["name"] == "Prefer");
+        let has_prefer = params.as_array().unwrap().iter().any(|p| p["name"] == "Prefer");
         assert!(has_prefer);
     }
 
@@ -1712,10 +1626,7 @@ mod tests {
     fn delete_has_prefer_header() {
         let spec = generate(&rest_schema());
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         if let Some(delete_op) = paths[id_path].get("delete") {
             let has_prefer = delete_op["parameters"]
                 .as_array()
@@ -1729,16 +1640,10 @@ mod tests {
     #[test]
     fn filter_params_document_bracket_operators() {
         let spec = generate(&rest_schema());
-        let params = spec["paths"]["/users"]["get"]["parameters"]
-            .as_array()
-            .unwrap();
+        let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
         let filter_param = params
             .iter()
-            .find(|p| {
-                p["name"]
-                    .as_str()
-                    .is_some_and(|n| n.contains("[operator]"))
-            });
+            .find(|p| p["name"].as_str().is_some_and(|n| n.contains("[operator]")));
         assert!(filter_param.is_some(), "Expected bracket operator param");
         let desc = filter_param.unwrap()["description"].as_str().unwrap();
         assert!(desc.contains("eq"));
@@ -1759,10 +1664,7 @@ mod tests {
     fn delete_no_content_mode() {
         let spec = generate(&rest_schema());
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         if let Some(delete_op) = paths[id_path].get("delete") {
             assert!(delete_op["responses"]["204"].is_object());
         }
@@ -1779,10 +1681,7 @@ mod tests {
 
         let spec = generate(&schema);
         let paths = spec["paths"].as_object().unwrap();
-        let id_path = paths
-            .keys()
-            .find(|k| k.contains('{') && k.starts_with("/users"))
-            .unwrap();
+        let id_path = paths.keys().find(|k| k.contains('{') && k.starts_with("/users")).unwrap();
         if let Some(delete_op) = paths[id_path].get("delete") {
             assert!(delete_op["responses"]["200"].is_object());
         }
@@ -1804,8 +1703,8 @@ mod tests {
     fn missing_rest_config_returns_error() {
         let schema = TestSchemaBuilder::new().build();
         let route_table = RestRouteTable {
-            base_path: "/rest/v1".to_string(),
-            resources: vec![],
+            base_path:   "/rest/v1".to_string(),
+            resources:   vec![],
             diagnostics: vec![],
         };
         let result = generate_openapi(&schema, &route_table);
@@ -1820,8 +1719,8 @@ mod tests {
             ..RestConfig::default()
         });
         let route_table = RestRouteTable {
-            base_path: "/rest/v1".to_string(),
-            resources: vec![],
+            base_path:   "/rest/v1".to_string(),
+            resources:   vec![],
             diagnostics: vec![],
         };
         let spec = generate_openapi(&schema, &route_table).unwrap();
@@ -1856,7 +1755,8 @@ mod tests {
     #[test]
     fn post_body_supports_array_for_bulk_insert() {
         let spec = generate(&rest_schema());
-        let post_body = &spec["paths"]["/users"]["post"]["requestBody"]["content"]["application/json"]["schema"];
+        let post_body = &spec["paths"]["/users"]["post"]["requestBody"]["content"]["application/json"]
+            ["schema"];
         // Should have oneOf with single object and array variant.
         assert!(post_body["oneOf"].is_array(), "Expected oneOf schema for bulk insert support");
         let variants = post_body["oneOf"].as_array().unwrap();
@@ -1868,11 +1768,7 @@ mod tests {
     fn post_has_prefer_header_for_upsert() {
         let spec = generate(&rest_schema());
         let params = &spec["paths"]["/users"]["post"]["parameters"];
-        let has_prefer = params
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|p| p["name"] == "Prefer");
+        let has_prefer = params.as_array().unwrap().iter().any(|p| p["name"] == "Prefer");
         assert!(has_prefer, "POST should have Prefer header for upsert/bulk preferences");
     }
 
@@ -1893,13 +1789,8 @@ mod tests {
     #[test]
     fn collection_get_has_logical_operator_params() {
         let spec = generate(&rest_schema());
-        let params = spec["paths"]["/users"]["get"]["parameters"]
-            .as_array()
-            .unwrap();
-        let param_names: Vec<&str> = params
-            .iter()
-            .filter_map(|p| p["name"].as_str())
-            .collect();
+        let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
+        let param_names: Vec<&str> = params.iter().filter_map(|p| p["name"].as_str()).collect();
         assert!(param_names.contains(&"or"), "Expected `or` logical param");
         assert!(param_names.contains(&"and"), "Expected `and` logical param");
         assert!(param_names.contains(&"not"), "Expected `not` logical param");
@@ -1922,9 +1813,7 @@ mod tests {
         }
 
         let spec = generate(&schema);
-        let params = spec["paths"]["/users"]["get"]["parameters"]
-            .as_array()
-            .unwrap();
+        let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
         let search_param = params.iter().find(|p| p["name"] == "search");
         assert!(search_param.is_some(), "Expected `search` param on FTS-enabled resource");
         let desc = search_param.unwrap()["description"].as_str().unwrap();
@@ -1934,9 +1823,7 @@ mod tests {
     #[test]
     fn non_fts_resource_has_no_search_param() {
         let spec = generate(&rest_schema());
-        let params = spec["paths"]["/users"]["get"]["parameters"]
-            .as_array()
-            .unwrap();
+        let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
         let search_param = params.iter().find(|p| p["name"] == "search");
         assert!(search_param.is_none(), "Non-FTS resource should not have search param");
     }

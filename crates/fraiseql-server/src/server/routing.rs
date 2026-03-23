@@ -123,12 +123,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Attach dev config from compiled schema (or FRAISEQL_DEV_CLAIMS env var override)
         state.dev_config = if let Ok(claims_json) = std::env::var("FRAISEQL_DEV_CLAIMS") {
-            serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&claims_json)
-                .ok()
-                .map(|claims| fraiseql_core::schema::DevConfig {
-                    enabled:        true,
-                    default_claims: claims,
-                })
+            serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(
+                &claims_json,
+            )
+            .ok()
+            .map(|claims| fraiseql_core::schema::DevConfig {
+                enabled:        true,
+                default_claims: claims,
+            })
         } else {
             self.executor.schema().dev_config.clone()
         };
@@ -689,7 +691,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Mutation routes (POST, PUT, PATCH, DELETE) are added separately by
     /// [`add_rest_mutation_routes`] on the `MutationCapable` impl block.
     #[cfg(feature = "rest")]
-    fn add_rest_query_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
+    fn add_rest_query_routes(
+        &self,
+        app: Router,
+        state: crate::routes::graphql::AppState<A>,
+    ) -> Router {
         use crate::routes::rest::rest_query_router;
 
         let rest_config = self.executor.schema().rest_config.as_ref();
@@ -729,7 +735,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "REST transport protected by OIDC authentication"
                     );
                     let auth_state = OidcAuthState::new(validator.clone());
-                    rest.route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    rest.route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        oidc_auth_middleware,
+                    ))
                 } else {
                     rest
                 }
@@ -823,11 +832,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
     /// authentication middleware is applied.  Returns the router unchanged if
     /// REST is not configured or derivation fails.
     #[cfg(feature = "rest")]
-    fn add_rest_routes(
-        &self,
-        app: Router,
-        state: crate::routes::graphql::AppState<A>,
-    ) -> Router {
+    fn add_rest_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
         use crate::routes::rest::rest_router;
 
         let rest_config = self.executor.schema().rest_config.as_ref();

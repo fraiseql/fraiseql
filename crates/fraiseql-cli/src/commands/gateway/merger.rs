@@ -52,9 +52,7 @@ pub struct MergedResponse {
 /// Data objects are shallow-merged at the top level (each subgraph contributes
 /// different root fields). Errors are concatenated with subgraph attribution
 /// added to the `extensions` field.
-pub fn merge_responses(
-    responses: &[(String, SubgraphResponse)],
-) -> MergedResponse {
+pub fn merge_responses(responses: &[(String, SubgraphResponse)]) -> MergedResponse {
     let mut merged_data = Map::new();
     let mut merged_errors = Vec::new();
 
@@ -69,14 +67,9 @@ pub fn merge_responses(
         // Collect errors with subgraph attribution
         for error in &response.errors {
             let mut attributed = error.clone();
-            let ext = attributed
-                .extensions
-                .get_or_insert_with(|| Value::Object(Map::new()));
+            let ext = attributed.extensions.get_or_insert_with(|| Value::Object(Map::new()));
             if let Value::Object(ext_map) = ext {
-                ext_map.insert(
-                    "subgraph".to_string(),
-                    Value::String(subgraph_name.clone()),
-                );
+                ext_map.insert("subgraph".to_string(), Value::String(subgraph_name.clone()));
             }
             merged_errors.push(attributed);
         }

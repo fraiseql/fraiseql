@@ -7,7 +7,7 @@ use std::{
 };
 
 use ::tracing::info;
-use fraiseql_db::{traits::DatabaseAdapter, DatabaseType};
+use fraiseql_db::{DatabaseType, traits::DatabaseAdapter};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 use uuid::Uuid;
@@ -101,10 +101,8 @@ pub fn construct_batch_where_clause(
     let mut param_idx = 1usize;
 
     for key_col in key_columns {
-        let values: Vec<&Value> = representations
-            .iter()
-            .filter_map(|rep| rep.key_fields.get(key_col))
-            .collect();
+        let values: Vec<&Value> =
+            representations.iter().filter_map(|rep| rep.key_fields.get(key_col)).collect();
 
         if !values.is_empty() {
             let mut placeholders = Vec::with_capacity(values.len());

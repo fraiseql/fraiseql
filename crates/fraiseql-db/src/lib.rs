@@ -224,7 +224,6 @@ pub use identifier::{
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 #[cfg(feature = "mysql")]
 pub use mysql::{MySqlAdapter, MySqlIntrospector};
-
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{
@@ -232,21 +231,19 @@ pub use projection_generator::{
 };
 #[cfg(feature = "sqlite")]
 pub use sqlite::{SqliteAdapter, SqliteIntrospector};
-
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
-
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
     DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
     RelayDatabaseAdapter, RelayPageResult,
 };
+#[cfg(feature = "grpc")]
+pub use types::{ColumnSpec, ColumnValue};
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,
     sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
 };
-#[cfg(feature = "grpc")]
-pub use types::{ColumnSpec, ColumnValue};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;
 pub use where_sql_generator::WhereSqlGenerator;

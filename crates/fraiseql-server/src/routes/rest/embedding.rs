@@ -7,16 +7,19 @@
 //! For PostgreSQL, generates sub-queries with `jsonb_agg` / `jsonb_build_object`.
 //! Empty collections return `[]`, not null. Single absent objects return `null`.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::runtime::{Executor, QueryMatch};
-use fraiseql_core::schema::{Cardinality, CompiledSchema, RelationshipDef, RestConfig};
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    runtime::{Executor, QueryMatch},
+    schema::{Cardinality, CompiledSchema, RelationshipDef, RestConfig},
+    security::SecurityContext,
+};
 
-use super::handler::RestError;
-use super::params::{EmbeddedSpec, SelectEntry};
+use super::{
+    handler::RestError,
+    params::{EmbeddedSpec, SelectEntry},
+};
 
 // ---------------------------------------------------------------------------
 // Context struct — groups shared arguments to satisfy clippy::too_many_arguments
@@ -24,9 +27,9 @@ use super::params::{EmbeddedSpec, SelectEntry};
 
 /// Shared context for embedding execution, reducing argument count.
 struct EmbedCtx<'a, A: DatabaseAdapter> {
-    executor: &'a Arc<Executor<A>>,
-    schema: &'a CompiledSchema,
-    config: &'a RestConfig,
+    executor:         &'a Arc<Executor<A>>,
+    schema:           &'a CompiledSchema,
+    config:           &'a RestConfig,
     security_context: Option<&'a SecurityContext>,
 }
 
@@ -37,11 +40,11 @@ struct EmbedCtx<'a, A: DatabaseAdapter> {
 /// Parameters for embedding execution, grouping shared context.
 pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: &'a Arc<Executor<A>>,
+    pub executor:         &'a Arc<Executor<A>>,
     /// Compiled schema for type/query lookup.
-    pub schema: &'a CompiledSchema,
+    pub schema:           &'a CompiledSchema,
     /// REST configuration (page size limits, etc.).
-    pub config: &'a RestConfig,
+    pub config:           &'a RestConfig,
     /// Parent type name for relationship lookup.
     pub parent_type_name: &'a str,
     /// Security context for RLS enforcement.
@@ -69,16 +72,14 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         return Ok(());
     }
 
-    let parent_type = req.schema
-        .find_type(req.parent_type_name)
-        .ok_or_else(|| {
-            RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
-        })?;
+    let parent_type = req.schema.find_type(req.parent_type_name).ok_or_else(|| {
+        RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
+    })?;
 
     let ctx = EmbedCtx {
-        executor: req.executor,
-        schema: req.schema,
-        config: req.config,
+        executor:         req.executor,
+        schema:           req.schema,
+        config:           req.config,
         security_context: req.security_context,
     };
 
@@ -97,10 +98,7 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         let embedded_filter = embedding_filters.get(&spec.relationship);
 
         // Determine output field name (renamed or relationship name).
-        let output_name = spec
-            .rename
-            .as_deref()
-            .unwrap_or(&spec.relationship);
+        let output_name = spec.rename.as_deref().unwrap_or(&spec.relationship);
 
         // Get sub-select field names.
         let sub_field_names: Vec<String> = spec
@@ -115,20 +113,23 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         // Execute embedding based on parent data shape (array or single object).
         match parent_data {
             serde_json::Value::Array(rows) => {
-                embed_into_rows(
-                    &ctx, rel, output_name, &sub_field_names, embedded_filter, rows,
-                )
-                .await?;
-            }
+                embed_into_rows(&ctx, rel, output_name, &sub_field_names, embedded_filter, rows)
+                    .await?;
+            },
             serde_json::Value::Object(_) => {
                 embed_into_single(
-                    &ctx, rel, output_name, &sub_field_names, embedded_filter, parent_data,
+                    &ctx,
+                    rel,
+                    output_name,
+                    &sub_field_names,
+                    embedded_filter,
+                    parent_data,
                 )
                 .await?;
-            }
+            },
             _ => {
                 // Non-object/array data — skip embedding silently.
-            }
+            },
         }
     }
 
@@ -152,11 +153,9 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
         return Ok(());
     }
 
-    let parent_type = req.schema
-        .find_type(req.parent_type_name)
-        .ok_or_else(|| {
-            RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
-        })?;
+    let parent_type = req.schema.find_type(req.parent_type_name).ok_or_else(|| {
+        RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
+    })?;
 
     for count_rel_name in count_fields {
         let rel = parent_type
@@ -175,25 +174,23 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
         match parent_data {
             serde_json::Value::Array(rows) => {
                 for row in rows.iter_mut() {
-                    let count = count_related(
-                        req.executor, req.schema, rel, row, req.security_context,
-                    )
-                    .await?;
+                    let count =
+                        count_related(req.executor, req.schema, rel, row, req.security_context)
+                            .await?;
                     if let Some(obj) = row.as_object_mut() {
                         obj.insert(count_key.clone(), serde_json::json!(count));
                     }
                 }
-            }
+            },
             serde_json::Value::Object(_) => {
-                let count = count_related(
-                    req.executor, req.schema, rel, parent_data, req.security_context,
-                )
-                .await?;
+                let count =
+                    count_related(req.executor, req.schema, rel, parent_data, req.security_context)
+                        .await?;
                 if let Some(obj) = parent_data.as_object_mut() {
                     obj.insert(count_key, serde_json::json!(count));
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -249,10 +246,7 @@ async fn embed_into_single<A: DatabaseAdapter>(
         _ => &rel.foreign_key,
     };
 
-    where_obj.insert(
-        filter_field.clone(),
-        serde_json::json!({ "eq": parent_key_value }),
-    );
+    where_obj.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
 
     // Merge embedded filter if present.
     if let Some(filter) = embedded_filter {
@@ -293,7 +287,8 @@ async fn embed_into_single<A: DatabaseAdapter>(
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
 
-    let result = ctx.executor
+    let result = ctx
+        .executor
         .execute_query_direct(&query_match, vars_ref, ctx.security_context)
         .await
         .map_err(RestError::from)?;
@@ -315,7 +310,7 @@ async fn embed_into_single<A: DatabaseAdapter>(
                     None => serde_json::json!([]),
                 };
                 obj.insert(output_name.to_string(), arr);
-            }
+            },
             Cardinality::ManyToOne | Cardinality::OneToOne => {
                 // Single object or null.
                 let val = match embedded_data {
@@ -324,13 +319,13 @@ async fn embed_into_single<A: DatabaseAdapter>(
                     None => serde_json::Value::Null,
                 };
                 obj.insert(output_name.to_string(), val);
-            }
+            },
             _ => {
                 obj.insert(
                     output_name.to_string(),
                     embedded_data.unwrap_or(serde_json::Value::Null),
                 );
-            }
+            },
         }
     }
 
@@ -338,10 +333,7 @@ async fn embed_into_single<A: DatabaseAdapter>(
 }
 
 /// Extract the join key value from a parent row.
-fn extract_join_key(
-    row: &serde_json::Value,
-    rel: &RelationshipDef,
-) -> Option<serde_json::Value> {
+fn extract_join_key(row: &serde_json::Value, rel: &RelationshipDef) -> Option<serde_json::Value> {
     // For OneToMany: use the parent's referenced key (e.g., pk_user).
     // For ManyToOne/OneToOne: use the parent's foreign key (e.g., fk_user).
     let key_field = match rel.cardinality {
@@ -354,22 +346,18 @@ fn extract_join_key(
 }
 
 /// Set the appropriate empty default for an embedding.
-fn set_empty_embedding(
-    row: &mut serde_json::Value,
-    output_name: &str,
-    cardinality: Cardinality,
-) {
+fn set_empty_embedding(row: &mut serde_json::Value, output_name: &str, cardinality: Cardinality) {
     if let Some(obj) = row.as_object_mut() {
         match cardinality {
             Cardinality::OneToMany => {
                 obj.insert(output_name.to_string(), serde_json::json!([]));
-            }
+            },
             Cardinality::ManyToOne | Cardinality::OneToOne => {
                 obj.insert(output_name.to_string(), serde_json::Value::Null);
-            }
+            },
             _ => {
                 obj.insert(output_name.to_string(), serde_json::Value::Null);
-            }
+            },
         }
     }
 }
@@ -379,21 +367,12 @@ fn find_list_query_for_type<'a>(
     schema: &'a CompiledSchema,
     type_name: &str,
 ) -> Option<&'a fraiseql_core::schema::QueryDefinition> {
-    schema
-        .queries
-        .iter()
-        .find(|q| q.return_type == type_name && q.returns_list)
+    schema.queries.iter().find(|q| q.return_type == type_name && q.returns_list)
 }
 
 /// Extract data from executor query result envelope.
-fn extract_query_data(
-    parsed: &serde_json::Value,
-    query_name: &str,
-) -> Option<serde_json::Value> {
-    parsed
-        .get("data")
-        .and_then(|d| d.get(query_name))
-        .cloned()
+fn extract_query_data(parsed: &serde_json::Value, query_name: &str) -> Option<serde_json::Value> {
+    parsed.get("data").and_then(|d| d.get(query_name)).cloned()
 }
 
 /// Count related resources for a single parent row.
@@ -417,10 +396,7 @@ async fn count_related<A: DatabaseAdapter>(
     };
 
     let mut where_obj = serde_json::Map::new();
-    where_obj.insert(
-        filter_field.clone(),
-        serde_json::json!({ "eq": parent_key_value }),
-    );
+    where_obj.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
     let where_clause = serde_json::Value::Object(where_obj);
 
     let target_query = find_list_query_for_type(schema, &rel.target_type);
@@ -433,13 +409,9 @@ async fn count_related<A: DatabaseAdapter>(
     let mut arguments: HashMap<String, serde_json::Value> = HashMap::new();
     arguments.insert("where".to_string(), where_clause);
 
-    let query_match = QueryMatch::from_operation(
-        target_query.clone(),
-        Vec::new(),
-        arguments,
-        target_type_def,
-    )
-    .map_err(|e| RestError::internal(format!("Failed to build count query: {e}")))?;
+    let query_match =
+        QueryMatch::from_operation(target_query.clone(), Vec::new(), arguments, target_type_def)
+            .map_err(|e| RestError::internal(format!("Failed to build count query: {e}")))?;
 
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
@@ -459,17 +431,18 @@ async fn count_related<A: DatabaseAdapter>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test assertions
 mod tests {
-    use super::*;
     use fraiseql_core::schema::{Cardinality, RelationshipDef};
+
+    use super::*;
 
     #[test]
     fn extract_join_key_one_to_many() {
         let rel = RelationshipDef {
-            name: "posts".to_string(),
-            target_type: "Post".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "posts".to_string(),
+            target_type:    "Post".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::OneToMany,
+            cardinality:    Cardinality::OneToMany,
         };
         let row = serde_json::json!({"pk_user": 42, "name": "Alice"});
         let key = extract_join_key(&row, &rel);
@@ -479,11 +452,11 @@ mod tests {
     #[test]
     fn extract_join_key_many_to_one() {
         let rel = RelationshipDef {
-            name: "author".to_string(),
-            target_type: "User".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "author".to_string(),
+            target_type:    "User".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::ManyToOne,
+            cardinality:    Cardinality::ManyToOne,
         };
         let row = serde_json::json!({"fk_user": 7, "title": "Hello"});
         let key = extract_join_key(&row, &rel);
@@ -493,11 +466,11 @@ mod tests {
     #[test]
     fn extract_join_key_null_returns_none() {
         let rel = RelationshipDef {
-            name: "author".to_string(),
-            target_type: "User".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "author".to_string(),
+            target_type:    "User".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::ManyToOne,
+            cardinality:    Cardinality::ManyToOne,
         };
         let row = serde_json::json!({"fk_user": null, "title": "Hello"});
         assert!(extract_join_key(&row, &rel).is_none());
@@ -506,11 +479,11 @@ mod tests {
     #[test]
     fn extract_join_key_missing_field_returns_none() {
         let rel = RelationshipDef {
-            name: "posts".to_string(),
-            target_type: "Post".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "posts".to_string(),
+            target_type:    "Post".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::OneToMany,
+            cardinality:    Cardinality::OneToMany,
         };
         let row = serde_json::json!({"name": "Alice"});
         assert!(extract_join_key(&row, &rel).is_none());

@@ -18,11 +18,11 @@ use axum::http::{HeaderMap, HeaderValue};
 /// Context for computing cache headers on a REST response.
 pub struct CacheContext {
     /// Whether this is a GET request.
-    pub is_get: bool,
+    pub is_get:      bool,
     /// Whether the request included an `Authorization` header.
-    pub has_auth: bool,
+    pub has_auth:    bool,
     /// Per-query cache TTL override (from `QueryDefinition.cache_ttl_seconds`).
-    pub query_ttl: Option<u64>,
+    pub query_ttl:   Option<u64>,
     /// Default TTL from `RestConfig.default_cache_ttl`.
     pub default_ttl: u64,
     /// CDN/shared-cache TTL (`s-maxage`). Only emitted on public GET responses.
@@ -53,15 +53,9 @@ pub fn apply_cache_headers(headers: &mut HeaderMap, ctx: &CacheContext) {
         if let Ok(val) = HeaderValue::from_str(&value) {
             headers.insert("cache-control", val);
         }
-        headers.insert(
-            "vary",
-            HeaderValue::from_static("Authorization, Accept, Prefer"),
-        );
+        headers.insert("vary", HeaderValue::from_static("Authorization, Accept, Prefer"));
     } else {
-        headers.insert(
-            "cache-control",
-            HeaderValue::from_static("no-store"),
-        );
+        headers.insert("cache-control", HeaderValue::from_static("no-store"));
     }
 }
 
@@ -80,21 +74,15 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: false,
-                query_ttl: None,
+                is_get:      true,
+                has_auth:    false,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "public, max-age=60"
-        );
-        assert_eq!(
-            headers.get("vary").unwrap().to_str().unwrap(),
-            "Authorization, Accept, Prefer"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "public, max-age=60");
+        assert_eq!(headers.get("vary").unwrap().to_str().unwrap(), "Authorization, Accept, Prefer");
     }
 
     #[test]
@@ -103,17 +91,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: true,
-                query_ttl: None,
+                is_get:      true,
+                has_auth:    true,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "private, max-age=60"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "private, max-age=60");
     }
 
     #[test]
@@ -122,17 +107,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: false,
-                query_ttl: Some(120),
+                is_get:      true,
+                has_auth:    false,
+                query_ttl:   Some(120),
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "public, max-age=120"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "public, max-age=120");
     }
 
     #[test]
@@ -141,17 +123,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: false,
-                has_auth: false,
-                query_ttl: None,
+                is_get:      false,
+                has_auth:    false,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "no-store"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "no-store");
         assert!(headers.get("vary").is_none());
     }
 
@@ -161,17 +140,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: false,
-                has_auth: true,
-                query_ttl: None,
+                is_get:      false,
+                has_auth:    true,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "no-store"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "no-store");
     }
 
     #[test]
@@ -180,17 +156,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: false,
-                query_ttl: Some(0),
+                is_get:      true,
+                has_auth:    false,
+                query_ttl:   Some(0),
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "public, max-age=0"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "public, max-age=0");
     }
 
     #[test]
@@ -199,9 +172,9 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: false,
-                query_ttl: None,
+                is_get:      true,
+                has_auth:    false,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: Some(300),
             },
@@ -218,17 +191,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: true,
-                query_ttl: None,
+                is_get:      true,
+                has_auth:    true,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: Some(300),
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "private, max-age=60"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "private, max-age=60");
     }
 
     #[test]
@@ -237,17 +207,14 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: true,
-                has_auth: false,
-                query_ttl: None,
+                is_get:      true,
+                has_auth:    false,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: None,
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "public, max-age=60"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "public, max-age=60");
     }
 
     #[test]
@@ -256,16 +223,13 @@ mod tests {
         apply_cache_headers(
             &mut headers,
             &CacheContext {
-                is_get: false,
-                has_auth: false,
-                query_ttl: None,
+                is_get:      false,
+                has_auth:    false,
+                query_ttl:   None,
                 default_ttl: 60,
                 cdn_max_age: Some(300),
             },
         );
-        assert_eq!(
-            headers.get("cache-control").unwrap().to_str().unwrap(),
-            "no-store"
-        );
+        assert_eq!(headers.get("cache-control").unwrap().to_str().unwrap(), "no-store");
     }
 }

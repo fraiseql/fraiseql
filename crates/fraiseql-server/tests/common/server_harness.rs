@@ -35,7 +35,12 @@ impl TestServer {
     /// Panics if the listener cannot be bound or the server fails to start.
     pub async fn start<A>(schema: CompiledSchema, adapter: Arc<A>) -> Self
     where
-        A: DatabaseAdapter + fraiseql_core::db::traits::MutationCapable + Clone + Send + Sync + 'static,
+        A: DatabaseAdapter
+            + fraiseql_core::db::traits::MutationCapable
+            + Clone
+            + Send
+            + Sync
+            + 'static,
     {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();

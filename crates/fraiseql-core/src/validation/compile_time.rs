@@ -290,11 +290,7 @@ impl CompileTimeValidator {
     ///
     /// Returns `None` for expressions that cannot be translated (e.g. `age()`
     /// which is time-dependent and unsuitable for a static CHECK constraint).
-    fn try_generate_elo_sql_constraint(
-        &self,
-        type_name: &str,
-        expression: &str,
-    ) -> Option<String> {
+    fn try_generate_elo_sql_constraint(&self, type_name: &str, expression: &str) -> Option<String> {
         let inner = self.elo_expr_to_sql(type_name, expression.trim())?;
         Some(format!("CHECK ({inner})"))
     }
@@ -461,10 +457,7 @@ impl CompileTimeValidator {
             }
 
             // Skip reserved keywords
-            if matches!(
-                token.as_str(),
-                "true" | "false" | "null" | "and" | "or" | "not"
-            ) {
+            if matches!(token.as_str(), "true" | "false" | "null" | "and" | "or" | "not") {
                 continue;
             }
 
@@ -842,10 +835,7 @@ mod tests {
 
         let result = validator.validate_elo_expression("DateRange", "startDate <= endDate");
         assert!(result.valid);
-        assert_eq!(
-            result.sql_constraint.as_deref(),
-            Some(r#"CHECK ("startDate" <= "endDate")"#)
-        );
+        assert_eq!(result.sql_constraint.as_deref(), Some(r#"CHECK ("startDate" <= "endDate")"#));
     }
 
     #[test]
@@ -855,10 +845,7 @@ mod tests {
 
         let result = validator.validate_elo_expression("User", "length(email) <= 255");
         assert!(result.valid);
-        assert_eq!(
-            result.sql_constraint.as_deref(),
-            Some(r#"CHECK (length("email") <= 255)"#)
-        );
+        assert_eq!(result.sql_constraint.as_deref(), Some(r#"CHECK (length("email") <= 255)"#));
     }
 
     #[test]
@@ -889,18 +876,14 @@ mod tests {
     fn test_elo_sql_string_equality() {
         let mut context = create_test_context();
         context.types.get_mut("User").unwrap().fields.push("status".to_string());
-        context.fields.insert(
-            ("User".to_string(), "status".to_string()),
-            FieldType::String,
-        );
+        context
+            .fields
+            .insert(("User".to_string(), "status".to_string()), FieldType::String);
         let validator = CompileTimeValidator::new(context);
 
         let result = validator.validate_elo_expression("User", "status == \"active\"");
         assert!(result.valid);
-        assert_eq!(
-            result.sql_constraint.as_deref(),
-            Some(r#"CHECK ("status" = 'active')"#)
-        );
+        assert_eq!(result.sql_constraint.as_deref(), Some(r#"CHECK ("status" = 'active')"#));
     }
 
     #[test]

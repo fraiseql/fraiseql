@@ -4,20 +4,23 @@
 //! parameters via [`RestParamExtractor`], builds a [`QueryMatch`] or mutation
 //! call, and executes directly via the [`Executor`] APIs.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use fraiseql_core::db::traits::{DatabaseAdapter, MutationCapable};
-use fraiseql_core::runtime::{Executor, QueryMatch};
-use fraiseql_core::schema::{CompiledSchema, DeleteResponse, RestConfig, TypeDefinition};
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::traits::{DatabaseAdapter, MutationCapable},
+    runtime::{Executor, QueryMatch},
+    schema::{CompiledSchema, DeleteResponse, RestConfig, TypeDefinition},
+    security::SecurityContext,
+};
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
-use super::idempotency::{IdempotencyCheck, IdempotencyStore, StoredResponse};
-use super::params::{PaginationParams, RestFieldSpec, RestParamExtractor};
-use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource};
+use super::{
+    idempotency::{IdempotencyCheck, IdempotencyStore, StoredResponse},
+    params::{PaginationParams, RestFieldSpec, RestParamExtractor},
+    resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource},
+};
 
 // ---------------------------------------------------------------------------
 // Prefer header parsing
@@ -47,23 +50,23 @@ pub enum HandlingPreference {
 #[derive(Debug, Clone, Default)]
 pub struct PreferHeader {
     /// `count=exact` — execute a parallel COUNT query.
-    pub count_exact: bool,
+    pub count_exact:           bool,
     /// `count=planned` — EXPLAIN-based estimate (PostgreSQL).
-    pub count_planned: bool,
+    pub count_planned:         bool,
     /// `count=estimated` — pg_stats estimate (PostgreSQL).
-    pub count_estimated: bool,
+    pub count_estimated:       bool,
     /// `return=representation` — return entity body on mutating operations.
     pub return_representation: bool,
     /// `return=minimal` — return empty body on mutating operations.
-    pub return_minimal: bool,
+    pub return_minimal:        bool,
     /// `resolution=merge-duplicates` or `resolution=ignore-duplicates` — upsert mode.
-    pub resolution: Option<String>,
+    pub resolution:            Option<String>,
     /// `tx=rollback` — dry-run mode (execute then rollback).
-    pub tx_rollback: bool,
+    pub tx_rollback:           bool,
     /// `handling=strict` or `handling=lenient` (default: strict for Phase 1 compat).
-    pub handling: Option<HandlingPreference>,
+    pub handling:              Option<HandlingPreference>,
     /// `max-affected=N` — limit bulk operation scope.
-    pub max_affected: Option<u64>,
+    pub max_affected:          Option<u64>,
 }
 
 impl PreferHeader {
@@ -218,9 +221,7 @@ impl PreferHeader {
 
 /// Case-insensitive prefix strip.
 fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
-    if s.len() >= prefix.len()
-        && s[..prefix.len()].eq_ignore_ascii_case(prefix)
-    {
+    if s.len() >= prefix.len() && s[..prefix.len()].eq_ignore_ascii_case(prefix) {
         Some(&s[prefix.len()..])
     } else {
         None
@@ -235,9 +236,9 @@ fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
 #[derive(Debug)]
 pub struct ResolvedRoute<'a> {
     /// The matched REST resource.
-    pub resource: &'a RestResource,
+    pub resource:    &'a RestResource,
     /// The matched REST route.
-    pub route: &'a RestRoute,
+    pub route:       &'a RestRoute,
     /// Path parameters extracted from the URL (e.g., `[("id", "123")]`).
     pub path_params: Vec<(String, String)>,
 }
@@ -317,13 +318,13 @@ fn match_route_path(route_path: &str, segments: &[&str]) -> Option<Vec<(String, 
 /// `handle_get` (JSON envelope) and NDJSON streaming.
 pub struct ResolvedGetQuery {
     /// Name of the matched query.
-    pub query_name: String,
+    pub query_name:  String,
     /// Pre-built query match with field selection and arguments.
     pub query_match: QueryMatch,
     /// Variables for relay pagination.
-    pub variables: serde_json::Value,
+    pub variables:   serde_json::Value,
     /// Extracted request parameters (pagination, embeddings, etc.).
-    pub params: super::params::ExtractedParams,
+    pub params:      super::params::ExtractedParams,
 }
 
 /// REST request handler — translates HTTP requests to direct executor calls.
@@ -331,10 +332,10 @@ pub struct ResolvedGetQuery {
 /// This handler does NOT construct GraphQL strings. It builds typed
 /// [`QueryMatch`] or mutation calls and executes them directly.
 pub struct RestHandler<'a, A: DatabaseAdapter> {
-    executor: &'a Arc<Executor<A>>,
-    schema: &'a CompiledSchema,
-    config: &'a RestConfig,
-    route_table: &'a RestRouteTable,
+    executor:          &'a Arc<Executor<A>>,
+    schema:            &'a CompiledSchema,
+    config:            &'a RestConfig,
+    route_table:       &'a RestRouteTable,
     idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
 }
 
@@ -370,10 +371,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 
     /// Set the idempotency store for POST mutation replay.
     #[must_use]
-    pub const fn with_idempotency_store(
-        mut self,
-        store: &'a Arc<dyn IdempotencyStore>,
-    ) -> Self {
+    pub const fn with_idempotency_store(mut self, store: &'a Arc<dyn IdempotencyStore>) -> Self {
         self.idempotency_store = Some(store);
         self
     }
@@ -403,7 +401,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             RouteSource::Query { name } => name.as_str(),
             RouteSource::Mutation { .. } => {
                 return Err(RestError::internal("GET route backed by mutation"));
-            }
+            },
         };
 
         let query_def = self
@@ -414,7 +412,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         // Check requires_role
         if let Some(ref required_role) = query_def.requires_role {
             match security_context {
-                Some(ctx) if ctx.scopes.contains(required_role) => {}
+                Some(ctx) if ctx.scopes.contains(required_role) => {},
                 _ => return Err(RestError::forbidden()),
             }
         }
@@ -422,11 +420,8 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         let type_def = self.schema.find_type(&query_def.return_type);
 
         let extractor = RestParamExtractor::new(self.config, query_def, type_def);
-        let path_pairs: Vec<(&str, &str)> = resolved
-            .path_params
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let path_pairs: Vec<(&str, &str)> =
+            resolved.path_params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
         let params = extractor.extract(&path_pairs, query_pairs)?;
 
@@ -445,25 +440,23 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         }
 
         // WHERE clause — merge regular filters with full-text search if present.
-        let fts_where = params.search_query.as_deref().and_then(|query| {
-            build_fts_where_clause(query, type_def)
-        });
+        let fts_where = params
+            .search_query
+            .as_deref()
+            .and_then(|query| build_fts_where_clause(query, type_def));
 
         match (&params.where_clause, &fts_where) {
             (Some(regular), Some(fts)) => {
                 // AND the regular filters with the FTS clause.
-                arguments.insert(
-                    "where".to_string(),
-                    json!({ "_and": [regular, fts] }),
-                );
-            }
+                arguments.insert("where".to_string(), json!({ "_and": [regular, fts] }));
+            },
             (Some(regular), None) => {
                 arguments.insert("where".to_string(), regular.clone());
-            }
+            },
             (None, Some(fts)) => {
                 arguments.insert("where".to_string(), fts.clone());
-            }
-            (None, None) => {}
+            },
+            (None, None) => {},
         }
 
         // ORDER BY — use ts_rank relevance ordering when search is active
@@ -515,12 +508,8 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         let variables_json = serde_json::Value::Object(variables);
 
         // Build QueryMatch
-        let query_match = QueryMatch::from_operation(
-            query_def.clone(),
-            field_names,
-            arguments,
-            type_def,
-        )?;
+        let query_match =
+            QueryMatch::from_operation(query_def.clone(), field_names, arguments, type_def)?;
 
         Ok(ResolvedGetQuery {
             query_name: query_name.to_string(),
@@ -543,7 +532,8 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let resolved_query = self.resolve_get_query(relative_path, query_pairs, security_context)?;
+        let resolved_query =
+            self.resolve_get_query(relative_path, query_pairs, security_context)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;
@@ -561,40 +551,34 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         let (result, total, count_applied) = match prefer.count_preference() {
             Some(CountPreference::Exact) => {
                 let (r, c) = tokio::join!(
-                    self.executor
-                        .execute_query_direct(query_match, vars_ref, security_context),
-                    self.executor
-                        .count_rows(query_match, vars_ref, security_context),
+                    self.executor.execute_query_direct(query_match, vars_ref, security_context),
+                    self.executor.count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
-            }
+            },
             Some(CountPreference::Planned) => {
                 // count=planned falls back to count=exact on non-PostgreSQL
                 let (r, c) = tokio::join!(
-                    self.executor
-                        .execute_query_direct(query_match, vars_ref, security_context),
-                    self.executor
-                        .count_rows(query_match, vars_ref, security_context),
+                    self.executor.execute_query_direct(query_match, vars_ref, security_context),
+                    self.executor.count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
-            }
+            },
             Some(CountPreference::Estimated) => {
                 // count=estimated falls back to count=exact on non-PostgreSQL
                 let (r, c) = tokio::join!(
-                    self.executor
-                        .execute_query_direct(query_match, vars_ref, security_context),
-                    self.executor
-                        .count_rows(query_match, vars_ref, security_context),
+                    self.executor.execute_query_direct(query_match, vars_ref, security_context),
+                    self.executor.count_rows(query_match, vars_ref, security_context),
                 );
                 (r?, Some(c?), Some("count=exact"))
-            }
+            },
             None => {
                 let r = self
                     .executor
                     .execute_query_direct(query_match, vars_ref, security_context)
                     .await?;
                 (r, None, None)
-            }
+            },
         };
 
         // Build response
@@ -610,15 +594,11 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 
         // X-Preference-Fallback when planned/estimated fell back to exact
         if prefer.count_planned && count_applied == Some("count=exact") {
-            response_headers.insert(
-                "x-preference-fallback",
-                HeaderValue::from_static("count=exact"),
-            );
+            response_headers
+                .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         } else if prefer.count_estimated && count_applied == Some("count=exact") {
-            response_headers.insert(
-                "x-preference-fallback",
-                HeaderValue::from_static("count=exact"),
-            );
+            response_headers
+                .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         }
 
         // Cache-Control headers
@@ -666,9 +646,9 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         }
 
         Ok(RestResponse {
-            status: StatusCode::OK,
+            status:  StatusCode::OK,
             headers: response_headers,
-            body: Some(body),
+            body:    Some(body),
         })
     }
 }
@@ -699,7 +679,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             RouteSource::Mutation { name } => name.as_str(),
             RouteSource::Query { .. } => {
                 return Err(RestError::internal("POST route backed by query"));
-            }
+            },
         };
 
         // Detect array body → bulk insert
@@ -729,28 +709,26 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         let vars_ref = Some(&variables_json);
 
         // Idempotency: check for Idempotency-Key header
-        let idempotency_key = headers
-            .get("idempotency-key")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from);
+        let idempotency_key =
+            headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(String::from);
 
         if let (Some(ref key), Some(store)) = (&idempotency_key, self.idempotency_store) {
             let body_hash = super::idempotency::hash_body(body);
             match store.check(key, body_hash).await {
                 IdempotencyCheck::Replay(stored) => {
                     return Ok(stored_response_to_rest(stored, headers));
-                }
+                },
                 IdempotencyCheck::Conflict => {
                     return Err(RestError {
-                        status: StatusCode::UNPROCESSABLE_ENTITY,
-                        code: "IDEMPOTENCY_CONFLICT",
+                        status:  StatusCode::UNPROCESSABLE_ENTITY,
+                        code:    "IDEMPOTENCY_CONFLICT",
                         message: "Idempotency-Key reused with different request body".to_string(),
                         details: None,
                     });
-                }
+                },
                 IdempotencyCheck::New => {
                     // Proceed with execution
-                }
+                },
             }
         }
 
@@ -766,51 +744,40 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                             return Err(RestError::bad_request(
                                 "Upsert not available — no compiler-generated upsert function exists",
                             ));
-                        }
+                        },
                     }
-                }
+                },
                 _ => mutation_name,
             }
         } else {
             mutation_name
         };
 
-        let result = execute_mutation(
-            self.executor,
-            effective_mutation,
-            vars_ref,
-            security_context,
-        )
-        .await?;
+        let result =
+            execute_mutation(self.executor, effective_mutation, vars_ref, security_context).await?;
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
 
         if let Some(ref resolution) = prefer.resolution {
-            set_preference_applied(
-                &mut response_headers,
-                &[&format!("resolution={resolution}")],
-            );
-            response_headers.insert(
-                "x-rows-affected",
-                HeaderValue::from_static("1"),
-            );
+            set_preference_applied(&mut response_headers, &[&format!("resolution={resolution}")]);
+            response_headers.insert("x-rows-affected", HeaderValue::from_static("1"));
         }
 
         // Cache-Control: no-store for mutations
         super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::cache_control::CacheContext {
-                is_get: false,
-                has_auth: headers.get("authorization").is_some(),
-                query_ttl: None,
+                is_get:      false,
+                has_auth:    headers.get("authorization").is_some(),
+                query_ttl:   None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
         );
 
-        let status = StatusCode::from_u16(resolved.route.success_status)
-            .unwrap_or(StatusCode::CREATED);
+        let status =
+            StatusCode::from_u16(resolved.route.success_status).unwrap_or(StatusCode::CREATED);
 
         let rest_response = RestResponse {
             status,
@@ -821,25 +788,23 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         // Idempotency: store the response for replay
         if let (Some(key), Some(store)) = (idempotency_key, self.idempotency_store) {
             let body_hash = super::idempotency::hash_body(body);
-            store.store(
-                key,
-                body_hash,
-                StoredResponse {
-                    status: rest_response.status.as_u16(),
-                    headers: rest_response
-                        .headers
-                        .iter()
-                        .map(|(k, v)| {
-                            (
-                                k.as_str().to_string(),
-                                v.to_str().unwrap_or("").to_string(),
-                            )
-                        })
-                        .collect(),
-                    body: rest_response.body.clone(),
-                },
-            )
-            .await;
+            store
+                .store(
+                    key,
+                    body_hash,
+                    StoredResponse {
+                        status:  rest_response.status.as_u16(),
+                        headers: rest_response
+                            .headers
+                            .iter()
+                            .map(|(k, v)| {
+                                (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())
+                            })
+                            .collect(),
+                        body:    rest_response.body.clone(),
+                    },
+                )
+                .await;
         }
 
         Ok(rest_response)
@@ -868,7 +833,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
             RouteSource::Mutation { name } => name.as_str(),
             RouteSource::Query { .. } => {
                 return Err(RestError::internal("PUT route backed by query"));
-            }
+            },
         };
 
         // Validate all writable fields are present
@@ -884,13 +849,8 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
-        let result = execute_mutation(
-            self.executor,
-            mutation_name,
-            vars_ref,
-            security_context,
-        )
-        .await?;
+        let result =
+            execute_mutation(self.executor, mutation_name, vars_ref, security_context).await?;
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
@@ -899,18 +859,18 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::cache_control::CacheContext {
-                is_get: false,
-                has_auth: headers.get("authorization").is_some(),
-                query_ttl: None,
+                is_get:      false,
+                has_auth:    headers.get("authorization").is_some(),
+                query_ttl:   None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
         );
 
         Ok(RestResponse {
-            status: StatusCode::OK,
+            status:  StatusCode::OK,
             headers: response_headers,
-            body: Some(serde_json::Value::String(result)),
+            body:    Some(serde_json::Value::String(result)),
         })
     }
 
@@ -947,9 +907,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         }
 
         // Try single-resource PATCH first (with :id)
-        let resolved = self
-            .route_table
-            .resolve(relative_path, HttpMethod::Patch);
+        let resolved = self.route_table.resolve(relative_path, HttpMethod::Patch);
 
         match resolved {
             Some(r) if !r.path_params.is_empty() => {
@@ -958,20 +916,16 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     RouteSource::Mutation { name } => name.as_str(),
                     RouteSource::Query { .. } => {
                         return Err(RestError::internal("PATCH route backed by query"));
-                    }
+                    },
                 };
 
                 let variables = build_mutation_variables(&r.path_params, body);
                 let variables_json = serde_json::Value::Object(variables);
                 let vars_ref = Some(&variables_json);
 
-                let result = execute_mutation(
-                    self.executor,
-                    mutation_name,
-                    vars_ref,
-                    security_context,
-                )
-                .await?;
+                let result =
+                    execute_mutation(self.executor, mutation_name, vars_ref, security_context)
+                        .await?;
 
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
@@ -979,20 +933,20 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                 super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::cache_control::CacheContext {
-                        is_get: false,
-                        has_auth: headers.get("authorization").is_some(),
-                        query_ttl: None,
+                        is_get:      false,
+                        has_auth:    headers.get("authorization").is_some(),
+                        query_ttl:   None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
                 );
 
                 Ok(RestResponse {
-                    status: StatusCode::OK,
+                    status:  StatusCode::OK,
                     headers: response_headers,
-                    body: Some(serde_json::Value::String(result)),
+                    body:    Some(serde_json::Value::String(result)),
                 })
-            }
+            },
             _ => {
                 // Collection-level PATCH → bulk update
                 let bulk_handler = super::bulk::BulkHandler::new(
@@ -1010,7 +964,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                         security_context,
                     )
                     .await
-            }
+            },
         }
     }
 
@@ -1032,9 +986,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let resolved = self
-            .route_table
-            .resolve(relative_path, HttpMethod::Delete);
+        let resolved = self.route_table.resolve(relative_path, HttpMethod::Delete);
 
         match resolved {
             Some(r) if !r.path_params.is_empty() => {
@@ -1043,26 +995,19 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     RouteSource::Mutation { name } => name.as_str(),
                     RouteSource::Query { .. } => {
                         return Err(RestError::internal("DELETE route backed by query"));
-                    }
+                    },
                 };
 
                 let mut variables = serde_json::Map::new();
                 for (key, value) in &r.path_params {
-                    variables.insert(
-                        key.clone(),
-                        coerce_path_param_value(value),
-                    );
+                    variables.insert(key.clone(), coerce_path_param_value(value));
                 }
                 let variables_json = serde_json::Value::Object(variables);
                 let vars_ref = Some(&variables_json);
 
-                let result = execute_mutation(
-                    self.executor,
-                    mutation_name,
-                    vars_ref,
-                    security_context,
-                )
-                .await?;
+                let result =
+                    execute_mutation(self.executor, mutation_name, vars_ref, security_context)
+                        .await?;
 
                 let prefer = PreferHeader::from_headers(headers);
                 let mut response_headers = HeaderMap::new();
@@ -1071,9 +1016,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                 super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::cache_control::CacheContext {
-                        is_get: false,
-                        has_auth: headers.get("authorization").is_some(),
-                        query_ttl: None,
+                        is_get:      false,
+                        has_auth:    headers.get("authorization").is_some(),
+                        query_ttl:   None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
@@ -1099,43 +1044,37 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                                 );
                             }
                             Ok(RestResponse {
-                                status: StatusCode::OK,
+                                status:  StatusCode::OK,
                                 headers: response_headers,
-                                body: Some(entity_value),
+                                body:    Some(entity_value),
                             })
-                        }
+                        },
                         None => {
                             if prefer.return_representation {
-                                set_preference_applied(
-                                    &mut response_headers,
-                                    &["return=minimal"],
-                                );
+                                set_preference_applied(&mut response_headers, &["return=minimal"]);
                                 response_headers.insert(
                                     "x-preference-fallback",
                                     HeaderValue::from_static("entity-unavailable"),
                                 );
                             }
                             Ok(RestResponse {
-                                status: StatusCode::NO_CONTENT,
+                                status:  StatusCode::NO_CONTENT,
                                 headers: response_headers,
-                                body: None,
+                                body:    None,
                             })
-                        }
+                        },
                     }
                 } else {
                     if prefer.return_minimal {
-                        set_preference_applied(
-                            &mut response_headers,
-                            &["return=minimal"],
-                        );
+                        set_preference_applied(&mut response_headers, &["return=minimal"]);
                     }
                     Ok(RestResponse {
-                        status: StatusCode::NO_CONTENT,
+                        status:  StatusCode::NO_CONTENT,
                         headers: response_headers,
-                        body: None,
+                        body:    None,
                     })
                 }
-            }
+            },
             _ => {
                 // Collection-level DELETE → bulk delete
                 let bulk_handler = super::bulk::BulkHandler::new(
@@ -1145,14 +1084,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
                     self.route_table,
                 );
                 bulk_handler
-                    .handle_bulk_delete(
-                        relative_path,
-                        query_params,
-                        headers,
-                        security_context,
-                    )
+                    .handle_bulk_delete(relative_path, query_params, headers, security_context)
                     .await
-            }
+            },
         }
     }
 }
@@ -1165,11 +1099,11 @@ impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
 #[derive(Debug)]
 pub struct RestResponse {
     /// HTTP status code.
-    pub status: StatusCode,
+    pub status:  StatusCode,
     /// Response headers.
     pub headers: HeaderMap,
     /// Response body (None for 204 No Content).
-    pub body: Option<serde_json::Value>,
+    pub body:    Option<serde_json::Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1180,9 +1114,9 @@ pub struct RestResponse {
 #[derive(Debug)]
 pub struct RestError {
     /// HTTP status code.
-    pub status: StatusCode,
+    pub status:  StatusCode,
     /// Error code string.
-    pub code: &'static str,
+    pub code:    &'static str,
     /// Human-readable error message.
     pub message: String,
     /// Structured details for field-level errors.
@@ -1193,8 +1127,8 @@ impl RestError {
     /// 400 Bad Request.
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::BAD_REQUEST,
-            code: "BAD_REQUEST",
+            status:  StatusCode::BAD_REQUEST,
+            code:    "BAD_REQUEST",
             message: message.into(),
             details: None,
         }
@@ -1204,8 +1138,8 @@ impl RestError {
     #[must_use]
     pub fn forbidden() -> Self {
         Self {
-            status: StatusCode::FORBIDDEN,
-            code: "FORBIDDEN",
+            status:  StatusCode::FORBIDDEN,
+            code:    "FORBIDDEN",
             message: "Access denied".to_string(),
             details: None,
         }
@@ -1214,8 +1148,8 @@ impl RestError {
     /// 404 Not Found.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::NOT_FOUND,
-            code: "NOT_FOUND",
+            status:  StatusCode::NOT_FOUND,
+            code:    "NOT_FOUND",
             message: message.into(),
             details: None,
         }
@@ -1224,8 +1158,8 @@ impl RestError {
     /// 422 Unprocessable Entity.
     pub fn unprocessable_entity(message: impl Into<String>, details: serde_json::Value) -> Self {
         Self {
-            status: StatusCode::UNPROCESSABLE_ENTITY,
-            code: "UNPROCESSABLE_ENTITY",
+            status:  StatusCode::UNPROCESSABLE_ENTITY,
+            code:    "UNPROCESSABLE_ENTITY",
             message: message.into(),
             details: Some(details),
         }
@@ -1234,8 +1168,8 @@ impl RestError {
     /// 500 Internal Server Error.
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code: "INTERNAL_SERVER_ERROR",
+            status:  StatusCode::INTERNAL_SERVER_ERROR,
+            code:    "INTERNAL_SERVER_ERROR",
             message: message.into(),
             details: None,
         }
@@ -1266,8 +1200,8 @@ impl From<FraiseQLError> for RestError {
             | FraiseQLError::UnknownType { .. } => Self::bad_request(err.to_string()),
             FraiseQLError::Authorization { .. } => Self::forbidden(),
             FraiseQLError::Authentication { .. } => Self {
-                status: StatusCode::UNAUTHORIZED,
-                code: "UNAUTHENTICATED",
+                status:  StatusCode::UNAUTHORIZED,
+                code:    "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
             },
@@ -1295,10 +1229,7 @@ fn stored_response_to_rest(stored: StoredResponse, request_headers: &HeaderMap) 
     }
 
     // Mark as replayed
-    headers.insert(
-        "idempotency-key",
-        HeaderValue::from_static("replayed=true"),
-    );
+    headers.insert("idempotency-key", HeaderValue::from_static("replayed=true"));
 
     RestResponse {
         status: StatusCode::from_u16(stored.status).unwrap_or(StatusCode::OK),
@@ -1315,9 +1246,7 @@ async fn execute_mutation<A: DatabaseAdapter + MutationCapable>(
     security_context: Option<&SecurityContext>,
 ) -> Result<String, RestError> {
     let result = if let Some(ctx) = security_context {
-        executor
-            .execute_mutation_with_security(mutation_name, variables, ctx)
-            .await
+        executor.execute_mutation_with_security(mutation_name, variables, ctx).await
     } else {
         executor.execute_mutation(mutation_name, variables).await
     };
@@ -1358,7 +1287,7 @@ fn coerce_path_param_value(value: &str) -> serde_json::Value {
     match value {
         "true" => return json!(true),
         "false" => return json!(false),
-        _ => {}
+        _ => {},
     }
     // Fall back to string
     json!(value)
@@ -1375,7 +1304,7 @@ fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Res
         serde_json::Value::Object(m) => m,
         _ => {
             return Err(RestError::bad_request("PUT body must be a JSON object"));
-        }
+        },
     };
 
     let writable = type_def.writable_fields();
@@ -1395,10 +1324,7 @@ fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Res
         Ok(())
     } else {
         Err(RestError::unprocessable_entity(
-            format!(
-                "PUT requires all writable fields; {} missing",
-                missing_fields.len()
-            ),
+            format!("PUT requires all writable fields; {} missing", missing_fields.len()),
             json!({ "missing_fields": missing_fields }),
         ))
     }
@@ -1408,10 +1334,7 @@ fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Res
 ///
 /// Parses the mutation result JSON and extracts `data.{mutation_name}.entity`.
 /// Returns `None` if entity is null or unavailable.
-fn extract_delete_entity(
-    result: &str,
-    mutation_name: &str,
-) -> Option<serde_json::Value> {
+fn extract_delete_entity(result: &str, mutation_name: &str) -> Option<serde_json::Value> {
     let parsed: serde_json::Value = serde_json::from_str(result).ok()?;
     let mutation_result = parsed.get("data")?.get(mutation_name)?;
 
@@ -1421,7 +1344,9 @@ fn extract_delete_entity(
     let entity = if mutation_result.get("entity").is_some() {
         // Raw format: extract nested entity (returns None if null)
         let e = mutation_result.get("entity")?;
-        if e.is_null() { return None; }
+        if e.is_null() {
+            return None;
+        }
         e
     } else if mutation_result.is_object() && !mutation_result.as_object()?.is_empty() {
         // Executor format: entity fields + __typename at top level
@@ -1478,7 +1403,7 @@ fn build_query_response(
                 meta["total"] = json!(total);
             }
             response["meta"] = meta;
-        }
+        },
         PaginationParams::Cursor {
             first,
             after,
@@ -1489,16 +1414,10 @@ fn build_query_response(
             // Extract Relay pageInfo from the data if available
             if let Some(page_info) = extract_relay_page_info(&data) {
                 if let Some(has_next) = page_info.get("hasNextPage") {
-                    meta.insert(
-                        "hasNextPage".to_string(),
-                        has_next.clone(),
-                    );
+                    meta.insert("hasNextPage".to_string(), has_next.clone());
                 }
                 if let Some(has_prev) = page_info.get("hasPreviousPage") {
-                    meta.insert(
-                        "hasPreviousPage".to_string(),
-                        has_prev.clone(),
-                    );
+                    meta.insert("hasPreviousPage".to_string(), has_prev.clone());
                 }
             }
             if let Some(f) = first {
@@ -1517,10 +1436,10 @@ fn build_query_response(
                 meta.insert("total".to_string(), json!(total));
             }
             response["meta"] = serde_json::Value::Object(meta);
-        }
+        },
         PaginationParams::None => {
             // Single resource — no pagination metadata
-        }
+        },
     }
 
     Ok(response)
@@ -1590,8 +1509,9 @@ fn build_fts_where_clause(
 #[allow(clippy::missing_panics_doc)] // Reason: test code
 #[allow(clippy::missing_errors_doc)] // Reason: test code
 mod tests {
-    use super::*;
     use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+    use super::*;
 
     // -----------------------------------------------------------------------
     // Prefer header tests
@@ -1690,8 +1610,9 @@ mod tests {
 
     #[test]
     fn prefer_parse_combined_bulk() {
-        let prefer =
-            PreferHeader::parse("resolution=merge-duplicates, return=representation, max-affected=100");
+        let prefer = PreferHeader::parse(
+            "resolution=merge-duplicates, return=representation, max-affected=100",
+        );
         assert_eq!(prefer.resolution.as_deref(), Some("merge-duplicates"));
         assert!(prefer.return_representation);
         assert_eq!(prefer.max_affected, Some(100));
@@ -1788,9 +1709,7 @@ mod tests {
 
     #[test]
     fn prefer_combined_all_preferences() {
-        let prefer = PreferHeader::parse(
-            "return=representation, count=exact, handling=strict"
-        );
+        let prefer = PreferHeader::parse("return=representation, count=exact, handling=strict");
         assert!(prefer.count_exact);
         assert!(prefer.return_representation);
         assert_eq!(prefer.handling, Some(HandlingPreference::Strict));
@@ -1856,19 +1775,14 @@ mod tests {
     #[test]
     fn stored_response_replay() {
         let stored = StoredResponse {
-            status: 201,
-            headers: vec![
-                ("x-rows-affected".to_string(), "1".to_string()),
-            ],
-            body: Some(json!({"id": 1})),
+            status:  201,
+            headers: vec![("x-rows-affected".to_string(), "1".to_string())],
+            body:    Some(json!({"id": 1})),
         };
         let request_headers = HeaderMap::new();
         let rest = stored_response_to_rest(stored, &request_headers);
         assert_eq!(rest.status, StatusCode::CREATED);
-        assert_eq!(
-            rest.headers.get("idempotency-key").unwrap().to_str().unwrap(),
-            "replayed=true"
-        );
+        assert_eq!(rest.headers.get("idempotency-key").unwrap().to_str().unwrap(), "replayed=true");
         assert_eq!(rest.body.unwrap()["id"], 1);
     }
 
@@ -1878,88 +1792,86 @@ mod tests {
 
     fn make_test_route_table() -> RestRouteTable {
         RestRouteTable {
-            base_path: "/rest/v1".to_string(),
-            resources: vec![
-                RestResource {
-                    name: "users".to_string(),
-                    type_name: "User".to_string(),
-                    id_arg: Some("id".to_string()),
-                    routes: vec![
-                        RestRoute {
-                            method: HttpMethod::Get,
-                            path: "/users".to_string(),
-                            source: RouteSource::Query {
-                                name: "users".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+            base_path:   "/rest/v1".to_string(),
+            resources:   vec![RestResource {
+                name:      "users".to_string(),
+                type_name: "User".to_string(),
+                id_arg:    Some("id".to_string()),
+                routes:    vec![
+                    RestRoute {
+                        method:          HttpMethod::Get,
+                        path:            "/users".to_string(),
+                        source:          RouteSource::Query {
+                            name: "users".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Get,
-                            path: "/users/{id}".to_string(),
-                            source: RouteSource::Query {
-                                name: "user".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Get,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Query {
+                            name: "user".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Post,
-                            path: "/users".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "createUser".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 201,
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Post,
+                        path:            "/users".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "createUser".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Put,
-                            path: "/users/{id}".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "updateUser".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+                        update_coverage: None,
+                        success_status:  201,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Put,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "updateUser".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Patch,
-                            path: "/users/{id}".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "updateUser".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Patch,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "updateUser".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Patch,
-                            path: "/users/{id}/update-email".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "updateUserEmail".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Patch,
+                        path:            "/users/{id}/update-email".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "updateUserEmail".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Delete,
-                            path: "/users/{id}".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "deleteUser".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 204,
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Delete,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "deleteUser".to_string(),
                         },
-                        RestRoute {
-                            method: HttpMethod::Post,
-                            path: "/users/{id}/archive".to_string(),
-                            source: RouteSource::Mutation {
-                                name: "archiveUser".to_string(),
-                            },
-                            update_coverage: None,
-                            success_status: 200,
+                        update_coverage: None,
+                        success_status:  204,
+                    },
+                    RestRoute {
+                        method:          HttpMethod::Post,
+                        path:            "/users/{id}/archive".to_string(),
+                        source:          RouteSource::Mutation {
+                            name: "archiveUser".to_string(),
                         },
-                    ],
-                },
-            ],
+                        update_coverage: None,
+                        success_status:  200,
+                    },
+                ],
+            }],
             diagnostics: Vec::new(),
         }
     }
@@ -1971,7 +1883,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Query {
-                name: "users".to_string()
+                name: "users".to_string(),
             }
         );
         assert!(resolved.path_params.is_empty());
@@ -1984,7 +1896,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Query {
-                name: "user".to_string()
+                name: "user".to_string(),
             }
         );
         assert_eq!(resolved.path_params, vec![("id".to_string(), "42".to_string())]);
@@ -1997,7 +1909,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
-                name: "createUser".to_string()
+                name: "createUser".to_string(),
             }
         );
     }
@@ -2009,7 +1921,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
-                name: "updateUser".to_string()
+                name: "updateUser".to_string(),
             }
         );
         assert_eq!(resolved.path_params, vec![("id".to_string(), "1".to_string())]);
@@ -2018,13 +1930,11 @@ mod tests {
     #[test]
     fn resolve_patch_sub_resource_action() {
         let table = make_test_route_table();
-        let resolved = table
-            .resolve("/users/5/update-email", HttpMethod::Patch)
-            .unwrap();
+        let resolved = table.resolve("/users/5/update-email", HttpMethod::Patch).unwrap();
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
-                name: "updateUserEmail".to_string()
+                name: "updateUserEmail".to_string(),
             }
         );
         assert_eq!(resolved.path_params, vec![("id".to_string(), "5".to_string())]);
@@ -2037,7 +1947,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
-                name: "deleteUser".to_string()
+                name: "deleteUser".to_string(),
             }
         );
     }
@@ -2049,7 +1959,7 @@ mod tests {
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
-                name: "archiveUser".to_string()
+                name: "archiveUser".to_string(),
             }
         );
     }
@@ -2079,19 +1989,13 @@ mod tests {
     #[test]
     fn match_param_path() {
         let result = match_route_path("/users/{id}", &["users", "123"]);
-        assert_eq!(
-            result,
-            Some(vec![("id".to_string(), "123".to_string())])
-        );
+        assert_eq!(result, Some(vec![("id".to_string(), "123".to_string())]));
     }
 
     #[test]
     fn match_multi_segment_path() {
         let result = match_route_path("/users/{id}/archive", &["users", "7", "archive"]);
-        assert_eq!(
-            result,
-            Some(vec![("id".to_string(), "7".to_string())])
-        );
+        assert_eq!(result, Some(vec![("id".to_string(), "7".to_string())]));
     }
 
     #[test]
@@ -2179,7 +2083,8 @@ mod tests {
     #[test]
     fn extract_entity_executor_format() {
         // Executor flattens entity fields + __typename directly under mutation name
-        let result = r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#;
+        let result =
+            r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#;
         let entity = extract_delete_entity(result, "delete_user").unwrap();
         assert_eq!(entity["pk_user_id"], 42);
         assert_eq!(entity["name"], "Alice");
@@ -2258,7 +2163,7 @@ mod tests {
             result,
             Some(100),
             &PaginationParams::Offset {
-                limit: 10,
+                limit:  10,
                 offset: 0,
             },
         )
@@ -2276,7 +2181,7 @@ mod tests {
             result,
             None,
             &PaginationParams::Offset {
-                limit: 10,
+                limit:  10,
                 offset: 0,
             },
         )
@@ -2291,9 +2196,9 @@ mod tests {
             result,
             None,
             &PaginationParams::Cursor {
-                first: Some(5),
-                after: None,
-                last: None,
+                first:  Some(5),
+                after:  None,
+                last:   None,
                 before: None,
             },
         )
@@ -2311,10 +2216,7 @@ mod tests {
         request_headers.insert("x-request-id", HeaderValue::from_static("abc-123"));
         let mut response_headers = HeaderMap::new();
         set_request_id(&request_headers, &mut response_headers);
-        assert_eq!(
-            response_headers.get("x-request-id").unwrap().to_str().unwrap(),
-            "abc-123"
-        );
+        assert_eq!(response_headers.get("x-request-id").unwrap().to_str().unwrap(), "abc-123");
     }
 
     #[test]
@@ -2322,11 +2224,7 @@ mod tests {
         let request_headers = HeaderMap::new();
         let mut response_headers = HeaderMap::new();
         set_request_id(&request_headers, &mut response_headers);
-        let id = response_headers
-            .get("x-request-id")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let id = response_headers.get("x-request-id").unwrap().to_str().unwrap();
         // Should be a UUID (36 chars with hyphens)
         assert_eq!(id.len(), 36);
         assert!(id.contains('-'));
@@ -2365,10 +2263,7 @@ mod tests {
 
     #[test]
     fn rest_error_to_json_with_details() {
-        let err = RestError::unprocessable_entity(
-            "Missing fields",
-            json!({"missing": ["email"]}),
-        );
+        let err = RestError::unprocessable_entity("Missing fields", json!({"missing": ["email"]}));
         let json = err.to_json();
         assert_eq!(json["error"]["code"], "UNPROCESSABLE_ENTITY");
         assert_eq!(json["error"]["details"]["missing"][0], "email");
@@ -2385,7 +2280,7 @@ mod tests {
     fn rest_error_from_fraiseql_validation() {
         let err = FraiseQLError::Validation {
             message: "Invalid field".to_string(),
-            path: None,
+            path:    None,
         };
         let rest_err = RestError::from(err);
         assert_eq!(rest_err.status, StatusCode::BAD_REQUEST);
@@ -2394,8 +2289,8 @@ mod tests {
     #[test]
     fn rest_error_from_fraiseql_auth() {
         let err = FraiseQLError::Authorization {
-            message: "Denied".to_string(),
-            action: None,
+            message:  "Denied".to_string(),
+            action:   None,
             resource: None,
         };
         let rest_err = RestError::from(err);

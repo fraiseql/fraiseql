@@ -4,11 +4,12 @@
 //! `fn_delete_*`).  The bulk executor never issues raw `INSERT`/`UPDATE`/
 //! `DELETE` SQL.
 
-use crate::db::traits::{DatabaseAdapter, MutationCapable};
-use crate::error::{FraiseQLError, Result};
-use crate::security::SecurityContext;
-
 use super::Executor;
+use crate::{
+    db::traits::{DatabaseAdapter, MutationCapable},
+    error::{FraiseQLError, Result},
+    security::SecurityContext,
+};
 
 /// Result of a bulk operation (batch insert, filter-based update/delete).
 #[derive(Debug, Clone)]
@@ -17,7 +18,7 @@ pub struct BulkResult {
     pub affected_rows: u64,
     /// Entity representations from each mutation (when `return=representation`).
     /// `None` when `return=minimal` was requested.
-    pub entities: Option<Vec<serde_json::Value>>,
+    pub entities:      Option<Vec<serde_json::Value>>,
 }
 
 impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
@@ -70,9 +71,7 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
         security_context: Option<&SecurityContext>,
     ) -> Result<BulkResult> {
         // 1. Execute the read view query to get matching rows
-        let result = self
-            .execute_query_direct(query_match, None, security_context)
-            .await?;
+        let result = self.execute_query_direct(query_match, None, security_context).await?;
 
         // 2. Parse result and extract IDs
         let parsed: serde_json::Value = serde_json::from_str(&result)?;
@@ -84,14 +83,14 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
                 message: format!(
                     "Would affect {count} rows, exceeding max-affected limit of {max_affected}"
                 ),
-                path: None,
+                path:    None,
             });
         }
 
         if rows.is_empty() {
             return Ok(BulkResult {
                 affected_rows: 0,
-                entities: Some(Vec::new()),
+                entities:      Some(Vec::new()),
             });
         }
 
@@ -118,7 +117,7 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
 
         Ok(BulkResult {
             affected_rows: count,
-            entities: Some(entities),
+            entities:      Some(entities),
         })
     }
 
@@ -130,8 +129,7 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
         security_context: Option<&SecurityContext>,
     ) -> Result<String> {
         if let Some(ctx) = security_context {
-            self.execute_mutation_with_security(mutation_name, variables, ctx)
-                .await
+            self.execute_mutation_with_security(mutation_name, variables, ctx).await
         } else {
             self.execute_mutation(mutation_name, variables).await
         }
@@ -159,10 +157,7 @@ fn extract_rows_from_result(parsed: &serde_json::Value) -> Vec<&serde_json::Valu
 
     // Relay connection: { edges: [{ node: ... }] }
     if let Some(edges) = inner.get("edges").and_then(|e| e.as_array()) {
-        return edges
-            .iter()
-            .filter_map(|edge| edge.get("node"))
-            .collect();
+        return edges.iter().filter_map(|edge| edge.get("node")).collect();
     }
 
     Vec::new()
@@ -171,8 +166,9 @@ fn extract_rows_from_result(parsed: &serde_json::Value) -> Vec<&serde_json::Valu
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn extract_rows_array_format() {
@@ -224,7 +220,7 @@ mod tests {
     fn bulk_result_default() {
         let result = BulkResult {
             affected_rows: 0,
-            entities: None,
+            entities:      None,
         };
         assert_eq!(result.affected_rows, 0);
         assert!(result.entities.is_none());

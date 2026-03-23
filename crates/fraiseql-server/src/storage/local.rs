@@ -1,12 +1,11 @@
 //! Local filesystem storage backend.
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use async_trait::async_trait;
 use fraiseql_error::FileError;
 
-use super::{validate_key, StorageBackend, StorageResult};
+use super::{StorageBackend, StorageResult, validate_key};
 
 /// Stores files on the local filesystem under a root directory.
 pub struct LocalStorageBackend {
@@ -32,19 +31,15 @@ impl StorageBackend for LocalStorageBackend {
     async fn upload(&self, key: &str, data: &[u8], _content_type: &str) -> StorageResult<String> {
         let path = self.key_path(key)?;
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(|e| FileError::Storage {
-                    message: format!("Failed to create directory: {e}"),
-                    source:  Some(Box::new(e)),
-                })?;
-        }
-        tokio::fs::write(&path, data)
-            .await
-            .map_err(|e| FileError::Storage {
-                message: format!("Failed to write file: {e}"),
+            tokio::fs::create_dir_all(parent).await.map_err(|e| FileError::Storage {
+                message: format!("Failed to create directory: {e}"),
                 source:  Some(Box::new(e)),
             })?;
+        }
+        tokio::fs::write(&path, data).await.map_err(|e| FileError::Storage {
+            message: format!("Failed to write file: {e}"),
+            source:  Some(Box::new(e)),
+        })?;
         Ok(key.to_string())
     }
 

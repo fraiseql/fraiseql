@@ -86,16 +86,15 @@ pub async fn error_sanitization_middleware(
     let body_len = sanitized_bytes.len();
     let mut response = Response::from_parts(parts, Body::from(sanitized_bytes));
     // Update content-length since the body may have changed size
-    response
-        .headers_mut()
-        .insert(header::CONTENT_LENGTH, body_len.into());
+    response.headers_mut().insert(header::CONTENT_LENGTH, body_len.into());
     response
 }
 
 /// Sanitize a JSON error response in-place.
 ///
 /// Handles two formats:
-/// - **GraphQL**: `{ "errors": [{ "message": "...", "code": "...", "extensions": { "detail": "..." } }] }`
+/// - **GraphQL**: `{ "errors": [{ "message": "...", "code": "...", "extensions": { "detail": "..."
+///   } }] }`
 /// - **REST**: `{ "message": "...", "detail": "..." }`
 fn sanitize_json_error(sanitizer: &ErrorSanitizer, json: &mut serde_json::Value) {
     // GraphQL format: sanitize each error in the "errors" array
@@ -115,10 +114,7 @@ fn sanitize_json_error(sanitizer: &ErrorSanitizer, json: &mut serde_json::Value)
 ///
 /// Strips internal details from `InternalServerError` and `DatabaseError` codes.
 fn sanitize_single_error(sanitizer: &ErrorSanitizer, error: &mut serde_json::Value) {
-    let code = error
-        .get("code")
-        .and_then(|c| c.as_str())
-        .unwrap_or("");
+    let code = error.get("code").and_then(|c| c.as_str()).unwrap_or("");
 
     let is_internal = matches!(code, "INTERNAL_SERVER_ERROR" | "DATABASE_ERROR");
 
@@ -231,9 +227,6 @@ mod tests {
         // Disabled sanitizer doesn't change messages (only strips detail via JSON path)
         // But since the sanitizer.sanitize() call preserves message when disabled,
         // the message should be unchanged
-        assert_eq!(
-            json["errors"][0]["message"],
-            "ERROR: relation \"tb_users\" does not exist"
-        );
+        assert_eq!(json["errors"][0]["message"], "ERROR: relation \"tb_users\" does not exist");
     }
 }

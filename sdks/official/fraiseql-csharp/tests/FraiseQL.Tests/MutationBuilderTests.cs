@@ -123,7 +123,7 @@ public sealed class MutationBuilderTests : IDisposable
                 .SqlSource("fn_m")
                 .Operation("INVALID"));
 
-        Assert.Contains("insert", ex.Message);
+        Assert.Contains("CREATE", ex.Message);
     }
 
     [Fact]

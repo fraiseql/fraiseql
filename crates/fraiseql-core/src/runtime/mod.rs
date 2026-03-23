@@ -176,15 +176,15 @@ pub struct RuntimeConfig {
 impl Clone for RuntimeConfig {
     fn clone(&self) -> Self {
         Self {
-            cache_query_plans:  self.cache_query_plans,
-            max_query_depth:    self.max_query_depth,
+            cache_query_plans:    self.cache_query_plans,
+            max_query_depth:      self.max_query_depth,
             max_query_complexity: self.max_query_complexity,
-            enable_tracing:     self.enable_tracing,
-            field_filter:       self.field_filter.clone(),
-            rls_policy:         self.rls_policy.clone(),
-            query_timeout_ms:   self.query_timeout_ms,
-            jsonb_optimization: self.jsonb_optimization.clone(),
-            query_validation:   self.query_validation.clone(),
+            enable_tracing:       self.enable_tracing,
+            field_filter:         self.field_filter.clone(),
+            rls_policy:           self.rls_policy.clone(),
+            query_timeout_ms:     self.query_timeout_ms,
+            jsonb_optimization:   self.jsonb_optimization.clone(),
+            query_validation:     self.query_validation.clone(),
         }
     }
 }

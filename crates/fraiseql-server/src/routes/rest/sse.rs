@@ -36,14 +36,9 @@ pub const DEFAULT_SSE_HEARTBEAT_SECONDS: u64 = 30;
 /// Check whether an `Accept` header value requests SSE.
 #[must_use]
 pub fn accepts_sse(headers: &HeaderMap) -> bool {
-    headers
-        .get("accept")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| {
-            accept
-                .split(',')
-                .any(|part| part.trim().eq_ignore_ascii_case(SSE_CONTENT_TYPE))
-        })
+    headers.get("accept").and_then(|v| v.to_str().ok()).is_some_and(|accept| {
+        accept.split(',').any(|part| part.trim().eq_ignore_ascii_case(SSE_CONTENT_TYPE))
+    })
 }
 
 /// Check if a path ends with `/stream` (SSE route pattern).
@@ -79,10 +74,7 @@ pub fn extract_stream_resource(relative_path: &str) -> Option<&str> {
 /// Extract the `Last-Event-ID` header value for SSE reconnection.
 #[must_use]
 pub fn extract_last_event_id(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("last-event-id")
-        .and_then(|v| v.to_str().ok())
-        .map(String::from)
+    headers.get("last-event-id").and_then(|v| v.to_str().ok()).map(String::from)
 }
 
 /// Format an SSE event as a string.
@@ -109,8 +101,8 @@ pub fn format_heartbeat() -> String {
 #[must_use]
 pub fn observers_not_available() -> RestError {
     RestError {
-        status: StatusCode::NOT_IMPLEMENTED,
-        code: "NOT_IMPLEMENTED",
+        status:  StatusCode::NOT_IMPLEMENTED,
+        code:    "NOT_IMPLEMENTED",
         message: "SSE streaming requires the observers feature".to_string(),
         details: None,
     }
@@ -135,9 +127,10 @@ pub fn event_kind_to_sse_type(kind: &str) -> &str {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
     use axum::http::HeaderValue;
     use serde_json::json;
+
+    use super::*;
 
     // -----------------------------------------------------------------------
     // accepts_sse
@@ -153,10 +146,7 @@ mod tests {
     #[test]
     fn accepts_sse_true_in_list() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "accept",
-            HeaderValue::from_static("application/json, text/event-stream"),
-        );
+        headers.insert("accept", HeaderValue::from_static("application/json, text/event-stream"));
         assert!(accepts_sse(&headers));
     }
 
@@ -247,10 +237,7 @@ mod tests {
         assert!(output.contains("data: "));
         assert!(output.ends_with("\n\n"));
         // Data line should be valid JSON
-        let data_line = output
-            .lines()
-            .find(|l| l.starts_with("data: "))
-            .unwrap();
+        let data_line = output.lines().find(|l| l.starts_with("data: ")).unwrap();
         let json_str = data_line.strip_prefix("data: ").unwrap();
         let parsed: serde_json::Value = serde_json::from_str(json_str).unwrap();
         assert_eq!(parsed["name"], "Alice");

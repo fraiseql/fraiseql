@@ -1,10 +1,9 @@
 use super::{
-    FraiseQLError, FactTableMetadata, FrameBoundary, FrameExclusion, FrameType, OrderByClause,
+    FactTableMetadata, FraiseQLError, FrameBoundary, FrameExclusion, FrameType, OrderByClause,
     OrderDirection, Result, SelectColumn, WhereClause, WindowExecutionPlan, WindowFrame,
     WindowFunction, WindowFunctionType,
 };
 use crate::compiler::window_allowlist::WindowAllowlist;
-
 
 /// Window function plan generator
 pub struct WindowFunctionPlanner;

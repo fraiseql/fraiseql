@@ -336,12 +336,12 @@ impl CodeGenerator {
             sql_source,
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
-            invalidates_views:      vec![],
-            cascade:                false,
-            rest_path:              None,
-            rest_method:            None,
-            conflict_targets:       Vec::new(),
-            upsert_function:        None,
+            invalidates_views: vec![],
+            cascade: false,
+            rest_path: None,
+            rest_method: None,
+            conflict_targets: Vec::new(),
+            upsert_function: None,
         }
     }
 

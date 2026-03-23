@@ -7,18 +7,17 @@ use sqlx::{
     mysql::{MySqlPool, MySqlPoolOptions, MySqlRow},
 };
 
-use super::helpers::{build_mysql_relay_order_sql, build_mysql_relay_where, map_mysql_error_code};
-use super::where_generator::MySqlWhereGenerator;
+use super::{
+    helpers::{build_mysql_relay_order_sql, build_mysql_relay_where, map_mysql_error_code},
+    where_generator::MySqlWhereGenerator,
+};
 use crate::{
     dialect::MySqlDialect,
     identifier::quote_mysql_identifier,
     traits::{
         CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult,
     },
-    types::{
-        DatabaseType, JsonbValue, PoolMetrics,
-        sql_hints::OrderByClause,
-    },
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
 
@@ -115,9 +114,7 @@ impl MySqlAdapter {
     pub async fn with_pool_size(connection_string: &str, max_size: u32) -> Result<Self> {
         if max_size == 0 || max_size > MAX_POOL_SIZE {
             return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
-                ),
+                message: format!("Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"),
                 path:    None,
             });
         }
@@ -533,8 +530,7 @@ impl DatabaseAdapter for MySqlAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
-        use crate::dialect::RowViewColumnType;
-        use crate::types::ColumnValue;
+        use crate::{dialect::RowViewColumnType, types::ColumnValue};
 
         let col_list: String = columns
             .iter()
@@ -559,18 +555,17 @@ impl DatabaseAdapter for MySqlAdapter {
             (None, None) => {},
         }
 
-        let rows: Vec<MySqlRow> =
-            sqlx::query(&sql).fetch_all(&self.pool).await.map_err(|e| {
-                let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                    db_err.code().map(|c| c.into_owned())
-                } else {
-                    None
-                };
-                FraiseQLError::Database {
-                    message: format!("MySQL row query on view '{view}' failed: {e}"),
-                    sql_state,
-                }
-            })?;
+        let rows: Vec<MySqlRow> = sqlx::query(&sql).fetch_all(&self.pool).await.map_err(|e| {
+            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                db_err.code().map(|c| c.into_owned())
+            } else {
+                None
+            };
+            FraiseQLError::Database {
+                message: format!("MySQL row query on view '{view}' failed: {e}"),
+                sql_state,
+            }
+        })?;
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
@@ -838,7 +833,8 @@ impl RelayDatabaseAdapter for MySqlAdapter {
         // ── Count query (cursor-independent per Relay spec) ────────────────
         let total_count = if include_total_count {
             let (count_sql, count_params) = if let Some(u_sql) = &user_where_sql {
-                // SAFETY: quoted_view is schema-derived (validated at compile time), not user input.
+                // SAFETY: quoted_view is schema-derived (validated at compile time), not user
+                // input.
                 (
                     format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({u_sql})"),
                     user_where_params.clone(),

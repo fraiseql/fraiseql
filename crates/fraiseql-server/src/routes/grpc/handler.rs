@@ -8,13 +8,17 @@
 
 use std::collections::HashMap;
 
-use fraiseql_core::db::dialect::{PostgresDialect, RowViewColumnType};
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
-use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
-use fraiseql_core::db::where_generator::GenericWhereGenerator;
-use fraiseql_core::schema::{CompiledSchema, FieldType, TypeDefinition};
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::{
+        dialect::{PostgresDialect, RowViewColumnType},
+        traits::DatabaseAdapter,
+        types::{ColumnSpec, ColumnValue},
+        where_clause::{WhereClause, WhereOperator},
+        where_generator::GenericWhereGenerator,
+    },
+    schema::{CompiledSchema, FieldType, TypeDefinition},
+    security::SecurityContext,
+};
 use fraiseql_error::FraiseQLError;
 use prost_reflect::{DynamicMessage, MessageDescriptor, ReflectMessage, Value};
 use tracing::{debug, warn};
@@ -36,11 +40,11 @@ pub enum RpcKind {
     /// A read query against a row-shaped view (`vr_*`).
     Query {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name: String,
+        view_name:      String,
         /// Whether this RPC returns a list.
-        returns_list: bool,
+        returns_list:   bool,
         /// Column specs for the row-shaped view.
-        columns: Vec<ColumnSpec>,
+        columns:        Vec<ColumnSpec>,
         /// Inner row message descriptor (the repeated element for list queries,
         /// or the single message for get queries).
         row_descriptor: MessageDescriptor,
@@ -52,9 +56,9 @@ pub enum RpcKind {
     /// individually as gRPC frames.
     ServerStream {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name: String,
+        view_name:      String,
         /// Column specs for the row-shaped view.
-        columns: Vec<ColumnSpec>,
+        columns:        Vec<ColumnSpec>,
         /// Row message descriptor (the entity type, e.g., `User`).
         row_descriptor: MessageDescriptor,
     },
@@ -69,11 +73,11 @@ pub enum RpcKind {
 #[derive(Debug, Clone)]
 pub struct RpcOperation {
     /// Operation name in the compiled schema (query or mutation name).
-    pub operation_name: String,
+    pub operation_name:      String,
     /// GraphQL type name (e.g., `"User"`).
-    pub type_name: String,
+    pub type_name:           String,
     /// What kind of RPC this is (query or mutation).
-    pub kind: RpcKind,
+    pub kind:                RpcKind,
     /// Response message descriptor for encoding results.
     pub response_descriptor: MessageDescriptor,
 }
@@ -278,7 +282,9 @@ pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Opti
                     if type_def.find_field(col_name).is_some() {
                         let direction = parts
                             .get(1)
-                            .filter(|d| d.eq_ignore_ascii_case("asc") || d.eq_ignore_ascii_case("desc"))
+                            .filter(|d| {
+                                d.eq_ignore_ascii_case("asc") || d.eq_ignore_ascii_case("desc")
+                            })
                             .copied()
                             .unwrap_or("ASC");
                         return Some(format!("\"{col_name}\" {direction}"));
@@ -325,12 +331,9 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
     // The default policy injects `author_id = <user_id>` for non-admin users
     // and tenant isolation when a tenant_id is present.
     let rls_where = if let Some(ctx) = security_context {
-        use fraiseql_core::security::DefaultRLSPolicy;
-        use fraiseql_core::security::RLSPolicy as _;
+        use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy as _};
         let policy = DefaultRLSPolicy::new();
-        policy
-            .evaluate(ctx, type_def.name.as_str())?
-            .map(|rls| rls.into_where_clause())
+        policy.evaluate(ctx, type_def.name.as_str())?.map(|rls| rls.into_where_clause())
     } else {
         None
     };
@@ -415,20 +418,12 @@ pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
 
     // The Trinity pattern returns a single row with status/entity_id columns.
     let row = rows.into_iter().next().unwrap_or_default();
-    let success = row
-        .get("status")
-        .and_then(|v| v.as_str())
-        .is_some_and(|s| s == "success");
-    let id = row
-        .get("entity_id")
-        .and_then(|v| v.as_str())
-        .map(String::from);
+    let success = row.get("status").and_then(|v| v.as_str()).is_some_and(|s| s == "success");
+    let id = row.get("entity_id").and_then(|v| v.as_str()).map(String::from);
     let error = if success {
         None
     } else {
-        row.get("message")
-            .and_then(|v| v.as_str())
-            .map(String::from)
+        row.get("message").and_then(|v| v.as_str()).map(String::from)
     };
 
     Ok(MutationResult { success, id, error })
@@ -440,9 +435,9 @@ pub struct MutationResult {
     /// Whether the mutation succeeded.
     pub success: bool,
     /// Optional entity ID returned by the mutation.
-    pub id: Option<String>,
+    pub id:      Option<String>,
     /// Optional error message (when `success` is false).
-    pub error: Option<String>,
+    pub error:   Option<String>,
 }
 
 /// Encode a [`MutationResult`] into a protobuf response message.
@@ -547,9 +542,7 @@ pub fn encode_response(
 
         // Find the repeated field (first repeated message field in the response).
         for field_desc in response_descriptor.fields() {
-            if field_desc.is_list()
-                && field_desc.kind().as_message().is_some()
-            {
+            if field_desc.is_list() && field_desc.kind().as_message().is_some() {
                 response.set_field(&field_desc, Value::List(items));
                 break;
             }
@@ -593,11 +586,11 @@ pub fn build_dispatch_table(
     let mut table = HashMap::new();
 
     // Find the service descriptor.
-    let service_desc = pool
-        .get_service_by_name(service_name)
-        .ok_or_else(|| FraiseQLError::validation(format!(
+    let service_desc = pool.get_service_by_name(service_name).ok_or_else(|| {
+        FraiseQLError::validation(format!(
             "gRPC service '{service_name}' not found in descriptor pool"
-        )))?;
+        ))
+    })?;
 
     for method_desc in service_desc.methods() {
         let method_name = method_desc.name().to_string();
@@ -651,12 +644,15 @@ pub fn build_dispatch_table(
                     }
                 };
 
-                table.insert(full_method, RpcOperation {
-                    operation_name: query_name,
-                    type_name:      type_name.clone(),
-                    kind,
-                    response_descriptor: response_desc,
-                });
+                table.insert(
+                    full_method,
+                    RpcOperation {
+                        operation_name: query_name,
+                        type_name: type_name.clone(),
+                        kind,
+                        response_descriptor: response_desc,
+                    },
+                );
                 continue;
             }
         }
@@ -664,17 +660,18 @@ pub fn build_dispatch_table(
         // Try mutation: convert PascalCase method name to camelCase mutation name.
         let mutation_name = grpc_method_to_mutation_name(&method_name);
         if let Some(mutation_def) = schema.find_mutation(&mutation_name) {
-            let function_name = mutation_def
-                .sql_source
-                .clone()
-                .unwrap_or_else(|| format!("fn_{mutation_name}"));
+            let function_name =
+                mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{mutation_name}"));
 
-            table.insert(full_method, RpcOperation {
-                operation_name: mutation_name,
-                type_name:      mutation_def.return_type.clone(),
-                kind: RpcKind::Mutation { function_name },
-                response_descriptor: response_desc,
-            });
+            table.insert(
+                full_method,
+                RpcOperation {
+                    operation_name:      mutation_name,
+                    type_name:           mutation_def.return_type.clone(),
+                    kind:                RpcKind::Mutation { function_name },
+                    response_descriptor: response_desc,
+                },
+            );
             continue;
         }
 
@@ -731,58 +728,28 @@ mod tests {
 
     #[test]
     fn scalar_types_map_correctly() {
-        assert_eq!(
-            field_type_to_column_type(&FieldType::String),
-            Some(RowViewColumnType::Text)
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Int),
-            Some(RowViewColumnType::Int32)
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Float),
-            Some(RowViewColumnType::Float64)
-        );
+        assert_eq!(field_type_to_column_type(&FieldType::String), Some(RowViewColumnType::Text));
+        assert_eq!(field_type_to_column_type(&FieldType::Int), Some(RowViewColumnType::Int32));
+        assert_eq!(field_type_to_column_type(&FieldType::Float), Some(RowViewColumnType::Float64));
         assert_eq!(
             field_type_to_column_type(&FieldType::Boolean),
             Some(RowViewColumnType::Boolean)
         );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Id),
-            Some(RowViewColumnType::Uuid)
-        );
+        assert_eq!(field_type_to_column_type(&FieldType::Id), Some(RowViewColumnType::Uuid));
         assert_eq!(
             field_type_to_column_type(&FieldType::DateTime),
             Some(RowViewColumnType::Timestamptz)
         );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Date),
-            Some(RowViewColumnType::Date)
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Json),
-            Some(RowViewColumnType::Json)
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Uuid),
-            Some(RowViewColumnType::Uuid)
-        );
+        assert_eq!(field_type_to_column_type(&FieldType::Date), Some(RowViewColumnType::Date));
+        assert_eq!(field_type_to_column_type(&FieldType::Json), Some(RowViewColumnType::Json));
+        assert_eq!(field_type_to_column_type(&FieldType::Uuid), Some(RowViewColumnType::Uuid));
     }
 
     #[test]
     fn non_scalar_types_return_none() {
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Object("User".to_string())),
-            None
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::List(Box::new(FieldType::String))),
-            None
-        );
-        assert_eq!(
-            field_type_to_column_type(&FieldType::Vector),
-            None
-        );
+        assert_eq!(field_type_to_column_type(&FieldType::Object("User".to_string())), None);
+        assert_eq!(field_type_to_column_type(&FieldType::List(Box::new(FieldType::String))), None);
+        assert_eq!(field_type_to_column_type(&FieldType::Vector), None);
     }
 
     #[test]
@@ -939,24 +906,24 @@ mod tests {
             name: Some("User".into()),
             field: vec![
                 FieldDescriptorProto {
-                    name:    Some("id".into()),
-                    number:  Some(1),
-                    r#type:  Some(field_descriptor_proto::Type::String.into()),
-                    label:   Some(field_descriptor_proto::Label::Optional.into()),
+                    name: Some("id".into()),
+                    number: Some(1),
+                    r#type: Some(field_descriptor_proto::Type::String.into()),
+                    label: Some(field_descriptor_proto::Label::Optional.into()),
                     ..Default::default()
                 },
                 FieldDescriptorProto {
-                    name:    Some("name".into()),
-                    number:  Some(2),
-                    r#type:  Some(field_descriptor_proto::Type::String.into()),
-                    label:   Some(field_descriptor_proto::Label::Optional.into()),
+                    name: Some("name".into()),
+                    number: Some(2),
+                    r#type: Some(field_descriptor_proto::Type::String.into()),
+                    label: Some(field_descriptor_proto::Label::Optional.into()),
                     ..Default::default()
                 },
                 FieldDescriptorProto {
-                    name:    Some("age".into()),
-                    number:  Some(3),
-                    r#type:  Some(field_descriptor_proto::Type::Int32.into()),
-                    label:   Some(field_descriptor_proto::Label::Optional.into()),
+                    name: Some("age".into()),
+                    number: Some(3),
+                    r#type: Some(field_descriptor_proto::Type::Int32.into()),
+                    label: Some(field_descriptor_proto::Label::Optional.into()),
                     ..Default::default()
                 },
             ],
@@ -964,9 +931,9 @@ mod tests {
         };
 
         let file = FileDescriptorProto {
-            name:         Some("test.proto".into()),
-            package:      Some("test".into()),
-            syntax:       Some("proto3".into()),
+            name: Some("test.proto".into()),
+            package: Some("test".into()),
+            syntax: Some("proto3".into()),
             message_type: vec![user_msg],
             ..Default::default()
         };
@@ -982,9 +949,18 @@ mod tests {
         let user_desc = pool.get_message_by_name("test.User").unwrap();
 
         let columns = vec![
-            ColumnSpec { name: "id".into(), column_type: RowViewColumnType::Uuid },
-            ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
-            ColumnSpec { name: "age".into(), column_type: RowViewColumnType::Int32 },
+            ColumnSpec {
+                name:        "id".into(),
+                column_type: RowViewColumnType::Uuid,
+            },
+            ColumnSpec {
+                name:        "name".into(),
+                column_type: RowViewColumnType::Text,
+            },
+            ColumnSpec {
+                name:        "age".into(),
+                column_type: RowViewColumnType::Int32,
+            },
         ];
 
         let row = vec![
@@ -1010,9 +986,18 @@ mod tests {
         let user_desc = pool.get_message_by_name("test.User").unwrap();
 
         let columns = vec![
-            ColumnSpec { name: "id".into(), column_type: RowViewColumnType::Uuid },
-            ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
-            ColumnSpec { name: "age".into(), column_type: RowViewColumnType::Int32 },
+            ColumnSpec {
+                name:        "id".into(),
+                column_type: RowViewColumnType::Uuid,
+            },
+            ColumnSpec {
+                name:        "name".into(),
+                column_type: RowViewColumnType::Text,
+            },
+            ColumnSpec {
+                name:        "age".into(),
+                column_type: RowViewColumnType::Int32,
+            },
         ];
 
         let row = vec![
@@ -1034,8 +1019,14 @@ mod tests {
         let user_desc = pool.get_message_by_name("test.User").unwrap();
 
         let columns = vec![
-            ColumnSpec { name: "id".into(), column_type: RowViewColumnType::Uuid },
-            ColumnSpec { name: "name".into(), column_type: RowViewColumnType::Text },
+            ColumnSpec {
+                name:        "id".into(),
+                column_type: RowViewColumnType::Uuid,
+            },
+            ColumnSpec {
+                name:        "name".into(),
+                column_type: RowViewColumnType::Text,
+            },
         ];
 
         let rows = vec![vec![
@@ -1054,9 +1045,10 @@ mod tests {
         let pool = test_descriptor_pool();
         let user_desc = pool.get_message_by_name("test.User").unwrap();
 
-        let columns = vec![
-            ColumnSpec { name: "id".into(), column_type: RowViewColumnType::Uuid },
-        ];
+        let columns = vec![ColumnSpec {
+            name:        "id".into(),
+            column_type: RowViewColumnType::Uuid,
+        }];
 
         // No rows — response should have default values.
         let response = encode_response(vec![], &columns, false, &user_desc, &user_desc);
@@ -1073,7 +1065,10 @@ mod tests {
         let type_def = TypeDefinition::new("User", "tb_users")
             .with_field(FieldDefinition::new("id", FieldType::Id))
             .with_field(FieldDefinition::new("name", FieldType::String))
-            .with_field(FieldDefinition::new("posts", FieldType::List(Box::new(FieldType::Object("Post".into())))))
+            .with_field(FieldDefinition::new(
+                "posts",
+                FieldType::List(Box::new(FieldType::Object("Post".into()))),
+            ))
             .with_field(FieldDefinition::new("age", FieldType::Int));
 
         let specs = column_specs_from_type(&type_def);

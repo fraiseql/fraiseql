@@ -9,7 +9,7 @@ namespace FraiseQL.Models;
 /// <param name="Name">The mutation name.</param>
 /// <param name="ReturnType">The GraphQL return type name.</param>
 /// <param name="SqlSource">The backing SQL function (e.g. <c>fn_create_author</c>).</param>
-/// <param name="Operation">The operation kind: <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
+/// <param name="Operation">The operation kind: <c>"CREATE"</c>, <c>"UPDATE"</c>, <c>"DELETE"</c>, <c>"CUSTOM"</c>, <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="InjectParams">Optional inject parameters, omitted from JSON when <see langword="null"/>.</param>

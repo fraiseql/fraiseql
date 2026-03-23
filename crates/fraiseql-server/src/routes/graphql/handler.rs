@@ -516,14 +516,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    #[allow(unused_mut)] // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
+    #[allow(unused_mut)]
+    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,
             response_length = result.len(),
             "Failed to deserialize executor response"
         );
-        ErrorResponse::from_error(GraphQLError::internal(format!("Failed to process response: {e}")))
+        ErrorResponse::from_error(GraphQLError::internal(format!(
+            "Failed to process response: {e}"
+        )))
     })?;
 
     // Decrypt encrypted fields if field encryption is configured
@@ -532,7 +535,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         if encryption.has_encrypted_fields() {
             encryption.decrypt_response(&mut response_json).await.map_err(|e| {
                 error!(error = %e, "Field decryption failed");
-                ErrorResponse::from_error(GraphQLError::internal("Field decryption failed".to_string()))
+                ErrorResponse::from_error(GraphQLError::internal(
+                    "Field decryption failed".to_string(),
+                ))
             })?;
         }
     }

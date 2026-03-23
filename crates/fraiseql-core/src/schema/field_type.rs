@@ -3,8 +3,10 @@
 //! These types represent GraphQL field types in a Rust-native format.
 //! All types are serializable to/from JSON for cross-language compatibility.
 
-use serde::de::{self, Deserializer};
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize, Serialize,
+    de::{self, Deserializer},
+};
 
 use super::{domain_types::FieldName, scalar_types};
 
@@ -631,10 +633,7 @@ impl FieldDefinition {
     /// and encrypted fields (which are managed by the encryption subsystem).
     #[must_use]
     pub fn is_writable(&self) -> bool {
-        !self.is_primary_key()
-            && !self.auto_generated
-            && !self.computed
-            && !self.is_encrypted()
+        !self.is_primary_key() && !self.auto_generated && !self.computed && !self.is_encrypted()
     }
 }
 
@@ -821,7 +820,7 @@ impl<'de> Deserialize<'de> for FieldType {
                 serde_json::from_value::<FieldTypeHelper>(json_str)
                     .map(Into::into)
                     .map_err(de::Error::custom)
-            }
+            },
             RawFieldType::Structured(helper) => Ok(helper.into()),
         }
     }
@@ -1438,12 +1437,11 @@ mod tests {
 
     #[test]
     fn test_encrypted_field_not_writable() {
-        let field = FieldDefinition::new("ssn", FieldType::String).with_encryption(
-            FieldEncryptionConfig {
+        let field =
+            FieldDefinition::new("ssn", FieldType::String).with_encryption(FieldEncryptionConfig {
                 key_reference: "keys/ssn".to_string(),
                 algorithm:     "AES-256-GCM".to_string(),
-            },
-        );
+            });
         assert!(!field.is_writable());
     }
 

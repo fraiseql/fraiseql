@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::config_types::RelationshipDef;
 use super::{
+    config_types::RelationshipDef,
     domain_types::{SqlSource, TypeName},
     field_type::{DeprecationInfo, FieldDefinition},
 };
@@ -703,7 +703,8 @@ mod tests {
             .with_field(FieldDefinition::new("pk_user", FieldType::Int))
             .with_field(FieldDefinition::new("email", FieldType::String));
 
-        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email"]);
     }
 
@@ -717,7 +718,8 @@ mod tests {
             .with_field(FieldDefinition::new("email", FieldType::String))
             .with_field(created);
 
-        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email"]);
     }
 
@@ -731,25 +733,26 @@ mod tests {
             .with_field(FieldDefinition::new("email", FieldType::String))
             .with_field(full_name);
 
-        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email"]);
     }
 
     #[test]
     fn test_writable_fields_excludes_encrypted() {
-        let ssn = FieldDefinition::new("ssn", FieldType::String).with_encryption(
-            FieldEncryptionConfig {
+        let ssn =
+            FieldDefinition::new("ssn", FieldType::String).with_encryption(FieldEncryptionConfig {
                 key_reference: "keys/ssn".to_string(),
                 algorithm:     "AES-256-GCM".to_string(),
-            },
-        );
+            });
 
         let type_def = TypeDefinition::new("User", "v_user")
             .with_field(FieldDefinition::new("id", FieldType::Id))
             .with_field(FieldDefinition::new("email", FieldType::String))
             .with_field(ssn);
 
-        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email"]);
     }
 
@@ -766,7 +769,8 @@ mod tests {
             .with_field(body)
             .with_field(FieldDefinition::new("status", FieldType::String));
 
-        let searchable: Vec<&str> = type_def.searchable_fields().iter().map(|f| f.name.as_str()).collect();
+        let searchable: Vec<&str> =
+            type_def.searchable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(searchable, vec!["title", "body"]);
     }
 
@@ -811,7 +815,8 @@ mod tests {
             .with_field(auto)
             .with_field(computed);
 
-        let writable: Vec<&str> = type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
         assert_eq!(writable, vec!["email", "name"]);
     }
 }

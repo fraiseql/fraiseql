@@ -253,9 +253,9 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
-        use crate::dialect::RowViewColumnType;
-        use crate::identifier::quote_postgres_identifier;
-        use crate::types::ColumnValue;
+        use crate::{
+            dialect::RowViewColumnType, identifier::quote_postgres_identifier, types::ColumnValue,
+        };
 
         let col_list: String = columns
             .iter()
@@ -263,10 +263,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let mut sql = format!(
-            "SELECT {col_list} FROM {}",
-            quote_postgres_identifier(view)
-        );
+        let mut sql = format!("SELECT {col_list} FROM {}", quote_postgres_identifier(view));
 
         if let Some(wc) = where_clause {
             sql.push_str(" WHERE ");
@@ -304,21 +301,30 @@ impl DatabaseAdapter for PostgresAdapter {
                     RowViewColumnType::Int32 => row
                         .try_get::<_, Option<i32>>(idx)
                         .map_err(|e| FraiseQLError::Database {
-                            message:   format!("Column '{}' int32 extraction failed: {e}", col.name),
+                            message:   format!(
+                                "Column '{}' int32 extraction failed: {e}",
+                                col.name
+                            ),
                             sql_state: None,
                         })?
                         .map_or(ColumnValue::Null, ColumnValue::Int32),
                     RowViewColumnType::Int64 => row
                         .try_get::<_, Option<i64>>(idx)
                         .map_err(|e| FraiseQLError::Database {
-                            message:   format!("Column '{}' int64 extraction failed: {e}", col.name),
+                            message:   format!(
+                                "Column '{}' int64 extraction failed: {e}",
+                                col.name
+                            ),
                             sql_state: None,
                         })?
                         .map_or(ColumnValue::Null, ColumnValue::Int64),
                     RowViewColumnType::Float64 => row
                         .try_get::<_, Option<f64>>(idx)
                         .map_err(|e| FraiseQLError::Database {
-                            message:   format!("Column '{}' float64 extraction failed: {e}", col.name),
+                            message:   format!(
+                                "Column '{}' float64 extraction failed: {e}",
+                                col.name
+                            ),
                             sql_state: None,
                         })?
                         .map_or(ColumnValue::Null, ColumnValue::Float64),

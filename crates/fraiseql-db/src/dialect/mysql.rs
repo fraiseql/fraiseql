@@ -99,7 +99,7 @@ impl SqlDialect for MySqlDialect {
             RowViewColumnType::Date => "DATE",
             RowViewColumnType::Json => {
                 return format!("JSON_EXTRACT({json_column}, '$.{field_name}')");
-            }
+            },
         };
         format!("CAST(JSON_UNQUOTE(JSON_EXTRACT({json_column}, '$.{field_name}')) AS {mysql_type})")
     }

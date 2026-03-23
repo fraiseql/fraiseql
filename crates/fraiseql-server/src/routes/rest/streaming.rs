@@ -14,13 +14,17 @@ use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::runtime::{Executor, QueryMatch};
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    runtime::{Executor, QueryMatch},
+    security::SecurityContext,
+};
 use futures::stream;
 
-use super::handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id};
-use super::params::PaginationParams;
+use super::{
+    handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
+    params::PaginationParams,
+};
 
 /// Content type for NDJSON responses.
 pub const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
@@ -28,14 +32,11 @@ pub const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 /// Check whether an `Accept` header value requests NDJSON.
 #[must_use]
 pub fn accepts_ndjson(headers: &HeaderMap) -> bool {
-    headers
-        .get("accept")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| {
-            accept
-                .split(',')
-                .any(|part| part.trim().eq_ignore_ascii_case(NDJSON_CONTENT_TYPE))
-        })
+    headers.get("accept").and_then(|v| v.to_str().ok()).is_some_and(|accept| {
+        accept
+            .split(',')
+            .any(|part| part.trim().eq_ignore_ascii_case(NDJSON_CONTENT_TYPE))
+    })
 }
 
 /// Validate that NDJSON-incompatible preferences are not set.
@@ -53,9 +54,7 @@ pub fn validate_ndjson_request(
 ) -> Result<(), RestError> {
     // Count is not available for streaming
     if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
-        return Err(RestError::bad_request(
-            "count not available for streaming responses",
-        ));
+        return Err(RestError::bad_request("count not available for streaming responses"));
     }
 
     // Pagination is not available for streaming
@@ -113,10 +112,7 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     // Build response headers eagerly (before starting the stream).
     let mut response_headers = HeaderMap::new();
     set_request_id(headers, &mut response_headers);
-    response_headers.insert(
-        "content-type",
-        HeaderValue::from_static(NDJSON_CONTENT_TYPE),
-    );
+    response_headers.insert("content-type", HeaderValue::from_static(NDJSON_CONTENT_TYPE));
     response_headers.insert(
         "x-stream-batch-size",
         HeaderValue::from_str(&batch_size.to_string())
@@ -150,27 +146,27 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
                 Err(err_bytes) => {
                     state.done = true;
                     Some((Ok(err_bytes), state))
-                }
+                },
             }
         },
     );
 
     Ok(NdjsonResponse {
         headers: response_headers,
-        body: NdjsonBody::Stream(Box::pin(ndjson_stream)),
+        body:    NdjsonBody::Stream(Box::pin(ndjson_stream)),
     })
 }
 
 /// Internal state for the streaming unfold loop.
 struct StreamState<A: DatabaseAdapter> {
-    executor: Arc<Executor<A>>,
-    query_name: String,
-    query_match: QueryMatch,
-    variables: serde_json::Value,
+    executor:     Arc<Executor<A>>,
+    query_name:   String,
+    query_match:  QueryMatch,
+    variables:    serde_json::Value,
     security_ctx: Option<SecurityContext>,
-    batch_size: u64,
-    offset: u64,
-    done: bool,
+    batch_size:   u64,
+    offset:       u64,
+    done:         bool,
 }
 
 /// Fetch the next batch of rows, serialize as NDJSON bytes, and advance the offset.
@@ -199,18 +195,14 @@ async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
 
     let result_str: String = match state
         .executor
-        .execute_query_direct(
-            &state.query_match,
-            vars_ref,
-            state.security_ctx.as_ref(),
-        )
+        .execute_query_direct(&state.query_match, vars_ref, state.security_ctx.as_ref())
         .await
     {
         Ok(r) => r,
         Err(e) => {
             state.done = true;
             return Err(error_ndjson_line(&e.to_string()));
-        }
+        },
     };
 
     let rows = match extract_rows(&result_str, &state.query_name) {
@@ -218,7 +210,7 @@ async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
         Err(e) => {
             state.done = true;
             return Err(error_ndjson_line(&e.message));
-        }
+        },
     };
 
     if rows.is_empty() {
@@ -233,13 +225,13 @@ async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
             Ok(mut line) => {
                 line.push(b'\n');
                 ndjson_bytes.extend_from_slice(&line);
-            }
+            },
             Err(e) => {
                 state.done = true;
                 // Yield what we have so far plus the error.
                 ndjson_bytes.extend_from_slice(&error_ndjson_line(&e.to_string()));
                 return Ok(Some(Bytes::from(ndjson_bytes)));
-            }
+            },
         }
     }
 
@@ -267,7 +259,7 @@ pub struct NdjsonResponse {
     /// Response headers.
     pub headers: HeaderMap,
     /// NDJSON body — either pre-buffered bytes or a streaming body.
-    pub body: NdjsonBody,
+    pub body:    NdjsonBody,
 }
 
 /// Body of an NDJSON response.
@@ -321,9 +313,10 @@ fn extract_rows(result: &str, query_name: &str) -> Result<Vec<serde_json::Value>
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use super::*;
     use axum::http::StatusCode;
     use serde_json::json;
+
+    use super::*;
 
     // -----------------------------------------------------------------------
     // accepts_ndjson
@@ -339,10 +332,8 @@ mod tests {
     #[test]
     fn accepts_ndjson_true_in_list() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "accept",
-            HeaderValue::from_static("application/json, application/x-ndjson"),
-        );
+        headers
+            .insert("accept", HeaderValue::from_static("application/json, application/x-ndjson"));
         assert!(accepts_ndjson(&headers));
     }
 
@@ -408,9 +399,9 @@ mod tests {
     fn validate_ndjson_rejects_cursor_pagination() {
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Cursor {
-            first: Some(10),
-            after: None,
-            last: None,
+            first:  Some(10),
+            after:  None,
+            last:   None,
             before: None,
         };
         let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -422,7 +413,7 @@ mod tests {
     fn validate_ndjson_rejects_offset_pagination() {
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Offset {
-            limit: 10,
+            limit:  10,
             offset: 5,
         };
         let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -434,7 +425,7 @@ mod tests {
         // offset=0 with limit is fine — it's the default, not explicit pagination
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Offset {
-            limit: 100,
+            limit:  100,
             offset: 0,
         };
         assert!(validate_ndjson_request(&prefer, &pagination).is_ok());

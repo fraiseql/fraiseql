@@ -150,7 +150,8 @@ impl MultiListenerCoordinator {
             let handle = entry.value();
             let state = handle.state_machine.get_state().await;
             let last_heartbeat = *handle.last_heartbeat.lock().await;
-            #[allow(clippy::cast_possible_wrap)] // Reason: intentional bit-preserving reinterpretation of atomic u64 to i64
+            #[allow(clippy::cast_possible_wrap)]
+            // Reason: intentional bit-preserving reinterpretation of atomic u64 to i64
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
             // Healthy if Running and heartbeat within 60s

@@ -7,12 +7,16 @@
 //!
 //! All diagnostics are warnings — compilation never fails due to validation.
 
-use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use fraiseql_core::schema::CompiledSchema;
-use fraiseql_db::introspector::{DatabaseIntrospector, RelationInfo};
-use fraiseql_db::DatabaseType;
+use fraiseql_db::{
+    DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo},
+};
 
 /// Report containing all database validation warnings.
 pub struct DatabaseValidationReport {
@@ -35,23 +39,23 @@ pub enum DatabaseWarning {
         /// Name of the query.
         query_name: String,
         /// The view name that was not found.
-        view_name: String,
+        view_name:  String,
     },
     /// L2: `jsonb_column` does not exist on the relation.
     MissingJsonColumn {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The missing column name.
         column_name: String,
     },
     /// L2: `jsonb_column` exists but is not a JSON/JSONB type.
     WrongJsonColumnType {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The column name.
         column_name: String,
         /// The actual SQL data type.
@@ -60,37 +64,43 @@ pub enum DatabaseWarning {
     /// L2: `relay_cursor_column` does not exist on the relation.
     MissingCursorColumn {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The missing cursor column name.
         column_name: String,
     },
     /// L3: a JSON key path is declared but not found in sampled data.
     MissingJsonKey {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The JSON column being sampled.
         json_column: String,
         /// The GraphQL field name.
-        field_name: String,
+        field_name:  String,
         /// The snake_case key looked up in the JSON.
-        json_key: String,
+        json_key:    String,
     },
 }
 
 impl fmt::Display for DatabaseWarning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingRelation { query_name, sql_source } => {
+            Self::MissingRelation {
+                query_name,
+                sql_source,
+            } => {
                 write!(
                     f,
                     "query `{query_name}`: sql_source `{sql_source}` does not exist in database"
                 )
             },
-            Self::MissingAdditionalView { query_name, view_name } => {
+            Self::MissingAdditionalView {
+                query_name,
+                view_name,
+            } => {
                 write!(
                     f,
                     "query `{query_name}`: additional_view `{view_name}` does not exist in database"
@@ -234,10 +244,8 @@ pub async fn validate_schema_against_database(
             // L2: Get columns for the relation
             let (_, table_name) = split_schema_qualified(source);
             let columns = introspector.get_columns(table_name).await?;
-            let column_map: HashMap<String, String> = columns
-                .into_iter()
-                .map(|(name, dtype, _)| (name, dtype))
-                .collect();
+            let column_map: HashMap<String, String> =
+                columns.into_iter().map(|(name, dtype, _)| (name, dtype)).collect();
 
             // L2: Check jsonb_column
             let jsonb_col = &query.jsonb_column;
@@ -275,9 +283,8 @@ pub async fn validate_schema_against_database(
 
             // L3: Sample JSON keys if jsonb_column is valid JSON type
             if !jsonb_col.is_empty() {
-                let json_type_ok = column_map
-                    .get(jsonb_col)
-                    .is_some_and(|t| is_json_type(t, db_type));
+                let json_type_ok =
+                    column_map.get(jsonb_col).is_some_and(|t| is_json_type(t, db_type));
 
                 if json_type_ok {
                     validate_json_keys(
@@ -323,19 +330,13 @@ pub async fn validate_schema_against_database(
 /// Build lookup maps from the list of relations.
 fn build_relation_maps(
     relations: &[RelationInfo],
-) -> (
-    HashMap<(String, String), RelationInfo>,
-    HashMap<String, Vec<String>>,
-) {
+) -> (HashMap<(String, String), RelationInfo>, HashMap<String, Vec<String>>) {
     let mut schema_qualified = HashMap::new();
     let mut unqualified: HashMap<String, Vec<String>> = HashMap::new();
 
     for rel in relations {
         schema_qualified.insert((rel.schema.clone(), rel.name.clone()), rel.clone());
-        unqualified
-            .entry(rel.name.clone())
-            .or_default()
-            .push(rel.schema.clone());
+        unqualified.entry(rel.name.clone()).or_default().push(rel.schema.clone());
     }
 
     (schema_qualified, unqualified)
@@ -351,9 +352,7 @@ async fn validate_json_keys(
     table_name: &str,
     warnings: &mut Vec<DatabaseWarning>,
 ) -> fraiseql_error::Result<()> {
-    let samples = introspector
-        .get_sample_json_rows(table_name, jsonb_col, 5)
-        .await?;
+    let samples = introspector.get_sample_json_rows(table_name, jsonb_col, 5).await?;
 
     if samples.is_empty() {
         return Ok(());
@@ -382,18 +381,15 @@ async fn validate_json_keys(
             let json_key = to_snake_case(field_str);
             // Skip fields that are top-level columns (not from JSONB)
             // Convention: fields like "id", "pk_*", "fk_*" are columns, not JSON keys
-            if field_str == "id"
-                || field_str.starts_with("pk_")
-                || field_str.starts_with("fk_")
-            {
+            if field_str == "id" || field_str.starts_with("pk_") || field_str.starts_with("fk_") {
                 continue;
             }
             if !all_keys.contains(&json_key) && !all_keys.contains(field_str) {
                 warnings.push(DatabaseWarning::MissingJsonKey {
-                    query_name:  query.name.clone(),
-                    sql_source:  source.to_string(),
+                    query_name: query.name.clone(),
+                    sql_source: source.to_string(),
                     json_column: jsonb_col.to_string(),
-                    field_name:  field_str.to_string(),
+                    field_name: field_str.to_string(),
                     json_key,
                 });
             }
@@ -449,10 +445,7 @@ impl DatabaseIntrospector for AnyIntrospector {
         }
     }
 
-    async fn get_indexed_columns(
-        &self,
-        table_name: &str,
-    ) -> fraiseql_error::Result<Vec<String>> {
+    async fn get_indexed_columns(&self, table_name: &str) -> fraiseql_error::Result<Vec<String>> {
         match self {
             Self::Postgres(i) => i.get_indexed_columns(table_name).await,
             #[cfg(feature = "mysql")]
@@ -511,21 +504,13 @@ impl DatabaseIntrospector for AnyIntrospector {
         limit: usize,
     ) -> fraiseql_error::Result<Vec<serde_json::Value>> {
         match self {
-            Self::Postgres(i) => {
-                i.get_sample_json_rows(table_name, column_name, limit).await
-            },
+            Self::Postgres(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
             #[cfg(feature = "mysql")]
-            Self::MySql(i) => {
-                i.get_sample_json_rows(table_name, column_name, limit).await
-            },
+            Self::MySql(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
             #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => {
-                i.get_sample_json_rows(table_name, column_name, limit).await
-            },
+            Self::Sqlite(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
             #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => {
-                i.get_sample_json_rows(table_name, column_name, limit).await
-            },
+            Self::SqlServer(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
         }
     }
 }
@@ -555,9 +540,7 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
             .create_pool(Some(Runtime::Tokio1), NoTls)
             .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
 
-        Ok(AnyIntrospector::Postgres(
-            fraiseql_db::PostgresIntrospector::new(pool),
-        ))
+        Ok(AnyIntrospector::Postgres(fraiseql_db::PostgresIntrospector::new(pool)))
     } else if db_url.starts_with("mysql") || db_url.starts_with("mariadb") {
         #[cfg(feature = "mysql")]
         {
@@ -567,15 +550,11 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create MySQL pool: {e}"))?;
 
-            Ok(AnyIntrospector::MySql(
-                fraiseql_db::MySqlIntrospector::new(pool),
-            ))
+            Ok(AnyIntrospector::MySql(fraiseql_db::MySqlIntrospector::new(pool)))
         }
         #[cfg(not(feature = "mysql"))]
         {
-            anyhow::bail!(
-                "MySQL support not compiled in. Rebuild with `--features mysql`."
-            )
+            anyhow::bail!("MySQL support not compiled in. Rebuild with `--features mysql`.")
         }
     } else if db_url.starts_with("sqlite")
         || std::path::Path::new(db_url)
@@ -590,15 +569,11 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create SQLite pool: {e}"))?;
 
-            Ok(AnyIntrospector::Sqlite(
-                fraiseql_db::SqliteIntrospector::new(pool),
-            ))
+            Ok(AnyIntrospector::Sqlite(fraiseql_db::SqliteIntrospector::new(pool)))
         }
         #[cfg(not(feature = "sqlite"))]
         {
-            anyhow::bail!(
-                "SQLite support not compiled in. Rebuild with `--features sqlite`."
-            )
+            anyhow::bail!("SQLite support not compiled in. Rebuild with `--features sqlite`.")
         }
     } else if db_url.starts_with("mssql") || db_url.starts_with("server=") {
         #[cfg(feature = "sqlserver")]
@@ -607,19 +582,19 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
             use bb8_tiberius::ConnectionManager;
             use tiberius::Config;
 
-            let config = Config::from_ado_string(db_url)
-                .map_err(|e| anyhow::anyhow!("Failed to parse SQL Server connection string: {e}"))?;
-            let mgr = ConnectionManager::build(config)
-                .map_err(|e| anyhow::anyhow!("Failed to build SQL Server connection manager: {e}"))?;
+            let config = Config::from_ado_string(db_url).map_err(|e| {
+                anyhow::anyhow!("Failed to parse SQL Server connection string: {e}")
+            })?;
+            let mgr = ConnectionManager::build(config).map_err(|e| {
+                anyhow::anyhow!("Failed to build SQL Server connection manager: {e}")
+            })?;
             let pool = Pool::builder()
                 .max_size(2)
                 .build(mgr)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create SQL Server pool: {e}"))?;
 
-            Ok(AnyIntrospector::SqlServer(
-                fraiseql_db::SqlServerIntrospector::new(pool),
-            ))
+            Ok(AnyIntrospector::SqlServer(fraiseql_db::SqlServerIntrospector::new(pool)))
         }
         #[cfg(not(feature = "sqlserver"))]
         {
@@ -637,21 +612,23 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
 mod tests {
     use std::collections::HashMap;
 
-    use fraiseql_core::schema::{
-        AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType,
-        MutationDefinition, QueryDefinition, TypeDefinition,
+    use fraiseql_core::{
+        schema::{
+            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, MutationDefinition,
+            QueryDefinition, TypeDefinition,
+        },
+        validation::CustomTypeRegistry,
     };
-    use fraiseql_core::validation::CustomTypeRegistry;
     use indexmap::IndexMap;
 
     use super::*;
 
     /// Mock introspector for unit tests.
     struct MockIntrospector {
-        relations: Vec<RelationInfo>,
-        columns: HashMap<String, Vec<(String, String, bool)>>,
+        relations:    Vec<RelationInfo>,
+        columns:      HashMap<String, Vec<(String, String, bool)>>,
         json_samples: HashMap<(String, String), Vec<serde_json::Value>>,
-        db_type: DatabaseType,
+        db_type:      DatabaseType,
     }
 
     impl MockIntrospector {
@@ -664,7 +641,12 @@ mod tests {
             }
         }
 
-        fn with_relation(mut self, schema: &str, name: &str, kind: fraiseql_db::RelationKind) -> Self {
+        fn with_relation(
+            mut self,
+            schema: &str,
+            name: &str,
+            kind: fraiseql_db::RelationKind,
+        ) -> Self {
             self.relations.push(RelationInfo {
                 schema: schema.to_string(),
                 name: name.to_string(),
@@ -683,11 +665,13 @@ mod tests {
             self
         }
 
-        fn with_json_samples(mut self, table: &str, column: &str, samples: Vec<serde_json::Value>) -> Self {
-            self.json_samples.insert(
-                (table.to_string(), column.to_string()),
-                samples,
-            );
+        fn with_json_samples(
+            mut self,
+            table: &str,
+            column: &str,
+            samples: Vec<serde_json::Value>,
+        ) -> Self {
+            self.json_samples.insert((table.to_string(), column.to_string()), samples);
             self
         }
     }
@@ -697,11 +681,17 @@ mod tests {
             Ok(Vec::new())
         }
 
-        async fn get_columns(&self, table_name: &str) -> fraiseql_error::Result<Vec<(String, String, bool)>> {
+        async fn get_columns(
+            &self,
+            table_name: &str,
+        ) -> fraiseql_error::Result<Vec<(String, String, bool)>> {
             Ok(self.columns.get(table_name).cloned().unwrap_or_default())
         }
 
-        async fn get_indexed_columns(&self, _table_name: &str) -> fraiseql_error::Result<Vec<String>> {
+        async fn get_indexed_columns(
+            &self,
+            _table_name: &str,
+        ) -> fraiseql_error::Result<Vec<String>> {
             Ok(Vec::new())
         }
 
@@ -729,44 +719,44 @@ mod tests {
 
     fn make_query(name: &str, return_type: &str, sql_source: &str) -> QueryDefinition {
         QueryDefinition {
-            name: name.to_string(),
-            return_type: return_type.to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some(sql_source.to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                name.to_string(),
+            return_type:         return_type.to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![],
+            sql_source:          Some(sql_source.to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         }
     }
 
     fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         TypeDefinition {
-            name: name.into(),
-            fields: fields
+            name:                name.into(),
+            fields:              fields
                 .into_iter()
                 .map(|(n, ft)| FieldDefinition::new(n, ft))
                 .collect(),
-            description: None,
-            sql_source: "".into(),
-            jsonb_column: "data".to_string(),
+            description:         None,
+            sql_source:          "".into(),
+            jsonb_column:        "data".to_string(),
             sql_projection_hint: None,
-            implements: vec![],
-            requires_role: None,
-            is_error: false,
-            relay: false,
-            relationships: Vec::new(),
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
         }
     }
 
@@ -802,30 +792,38 @@ mod tests {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false), ("pk_user", "bigint", false)])
-            .with_json_samples("v_user", "data", vec![
-                serde_json::json!({"name": "Alice", "email": "alice@example.com"}),
-            ]);
+            .with_json_samples(
+                "v_user",
+                "data",
+                vec![serde_json::json!({"name": "Alice", "email": "alice@example.com"})],
+            );
 
         let schema = make_schema(
-            vec![make_type("User", vec![("name", FieldType::String), ("email", FieldType::String)])],
+            vec![make_type(
+                "User",
+                vec![("name", FieldType::String), ("email", FieldType::String)],
+            )],
             vec![make_query("users", "User", "v_user")],
         );
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
-        assert!(report.warnings.is_empty(), "Expected no warnings, got: {:?}", report.warnings.len());
+        assert!(
+            report.warnings.is_empty(),
+            "Expected no warnings, got: {:?}",
+            report.warnings.len()
+        );
     }
 
     #[tokio::test]
     async fn test_missing_relation() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL);
-        let schema = make_schema(
-            vec![],
-            vec![make_query("users", "User", "v_user")],
-        );
+        let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "v_user"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "v_user")
+        );
     }
 
     #[tokio::test]
@@ -841,7 +839,9 @@ mod tests {
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::MissingAdditionalView { view_name, .. } if view_name == "v_missing"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::MissingAdditionalView { view_name, .. } if view_name == "v_missing")
+        );
     }
 
     #[tokio::test]
@@ -850,14 +850,13 @@ mod tests {
             .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("pk_user", "bigint", false)]);
 
-        let schema = make_schema(
-            vec![],
-            vec![make_query("users", "User", "v_user")],
-        );
+        let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::MissingJsonColumn { column_name, .. } if column_name == "data"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::MissingJsonColumn { column_name, .. } if column_name == "data")
+        );
     }
 
     #[tokio::test]
@@ -866,14 +865,13 @@ mod tests {
             .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("data", "text", false)]);
 
-        let schema = make_schema(
-            vec![],
-            vec![make_query("users", "User", "v_user")],
-        );
+        let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::WrongJsonColumnType { actual_type, .. } if actual_type == "text"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::WrongJsonColumnType { actual_type, .. } if actual_type == "text")
+        );
     }
 
     #[tokio::test]
@@ -882,15 +880,16 @@ mod tests {
             .with_relation("dbo", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("data", "nvarchar", false)]);
 
-        let schema = make_schema(
-            vec![],
-            vec![make_query("users", "User", "v_user")],
-        );
+        let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         // SQL Server: nvarchar is always accepted for JSON columns
-        assert!(!report.warnings.iter()
-            .any(|w| matches!(w, DatabaseWarning::WrongJsonColumnType { .. })));
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::WrongJsonColumnType { .. }))
+        );
     }
 
     #[tokio::test]
@@ -914,12 +913,13 @@ mod tests {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)])
-            .with_json_samples("v_user", "data", vec![
-                serde_json::json!({"name": "Alice"}),
-            ]);
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let schema = make_schema(
-            vec![make_type("User", vec![("name", FieldType::String), ("email", FieldType::String)])],
+            vec![make_type(
+                "User",
+                vec![("name", FieldType::String), ("email", FieldType::String)],
+            )],
             vec![make_query("users", "User", "v_user")],
         );
 
@@ -940,8 +940,12 @@ mod tests {
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         // No L3 warnings because no sample data
-        assert!(!report.warnings.iter()
-            .any(|w| matches!(w, DatabaseWarning::MissingJsonKey { .. })));
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::MissingJsonKey { .. }))
+        );
     }
 
     #[tokio::test]
@@ -950,30 +954,33 @@ mod tests {
             .with_relation("etl_log", "v_foo", fraiseql_db::RelationKind::View)
             .with_columns("v_foo", vec![("data", "jsonb", false)]);
 
-        let schema = make_schema(
-            vec![],
-            vec![make_query("foos", "Foo", "etl_log.v_foo")],
-        );
+        let schema = make_schema(vec![], vec![make_query("foos", "Foo", "etl_log.v_foo")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         // Should match
-        assert!(!report.warnings.iter()
-            .any(|w| matches!(w, DatabaseWarning::MissingRelation { .. })));
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::MissingRelation { .. }))
+        );
     }
 
     #[tokio::test]
     async fn test_schema_qualified_wrong_schema() {
-        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_foo", fraiseql_db::RelationKind::View);
-
-        let schema = make_schema(
-            vec![],
-            vec![make_query("foos", "Foo", "etl_log.v_foo")],
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL).with_relation(
+            "public",
+            "v_foo",
+            fraiseql_db::RelationKind::View,
         );
+
+        let schema = make_schema(vec![], vec![make_query("foos", "Foo", "etl_log.v_foo")]);
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "etl_log.v_foo"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "etl_log.v_foo")
+        );
     }
 
     #[tokio::test]
@@ -989,7 +996,9 @@ mod tests {
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
-        assert!(matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "fn_create_user"));
+        assert!(
+            matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "fn_create_user")
+        );
     }
 
     #[tokio::test]
@@ -1010,24 +1019,35 @@ mod tests {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)])
-            .with_json_samples("v_user", "data", vec![
-                serde_json::json!({"name": "Alice", "email": "alice@example.com"}),
-                serde_json::json!({"email": "bob@example.com", "age": 30}),
-            ]);
+            .with_json_samples(
+                "v_user",
+                "data",
+                vec![
+                    serde_json::json!({"name": "Alice", "email": "alice@example.com"}),
+                    serde_json::json!({"email": "bob@example.com", "age": 30}),
+                ],
+            );
 
         let schema = make_schema(
-            vec![make_type("User", vec![
-                ("name", FieldType::String),
-                ("email", FieldType::String),
-                ("age", FieldType::Int),
-            ])],
+            vec![make_type(
+                "User",
+                vec![
+                    ("name", FieldType::String),
+                    ("email", FieldType::String),
+                    ("age", FieldType::Int),
+                ],
+            )],
             vec![make_query("users", "User", "v_user")],
         );
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         // All keys present across both samples
-        assert!(!report.warnings.iter()
-            .any(|w| matches!(w, DatabaseWarning::MissingJsonKey { .. })));
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::MissingJsonKey { .. }))
+        );
     }
 
     #[test]

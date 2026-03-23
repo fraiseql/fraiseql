@@ -123,7 +123,8 @@ impl ConditionalRequiredValidator {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` if the condition field is present but required fields are missing.
+    /// Returns `FraiseQLError::Validation` if the condition field is present but required fields
+    /// are missing.
     pub fn validate(
         input: &Value,
         if_field_present: &str,
@@ -183,7 +184,8 @@ impl RequiredIfAbsentValidator {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` if the absent field is missing and required fields are also missing.
+    /// Returns `FraiseQLError::Validation` if the absent field is missing and required fields are
+    /// also missing.
     pub fn validate(
         input: &Value,
         absent_field: &str,

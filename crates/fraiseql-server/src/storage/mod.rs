@@ -24,12 +24,13 @@ pub mod azure;
 mod tests;
 
 pub use local::LocalStorageBackend;
-#[cfg(feature = "aws-s3")]
-pub use self::s3::S3StorageBackend;
-#[cfg(feature = "gcs")]
-pub use self::gcs::GcsStorageBackend;
+
 #[cfg(feature = "azure-blob")]
 pub use self::azure::AzureBlobStorageBackend;
+#[cfg(feature = "gcs")]
+pub use self::gcs::GcsStorageBackend;
+#[cfg(feature = "aws-s3")]
+pub use self::s3::S3StorageBackend;
 
 /// Result type for storage operations.
 pub type StorageResult<T> = Result<T, FileError>;
@@ -109,12 +110,17 @@ pub fn validate_key(key: &str) -> StorageResult<()> {
 
 /// All S3-compatible backend names recognised by the factory.
 const S3_COMPAT_BACKENDS: &[&str] = &[
-    "s3", "r2", "hetzner", "scaleway", "ovh", "exoscale", "backblaze",
+    "s3",
+    "r2",
+    "hetzner",
+    "scaleway",
+    "ovh",
+    "exoscale",
+    "backblaze",
 ];
 
 /// Returns a well-known endpoint template for S3-compatible providers.
 #[cfg(any(feature = "aws-s3", test))]
-///
 /// The `region` placeholder is substituted with the configured region.  If the
 /// config already provides an explicit `endpoint`, it takes precedence.
 fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
@@ -122,28 +128,28 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
         "r2" => {
             // R2 endpoint requires account ID via config.endpoint; no useful default.
             None
-        }
+        },
         "hetzner" => {
             let r = region.unwrap_or("fsn1");
             Some(format!("https://{r}.your-objectstorage.com"))
-        }
+        },
         "scaleway" => {
             let r = region.unwrap_or("fr-par");
             Some(format!("https://s3.{r}.scw.cloud"))
-        }
+        },
         "ovh" => {
             let r = region.unwrap_or("gra");
             Some(format!("https://s3.{r}.perf.cloud.ovh.net"))
-        }
+        },
         "exoscale" => {
             let r = region.unwrap_or("de-fra-1");
             Some(format!("https://sos-{r}.exo.io"))
-        }
+        },
         "backblaze" => {
             // Backblaze B2 S3-compatible endpoint — region is the key-id region prefix.
             let r = region.unwrap_or("us-west-004");
             Some(format!("https://s3.{r}.backblazeb2.com"))
-        }
+        },
         _ => None,
     }
 }
@@ -171,13 +177,11 @@ pub async fn create_backend(
                 source:  None,
             })?;
             Ok(Box::new(LocalStorageBackend::new(path)))
-        }
+        },
         #[cfg(feature = "aws-s3")]
         b if S3_COMPAT_BACKENDS.contains(&b) => {
             let bucket = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
-                message: format!(
-                    "{b} storage backend requires 'bucket' configuration"
-                ),
+                message: format!("{b} storage backend requires 'bucket' configuration"),
                 source:  None,
             })?;
             let endpoint = config
@@ -185,14 +189,10 @@ pub async fn create_backend(
                 .as_deref()
                 .map(str::to_owned)
                 .or_else(|| default_s3_endpoint(b, config.region.as_deref()));
-            let backend = S3StorageBackend::new(
-                bucket,
-                config.region.as_deref(),
-                endpoint.as_deref(),
-            )
-            .await;
+            let backend =
+                S3StorageBackend::new(bucket, config.region.as_deref(), endpoint.as_deref()).await;
             Ok(Box::new(backend))
-        }
+        },
         #[cfg(feature = "gcs")]
         "gcs" => {
             let bucket = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
@@ -201,7 +201,7 @@ pub async fn create_backend(
             })?;
             let backend = GcsStorageBackend::new(bucket)?;
             Ok(Box::new(backend))
-        }
+        },
         #[cfg(feature = "azure-blob")]
         "azure" => {
             let container = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
@@ -215,12 +215,10 @@ pub async fn create_backend(
             })?;
             let backend = AzureBlobStorageBackend::new(account, container)?;
             Ok(Box::new(backend))
-        }
+        },
         #[cfg(not(feature = "aws-s3"))]
         b if S3_COMPAT_BACKENDS.contains(&b) => Err(FileError::Storage {
-            message: format!(
-                "{b} storage backend requires the 'aws-s3' feature"
-            ),
+            message: format!("{b} storage backend requires the 'aws-s3' feature"),
             source:  None,
         }),
         #[cfg(not(feature = "gcs"))]

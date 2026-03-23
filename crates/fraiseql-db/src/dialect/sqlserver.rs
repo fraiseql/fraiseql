@@ -93,7 +93,7 @@ impl SqlDialect for SqlServerDialect {
             RowViewColumnType::Json => {
                 // SQL Server has no native JSONB — return raw JSON string
                 return format!("JSON_QUERY({json_column}, '$.{field_name}')");
-            }
+            },
         };
         format!("CAST(JSON_VALUE({json_column}, '$.{field_name}') AS {ss_type})")
     }

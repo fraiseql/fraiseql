@@ -179,7 +179,8 @@ pub fn validate_any(
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` if the inner rule passes (negation means passing is failure).
+/// Returns `FraiseQLError::Validation` if the inner rule passes (negation means passing is
+/// failure).
 pub fn validate_not(
     rule: &ValidationRule,
     field_value: &str,

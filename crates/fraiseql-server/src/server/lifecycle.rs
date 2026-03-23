@@ -69,10 +69,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Spawn SIGUSR1 schema reload listener (Unix only)
         #[cfg(unix)]
-        let _reload_handle = Self::spawn_schema_reload_listener(
-            self.config.schema_path.clone(),
-            app_state,
-        );
+        let _reload_handle =
+            Self::spawn_schema_reload_listener(self.config.schema_path.clone(), app_state);
 
         // Initialize TLS setup
         let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone())?;
@@ -181,8 +179,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             });
 
             Some(tokio::spawn(async move {
-                let mut builder = tonic::transport::Server::builder()
-                    .max_frame_size(Some(max_msg_size as u32));
+                let mut builder =
+                    tonic::transport::Server::builder().max_frame_size(Some(max_msg_size as u32));
 
                 let router = builder.add_service(grpc_service);
 
@@ -354,13 +352,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         state: crate::routes::graphql::AppState<A>,
     ) -> tokio::task::JoinHandle<()> {
         use std::sync::Arc as StdArc;
+
         use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 
         tokio::spawn(async move {
-            let mut sig = tokio::signal::unix::signal(
-                tokio::signal::unix::SignalKind::user_defined1(),
-            )
-            .expect("Failed to install SIGUSR1 handler");
+            let mut sig =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+                    .expect("Failed to install SIGUSR1 handler");
 
             loop {
                 sig.recv().await;
@@ -461,7 +459,12 @@ mod tests {
     /// This is the primary compile-time assertion for this module — it proves
     /// that the `MutationCapable` bound was correctly removed from `serve()`.
     #[cfg(feature = "wire-backend")]
-    #[allow(dead_code, unreachable_code, clippy::diverging_sub_expression, unused_variables)]
+    #[allow(
+        dead_code,
+        unreachable_code,
+        clippy::diverging_sub_expression,
+        unused_variables
+    )]
     // Reason: compile-time type check only; body is never executed.
     fn static_assert_wire_adapter_can_serve() {
         let server: Server<fraiseql_core::db::FraiseWireAdapter> = todo!();
@@ -470,7 +473,12 @@ mod tests {
 
     /// Prove that `Server<PostgresAdapter>` can call both `serve()` (read-only)
     /// and `serve_mut()` (full mutations).
-    #[allow(dead_code, unreachable_code, clippy::diverging_sub_expression, unused_variables)]
+    #[allow(
+        dead_code,
+        unreachable_code,
+        clippy::diverging_sub_expression,
+        unused_variables
+    )]
     // Reason: compile-time type check only; body is never executed.
     fn static_assert_postgres_can_serve_and_serve_mut() {
         let server: Server<fraiseql_core::db::postgres::PostgresAdapter> = todo!();

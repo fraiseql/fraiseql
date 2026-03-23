@@ -86,15 +86,15 @@ impl ShardedBuckets {
 
 /// In-memory token-bucket rate limiter.
 pub struct InMemoryRateLimiter {
-    pub(super) config: RateLimitConfig,
+    pub(super) config:     RateLimitConfig,
     /// IP -> `TokenBucket` (global limit), sharded.
-    ip_buckets: Arc<ShardedBuckets>,
+    ip_buckets:            Arc<ShardedBuckets>,
     /// User ID -> `TokenBucket`, sharded.
-    user_buckets: Arc<ShardedBuckets>,
+    user_buckets:          Arc<ShardedBuckets>,
     /// Per-path rules (from `[security.rate_limiting]` auth endpoint fields).
     pub(super) path_rules: Vec<PathRateLimit>,
     /// `"path_prefix:ip"` -> `TokenBucket`, sharded.
-    path_ip_buckets: Arc<ShardedBuckets>,
+    path_ip_buckets:       Arc<ShardedBuckets>,
 }
 
 impl InMemoryRateLimiter {
@@ -177,8 +177,7 @@ impl InMemoryRateLimiter {
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
 
         let mut shard = self.path_ip_buckets.shard_for(&key).await;
-        let bucket =
-            shard.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
+        let bucket = shard.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
         let allowed = bucket.try_consume(1.0);
         let remaining = bucket.token_count();
@@ -289,21 +288,12 @@ impl InMemoryRateLimiter {
             .checked_sub(std::time::Duration::from_secs_f64(user_refill_secs))
             .unwrap_or(now);
 
-        let evicted_ip = self
-            .ip_buckets
-            .retain(|_, b| b.last_refill >= ip_threshold)
-            .await;
+        let evicted_ip = self.ip_buckets.retain(|_, b| b.last_refill >= ip_threshold).await;
 
-        let evicted_user = self
-            .user_buckets
-            .retain(|_, b| b.last_refill >= user_threshold)
-            .await;
+        let evicted_user = self.user_buckets.retain(|_, b| b.last_refill >= user_threshold).await;
 
         // Reason: path buckets share the IP refill threshold since they are keyed by IP.
-        let _evicted_path = self
-            .path_ip_buckets
-            .retain(|_, b| b.last_refill >= ip_threshold)
-            .await;
+        let _evicted_path = self.path_ip_buckets.retain(|_, b| b.last_refill >= ip_threshold).await;
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }

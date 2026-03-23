@@ -25,7 +25,7 @@ jobs:
 
       - name: Scan python:3.13-slim
         run: |
-          docker run --rm aquasec/trivy:latest image \
+          docker run --rm ghcr.io/aquasecurity/trivy:latest image \
             --severity HIGH,CRITICAL \
             --format json \
             --output /tmp/slim-scan.json \
@@ -35,7 +35,7 @@ jobs:
 
       - name: Scan gcr.io/distroless/python3-debian12:nonroot
         run: |
-          docker run --rm aquasec/trivy:latest image \
+          docker run --rm ghcr.io/aquasecurity/trivy:latest image \
             --severity HIGH,CRITICAL \
             --format json \
             --output /tmp/distroless-scan.json \

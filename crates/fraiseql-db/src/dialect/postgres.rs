@@ -250,7 +250,7 @@ impl SqlDialect for PostgresDialect {
             // JSON uses -> (returns jsonb), all others use ->> (returns text) + cast
             RowViewColumnType::Json => {
                 format!("({json_column}->'{field_name}')::jsonb")
-            }
+            },
             _ => {
                 let pg_type = match target_type {
                     RowViewColumnType::Text => "text",
@@ -264,7 +264,7 @@ impl SqlDialect for PostgresDialect {
                     RowViewColumnType::Json => unreachable!(),
                 };
                 format!("({json_column}->>'{field_name}')::{pg_type}")
-            }
+            },
         }
     }
 

@@ -142,9 +142,7 @@ impl PostgresAdapter {
     pub async fn with_pool_size(connection_string: &str, max_size: usize) -> Result<Self> {
         if max_size == 0 || max_size > MAX_POOL_SIZE {
             return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"
-                ),
+                message: format!("Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"),
                 path:    None,
             });
         }

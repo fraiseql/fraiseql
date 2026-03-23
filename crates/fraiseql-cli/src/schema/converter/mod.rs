@@ -238,18 +238,44 @@ impl SchemaConverter {
 
         // Add built-in scalars (GraphQL standard + common PostgreSQL types)
         for scalar in &[
-            "Int", "Float", "String", "Boolean", "ID",
-            "Date", "DateTime", "Time", "Json", "JSON",
-            "UUID", "Decimal", "Vector", "BigInt",
-            "date", "timestamp", "timestamptz", "jsonb", "json",
-            "bigint", "numeric", "uuid", "text", "integer",
-            "boolean", "real", "smallint", "bytea", "inet", "interval",
+            "Int",
+            "Float",
+            "String",
+            "Boolean",
+            "ID",
+            "Date",
+            "DateTime",
+            "Time",
+            "Json",
+            "JSON",
+            "UUID",
+            "Decimal",
+            "Vector",
+            "BigInt",
+            "date",
+            "timestamp",
+            "timestamptz",
+            "jsonb",
+            "json",
+            "bigint",
+            "numeric",
+            "uuid",
+            "text",
+            "integer",
+            "boolean",
+            "real",
+            "smallint",
+            "bytea",
+            "inet",
+            "interval",
         ] {
             type_names.insert((*scalar).to_string());
         }
 
         // Add built-in FraiseQL scalars
-        for name in ["DateTime", "Date", "Time", "Json", "UUID", "Decimal", "Vector"] {
+        for name in [
+            "DateTime", "Date", "Time", "Json", "UUID", "Decimal", "Vector",
+        ] {
             type_names.insert((*name).to_string());
         }
 

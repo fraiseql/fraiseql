@@ -13,10 +13,8 @@ use std::path::Path;
 use anyhow::Result;
 use serde_json::json;
 
+use self::{config::GatewayConfig, planner::FieldOwnership};
 use crate::output::CommandResult;
-
-use self::config::GatewayConfig;
-use self::planner::FieldOwnership;
 
 /// Run the gateway command: validate config, compose schema, start server.
 ///
@@ -174,9 +172,7 @@ fn extract_fields_from_sdl(path: &std::path::Path) -> Result<Vec<String>> {
 
 /// Fetch the schema from a running subgraph via the `_service` SDL query.
 async fn fetch_schema_from_subgraph(url: &str) -> Result<Vec<String>> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()?;
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build()?;
 
     let resp = client
         .post(url)

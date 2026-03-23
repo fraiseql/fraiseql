@@ -90,16 +90,16 @@ async fn main() -> fraiseql_observers::Result<()> {
     observers.insert(
         "user_created_webhook".to_string(),
         ObserverDefinition {
-            event_type: "INSERT".to_string(),
-            entity:     "User".to_string(),
-            condition:  None,
-            actions:    vec![ActionConfig::Webhook {
+            event_type:  "INSERT".to_string(),
+            entity:      "User".to_string(),
+            condition:   None,
+            actions:     vec![ActionConfig::Webhook {
                 url:           Some("https://webhook.example.com/user-created".to_string()),
                 url_env:       None,
                 headers:       HashMap::default(),
                 body_template: None,
             }],
-            retry:      RetryConfig {
+            retry:       RetryConfig {
                 max_attempts:     3,
                 initial_delay_ms: 100,
                 max_delay_ms:     5000,
