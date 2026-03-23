@@ -192,9 +192,12 @@ clippy:
 # production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
 # This secondary gate limits annotation proliferation (each annotation is a deliberate exception).
 # Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
-# Baseline: 1 (fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call).
+# Baseline: 3
+#   1. fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call
+#   2. fraiseql-db/src/fraiseql_wire_adapter.rs — #[cfg(test)] module (grep -v "test" misses it)
+#   3. fraiseql-server/src/mcp/tools.rs — #[cfg(test)] module (grep -v "test" misses it)
 # Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
-UNWRAP_ALLOW_LIMIT ?= 1
+UNWRAP_ALLOW_LIMIT ?= 3
 .PHONY: lint-unwrap
 lint-unwrap:
 	@echo "=== Counting unwrap allows in production code ==="

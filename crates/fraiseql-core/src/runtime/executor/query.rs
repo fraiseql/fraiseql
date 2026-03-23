@@ -250,11 +250,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Execute a query directly from a pre-built [`QueryMatch`], bypassing GraphQL parsing.
+    /// Execute a query directly from a pre-built [`super::matcher::QueryMatch`], bypassing GraphQL parsing.
     ///
     /// This is the public entry point for transports (REST, gRPC) that already know
     /// the operation name, fields, and variables. The `QueryMatch` is typically built
-    /// via [`QueryMatch::from_operation()`].
+    /// via [`super::matcher::QueryMatch::from_operation()`].
     ///
     /// # Arguments
     ///
