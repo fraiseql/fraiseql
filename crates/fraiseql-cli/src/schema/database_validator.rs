@@ -524,6 +524,7 @@ impl DatabaseIntrospector for AnyIntrospector {
 ///
 /// Returns error if the URL scheme is unrecognized or the connection pool
 /// cannot be created.
+#[allow(clippy::unused_async)] // Reason: callers always .await this; feature-gated branches do use await
 pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
     if db_url.starts_with("postgres") {
         use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};

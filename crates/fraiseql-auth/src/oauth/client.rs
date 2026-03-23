@@ -435,7 +435,10 @@ impl OIDCClient {
     ///
     /// Returns an error if the token is malformed, the signature is invalid,
     /// claims validation fails, or the nonce doesn't match.
-    #[deprecated(since = "0.2.0", note = "Use `verify_id_token(token, nonce, max_age_secs)` instead")]
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use `verify_id_token(token, nonce, max_age_secs)` instead"
+    )]
     pub async fn verify_id_token_v1(
         &self,
         id_token: &str,

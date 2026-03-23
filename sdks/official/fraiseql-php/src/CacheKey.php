@@ -170,10 +170,6 @@ final class CacheKey
         ksort($data);
         $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
-        if ($json === false) {
-            throw new FraiseQLException('Failed to JSON encode cache key data');
-        }
-
         return 'fraiseql_' . hash('sha256', $json);
     }
 }
