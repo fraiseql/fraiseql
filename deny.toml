@@ -14,7 +14,7 @@ ignore = [
   # rustls-webpki CRL DP matching — transitive via tokio-rustls 0.24/0.25 (rustls 0.21/0.22).
   # Requires compromised CA + CRL checking enabled. Low impact for FraiseQL.
   # Last reviewed: 2026-03-21
-  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki CRL DP matching: transitive via tokio-rustls; low impact, tracked for upstream bump"},
+  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki CRL DP matching: transitive via tokio-rustls; low impact, tracked for upstream bump"}
 ]
 unmaintained = "workspace"
 

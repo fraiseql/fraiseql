@@ -1,6 +1,10 @@
 # Clippy configuration for FraiseQL v2
 # https://rust-lang.github.io/rust-clippy/master/index.html#configuration
 
+# Stack array size (bytes). Default 16384; raised to 65536 because macro-generated
+# code (insta/criterion/serde derives in test targets) can exceed 16 KiB without
+# any user-written large arrays.
+array-size-threshold = 65536
 # Cognitive complexity threshold
 cognitive-complexity-threshold = 30
 # Documentation
@@ -18,9 +22,5 @@ too-many-arguments-threshold = 7
 too-many-lines-threshold = 300
 # Type complexity
 type-complexity-threshold = 500
-# Stack array size (bytes). Default 16384; raised to 65536 because macro-generated
-# code (insta/criterion/serde derives in test targets) can exceed 16 KiB without
-# any user-written large arrays.
-array-size-threshold = 65536
 # Verbose bit mask
 verbose-bit-mask-threshold = 1

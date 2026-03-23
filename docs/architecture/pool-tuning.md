@@ -17,6 +17,7 @@ The `deadpool-postgres` library (v0.14) does not expose a `resize()` or `set_max
 | **Advisory-only** | Log recommendations, expose metrics | Requires operator restart to apply |
 
 Advisory-only was chosen for v2.1.0 because:
+
 - The auto-tuner already provides actionable metrics and log recommendations
 - Graceful restart is a well-understood operational pattern
 - Pool sizing changes are infrequent in practice (typically at deploy time)
@@ -30,10 +31,12 @@ Advisory-only was chosen for v2.1.0 because:
 ### Scaling Decisions
 
 **Scale-up trigger:** `waiting_requests > target_queue_depth` for N consecutive samples (default: 3).
+
 - Grows by `scale_up_step` (default: 5 connections)
 - Capped at `max_pool_size` (default: 50)
 
 **Scale-down trigger:** `idle_ratio > 50%` with zero waiting requests for N consecutive samples.
+
 - Shrinks by `scale_down_step` (default: 2 connections)
 - Floored at `min_pool_size` (default: 5)
 
@@ -47,10 +50,12 @@ Advisory-only was chosen for v2.1.0 because:
 
 1. Monitor `fraiseql_pool_tuning_recommended_size` in Grafana
 2. When recommended size diverges from actual, update `fraiseql.toml`:
+
    ```toml
    [fraiseql.database]
    max_connections = 30  # was 20
    ```
+
 3. Perform graceful restart (rolling deployment or `SIGTERM` + health check drain)
 
 ## Configuration
