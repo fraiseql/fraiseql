@@ -6,7 +6,7 @@ path = "src/main.rs"
 # Error handling
 anyhow = {workspace = true}
 # Gateway HTTP server
-axum = {workspace = true, optional = true}
+axum = {workspace = true}
 # CLI framework
 clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
@@ -57,7 +57,7 @@ tempfile = {workspace = true}
 
 [features]
 default = []
-gateway = ["dep:axum", "dep:fraiseql-federation"]
+gateway = ["dep:fraiseql-federation"]
 mysql = ["fraiseql-core/mysql", "fraiseql-db/mysql", "dep:sqlx"]
 run-server = ["dep:fraiseql-server"]
 sqlite = ["fraiseql-core/sqlite", "fraiseql-db/sqlite", "dep:sqlx"]

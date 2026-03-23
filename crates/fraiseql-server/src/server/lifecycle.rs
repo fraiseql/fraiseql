@@ -344,6 +344,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// The task runs until the returned [`tokio::task::JoinHandle`] is aborted
     /// (usually at server shutdown).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SIGUSR1 signal handler cannot be installed.
     #[cfg(unix)]
     pub fn spawn_schema_reload_listener(
         schema_path: std::path::PathBuf,
