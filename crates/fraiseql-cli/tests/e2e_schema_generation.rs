@@ -44,6 +44,7 @@ fn test_e2e_complete_compilation_pipeline() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -98,6 +99,7 @@ fn test_e2e_sql_templates_all_databases() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -158,6 +160,7 @@ fn test_e2e_lookup_data_comprehensive() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -213,6 +216,7 @@ fn test_e2e_all_operators_generated() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -278,6 +282,7 @@ fn test_e2e_compilation_deterministic() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -337,6 +342,7 @@ fn test_e2e_all_49_types_valid() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -464,6 +470,7 @@ fn test_e2e_full_field_assertion() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
@@ -570,6 +577,7 @@ fn test_e2e_argument_type_with_non_null_marker() {
         debug_config:      None,
         mcp_config:        None,
         rest_config:       None,
+        dev_config:        None,
         query_defaults:    None,
     };
 
