@@ -819,6 +819,7 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
         encryption: None,
         auto_generated: false,
         computed: false,
+        searchable: false,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();
@@ -841,6 +842,7 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         });
     }
 
@@ -861,6 +863,7 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         });
     }
 
@@ -882,6 +885,7 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         });
     }
 
@@ -923,6 +927,7 @@ pub fn inject_cascade_types(schema: &mut CompiledSchema) {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         });
     }
 

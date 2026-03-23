@@ -50,6 +50,7 @@ fn arb_field_def() -> impl Strategy<Value = FieldDefinition> {
             encryption:     None,
             auto_generated: false,
             computed:       false,
+            searchable:     false,
         },
     )
 }
