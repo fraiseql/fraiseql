@@ -17,7 +17,7 @@ ignore = [
   {id = "RUSTSEC-2026-0049", reason = "rustls-webpki CRL DP matching: transitive via tokio-rustls; low impact, tracked for upstream bump"},
   # astral-tokio-tar — no fix available yet
   # Last reviewed: 2026-03-23
-  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: no upstream fix available"},
+  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: no upstream fix available"}
 ]
 unmaintained = "workspace"
 
