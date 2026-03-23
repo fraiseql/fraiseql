@@ -139,6 +139,7 @@ type Schema struct {
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
+	Observers        []ObserverDefinition       `json:"observers,omitempty"`
 	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
 	Federation       *FederationConfig          `json:"federation,omitempty"`
 }
@@ -152,6 +153,7 @@ type SchemaRegistry struct {
 	subscriptions    map[string]SubscriptionDefinition
 	factTables       map[string]FactTableDefinition
 	aggregateQueries map[string]AggregateQueryDefinition
+	observers        map[string]ObserverDefinition
 
 	// inject_defaults: base applies to both queries and mutations;
 	// query/mutation-specific maps override base.
@@ -174,6 +176,7 @@ func getInstance() *SchemaRegistry {
 			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
 			aggregateQueries: make(map[string]AggregateQueryDefinition),
+			observers:        make(map[string]ObserverDefinition),
 		}
 	})
 	return registry
@@ -420,6 +423,10 @@ func GetSchema() Schema {
 		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
 	}
 
+	for _, observer := range reg.observers {
+		schema.Observers = append(schema.Observers, observer)
+	}
+
 	// Include custom scalars
 	customScalars := GetAllCustomScalars()
 	for name := range customScalars {
@@ -453,6 +460,7 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
+	reg.observers = make(map[string]ObserverDefinition)
 	reg.injectDefaults = nil
 	reg.injectDefaultsQueries = nil
 	reg.injectDefaultsMutations = nil

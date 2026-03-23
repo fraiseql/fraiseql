@@ -4,6 +4,6 @@ require 'spec_helper'
 
 RSpec.describe FraiseQL do
   it 'has a version constant' do
-    expect(FraiseQL::VERSION).to eq('0.0.0')
+    expect(FraiseQL::VERSION).to eq('2.1.0')
   end
 end

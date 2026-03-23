@@ -439,13 +439,6 @@ func (mb *MutationBuilder) Register() error {
 	return RegisterMutation(definition)
 }
 
-// NOTE: FactTableBuilder removed - use analytics.NewFactTable() instead
-// The analytics module provides better-structured fact table builders
-// with support for Measure and Dimension types.
-
-// NOTE: AggregateQueryBuilder removed - use analytics.NewAggregateQueryConfig() instead
-// The analytics module provides better-structured aggregate query builders.
-
 // getTypeName gets the name of a type from a value
 func getTypeName(v interface{}) string {
 	t := reflect.TypeOf(v)
