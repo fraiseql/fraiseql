@@ -675,6 +675,7 @@ fn test_mutation_arg_referencing_input_type_is_valid() {
             inject:                 IndexMap::default(),
             invalidates_fact_tables: vec![],
             invalidates_views:      vec![],
+            cascade:                false,
         }],
         ..IntermediateSchema::default()
     };
@@ -722,6 +723,7 @@ fn test_mutation_arg_referencing_enum_type_is_valid() {
             inject:                 IndexMap::default(),
             invalidates_fact_tables: vec![],
             invalidates_views:      vec![],
+            cascade:                false,
         }],
         ..IntermediateSchema::default()
     };
@@ -761,6 +763,7 @@ fn test_unknown_input_type_is_rejected() {
             inject:                 IndexMap::default(),
             invalidates_fact_tables: vec![],
             invalidates_views:      vec![],
+            cascade:                false,
         }],
         ..IntermediateSchema::default()
     };

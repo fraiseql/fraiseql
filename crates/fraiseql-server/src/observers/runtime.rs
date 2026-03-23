@@ -232,6 +232,7 @@ impl ObserverRuntime {
             actions,
             retry: retry_config,
             on_failure: FailurePolicy::default(),
+            synchronous: false,
         })
     }
 

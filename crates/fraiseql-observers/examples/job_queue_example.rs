@@ -105,7 +105,8 @@ async fn main() -> fraiseql_observers::Result<()> {
                 max_delay_ms:     5000,
                 backoff_strategy: BackoffStrategy::Exponential,
             },
-            on_failure: FailurePolicy::default(),
+            on_failure:  FailurePolicy::default(),
+            synchronous: false,
         },
     );
 
