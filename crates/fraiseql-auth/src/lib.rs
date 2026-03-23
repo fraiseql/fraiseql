@@ -112,6 +112,8 @@ pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
+#[allow(deprecated)]
+pub use rate_limiting::RateLimitConfig;
 pub use rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter, RateLimiters};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,

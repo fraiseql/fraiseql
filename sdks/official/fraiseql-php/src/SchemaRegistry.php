@@ -112,9 +112,7 @@ final class SchemaRegistry
         $fields = [];
         foreach ($reflection->getProperties() as $property) {
             $fieldDef = $this->extractFieldDefinition($property, $typeName);
-            if ($fieldDef !== null) {
-                $fields[$property->getName()] = $fieldDef;
-            }
+            $fields[$property->getName()] = $fieldDef;
         }
 
         $this->typeFields[$typeName] = $fields;
@@ -312,6 +310,28 @@ final class SchemaRegistry
     }
 
     /**
+     * Get type metadata (sql_source, is_error) for a given type.
+     *
+     * @param string $typeName The GraphQL type name
+     * @return array{sql_source: string|null, is_error: bool}|null
+     */
+    public function getTypeMeta(string $typeName): ?array
+    {
+        return $this->typeMeta[$typeName] ?? null;
+    }
+
+    /**
+     * Set type metadata for a given type.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param array{sql_source: string|null, is_error: bool} $meta
+     */
+    public function setTypeMeta(string $typeName, array $meta): void
+    {
+        $this->typeMeta[$typeName] = $meta;
+    }
+
+    /**
      * Check if a type is tenant-scoped.
      *
      * @param string $typeName The GraphQL type name
@@ -373,7 +393,7 @@ final class SchemaRegistry
      *
      * @param string $typeName The GraphQL type name
      * @param array<string, FieldDefinition> $fields The type's field definitions
-     * @param array|bool $crud CRUD configuration: true, ['all'], or list of operations
+     * @param array<string>|bool $crud CRUD configuration: true, ['all'], or list of operations
      */
     private function generateCrudOperations(string $typeName, array $fields, array|bool $crud, ?string $sqlSource = null): void
     {
@@ -560,7 +580,9 @@ final class SchemaRegistry
      */
     private static function pascalToSnake(string $name): string
     {
-        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $name));
+        $result = preg_replace('/(?<!^)[A-Z]/', '_$0', $name);
+
+        return strtolower($result ?? $name);
     }
 
     /**
@@ -590,12 +612,12 @@ final class SchemaRegistry
      *
      * @param \ReflectionProperty $property The property to extract from
      * @param string $typeName The parent type name
-     * @return FieldDefinition|null The field definition, or null if not a GraphQL field
+     * @return FieldDefinition The field definition
      */
     private function extractFieldDefinition(
         \ReflectionProperty $property,
         string $typeName,
-    ): ?FieldDefinition {
+    ): FieldDefinition {
         $typeInfo = TypeConverter::fromReflectionProperty($property);
 
         return new FieldDefinition(

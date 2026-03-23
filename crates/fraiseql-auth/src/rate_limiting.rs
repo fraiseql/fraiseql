@@ -14,6 +14,7 @@
 
 use std::{
     collections::HashMap,
+    panic::{RefUnwindSafe, UnwindSafe},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -138,8 +139,16 @@ pub struct KeyedRateLimiter {
     check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
     /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
-    clock:       Box<dyn Fn() -> u64 + Send + Sync>,
+    clock:       Box<dyn Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe>,
 }
+
+/// Backward-compatible alias for [`AuthRateLimitConfig`].
+///
+/// This type was renamed from `RateLimitConfig` to `AuthRateLimitConfig` to avoid
+/// confusion with `fraiseql_server::middleware::RateLimitConfig`. Existing code
+/// that references the old name continues to compile via this alias.
+#[deprecated(since = "0.2.0", note = "Renamed to `AuthRateLimitConfig`")]
+pub type RateLimitConfig = AuthRateLimitConfig;
 
 /// Default clock that reads wall-clock time.
 ///
@@ -199,7 +208,7 @@ impl KeyedRateLimiter {
     /// Pass `|| u64::MAX` to simulate a broken system clock and verify fail-open behavior.
     pub fn with_clock<F>(config: AuthRateLimitConfig, clock: F) -> Self
     where
-        F: Fn() -> u64 + Send + Sync + 'static,
+        F: Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe + 'static,
     {
         Self {
             records: Arc::new(Mutex::new(HashMap::new())),
@@ -220,7 +229,7 @@ impl KeyedRateLimiter {
         clock: F,
     ) -> Self
     where
-        F: Fn() -> u64 + Send + Sync + 'static,
+        F: Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe + 'static,
     {
         Self {
             records: Arc::new(Mutex::new(HashMap::new())),

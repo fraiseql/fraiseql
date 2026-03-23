@@ -425,6 +425,25 @@ impl OIDCClient {
         Ok(claims)
     }
 
+    /// Verify an ID token without `max_age` enforcement.
+    ///
+    /// This is a backward-compatible wrapper around [`verify_id_token`](Self::verify_id_token)
+    /// that passes `None` for `max_age_secs`. Prefer the 3-argument version when
+    /// `max_age` enforcement is desired.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token is malformed, the signature is invalid,
+    /// claims validation fails, or the nonce doesn't match.
+    #[deprecated(since = "0.2.0", note = "Use `verify_id_token(token, nonce, max_age_secs)` instead")]
+    pub async fn verify_id_token_v1(
+        &self,
+        id_token: &str,
+        expected_nonce: Option<&str>,
+    ) -> Result<IdTokenClaims, String> {
+        self.verify_id_token(id_token, expected_nonce, None).await
+    }
+
     /// Fetch user information from the provider's userinfo endpoint.
     ///
     /// # Errors

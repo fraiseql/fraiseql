@@ -8,6 +8,7 @@ use thiserror::Error;
 /// the `IntoResponse` impl always returns a generic user-facing message and logs the
 /// internal reason via `tracing::warn!`.
 #[derive(Debug, Error, Clone)]
+#[non_exhaustive]
 pub enum AuthError {
     /// A supplied token could not be parsed or validated.
     /// The `reason` field contains internal diagnostic detail and must not be
