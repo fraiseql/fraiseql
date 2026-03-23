@@ -18,7 +18,9 @@ final class UnsetValue
 {
     private static ?self $instance = null;
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     public static function instance(): self
     {
@@ -34,7 +36,9 @@ final class UnsetValue
     }
 
     // Prevent cloning and unserialization
-    private function __clone() {}
+    private function __clone()
+    {
+    }
     public function __wakeup(): never
     {
         throw new \RuntimeException('Cannot unserialize UNSET singleton');

@@ -591,7 +591,9 @@ jobs:
         uses: taiki-e/install-action@cargo-audit
 
       - name: Audit vendored graphql-parser
-        run: cargo audit --file vendor/graphql-parser/Cargo.toml.orig
+        run: |
+          rm -rf ~/.cargo/advisory-db
+          cargo audit --file vendor/graphql-parser/Cargo.toml.orig
 
   # Dependency duplication audit
   # Detects if an actionable duplicate dependency re-appears after being unified.
@@ -724,6 +726,9 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-crossdb-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Run cross-database parity tests
         run: |
@@ -1454,8 +1459,8 @@ jobs:
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
-          path: fraiseql-php/vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('fraiseql-php/composer.json') }}
+          path: sdks/official/fraiseql-php/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('sdks/official/fraiseql-php/composer.json') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer
@@ -1470,7 +1475,7 @@ jobs:
         run: cd sdks/official/fraiseql-typescript && bun install
 
       - name: Install PHP SDK deps
-        run: cd fraiseql-php && composer install --no-interaction --prefer-dist
+        run: cd sdks/official/fraiseql-php && composer install --no-interaction --prefer-dist
 
       - name: Run parity tests
         run: make test-parity

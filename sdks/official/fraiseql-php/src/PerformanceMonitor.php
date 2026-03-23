@@ -138,7 +138,7 @@ final class PerformanceMonitor
     public function getTotalTime(): float
     {
         return array_sum(array_map(
-            static fn(array $m) => $m['total_time'],
+            static fn (array $m) => $m['total_time'],
             $this->metrics
         ));
     }
@@ -151,7 +151,7 @@ final class PerformanceMonitor
     public function getTotalOperationCount(): int
     {
         return array_sum(array_map(
-            static fn(array $m) => $m['count'],
+            static fn (array $m) => $m['count'],
             $this->metrics
         ));
     }
@@ -225,7 +225,7 @@ final class PerformanceMonitor
     {
         $all = array_values($this->getAllMetrics());
 
-        usort($all, static fn(array $a, array $b) => $b['total_time'] <=> $a['total_time']);
+        usort($all, static fn (array $a, array $b) => $b['total_time'] <=> $a['total_time']);
 
         return array_slice($all, 0, $count);
     }

@@ -178,7 +178,7 @@ final class SchemaExporter
             $typeDef = [
                 'name'   => $typeName,
                 'fields' => array_values(array_map(
-                    static fn(FieldDefinition $f) => [
+                    static fn (FieldDefinition $f) => [
                         'name'     => $f->name,
                         'type'     => $f->type,
                         'nullable' => $f->nullable,

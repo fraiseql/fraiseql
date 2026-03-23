@@ -58,7 +58,7 @@ final class SubscriptionDefinition
 
         if (!empty($this->arguments)) {
             $data['arguments'] = array_map(
-                fn(ArgumentDefinition $arg) => [
+                fn (ArgumentDefinition $arg) => [
                     'name' => $arg->name,
                     'type' => $arg->type,
                     'nullable' => $arg->nullable,

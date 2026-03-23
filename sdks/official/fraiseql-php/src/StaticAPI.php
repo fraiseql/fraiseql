@@ -276,7 +276,7 @@ final class StaticAPI
             $typeDef = [
                 'name'   => $typeName,
                 'fields' => array_map(
-                    static fn(\FraiseQL\FieldDefinition $f) => [
+                    static fn (\FraiseQL\FieldDefinition $f) => [
                         'name'     => $f->name,
                         'type'     => $f->type,
                         'nullable' => $f->nullable,

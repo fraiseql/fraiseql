@@ -67,7 +67,7 @@ final class CacheKey
     public static function forBuilder(TypeBuilder $builder): string
     {
         $fields = $builder->getFields();
-        $fieldNames = array_map(static fn(FieldDefinition $f) => $f->name, $fields);
+        $fieldNames = array_map(static fn (FieldDefinition $f) => $f->name, $fields);
         sort($fieldNames);
 
         $data = [

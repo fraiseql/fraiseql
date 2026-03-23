@@ -1,6 +1,5 @@
 //! Integration tests for `SecretsManager` initialization and wiring into `AppState`.
 #![cfg(feature = "secrets")]
-//!
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
