@@ -26,34 +26,6 @@ use crate::{
 /// Twilio includes the full request URL in the signed payload.
 pub struct TwilioVerifier;
 
-/// Percent-decode a URL-encoded string (RFC 3986).
-///
-/// Decodes `%XX` sequences to their byte values. `+` is left as-is (form-encoded
-/// bodies that use `+` for space are handled by the caller). Returns the decoded
-/// string; invalid `%XX` sequences are left verbatim.
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut result = String::with_capacity(s.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hi = (bytes[i + 1] as char).to_digit(16);
-            let lo = (bytes[i + 2] as char).to_digit(16);
-            if let (Some(h), Some(l)) = (hi, lo) {
-                // Reason: h and l are each 0..=15 (hex digits), so (h << 4) | l fits in u8.
-                #[allow(clippy::cast_possible_truncation)]
-                result.push(char::from(((h << 4) | l) as u8));
-                i += 3;
-                continue;
-            }
-        }
-        result.push(char::from(bytes[i]));
-        i += 1;
-    }
-    result
-}
-
-
 /// Build the Twilio signing string: URL + sorted form params (if any).
 ///
 /// For form-encoded payloads (`application/x-www-form-urlencoded`), parse the

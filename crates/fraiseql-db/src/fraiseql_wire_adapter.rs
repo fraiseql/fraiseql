@@ -10,7 +10,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
-    traits::DatabaseAdapter,
+    traits::{DatabaseAdapter, MutationCapable},
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
     where_sql_generator::WhereSqlGenerator,
@@ -322,6 +322,8 @@ impl DatabaseAdapter for FraiseWireAdapter {
         })
     }
 }
+
+impl MutationCapable for FraiseWireAdapter {}
 
 #[cfg(test)]
 mod tests {
