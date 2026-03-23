@@ -3,11 +3,7 @@
 //! These tests exercise multi-database query execution, aggregations,
 //! relay pagination, and cross-database operations against real database
 //! instances provisioned by testcontainers.
-
-mod integration {
-    mod aggregation_integration;
-    mod cross_database_test;
-    mod fact_table_integration;
-    mod multi_database_integration;
-    mod relay_integration;
-}
+//!
+//! Note: Individual test files (multi_database_integration.rs, aggregation_integration.rs,
+//! etc.) are now top-level test targets and can be run independently with:
+//!   cargo test -p fraiseql-core --test <test_name> -- --test-threads=1
