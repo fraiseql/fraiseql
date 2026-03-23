@@ -1,9 +1,9 @@
 //! REST transport — resource-centric HTTP API auto-generated from compiled schema.
 //!
-//! Provides [`rest_router`] which builds an axum [`Router`] from a
-//! [`CompiledSchema`]'s REST configuration.  The router is mounted at the
+//! Provides `rest_router` which builds an axum `Router` from a
+//! `CompiledSchema`'s REST configuration.  The router is mounted at the
 //! configured base path (default `/rest/v1`) and dispatches requests to the
-//! appropriate query or mutation executor via [`RestHandler`].
+//! appropriate query or mutation executor via `RestHandler`.
 //!
 //! All modules are gated behind `#[cfg(feature = "rest")]` in `routes/mod.rs`.
 

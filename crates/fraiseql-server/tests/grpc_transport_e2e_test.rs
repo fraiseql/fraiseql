@@ -1,3 +1,4 @@
+#![cfg(feature = "grpc")]
 //! End-to-end integration tests for the gRPC transport (Cycle 7).
 //!
 //! Tests the full stack: compile schema → build descriptor → build

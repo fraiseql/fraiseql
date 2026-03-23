@@ -9,7 +9,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// GraphQL mutations are dispatched at runtime and will return an error
     /// for adapters that do not support them.
     ///
-    /// For full mutation support including REST mutations, use [`serve_mut`]
+    /// For full mutation support including REST mutations, use `serve_mut`
     /// (requires `A: MutationCapable`).
     ///
     /// # Errors
@@ -21,7 +21,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Start a read-only server with a custom shutdown future.
     ///
-    /// See [`serve`] for details. Enables programmatic shutdown (e.g., for
+    /// See `serve` for details. Enables programmatic shutdown (e.g., for
     /// `--watch` hot-reload) by accepting any future that resolves when the
     /// server should stop.
     ///
@@ -398,7 +398,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
     /// Start a full server with REST mutation support.
     ///
-    /// Includes all routes from [`serve`] plus REST mutation routes
+    /// Includes all routes from `serve` plus REST mutation routes
     /// (POST, PUT, PATCH, DELETE) that require `MutationCapable`.
     ///
     /// # Errors
@@ -410,7 +410,7 @@ impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Serve
 
     /// Start a full server with REST mutations and a custom shutdown future.
     ///
-    /// See [`serve_mut`] for details. Enables programmatic shutdown (e.g., for
+    /// See `serve_mut` for details. Enables programmatic shutdown (e.g., for
     /// `--watch` hot-reload) by accepting any future that resolves when the
     /// server should stop.
     ///

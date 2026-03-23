@@ -20,7 +20,7 @@ struct RedisEntry {
 /// Redis-backed idempotency store.
 ///
 /// Each key is stored as `fraiseql:idempotency:{key}` with TTL set via `SET EX`.
-/// Value is MessagePack-encoded [`RedisEntry`].
+/// Value is MessagePack-encoded `RedisEntry`.
 pub struct RedisIdempotencyStore {
     pool: redis::aio::ConnectionManager,
     ttl: Duration,

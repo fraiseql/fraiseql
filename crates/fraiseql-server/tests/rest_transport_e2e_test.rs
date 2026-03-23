@@ -1,3 +1,4 @@
+#![cfg(feature = "rest")]
 //! End-to-end integration tests for the REST transport (Cycle 9).
 //!
 //! Tests the full stack: compile schema → build REST router → exercise CRUD
