@@ -152,7 +152,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, "1.88"]  # MSRV
+        rust: [stable, "1.92"]  # MSRV
     steps:
       - uses: actions/checkout@v4
 
