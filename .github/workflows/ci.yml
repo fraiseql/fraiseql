@@ -593,7 +593,7 @@ jobs:
       - name: Audit vendored graphql-parser
         run: |
           rm -rf ~/.cargo/advisory-db
-          cargo audit --file vendor/graphql-parser/Cargo.toml.orig
+          cargo audit --file vendor/graphql-parser/Cargo.lock
 
   # Dependency duplication audit
   # Detects if an actionable duplicate dependency re-appears after being unified.
@@ -734,7 +734,7 @@ jobs:
         run: |
           cargo nextest run \
             --test cross_database_test \
-            --run-ignored \
+            --run-ignored all \
             --features test-mysql,test-postgres \
             -p fraiseql-core
         env:

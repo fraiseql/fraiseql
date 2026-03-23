@@ -204,7 +204,7 @@ final class IntegrationTest extends TestCase
         $formatter = new SchemaFormatter();
         $schema = $formatter->formatRegistry($registry);
 
-        $this->assertCount(2, $schema->getTypeCount());
+        $this->assertSame(2, $schema->getTypeCount());
     }
 
     public function testComplexNestedSchema(): void
@@ -317,7 +317,7 @@ final class IntegrationTest extends TestCase
             // Verify content is identical
             $json = $schema->toJson();
             $loadedJson = $loaded->toJson();
-            $this->assertSame(json_decode($json), json_decode($loadedJson));
+            $this->assertEquals(json_decode($json), json_decode($loadedJson));
         } finally {
             if (file_exists($tmpFile)) {
                 unlink($tmpFile);
