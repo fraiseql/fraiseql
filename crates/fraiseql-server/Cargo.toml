@@ -82,7 +82,7 @@ sqlx = {workspace = true, features = ["postgres", "uuid", "chrono"]}
 subtle = "2.5"
 thiserror = {workspace = true}
 # Async runtime
-tokio = {workspace = true, features = ["rt", "macros", "sync", "time", "net", "fs", "signal", "io-util", "io-std"]}
+tokio = {workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "fs", "signal", "io-util", "io-std"]}
 tokio-rustls = "0.25"
 # Config and paths
 toml = {workspace = true}
@@ -165,6 +165,8 @@ testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
 webhooks = ["dep:fraiseql-webhooks"]
 # Wire backend for streaming JSON queries with low memory overhead
+# Federation gateway support
+federation = []
 wire-backend = ["fraiseql-core/wire-backend"]
 
 [lints]
