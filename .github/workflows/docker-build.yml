@@ -40,7 +40,7 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server-full"
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest,arrow"
             optional: true
 
           - name: tutorial
@@ -105,7 +105,7 @@ jobs:
 
           - name: fraiseql-server-full
             dockerfile: Dockerfile
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -161,7 +161,7 @@ jobs:
             build-context: .
             image-suffix: "server-full"
             docker-hub-image: fraiseql/server-full
-            build-args: "CARGO_FEATURES=rest-transport,arrow"
+            build-args: "CARGO_FEATURES=rest,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
