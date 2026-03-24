@@ -580,7 +580,7 @@ async fn test_runtime_continues_after_errors() {
     assert_eq!(requests.len(), 1, "Expected 1 successful webhook after retries");
 
     // Verify log shows attempt tracking
-    let logs = get_observer_logs_for_entity(&pool, &order_id_1.to_string())
+    let logs = get_observer_logs_for_entity(&pool, order_id_1)
         .await
         .expect("Failed to fetch observer logs");
 

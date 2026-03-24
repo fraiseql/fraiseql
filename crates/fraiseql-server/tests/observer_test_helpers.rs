@@ -426,7 +426,7 @@ pub async fn wait_for_webhook(
 /// Assert observer log entry
 pub async fn assert_observer_log(
     pool: &PgPool,
-    entity_id: &str,
+    entity_id: Uuid,
     expected_status: &str,
     expected_attempts: Option<i32>,
 ) {
@@ -482,7 +482,7 @@ pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, 
 /// Get all observer logs for an entity
 pub async fn get_observer_logs_for_entity(
     pool: &PgPool,
-    entity_id: &str,
+    entity_id: Uuid,
 ) -> Result<Vec<(String, i32, Option<i32>)>, sqlx::Error> {
     sqlx::query_as(
         r"
