@@ -86,6 +86,8 @@ impl WindowSqlGenerator {
         }
 
         // FROM clause
+        // SAFETY: plan.table is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input.
         sql.push_str(&format!(" FROM {}", plan.table));
 
         // WHERE clause (if any) — use parameterized generation to avoid literal

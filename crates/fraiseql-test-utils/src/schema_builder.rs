@@ -584,7 +584,7 @@ impl TestTypeBuilder {
 /// // Scope-guarded field that returns null on deny
 /// let private = TestFieldBuilder::new("salary", FieldType::Int)
 ///     .requires_scope("read:Employee.salary")
-///     .on_deny(FieldDenyPolicy::Nullify)
+///     .on_deny(FieldDenyPolicy::Mask)
 ///     .build();
 /// ```
 pub struct TestFieldBuilder {

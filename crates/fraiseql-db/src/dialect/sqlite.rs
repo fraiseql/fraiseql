@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// SQLite dialect for [`GenericWhereGenerator`].
 ///
@@ -46,5 +46,46 @@ impl SqlDialect for SqliteDialect {
     fn array_contains_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
         // SQLite has no native @>; use EXISTS + json_each()
         Ok(format!("EXISTS (SELECT 1 FROM json_each({lhs}) WHERE value = json({rhs}))"))
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        target_type: &RowViewColumnType,
+    ) -> String {
+        let sqlite_type = match target_type {
+            RowViewColumnType::Text
+            | RowViewColumnType::Uuid
+            | RowViewColumnType::Timestamptz
+            | RowViewColumnType::Date => "TEXT",
+            RowViewColumnType::Int32 | RowViewColumnType::Int64 | RowViewColumnType::Boolean => {
+                "INTEGER"
+            },
+            RowViewColumnType::Float64 => "REAL",
+            RowViewColumnType::Json => {
+                return format!("json_extract({json_column}, '$.{field_name}')");
+            },
+        };
+        format!("CAST(json_extract({json_column}, '$.{field_name}') AS {sqlite_type})")
+    }
+
+    fn create_row_view_ddl(
+        &self,
+        view_name: &str,
+        source_table: &str,
+        columns: &[(String, String)],
+    ) -> String {
+        let quoted_view = self.quote_identifier(view_name);
+        let quoted_table = self.quote_identifier(source_table);
+        let col_list: Vec<String> = columns
+            .iter()
+            .map(|(alias, expr)| format!("  {expr} AS {}", self.quote_identifier(alias)))
+            .collect();
+        // SQLite has no CREATE OR REPLACE VIEW — use DROP + CREATE
+        format!(
+            "DROP VIEW IF EXISTS {quoted_view};\nCREATE VIEW {quoted_view} AS\nSELECT\n{}\nFROM {quoted_table};",
+            col_list.join(",\n")
+        )
     }
 }

@@ -192,10 +192,10 @@ impl JsonStream {
     /// # Examples
     ///
     /// ```no_run
-    /// // Requires: live Postgres connection via FraiseClient.
-    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use std::time::Duration;
-    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
+    /// use fraiseql_wire::stream::JsonStream;
+    ///
+    /// # async fn example(mut stream: JsonStream) -> fraiseql_wire::Result<()> {
     /// stream.set_pause_timeout(Duration::from_secs(5));
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
     /// # Ok(())
@@ -241,6 +241,10 @@ impl JsonStream {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed.
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
 
@@ -296,6 +300,10 @@ impl JsonStream {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed.
     pub async fn resume(&mut self) -> Result<()> {
         // Update lightweight atomic state first (fast path)
         // Check atomic state before borrowing pause_resume
@@ -361,6 +369,10 @@ impl JsonStream {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Protocol` if the stream has already completed or failed (delegates to [`pause`](Self::pause)).
     pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
         tracing::debug!("pausing stream: {}", reason);
         self.pause().await
@@ -508,6 +520,11 @@ impl Stream for JsonStream {
 }
 
 /// Extract JSON bytes from `DataRow` message
+///
+/// # Errors
+///
+/// Returns `Error::Protocol` if the message is not a `DataRow`, contains more than one field,
+/// or the data field is null.
 pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
     match msg {
         BackendMessage::DataRow(fields) => {
@@ -528,6 +545,10 @@ pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
 }
 
 /// Parse JSON bytes into Value
+///
+/// # Errors
+///
+/// Returns `Error::JsonDecode` if the bytes are not valid JSON.
 pub fn parse_json(data: Bytes) -> Result<Value> {
     let value: Value = serde_json::from_slice(&data)?;
     Ok(value)

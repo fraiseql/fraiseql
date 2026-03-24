@@ -11,7 +11,7 @@ use axum::{
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    db::traits::{DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::OidcValidator,
@@ -93,8 +93,7 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "auth")]
     pub(super) oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
-    // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
     pub(super) revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
     pub(super) apq_store: Option<fraiseql_core::apq::ArcApqStorage>,
     pub(super) trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
@@ -107,6 +106,13 @@ pub struct Server<A: DatabaseAdapter> {
 
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
+
+    #[cfg(feature = "grpc")]
+    pub(super) grpc_service: Option<crate::routes::grpc::DynamicGrpcService<A>>,
+
+    /// Raw `FileDescriptorSet` bytes for building gRPC reflection at serve time.
+    #[cfg(feature = "grpc")]
+    pub(super) grpc_reflection_bytes: Option<Vec<u8>>,
 
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,

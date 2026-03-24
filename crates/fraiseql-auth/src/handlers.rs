@@ -111,6 +111,12 @@ pub struct AuthLogoutRequest {
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
 /// The limit is configurable via FRAISEQL_AUTH_START_MAX_REQUESTS and
 /// FRAISEQL_AUTH_START_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the IP exceeds the rate limit.
+/// Returns `AuthError::SystemTimeError` if the system clock is unavailable.
+/// Returns an error if the state store or OAuth provider fails.
 pub async fn auth_start(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -157,6 +163,14 @@ pub async fn auth_start(
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
 /// The limit is configurable via FRAISEQL_AUTH_CALLBACK_MAX_REQUESTS and
 /// FRAISEQL_AUTH_CALLBACK_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the IP exceeds the rate limit.
+/// Returns `AuthError::OAuthError` if the provider returned an error.
+/// Returns `AuthError::InvalidState` if the CSRF state token is expired or invalid.
+/// Returns `AuthError::SystemTimeError` if the system clock is unavailable.
+/// Returns an error if token exchange, user info retrieval, or session creation fails.
 pub async fn auth_callback(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -275,6 +289,13 @@ pub async fn auth_callback(
 /// This endpoint is rate-limited per user ID to prevent token refresh attacks.
 /// The limit is configurable via FRAISEQL_AUTH_REFRESH_MAX_REQUESTS and
 /// FRAISEQL_AUTH_REFRESH_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::TokenExpired` if the session has expired.
+/// Returns `AuthError::RateLimited` if the user exceeds the rate limit.
+/// Returns `AuthError::Internal` because JWT signing is not yet implemented.
+/// Returns an error if the session store lookup fails.
 pub async fn auth_refresh(
     State(state): State<AuthState>,
     Json(req): Json<AuthRefreshRequest>,
@@ -332,6 +353,11 @@ pub async fn auth_refresh(
 /// This endpoint is rate-limited per user ID to prevent logout token exhaustion attacks.
 /// The limit is configurable via FRAISEQL_AUTH_LOGOUT_MAX_REQUESTS and
 /// FRAISEQL_AUTH_LOGOUT_WINDOW_SECS environment variables.
+///
+/// # Errors
+///
+/// Returns `AuthError::RateLimited` if the user or IP exceeds the rate limit.
+/// Returns an error if the session store lookup or revocation fails.
 pub async fn auth_logout(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -390,8 +416,7 @@ pub fn generate_secure_state() -> String {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

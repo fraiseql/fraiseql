@@ -135,15 +135,20 @@ impl WebhookPayload {
 /// # Example
 ///
 /// ```no_run
-/// // Requires: live HTTP endpoint for webhook delivery.
-/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookTransportConfig};
-///
+/// use fraiseql_core::runtime::subscription::{
+///     WebhookAdapter, WebhookTransportConfig, TransportAdapter,
+///     SubscriptionEvent, SubscriptionOperation,
+/// };
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);
 ///
 /// let adapter = WebhookAdapter::new(config)?;
+/// # let event = SubscriptionEvent::new("Order", "1", SubscriptionOperation::Create, serde_json::json!({}));
 /// adapter.deliver(&event, "orderCreated").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct WebhookAdapter {
     config: WebhookTransportConfig,
@@ -176,8 +181,7 @@ impl WebhookAdapter {
         let secret = self.config.secret.as_ref()?;
 
         #[allow(clippy::expect_used)]
-        // Reason: SHA-256 HMAC (FIPS 198-1) accepts keys of any size;
-        //         new_from_slice only fails for fixed-block-size ciphers (e.g., AES-CMAC).
+        // Reason: SHA-256 HMAC accepts keys of any size; new_from_slice cannot fail here
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .expect("SHA-256 HMAC accepts any key size");
         mac.update(payload.as_bytes());

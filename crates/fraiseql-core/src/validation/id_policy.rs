@@ -450,7 +450,11 @@ impl IDValidationProfile {
         }
     }
 
-    /// Validate an ID using this profile
+    /// Validate an ID using this profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IDValidationError` if the value does not conform to this profile's format.
     pub fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         self.validator.as_validator().validate(value)
     }

@@ -32,6 +32,9 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 requires_scope: None, // Public field
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "name".into(),
@@ -45,6 +48,9 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 requires_scope: None, // Public field
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "email".into(),
@@ -58,6 +64,9 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "password_hash".into(),
@@ -71,6 +80,9 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
         ],
         description:         None,
@@ -81,6 +93,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        relationships:       Vec::new(),
     };
 
     let mut security_config = SecurityConfig::new();

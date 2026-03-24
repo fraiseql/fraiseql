@@ -7,7 +7,7 @@ use std::{
 };
 
 use ::tracing::info;
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::{DatabaseType, traits::DatabaseAdapter};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 use uuid::Uuid;
@@ -79,37 +79,50 @@ pub fn group_entities_by_typename(
     groups
 }
 
-/// Construct WHERE clause for batch query
+/// Construct a parameterized WHERE clause for batch entity queries.
+///
+/// Returns `(sql, params)` where `sql` uses placeholders appropriate for the given
+/// `db_type` and `params` holds the corresponding bind values.
+///
+/// # Errors
+///
+/// Returns an empty clause (no error) when `representations` or `key_columns` is empty.
 pub fn construct_batch_where_clause(
     representations: &[EntityRepresentation],
     key_columns: &[String],
-) -> Result<String> {
+    db_type: DatabaseType,
+) -> Result<(String, Vec<Value>)> {
     if representations.is_empty() || key_columns.is_empty() {
-        return Ok(String::new());
+        return Ok((String::new(), vec![]));
     }
 
     let mut conditions = Vec::new();
+    let mut params: Vec<Value> = Vec::new();
+    let mut param_idx = 1usize;
 
     for key_col in key_columns {
-        let values: Vec<String> = representations
-            .iter()
-            .filter_map(|rep| rep.key_fields.get(key_col))
-            .filter_map(|v| v.as_str())
-            .map(|s| format!("'{}'", s.replace('\'', "''")))
-            .collect();
+        let values: Vec<&Value> =
+            representations.iter().filter_map(|rep| rep.key_fields.get(key_col)).collect();
 
-        if !values.is_empty() && !values.iter().all(|v| v == "''") {
+        if !values.is_empty() {
+            let mut placeholders = Vec::with_capacity(values.len());
+            for value in values {
+                placeholders.push(db_type.placeholder(param_idx));
+                params.push((*value).clone());
+                param_idx += 1;
+            }
+
             // Double-quote the column identifier so that reserved words and
             // mixed-case names are handled correctly in PostgreSQL.
             let quoted_col = format!("\"{}\"", key_col.replace('"', "\"\""));
-            conditions.push(format!("{quoted_col} IN ({})", values.join(", ")));
+            conditions.push(format!("{quoted_col} IN ({})", placeholders.join(", ")));
         }
     }
 
     if conditions.is_empty() {
-        Ok(String::new())
+        Ok((String::new(), vec![]))
     } else {
-        Ok(format!("WHERE {}", conditions.join(" AND ")))
+        Ok((format!("WHERE {}", conditions.join(" AND ")), params))
     }
 }
 
@@ -167,7 +180,12 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     }
 }
 
-/// Batch load entities from database
+/// Batch load entities from database.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -178,6 +196,11 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
 }
 
 /// Batch load entities from database with optional distributed tracing and metrics.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -199,6 +222,11 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 /// Batch load entities with full metrics for observability.
 ///
 /// Returns both entities and timing information for metrics recording.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch exceeds `MAX_ENTITIES_BATCH_SIZE`,
+/// or a database error if the underlying query fails.
 pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -471,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn test_construct_batch_where_clause() {
+    fn test_construct_batch_where_clause_parameterized() {
         let mut rep1 = EntityRepresentation {
             typename:   "User".to_string(),
             key_fields: HashMap::new(),
@@ -487,12 +515,20 @@ mod tests {
         rep2.key_fields.insert("id".to_string(), json!("456"));
 
         let reps = vec![rep1, rep2];
-        let where_clause = construct_batch_where_clause(&reps, &["id".to_string()]).unwrap();
+        let (sql, params) =
+            construct_batch_where_clause(&reps, &["id".to_string()], DatabaseType::PostgreSQL)
+                .unwrap();
 
-        assert!(where_clause.contains("WHERE"));
+        assert!(sql.contains("WHERE"));
         // Column name must be double-quoted for PostgreSQL identifier safety.
-        assert!(where_clause.contains("\"id\" IN"), "expected quoted column \"id\" IN");
-        assert!(where_clause.contains("123"));
-        assert!(where_clause.contains("456"));
+        assert!(sql.contains("\"id\" IN"), "expected quoted column \"id\" IN");
+        // Values must be in params, not in SQL
+        assert!(sql.contains("$1"));
+        assert!(sql.contains("$2"));
+        assert!(!sql.contains("123"));
+        assert!(!sql.contains("456"));
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0], json!("123"));
+        assert_eq!(params[1], json!("456"));
     }
 }

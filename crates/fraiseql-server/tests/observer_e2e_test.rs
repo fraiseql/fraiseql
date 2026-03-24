@@ -91,7 +91,7 @@ async fn test_observer_happy_path_insert_webhook() {
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
-        &order_id.to_string(),
+        order_id,
         order_data.clone(),
         None,
     )
@@ -112,7 +112,7 @@ async fn test_observer_happy_path_insert_webhook() {
     // Verify observer_log entry
     assert_observer_log(
         &pool,
-        &order_id.to_string(),
+        order_id,
         "success",
         Some(1), // Single attempt for success
     )
@@ -162,7 +162,7 @@ async fn test_observer_conditional_execution() {
         &pool,
         "UPDATE",
         &format!("Order_{}", test_id),
-        &order_id_1.to_string(),
+        order_id_1,
         serde_json::json!({"id": order_id_1.to_string(), "status": "pending"}),
         Some(serde_json::json!({"id": order_id_1.to_string(), "status": "created"})),
     )
@@ -184,7 +184,7 @@ async fn test_observer_conditional_execution() {
         &pool,
         "UPDATE",
         &format!("Order_{}", test_id),
-        &order_id_2.to_string(),
+        order_id_2,
         serde_json::json!({"id": order_id_2.to_string(), "status": "shipped"}),
         Some(serde_json::json!({"id": order_id_2.to_string(), "status": "pending"})),
     )
@@ -249,7 +249,7 @@ async fn test_multiple_observers_single_event() {
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "status": "new"}),
         None,
     )
@@ -307,7 +307,7 @@ async fn test_observer_retry_exponential_backoff() {
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string()}),
         None,
     )
@@ -319,7 +319,7 @@ async fn test_observer_retry_exponential_backoff() {
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
 
     // Verify retry attempts in tb_observer_log
-    let logs = get_observer_logs_for_entity(&pool, &order_id.to_string())
+    let logs = get_observer_logs_for_entity(&pool, order_id)
         .await
         .expect("Failed to fetch observer logs");
 
@@ -368,7 +368,7 @@ async fn test_observer_dlq_permanent_failure() {
         &pool,
         "INSERT",
         &format!("Order_{}", test_id),
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string()}),
         None,
     )
@@ -449,7 +449,7 @@ async fn test_multiple_event_types_same_entity() {
         &pool,
         "INSERT",
         &entity_type,
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "status": "created"}),
         None,
     )
@@ -464,7 +464,7 @@ async fn test_multiple_event_types_same_entity() {
         &pool,
         "UPDATE",
         &entity_type,
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "status": "shipped"}),
         Some(serde_json::json!({"id": order_id.to_string(), "status": "created"})),
     )
@@ -513,7 +513,7 @@ async fn test_batch_processing() {
             &pool,
             "INSERT",
             &format!("Order_{}", test_id),
-            &order_id.to_string(),
+            order_id,
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
         )
@@ -567,7 +567,7 @@ async fn benchmark_observer_latency() {
             &pool,
             "INSERT",
             &format!("Order_{}", test_id),
-            &order_id.to_string(),
+            order_id,
             serde_json::json!({"id": order_id.to_string()}),
             None,
         )

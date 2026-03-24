@@ -25,9 +25,9 @@ pub trait SignatureVerifier: Send + Sync {
     /// * `timestamp` - Optional timestamp from headers (for replay protection)
     /// * `url` - Full request URL (required by Twilio; ignored by most providers)
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// `Ok(true)` if signature is valid, `Ok(false)` if invalid, `Err` for format errors
+    /// Returns `SignatureError` if the signature or timestamp has an invalid format.
     fn verify(
         &self,
         payload: &[u8],

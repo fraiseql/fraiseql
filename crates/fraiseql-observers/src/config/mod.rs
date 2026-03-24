@@ -30,7 +30,7 @@ pub use performance::PerformanceConfig;
 pub use redis::RedisConfig;
 pub use runtime::{
     ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
-    ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
+    ObserverRuntimeConfig, OverflowPolicy, RetryConfig, SmtpConfig, SmtpTlsMode,
 };
 pub use transport::{
     BridgeTransportConfig, JetStreamConfig, NatsTransportConfig, TransportConfig, TransportKind,

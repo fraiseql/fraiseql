@@ -289,6 +289,8 @@ impl AggregationSqlGenerator {
 
         let select_sql =
             self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
+        // SAFETY: table_name is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input.
         let from_sql = format!("FROM {}", plan.request.table_name);
 
         let where_sql = if let Some(ref wc) = plan.request.where_clause {

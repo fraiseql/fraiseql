@@ -162,6 +162,11 @@ impl IntrospectionEnforcer {
     /// # Arguments
     /// * `query` - The GraphQL query string to validate
     /// * `authenticated_user_id` - Optional user ID (None = anonymous, Some(id) = authenticated)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecurityError::IntrospectionBlocked` if introspection is disabled
+    /// or the user is not authenticated when required by policy.
     pub fn validate_query(&self, query: &str, authenticated_user_id: Option<&str>) -> Result<()> {
         // Check 1: Detect introspection patterns
         let is_introspection = self.is_introspection_query(query);

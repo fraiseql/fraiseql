@@ -150,6 +150,11 @@ pub struct ObserverDefinition {
     /// Failure handling policy
     #[serde(default)]
     pub on_failure: FailurePolicy,
+
+    /// When `true`, the mutation waits for this observer to complete before
+    /// returning the response.  Defaults to `false` (fire-and-forget).
+    #[serde(default)]
+    pub synchronous: bool,
 }
 
 impl ObserverDefinition {
@@ -361,6 +366,10 @@ impl ActionConfig {
     }
 
     /// Validate the action configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Webhook {
@@ -398,6 +407,7 @@ impl ActionConfig {
                 to,
                 to_template,
                 subject,
+                subject_template,
                 body_template,
                 ..
             } => {
@@ -406,9 +416,9 @@ impl ActionConfig {
                         reason: "Email action requires 'to' or 'to_template'".to_string(),
                     });
                 }
-                if subject.is_none() {
+                if subject.is_none() && subject_template.is_none() {
                     return Err(ObserverError::InvalidActionConfig {
-                        reason: "Email action requires 'subject'".to_string(),
+                        reason: "Email action requires 'subject' or 'subject_template'".to_string(),
                     });
                 }
                 if body_template.is_none() {
@@ -478,6 +488,95 @@ impl ActionConfig {
                 Ok(())
             },
         }
+    }
+}
+
+// ============================================================================
+// SMTP Configuration
+// ============================================================================
+
+/// TLS mode for SMTP connections.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmtpTlsMode {
+    /// Use STARTTLS upgrade (default, port 587).
+    #[default]
+    Starttls,
+    /// Direct TLS connection (port 465).
+    Tls,
+    /// No encryption (port 25 — testing only).
+    None,
+}
+
+/// SMTP configuration for the email action.
+///
+/// Passwords are **never** stored in config files — use `smtp_password_env`
+/// to name an environment variable that holds the SMTP password at runtime.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    /// SMTP server hostname (e.g. `"smtp.example.com"`).
+    pub smtp_host: String,
+
+    /// SMTP server port (default: 587).
+    #[serde(default = "default_smtp_port")]
+    pub smtp_port: u16,
+
+    /// SMTP username for authentication (optional for relay setups).
+    #[serde(default)]
+    pub smtp_username: Option<String>,
+
+    /// Name of the environment variable holding the SMTP password.
+    ///
+    /// The password is read at runtime, never compiled into the schema.
+    #[serde(default)]
+    pub smtp_password_env: Option<String>,
+
+    /// TLS mode (default: `starttls`).
+    #[serde(default)]
+    pub smtp_tls: SmtpTlsMode,
+
+    /// Sender email address (e.g. `"noreply@example.com"`).
+    pub from_address: String,
+
+    /// Optional display name for the sender (e.g. `"FraiseQL"`).
+    #[serde(default)]
+    pub from_name: Option<String>,
+}
+
+const fn default_smtp_port() -> u16 {
+    587
+}
+
+impl SmtpConfig {
+    /// Validate the SMTP configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if required fields are missing
+    /// or invalid.
+    pub fn validate(&self) -> Result<()> {
+        if self.smtp_host.is_empty() {
+            return Err(ObserverError::InvalidConfig {
+                message: "smtp_host must not be empty".to_string(),
+            });
+        }
+        if self.from_address.is_empty() {
+            return Err(ObserverError::InvalidConfig {
+                message: "from_address must not be empty".to_string(),
+            });
+        }
+        if !self.from_address.contains('@') {
+            return Err(ObserverError::InvalidConfig {
+                message: "from_address must be a valid email (missing '@')".to_string(),
+            });
+        }
+        // If username is provided, a password env var must also be set.
+        if self.smtp_username.is_some() && self.smtp_password_env.is_none() {
+            return Err(ObserverError::InvalidConfig {
+                message: "smtp_password_env is required when smtp_username is set".to_string(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -554,6 +653,10 @@ impl MultiListenerConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.lease_duration_ms == 0 {
             return Err(ObserverError::InvalidConfig {

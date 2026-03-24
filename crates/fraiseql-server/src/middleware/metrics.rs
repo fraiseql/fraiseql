@@ -20,13 +20,17 @@ use crate::metrics_server::MetricsCollector;
 /// # Example
 ///
 /// ```no_run
-/// // Requires: running Axum application with a MetricsCollector instance.
-/// use axum::{Router, middleware};
+/// use std::sync::Arc;
+/// use axum::{Router, middleware, routing::get};
+/// use fraiseql_server::MetricsCollector;
 /// use fraiseql_server::middleware::metrics_middleware;
 ///
-/// let app = Router::new()
+/// async fn handler() -> &'static str { "ok" }
+///
+/// let metrics = Arc::new(MetricsCollector::new());
+/// let app: Router = Router::new()
 ///     .route("/", get(handler))
-///     .layer(middleware::from_fn_with_state(metrics.clone(), metrics_middleware));
+///     .layer(middleware::from_fn_with_state(metrics, metrics_middleware));
 /// ```
 pub async fn metrics_middleware(
     State(metrics): State<Arc<MetricsCollector>>,

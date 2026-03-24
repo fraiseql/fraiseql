@@ -78,6 +78,10 @@ impl Default for ErrorSanitizationConfig {
 
 impl ErrorSanitizationConfig {
     /// Validate error sanitization configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if self.leak_sensitive_details {
             anyhow::bail!(
@@ -152,6 +156,10 @@ impl Default for RateLimitConfig {
 
 impl RateLimitConfig {
     /// Validate rate limiting configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         for (name, window) in &[
             ("auth_start_window_secs", self.auth_start_window_secs),
@@ -242,6 +250,10 @@ const SUPPORTED_ALGORITHMS: &[&str] = &["chacha20-poly1305", "aes-256-gcm"];
 
 impl StateEncryptionConfig {
     /// Validate state encryption configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         if !SUPPORTED_ALGORITHMS.contains(&self.algorithm.as_str()) {
             anyhow::bail!(
@@ -354,6 +366,10 @@ pub struct SecurityConfig {
 
 impl SecurityConfig {
     /// Validate all security configurations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         self.error_sanitization.validate()?;
         self.rate_limiting.validate()?;

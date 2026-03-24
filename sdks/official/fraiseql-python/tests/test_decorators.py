@@ -1303,3 +1303,451 @@ def test_mutation_invalidates_views_in_json() -> None:
     m = SchemaRegistry.get_schema()["mutations"][0]
     assert m["sql_source"] == "fn_create_order"
     assert m["invalidates_views"] == ["v_order_summary"]
+
+
+# =============================================================================
+# Feature #124: tenant_scoped
+# =============================================================================
+
+
+def test_type_tenant_scoped_emits_flag() -> None:
+    """@type(tenant_scoped=True) emits tenant_scoped: true in schema JSON."""
+
+    @fraiseql.type(tenant_scoped=True)
+    class Invoice:
+        id: int
+        amount: float
+        tenant_id: str
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Invoice")
+    assert t["tenant_scoped"] is True
+
+
+def test_type_tenant_scoped_false_omits_key() -> None:
+    """@type without tenant_scoped does not emit the key."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Widget")
+    assert "tenant_scoped" not in t
+
+
+def test_type_explicit_sql_source() -> None:
+    """@type(sql_source='custom_view') overrides the default v_<snake> name."""
+
+    @fraiseql.type(sql_source="my_schema.v_report")
+    class Report:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Report")
+    assert t["sql_source"] == "my_schema.v_report"
+
+
+# =============================================================================
+# Feature #123: UNSET sentinel
+# =============================================================================
+
+
+def test_unset_is_singleton() -> None:
+    """UNSET is a singleton — all references are the same object."""
+    from fraiseql.unset import UNSET as U1
+    from fraiseql.unset import UNSET as U2
+
+    assert U1 is U2
+    assert U1 is fraiseql.UNSET
+
+
+def test_unset_is_falsy() -> None:
+    """UNSET evaluates to False in boolean context."""
+    assert not fraiseql.UNSET
+    assert bool(fraiseql.UNSET) is False
+
+
+def test_unset_repr() -> None:
+    """UNSET has a readable repr."""
+    assert repr(fraiseql.UNSET) == "UNSET"
+
+
+def test_unset_distinguishable_from_none() -> None:
+    """UNSET is not None and not equal to None."""
+    assert fraiseql.UNSET is not None
+    assert fraiseql.UNSET != None  # noqa: E711
+
+
+def test_unset_equality() -> None:
+    """UNSET equals itself."""
+    assert fraiseql.UNSET == fraiseql.UNSET
+
+
+# =============================================================================
+# Feature #125: inject_defaults via load_config
+# =============================================================================
+
+
+def test_inject_defaults_merged_into_queries(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
+    """inject_defaults from TOML are merged into query inject_params."""
+    toml_file = tmp_path / "fraiseql.toml"  # type: ignore[operator]
+    toml_file.write_text(
+        '[inject_defaults]\ntenant_id = "jwt:tenant_id"\n\n'
+        '[inject_defaults.queries]\nread_scope = "jwt:scope"\n'
+    )
+    fraiseql.load_config(str(toml_file))
+
+    @fraiseql.type
+    class Order:
+        id: int
+        total: float
+
+    @fraiseql.query(sql_source="v_order")
+    def orders() -> list[Order]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = next(q for q in schema["queries"] if q["name"] == "orders")
+    assert q["inject_params"]["tenant_id"] == {"source": "jwt", "claim": "tenant_id"}
+    assert q["inject_params"]["read_scope"] == {"source": "jwt", "claim": "scope"}
+
+
+def test_inject_defaults_merged_into_mutations(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
+    """inject_defaults from TOML are merged into mutation inject_params."""
+    toml_file = tmp_path / "fraiseql.toml"  # type: ignore[operator]
+    toml_file.write_text(
+        '[inject_defaults]\ntenant_id = "jwt:tenant_id"\n\n'
+        '[inject_defaults.mutations]\nuser_id = "jwt:sub"\n'
+    )
+    fraiseql.load_config(str(toml_file))
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_order")
+    def create_order(total: float) -> Order:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    m = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    assert m["inject_params"]["tenant_id"] == {"source": "jwt", "claim": "tenant_id"}
+    assert m["inject_params"]["user_id"] == {"source": "jwt", "claim": "sub"}
+
+
+def test_inject_defaults_explicit_overrides_default(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
+    """Per-operation inject overrides defaults for the same key."""
+    toml_file = tmp_path / "fraiseql.toml"  # type: ignore[operator]
+    toml_file.write_text('[inject_defaults]\ntenant_id = "jwt:tenant_id"\n')
+    fraiseql.load_config(str(toml_file))
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.query(sql_source="v_item", inject={"tenant_id": "jwt:org_id"})
+    def items() -> list[Item]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = next(q for q in schema["queries"] if q["name"] == "items")
+    # Explicit inject wins over default
+    assert q["inject_params"]["tenant_id"] == {"source": "jwt", "claim": "org_id"}
+
+
+# =============================================================================
+# Feature #122: crud=True auto-generation
+# =============================================================================
+
+
+def test_crud_true_generates_all_operations() -> None:
+    """@type(crud=True) generates get-by-id, list, create, update, delete."""
+    from fraiseql.scalars import ID
+
+    @fraiseql.type(crud=True)
+    class Product:
+        id: ID
+        name: str
+        price: float
+
+    schema = SchemaRegistry.get_schema()
+
+    # Type registered
+    assert len(schema["types"]) == 1
+    assert schema["types"][0]["name"] == "Product"
+
+    # 2 queries: product (get by ID) + products (list)
+    assert len(schema["queries"]) == 2
+
+    get_q = next(q for q in schema["queries"] if q["name"] == "product")
+    assert get_q["return_type"] == "Product"
+    assert get_q["returns_list"] is False
+    assert get_q["nullable"] is True
+    assert get_q["sql_source"] == "v_product"
+    assert len(get_q["arguments"]) == 1
+    assert get_q["arguments"][0]["name"] == "id"
+
+    list_q = next(q for q in schema["queries"] if q["name"] == "products")
+    assert list_q["return_type"] == "Product"
+    assert list_q["returns_list"] is True
+    assert list_q["nullable"] is False
+    assert list_q["sql_source"] == "v_product"
+    assert list_q["auto_params"] == {
+        "where": True,
+        "order_by": True,
+        "limit": True,
+        "offset": True,
+    }
+
+    # 3 mutations: create, update, delete
+    assert len(schema["mutations"]) == 3
+
+    create_m = next(m for m in schema["mutations"] if m["name"] == "create_product")
+    assert create_m["operation"] == "INSERT"
+    assert create_m["sql_source"] == "fn_create_product"
+    assert len(create_m["arguments"]) == 3  # id, name, price
+
+    update_m = next(m for m in schema["mutations"] if m["name"] == "update_product")
+    assert update_m["operation"] == "UPDATE"
+    assert update_m["sql_source"] == "fn_update_product"
+    assert update_m["nullable"] is True
+    # PK required, others nullable
+    pk_arg = update_m["arguments"][0]
+    assert pk_arg["name"] == "id"
+    assert pk_arg["nullable"] is False
+    assert update_m["arguments"][1]["nullable"] is True
+
+    delete_m = next(m for m in schema["mutations"] if m["name"] == "delete_product")
+    assert delete_m["operation"] == "DELETE"
+    assert delete_m["sql_source"] == "fn_delete_product"
+    assert len(delete_m["arguments"]) == 1
+
+
+def test_crud_selective_read_only() -> None:
+    """@type(crud=["read"]) generates only get-by-id and list queries."""
+
+    @fraiseql.type(crud=["read"])
+    class AuditLog:
+        id: int
+        action: str
+        timestamp: str
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["queries"]) == 2
+    assert len(schema["mutations"]) == 0
+
+
+def test_crud_pascal_to_snake_multi_word() -> None:
+    """CRUD generation uses correct snake_case for multi-word type names."""
+
+    @fraiseql.type(crud=True)
+    class OrderItem:
+        id: int
+        quantity: int
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "order_item" in query_names
+    assert "order_items" in query_names
+
+    mutation_names = [m["name"] for m in schema["mutations"]]
+    assert "create_order_item" in mutation_names
+    assert "update_order_item" in mutation_names
+    assert "delete_order_item" in mutation_names
+
+
+def test_crud_uses_explicit_sql_source() -> None:
+    """Test that @type(crud=True, sql_source=...) uses the explicit sql_source."""
+
+    @fraiseql.type(crud=True, sql_source="tv_organization")
+    class Organization:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+
+    # The read queries should use the explicit sql_source
+    get_query = next(q for q in schema["queries"] if q["name"] == "organization")
+    assert get_query["sql_source"] == "tv_organization"
+
+    list_query = next(q for q in schema["queries"] if q["name"] == "organizations")
+    assert list_query["sql_source"] == "tv_organization"
+
+    # Mutations still use function naming convention
+    create_mut = next(m for m in schema["mutations"] if m["name"] == "create_organization")
+    assert create_mut["sql_source"] == "fn_create_organization"
+
+
+def test_crud_defaults_sql_source_when_not_specified() -> None:
+    """Test that CRUD defaults to v_<snake> when no sql_source given."""
+
+    @fraiseql.type(crud=["read"])
+    class Widget:
+        id: int
+        label: str
+
+    schema = SchemaRegistry.get_schema()
+
+    get_query = next(q for q in schema["queries"] if q["name"] == "widget")
+    assert get_query["sql_source"] == "v_widget"
+
+
+# --- Pluralization tests (#137) ---
+
+
+def test_pluralize_y_to_ies() -> None:
+    """Test -y → -ies pluralization (consonant + y)."""
+
+    @fraiseql.type(crud=["read"])
+    class Category:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "categories" in query_names
+
+
+def test_pluralize_ss_to_sses() -> None:
+    """Test -ss → -sses pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Address:
+        id: int
+        street: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "addresses" in query_names
+
+
+def test_pluralize_ch_to_ches() -> None:
+    """Test -ch → -ches pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Branch:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "branches" in query_names
+
+
+def test_pluralize_x_to_xes() -> None:
+    """Test -x → -xes pluralization."""
+
+    @fraiseql.type(crud=["read"])
+    class Tax:
+        id: int
+        amount: float
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "taxes" in query_names
+
+
+def test_pluralize_already_plural() -> None:
+    """Test already-plural words ending in s (but not ss) are unchanged."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("statistics") == "statistics"
+    assert _pluralize("news") == "news"
+
+
+def test_pluralize_vowel_y() -> None:
+    """Test vowel + y gets regular -s (not -ies)."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("key") == "keys"
+    assert _pluralize("day") == "days"
+
+
+def test_pluralize_default_s() -> None:
+    """Test default pluralization adds -s."""
+    from fraiseql.registry import _pluralize
+
+    assert _pluralize("user") == "users"
+    assert _pluralize("product") == "products"
+
+
+def test_explicit_plural_name() -> None:
+    """Test explicit plural_name overrides automatic pluralization."""
+
+    @fraiseql.type(crud=["read"], plural_name="people")
+    class Person:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    query_names = [q["name"] for q in schema["queries"]]
+    assert "people" in query_names
+    assert "persons" not in query_names
+
+
+# =============================================================================
+# Cascade Protocol tests (#142)
+# =============================================================================
+
+
+def test_mutation_cascade_bool_validation() -> None:
+    """Non-bool cascade= raises TypeError."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a bool"):
+
+        @fraiseql.mutation(sql_source="fn_create_widget", cascade="not_a_bool")
+        def create_widget(name: str) -> Widget:
+            pass
+
+
+def test_mutation_cascade_true_registers() -> None:
+    """cascade=True is stored in the schema registry."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_order", cascade=True)
+    def create_order(total: float) -> Order:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    assert mut["cascade"] is True
+
+
+def test_mutation_cascade_false_registers() -> None:
+    """cascade=False is stored in the schema registry."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_item", cascade=False)
+    def create_item(name: str) -> Item:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_item")
+    assert mut["cascade"] is False
+
+
+def test_mutation_cascade_omitted_not_in_schema() -> None:
+    """When cascade= is not specified, the key is absent from the schema entry."""
+
+    @fraiseql.type
+    class Thing:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_thing")
+    def create_thing(name: str) -> Thing:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_thing")
+    assert "cascade" not in mut

@@ -379,6 +379,8 @@ impl PkceStateStore {
 
     /// Consume a state token, atomically removing it from the store.
     ///
+    /// # Errors
+    ///
     /// Returns [`PkceError::StateNotFound`] for:
     /// - tokens that were never issued,
     /// - tokens that have already been consumed (one-time use), and
@@ -447,8 +449,7 @@ impl PkceStateStore {
 mod tests {
     use std::time::Duration;
 
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
     use crate::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
 

@@ -40,6 +40,10 @@ pub(super) trait SchemaGenerator {
 // =============================================================================
 
 /// Run the generate command.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(input: &str, language: Language, output: Option<&str>) -> Result<()> {
     let json = fs::read_to_string(input).with_context(|| format!("Failed to read {input}"))?;
     let schema: IntermediateSchema =

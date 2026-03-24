@@ -25,6 +25,9 @@ fn field(name: &str, type_str: &str) -> FieldDefinition {
         requires_scope: None,
         on_deny:        FieldDenyPolicy::default(),
         encryption:     None,
+        auto_generated: false,
+        computed:       false,
+        searchable:     false,
     }
 }
 

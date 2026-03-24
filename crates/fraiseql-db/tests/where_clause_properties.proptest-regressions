@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 808e841cddb280cc249c96c05b0b69f675e1307d3737c3fc43be90f3a31f90ae # shrinks to clause = Field { path: ["a"], operator: Eq, value: String("(") }
+cc d3102a3c031b6f04815df436c9919f64d3a0935389b19ff02c07a8ad0cc8fc56 # shrinks to field = "a", value = "= ''"

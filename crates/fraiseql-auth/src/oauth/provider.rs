@@ -179,7 +179,11 @@ impl ProviderRegistry {
         }
     }
 
-    /// Register provider
+    /// Register provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn register(&self, provider: ExternalAuthProvider) -> std::result::Result<(), AuthError> {
         let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
             message: "provider registry mutex poisoned".to_string(),
@@ -188,7 +192,11 @@ impl ProviderRegistry {
         Ok(())
     }
 
-    /// Get provider by name
+    /// Get provider by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn get(&self, name: &str) -> std::result::Result<Option<ExternalAuthProvider>, AuthError> {
         let providers = self.providers.lock().map_err(|_| AuthError::Internal {
             message: "provider registry mutex poisoned".to_string(),
@@ -196,7 +204,11 @@ impl ProviderRegistry {
         Ok(providers.get(name).cloned())
     }
 
-    /// List all enabled providers
+    /// List all enabled providers.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn list_enabled(&self) -> std::result::Result<Vec<ExternalAuthProvider>, AuthError> {
         let providers = self.providers.lock().map_err(|_| AuthError::Internal {
             message: "provider registry mutex poisoned".to_string(),
@@ -204,7 +216,11 @@ impl ProviderRegistry {
         Ok(providers.values().filter(|p| p.enabled).cloned().collect())
     }
 
-    /// Disable provider
+    /// Disable provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn disable(&self, name: &str) -> std::result::Result<bool, AuthError> {
         let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
             message: "provider registry mutex poisoned".to_string(),
@@ -217,7 +233,11 @@ impl ProviderRegistry {
         }
     }
 
-    /// Enable provider
+    /// Enable provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Internal` if the mutex is poisoned.
     pub fn enable(&self, name: &str) -> std::result::Result<bool, AuthError> {
         let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
             message: "provider registry mutex poisoned".to_string(),

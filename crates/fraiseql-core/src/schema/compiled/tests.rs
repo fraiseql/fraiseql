@@ -231,3 +231,146 @@ fn test_has_rls_configured_no_policies_key() {
     };
     assert!(!schema.has_rls_configured(), "Security without policies key must return false");
 }
+
+// =========================================================================
+// inject_cascade_types tests
+// =========================================================================
+
+use super::{mutation::MutationDefinition, schema::inject_cascade_types};
+
+#[test]
+fn test_inject_cascade_types_when_cascade_mutation_present() {
+    let mut schema = CompiledSchema {
+        mutations: vec![{
+            let mut m = MutationDefinition::new("createOrder", "Order");
+            m.cascade = true;
+            m
+        }],
+        ..CompiledSchema::default()
+    };
+
+    inject_cascade_types(&mut schema);
+
+    let type_names: Vec<&str> = schema.types.iter().map(|t| t.name.as_str()).collect();
+    assert!(type_names.contains(&"CascadeEntity"), "CascadeEntity must be injected");
+    assert!(
+        type_names.contains(&"CascadeInvalidation"),
+        "CascadeInvalidation must be injected"
+    );
+    assert!(type_names.contains(&"CascadeMetadata"), "CascadeMetadata must be injected");
+    assert!(type_names.contains(&"Cascade"), "Cascade must be injected");
+
+    // Verify CascadeEntity fields
+    let entity_type = schema.types.iter().find(|t| t.name == "CascadeEntity").unwrap();
+    let field_names: Vec<&str> = entity_type.fields.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(field_names, vec!["id", "typename", "operation", "entity"]);
+
+    // Verify CascadeInvalidation fields
+    let inv_type = schema.types.iter().find(|t| t.name == "CascadeInvalidation").unwrap();
+    let field_names: Vec<&str> = inv_type.fields.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(field_names, vec!["queryName", "strategy", "scope"]);
+
+    // Verify CascadeMetadata fields
+    let meta_type = schema.types.iter().find(|t| t.name == "CascadeMetadata").unwrap();
+    let field_names: Vec<&str> = meta_type.fields.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(field_names, vec!["timestamp", "affectedCount", "depth", "transactionId"]);
+
+    // Verify Cascade envelope fields
+    let cascade_type = schema.types.iter().find(|t| t.name == "Cascade").unwrap();
+    let field_names: Vec<&str> = cascade_type.fields.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(field_names, vec!["updated", "deleted", "invalidations", "metadata"]);
+}
+
+#[test]
+fn test_inject_cascade_types_skipped_when_no_cascade_mutations() {
+    let mut schema = CompiledSchema {
+        mutations: vec![
+            MutationDefinition::new("createUser", "User"),
+            MutationDefinition::new("deleteUser", "User"),
+        ],
+        ..CompiledSchema::default()
+    };
+
+    let type_count_before = schema.types.len();
+    inject_cascade_types(&mut schema);
+    assert_eq!(
+        schema.types.len(),
+        type_count_before,
+        "No types should be injected when no mutation has cascade: true"
+    );
+}
+
+#[test]
+fn test_inject_cascade_types_idempotent() {
+    let mut schema = CompiledSchema {
+        mutations: vec![{
+            let mut m = MutationDefinition::new("createOrder", "Order");
+            m.cascade = true;
+            m
+        }],
+        ..CompiledSchema::default()
+    };
+
+    inject_cascade_types(&mut schema);
+    let count_after_first = schema.types.len();
+
+    inject_cascade_types(&mut schema);
+    assert_eq!(
+        schema.types.len(),
+        count_after_first,
+        "Second call must not create duplicate types"
+    );
+}
+
+#[test]
+fn test_cascade_types_in_sdl() {
+    let mut schema = CompiledSchema {
+        mutations: vec![{
+            let mut m = MutationDefinition::new("createOrder", "Order");
+            m.cascade = true;
+            m
+        }],
+        ..CompiledSchema::default()
+    };
+
+    inject_cascade_types(&mut schema);
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("type CascadeEntity"), "SDL must contain CascadeEntity");
+    assert!(sdl.contains("type CascadeInvalidation"), "SDL must contain CascadeInvalidation");
+    assert!(sdl.contains("type CascadeMetadata"), "SDL must contain CascadeMetadata");
+    assert!(sdl.contains("type Cascade {"), "SDL must contain Cascade envelope type");
+}
+
+// =========================================================================
+// MutationDefinition cascade serde tests
+// =========================================================================
+
+#[test]
+fn test_mutation_definition_cascade_serde_roundtrip() {
+    let mut mutation = MutationDefinition::new("createOrder", "Order");
+    mutation.cascade = true;
+
+    let json = serde_json::to_string(&mutation).unwrap();
+    assert!(json.contains(r#""cascade":true"#), "cascade: true must be serialized");
+
+    let deserialized: MutationDefinition = serde_json::from_str(&json).unwrap();
+    assert!(deserialized.cascade, "cascade must survive roundtrip");
+}
+
+#[test]
+fn test_mutation_definition_cascade_default_false() {
+    let json = r#"{"name": "createUser", "return_type": "User"}"#;
+    let mutation: MutationDefinition = serde_json::from_str(json).unwrap();
+    assert!(!mutation.cascade, "cascade must default to false when absent");
+}
+
+#[test]
+fn test_mutation_definition_cascade_false_skipped_in_serialization() {
+    let mutation = MutationDefinition::new("createUser", "User");
+    let json = serde_json::to_string(&mutation).unwrap();
+    assert!(
+        !json.contains("cascade"),
+        "cascade: false must be omitted from serialized output (skip_serializing_if)"
+    );
+}

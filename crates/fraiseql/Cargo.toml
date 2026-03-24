@@ -13,7 +13,7 @@ fraiseql-observers = {workspace = true, optional = true}
 # Optional components
 fraiseql-server = {workspace = true, optional = true}
 fraiseql-wire = {workspace = true, optional = true}
-tokio = {workspace = true}
+tokio = {workspace = true, features = ["rt-multi-thread", "macros"]}
 
 [features]
 arrow = ["dep:fraiseql-arrow", "fraiseql-core/arrow", "server"]
@@ -45,6 +45,7 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true

@@ -53,6 +53,10 @@ impl GoogleOAuth {
     /// * `client_id` - Google OAuth client ID (from Google Cloud Console)
     /// * `client_secret` - Google OAuth client secret
     /// * `redirect_uri` - Redirect URI after authentication (e.g., "http://localhost:8000/auth/callback")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,
@@ -194,8 +198,7 @@ impl OAuthProvider for GoogleOAuth {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

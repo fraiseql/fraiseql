@@ -30,9 +30,8 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: live OIDC/OAuth2 identity provider.
 //! use fraiseql_core::security::oidc::{OidcConfig, OidcValidator};
-//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = OidcConfig {
 //!     issuer: "https://your-tenant.auth0.com/".to_string(),
 //!     audience: Some("your-api-identifier".to_string()),
@@ -41,6 +40,8 @@
 //!
 //! let validator = OidcValidator::new(config).await?;
 //! let user = validator.validate_token("eyJhbG...").await?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub(crate) mod audience;

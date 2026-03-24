@@ -138,7 +138,7 @@ make test
 make test-integration
 
 # Run specific test
-cargo test test_schema
+cargo nextest run test_schema
 ```
 
 ---
@@ -148,8 +148,8 @@ cargo test test_schema
 ### 1. Create a Feature Branch
 
 ```bash
-git checkout v2-development
-git pull upstream v2-development
+git checkout dev
+git pull upstream dev
 git checkout -b feature/my-feature
 ```
 
@@ -212,7 +212,7 @@ git commit -m "feat(scope): description
 git push origin feature/my-feature
 ```
 
-Then create a Pull Request on GitHub targeting `v2-development`.
+Then create a Pull Request on GitHub targeting `dev`.
 
 ---
 
@@ -295,6 +295,8 @@ count grows above the Phase 0 baseline. When RTN + Send stabilises in Rust, all
 
 See **[`docs/testing.md`](docs/testing.md)** for the full test taxonomy (7 categories,
 infrastructure requirements, CI coverage, and decision guide).
+See **[`ignored-tests.md`](ignored-tests.md)** for a catalogue of `#[ignore]`-marked tests,
+their environment requirements, and how to run them locally or in CI.
 
 ### Quick Commands
 
@@ -387,7 +389,7 @@ Before submitting a PR, ensure:
 
 ### After Merge
 
-The PR will be merged into `v2-development`. Your contribution will be included in the next release!
+The PR will be merged into `dev`. Your contribution will be included in the next release!
 
 ---
 

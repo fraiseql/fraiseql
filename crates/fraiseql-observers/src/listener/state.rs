@@ -79,6 +79,10 @@ impl ListenerStateMachine {
     /// Transition to a new state
     ///
     /// All state mutations happen under a single lock, making transitions atomic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn transition(&self, next_state: ListenerState) -> Result<()> {
         let mut inner = self.inner.lock().await;
 

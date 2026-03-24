@@ -40,15 +40,18 @@ impl SagaExecutor {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_executor::SagaExecutor;
+    /// use uuid::Uuid;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let executor = SagaExecutor::new();
+    /// let saga_id = Uuid::new_v4();
     /// let result = executor.execute_step(
     ///     saga_id,
     ///     1,
     ///     "createOrder",
-    ///     &json!({"customerId": "c123", "total": 100.0}),
-    ///     "orders-service"
+    ///     &serde_json::json!({"customerId": "c123", "total": 100.0}),
+    ///     "orders-service",
     /// ).await?;
     ///
     /// if result.success {
@@ -57,6 +60,8 @@ impl SagaExecutor {
     ///     eprintln!("Step failed: {}", result.error.unwrap());
     ///     // Compensation will be triggered by coordinator
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn execute_step(
         &self,

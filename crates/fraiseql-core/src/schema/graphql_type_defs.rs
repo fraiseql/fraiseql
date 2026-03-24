@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
+    config_types::RelationshipDef,
     domain_types::{SqlSource, TypeName},
     field_type::{DeprecationInfo, FieldDefinition},
 };
@@ -94,6 +95,12 @@ pub struct TypeDefinition {
     /// Cursor-based pagination uses `pk_{snake_case(name)}` (BIGINT) for keyset ordering.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// Relationships to other types (derived from FK conventions or explicit annotation).
+    ///
+    /// Used by the REST transport for nested resource embedding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<RelationshipDef>,
 }
 
 pub(super) fn default_jsonb_column() -> String {
@@ -115,6 +122,7 @@ impl TypeDefinition {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         }
     }
 
@@ -174,6 +182,26 @@ impl TypeDefinition {
     #[must_use]
     pub fn typename(&self) -> &str {
         self.name.as_str()
+    }
+
+    /// Returns fields that are writable via mutations.
+    ///
+    /// Excludes primary keys, auto-generated, computed, and encrypted fields.
+    /// Used by the REST transport for PUT/PATCH full-coverage detection and
+    /// OpenAPI schema generation.
+    #[must_use]
+    pub fn writable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields.iter().filter(|f| f.is_writable()).collect()
+    }
+
+    /// Returns FTS-capable fields (those with `searchable: true`), or empty if none.
+    ///
+    /// Used by the REST transport to determine whether `?search=` is available
+    /// on endpoints returning this type and which columns to include in
+    /// the full-text search query.
+    #[must_use]
+    pub fn searchable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields.iter().filter(|f| f.searchable).collect()
     }
 }
 
@@ -659,5 +687,136 @@ impl UnionDefinition {
     #[must_use]
     pub fn contains_type(&self, type_name: &str) -> bool {
         self.member_types.iter().any(|t| t == type_name)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod tests {
+    use super::*;
+    use crate::schema::{FieldEncryptionConfig, FieldType};
+
+    #[test]
+    fn test_writable_fields_excludes_pk() {
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("pk_user", FieldType::Int))
+            .with_field(FieldDefinition::new("email", FieldType::String));
+
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_auto_generated() {
+        let mut created = FieldDefinition::new("created_at", FieldType::DateTime);
+        created.auto_generated = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(created);
+
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_computed() {
+        let mut full_name = FieldDefinition::new("full_name", FieldType::String);
+        full_name.computed = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(full_name);
+
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_writable_fields_excludes_encrypted() {
+        let ssn =
+            FieldDefinition::new("ssn", FieldType::String).with_encryption(FieldEncryptionConfig {
+                key_reference: "keys/ssn".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            });
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(ssn);
+
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email"]);
+    }
+
+    #[test]
+    fn test_searchable_fields_returns_marked_fields() {
+        let mut title = FieldDefinition::new("title", FieldType::String);
+        title.searchable = true;
+        let mut body = FieldDefinition::new("body", FieldType::String);
+        body.searchable = true;
+
+        let type_def = TypeDefinition::new("Article", "v_article")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(title)
+            .with_field(body)
+            .with_field(FieldDefinition::new("status", FieldType::String));
+
+        let searchable: Vec<&str> =
+            type_def.searchable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(searchable, vec!["title", "body"]);
+    }
+
+    #[test]
+    fn test_searchable_fields_empty_when_none_marked() {
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("email", FieldType::String));
+
+        assert!(type_def.searchable_fields().is_empty());
+    }
+
+    #[test]
+    fn test_searchable_field_round_trip() {
+        let mut field = FieldDefinition::new("title", FieldType::String);
+        field.searchable = true;
+
+        let json = serde_json::to_string(&field).unwrap();
+        let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.searchable);
+    }
+
+    #[test]
+    fn test_searchable_false_skipped_in_serialization() {
+        let field = FieldDefinition::new("title", FieldType::String);
+        let json = serde_json::to_string(&field).unwrap();
+        assert!(!json.contains("searchable"));
+    }
+
+    #[test]
+    fn test_writable_fields_mixed() {
+        let mut auto = FieldDefinition::new("created_at", FieldType::DateTime);
+        auto.auto_generated = true;
+        let mut computed = FieldDefinition::new("full_name", FieldType::String);
+        computed.computed = true;
+
+        let type_def = TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("pk_user", FieldType::Int))
+            .with_field(FieldDefinition::new("email", FieldType::String))
+            .with_field(FieldDefinition::new("name", FieldType::String))
+            .with_field(auto)
+            .with_field(computed);
+
+        let writable: Vec<&str> =
+            type_def.writable_fields().iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(writable, vec!["email", "name"]);
     }
 }

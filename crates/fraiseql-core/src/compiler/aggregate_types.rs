@@ -813,30 +813,10 @@ mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::*;
-    use crate::compiler::fact_table::{DimensionColumn, MeasureColumn};
+    use crate::compiler::fact_table::{DimensionColumn, MeasureColumn, test_sales_metadata};
 
     fn create_test_metadata() -> FactTableMetadata {
-        FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-        }
+        test_sales_metadata()
     }
 
     #[test]

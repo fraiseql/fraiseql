@@ -38,11 +38,11 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: a JobQueue implementation (e.g., RedisJobQueue) and Redis.
-//! use fraiseql_observers::queue::{Job, JobWorker};
+//! use fraiseql_observers::queue::{Job, ExponentialBackoffPolicy};
+//! use fraiseql_observers::queue::worker::JobWorker;
 //!
-//! # async fn example(queue: std::sync::Arc<dyn fraiseql_observers::queue::JobQueue>, executor: std::sync::Arc<dyn fraiseql_observers::traits::ActionExecutor>, entity_event: fraiseql_observers::event::EntityEvent, action: fraiseql_observers::config::ActionConfig) -> fraiseql_observers::Result<()> {
-//! let now = chrono::Utc::now();
+//! # async fn example(queue: impl fraiseql_observers::queue::JobQueue + Clone + 'static, executor: impl fraiseql_observers::traits::ActionExecutor + Clone + 'static, entity_event: fraiseql_observers::event::EntityEvent, action: fraiseql_observers::config::ActionConfig) -> fraiseql_observers::Result<()> {
+//! let now = chrono::Utc::now().timestamp();
 //! let job = Job {
 //!     id: "job-123".to_string(),
 //!     action_id: "send_batch_email".to_string(),
@@ -55,8 +55,9 @@
 //!
 //! queue.enqueue(&job).await?;
 //!
-//! // Process with worker
-//! let worker = JobWorker::new(queue, executor, 4);
+//! // Process with worker (queue, executor, retry_policy, job_timeout_ms)
+//! let policy = ExponentialBackoffPolicy::default();
+//! let worker = JobWorker::new(queue, executor, policy, 30_000);
 //! worker.run().await?;
 //! # Ok(())
 //! # }

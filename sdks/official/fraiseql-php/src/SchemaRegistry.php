@@ -47,6 +47,18 @@ final class SchemaRegistry
     /** @var array<string, array{sql_source: string|null, is_error: bool}> Extra type metadata */
     private array $typeMeta = [];
 
+    /** @var array<string, bool> Tenant-scoped flags by type name */
+    private array $tenantScoped = [];
+
+    /** @var array<string, string> Base inject defaults (param => 'jwt:claim') */
+    private array $injectDefaults = [];
+
+    /** @var array<string, string> Query-specific inject defaults */
+    private array $injectDefaultsQueries = [];
+
+    /** @var array<string, string> Mutation-specific inject defaults */
+    private array $injectDefaultsMutations = [];
+
     private function __construct()
     {
     }
@@ -100,12 +112,20 @@ final class SchemaRegistry
         $fields = [];
         foreach ($reflection->getProperties() as $property) {
             $fieldDef = $this->extractFieldDefinition($property, $typeName);
-            if ($fieldDef !== null) {
-                $fields[$property->getName()] = $fieldDef;
-            }
+            $fields[$property->getName()] = $fieldDef;
         }
 
         $this->typeFields[$typeName] = $fields;
+
+        // Store tenant_scoped flag
+        if ($typeAttribute->tenantScoped) {
+            $this->tenantScoped[$typeName] = true;
+        }
+
+        // Generate CRUD operations if requested
+        if ($typeAttribute->crud !== false) {
+            $this->generateCrudOperations($typeName, $fields, $typeAttribute->crud, $typeAttribute->sqlSource ?? null);
+        }
 
         return $this;
     }
@@ -290,6 +310,282 @@ final class SchemaRegistry
     }
 
     /**
+     * Get type metadata (sql_source, is_error) for a given type.
+     *
+     * @param string $typeName The GraphQL type name
+     * @return array{sql_source: string|null, is_error: bool}|null
+     */
+    public function getTypeMeta(string $typeName): ?array
+    {
+        return $this->typeMeta[$typeName] ?? null;
+    }
+
+    /**
+     * Set type metadata for a given type.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param array{sql_source: string|null, is_error: bool} $meta
+     */
+    public function setTypeMeta(string $typeName, array $meta): void
+    {
+        $this->typeMeta[$typeName] = $meta;
+    }
+
+    /**
+     * Check if a type is tenant-scoped.
+     *
+     * @param string $typeName The GraphQL type name
+     * @return bool
+     */
+    public function isTenantScoped(string $typeName): bool
+    {
+        return $this->tenantScoped[$typeName] ?? false;
+    }
+
+    /**
+     * Set inject defaults for queries and mutations.
+     *
+     * @param array<string, string> $base Base inject defaults applied to all operations
+     * @param array<string, string> $queries Additional inject defaults for queries only
+     * @param array<string, string> $mutations Additional inject defaults for mutations only
+     * @return self Fluent interface
+     */
+    public function setInjectDefaults(array $base, array $queries = [], array $mutations = []): self
+    {
+        $this->injectDefaults = $base;
+        $this->injectDefaultsQueries = $queries;
+        $this->injectDefaultsMutations = $mutations;
+        return $this;
+    }
+
+    /**
+     * Get base inject defaults.
+     *
+     * @return array<string, string>
+     */
+    public function getInjectDefaults(): array
+    {
+        return $this->injectDefaults;
+    }
+
+    /**
+     * Get query-specific inject defaults.
+     *
+     * @return array<string, string>
+     */
+    public function getInjectDefaultsQueries(): array
+    {
+        return $this->injectDefaultsQueries;
+    }
+
+    /**
+     * Get mutation-specific inject defaults.
+     *
+     * @return array<string, string>
+     */
+    public function getInjectDefaultsMutations(): array
+    {
+        return $this->injectDefaultsMutations;
+    }
+
+    /**
+     * Generate CRUD operations for a type.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param array<string, FieldDefinition> $fields The type's field definitions
+     * @param array<string>|bool $crud CRUD configuration: true, ['all'], or list of operations
+     */
+    private function generateCrudOperations(string $typeName, array $fields, array|bool $crud, ?string $sqlSource = null): void
+    {
+        $snake = self::pascalToSnake($typeName);
+        $view = $sqlSource ?? ('v_' . $snake);
+
+        // Determine which operations to generate
+        $ops = [];
+        if ($crud === true) {
+            $ops = ['read', 'create', 'update', 'delete'];
+        } elseif (is_array($crud)) {
+            if (in_array('all', $crud, true)) {
+                $ops = ['read', 'create', 'update', 'delete'];
+            } else {
+                $ops = $crud;
+            }
+        }
+
+        // Find PK field (first field starting with pk_)
+        $pkField = null;
+        foreach ($fields as $field) {
+            if (str_starts_with($field->name, 'pk_')) {
+                $pkField = $field;
+                break;
+            }
+        }
+
+        if (in_array('read', $ops, true)) {
+            $this->generateReadOperations($typeName, $snake, $view, $fields, $pkField);
+        }
+
+        if (in_array('create', $ops, true)) {
+            $this->generateCreateOperation($typeName, $snake, $fields);
+        }
+
+        if (in_array('update', $ops, true) && $pkField !== null) {
+            $this->generateUpdateOperation($typeName, $snake, $fields, $pkField);
+        }
+
+        if (in_array('delete', $ops, true) && $pkField !== null) {
+            $this->generateDeleteOperation($typeName, $snake, $pkField);
+        }
+    }
+
+    /**
+     * Generate read operations (get by ID + list).
+     *
+     * @param string $typeName The GraphQL type name
+     * @param string $snake The snake_case name
+     * @param string $view The view name
+     * @param array<string, FieldDefinition> $fields The type's fields
+     * @param FieldDefinition|null $pkField The primary key field
+     */
+    private function generateReadOperations(
+        string $typeName,
+        string $snake,
+        string $view,
+        array $fields,
+        ?FieldDefinition $pkField,
+    ): void {
+        // Get by ID query (only if PK exists)
+        if ($pkField !== null) {
+            $getQuery = QueryBuilder::query($snake)
+                ->returnType($typeName)
+                ->returnsList(false)
+                ->sqlSource($view)
+                ->argument($pkField->name, $pkField->type, nullable: false);
+            $this->registerQuery($getQuery);
+        }
+
+        // List query with auto_params
+        $listQuery = QueryBuilder::query(self::pluralize($snake))
+            ->returnType($typeName)
+            ->returnsList(true)
+            ->sqlSource($view)
+            ->autoParams(true);
+        $this->registerQuery($listQuery);
+    }
+
+    /**
+     * Generate create mutation.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param string $snake The snake_case name
+     * @param array<string, FieldDefinition> $fields The type's fields
+     */
+    private function generateCreateOperation(string $typeName, string $snake, array $fields): void
+    {
+        $mutation = MutationBuilder::mutation('create' . $typeName)
+            ->returnType($typeName)
+            ->sqlSource('fn_create_' . $snake)
+            ->operation('insert');
+
+        foreach ($fields as $field) {
+            $mutation->argument($field->name, $field->type, nullable: $field->nullable);
+        }
+
+        $this->registerMutation($mutation);
+    }
+
+    /**
+     * Generate update mutation.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param string $snake The snake_case name
+     * @param array<string, FieldDefinition> $fields The type's fields
+     * @param FieldDefinition $pkField The primary key field
+     */
+    private function generateUpdateOperation(
+        string $typeName,
+        string $snake,
+        array $fields,
+        FieldDefinition $pkField,
+    ): void {
+        $mutation = MutationBuilder::mutation('update' . $typeName)
+            ->returnType($typeName)
+            ->sqlSource('fn_update_' . $snake)
+            ->operation('update');
+
+        // PK is required
+        $mutation->argument($pkField->name, $pkField->type, nullable: false);
+
+        // Other fields are nullable (optional for update)
+        foreach ($fields as $field) {
+            if ($field->name === $pkField->name) {
+                continue;
+            }
+            $mutation->argument($field->name, $field->type, nullable: true);
+        }
+
+        $this->registerMutation($mutation);
+    }
+
+    /**
+     * Generate delete mutation.
+     *
+     * @param string $typeName The GraphQL type name
+     * @param string $snake The snake_case name
+     * @param FieldDefinition $pkField The primary key field
+     */
+    private function generateDeleteOperation(string $typeName, string $snake, FieldDefinition $pkField): void
+    {
+        $mutation = MutationBuilder::mutation('delete' . $typeName)
+            ->returnType($typeName)
+            ->sqlSource('fn_delete_' . $snake)
+            ->operation('delete');
+
+        $mutation->argument($pkField->name, $pkField->type, nullable: false);
+
+        $this->registerMutation($mutation);
+    }
+
+    /**
+     * Pluralize a snake_case name using basic English rules.
+     *
+     * Rules (ordered):
+     * 1. Already ends in 's' (but not 'ss') -> no change (e.g. 'statistics')
+     * 2. Ends in 'ss', 'sh', 'ch', 'x', 'z' -> append 'es'
+     * 3. Ends in consonant + 'y' -> replace 'y' with 'ies'
+     * 4. Default -> append 's'
+     *
+     * @param string $name The name to pluralize
+     * @return string The pluralized name
+     */
+    private static function pluralize(string $name): string
+    {
+        if (str_ends_with($name, 's') && !str_ends_with($name, 'ss')) {
+            return $name;
+        }
+        if (preg_match('/(?:ss|sh|ch|x|z)$/', $name)) {
+            return $name . 'es';
+        }
+        if (strlen($name) >= 2 && str_ends_with($name, 'y') && !str_contains('aeiou', $name[strlen($name) - 2])) {
+            return substr($name, 0, -1) . 'ies';
+        }
+        return $name . 's';
+    }
+
+    /**
+     * Convert PascalCase to snake_case.
+     *
+     * @param string $name The PascalCase name
+     * @return string The snake_case name
+     */
+    private static function pascalToSnake(string $name): string
+    {
+        $result = preg_replace('/(?<!^)[A-Z]/', '_$0', $name);
+
+        return strtolower($result ?? $name);
+    }
+
+    /**
      * Clear all registered types (useful for testing).
      *
      * @return self Fluent interface
@@ -303,6 +599,10 @@ final class SchemaRegistry
         $this->queries = [];
         $this->mutations = [];
         $this->typeMeta = [];
+        $this->tenantScoped = [];
+        $this->injectDefaults = [];
+        $this->injectDefaultsQueries = [];
+        $this->injectDefaultsMutations = [];
 
         return $this;
     }
@@ -312,12 +612,12 @@ final class SchemaRegistry
      *
      * @param \ReflectionProperty $property The property to extract from
      * @param string $typeName The parent type name
-     * @return FieldDefinition|null The field definition, or null if not a GraphQL field
+     * @return FieldDefinition The field definition
      */
     private function extractFieldDefinition(
         \ReflectionProperty $property,
         string $typeName,
-    ): ?FieldDefinition {
+    ): FieldDefinition {
         $typeInfo = TypeConverter::fromReflectionProperty($property);
 
         return new FieldDefinition(

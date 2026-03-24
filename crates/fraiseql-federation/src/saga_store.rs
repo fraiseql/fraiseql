@@ -22,8 +22,10 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! use fraiseql_federation::saga_store::{PostgresSagaStore, Saga, SagaState};
+//! use uuid::Uuid;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
 //! store.migrate_schema().await?;
 //!
@@ -36,6 +38,8 @@
 //! };
 //!
 //! store.save_saga(&saga).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::sync::Arc;
@@ -303,9 +307,12 @@ impl PostgresSagaStore {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_store::PostgresSagaStore;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn new(connection_string: &str) -> Result<Self> {
         let cfg = deadpool_postgres::Config {
@@ -705,7 +712,7 @@ impl PostgresSagaStore {
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
         #[allow(clippy::cast_possible_wrap)]
-        // Reason: saga count is bounded by configuration and won't exceed i64::MAX
+        // Reason: saga step order is bounded by configuration and won't exceed i32::MAX
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key

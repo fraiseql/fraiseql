@@ -85,6 +85,8 @@ type QueryBuilder struct {
 	additionalViews   []string
 	requiresRole      string
 	deprecation       *DeprecationInfo
+	restPath          string
+	restMethod        string
 }
 
 // NewQuery creates a new query builder
@@ -196,6 +198,19 @@ func (qb *QueryBuilder) Deprecated(reason string) *QueryBuilder {
 	return qb
 }
 
+// RestPath sets the REST endpoint path for this query.
+func (qb *QueryBuilder) RestPath(path string) *QueryBuilder {
+	qb.restPath = path
+	return qb
+}
+
+// RestMethod sets the HTTP method for the REST endpoint.
+// Defaults to GET for queries. Must be one of: GET, POST, PUT, PATCH, DELETE.
+func (qb *QueryBuilder) RestMethod(method string) *QueryBuilder {
+	qb.restMethod = method
+	return qb
+}
+
 // Register registers the query with the global schema registry.
 // Returns an error if a query with the same name is already registered.
 func (qb *QueryBuilder) Register() error {
@@ -214,6 +229,15 @@ func (qb *QueryBuilder) Register() error {
 		}
 	}
 
+	var rest *RestAnnotation
+	if qb.restPath != "" {
+		method := strings.ToUpper(qb.restMethod)
+		if method == "" {
+			method = "GET"
+		}
+		rest = &RestAnnotation{Path: qb.restPath, Method: method}
+	}
+
 	definition := QueryDefinition{
 		Name:              qb.name,
 		ReturnType:        qb.returnType,
@@ -229,6 +253,7 @@ func (qb *QueryBuilder) Register() error {
 		AdditionalViews:   qb.additionalViews,
 		RequiresRole:      qb.requiresRole,
 		Deprecation:       qb.deprecation,
+		Rest:              rest,
 	}
 
 	if len(qb.config) > 0 {
@@ -258,6 +283,8 @@ type MutationBuilder struct {
 	invalidatesViews      []string
 	invalidatesFactTables []string
 	deprecation           *DeprecationInfo
+	restPath              string
+	restMethod            string
 }
 
 // NewMutation creates a new mutation builder
@@ -349,9 +376,31 @@ func (mb *MutationBuilder) Deprecated(reason string) *MutationBuilder {
 	return mb
 }
 
+// RestPath sets the REST endpoint path for this mutation.
+func (mb *MutationBuilder) RestPath(path string) *MutationBuilder {
+	mb.restPath = path
+	return mb
+}
+
+// RestMethod sets the HTTP method for the REST endpoint.
+// Defaults to POST for mutations. Must be one of: GET, POST, PUT, PATCH, DELETE.
+func (mb *MutationBuilder) RestMethod(method string) *MutationBuilder {
+	mb.restMethod = method
+	return mb
+}
+
 // Register registers the mutation with the global schema registry.
 // Returns an error if a mutation with the same name is already registered.
 func (mb *MutationBuilder) Register() error {
+	var rest *RestAnnotation
+	if mb.restPath != "" {
+		method := strings.ToUpper(mb.restMethod)
+		if method == "" {
+			method = "POST"
+		}
+		rest = &RestAnnotation{Path: mb.restPath, Method: method}
+	}
+
 	definition := MutationDefinition{
 		Name:                 mb.name,
 		ReturnType:           mb.returnType,
@@ -363,6 +412,7 @@ func (mb *MutationBuilder) Register() error {
 		InvalidatesViews:     mb.invalidatesViews,
 		InvalidatesFactTables: mb.invalidatesFactTables,
 		Deprecation:          mb.deprecation,
+		Rest:                 rest,
 	}
 
 	if len(mb.config) > 0 {
@@ -388,13 +438,6 @@ func (mb *MutationBuilder) Register() error {
 
 	return RegisterMutation(definition)
 }
-
-// NOTE: FactTableBuilder removed - use analytics.NewFactTable() instead
-// The analytics module provides better-structured fact table builders
-// with support for Measure and Dimension types.
-
-// NOTE: AggregateQueryBuilder removed - use analytics.NewAggregateQueryConfig() instead
-// The analytics module provides better-structured aggregate query builders.
 
 // getTypeName gets the name of a type from a value
 func getTypeName(v interface{}) string {

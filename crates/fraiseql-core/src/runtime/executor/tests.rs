@@ -198,6 +198,8 @@ fn test_schema() -> CompiledSchema {
         cache_ttl_seconds:   None,
         additional_views:    vec![],
         requires_role:       None,
+        rest_path:           None,
+        rest_method:         None,
     });
     schema
 }
@@ -263,6 +265,7 @@ mod query {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            read_only:            false,
             query_validation:     None,
         };
         let executor = Executor::with_config(schema, adapter, config);
@@ -590,6 +593,7 @@ mod config {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            read_only:            false,
             query_validation:     None,
         };
 
@@ -613,6 +617,7 @@ mod config {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   custom_options,
+            read_only:            false,
             query_validation:     None,
         };
 
@@ -724,6 +729,8 @@ mod inject {
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -814,6 +821,277 @@ mod planning {
 
         let result = executor.plan_query("", None);
         assert!(result.is_err());
+    }
+}
+
+// ── mod cascade: cascade protocol in mutation responses ───────────────────
+
+mod cascade {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::*;
+
+    /// Mock adapter that returns a configurable `execute_function_call` result,
+    /// including cascade data, and tracks `invalidate_cascade_entities` calls.
+    struct CascadeMockAdapter {
+        /// The row returned by `execute_function_call`.
+        function_result:            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        /// Number of times `invalidate_cascade_entities` was called.
+        cascade_invalidation_count: AtomicU64,
+    }
+
+    impl CascadeMockAdapter {
+        fn new(row: std::collections::HashMap<String, serde_json::Value>) -> Self {
+            Self {
+                function_result:            vec![row],
+                cascade_invalidation_count: AtomicU64::new(0),
+            }
+        }
+
+        fn cascade_invalidation_count(&self) -> u64 {
+            self.cascade_invalidation_count.load(Ordering::SeqCst)
+        }
+    }
+
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for CascadeMockAdapter {
+        async fn execute_with_projection(
+            &self,
+            view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            where_clause: Option<&WhereClause>,
+            limit: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            self.execute_where_query(view, where_clause, limit, None).await
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(self.function_result.clone())
+        }
+
+        async fn invalidate_cascade_entities(
+            &self,
+            _cascade_response: &serde_json::Value,
+        ) -> Result<u64> {
+            self.cascade_invalidation_count.fetch_add(1, Ordering::SeqCst);
+            Ok(1)
+        }
+    }
+
+    impl MutationCapable for CascadeMockAdapter {}
+
+    /// Helper: build a mutation_response row with the given cascade data.
+    fn success_row_with_cascade(
+        cascade: Option<serde_json::Value>,
+    ) -> std::collections::HashMap<String, serde_json::Value> {
+        let mut row = std::collections::HashMap::new();
+        row.insert("status".to_string(), serde_json::json!("new"));
+        row.insert("message".to_string(), serde_json::json!("created"));
+        row.insert("entity".to_string(), serde_json::json!({"id": "order-1", "total": 42}));
+        row.insert("entity_type".to_string(), serde_json::json!("Order"));
+        if let Some(c) = cascade {
+            row.insert("cascade".to_string(), c);
+        }
+        row
+    }
+
+    fn cascade_json() -> serde_json::Value {
+        serde_json::json!({
+            "updated": [
+                {"__typename": "User", "id": "user-1"},
+                {"__typename": "User", "id": "user-2"}
+            ],
+            "deleted": [
+                {"__typename": "Post", "id": "post-99"}
+            ]
+        })
+    }
+
+    /// When a mutation has `cascade: true` and the DB function returns cascade
+    /// JSONB, the GraphQL response must include the cascade data.
+    #[tokio::test]
+    async fn test_cascade_data_included_in_response_when_enabled() {
+        use crate::schema::MutationDefinition;
+
+        let row = success_row_with_cascade(Some(cascade_json()));
+        let adapter = Arc::new(CascadeMockAdapter::new(row));
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            cascade: true,
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let executor = Executor::new(schema, adapter);
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let cascade = &parsed["data"]["createOrder"]["cascade"];
+        assert!(cascade.is_object(), "cascade must be present in response, got: {result}");
+        assert!(cascade["updated"].is_array());
+        assert_eq!(cascade["updated"].as_array().unwrap().len(), 2);
+        assert!(cascade["deleted"].is_array());
+        assert_eq!(cascade["deleted"].as_array().unwrap().len(), 1);
+    }
+
+    /// When a mutation has `cascade: false`, cascade JSONB from the DB function
+    /// must NOT appear in the GraphQL response even if present in the row.
+    #[tokio::test]
+    async fn test_cascade_data_excluded_when_disabled() {
+        use crate::schema::MutationDefinition;
+
+        let row = success_row_with_cascade(Some(cascade_json()));
+        let adapter = Arc::new(CascadeMockAdapter::new(row));
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            cascade: false,
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let executor = Executor::new(schema, adapter);
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let order = &parsed["data"]["createOrder"];
+        assert!(
+            order.get("cascade").is_none(),
+            "cascade must NOT be in response when cascade=false, got: {result}"
+        );
+    }
+
+    /// `invalidate_cascade_entities` must be called on the adapter when the
+    /// mutation has `cascade: true` and the response includes cascade data.
+    #[tokio::test]
+    async fn test_cascade_invalidation_called_when_present() {
+        use crate::schema::MutationDefinition;
+
+        let row = success_row_with_cascade(Some(cascade_json()));
+        let adapter = Arc::new(CascadeMockAdapter::new(row));
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            cascade: true,
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let executor = Executor::new(schema, adapter.clone());
+        executor.execute("mutation { createOrder { id } }", None).await.unwrap();
+
+        assert_eq!(
+            adapter.cascade_invalidation_count(),
+            1,
+            "invalidate_cascade_entities must be called exactly once"
+        );
+    }
+
+    /// `invalidate_cascade_entities` must NOT be called when the mutation has
+    /// `cascade: false`, even if the DB returns cascade data.
+    #[tokio::test]
+    async fn test_cascade_invalidation_not_called_when_disabled() {
+        use crate::schema::MutationDefinition;
+
+        let row = success_row_with_cascade(Some(cascade_json()));
+        let adapter = Arc::new(CascadeMockAdapter::new(row));
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            cascade: false,
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let executor = Executor::new(schema, adapter.clone());
+        executor.execute("mutation { createOrder { id } }", None).await.unwrap();
+
+        assert_eq!(
+            adapter.cascade_invalidation_count(),
+            0,
+            "invalidate_cascade_entities must NOT be called when cascade=false"
+        );
+    }
+
+    /// When cascade is enabled but the DB returns no cascade data (NULL),
+    /// the response must not include a cascade field and no invalidation occurs.
+    #[tokio::test]
+    async fn test_cascade_absent_when_db_returns_no_cascade() {
+        use crate::schema::MutationDefinition;
+
+        let row = success_row_with_cascade(None);
+        let adapter = Arc::new(CascadeMockAdapter::new(row));
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            cascade: true,
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let executor = Executor::new(schema, adapter.clone());
+        let result = executor.execute("mutation { createOrder { id } }", None).await.unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let order = &parsed["data"]["createOrder"];
+        assert!(
+            order.get("cascade").is_none(),
+            "cascade must be absent when DB returns no cascade data, got: {result}"
+        );
+        assert_eq!(
+            adapter.cascade_invalidation_count(),
+            0,
+            "invalidate_cascade_entities must NOT be called when cascade data is absent"
+        );
     }
 }
 
@@ -1063,6 +1341,8 @@ mod routing {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));

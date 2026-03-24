@@ -38,6 +38,9 @@ fn test_rich_filter_compilation_pipeline() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -115,6 +118,9 @@ fn test_all_rich_types_generate_where_input() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -176,6 +182,9 @@ fn test_where_input_fields_include_standard_operators() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -232,6 +241,9 @@ fn test_sql_templates_cover_all_databases() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -299,6 +311,9 @@ fn test_lookup_data_integrity() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -367,6 +382,9 @@ fn test_compiled_schema_is_valid() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

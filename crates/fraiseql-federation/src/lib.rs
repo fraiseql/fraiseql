@@ -1,8 +1,6 @@
 // Allow list mirrors fraiseql-core — same code, same suppressions.
 // Reason: pedantic lints applied to existing federation module code.
 #![allow(clippy::doc_markdown)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::match_same_arms)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_precision_loss)]
@@ -54,9 +52,10 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: live database adapter and federation metadata.
-//! // See: tests/integration/ for runnable examples.
+//! ```ignore
+//! // FederationExecutor requires a live DatabaseAdapter implementation and
+//! // populated FederationMetadata, which cannot be constructed without a
+//! // running database.
 //! let executor = FederationExecutor::new(adapter, metadata);
 //! let response = executor.handle_entities_query(input).await?;
 //! ```
@@ -129,7 +128,12 @@ pub use types::*;
 
 pub use crate::tracing::{FederationSpan, FederationTraceContext};
 
-/// Handle federation queries (federation introspection)
+/// Handle federation queries (federation introspection).
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the query name is unknown
+/// or `_entities` is called without executor context.
 pub async fn handle_federation_query(
     query_name: &str,
     _args: &std::collections::BTreeMap<String, Value>,

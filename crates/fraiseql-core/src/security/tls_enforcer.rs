@@ -240,6 +240,13 @@ impl TlsEnforcer {
     /// 4. Client cert validity (if client cert present, it must be valid)
     ///
     /// Returns Ok(()) if all checks pass, Err(TlsError) if any fail.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecurityError::TlsRequired` if HTTPS is required but missing,
+    /// `SecurityError::TlsVersionTooLow` if the TLS version is below the minimum,
+    /// `SecurityError::ClientCertRequired` if mTLS is required but no cert is present, or
+    /// `SecurityError::ClientCertInvalid` if the presented cert is invalid.
     pub fn validate_connection(&self, conn: &TlsConnection) -> Result<()> {
         // Check 1: HTTPS requirement
         if self.config.tls_required && !conn.is_secure {

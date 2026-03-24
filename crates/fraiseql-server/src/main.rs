@@ -266,7 +266,7 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAd
 async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     use sqlx::postgres::PgPoolOptions;
     #[allow(clippy::cast_possible_truncation)]
-    // Reason: pool sizes are always ≪ u32::MAX in practice
+    // Reason: pool sizes are always far below u32::MAX in practice
     let pool = PgPoolOptions::new()
         .min_connections(config.pool_min_size as u32)
         .max_connections(config.pool_max_size as u32)
@@ -376,7 +376,13 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "arrow"))]
     tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
 
+    // Wire-backend adapters are read-only — use serve() which mounts only
+    // query routes.  Full adapters (PostgreSQL, MySQL, SQL Server) use
+    // serve_mut() to include REST mutation routes.
+    #[cfg(feature = "wire-backend")]
     server.serve().await?;
+    #[cfg(not(feature = "wire-backend"))]
+    server.serve_mut().await?;
     Ok(())
 }
 

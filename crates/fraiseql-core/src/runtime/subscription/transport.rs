@@ -55,19 +55,22 @@ pub type BoxDynTransportAdapter = Box<dyn TransportAdapter>;
 /// # Example
 ///
 /// ```no_run
-/// // Requires: live transport destination (webhook/NATS/etc).
 /// use fraiseql_core::runtime::subscription::{
 ///     TransportManager, WebhookAdapter, WebhookConfig,
+///     SubscriptionEvent, SubscriptionOperation,
 /// };
-///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut manager = TransportManager::new();
 ///
 /// // Add webhook adapter
-/// let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/events"));
+/// let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/events"))?;
 /// manager.add_adapter(Box::new(webhook));
 ///
 /// // Deliver to all transports
+/// # let event = SubscriptionEvent::new("Order", "1", SubscriptionOperation::Create, serde_json::json!({}));
 /// manager.deliver_all(&event, "orderCreated").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct TransportManager {
     adapters: Vec<BoxDynTransportAdapter>,
@@ -104,6 +107,10 @@ impl TransportManager {
     ///
     /// Delivers in parallel and collects results. Returns Ok if at least one
     /// delivery succeeded, or the last error if all failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError` if all transport adapters fail to deliver.
     pub async fn deliver_all(
         &self,
         event: &SubscriptionEvent,

@@ -137,15 +137,12 @@ impl ObserverExecutor {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: tokio async runtime.
     /// use std::sync::Arc;
-    /// use fraiseql_observers::{ObserverExecutor, EventMatcher};
-    /// use fraiseql_observers::transport::{InMemoryTransport, EventFilter};
-    /// use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
+    /// use fraiseql_observers::{ObserverExecutor, EventMatcher, DeadLetterQueue};
+    /// use fraiseql_observers::{InMemoryTransport, EventFilter};
     ///
-    /// # async fn example() -> fraiseql_observers::Result<()> {
+    /// # async fn example(dlq: Arc<dyn DeadLetterQueue>) -> fraiseql_observers::Result<()> {
     /// let matcher = EventMatcher::new();
-    /// let dlq = Arc::new(MockDeadLetterQueue::new());
     /// let executor = ObserverExecutor::new(matcher, dlq);
     ///
     /// let transport = Arc::new(InMemoryTransport::new());
@@ -153,6 +150,10 @@ impl ObserverExecutor {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run_with_transport(
         &self,
         transport: Arc<dyn crate::transport::EventTransport>,
@@ -235,6 +236,10 @@ impl ObserverExecutor {
     /// - Implements exponential backoff on database errors (up to 10 retries)
     /// - Skips malformed entries and continues processing
     /// - Continues indefinitely until listener stops or error occurs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run_listener_loop(
         &self,
         listener: &mut crate::listener::ChangeLogListener,
@@ -386,8 +391,8 @@ mod tests {
     }
 
     fn within_jitter(actual_ms: u128, base_ms: u64) -> bool {
-        let lo = base_ms.saturating_sub(base_ms / 4) as u128;
-        let hi = base_ms.saturating_add(base_ms / 4) as u128;
+        let lo = u128::from(base_ms.saturating_sub(base_ms / 4));
+        let hi = u128::from(base_ms.saturating_add(base_ms / 4));
         actual_ms >= lo && actual_ms <= hi
     }
 

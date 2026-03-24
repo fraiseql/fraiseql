@@ -77,6 +77,10 @@ impl CustomScalarRegistry {
     /// Get a registered scalar by name.
     ///
     /// Returns `None` if the scalar is not registered.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the registry lock is poisoned.
     pub fn get_scalar(&self, name: &str) -> crate::error::Result<Option<Arc<dyn CustomScalar>>> {
         let scalars = self.scalars.read().map_err(|_| {
             crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
@@ -86,6 +90,10 @@ impl CustomScalarRegistry {
     }
 
     /// Check if a scalar is registered.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the registry lock is poisoned.
     pub fn has_scalar(&self, name: &str) -> crate::error::Result<bool> {
         let scalars = self.scalars.read().map_err(|_| {
             crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
@@ -95,6 +103,10 @@ impl CustomScalarRegistry {
     }
 
     /// Get all registered scalar names.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the registry lock is poisoned.
     pub fn get_scalar_names(&self) -> crate::error::Result<Vec<String>> {
         let scalars = self.scalars.read().map_err(|_| {
             crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
@@ -104,6 +116,10 @@ impl CustomScalarRegistry {
     }
 
     /// Unregister a scalar by name (useful for testing).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the registry lock is poisoned.
     pub fn unregister(&self, name: &str) -> crate::error::Result<()> {
         let mut scalars = self.scalars.write().map_err(|_| {
             crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry")
@@ -114,6 +130,10 @@ impl CustomScalarRegistry {
     }
 
     /// Clear all registered scalars (useful for testing).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the registry lock is poisoned.
     pub fn clear(&self) -> crate::error::Result<()> {
         let mut scalars = self.scalars.write().map_err(|_| {
             crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry")

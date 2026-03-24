@@ -78,6 +78,9 @@ func ExportSchema(outputPath string) error {
 	if len(schema.AggregateQueries) > 0 {
 		fmt.Printf("   Aggregate Queries: %d\n", len(schema.AggregateQueries))
 	}
+	if len(schema.Observers) > 0 {
+		fmt.Printf("   Observers: %d\n", len(schema.Observers))
+	}
 
 	return nil
 }
@@ -97,6 +100,69 @@ func (s Schema) MarshalJSON() ([]byte, error) {
 	}{
 		Alias: (*Alias)(&s),
 	})
+}
+
+// GetSchemaWithFederation returns the schema struct with federation metadata populated.
+// serviceName is the logical subgraph name.
+// defaultKeyFields is the default key fields for types without explicit KeyFields (defaults to ["id"]).
+func GetSchemaWithFederation(serviceName string, defaultKeyFields []string) Schema {
+	schema := GetSchema()
+
+	if len(defaultKeyFields) == 0 {
+		defaultKeyFields = []string{"id"}
+	}
+
+	var entities []FederationEntity
+	for _, t := range schema.Types {
+		if t.IsError {
+			continue
+		}
+		keyFields := t.KeyFields
+		if len(keyFields) == 0 {
+			keyFields = defaultKeyFields
+		}
+		entities = append(entities, FederationEntity{
+			Name:      t.Name,
+			KeyFields: keyFields,
+		})
+	}
+
+	schema.Federation = &FederationConfig{
+		Enabled:       true,
+		ServiceName:   serviceName,
+		ApolloVersion: 2,
+		Entities:      entities,
+	}
+
+	return schema
+}
+
+// ExportSchemaWithFederation exports the schema with federation metadata.
+// serviceName is the logical subgraph name.
+// defaultKeyFields is the default key fields for types without explicit KeyFields (defaults to ["id"]).
+func ExportSchemaWithFederation(outputPath string, serviceName string, defaultKeyFields []string) error {
+	schema := GetSchemaWithFederation(serviceName, defaultKeyFields)
+	if err := validateSchemaBeforeExport(schema); err != nil {
+		return err
+	}
+
+	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
+	}
+
+	err = os.WriteFile(outputPath, schemaJSON, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to write schema file: %w", err)
+	}
+
+	fmt.Printf("✅ Schema exported to %s (federation: %s)\n", outputPath, serviceName)
+	fmt.Printf("   Types: %d\n", len(schema.Types))
+	fmt.Printf("   Queries: %d\n", len(schema.Queries))
+	fmt.Printf("   Mutations: %d\n", len(schema.Mutations))
+	fmt.Printf("   Federation entities: %d\n", len(schema.Federation.Entities))
+
+	return nil
 }
 
 // ExportTypes exports only types to a minimal JSON structure

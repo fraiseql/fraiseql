@@ -180,6 +180,11 @@ impl StructSchema {
     }
 
     /// Validate schema configuration
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the type name is empty.
+    /// - `SecretsError::ValidationError` if an encrypted field has no key reference.
     pub fn validate(&self) -> Result<(), SecretsError> {
         if self.type_name.is_empty() {
             return Err(SecretsError::ValidationError(
@@ -225,6 +230,10 @@ impl SchemaRegistry {
     }
 
     /// Register schema
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if schema validation fails.
     pub fn register(&mut self, schema: StructSchema) -> Result<(), SecretsError> {
         schema.validate()?;
         self.schemas.insert(schema.type_name.clone(), schema);
@@ -237,6 +246,10 @@ impl SchemaRegistry {
     }
 
     /// Get encrypted fields for type
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the type is not registered.
     pub fn get_encrypted_fields(
         &self,
         type_name: &str,
@@ -283,6 +296,10 @@ impl SchemaRegistry {
     }
 
     /// Validate all registered schemas
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any schema fails validation.
     pub fn validate_all(&self) -> Result<(), SecretsError> {
         for schema in self.schemas.values() {
             schema.validate()?;

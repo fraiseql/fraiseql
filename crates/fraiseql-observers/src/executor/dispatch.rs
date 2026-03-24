@@ -95,6 +95,13 @@ pub(super) fn resolve_url(
 /// a connect-time check at the HTTP client level and is beyond the scope of
 /// this static validation.
 fn validate_url_ssrf(url: &str) -> Result<()> {
+    // Allow private/loopback addresses in test/dev environments.
+    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok()
+        || crate::ssrf::allow_localhost_env()
+    {
+        return Ok(());
+    }
+
     if url.len() > MAX_WEBHOOK_URL_LEN {
         return Err(ObserverError::InvalidActionConfig {
             reason: format!(
@@ -243,24 +250,38 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 },
                 ActionConfig::Email {
                     to,
-                    to_template: _,
+                    to_template,
                     subject,
-                    subject_template: _,
+                    subject_template,
                     body_template,
                     reply_to: _,
                 } => {
-                    let email_to = to.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                        reason: "Email 'to' not provided".to_string(),
-                    })?;
+                    // Resolve recipient: prefer static `to`, fall back to rendered `to_template`.
+                    let email_to = if let Some(addr) = to {
+                        addr.clone()
+                    } else if let Some(tmpl) = to_template {
+                        crate::actions::render_template(tmpl, &event.data)
+                    } else {
+                        return Err(ObserverError::InvalidActionConfig {
+                            reason: "Email 'to' or 'to_template' not provided".to_string(),
+                        });
+                    };
 
-                    let email_subject =
-                        subject.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Email 'subject' not provided".to_string(),
-                        })?;
+                    // Resolve subject: prefer static, fall back to template.
+                    let email_subject = if let Some(subj) = subject {
+                        subj.clone()
+                    } else if let Some(tmpl) = subject_template {
+                        crate::actions::render_template(tmpl, &event.data)
+                    } else {
+                        return Err(ObserverError::InvalidActionConfig {
+                            reason: "Email 'subject' or 'subject_template' not provided"
+                                .to_string(),
+                        });
+                    };
 
                     match self
                         .email_action
-                        .execute(email_to, email_subject, body_template.as_deref(), event)
+                        .execute(&email_to, &email_subject, body_template.as_deref(), event)
                         .await
                     {
                         Ok(response) => Ok(ActionResult {

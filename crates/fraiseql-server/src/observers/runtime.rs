@@ -232,6 +232,7 @@ impl ObserverRuntime {
             actions,
             retry: retry_config,
             on_failure: FailurePolicy::default(),
+            synchronous: false,
         })
     }
 
@@ -240,6 +241,11 @@ impl ObserverRuntime {
     /// # Errors
     ///
     /// Returns `ServerError` if the runtime is already running or initialization fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal matcher or executor is not initialized before the
+    /// processing loop starts (indicates a logic bug).
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
@@ -389,7 +395,7 @@ impl ObserverRuntime {
                                                     .bind(observer_id)
                                                     .bind(event.id)
                                                     .bind(&event.entity_type)
-                                                    .bind(event.entity_id.to_string())
+                                                    .bind(event.entity_id)
                                                     .bind(event.event_type.as_str())
                                                     .bind(status)
                                                     .bind(duration_ms)
@@ -418,7 +424,7 @@ impl ObserverRuntime {
                                                     .bind(observer_id)
                                                     .bind(event.id)
                                                     .bind(&event.entity_type)
-                                                    .bind(event.entity_id.to_string())
+                                                    .bind(event.entity_id)
                                                     .bind(event.event_type.as_str())
                                                     .bind(e.to_string())
                                                     .execute(&pool)
@@ -439,15 +445,15 @@ impl ObserverRuntime {
                                     let batch_count = entries.len() as i32;
 
                                     match sqlx::query(
-                                        "INSERT INTO observer_checkpoints
-                                         (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
+                                        "INSERT INTO tb_observer_checkpoint
+                                         (identifier, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
                                          VALUES ($1, $2, NOW(), $3, $4, NOW())
-                                         ON CONFLICT (listener_id)
+                                         ON CONFLICT (identifier)
                                          DO UPDATE SET
                                             last_processed_id = $2,
                                             last_processed_at = NOW(),
                                             batch_size = $3,
-                                            event_count = observer_checkpoints.event_count + $4,
+                                            event_count = tb_observer_checkpoint.event_count + $4,
                                             updated_at = NOW()"
                                     )
                                     .bind(&listener_id)

@@ -102,6 +102,10 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql validate facts --schema schema.json --database postgresql://localhost/mydb
 /// ```
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub async fn run(
     schema_path: &Path,
     database_url: &str,

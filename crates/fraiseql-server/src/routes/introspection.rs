@@ -81,7 +81,8 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 ) -> impl IntoResponse {
     debug!("Introspection requested");
 
-    let schema = state.executor.schema();
+    let executor = state.executor();
+    let schema = executor.schema();
 
     let user_roles: Vec<&str> = security_context
         .as_ref()

@@ -40,6 +40,10 @@ impl SchemaConverter {
     /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
     /// 4. Optimization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
@@ -155,6 +159,9 @@ impl SchemaConverter {
             validation_config: intermediate.validation_config, // Validation limits from TOML
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
+            rest_config: intermediate.rest_config,             // REST config from TOML
+            grpc_config: intermediate.grpc_config,             // gRPC config from TOML
+            dev_config: intermediate.dev_config,               // Dev mode config from TOML
             schema_sdl: None,                                  // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
@@ -175,6 +182,9 @@ impl SchemaConverter {
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
         relay::inject_relay_types(&mut compiled);
 
+        // Inject synthetic Cascade types when any mutation has cascade enabled.
+        fraiseql_core::schema::inject_cascade_types(&mut compiled);
+
         // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
         let rich_filter_config = RichFilterConfig::default();
         compile_rich_filters(&mut compiled, &rich_filter_config)
@@ -182,6 +192,14 @@ impl SchemaConverter {
 
         // Validate the compiled schema
         Self::validate(&compiled)?;
+
+        // Warn when dev mode is compiled into the schema
+        if compiled.dev_config.as_ref().is_some_and(|d| d.enabled) {
+            warn!(
+                "Dev mode is enabled — default claims will be injected when no JWT \
+                 is present. Do NOT use in production."
+            );
+        }
 
         info!("Schema conversion successful");
         Ok(compiled)
@@ -196,18 +214,85 @@ impl SchemaConverter {
             type_names.insert(type_def.name.to_string());
         }
 
-        // Build interface registry
+        // Register input types
+        for input_type in &schema.input_types {
+            type_names.insert(input_type.name.clone());
+        }
+
+        // Register enum types
+        for enum_type in &schema.enums {
+            type_names.insert(enum_type.name.clone());
+        }
+
+        // Build interface registry and add to type_names
         let mut interface_names = HashSet::new();
         for interface_def in &schema.interfaces {
             interface_names.insert(interface_def.name.clone());
+            type_names.insert(interface_def.name.clone());
         }
 
-        // Add built-in scalars
-        type_names.insert("Int".to_string());
-        type_names.insert("Float".to_string());
-        type_names.insert("String".to_string());
-        type_names.insert("Boolean".to_string());
-        type_names.insert("ID".to_string());
+        // Register union types
+        for union_type in &schema.unions {
+            type_names.insert(union_type.name.clone());
+        }
+
+        // Add built-in scalars (GraphQL standard + common PostgreSQL types)
+        for scalar in &[
+            "Int",
+            "Float",
+            "String",
+            "Boolean",
+            "ID",
+            "Date",
+            "DateTime",
+            "Time",
+            "Json",
+            "JSON",
+            "UUID",
+            "Decimal",
+            "Vector",
+            "BigInt",
+            "date",
+            "timestamp",
+            "timestamptz",
+            "jsonb",
+            "json",
+            "bigint",
+            "numeric",
+            "uuid",
+            "text",
+            "integer",
+            "boolean",
+            "real",
+            "smallint",
+            "bytea",
+            "inet",
+            "interval",
+        ] {
+            type_names.insert((*scalar).to_string());
+        }
+
+        // Add built-in FraiseQL scalars
+        for name in [
+            "DateTime", "Date", "Time", "Json", "UUID", "Decimal", "Vector",
+        ] {
+            type_names.insert((*name).to_string());
+        }
+
+        // Add custom scalars
+        for (name, _) in schema.custom_scalars.list_all() {
+            type_names.insert(name);
+        }
+
+        // Add enum names
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
+        // Add input type names
+        for input in &schema.input_types {
+            type_names.insert(input.name.clone());
+        }
 
         // Validate queries
         for query in &schema.queries {

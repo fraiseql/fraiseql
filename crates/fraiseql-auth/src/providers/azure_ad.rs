@@ -50,6 +50,10 @@ impl AzureADOAuth {
     /// * `tenant` - Azure AD tenant ID or domain (e.g., "contoso.onmicrosoft.com" or
     ///   "12345678-1234-1234-1234-123456789012")
     /// * `redirect_uri` - Redirect URI after authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,
@@ -221,8 +225,7 @@ impl OAuthProvider for AzureADOAuth {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

@@ -144,6 +144,36 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
+            FederationCommands::Gateway { config, check } => {
+                if check {
+                    match commands::gateway::validate(&config) {
+                        Ok(result) => {
+                            println!(
+                                "{}",
+                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                            );
+                            if result.status == "validation-failed" {
+                                Err(anyhow::anyhow!("Gateway configuration validation failed"))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    commands::gateway::run(&config).await
+                }
+            },
+        },
+
+        Commands::GenerateProto {
+            schema,
+            output,
+            package,
+            dialect,
+        } => {
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            commands::generate_proto::run(&schema, &output, &package, &dialect, &formatter)
         },
 
         Commands::GenerateViews {
@@ -334,7 +364,21 @@ pub async fn run() {
             bind,
             watch,
             introspection,
-        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
+            read_only,
+        } => {
+            commands::run::run(
+                input.as_deref(),
+                database,
+                port,
+                bind,
+                watch,
+                introspection,
+                read_only,
+            )
+            .await
+        },
+
+        Commands::Openapi { schema, output } => commands::openapi::run(&schema, &output),
 
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
@@ -347,7 +391,16 @@ pub async fn run() {
             }
         },
 
-        Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
+        Commands::Doctor {
+            config,
+            schema,
+            database,
+        } => commands::doctor::run(
+            std::path::Path::new(&config),
+            std::path::Path::new(&schema),
+            database.as_deref(),
+            cli.json,
+        ),
     };
 
     if let Err(e) = result {

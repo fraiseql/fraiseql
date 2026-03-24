@@ -9,6 +9,25 @@ import { SchemaRegistry, ArgumentDefinition, Field, EnumValue, FieldMetadata } f
 import { CustomScalar } from "./scalars";
 
 /**
+ * Sentinel symbol to distinguish "field not provided" from "explicitly set to null"
+ * in update mutation inputs.
+ */
+const UNSET_SYMBOL: unique symbol = Symbol("UNSET");
+
+/**
+ * A value that may be set to a T, explicitly null, or not provided (UNSET).
+ */
+export type MaybeUnset<T> = T | null | typeof UNSET_SYMBOL;
+
+/**
+ * Sentinel value representing "field not provided" in update mutation inputs.
+ *
+ * Use this to distinguish between a field that was explicitly set to null
+ * and one that was not included in the update payload.
+ */
+export const UNSET: typeof UNSET_SYMBOL = UNSET_SYMBOL;
+
+/**
  * Create field-level metadata for access control and deprecation.
  *
  * This function creates metadata for use with field definitions to add:
@@ -48,6 +67,8 @@ export function field(options: FieldMetadata): FieldMetadata {
 export interface TypeConfig {
   description?: string;
   relay?: boolean;
+  tenantScoped?: boolean;
+  crud?: boolean | string[];
 }
 
 /**
@@ -108,6 +129,8 @@ export interface OperationConfig {
   operation?: string;
   jsonbColumn?: string;
   relay?: boolean;
+  restPath?: string;
+  restMethod?: string;
   [key: string]: unknown;
 }
 
@@ -451,6 +474,8 @@ export function registerTypeFields(
     isError?: boolean;
     requiresRole?: string;
     implements?: string[];
+    tenantScoped?: boolean;
+    crud?: boolean | string[];
   }
 ): void {
   SchemaRegistry.registerType(typeName, fields, description, options);

@@ -113,6 +113,10 @@ pub struct VaultKmsProvider {
 
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KmsError::InvalidConfiguration` if the HTTP client cannot be built.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
         let client =
             reqwest::Client::builder().timeout(VAULT_REQUEST_TIMEOUT).build().map_err(|e| {

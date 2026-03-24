@@ -94,8 +94,13 @@ impl JwtValidator {
         })
     }
 
-    /// Set the audiences that this validator will accept
-    /// Recommended for production to restrict JWT usage to specific services
+    /// Set the audiences that this validator will accept.
+    ///
+    /// Recommended for production to restrict JWT usage to specific services.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::ConfigError` if the audiences slice is empty.
     pub fn with_audiences(mut self, audiences: &[&str]) -> Result<Self> {
         if audiences.is_empty() {
             return Err(AuthError::ConfigError {
@@ -252,7 +257,11 @@ pub fn generate_hs256_token(claims: &Claims, secret: &[u8]) -> Result<String> {
     })
 }
 
-/// Generate a JWT token (for testing and token creation)
+/// Generate a JWT token (for testing and token creation).
+///
+/// # Errors
+///
+/// Returns `AuthError::Internal` if token generation or signing fails.
 #[cfg(test)]
 pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
     generate_hs256_token(claims, secret)
@@ -260,8 +269,7 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     fn create_test_claims() -> Claims {

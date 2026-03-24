@@ -73,6 +73,10 @@ impl GracefulDegradation {
     }
 
     /// Execute with degradation awareness
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn with_degradation<F, T>(&self, f: F) -> Result<T>
     where
         F: Fn(

@@ -87,6 +87,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 path:    None,
             });
         }
+        // SAFETY: select_sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
 
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
@@ -117,6 +119,24 @@ impl DatabaseAdapter for PostgresAdapter {
         DatabaseType::PostgreSQL
     }
 
+    async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
+        if variables.is_empty() {
+            return Ok(());
+        }
+        let client = self.acquire_connection_with_retry().await?;
+        for &(name, value) in variables {
+            // set_config(name, value, is_local) — is_local=true gives SET LOCAL semantics
+            client
+                .query("SELECT set_config($1, $2, true)", &[&name, &value])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to set session variable '{name}': {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+        }
+        Ok(())
+    }
+
     async fn health_check(&self) -> Result<()> {
         // Use retry logic for health check to avoid false negatives during pool exhaustion
         let client = self.acquire_connection_with_retry().await?;
@@ -129,10 +149,7 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: Connection pool counts are bounded by `max_pool_size` which defaults to 50 and
-    // is configured via `fraiseql.toml` (typically ≤1000). Truncation from usize to u32 cannot
-    // occur in practice; u32::MAX (4 billion) far exceeds any realistic pool size.
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool counts bounded by max_pool_size (typically <=1000); u32::MAX far exceeds any realistic pool size
     fn pool_metrics(&self) -> PoolMetrics {
         let status = self.pool.status();
 
@@ -201,6 +218,8 @@ impl DatabaseAdapter for PostgresAdapter {
         // The function name is double-quoted so that reserved words, mixed-case
         // names, and names with special characters are handled correctly.
         // Any embedded double quotes are escaped by doubling them ("").
+        // SAFETY: function_name is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input. Additionally double-quoted to escape special characters.
         let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
@@ -224,6 +243,142 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(results)
     }
 
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_clause: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        use crate::{
+            dialect::RowViewColumnType, identifier::quote_postgres_identifier, types::ColumnValue,
+        };
+
+        let col_list: String = columns
+            .iter()
+            .map(|c| quote_postgres_identifier(&c.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut sql = format!("SELECT {col_list} FROM {}", quote_postgres_identifier(view));
+
+        if let Some(wc) = where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(wc);
+        }
+        if let Some(ob) = order_by {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(ob);
+        }
+        if let Some(lim) = limit {
+            sql.push_str(&format!(" LIMIT {lim}"));
+        }
+        if let Some(off) = offset {
+            sql.push_str(&format!(" OFFSET {off}"));
+        }
+
+        let client = self.acquire_connection_with_retry().await?;
+        let rows = client.query(sql.as_str(), &[]).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Row query on view '{view}' failed: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let mut row_values = Vec::with_capacity(columns.len());
+            for (idx, col) in columns.iter().enumerate() {
+                let value = match col.column_type {
+                    RowViewColumnType::Text => row
+                        .try_get::<_, Option<String>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{}' text extraction failed: {e}", col.name),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Text),
+                    RowViewColumnType::Int32 => row
+                        .try_get::<_, Option<i32>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!(
+                                "Column '{}' int32 extraction failed: {e}",
+                                col.name
+                            ),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int32),
+                    RowViewColumnType::Int64 => row
+                        .try_get::<_, Option<i64>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!(
+                                "Column '{}' int64 extraction failed: {e}",
+                                col.name
+                            ),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int64),
+                    RowViewColumnType::Float64 => row
+                        .try_get::<_, Option<f64>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!(
+                                "Column '{}' float64 extraction failed: {e}",
+                                col.name
+                            ),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Float64),
+                    RowViewColumnType::Boolean => row
+                        .try_get::<_, Option<bool>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{}' bool extraction failed: {e}", col.name),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Bool),
+                    RowViewColumnType::Uuid => row
+                        .try_get::<_, Option<uuid::Uuid>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{}' uuid extraction failed: {e}", col.name),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Uuid),
+                    RowViewColumnType::Timestamptz => row
+                        .try_get::<_, Option<chrono::DateTime<chrono::Utc>>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!(
+                                "Column '{}' timestamp extraction failed: {e}",
+                                col.name
+                            ),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Timestamp),
+                    RowViewColumnType::Date => row
+                        .try_get::<_, Option<chrono::NaiveDate>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{}' date extraction failed: {e}", col.name),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Date),
+                    RowViewColumnType::Json => row
+                        .try_get::<_, Option<serde_json::Value>>(idx)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{}' json extraction failed: {e}", col.name),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Json),
+                    #[allow(unreachable_patterns)]
+                    // Reason: RowViewColumnType is #[non_exhaustive]; wildcard
+                    // handles future variants gracefully.
+                    _ => ColumnValue::Null,
+                };
+                row_values.push(value);
+            }
+            results.push(row_values);
+        }
+
+        Ok(results)
+    }
+
     async fn explain_query(
         &self,
         sql: &str,
@@ -238,6 +393,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 path:    None,
             });
         }
+        // SAFETY: sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         let client = self.acquire_connection_with_retry().await?;
         let rows: Vec<Row> =

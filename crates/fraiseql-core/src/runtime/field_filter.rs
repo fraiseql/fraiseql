@@ -81,8 +81,12 @@ pub fn classify_field_access(
 /// # Example
 ///
 /// ```no_run
-/// // Requires: SecurityContext and SecurityConfig from compiled schema.
+/// # use fraiseql_core::security::SecurityContext;
+/// # use fraiseql_core::schema::{SecurityConfig, FieldDefinition};
+/// # use fraiseql_core::runtime::filter_fields;
+/// # fn example(context: &SecurityContext, config: &SecurityConfig, all_fields: &[FieldDefinition]) {
 /// let accessible = filter_fields(&context, &config, &all_fields);
+/// # }
 /// ```
 pub fn filter_fields<'a>(
     context: &SecurityContext,
@@ -110,6 +114,10 @@ pub fn filter_fields<'a>(
 /// # Returns
 ///
 /// `true` if user can access the field, `false` otherwise.
+///
+/// # Panics
+///
+/// Cannot panic in practice; the `expect` is guarded by a preceding `is_none()` check.
 #[must_use]
 pub fn can_access_field(
     context: &SecurityContext,
@@ -149,6 +157,9 @@ mod tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
+            auto_generated: false,
+            computed:       false,
+            searchable:     false,
         }
     }
 
@@ -271,6 +282,9 @@ mod tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny,
             encryption: None,
+            auto_generated: false,
+            computed: false,
+            searchable: false,
         }
     }
 

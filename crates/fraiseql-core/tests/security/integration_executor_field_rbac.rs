@@ -43,6 +43,9 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "title".into(),
@@ -56,6 +59,9 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             // Protected fields
             FieldDefinition {
@@ -70,6 +76,9 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("read:Post.content".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             FieldDefinition {
                 name:           "draft".into(),
@@ -83,6 +92,9 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("write:Post.draft".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -97,6 +109,9 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
             },
         ],
         description:         Some("Post type with field-level scopes".to_string()),
@@ -107,6 +122,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        relationships:       Vec::new(),
     }
 }
 
@@ -300,6 +316,7 @@ fn test_executor_runtime_config_with_field_filter() {
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
+        read_only:            false,
         query_validation:     None,
     };
 

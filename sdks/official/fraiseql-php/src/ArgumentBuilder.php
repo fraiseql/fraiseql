@@ -311,7 +311,7 @@ final class ArgumentBuilder
     /**
      * Convert arguments to array format for serialization.
      *
-     * @return array<string, array> Arguments as associative array
+     * @return array<string, array<string, mixed>> Arguments as associative array
      */
     public function toArray(): array
     {

@@ -61,18 +61,30 @@ pub trait CustomScalar: Send + Sync + fmt::Debug {
     /// Serialize a database value to a GraphQL response value.
     ///
     /// This is called when returning values from resolvers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value cannot be serialized for this scalar type.
     fn serialize(&self, value: &Value) -> Result<Value>;
 
     /// Parse a variable value from a GraphQL operation.
     ///
     /// This is called when parsing variables in GraphQL operations.
     /// For example: `{ query: getUser($email: Email) }`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value is not valid for this scalar type.
     fn parse_value(&self, value: &Value) -> Result<Value>;
 
     /// Parse a literal value from a GraphQL query string.
     ///
     /// For example: `{ user(email: "test@example.com") }`
     /// The `ast` parameter is typically an object with a "value" key for simple types.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the literal is not valid for this scalar type.
     fn parse_literal(&self, ast: &Value) -> Result<Value>;
 }
 

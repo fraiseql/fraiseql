@@ -449,4 +449,229 @@ pub trait SqlDialect: Send + Sync + 'static {
             self.name()
         )))
     }
+
+    // ── Row-shaped view generation (gRPC transport) ─────────────────────────
+
+    /// Generate a column expression that extracts a scalar from the JSON column
+    /// and casts it to a native database type for a row-shaped `vr_*` view.
+    ///
+    /// The returned expression is used as a SELECT column in a CREATE VIEW DDL.
+    ///
+    /// # Examples
+    /// - PostgreSQL: `(data->>'name')::text`
+    /// - MySQL:      `CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) AS CHAR)`
+    /// - SQLite:     `CAST(json_extract(data, '$.name') AS TEXT)`
+    /// - SQL Server: `CAST(JSON_VALUE(data, '$.name') AS NVARCHAR(MAX))`
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        target_type: &RowViewColumnType,
+    ) -> String;
+
+    /// Generate the DDL statement to create or replace a row-shaped view.
+    ///
+    /// Must handle dialect differences in `CREATE OR REPLACE VIEW` syntax
+    /// (SQL Server uses `CREATE OR ALTER VIEW`, SQLite has no `OR REPLACE`).
+    ///
+    /// `columns` is a slice of `(alias, expression)` pairs.
+    fn create_row_view_ddl(
+        &self,
+        view_name: &str,
+        source_table: &str,
+        columns: &[(String, String)],
+    ) -> String;
+}
+
+/// Target SQL column type for row-shaped view generation.
+///
+/// Used by [`SqlDialect::row_view_column_expr`] to select the dialect-specific
+/// type cast when extracting scalar fields from a JSON column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RowViewColumnType {
+    /// Text / string column.
+    Text,
+    /// 32-bit integer.
+    Int32,
+    /// 64-bit integer.
+    Int64,
+    /// Double-precision floating point.
+    Float64,
+    /// Boolean.
+    Boolean,
+    /// UUID (stored as text in databases without native UUID type).
+    Uuid,
+    /// Timestamp with time zone.
+    Timestamptz,
+    /// Date (no time component).
+    Date,
+    /// JSON / JSONB (fallback for nested objects).
+    Json,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dialect::{MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect};
+
+    // ── PostgreSQL row_view_column_expr ──────────────────────────────────
+
+    #[test]
+    fn test_postgres_row_view_text() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "name", &RowViewColumnType::Text);
+        assert_eq!(expr, "(data->>'name')::text");
+    }
+
+    #[test]
+    fn test_postgres_row_view_int32() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "age", &RowViewColumnType::Int32);
+        assert_eq!(expr, "(data->>'age')::integer");
+    }
+
+    #[test]
+    fn test_postgres_row_view_boolean() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "active", &RowViewColumnType::Boolean);
+        assert_eq!(expr, "(data->>'active')::boolean");
+    }
+
+    #[test]
+    fn test_postgres_row_view_uuid() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "id", &RowViewColumnType::Uuid);
+        assert_eq!(expr, "(data->>'id')::uuid");
+    }
+
+    #[test]
+    fn test_postgres_row_view_timestamptz() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "created_at", &RowViewColumnType::Timestamptz);
+        assert_eq!(expr, "(data->>'created_at')::timestamptz");
+    }
+
+    #[test]
+    fn test_postgres_row_view_json() {
+        let d = PostgresDialect;
+        let expr = d.row_view_column_expr("data", "meta", &RowViewColumnType::Json);
+        assert_eq!(expr, "(data->'meta')::jsonb");
+    }
+
+    // ── MySQL row_view_column_expr ──────────────────────────────────────
+
+    #[test]
+    fn test_mysql_row_view_text() {
+        let d = MySqlDialect;
+        let expr = d.row_view_column_expr("data", "name", &RowViewColumnType::Text);
+        assert_eq!(expr, "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) AS CHAR)");
+    }
+
+    #[test]
+    fn test_mysql_row_view_int32() {
+        let d = MySqlDialect;
+        let expr = d.row_view_column_expr("data", "age", &RowViewColumnType::Int32);
+        assert_eq!(expr, "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.age')) AS SIGNED)");
+    }
+
+    #[test]
+    fn test_mysql_row_view_boolean() {
+        let d = MySqlDialect;
+        let expr = d.row_view_column_expr("data", "active", &RowViewColumnType::Boolean);
+        assert_eq!(expr, "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.active')) AS UNSIGNED)");
+    }
+
+    // ── SQLite row_view_column_expr ─────────────────────────────────────
+
+    #[test]
+    fn test_sqlite_row_view_text() {
+        let d = SqliteDialect;
+        let expr = d.row_view_column_expr("data", "name", &RowViewColumnType::Text);
+        assert_eq!(expr, "CAST(json_extract(data, '$.name') AS TEXT)");
+    }
+
+    #[test]
+    fn test_sqlite_row_view_int32() {
+        let d = SqliteDialect;
+        let expr = d.row_view_column_expr("data", "age", &RowViewColumnType::Int32);
+        assert_eq!(expr, "CAST(json_extract(data, '$.age') AS INTEGER)");
+    }
+
+    #[test]
+    fn test_sqlite_row_view_float64() {
+        let d = SqliteDialect;
+        let expr = d.row_view_column_expr("data", "score", &RowViewColumnType::Float64);
+        assert_eq!(expr, "CAST(json_extract(data, '$.score') AS REAL)");
+    }
+
+    // ── SQL Server row_view_column_expr ─────────────────────────────────
+
+    #[test]
+    fn test_sqlserver_row_view_text() {
+        let d = SqlServerDialect;
+        let expr = d.row_view_column_expr("data", "name", &RowViewColumnType::Text);
+        assert_eq!(expr, "CAST(JSON_VALUE(data, '$.name') AS NVARCHAR(MAX))");
+    }
+
+    #[test]
+    fn test_sqlserver_row_view_int32() {
+        let d = SqlServerDialect;
+        let expr = d.row_view_column_expr("data", "age", &RowViewColumnType::Int32);
+        assert_eq!(expr, "CAST(JSON_VALUE(data, '$.age') AS INT)");
+    }
+
+    #[test]
+    fn test_sqlserver_row_view_uuid() {
+        let d = SqlServerDialect;
+        let expr = d.row_view_column_expr("data", "id", &RowViewColumnType::Uuid);
+        assert_eq!(expr, "CAST(JSON_VALUE(data, '$.id') AS UNIQUEIDENTIFIER)");
+    }
+
+    // ── create_row_view_ddl ─────────────────────────────────────────────
+
+    #[test]
+    fn test_postgres_create_row_view_ddl() {
+        let d = PostgresDialect;
+        let cols = vec![
+            ("id".to_string(), "(data->>'id')::uuid".to_string()),
+            ("name".to_string(), "(data->>'name')::text".to_string()),
+        ];
+        let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
+        assert!(ddl.contains("CREATE OR REPLACE VIEW"));
+        assert!(ddl.contains("\"vr_user\""));
+        assert!(ddl.contains("\"tb_user\""));
+        assert!(ddl.contains("\"id\""));
+        assert!(ddl.contains("\"name\""));
+    }
+
+    #[test]
+    fn test_mysql_create_row_view_ddl() {
+        let d = MySqlDialect;
+        let cols = vec![("id".to_string(), "expr1".to_string())];
+        let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
+        assert!(ddl.contains("CREATE OR REPLACE VIEW"));
+        assert!(ddl.contains("`vr_user`"));
+        assert!(ddl.contains("`tb_user`"));
+    }
+
+    #[test]
+    fn test_sqlserver_create_row_view_ddl() {
+        let d = SqlServerDialect;
+        let cols = vec![("id".to_string(), "expr1".to_string())];
+        let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
+        assert!(ddl.contains("CREATE OR ALTER VIEW"));
+        assert!(ddl.contains("[vr_user]"));
+    }
+
+    #[test]
+    fn test_sqlite_create_row_view_ddl() {
+        let d = SqliteDialect;
+        let cols = vec![("id".to_string(), "expr1".to_string())];
+        let ddl = d.create_row_view_ddl("vr_user", "tb_user", &cols);
+        // SQLite has no OR REPLACE — must DROP first
+        assert!(ddl.contains("DROP VIEW IF EXISTS"));
+        assert!(ddl.contains("CREATE VIEW"));
+        assert!(ddl.contains("\"vr_user\""));
+    }
 }

@@ -3,7 +3,10 @@ use deadpool_postgres::Pool;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use crate::{DatabaseType, introspector::DatabaseIntrospector};
+use crate::{
+    DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
+};
 
 /// PostgreSQL introspector for fact table metadata.
 pub struct PostgresIntrospector {
@@ -129,6 +132,94 @@ impl DatabaseIntrospector for PostgresIntrospector {
         DatabaseType::PostgreSQL
     }
 
+    async fn list_relations(&self) -> Result<Vec<RelationInfo>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let query = r"
+            SELECT table_schema, table_name,
+                   CASE table_type
+                       WHEN 'BASE TABLE' THEN 'table'
+                       WHEN 'VIEW' THEN 'view'
+                   END AS kind
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+              AND table_type IN ('BASE TABLE', 'VIEW')
+            UNION ALL
+            SELECT schemaname, matviewname, 'materialized_view'
+            FROM pg_matviews
+            WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY 1, 2
+        ";
+
+        let rows: Vec<Row> =
+            client.query(query, &[]).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to list relations: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        let relations = rows
+            .into_iter()
+            .map(|row| {
+                let schema: String = row.get(0);
+                let name: String = row.get(1);
+                let kind_str: String = row.get(2);
+                let kind = match kind_str.as_str() {
+                    "view" => RelationKind::View,
+                    "materialized_view" => RelationKind::MaterializedView,
+                    _ => RelationKind::Table,
+                };
+                RelationInfo { schema, name, kind }
+            })
+            .collect();
+
+        Ok(relations)
+    }
+
+    async fn get_sample_json_rows(
+        &self,
+        table_name: &str,
+        column_name: &str,
+        limit: usize,
+    ) -> Result<Vec<serde_json::Value>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let query = format!(
+            r#"
+            SELECT "{column}"::text
+            FROM "{table}"
+            WHERE "{column}" IS NOT NULL
+            LIMIT {limit}
+            "#,
+            table = table_name,
+            column = column_name,
+        );
+
+        let rows: Vec<Row> =
+            client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to query sample JSON rows: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let json_text: Option<String> = row.get(0);
+            if let Some(text) = json_text {
+                let value: serde_json::Value =
+                    serde_json::from_str(&text).map_err(|e| FraiseQLError::Parse {
+                        message:  format!("Failed to parse JSON sample: {e}"),
+                        location: format!("{table_name}.{column_name}"),
+                    })?;
+                results.push(value);
+            }
+        }
+
+        Ok(results)
+    }
+
     async fn get_sample_jsonb(
         &self,
         table_name: &str,
@@ -202,8 +293,8 @@ impl PostgresIntrospector {
     /// # Example
     ///
     /// ```no_run
-    /// use fraiseql_core::db::postgres::PostgresIntrospector;
-    /// # use fraiseql_core::error::Result;
+    /// use fraiseql_db::postgres::PostgresIntrospector;
+    /// # use fraiseql_error::Result;
     /// use deadpool_postgres::Pool;
     ///
     /// # async fn example(pool: Pool) -> Result<()> {

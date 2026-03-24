@@ -1,6 +1,9 @@
 //! SELECT, GROUP BY, and aggregate expression SQL generation.
 
-use super::*;
+use super::{
+    AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
+    GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
+};
 
 impl AggregationSqlGenerator {
     /// Build SELECT clause
@@ -35,6 +38,8 @@ impl AggregationSqlGenerator {
             columns.push(format!("{} AS {}", column, alias));
         }
 
+        // SAFETY: column names and aliases are schema-derived (from CompiledSchema,
+        // validated at compile time), not user input.
         Ok(format!("SELECT\n  {}", columns.join(",\n  ")))
     }
 

@@ -1,6 +1,8 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: March 8, 2026
+> For a visual overview, see the [root architecture.md](../../architecture.md).
+
+**Last Updated**: March 21, 2026
 **Architecture**: Layered Optionality with Feature Gates
 **Status**: v2.1.0 Production-Ready
 
@@ -623,15 +625,17 @@ extends to all query paths.
 | PostgreSQL | ✅ | ✅ | ✅ |
 | MySQL | ✅ | ✅ | ✅ |
 | SQL Server | ✅ | ✅ | ✅ |
-| SQLite | ✅ | ❌ | ❌ |
+| SQLite | ✅ | ✅ (direct SQL) | ❌ |
 
 Mutation support is gated by the `MutationCapable` marker trait.
-`SqliteAdapter` intentionally does not implement `MutationCapable` — attempting a mutation
-against `SqliteAdapter` returns `FraiseQLError::Validation` at runtime with a clear
-diagnostic message. Use SQLite for read-only development and unit testing.
+All four database adapters implement `MutationCapable`. PostgreSQL, MySQL, and SQL Server
+use stored functions (`MutationStrategy::FunctionCall`). SQLite uses direct SQL statements
+(`MutationStrategy::DirectSql`) — INSERT/UPDATE/DELETE with RETURNING — since it has no
+stored procedure support. Custom mutations (`MutationOperation::Custom`) are not supported
+on SQLite.
 
 Adapters that support mutations: `PostgresAdapter`, `MySqlAdapter`, `SqlServerAdapter`,
-and `CachedDatabaseAdapter<A>` when `A: MutationCapable`.
+`SqliteAdapter`, and `CachedDatabaseAdapter<A>` when `A: MutationCapable`.
 
 > **Note**: true compile-time enforcement would require a separate `execute_mutation()`
 > public API method. The current `execute()` entry point accepts raw GraphQL strings and

@@ -1,10 +1,10 @@
-
 use indexmap::IndexMap;
 
 use super::*;
 use crate::schema::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateField, IntermediateQuery,
-    IntermediateSchema, IntermediateType,
+    IntermediateArgument, IntermediateAutoParams, IntermediateEnum, IntermediateEnumValue,
+    IntermediateField, IntermediateInputField, IntermediateInputObject, IntermediateMutation,
+    IntermediateQuery, IntermediateScalar, IntermediateSchema, IntermediateType,
 };
 
 #[test]
@@ -32,6 +32,9 @@ fn test_convert_minimal_schema() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -93,6 +96,9 @@ fn test_convert_type_with_fields() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -146,6 +152,9 @@ fn test_validate_unknown_type_reference() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -215,6 +224,9 @@ fn test_convert_query_with_arguments() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -275,6 +287,9 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -336,6 +351,9 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -404,6 +422,9 @@ fn test_convert_field_with_deprecated_directive() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -475,6 +496,9 @@ fn test_convert_enum() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -559,6 +583,9 @@ fn test_convert_input_object() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -613,6 +640,9 @@ fn test_rich_filter_types_generated() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -671,6 +701,9 @@ fn test_rich_filter_types_have_sql_templates() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -741,6 +774,9 @@ fn test_lookup_data_embedded_in_schema() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -834,6 +870,9 @@ fn test_convert_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -914,6 +953,9 @@ fn test_convert_type_implements_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -971,6 +1013,9 @@ fn test_validate_unknown_interface() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1037,6 +1082,9 @@ fn test_validate_missing_interface_field() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1111,6 +1159,9 @@ fn test_convert_union() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1196,6 +1247,9 @@ fn test_convert_field_requires_scope() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -1221,4 +1275,155 @@ fn test_convert_field_requires_scope() {
     // ssn field - requires admin scope
     assert_eq!(employee_type.fields[3].name, "ssn");
     assert_eq!(employee_type.fields[3].requires_scope, Some("admin".to_string()));
+}
+
+/// Helper to build an `IntermediateField` with only required fields.
+fn field(name: &str, field_type: &str) -> IntermediateField {
+    IntermediateField {
+        name:           name.to_string(),
+        field_type:     field_type.to_string(),
+        nullable:       false,
+        description:    None,
+        directives:     None,
+        requires_scope: None,
+        on_deny:        None,
+    }
+}
+
+/// Helper to build an `IntermediateArgument` with only required fields.
+fn arg(name: &str, arg_type: &str) -> IntermediateArgument {
+    IntermediateArgument {
+        name:       name.to_string(),
+        arg_type:   arg_type.to_string(),
+        nullable:   false,
+        default:    None,
+        deprecated: None,
+    }
+}
+
+#[test]
+fn test_validate_accepts_custom_scalar_in_mutation_arg() {
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "User".to_string(),
+            fields: vec![field("id", "Int"), field("email", "String")],
+            ..Default::default()
+        }],
+        mutations: vec![IntermediateMutation {
+            name: "createUser".to_string(),
+            return_type: "User".to_string(),
+            arguments: vec![arg("email", "Email")],
+            ..Default::default()
+        }],
+        custom_scalars: Some(vec![IntermediateScalar {
+            name:             "Email".to_string(),
+            description:      Some("Email address scalar".to_string()),
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type:        Some("String".to_string()),
+        }]),
+        ..Default::default()
+    };
+
+    // This previously failed because custom scalars were not added to type_names
+    let compiled = SchemaConverter::convert(intermediate)
+        .expect("custom scalar in mutation arg should validate");
+    assert_eq!(compiled.mutations.len(), 1);
+    assert_eq!(compiled.mutations[0].name, "createUser");
+}
+
+#[test]
+fn test_validate_accepts_enum_in_query_arg() {
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "User".to_string(),
+            fields: vec![field("id", "Int")],
+            ..Default::default()
+        }],
+        enums: vec![IntermediateEnum {
+            name:        "Role".to_string(),
+            values:      vec![
+                IntermediateEnumValue {
+                    name:        "ADMIN".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
+                IntermediateEnumValue {
+                    name:        "USER".to_string(),
+                    description: None,
+                    deprecated:  None,
+                },
+            ],
+            description: None,
+        }],
+        queries: vec![IntermediateQuery {
+            name: "usersByRole".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            arguments: vec![arg("role", "Role")],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("enum in query arg should validate");
+    assert_eq!(compiled.queries.len(), 1);
+}
+
+#[test]
+fn test_validate_accepts_input_type_in_mutation_arg() {
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "User".to_string(),
+            fields: vec![field("id", "Int")],
+            ..Default::default()
+        }],
+        input_types: vec![IntermediateInputObject {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![IntermediateInputField {
+                name:        "name".to_string(),
+                field_type:  "String".to_string(),
+                nullable:    false,
+                default:     None,
+                deprecated:  None,
+                description: None,
+            }],
+            description: None,
+        }],
+        mutations: vec![IntermediateMutation {
+            name: "createUser".to_string(),
+            return_type: "User".to_string(),
+            arguments: vec![arg("input", "CreateUserInput")],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("input type in mutation arg should validate");
+    assert_eq!(compiled.mutations.len(), 1);
+}
+
+#[test]
+fn test_validate_accepts_builtin_fraiseql_scalar_datetime() {
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "Event".to_string(),
+            fields: vec![field("id", "Int")],
+            ..Default::default()
+        }],
+        queries: vec![IntermediateQuery {
+            name: "eventsByDate".to_string(),
+            return_type: "Event".to_string(),
+            returns_list: true,
+            arguments: vec![arg("after", "DateTime")],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled =
+        SchemaConverter::convert(intermediate).expect("DateTime in query arg should validate");
+    assert_eq!(compiled.queries.len(), 1);
 }

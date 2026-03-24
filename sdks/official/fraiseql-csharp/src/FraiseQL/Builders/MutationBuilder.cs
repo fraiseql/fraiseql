@@ -20,13 +20,15 @@ namespace FraiseQL.Builders;
 public sealed class MutationBuilder
 {
     private static readonly HashSet<string> ValidOperations =
-        new(StringComparer.OrdinalIgnoreCase) { "insert", "update", "delete", "upsert" };
+        new(StringComparer.OrdinalIgnoreCase) { "insert", "update", "delete", "upsert", "create", "custom" };
 
     private readonly string _name;
     private string _returnType = string.Empty;
     private string _sqlSource = string.Empty;
     private string _operation = string.Empty;
     private string? _description;
+    private string? _restPath;
+    private string? _restMethod;
     private readonly List<IntermediateArgument> _arguments = new();
 
     private MutationBuilder(string name) => _name = name;
@@ -49,14 +51,14 @@ public sealed class MutationBuilder
     /// <summary>
     /// Sets the mutation operation kind.
     /// </summary>
-    /// <param name="operation">One of <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
+    /// <param name="operation">One of <c>"CREATE"</c>, <c>"UPDATE"</c>, <c>"DELETE"</c>, <c>"CUSTOM"</c>, <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c> (case-insensitive).</param>
     /// <returns>This builder for chaining.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="operation"/> is not a valid operation.</exception>
     public MutationBuilder Operation(string operation)
     {
         if (!ValidOperations.Contains(operation))
             throw new ArgumentException(
-                $"Invalid operation '{operation}'. Must be one of: insert, update, delete, upsert.",
+                $"Invalid operation '{operation}'. Must be one of: CREATE, UPDATE, DELETE, CUSTOM, insert, update, delete, upsert.",
                 nameof(operation));
         _operation = operation;
         return this;
@@ -66,6 +68,16 @@ public sealed class MutationBuilder
     /// <param name="desc">The description text.</param>
     /// <returns>This builder for chaining.</returns>
     public MutationBuilder Description(string desc) { _description = desc; return this; }
+
+    /// <summary>Sets the REST endpoint path for this mutation.</summary>
+    /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RestPath(string path) { _restPath = path; return this; }
+
+    /// <summary>Sets the HTTP method for the REST endpoint. Defaults to POST for mutations.</summary>
+    /// <param name="method">The HTTP method (GET, POST, PUT, PATCH, DELETE).</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RestMethod(string method) { _restMethod = method; return this; }
 
     /// <summary>Adds a typed argument to this mutation.</summary>
     /// <param name="name">The argument name.</param>
@@ -97,13 +109,18 @@ public sealed class MutationBuilder
             throw new InvalidOperationException(
                 $"MutationBuilder: Operation must be set before Build() (mutation: '{_name}')");
 
+        RestAnnotation? rest = _restPath != null
+            ? new RestAnnotation(_restPath, (_restMethod ?? "POST").ToUpperInvariant())
+            : null;
+
         return new IntermediateMutation(
             Name: _name,
             ReturnType: _returnType,
             SqlSource: _sqlSource,
             Operation: _operation,
             Arguments: _arguments.AsReadOnly(),
-            Description: _description);
+            Description: _description,
+            Rest: rest);
     }
 
     /// <summary>

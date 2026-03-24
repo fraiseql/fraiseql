@@ -24,7 +24,7 @@
 //!
 //! # Parsed Result
 //!
-//! ```no_run
+//! ```text
 //! // Illustrative output structure only — not executable code.
 //! AggregationRequest {
 //!     table_name: "tf_sales",
@@ -645,47 +645,28 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
+    use crate::compiler::fact_table::{DimensionPath, FilterColumn, SqlType, test_sales_metadata};
 
     fn create_test_metadata() -> FactTableMetadata {
-        use crate::compiler::fact_table::DimensionPath;
-
-        FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
-                paths: vec![
-                    DimensionPath {
-                        name:      "category".to_string(),
-                        json_path: "data->>'category'".to_string(),
-                        data_type: "text".to_string(),
-                    },
-                    DimensionPath {
-                        name:      "product".to_string(),
-                        json_path: "data->>'product'".to_string(),
-                        data_type: "text".to_string(),
-                    },
-                ],
+        let mut m = test_sales_metadata();
+        m.dimensions.paths = vec![
+            DimensionPath {
+                name:      "category".to_string(),
+                json_path: "data->>'category'".to_string(),
+                data_type: "text".to_string(),
             },
-            denormalized_filters: vec![FilterColumn {
-                name:     "occurred_at".to_string(),
-                sql_type: SqlType::Timestamp,
-                indexed:  true,
-            }],
-            calendar_dimensions:  vec![],
-        }
+            DimensionPath {
+                name:      "product".to_string(),
+                json_path: "data->>'product'".to_string(),
+                data_type: "text".to_string(),
+            },
+        ];
+        m.denormalized_filters = vec![FilterColumn {
+            name:     "occurred_at".to_string(),
+            sql_type: SqlType::Timestamp,
+            indexed:  true,
+        }];
+        m
     }
 
     #[test]

@@ -19,6 +19,7 @@ mod id_policy;
 pub mod inheritance;
 pub mod input_object;
 mod input_processor;
+pub mod js_codegen;
 pub mod mutual_exclusivity;
 pub(crate) mod patterns;
 pub mod rate_limiting;

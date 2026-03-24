@@ -24,6 +24,7 @@ jobs:
   secrets-scan:
     name: Secrets Detection
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only run on pull requests where there's always a diff to scan
     # Push events to main can have BASE=HEAD which causes TruffleHog to error
     if: github.event_name == 'pull_request'
@@ -44,6 +45,7 @@ jobs:
   license-scan:
     name: License Compliance
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
 
@@ -59,6 +61,7 @@ jobs:
   container-security:
      name: Container Security Scan (Government Grade)
      runs-on: ubuntu-latest
+     timeout-minutes: 45
      strategy:
        matrix:
          dockerfile:
@@ -170,7 +173,7 @@ jobs:
          # Generate SBOM in CycloneDX format for government compliance
          docker run --rm \
            -v /var/run/docker.sock:/var/run/docker.sock \
-           aquasec/trivy image \
+           ghcr.io/aquasecurity/trivy:latest image \
            --format cyclonedx \
            --output sbom-${{ matrix.dockerfile.label }}.json \
            ${{ matrix.dockerfile.tag }}
@@ -184,24 +187,19 @@ jobs:
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install cargo-audit
-      uses: taiki-e/install-action@cargo-audit
+    - name: Install cargo-deny
+      uses: taiki-e/install-action@cargo-deny
 
     - name: Audit Rust dependencies
       run: |
-        cargo audit \
-          --ignore RUSTSEC-2023-0071 \
-          --ignore RUSTSEC-2024-0384 \
-          --ignore RUSTSEC-2024-0436 \
-          --ignore RUSTSEC-2025-0134 \
-          --ignore RUSTSEC-2026-0002 \
-          --json > audit-results.json || true
+        cargo deny check advisories --format json > audit-results.json || true
         echo "✅ Rust dependency audit complete"
         cat audit-results.json
 
@@ -215,6 +213,7 @@ jobs:
   compliance-check:
     name: Compliance Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
 
@@ -268,6 +267,7 @@ jobs:
   security-gate:
     name: Security Gate ✅
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [secrets-scan, license-scan, container-security, dependency-audit, compliance-check]
     if: always()
     steps:

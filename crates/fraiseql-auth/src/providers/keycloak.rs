@@ -64,6 +64,10 @@ impl KeycloakOAuth {
     /// * `keycloak_url` - Base Keycloak URL (e.g., <https://keycloak.example.com>)
     /// * `realm` - Keycloak realm name (e.g., "master", "fraiseql")
     /// * `redirect_uri` - Redirect URI after authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OIDC discovery or provider initialization fails.
     pub async fn new(
         client_id: String,
         client_secret: String,
@@ -215,8 +219,7 @@ impl OAuthProvider for KeycloakOAuth {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

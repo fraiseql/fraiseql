@@ -37,6 +37,12 @@ use crate::{error::Result, provider::OAuthProvider};
 ///
 /// # Returns
 /// A boxed OAuthProvider implementation
+///
+/// # Errors
+///
+/// Returns `AuthError::ConfigError` if required provider-specific config is missing.
+/// Returns an error if OIDC discovery or provider initialization fails.
+/// Returns `AuthError::ConfigError` if `provider_type` is not recognized.
 pub async fn create_provider(
     provider_type: &str,
     client_id: String,
@@ -173,8 +179,7 @@ pub async fn create_provider(
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

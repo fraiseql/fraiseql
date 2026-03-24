@@ -54,6 +54,10 @@ impl ValidationResult {
     ///
     /// Returns the single `ConfigError` if exactly one error was collected.
     /// Returns `ConfigError::MultipleErrors` if more than one error was collected.
+    ///
+    /// # Panics
+    ///
+    /// Should not panic. The internal `expect` is guarded by a length check.
     pub fn into_result(self) -> Result<Vec<String>, ConfigError> {
         if self.errors.is_empty() {
             Ok(self.warnings)
@@ -350,11 +354,26 @@ impl<'a> ConfigValidator<'a> {
         // Validate storage backends
         for (name, storage) in &self.config.storage {
             match storage.backend.as_str() {
-                "s3" | "r2" | "gcs" => {
+                "s3" | "r2" | "gcs" | "hetzner" | "scaleway" | "ovh" | "exoscale" | "backblaze" => {
                     if storage.bucket.is_none() {
                         self.result.add_error(ConfigError::ValidationError {
                             field:   format!("storage.{}.bucket", name),
                             message: "Bucket name is required for cloud storage".to_string(),
+                        });
+                    }
+                },
+                "azure" => {
+                    if storage.bucket.is_none() {
+                        self.result.add_error(ConfigError::ValidationError {
+                            field:   format!("storage.{}.bucket", name),
+                            message: "Container name (bucket) is required for Azure storage"
+                                .to_string(),
+                        });
+                    }
+                    if storage.account_name.is_none() {
+                        self.result.add_error(ConfigError::ValidationError {
+                            field:   format!("storage.{}.account_name", name),
+                            message: "Account name is required for Azure storage".to_string(),
                         });
                     }
                 },

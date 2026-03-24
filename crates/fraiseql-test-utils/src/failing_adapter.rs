@@ -13,9 +13,13 @@ use std::{
 };
 
 use async_trait::async_trait;
+#[cfg(feature = "grpc")]
+use fraiseql_core::db::types::{ColumnSpec, ColumnValue};
 use fraiseql_core::{
     db::{
-        DatabaseAdapter, DatabaseType, MutationCapable, WhereClause,
+        CursorValue, DatabaseAdapter, DatabaseType, MutationCapable, RelayDatabaseAdapter,
+        WhereClause,
+        traits::RelayPageResult,
         types::{JsonbValue, PoolMetrics},
     },
     error::{FraiseQLError, Result},
@@ -98,13 +102,21 @@ impl FailError {
 #[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
-    responses:   Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    /// Canned function call responses per function name.
+    function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
+    /// Canned row-shaped responses per view name (for gRPC `execute_row_query`).
+    #[cfg(feature = "grpc")]
+    row_responses:      Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
+    /// Log of WHERE clauses passed to `execute_row_query` (for RLS assertion).
+    #[cfg(feature = "grpc")]
+    where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
     /// Failure injection configuration.
-    fail_config: Arc<Mutex<FailConfig>>,
+    fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count: Arc<AtomicU64>,
+    query_count:        Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log:   Arc<Mutex<Vec<String>>>,
+    query_log:          Arc<Mutex<Vec<String>>>,
 }
 
 impl FailingAdapter {
@@ -112,10 +124,15 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:   Arc::new(Mutex::new(HashMap::new())),
+            responses: Arc::new(Mutex::new(HashMap::new())),
+            function_responses: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "grpc")]
+            row_responses: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "grpc")]
+            where_clause_log: Arc::new(Mutex::new(Vec::new())),
             fail_config: Arc::new(Mutex::new(FailConfig::default())),
             query_count: Arc::new(AtomicU64::new(0)),
-            query_log:   Arc::new(Mutex::new(Vec::new())),
+            query_log: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -127,6 +144,33 @@ impl FailingAdapter {
     #[must_use]
     pub fn with_response(self, view: &str, data: Vec<JsonbValue>) -> Self {
         self.responses.lock().unwrap().insert(view.to_string(), data);
+        self
+    }
+
+    /// Set a canned response for a specific database function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal function responses mutex is poisoned.
+    #[must_use]
+    pub fn with_function_response(
+        self,
+        function_name: &str,
+        data: Vec<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.function_responses.lock().unwrap().insert(function_name.to_string(), data);
+        self
+    }
+
+    /// Set a canned row-shaped response for a specific view (for gRPC transport).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal row responses mutex is poisoned.
+    #[cfg(feature = "grpc")]
+    #[must_use]
+    pub fn with_row_response(self, view: &str, data: Vec<Vec<ColumnValue>>) -> Self {
+        self.row_responses.lock().unwrap().insert(view.to_string(), data);
         self
     }
 
@@ -183,6 +227,7 @@ impl FailingAdapter {
         *self.fail_config.lock().unwrap() = FailConfig::default();
         self.query_count.store(0, Ordering::SeqCst);
         self.query_log.lock().unwrap().clear();
+        self.function_responses.lock().unwrap().clear();
     }
 
     /// Get all recorded query view names.
@@ -193,6 +238,20 @@ impl FailingAdapter {
     #[must_use]
     pub fn recorded_queries(&self) -> Vec<String> {
         self.query_log.lock().unwrap().clone()
+    }
+
+    /// Get all recorded WHERE clauses from `execute_row_query` calls.
+    ///
+    /// Each entry is `Some(sql)` when a WHERE clause was passed, or `None`
+    /// when the query was executed without filtering.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal where clause log mutex is poisoned.
+    #[cfg(feature = "grpc")]
+    #[must_use]
+    pub fn recorded_where_clauses(&self) -> Vec<Option<String>> {
+        self.where_clause_log.lock().unwrap().clone()
     }
 
     /// Get the current query count.
@@ -355,11 +414,51 @@ impl DatabaseAdapter for FailingAdapter {
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
-        Ok(vec![])
+        let responses = self.function_responses.lock().unwrap();
+        Ok(responses.get(function_name).cloned().unwrap_or_default())
+    }
+
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        _columns: &[ColumnSpec],
+        where_clause: Option<&str>,
+        _order_by: Option<&str>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<Vec<ColumnValue>>> {
+        self.check_failure(view)?;
+        self.where_clause_log.lock().unwrap().push(where_clause.map(String::from));
+        let responses = self.row_responses.lock().unwrap();
+        Ok(responses.get(view).cloned().unwrap_or_default())
     }
 }
 
 impl MutationCapable for FailingAdapter {}
+
+impl RelayDatabaseAdapter for FailingAdapter {
+    async fn execute_relay_page<'a>(
+        &'a self,
+        view: &'a str,
+        _cursor_column: &'a str,
+        _after: Option<CursorValue>,
+        _before: Option<CursorValue>,
+        limit: u32,
+        _forward: bool,
+        _where_clause: Option<&'a WhereClause>,
+        _order_by: Option<&'a [fraiseql_core::db::types::sql_hints::OrderByClause]>,
+        _include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        self.check_failure(view)?;
+        let all_rows = self.get_response(view);
+        let rows: Vec<JsonbValue> = all_rows.into_iter().take(limit as usize).collect();
+        Ok(RelayPageResult {
+            rows,
+            total_count: None,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -92,6 +92,11 @@ impl OrderByClause {
     }
 
     /// Validate field name to prevent SQL injection
+    ///
+    /// # Errors
+    ///
+    /// Returns a descriptive error string if the field name is empty, contains invalid characters,
+    /// or the collation name (if provided) is empty or contains invalid characters.
     pub fn validate(&self) -> Result<(), String> {
         if self.field.is_empty() {
             return Err("Field name cannot be empty".to_string());
@@ -135,6 +140,10 @@ impl OrderByClause {
     /// - JSONB with collation: `(data->'name') COLLATE "en-US" ASC`
     /// - Direct column: `created_at DESC`
     /// - With NULLS: `status ASC NULLS LAST`
+    ///
+    /// # Errors
+    ///
+    /// Returns a descriptive error string if field validation fails (see [`validate`](Self::validate)).
     pub fn to_sql(&self) -> Result<String, String> {
         self.validate()?;
 

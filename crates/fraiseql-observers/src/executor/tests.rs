@@ -41,15 +41,15 @@ fn test_backoff_exponential() {
 
     // Jitter: ±25% of base delay — check inclusive range.
     let d = executor.calculate_backoff(1, &config).as_millis();
-    assert!(d >= 75 && d <= 125, "attempt 1: expected ~100 ms (±25%), got {d}");
+    assert!((75..=125).contains(&d), "attempt 1: expected ~100 ms (±25%), got {d}");
     let d = executor.calculate_backoff(2, &config).as_millis();
-    assert!(d >= 150 && d <= 250, "attempt 2: expected ~200 ms (±25%), got {d}");
+    assert!((150..=250).contains(&d), "attempt 2: expected ~200 ms (±25%), got {d}");
     let d = executor.calculate_backoff(3, &config).as_millis();
-    assert!(d >= 300 && d <= 500, "attempt 3: expected ~400 ms (±25%), got {d}");
+    assert!((300..=500).contains(&d), "attempt 3: expected ~400 ms (±25%), got {d}");
     let d = executor.calculate_backoff(4, &config).as_millis();
-    assert!(d >= 600 && d <= 1000, "attempt 4: expected ~800 ms (±25%), got {d}");
+    assert!((600..=1000).contains(&d), "attempt 4: expected ~800 ms (±25%), got {d}");
     let d = executor.calculate_backoff(5, &config).as_millis();
-    assert!(d >= 1200 && d <= 2000, "attempt 5: expected ~1600 ms (±25%), got {d}");
+    assert!((1200..=2000).contains(&d), "attempt 5: expected ~1600 ms (±25%), got {d}");
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn test_backoff_exponential_cap() {
 
     // Cap is at 1000; jitter ±25% gives [750, 1250]
     let d = executor.calculate_backoff(10, &config).as_millis();
-    assert!(d >= 750 && d <= 1250, "capped attempt: expected ~1000 ms (±25%), got {d}");
+    assert!((750..=1250).contains(&d), "capped attempt: expected ~1000 ms (±25%), got {d}");
 }
 
 #[test]
@@ -937,16 +937,17 @@ async fn test_process_event_with_mock_dispatcher_success() {
     dispatcher.expect_ok("webhook", 10.0);
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -976,16 +977,17 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
     );
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1010,12 +1012,13 @@ async fn test_process_event_condition_false_skips_action() {
     // Condition always false: id == 99999 won't match json({"id":42})
     // Using a numeric field that exists so eval_comparison returns Ok(false)
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("id == 99999".to_string()),
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig::default(),
-        on_failure: FP::Log,
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("id == 99999".to_string()),
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig::default(),
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1043,16 +1046,17 @@ async fn test_process_event_multiple_observers_all_succeed() {
     let mut observers_map = std::collections::HashMap::new();
     for i in 0..3usize {
         let observer = ObserverDefinition {
-            event_type: "INSERT".to_string(),
-            entity:     "Order".to_string(),
-            condition:  None,
-            actions:    vec![webhook_action()],
-            retry:      RetryConfig {
+            event_type:  "INSERT".to_string(),
+            entity:      "Order".to_string(),
+            condition:   None,
+            actions:     vec![webhook_action()],
+            retry:       RetryConfig {
                 max_attempts: 1,
                 initial_delay_ms: 0,
                 ..RetryConfig::default()
             },
-            on_failure: FP::Log,
+            on_failure:  FP::Log,
+            synchronous: false,
         };
         observers_map.insert(format!("obs_{i}"), observer);
     }
@@ -1076,22 +1080,23 @@ async fn test_process_event_multiple_actions_in_one_observer() {
     dispatcher.expect_ok("cache", 2.0);
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![
             webhook_action(),
             ActionConfig::Cache {
                 key_pattern: "orders:*".to_string(),
                 action:      "invalidate".to_string(),
             },
         ],
-        retry:      RetryConfig {
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Log,
+        on_failure:  FP::Log,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1119,16 +1124,17 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
     );
 
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![webhook_action()],
-        retry:      RetryConfig {
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![webhook_action()],
+        retry:       RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
         },
-        on_failure: FP::Dlq,
+        on_failure:  FP::Dlq,
+        synchronous: false,
     };
     let mut observers = std::collections::HashMap::new();
     observers.insert("obs".to_string(), observer);
@@ -1386,12 +1392,13 @@ async fn test_dlq_size_limit_none_allows_unbounded_pushes() {
 fn test_compile_condition_returns_ast_for_valid_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("total > 100".to_string()),
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("total > 100".to_string()),
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_ok(), "valid condition must compile without error");
@@ -1402,12 +1409,13 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
 fn test_compile_condition_returns_none_when_no_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  None,
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   None,
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_ok());
@@ -1421,12 +1429,13 @@ fn test_compile_condition_returns_none_when_no_condition() {
 fn test_compile_condition_returns_error_for_invalid_dsl() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
-        event_type: "INSERT".to_string(),
-        entity:     "Order".to_string(),
-        condition:  Some("@@@invalid$$$".to_string()),
-        actions:    vec![],
-        retry:      crate::config::RetryConfig::default(),
-        on_failure: crate::config::FailurePolicy::Log,
+        event_type:  "INSERT".to_string(),
+        entity:      "Order".to_string(),
+        condition:   Some("@@@invalid$$$".to_string()),
+        actions:     vec![],
+        retry:       crate::config::RetryConfig::default(),
+        on_failure:  crate::config::FailurePolicy::Log,
+        synchronous: false,
     };
     let result = observer.compile_condition();
     assert!(result.is_err(), "invalid DSL must return an error from compile_condition");

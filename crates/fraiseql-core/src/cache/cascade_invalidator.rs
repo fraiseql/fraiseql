@@ -106,6 +106,11 @@ impl CascadeInvalidator {
     ///
     /// # Example
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the view depends on itself or if
+    /// the new edge would create a cycle in the dependency graph.
+    ///
     /// ```rust
     /// use fraiseql_core::cache::cascade_invalidator::CascadeInvalidator;
     ///
@@ -203,6 +208,11 @@ impl CascadeInvalidator {
     ///
     /// Set of all invalidated views (including the target)
     ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice but returns `Result` for API
+    /// consistency with the invalidation pipeline.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -239,7 +249,7 @@ impl CascadeInvalidator {
         // Update statistics
         self.stats.total_cascades += 1;
         #[allow(clippy::cast_possible_truncation)]
-        // Reason: invalidated.len() is a usize which fits in u64 on all supported 64-bit platforms.
+        // Reason: invalidated.len() fits in u64 on all supported 64-bit platforms
         {
             self.stats.total_invalidated += invalidated.len() as u64;
         }
@@ -247,7 +257,7 @@ impl CascadeInvalidator {
         if self.stats.total_cascades > 0 {
             #[allow(clippy::cast_precision_loss)]
             // Reason: average_affected is a display metric; f64 precision loss on u64 counters is
-            // acceptable.
+            // acceptable
             {
                 self.stats.average_affected =
                     self.stats.total_invalidated as f64 / self.stats.total_cascades as f64;

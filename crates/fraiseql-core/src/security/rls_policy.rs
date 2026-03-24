@@ -76,7 +76,7 @@ use crate::{
 /// by [`RLSPolicy::evaluate()`] rather than arbitrary user code.
 ///
 /// `RlsWhereClause` can only be constructed within `fraiseql-core` via
-/// [`RlsWhereClause::new()`], ensuring all instances originate from RLS evaluation.
+/// `RlsWhereClause::new()`, ensuring all instances originate from RLS evaluation.
 ///
 /// # Invariant
 ///
@@ -88,12 +88,14 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// // The executor receives an RlsWhereClause after evaluating the policy.
-/// // It cannot construct one directly — that would be a compile error.
-/// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+/// use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext, AuthenticatedUser};
+/// # fn main() {
+/// # let user = AuthenticatedUser { user_id: "u1".into(), scopes: vec![], expires_at: chrono::Utc::now() };
+/// # let context = SecurityContext::from_user(user, "req-1".into());
 /// let rls = DefaultRLSPolicy::new();
 /// let rls_clause = rls.evaluate(&context, "Post").unwrap();
 /// // rls_clause is Option<RlsWhereClause> — proven to have gone through RLS
+/// # }
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct RlsWhereClause {
@@ -159,13 +161,20 @@ pub trait RLSPolicy: Send + Sync {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: a SecurityContext built from authenticated request metadata.
-    /// // See: tests/integration/ for runnable examples.
-    /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+    /// use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext, AuthenticatedUser};
+    /// # fn main() {
+    /// # let user = AuthenticatedUser { user_id: "u1".into(), scopes: vec![], expires_at: chrono::Utc::now() };
+    /// # let context = SecurityContext::from_user(user, "req-1".into());
     /// let rls = DefaultRLSPolicy::new();
     /// // filter is Some(RlsWhereClause) wrapping the evaluated WhereClause
     /// let filter = rls.evaluate(&context, "Post").unwrap();
+    /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if policy evaluation fails (e.g., missing
+    /// required context fields or rule compilation error).
     fn evaluate(
         &self,
         context: &SecurityContext,

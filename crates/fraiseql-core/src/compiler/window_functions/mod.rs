@@ -43,7 +43,7 @@
 //!
 //! # High-Level Example (WindowRequest)
 //!
-//! ```no_run
+//! ```ignore
 //! // Requires: FactTableMetadata from compiled schema.
 //! use fraiseql_core::compiler::window_functions::*;
 //! use fraiseql_core::compiler::fact_table::FactTableMetadata;

@@ -19,16 +19,13 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: a compiled AuthoringIR from schema parsing.
-//! use fraiseql_core::compiler::lowering::{SqlTemplateGenerator, DatabaseTarget};
-//! use fraiseql_core::compiler::ir::AuthoringIR;
-//! # use fraiseql_core::error::Result;
-//! # fn example() -> Result<()> {
+//! use fraiseql_core::compiler::{SqlTemplateGenerator, DatabaseTarget, AuthoringIR};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let ir = AuthoringIR::new();
 //! let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 //! let templates = generator.generate(&ir)?;
 //!
-//! for template in templates {
+//! for template in &templates {
 //!     println!("{}: {}", template.name, template.template);
 //! }
 //! # Ok(())
@@ -62,12 +59,24 @@ impl DatabaseTarget {
         }
     }
 
-    /// Get the identifier quoting character for this database.
+    /// Quote a SQL identifier, splitting schema-qualified names on `.`.
+    ///
+    /// For example, `"product.v_offering"` becomes `"product"."v_offering"` in
+    /// PostgreSQL, `` `product`.`v_offering` `` in MySQL, and
+    /// `[product].[v_offering]` in SQL Server.
     fn quote_identifier(self, name: &str) -> String {
-        match self {
-            Self::PostgreSQL | Self::SQLite => format!("\"{name}\""),
-            Self::MySQL => format!("`{name}`"),
-            Self::SQLServer => format!("[{name}]"),
+        let quote_one = |part: &str| -> String {
+            match self {
+                Self::PostgreSQL | Self::SQLite => format!("\"{part}\""),
+                Self::MySQL => format!("`{part}`"),
+                Self::SQLServer => format!("[{part}]"),
+            }
+        };
+
+        if name.contains('.') {
+            name.split('.').map(quote_one).collect::<Vec<_>>().join(".")
+        } else {
+            quote_one(name)
         }
     }
 
@@ -232,6 +241,8 @@ impl SqlTemplateGenerator {
         let parameters: Vec<String> = query.arguments.iter().map(|a| a.name.clone()).collect();
 
         // Build the base SELECT template
+        // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+        // through quote_identifier(), not user input.
         let mut template = format!("SELECT data FROM {quoted_table}");
 
         // Add placeholder for dynamic WHERE if supported
@@ -306,6 +317,8 @@ impl SqlTemplateGenerator {
         arguments: &[IRArgument],
     ) -> (String, TemplateKind) {
         if arguments.is_empty() {
+            // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+            // through quote_identifier(), not user input.
             return (
                 format!("INSERT INTO {quoted_table} (data) VALUES ({{data}}) RETURNING data"),
                 TemplateKind::Insert,
@@ -317,6 +330,8 @@ impl SqlTemplateGenerator {
 
         if has_input {
             // Standard input pattern
+            // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+            // through quote_identifier(), not user input.
             (
                 format!("INSERT INTO {quoted_table} (data) VALUES ({{input}}) RETURNING data"),
                 TemplateKind::Insert,
@@ -408,6 +423,8 @@ impl SqlTemplateGenerator {
         // Find the id argument
         let id_arg = arguments.iter().find(|a| a.name == "id" || a.name == "where");
 
+        // SAFETY: quoted_table is schema-derived (validated at compile time) and passed
+        // through quote_identifier(), not user input.
         if let Some(id) = id_arg {
             (
                 format!(
@@ -537,10 +554,29 @@ mod tests {
 
     #[test]
     fn test_database_target_quote_identifier() {
+        // Simple identifiers
         assert_eq!(DatabaseTarget::PostgreSQL.quote_identifier("users"), "\"users\"");
         assert_eq!(DatabaseTarget::MySQL.quote_identifier("users"), "`users`");
         assert_eq!(DatabaseTarget::SQLite.quote_identifier("users"), "\"users\"");
         assert_eq!(DatabaseTarget::SQLServer.quote_identifier("users"), "[users]");
+
+        // Schema-qualified identifiers (dot-splitting)
+        assert_eq!(
+            DatabaseTarget::PostgreSQL.quote_identifier("product.v_offering"),
+            "\"product\".\"v_offering\""
+        );
+        assert_eq!(
+            DatabaseTarget::MySQL.quote_identifier("product.v_offering"),
+            "`product`.`v_offering`"
+        );
+        assert_eq!(
+            DatabaseTarget::SQLite.quote_identifier("product.v_offering"),
+            "\"product\".\"v_offering\""
+        );
+        assert_eq!(
+            DatabaseTarget::SQLServer.quote_identifier("product.v_offering"),
+            "[product].[v_offering]"
+        );
     }
 
     #[test]

@@ -35,6 +35,7 @@ impl SchemaConverter {
             requires_role: intermediate.requires_role,
             is_error: intermediate.is_error,
             relay: intermediate.relay,
+            relationships: Vec::new(),
         })
     }
 
@@ -172,14 +173,31 @@ impl SchemaConverter {
                 }
             }),
             encryption: None,
+            auto_generated: false,
+            computed: false,
+            searchable: false,
         })
     }
 
-    /// Parse string type name to `FieldType` enum
+    /// Parse string type name to `FieldType` enum.
     ///
-    /// Handles built-in scalars and custom object types
+    /// Handles built-in scalars, custom object types, and strips trailing `!`
+    /// (non-null markers) that authoring tools may emit. Nullability is tracked
+    /// separately via the `nullable` field, so the `!` suffix is redundant.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the type name is empty after stripping.
     pub(super) fn parse_field_type(type_name: &str) -> Result<FieldType> {
-        match type_name {
+        let normalized = type_name.trim_end_matches('!');
+        if normalized != type_name {
+            eprintln!(
+                "warning: type \"{type_name}\" contains trailing `!` — \
+                 use \"{normalized}\" instead (nullability is controlled by the `nullable` field)"
+            );
+        }
+
+        match normalized {
             "String" => Ok(FieldType::String),
             "Int" => Ok(FieldType::Int),
             "Float" => Ok(FieldType::Float),

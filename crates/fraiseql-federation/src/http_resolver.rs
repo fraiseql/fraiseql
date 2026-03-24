@@ -224,6 +224,10 @@ impl HttpEntityResolver {
     /// process-global environment variables.
     ///
     /// **Never use in production** — this bypasses all SSRF protections.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
         let client = reqwest::Client::builder()
@@ -240,7 +244,12 @@ impl HttpEntityResolver {
         })
     }
 
-    /// Resolve entities via HTTP _entities query
+    /// Resolve entities via HTTP _entities query.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SSRF validation fails, the HTTP request fails,
+    /// or the response cannot be parsed as a valid GraphQL response.
     pub async fn resolve_entities(
         &self,
         subgraph_url: &str,
@@ -252,6 +261,11 @@ impl HttpEntityResolver {
     }
 
     /// Resolve entities via HTTP _entities query with optional distributed tracing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SSRF validation fails, the HTTP request fails,
+    /// or the response cannot be parsed as a valid GraphQL response.
     pub async fn resolve_entities_with_tracing(
         &self,
         subgraph_url: &str,

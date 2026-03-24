@@ -13,6 +13,24 @@ def _pascal_to_snake(name: str) -> str:
     return _CAMEL_RE.sub("_", name).lower()
 
 
+def _pluralize(snake: str) -> str:
+    """Pluralize a snake_case name using basic English rules.
+
+    Rules (ordered):
+    1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+    2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+    3. Ends in consonant + 'y' → replace 'y' with 'ies'
+    4. Default → append 's'
+    """
+    if snake.endswith("s") and not snake.endswith("ss"):
+        return snake
+    if snake.endswith(("ss", "sh", "ch", "x", "z")):
+        return snake + "es"
+    if snake.endswith("y") and len(snake) >= 2 and snake[-2] not in "aeiou":
+        return snake[:-1] + "ies"
+    return snake + "s"
+
+
 class SchemaRegistry:
     """Global registry for schema definitions.
 
@@ -54,6 +72,10 @@ class SchemaRegistry:
         relay: bool = False,
         requires_role: str | None = None,
         is_error: bool = False,
+        tenant_scoped: bool = False,
+        sql_source: str | None = None,
+        key_fields: list[str] | None = None,
+        extends: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -67,12 +89,20 @@ class SchemaRegistry:
                 in the view's data JSONB.
             requires_role: Role required to access this type. If set, only users with
                 this role can see or query this type.
+            tenant_scoped: Whether this type is tenant-scoped. When True, the compiler
+                injects a tenant_id filter into all queries for this type.
+            sql_source: Optional explicit SQL source (view name). Defaults to
+                ``v_<snake_case(name)>``.
+            key_fields: Federation key fields for entity resolution. Defaults to
+                ``["id"]`` when federation is enabled on export. Set explicitly to
+                override (e.g. ``["id", "region"]`` for compound keys).
+            extends: Whether this type extends a type defined in another subgraph.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
         type_def: dict[str, Any] = {
             "name": name,
-            "sql_source": f"v_{_pascal_to_snake(name)}",
+            "sql_source": sql_source or f"v_{_pascal_to_snake(name)}",
             "fields": field_list,
             "description": description,
         }
@@ -94,6 +124,15 @@ class SchemaRegistry:
 
         if is_error:
             type_def["is_error"] = True
+
+        if tenant_scoped:
+            type_def["tenant_scoped"] = True
+
+        # Federation metadata — stored on the type, emitted when federation is enabled
+        if key_fields is not None:
+            type_def["key_fields"] = key_fields
+        if extends:
+            type_def["extends"] = True
 
         cls._types[name] = type_def
 
@@ -319,6 +358,140 @@ class SchemaRegistry:
             **config,
         }
 
+    # inject_defaults: base applies to both queries and mutations;
+    # query-specific and mutation-specific defaults extend the base.
+    _inject_defaults_base: dict[str, str] = {}
+    _inject_defaults_queries: dict[str, str] = {}
+    _inject_defaults_mutations: dict[str, str] = {}
+
+    @classmethod
+    def set_inject_defaults(
+        cls,
+        base: dict[str, str] | None = None,
+        queries: dict[str, str] | None = None,
+        mutations: dict[str, str] | None = None,
+    ) -> None:
+        """Configure default inject_params merged into every query/mutation at export.
+
+        Args:
+            base: Defaults applied to both queries and mutations.
+            queries: Additional defaults for queries only.
+            mutations: Additional defaults for mutations only.
+        """
+        cls._inject_defaults_base = base or {}
+        cls._inject_defaults_queries = queries or {}
+        cls._inject_defaults_mutations = mutations or {}
+
+    @classmethod
+    def register_crud(
+        cls,
+        type_name: str,
+        fields: dict[str, dict[str, Any]],
+        crud: bool | list[str],
+        sql_source: str | None = None,
+        plural_name: str | None = None,
+    ) -> None:
+        """Auto-generate CRUD queries and mutations for a type.
+
+        Args:
+            type_name: The registered type name (e.g., "Product").
+            fields: The type's field definitions from ``extract_field_info``.
+            crud: ``True`` for all operations, or a list of specific operations
+                  to generate (subset of ``["read", "create", "update", "delete"]``).
+            sql_source: Optional explicit SQL view source. Defaults to
+                ``v_<snake_case(type_name)>``.
+            plural_name: Optional explicit plural form for list query names.
+                Defaults to ``_pluralize(snake)``.
+
+        Raises:
+            ValueError: If the type has no fields.
+        """
+        ops: set[str]
+        if crud is True:
+            ops = {"read", "create", "update", "delete"}
+        elif isinstance(crud, list):
+            ops = set(crud)
+        else:
+            return
+
+        if not ops:
+            return
+
+        field_list = list(fields.items())
+        if not field_list:
+            msg = f"Type {type_name!r} has no fields; cannot generate CRUD operations"
+            raise ValueError(msg)
+
+        snake = _pascal_to_snake(type_name)
+        view = sql_source or f"v_{snake}"
+        pk_name, pk_info = field_list[0]
+
+        if "read" in ops:
+            # Get-by-ID query
+            cls.register_query(
+                name=snake,
+                return_type=type_name,
+                returns_list=False,
+                nullable=True,
+                arguments=[{"name": pk_name, "type": pk_info["type"], "nullable": False}],
+                description=f"Get {type_name} by ID.",
+                sql_source=view,
+            )
+            # List query with auto_params
+            list_name = plural_name or _pluralize(snake)
+            cls.register_query(
+                name=list_name,
+                return_type=type_name,
+                returns_list=True,
+                nullable=False,
+                arguments=[],
+                description=f"List {type_name} records.",
+                sql_source=view,
+                auto_params={"where": True, "order_by": True, "limit": True, "offset": True},
+            )
+
+        if "create" in ops:
+            args = [
+                {"name": k, "type": v["type"], "nullable": v["nullable"]} for k, v in field_list
+            ]
+            cls.register_mutation(
+                name=f"create_{snake}",
+                return_type=type_name,
+                returns_list=False,
+                nullable=False,
+                arguments=args,
+                description=f"Create a new {type_name}.",
+                sql_source=f"fn_create_{snake}",
+                operation="INSERT",
+            )
+
+        if "update" in ops:
+            args = [{"name": pk_name, "type": pk_info["type"], "nullable": False}]
+            for k, v in field_list[1:]:
+                args.append({"name": k, "type": v["type"], "nullable": True})
+            cls.register_mutation(
+                name=f"update_{snake}",
+                return_type=type_name,
+                returns_list=False,
+                nullable=True,
+                arguments=args,
+                description=f"Update an existing {type_name}.",
+                sql_source=f"fn_update_{snake}",
+                operation="UPDATE",
+            )
+
+        if "delete" in ops:
+            cls.register_mutation(
+                name=f"delete_{snake}",
+                return_type=type_name,
+                returns_list=False,
+                nullable=False,
+                arguments=[{"name": pk_name, "type": pk_info["type"], "nullable": False}],
+                description=f"Delete a {type_name}.",
+                sql_source=f"fn_delete_{snake}",
+                operation="DELETE",
+            )
+
     @classmethod
     def register_scalar(
         cls,
@@ -351,6 +524,33 @@ class SchemaRegistry:
         return {name: scalar_class for name, (scalar_class, _) in cls._custom_scalars.items()}
 
     @classmethod
+    def _merge_inject_defaults(
+        cls,
+        operation: dict[str, Any],
+        defaults: dict[str, str],
+    ) -> dict[str, Any]:
+        """Merge inject_defaults into an operation, returning a new copy.
+
+        Default inject_params fill in keys that are NOT already set by the
+        operation's own inject_params (last-writer-wins: explicit > default).
+        """
+        if not defaults:
+            return operation
+
+        existing = dict(operation.get("inject_params", {}))
+        for key, source_expr in defaults.items():
+            if key not in existing:
+                parts = source_expr.split(":", 1)
+                if len(parts) == 2:
+                    existing[key] = {"source": parts[0], "claim": parts[1]}
+                else:
+                    existing[key] = {"source": source_expr, "claim": ""}
+
+        if existing:
+            operation = {**operation, "inject_params": existing}
+        return operation
+
+    @classmethod
     def get_schema(cls) -> dict[str, Any]:
         """Get the complete schema as a dictionary.
 
@@ -358,14 +558,23 @@ class SchemaRegistry:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
             "queries", "mutations", "subscriptions", and "customScalars"
         """
+        # Build query-level and mutation-level inject defaults
+        query_defaults = {**cls._inject_defaults_base, **cls._inject_defaults_queries}
+        mutation_defaults = {**cls._inject_defaults_base, **cls._inject_defaults_mutations}
+
+        queries = [cls._merge_inject_defaults(q, query_defaults) for q in cls._queries.values()]
+        mutations = [
+            cls._merge_inject_defaults(m, mutation_defaults) for m in cls._mutations.values()
+        ]
+
         schema: dict[str, Any] = {
             "types": list(cls._types.values()),
             "enums": list(cls._enums.values()),
             "input_types": list(cls._input_types.values()),
             "interfaces": list(cls._interfaces.values()),
             "unions": list(cls._unions.values()),
-            "queries": list(cls._queries.values()),
-            "mutations": list(cls._mutations.values()),
+            "queries": queries,
+            "mutations": mutations,
             "subscriptions": list(cls._subscriptions.values()),
         }
 
@@ -394,6 +603,9 @@ class SchemaRegistry:
         cls._mutations.clear()
         cls._subscriptions.clear()
         cls._custom_scalars.clear()
+        cls._inject_defaults_base.clear()
+        cls._inject_defaults_queries.clear()
+        cls._inject_defaults_mutations.clear()
 
 
 def generate_schema_json(types: list[type] | None = None) -> dict[str, Any]:

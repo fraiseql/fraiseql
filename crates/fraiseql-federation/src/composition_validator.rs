@@ -10,16 +10,32 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! ```
+//! use fraiseql_federation::composition_validator::CompositionValidator;
+//! use fraiseql_federation::types::{FederationMetadata, FederatedType, KeyDirective};
+//!
+//! let mut user_type = FederatedType::new("User".to_string());
+//! user_type.keys.push(KeyDirective { fields: vec!["id".to_string()], resolvable: true });
+//!
+//! let users_metadata = FederationMetadata {
+//!     enabled: true,
+//!     version: "v2".to_string(),
+//!     types: vec![user_type],
+//! };
+//!
+//! let orders_metadata = FederationMetadata {
+//!     enabled: true,
+//!     version: "v2".to_string(),
+//!     types: vec![FederatedType::new("Order".to_string())],
+//! };
+//!
 //! let subgraphs = vec![
 //!     ("users".to_string(), users_metadata),
 //!     ("orders".to_string(), orders_metadata),
 //! ];
 //!
 //! let validator = CompositionValidator::new();
-//! let composed = validator.validate_composition(subgraphs)?;
+//! let composed = validator.validate_composition(subgraphs).unwrap();
 //! ```
 //!
 //! # Architecture
@@ -419,9 +435,9 @@ impl CompositionValidator {
     /// Type conflicts always produce errors (safest default).
     ///
     /// # Example
-    /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// ```
+    /// use fraiseql_federation::composition_validator::CompositionValidator;
+    ///
     /// let validator = CompositionValidator::new();
     /// ```
     pub const fn new() -> Self {
@@ -441,16 +457,28 @@ impl CompositionValidator {
     /// Returns vector of all composition errors if validation or composition fails.
     ///
     /// # Example
-    /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// ```
+    /// use fraiseql_federation::composition_validator::CompositionValidator;
+    /// use fraiseql_federation::types::{FederationMetadata, FederatedType};
+    ///
+    /// let users_metadata = FederationMetadata {
+    ///     enabled: true,
+    ///     version: "v2".to_string(),
+    ///     types: vec![FederatedType::new("User".to_string())],
+    /// };
+    /// let orders_metadata = FederationMetadata {
+    ///     enabled: true,
+    ///     version: "v2".to_string(),
+    ///     types: vec![FederatedType::new("Order".to_string())],
+    /// };
+    ///
     /// let subgraphs = vec![
     ///     ("users".to_string(), users_metadata),
     ///     ("orders".to_string(), orders_metadata),
     /// ];
     ///
     /// let validator = CompositionValidator::new();
-    /// let composed = validator.validate_composition(subgraphs)?;
+    /// let composed = validator.validate_composition(subgraphs).unwrap();
     /// ```
     pub fn validate_composition(
         &self,

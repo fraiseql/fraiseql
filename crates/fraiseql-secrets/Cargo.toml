@@ -1,23 +1,23 @@
 [dependencies]
 # Encryption
-aes-gcm = {version = "0.10", features = ["zeroize"]}
-async-trait = "0.1"
-base64 = "0.22"
-chrono = {version = "0.4", features = ["serde"]}
+aes-gcm = {workspace = true, features = ["zeroize"]}
+async-trait = {workspace = true}
+base64 = {workspace = true}
+chrono = {workspace = true}
 fraiseql-core = {workspace = true}
-rand = "0.8"
+rand = {workspace = true}
 reqwest = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
+serde = {workspace = true}
+serde_json = {workspace = true}
 thiserror = {workspace = true}
-tokio = {version = "1.45", features = ["full"]}
-tracing = "0.1"
-uuid = {version = "1.0", features = ["v4", "serde"]}
+tokio = {workspace = true, features = ["rt", "macros", "sync", "time", "fs"]}
+tracing = {workspace = true}
+uuid = {workspace = true}
 zeroize = "1.8"
 
 [dev-dependencies]
 temp-env = {workspace = true}
-tempfile = "3.13"
+tempfile = {workspace = true}
 tokio-test = "0.4"
 wiremock = "0.6"
 
@@ -34,6 +34,7 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true

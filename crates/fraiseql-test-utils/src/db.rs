@@ -1,4 +1,4 @@
-//! Database URL resolution for test infrastructure.
+//! Database URL resolution and pool creation for test infrastructure.
 
 /// Returns the test database URL from the `DATABASE_URL` environment variable.
 ///
@@ -16,6 +16,23 @@ pub fn database_url() -> String {
              Set DATABASE_URL=postgresql://... or mark this test #[ignore]."
         )
     })
+}
+
+/// Create a PostgreSQL connection pool for integration tests.
+///
+/// Connects to the database specified by the `DATABASE_URL` environment variable
+/// with a maximum of 5 connections.
+///
+/// # Panics
+///
+/// Panics if `DATABASE_URL` is not set or if the connection fails.
+#[cfg(feature = "postgres")]
+pub async fn create_test_pool() -> sqlx::PgPool {
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url())
+        .await
+        .expect("Failed to connect to test database")
 }
 
 #[cfg(test)]

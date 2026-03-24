@@ -21,6 +21,10 @@ impl SchemaOptimizer {
     /// - Join order hints
     /// - Projection optimization
     /// - Predicate pushdown opportunities
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn optimize(schema: &mut CompiledSchema) -> Result<OptimizationReport> {
         info!("Optimizing compiled schema");
 
@@ -396,6 +400,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -452,6 +458,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -495,6 +503,9 @@ mod tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        auto_generated: false,
+                        computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,
@@ -503,6 +514,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -551,6 +563,9 @@ mod tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        auto_generated: false,
+                        computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,
@@ -559,6 +574,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -617,6 +633,9 @@ mod tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        auto_generated: false,
+                        computed:       false,
+                        searchable:     false,
                     })
                     .collect(),
                 description:         None,
@@ -625,6 +644,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],

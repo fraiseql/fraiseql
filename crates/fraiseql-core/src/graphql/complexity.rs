@@ -14,6 +14,12 @@ use graphql_parser::query::{
 /// [`RequestValidator`], the server HTTP handler, and the CLI `explain` command.
 pub const DEFAULT_MAX_ALIASES: usize = 30;
 
+/// Default maximum number of variables per request (DoS protection).
+///
+/// Limits the number of top-level keys in the `variables` JSON object to prevent
+/// memory exhaustion from oversized variable maps.
+pub const DEFAULT_MAX_VARIABLES: usize = 1_000;
+
 /// Configuration for query complexity limits.
 #[derive(Debug, Clone)]
 pub struct ComplexityConfig {
@@ -23,6 +29,8 @@ pub struct ComplexityConfig {
     pub max_complexity: usize,
     /// Maximum number of field aliases per query — default: 30
     pub max_aliases:    usize,
+    /// Maximum number of variables per request — default: 1 000
+    pub max_variables:  usize,
 }
 
 impl Default for ComplexityConfig {
@@ -31,6 +39,7 @@ impl Default for ComplexityConfig {
             max_depth:      10,
             max_complexity: 100,
             max_aliases:    DEFAULT_MAX_ALIASES,
+            max_variables:  DEFAULT_MAX_VARIABLES,
         }
     }
 }
@@ -76,6 +85,17 @@ pub enum ValidationError {
         actual_aliases: usize,
     },
 
+    /// Request contains too many variables (DoS protection).
+    #[error(
+        "Request exceeds maximum variable count of {max_variables}: count = {actual_variables}"
+    )]
+    TooManyVariables {
+        /// Maximum allowed variable count
+        max_variables:    usize,
+        /// Actual variable count
+        actual_variables: usize,
+    },
+
     /// Invalid query variables.
     #[error("Invalid variables: {0}")]
     InvalidVariables(String),
@@ -98,6 +118,8 @@ pub struct RequestValidator {
     max_complexity:        usize,
     /// Maximum number of field aliases per query (alias amplification protection).
     max_aliases_per_query: usize,
+    /// Maximum number of variables per request (DoS protection).
+    max_variables:         usize,
     /// Enable query depth validation.
     validate_depth:        bool,
     /// Enable query complexity validation.
@@ -118,6 +140,7 @@ impl RequestValidator {
             max_depth:             config.max_depth,
             max_complexity:        config.max_complexity,
             max_aliases_per_query: config.max_aliases,
+            max_variables:         config.max_variables,
             validate_depth:        true,
             validate_complexity:   true,
         }
@@ -155,6 +178,13 @@ impl RequestValidator {
     #[must_use]
     pub const fn with_max_aliases(mut self, max_aliases: usize) -> Self {
         self.max_aliases_per_query = max_aliases;
+        self
+    }
+
+    /// Set maximum number of variables per request.
+    #[must_use]
+    pub const fn with_max_variables(mut self, max_variables: usize) -> Self {
+        self.max_variables = max_variables;
         self
     }
 
@@ -237,16 +267,27 @@ impl RequestValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] if variables are not a JSON object.
+    /// Returns [`ValidationError::InvalidVariables`] if variables are not a JSON object,
+    /// or [`ValidationError::TooManyVariables`] if the variable count exceeds the configured limit.
     pub fn validate_variables(
         &self,
         variables: Option<&serde_json::Value>,
     ) -> Result<(), ValidationError> {
         if let Some(vars) = variables {
-            if !vars.is_object() {
-                return Err(ValidationError::InvalidVariables(
-                    "Variables must be an object".to_string(),
-                ));
+            match vars.as_object() {
+                Some(map) => {
+                    if map.len() > self.max_variables {
+                        return Err(ValidationError::TooManyVariables {
+                            max_variables:    self.max_variables,
+                            actual_variables: map.len(),
+                        });
+                    }
+                },
+                None => {
+                    return Err(ValidationError::InvalidVariables(
+                        "Variables must be an object".to_string(),
+                    ));
+                },
             }
         }
         Ok(())
@@ -422,6 +463,7 @@ impl Default for RequestValidator {
             max_depth:             10,
             max_complexity:        100,
             max_aliases_per_query: DEFAULT_MAX_ALIASES,
+            max_variables:         DEFAULT_MAX_VARIABLES,
             validate_depth:        true,
             validate_complexity:   true,
         }
@@ -451,8 +493,8 @@ fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<S
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             if let graphql_parser::query::Value::Int(n) = value {
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                // Reason: value is clamped to [1, 100] immediately after; truncation
-                // and sign loss are intentional and safe here.
+                // Reason: value is clamped to [1, 100] immediately after; truncation and sign loss
+                // are safe
                 let limit = n.as_i64().unwrap_or(10) as usize;
                 return limit.clamp(1, 100);
             }
@@ -669,6 +711,37 @@ mod tests {
         assert!(validator.validate_variables(Some(&vars)).is_err());
     }
 
+    #[test]
+    fn test_rejects_excessive_variables() {
+        let validator = RequestValidator::new().with_max_variables(1_000);
+        let mut map = serde_json::Map::new();
+        for i in 0..1_001 {
+            map.insert(format!("var_{i}"), serde_json::Value::Null);
+        }
+        let vars = serde_json::Value::Object(map);
+        assert!(
+            matches!(
+                validator.validate_variables(Some(&vars)),
+                Err(ValidationError::TooManyVariables {
+                    max_variables:    1_000,
+                    actual_variables: 1_001,
+                })
+            ),
+            "should reject variables exceeding limit"
+        );
+    }
+
+    #[test]
+    fn test_accepts_variables_at_limit() {
+        let validator = RequestValidator::new().with_max_variables(1_000);
+        let mut map = serde_json::Map::new();
+        for i in 0..1_000 {
+            map.insert(format!("var_{i}"), serde_json::Value::Null);
+        }
+        let vars = serde_json::Value::Object(map);
+        assert!(validator.validate_variables(Some(&vars)).is_ok());
+    }
+
     // ── Disabled validation ──
 
     #[test]
@@ -687,9 +760,10 @@ mod tests {
     #[test]
     fn test_from_config() {
         let config = ComplexityConfig {
-            max_depth:      5,
+            max_depth: 5,
             max_complexity: 20,
-            max_aliases:    3,
+            max_aliases: 3,
+            ..ComplexityConfig::default()
         };
         let validator = RequestValidator::from_config(config);
         // Depth-6 query should fail

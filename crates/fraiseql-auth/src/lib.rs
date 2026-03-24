@@ -5,8 +5,6 @@
 #![forbid(unsafe_code)]
 // module_name_repetitions, must_use_candidate, similar_names, unnecessary_wraps:
 // allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
-#![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
-#![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
 #![allow(clippy::unused_self)]
@@ -114,6 +112,8 @@ pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
+#[allow(deprecated)]
+pub use rate_limiting::RateLimitConfig;
 pub use rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter, RateLimiters};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,

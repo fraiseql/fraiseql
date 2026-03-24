@@ -111,11 +111,13 @@ See individual runbooks for specific escalation contacts.
 
 ## Related Documentation
 
-- [ARCHITECTURE_PRINCIPLES.md](../ARCHITECTURE_PRINCIPLES.md) - System design and principles
-- [Deployment Guide](../deployment.md) - Standard deployment procedures
-- [Configuration Reference](../configuration.md) - All FraiseQL configuration options
-- [Troubleshooting Guide](../troubleshooting.md) - Common issues and solutions
-- [Performance Tuning](../performance.md) - Optimization guidelines
+- [Architecture Overview](../architecture/overview.md) - System design and principles
+- [Deployment Guide](https://fraiseql.com/deployment/docker/) - Standard deployment procedures
+- [Configuration Reference](https://fraiseql.com/reference/toml-config/) - All FraiseQL configuration options
+- [Troubleshooting Guide](https://fraiseql.com/troubleshooting/common-issues/) - Common issues and solutions
+- [Performance Tuning](https://fraiseql.com/guides/performance-benchmarks/) - Optimization guidelines
+
+> **Note:** Some links above point to the [public documentation site](https://fraiseql.com) where the canonical guides are maintained.
 
 ## Contributing to Runbooks
 

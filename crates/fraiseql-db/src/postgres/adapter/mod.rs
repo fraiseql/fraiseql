@@ -27,6 +27,9 @@ use crate::{
 /// nested query load (fixes Issue #41).
 const DEFAULT_POOL_SIZE: usize = 25;
 
+/// Hard upper bound on pool size to prevent connection exhaustion on the database server.
+const MAX_POOL_SIZE: usize = 200;
+
 /// Maximum retries for connection acquisition with exponential backoff.
 const MAX_CONNECTION_RETRIES: u32 = 3;
 
@@ -50,8 +53,8 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// # Example
 ///
 /// ```rust,no_run
-/// use fraiseql_core::db::postgres::PostgresAdapter;
-/// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
+/// use fraiseql_db::postgres::PostgresAdapter;
+/// use fraiseql_db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -92,7 +95,7 @@ impl PostgresAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_db::postgres::PostgresAdapter;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # Ok(())
@@ -137,6 +140,13 @@ impl PostgresAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: usize) -> Result<Self> {
+        if max_size == 0 || max_size > MAX_POOL_SIZE {
+            return Err(FraiseQLError::Validation {
+                message: format!("Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"),
+                path:    None,
+            });
+        }
+
         let mut cfg = Config::new();
         cfg.url = Some(connection_string.to_string());
         cfg.manager = Some(ManagerConfig {
@@ -291,11 +301,11 @@ impl PostgresAdapter {
     /// ```no_run
     /// // Requires: running PostgreSQL database.
     /// use fraiseql_db::postgres::PostgresAdapter;
-    /// use fraiseql_db::types::SqlProjectionHint;
+    /// use fraiseql_db::{types::SqlProjectionHint, DatabaseType};
     ///
     /// # async fn example(adapter: &PostgresAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// let projection = SqlProjectionHint {
-    ///     database: "postgresql".to_string(),
+    ///     database: DatabaseType::PostgreSQL,
     ///     projection_template: "jsonb_build_object('id', data->>'id')".to_string(),
     ///     estimated_reduction_percent: 75,
     /// };
@@ -404,6 +414,8 @@ pub(super) fn build_where_select_sql(
     offset: Option<u32>,
 ) -> Result<(String, Vec<QueryParam>)> {
     // Build base query
+    // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+    // not user input. Additionally passed through quote_postgres_identifier().
     let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
 
     // Collect WHERE clause params (if any)

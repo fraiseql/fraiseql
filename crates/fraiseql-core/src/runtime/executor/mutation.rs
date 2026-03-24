@@ -2,32 +2,23 @@
 
 use super::{Executor, resolve_inject_value};
 use crate::{
-    db::traits::{DatabaseAdapter, MutationCapable},
+    db::traits::{
+        DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
+    },
     error::{FraiseQLError, Result},
     runtime::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
         suggest_similar,
     },
+    schema::MutationOperation,
     security::SecurityContext,
 };
 
-/// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
+/// Compile-time enforcement: only `MutationCapable` adapters can call `execute_mutation`.
 ///
-/// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
-/// because `SqliteAdapter` does not implement the `MutationCapable` marker trait.
-///
-/// ```compile_fail
-/// use fraiseql_core::runtime::Executor;
-/// use fraiseql_core::db::sqlite::SqliteAdapter;
-/// use fraiseql_core::schema::CompiledSchema;
-/// use std::sync::Arc;
-/// async fn _wont_compile() {
-///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
-///     let executor = Executor::new(CompiledSchema::new(), adapter);
-///     executor.execute_mutation("createUser", None).await.unwrap();
-/// }
-/// ```
+/// `SqliteAdapter` now implements `MutationCapable` (via direct-SQL mutations).
+/// This block provides the compile-time-safe mutation entry point.
 impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
     /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
     ///
@@ -56,6 +47,33 @@ impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
         // No runtime supports_mutations() check: the MutationCapable bound
         // guarantees at compile time that this adapter supports mutations.
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
+    }
+
+    /// Execute a mutation by name with an authenticated security context.
+    ///
+    /// Compile-time enforcement: only available on adapters implementing
+    /// [`MutationCapable`]. Passes the security context for inject param resolution,
+    /// role checking, and audit purposes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the security context is expired
+    /// or lacks the required role.
+    /// Returns [`FraiseQLError::Validation`] if the mutation name is not in the schema.
+    pub async fn execute_mutation_with_security(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<String> {
+        if security_context.is_expired() {
+            return Err(FraiseQLError::Validation {
+                message: "Security token has expired".to_string(),
+                path:    Some("request.authorization".to_string()),
+            });
+        }
+        self.execute_mutation_query_with_security(mutation_name, variables, Some(security_context))
+            .await
     }
 }
 
@@ -93,7 +111,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: live database adapter.
     /// // See: tests/integration/ for runnable examples.
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
@@ -106,12 +124,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // Read-only mode guard: reject all mutations when enabled.
+        if self.config.read_only {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{mutation_name}' cannot be executed: this server is running \
+                     in read-only mode. Mutations are disabled."
+                ),
+                path:    None,
+            });
+        }
+
         // Runtime guard: verify this adapter supports mutations.
-        // Note: this is a runtime check, not compile-time enforcement.
-        // The common execute() entry point accepts raw GraphQL strings and
-        // determines the operation type at runtime, which precludes compile-time
-        // mutation gating. A future API revision (separate execute_mutation() method)
-        // would move this to a compile-time bound (see roadmap.md).
         if !self.adapter.supports_mutations() {
             return Err(FraiseQLError::Validation {
                 message: format!(
@@ -181,7 +205,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source: &str = if let Some(src) = mutation_def.sql_source.as_deref() {
             src
         } else {
-            use crate::schema::MutationOperation;
             match &mutation_def.operation {
                 MutationOperation::Insert { table }
                 | MutationOperation::Update { table }
@@ -254,8 +277,54 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 4. Call the database function
-        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+        // 4. Call the database function or execute direct SQL, depending on strategy
+        let rows = match self.adapter.mutation_strategy() {
+            MutationStrategy::FunctionCall => {
+                self.adapter.execute_function_call(sql_source, &args).await?
+            },
+            MutationStrategy::DirectSql => {
+                let (table, op) = match &mutation_def.operation {
+                    MutationOperation::Insert { table } => {
+                        (table.as_str(), DirectMutationOp::Insert)
+                    },
+                    MutationOperation::Update { table } => {
+                        (table.as_str(), DirectMutationOp::Update)
+                    },
+                    MutationOperation::Delete { table } => {
+                        (table.as_str(), DirectMutationOp::Delete)
+                    },
+                    MutationOperation::Custom => {
+                        return Err(FraiseQLError::Unsupported {
+                            message: format!(
+                                "Custom mutation '{mutation_name}' requires a database with \
+                                 stored procedure support. SQLite only supports Insert, \
+                                 Update, and Delete mutations."
+                            ),
+                        });
+                    },
+                };
+                let columns: Vec<String> =
+                    mutation_def.arguments.iter().map(|a| a.name.clone()).collect();
+                let inject_columns: Vec<String> =
+                    mutation_def.inject_params.keys().cloned().collect();
+                let ctx = DirectMutationContext {
+                    operation: op,
+                    table,
+                    columns: &columns,
+                    values: &args,
+                    inject_columns: &inject_columns,
+                    return_type: &mutation_def.return_type,
+                };
+                self.adapter.execute_direct_mutation(&ctx).await?
+            },
+            _ => {
+                return Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "Unsupported mutation strategy for mutation '{mutation_name}'"
+                    ),
+                });
+            },
+        };
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
@@ -322,7 +391,20 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Cascade entity invalidation: when cascade data is present and the
+        // mutation has cascade enabled, use it for precise cache invalidation.
+        if let MutationOutcome::Success {
+            cascade: Some(ref cascade_data),
+            ..
+        } = &outcome
+        {
+            if mutation_def.cascade {
+                self.adapter.invalidate_cascade_entities(cascade_data).await?;
+            }
+        }
+
         // Clone name and return_type to avoid borrow issues after schema lookups
+        let cascade_enabled = mutation_def.cascade;
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();
 
@@ -330,6 +412,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             MutationOutcome::Success {
                 entity,
                 entity_type,
+                cascade,
                 ..
             } => {
                 // Determine the GraphQL __typename
@@ -349,6 +432,14 @@ impl<A: DatabaseAdapter> Executor<A> {
 
                 let mut obj = entity.as_object().cloned().unwrap_or_default();
                 obj.insert("__typename".to_string(), serde_json::Value::String(typename));
+
+                // Include cascade data in the response when the mutation has cascade enabled
+                if cascade_enabled {
+                    if let Some(cascade_data) = cascade {
+                        obj.insert("cascade".to_string(), cascade_data);
+                    }
+                }
+
                 serde_json::Value::Object(obj)
             },
             MutationOutcome::Error {

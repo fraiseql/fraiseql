@@ -2,4 +2,4 @@
 source: crates/fraiseql-core/tests/sql_snapshots.rs
 expression: sql
 ---
-(data->>'age')::numeric <= $1
+(data->>'age')::numeric <= ($1::text)::numeric

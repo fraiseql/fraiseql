@@ -17,14 +17,23 @@
 -- Each transport (e.g., "mysql_to_nats") maintains its own checkpoint.
 
 CREATE TABLE IF NOT EXISTS tb_transport_checkpoint (
-    -- Transport identifier (e.g., "mysql_to_nats", "mysql_to_kafka")
-    transport_name VARCHAR(255) PRIMARY KEY,
+    -- Trinity: internal PK
+    pk_transport_checkpoint BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    -- Trinity: external UUID
+    id CHAR(36) NOT NULL DEFAULT (UUID()),
+
+    -- Trinity: human-readable identifier (e.g., "mysql_to_nats", "mysql_to_kafka")
+    identifier VARCHAR(255) NOT NULL,
 
     -- Last processed primary key from source table
     last_pk BIGINT NOT NULL,
 
     -- When the checkpoint was last updated
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_transport_checkpoint_id (id),
+    UNIQUE KEY uq_transport_checkpoint_identifier (identifier)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Index for monitoring/debugging queries (find stale checkpoints)
@@ -187,14 +196,14 @@ DELIMITER ;
 
 CREATE OR REPLACE VIEW vw_nats_publication_status AS
 SELECT
-    checkpoint.transport_name,
+    checkpoint.identifier AS transport_name,
     checkpoint.last_pk AS checkpoint_cursor,
     checkpoint.updated_at AS checkpoint_updated_at,
     (SELECT MAX(pk_entity_change_log) FROM tb_entity_change_log) AS max_pk,
     (SELECT MAX(pk_entity_change_log) FROM tb_entity_change_log) - checkpoint.last_pk AS lag_count,
     (SELECT COUNT(*) FROM tb_entity_change_log WHERE nats_published_at IS NULL) AS unpublished_count
 FROM tb_transport_checkpoint checkpoint
-WHERE checkpoint.transport_name LIKE 'mysql_to_nats%';
+WHERE checkpoint.identifier LIKE 'mysql_to_nats%';
 
 -- ============================================================================
 -- Comments (MySQL 8.0+ supports table/column comments)

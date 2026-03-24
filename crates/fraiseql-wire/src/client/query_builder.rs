@@ -430,6 +430,12 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidSchema` if the SQL query cannot be built from the configured predicates.
+    /// Returns `Error::Io` or `Error::Protocol` if the streaming query fails to start.
+    /// Returns `Error::Sql` if the database rejects the query.
     pub async fn execute(self) -> Result<QueryStream<T>> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);
@@ -466,6 +472,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             "SELECT data".to_string()
         };
 
+        // SAFETY: self.entity is schema-derived (from CompiledSchema, validated at compile
+        // time), not user input.
         let mut sql = format!("{} FROM {}", select_clause, self.entity);
 
         if !self.sql_predicates.is_empty() {
@@ -700,8 +708,7 @@ mod tests {
         use serde::Deserialize;
 
         #[derive(Deserialize, Debug)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestUser {
             id: String,
             active: bool,

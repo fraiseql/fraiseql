@@ -126,6 +126,11 @@ impl OidcValidator {
     /// Create a validator without performing discovery.
     ///
     /// Use this for testing or when you have the JWKS URI directly.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the platform TLS backend is unavailable (should never happen
+    /// on supported platforms).
     #[must_use]
     pub fn with_jwks_uri(config: OidcConfig, jwks_uri: String) -> Self {
         // Use the same 30-second timeout as `new()` to prevent indefinitely

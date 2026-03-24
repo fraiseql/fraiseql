@@ -39,7 +39,7 @@ export { typeToGraphQL, extractFieldInfo, extractFunctionSignature } from "./typ
 export type { FieldInfo, ArgumentInfo, ReturnTypeInfo, FunctionSignature } from "./types";
 
 // Export registry
-export { SchemaRegistry } from "./registry";
+export { SchemaRegistry, pascalToSnake } from "./registry";
 export type {
   Field,
   FieldMetadata,
@@ -72,7 +72,9 @@ export {
   registerQuery,
   registerMutation,
   registerSubscription,
+  UNSET,
 } from "./decorators";
+export type { MaybeUnset } from "./decorators";
 export type {
   TypeConfig,
   OperationConfig,
@@ -85,7 +87,7 @@ export type {
 } from "./decorators";
 
 // Export schema functions
-export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString } from "./schema";
+export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString, loadConfig } from "./schema";
 
 // Export scalar types for schema authoring
 export {

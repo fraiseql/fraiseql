@@ -380,6 +380,12 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
             },
+            crate::validation::ValidationError::TooManyVariables {
+                max_variables,
+                actual_variables,
+            } => GraphQLError::validation(format!(
+                "Request exceeds maximum variable count: {actual_variables} > {max_variables}"
+            )),
             crate::validation::ValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
             crate::validation::ValidationError::TooManyAliases {
                 max_aliases,
@@ -446,11 +452,11 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let exec_result = if let Some(sec_ctx) = security_context {
         state
-            .executor
+            .executor()
             .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)
             .await
     } else {
-        state.executor.execute(&query, request.variables.as_ref()).await
+        state.executor().execute(&query, request.variables.as_ref()).await
     };
 
     // Record circuit breaker outcome for federation entity queries
@@ -484,8 +490,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Record duration even for failed queries
         metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
         metrics.operation_metrics.record(op_name, elapsed_us, true);
-        let err = state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e));
-        ErrorResponse::from_error(err)
+        ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e))
     })?;
 
     let elapsed = start_time.elapsed();
@@ -512,17 +517,16 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // Parse result as JSON
     #[allow(unused_mut)]
-    // Reason: `mut` is required by `decrypt_response(&mut …)` when the `secrets` feature is enabled
+    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,
             response_length = result.len(),
             "Failed to deserialize executor response"
         );
-        let err = state
-            .error_sanitizer
-            .sanitize(GraphQLError::internal(format!("Failed to process response: {e}")));
-        ErrorResponse::from_error(err)
+        ErrorResponse::from_error(GraphQLError::internal(format!(
+            "Failed to process response: {e}"
+        )))
     })?;
 
     // Decrypt encrypted fields if field encryption is configured
@@ -531,10 +535,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         if encryption.has_encrypted_fields() {
             encryption.decrypt_response(&mut response_json).await.map_err(|e| {
                 error!(error = %e, "Field decryption failed");
-                let err = state
-                    .error_sanitizer
-                    .sanitize(GraphQLError::internal("Field decryption failed".to_string()));
-                ErrorResponse::from_error(err)
+                ErrorResponse::from_error(GraphQLError::internal(
+                    "Field decryption failed".to_string(),
+                ))
             })?;
         }
     }

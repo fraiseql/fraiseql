@@ -112,6 +112,11 @@ pub fn verify_hash(query: &str, expected_hash: &str) -> bool {
 /// - Different variable values ALWAYS produce different hashes
 /// - Empty/null variables fall back to query-only hash
 /// - Safe for use as response cache key
+///
+/// # Panics
+///
+/// Cannot panic in practice; the internal `expect` guards `serde_json::Value`
+/// serialization which is infallible.
 #[must_use]
 pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
     // Step 1: Compute base query hash

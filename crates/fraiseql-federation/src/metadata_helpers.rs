@@ -14,10 +14,21 @@ use crate::types::{FederatedType, FederationMetadata, KeyDirective};
 ///
 /// # Examples
 ///
-/// ```no_run
-/// // Requires: a populated FederationMetadata struct.
-/// // See: tests/integration/ for runnable examples.
-/// let fed_type = find_federation_type("User", &metadata)?;
+/// ```
+/// use fraiseql_federation::metadata_helpers::find_federation_type;
+/// use fraiseql_federation::types::{FederationMetadata, FederatedType, KeyDirective};
+///
+/// let mut user = FederatedType::new("User".to_string());
+/// user.keys.push(KeyDirective { fields: vec!["id".to_string()], resolvable: true });
+///
+/// let metadata = FederationMetadata {
+///     enabled: true,
+///     version: "v2".to_string(),
+///     types: vec![user],
+/// };
+///
+/// let fed_type = find_federation_type("User", &metadata).unwrap();
+/// assert_eq!(fed_type.name, "User");
 /// ```
 pub fn find_federation_type<'a>(
     typename: &str,

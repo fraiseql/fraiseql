@@ -14,8 +14,6 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 // Pedantic allows — workspace sets pedantic = deny. These are suppressed for this crate.
-#![allow(clippy::missing_errors_doc)] // Reason: wire protocol errors described in module docs
-#![allow(clippy::missing_panics_doc)] // Reason: panics eliminated by design in this crate
 #![allow(clippy::cast_precision_loss)] // Reason: intentional f64 conversions for metrics counters
 #![allow(clippy::cast_possible_truncation)] // Reason: intentional usize/u64 casts for buffer sizes
 #![allow(clippy::cast_sign_loss)] // Reason: duration/size values are always positive

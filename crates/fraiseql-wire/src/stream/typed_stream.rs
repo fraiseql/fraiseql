@@ -26,7 +26,6 @@ use std::task::{Context, Poll};
 /// # Examples
 ///
 /// ```no_run
-/// // Requires: live Postgres connection via FraiseClient.
 /// use serde::Deserialize;
 /// use futures::stream::StreamExt;
 ///
@@ -36,14 +35,17 @@ use std::task::{Context, Poll};
 ///     name: String,
 /// }
 ///
-/// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+/// # async fn typed_example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let mut stream = client.query::<Project>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
 ///     let project: Project = result?;
 ///     println!("Project: {}", project.name);
 /// }
+/// # Ok(())
+/// # }
 ///
 /// // Escape hatch: Always use Value if needed
+/// # async fn value_example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
 ///     let json: serde_json::Value = result?;
@@ -135,8 +137,7 @@ mod tests {
             TypedJsonStream::new(Box::new(futures::stream::empty()));
 
         #[derive(serde::Deserialize, Debug)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
         }
@@ -153,8 +154,7 @@ mod tests {
         });
 
         #[derive(serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             name: String,
@@ -175,8 +175,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             name: String,
@@ -203,8 +202,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
-        // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]
+        #[allow(dead_code)] // Reason: test fixture struct; fields read only by serde deserialization verification
         struct TestType {
             id: String,
             count: i32,

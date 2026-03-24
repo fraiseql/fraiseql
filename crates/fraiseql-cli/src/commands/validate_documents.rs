@@ -35,6 +35,10 @@ struct Manifest {
 }
 
 /// Run the `validate-documents` command.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
 

@@ -396,6 +396,7 @@ impl SearchBackend for HttpSearchBackend {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]
@@ -430,8 +431,6 @@ mod tests {
         matchers::{method, path},
     };
 
-    use super::super::SearchBackend as _;
-
     #[tokio::test]
     async fn test_health_check_200_returns_true() {
         let mock = MockServer::start().await;
@@ -442,7 +441,7 @@ mod tests {
             .await;
 
         let backend = HttpSearchBackend::new_unchecked(mock.uri());
-        let healthy = backend.health_check().await.unwrap();
+        let healthy = backend.health_check().await.expect("health_check should succeed");
         assert!(healthy, "200 response should indicate healthy");
     }
 
@@ -456,7 +455,7 @@ mod tests {
             .await;
 
         let backend = HttpSearchBackend::new_unchecked(mock.uri());
-        let healthy = backend.health_check().await.unwrap();
+        let healthy = backend.health_check().await.expect("health_check should succeed");
         assert!(!healthy, "500 response should indicate unhealthy");
     }
 
@@ -472,8 +471,6 @@ mod tests {
     #[tokio::test]
     async fn test_search_parses_hits_from_response() {
         use uuid::Uuid;
-
-        use super::super::IndexedEvent;
 
         let mock = MockServer::start().await;
 
@@ -505,7 +502,7 @@ mod tests {
             .await;
 
         let backend = HttpSearchBackend::new_unchecked(mock.uri());
-        let results = backend.search("order", "tenant-1", 10).await.unwrap();
+        let results = backend.search("order", "tenant-1", 10).await.expect("search should succeed");
         assert_eq!(results.len(), 1, "one hit should be returned");
         assert_eq!(results[0].entity_type, "Order");
         assert_eq!(results[0].tenant_id, "tenant-1");
@@ -525,8 +522,8 @@ mod tests {
     #[test]
     fn es_response_cap_constant_is_reasonable() {
         // 50 MiB — generous for large result sets, bounded for safety.
-        assert!(MAX_ES_RESPONSE_BYTES >= 1024 * 1024, "cap must be at least 1 MiB");
-        assert!(MAX_ES_RESPONSE_BYTES <= 200 * 1024 * 1024, "cap must not exceed 200 MiB");
+        const { assert!(MAX_ES_RESPONSE_BYTES >= 1024 * 1024, "cap must be at least 1 MiB") };
+        const { assert!(MAX_ES_RESPONSE_BYTES <= 200 * 1024 * 1024, "cap must not exceed 200 MiB") };
     }
 
     #[tokio::test]
@@ -543,7 +540,7 @@ mod tests {
         let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let result = backend.search("query", "tenant", 10).await;
         assert!(result.is_err(), "oversized search response must be rejected");
-        let reason = match result.unwrap_err() {
+        let reason = match result.expect_err("oversized response should return Err") {
             ObserverError::DatabaseError { reason } => reason,
             e => panic!("expected DatabaseError, got {e:?}"),
         };

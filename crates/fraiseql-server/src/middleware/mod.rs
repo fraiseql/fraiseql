@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod content_type;
 pub mod cors;
+pub mod error_sanitization;
 pub mod metrics;
 pub mod oidc_auth;
 pub mod rate_limit;

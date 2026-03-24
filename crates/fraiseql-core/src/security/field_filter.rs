@@ -42,8 +42,7 @@
 //! ## Integration with AuthenticatedUser
 //!
 //! ```no_run
-//! // Requires: AuthenticatedUser from live JWT validation.
-//! use fraiseql_core::security::{AuthenticatedUser, FieldFilter};
+//! use fraiseql_core::security::{AuthenticatedUser, FieldFilter, FieldAccessError};
 //!
 //! fn check_field_access(
 //!     filter: &FieldFilter,
@@ -262,6 +261,10 @@ impl FieldFilter {
     /// * `type_name` - The GraphQL type containing the field
     /// * `field_name` - The field being accessed
     /// * `scopes` - The user's scopes (from JWT token)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FieldAccessError::Denied` if the user lacks the required scope.
     pub fn can_access(
         &self,
         type_name: &str,

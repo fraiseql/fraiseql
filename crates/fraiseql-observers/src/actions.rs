@@ -42,6 +42,13 @@ const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 /// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
 /// non-HTTP(S) scheme or resolves to a blocked address range.
 fn validate_outbound_url(url: &str) -> Result<()> {
+    // Allow private/loopback addresses in test/dev environments.
+    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok()
+        || crate::ssrf::allow_localhost_env()
+    {
+        return Ok(());
+    }
+
     let lower = url.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(ObserverError::ActionPermanentlyFailed {
@@ -220,6 +227,10 @@ impl WebhookAction {
     }
 
     /// Execute webhook action
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn execute(
         &self,
         url: &str,
@@ -280,19 +291,7 @@ impl WebhookAction {
     }
 
     fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
-        let mut rendered = template.to_string();
-
-        if let Value::Object(map) = data {
-            for (key, value) in map {
-                let placeholder = format!("{{{{ {key} }}}}");
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                rendered = rendered.replace(&placeholder, &value_str);
-            }
-        }
-
+        let rendered = render_template(template, data);
         serde_json::from_str(&rendered).or(Ok(Value::String(rendered)))
     }
 }
@@ -335,6 +334,10 @@ impl SlackAction {
     }
 
     /// Execute Slack action
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn execute(
         &self,
         webhook_url: &str,
@@ -397,20 +400,7 @@ impl SlackAction {
     }
 
     fn render_message_template(&self, template: &str, data: &Value) -> Result<String> {
-        let mut rendered = template.to_string();
-
-        if let Value::Object(map) = data {
-            for (key, value) in map {
-                let placeholder = format!("{{{{ {key} }}}}");
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                rendered = rendered.replace(&placeholder, &value_str);
-            }
-        }
-
-        Ok(rendered)
+        Ok(render_template(template, data))
     }
 }
 
@@ -431,19 +421,201 @@ pub struct SlackResponse {
     pub duration_ms: f64,
 }
 
-/// Email action executor
+/// Email action executor.
+///
+/// When the `email` feature is enabled, sends real emails via SMTP using
+/// `lettre`. Without the feature, falls back to a stub that always succeeds
+/// (useful for testing observer pipelines without an SMTP server).
 pub struct EmailAction {
-    // Placeholder for SMTP client
+    #[cfg(feature = "email")]
+    transport: std::sync::Arc<lettre::AsyncSmtpTransport<lettre::Tokio1Executor>>,
+    #[cfg(feature = "email")]
+    from:      lettre::message::Mailbox,
+
+    #[cfg(not(feature = "email"))]
+    _private: (),
 }
 
 impl EmailAction {
-    /// Create a new email action executor
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {}
+    /// Create a new email action executor from SMTP configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the SMTP transport cannot be
+    /// built (e.g. invalid host, missing credentials env var).
+    #[cfg(feature = "email")]
+    pub fn from_config(config: &crate::config::SmtpConfig) -> Result<Self> {
+        use lettre::{
+            AsyncSmtpTransport, Tokio1Executor, transport::smtp::authentication::Credentials,
+        };
+
+        config.validate()?;
+
+        let credentials = if let Some(username) = &config.smtp_username {
+            let password_var = config.smtp_password_env.as_deref().unwrap_or("");
+            let password =
+                std::env::var(password_var).map_err(|_| ObserverError::InvalidConfig {
+                    message: format!("SMTP password env var '{password_var}' not set"),
+                })?;
+            Some(Credentials::new(username.clone(), password))
+        } else {
+            None
+        };
+
+        let builder = match config.smtp_tls {
+            crate::config::SmtpTlsMode::Tls => {
+                AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)
+                    .map_err(|e| ObserverError::InvalidConfig {
+                        message: format!("SMTP relay TLS error: {e}"),
+                    })?
+                    .port(config.smtp_port)
+            },
+            crate::config::SmtpTlsMode::Starttls => {
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.smtp_host)
+                    .map_err(|e| ObserverError::InvalidConfig {
+                        message: format!("SMTP STARTTLS error: {e}"),
+                    })?
+                    .port(config.smtp_port)
+            },
+            crate::config::SmtpTlsMode::None => {
+                AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host)
+                    .port(config.smtp_port)
+            },
+        };
+
+        let builder = if let Some(creds) = credentials {
+            builder.credentials(creds)
+        } else {
+            builder
+        };
+
+        let transport = builder.build();
+
+        let from: lettre::message::Mailbox = if let Some(name) = &config.from_name {
+            lettre::message::Mailbox::new(
+                Some(name.clone()),
+                config.from_address.parse().map_err(|e| ObserverError::InvalidConfig {
+                    message: format!("Invalid from_address '{}': {e}", config.from_address),
+                })?,
+            )
+        } else {
+            config.from_address.parse().map_err(|e| ObserverError::InvalidConfig {
+                message: format!("Invalid from_address '{}': {e}", config.from_address),
+            })?
+        };
+
+        Ok(Self {
+            transport: std::sync::Arc::new(transport),
+            from,
+        })
     }
 
-    /// Execute email action (stub)
+    /// Create a stub email action (no SMTP server needed).
+    #[cfg(not(feature = "email"))]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { _private: () }
+    }
+
+    /// Create a stub email action that connects to `localhost:1025`.
+    ///
+    /// Use [`from_config`](Self::from_config) for production SMTP.  This
+    /// constructor exists so that `ObserverExecutor::new()` compiles without
+    /// requiring an `SmtpConfig` — calls to `execute()` will fail at send
+    /// time unless a local SMTP server (e.g. MailHog) is running.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hard-coded stub address `"stub@localhost"` fails to parse (never in practice).
+    #[cfg(feature = "email")]
+    #[must_use]
+    pub fn new() -> Self {
+        use lettre::{AsyncSmtpTransport, Tokio1Executor};
+
+        let transport = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("localhost")
+            .port(1025)
+            .build();
+        let from: lettre::message::Mailbox = "stub@localhost".parse().expect("valid stub address");
+
+        Self {
+            transport: std::sync::Arc::new(transport),
+            from,
+        }
+    }
+
+    /// Execute email action — sends a real email via SMTP.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::ActionPermanentlyFailed` for invalid addresses or
+    /// message construction failures, `ObserverError::ActionExecutionFailed` for
+    /// SMTP transport errors.
+    #[cfg(feature = "email")]
+    pub async fn execute(
+        &self,
+        to: &str,
+        subject: &str,
+        body_template: Option<&str>,
+        event: &EntityEvent,
+    ) -> Result<EmailResponse> {
+        use lettre::{AsyncTransport, message::header::ContentType};
+
+        let start = std::time::Instant::now();
+
+        // Validate recipient address.
+        let to_mailbox: lettre::message::Mailbox =
+            to.parse().map_err(|e| ObserverError::ActionPermanentlyFailed {
+                reason: format!("Invalid recipient address '{to}': {e}"),
+            })?;
+
+        // Render body from template or default to JSON.
+        let body = if let Some(template) = body_template {
+            render_template(template, &event.data)
+        } else {
+            serde_json::to_string_pretty(&event.data).unwrap_or_default()
+        };
+
+        // Build the email message.
+        let message = lettre::Message::builder()
+            .from(self.from.clone())
+            .to(to_mailbox)
+            .subject(subject)
+            .header(ContentType::TEXT_PLAIN)
+            .body(body)
+            .map_err(|e| ObserverError::ActionPermanentlyFailed {
+                reason: format!("Failed to build email message: {e}"),
+            })?;
+
+        // Send via SMTP.
+        let response = self.transport.send(message).await.map_err(|e| {
+            ObserverError::ActionExecutionFailed {
+                reason: format!("SMTP send failed: {e}"),
+            }
+        })?;
+
+        let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+        let message_id = response.message().next().map(ToString::to_string);
+
+        info!(
+            message_id = ?message_id,
+            to = to,
+            duration_ms = duration_ms,
+            "Email sent successfully"
+        );
+
+        Ok(EmailResponse {
+            success: true,
+            message_id,
+            duration_ms,
+        })
+    }
+
+    /// Execute email action (stub — `email` feature disabled).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    #[cfg(not(feature = "email"))]
     pub async fn execute(
         &self,
         _to: &str,
@@ -451,7 +623,6 @@ impl EmailAction {
         _body_template: Option<&str>,
         _event: &EntityEvent,
     ) -> Result<EmailResponse> {
-        // Stub implementation
         Ok(EmailResponse {
             success:     true,
             message_id:  Some(uuid::Uuid::new_v4().to_string()),
@@ -464,6 +635,27 @@ impl Default for EmailAction {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Render a simple `{{ key }}` template against a JSON object.
+///
+/// Shared by email, webhook, and Slack actions.  Replaces each `{{ key }}`
+/// placeholder with the stringified value from `data[key]`.
+pub(crate) fn render_template(template: &str, data: &Value) -> String {
+    let mut rendered = template.to_string();
+
+    if let Value::Object(map) = data {
+        for (key, value) in map {
+            let placeholder = format!("{{{{ {key} }}}}");
+            let value_str = match value {
+                Value::String(s) => s.clone(),
+                _ => value.to_string(),
+            };
+            rendered = rendered.replace(&placeholder, &value_str);
+        }
+    }
+
+    rendered
 }
 
 /// Response from email execution
@@ -496,7 +688,6 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::event::EventKind;
 
     #[test]
     fn test_webhook_action_creation() {
@@ -512,15 +703,18 @@ mod tests {
         let _ = slack;
     }
 
+    #[cfg(not(feature = "email"))]
     #[test]
     fn test_email_action_creation() {
         let email = EmailAction::new();
-        // Basic instantiation test
         let _result = std::mem::size_of_val(&email);
     }
 
+    #[cfg(not(feature = "email"))]
     #[tokio::test]
-    async fn test_email_action_execute() {
+    async fn test_email_action_execute_stub() {
+        use crate::event::EventKind;
+
         let email = EmailAction::new();
         let event = EntityEvent::new(
             EventKind::Created,
@@ -533,6 +727,27 @@ mod tests {
 
         assert!(result.success);
         assert!(result.message_id.is_some());
+    }
+
+    #[test]
+    fn test_render_template_basic() {
+        let data = json!({"name": "Alice", "amount": 42});
+        let result = render_template("Hello {{ name }}, you owe {{ amount }}", &data);
+        assert_eq!(result, "Hello Alice, you owe 42");
+    }
+
+    #[test]
+    fn test_render_template_no_match() {
+        let data = json!({"name": "Bob"});
+        let result = render_template("Hello {{ missing }}", &data);
+        assert_eq!(result, "Hello {{ missing }}");
+    }
+
+    #[test]
+    fn test_render_template_non_object() {
+        let data = json!("just a string");
+        let result = render_template("Hello {{ name }}", &data);
+        assert_eq!(result, "Hello {{ name }}");
     }
 
     #[test]

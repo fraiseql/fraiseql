@@ -117,6 +117,26 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append rate limit denial counter and active keys gauge.
+    if let Some(ref limiter) = state.rate_limiter {
+        let denials = limiter.denials_total();
+        let active_keys = limiter.active_key_count().await;
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_rate_limit_denials_total ",
+                "Total rate limit denials (IP + user + path)\n",
+                "# TYPE fraiseql_rate_limit_denials_total counter\n",
+                "fraiseql_rate_limit_denials_total {denials}\n",
+                "\n# HELP fraiseql_rate_limit_active_keys ",
+                "Number of active rate limit buckets currently tracked\n",
+                "# TYPE fraiseql_rate_limit_active_keys gauge\n",
+                "fraiseql_rate_limit_active_keys {active_keys}\n",
+            ),
+            denials = denials,
+            active_keys = active_keys,
+        ));
+    }
+
     // Append APQ (Automatic Persisted Queries) counters.
     {
         let apq = &state.apq_metrics;
@@ -197,7 +217,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // Pool health metrics (sampled live from adapter on each request)
     {
-        let pool = state.executor.pool_metrics();
+        let pool = state.executor().pool_metrics();
         output.push_str(&format!(
             concat!(
                 "\n# HELP fraiseql_db_pool_connections_total Total connections in pool\n",
@@ -293,7 +313,7 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 
     // Collect metrics from AppState
     let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
-    let pool = state.executor.pool_metrics();
+    let pool = state.executor().pool_metrics();
 
     let response = MetricsResponse {
         queries_total:           prometheus_metrics.queries_total,

@@ -46,6 +46,10 @@ pub enum MigrateAction {
 }
 
 /// Run the migrate command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
     // Check if confiture is installed
     if !is_confiture_installed() {
@@ -66,6 +70,10 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
 }
 
 /// Resolve the database URL: use explicit flag, or fall back to fraiseql.toml
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
     if let Some(url) = explicit {
         return Ok(url.to_string());

@@ -89,6 +89,10 @@ impl TomlProjectConfig {
     /// Load configuration from fraiseql.toml file.
     ///
     /// Supports `${VAR}` environment variable interpolation throughout the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn from_file(path: &str) -> Result<Self> {
         info!("Loading configuration from {path}");
 
@@ -107,6 +111,10 @@ impl TomlProjectConfig {
     }
 
     /// Validate configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         info!("Validating configuration");
         self.fraiseql.security.validate()?;

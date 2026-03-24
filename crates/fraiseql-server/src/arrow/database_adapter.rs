@@ -63,12 +63,12 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - PostgreSQL adapter wrapped in Arc
-    pub fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
+    pub const fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
         Self { inner: adapter }
     }
 
     /// Get a reference to the inner PostgreSQL adapter.
-    pub fn inner(&self) -> &Arc<PostgresAdapter> {
+    pub const fn inner(&self) -> &Arc<PostgresAdapter> {
         &self.inner
     }
 }

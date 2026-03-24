@@ -18,6 +18,7 @@ mod token_bucket;
 
 pub use config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
 pub use dispatch::RateLimiter;
+pub use in_memory::denials_total;
 pub use key::build_rate_limit_key;
 pub use middleware_fn::{RateLimitExceeded, rate_limit_middleware};
 // Re-export redis metrics for use by the metrics endpoint
@@ -105,6 +106,49 @@ mod tests {
         let limiter = RateLimiter::new(config);
         assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
         assert!(!limiter.check_ip_limit("127.0.0.1").await.allowed);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_tracks_denials() {
+        let before = denials_total();
+        let config = RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 1,
+            burst_size: 1,
+            ..Default::default()
+        };
+        let limiter = RateLimiter::new(config);
+        // Use a unique IP to avoid interference with other tests
+        let ip = format!(
+            "denial-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+        limiter.check_ip_limit(&ip).await; // allowed
+        limiter.check_ip_limit(&ip).await; // denied
+        assert!(denials_total() > before, "denial counter should increment");
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_active_key_count() {
+        let config = RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 100,
+            burst_size: 100,
+            ..Default::default()
+        };
+        let limiter = RateLimiter::new(config);
+        let before = limiter.active_key_count().await;
+        // Use unique IPs
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        limiter.check_ip_limit(&format!("key-count-a-{ts}")).await;
+        limiter.check_ip_limit(&format!("key-count-b-{ts}")).await;
+        assert!(limiter.active_key_count().await >= before + 2);
     }
 
     #[tokio::test]

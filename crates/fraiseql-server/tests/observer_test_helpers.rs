@@ -12,6 +12,7 @@
 //! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
+#![allow(unused_imports)] // Reason: shared module included from multiple test binaries
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
@@ -30,23 +31,15 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fraiseql_test_utils::database_url;
+pub use fraiseql_test_utils::create_test_pool;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
 };
-
-/// Create a PostgreSQL connection pool for tests
-pub async fn create_test_pool() -> PgPool {
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url())
-        .await
-        .expect("Failed to connect to test database")
-}
 
 /// Set up all observer-related tables for testing
 pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -54,15 +47,19 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
     // 2. Create tb_entity_change_log (with Debezium envelope)
+    // Drop first to avoid column type conflicts with other test suites.
+    sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log")
+        .execute(pool)
+        .await?;
     sqlx::query(
         r"
-        CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
+        CREATE TABLE core.tb_entity_change_log (
             pk_entity_change_log BIGSERIAL PRIMARY KEY,
             id UUID NOT NULL DEFAULT gen_random_uuid(),
-            fk_customer_org TEXT,
-            fk_contact TEXT,
+            fk_customer_org BIGINT,
+            fk_contact BIGINT,
             object_type TEXT NOT NULL,
-            object_id TEXT NOT NULL,
+            object_id UUID NOT NULL,
             modification_type TEXT NOT NULL,
             change_status TEXT,
             object_data JSONB NOT NULL,
@@ -112,7 +109,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             fk_entity_change_log BIGINT,
             event_id UUID NOT NULL,
             entity_type VARCHAR(255) NOT NULL,
-            entity_id VARCHAR(255) NOT NULL,
+            entity_id UUID NOT NULL,
             event_type VARCHAR(50) NOT NULL,
             status VARCHAR(50) NOT NULL,
             action_index INTEGER,
@@ -135,8 +132,10 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 5. Create checkpoint table
     sqlx::query(
         r"
-        CREATE TABLE IF NOT EXISTS observer_checkpoints (
-            listener_id VARCHAR(255) PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS tb_observer_checkpoint (
+            pk_observer_checkpoint BIGSERIAL PRIMARY KEY,
+            id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+            identifier TEXT NOT NULL UNIQUE,
             last_processed_id BIGINT NOT NULL DEFAULT 0,
             last_processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             batch_size INT NOT NULL DEFAULT 100,
@@ -174,7 +173,7 @@ pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx:
         .await
         .ok();
 
-    sqlx::query("DELETE FROM observer_checkpoints WHERE listener_id LIKE $1")
+    sqlx::query("DELETE FROM tb_observer_checkpoint WHERE identifier LIKE $1")
         .bind(format!("%{test_id}%"))
         .execute(pool)
         .await
@@ -357,7 +356,7 @@ pub async fn insert_change_log_entry(
     pool: &PgPool,
     event_type: &str, // INSERT, UPDATE, DELETE
     entity_type: &str,
-    entity_id: &str,
+    entity_id: Uuid,
     data: serde_json::Value,
     before_data: Option<serde_json::Value>,
 ) -> Result<i64, sqlx::Error> {
@@ -427,7 +426,7 @@ pub async fn wait_for_webhook(
 /// Assert observer log entry
 pub async fn assert_observer_log(
     pool: &PgPool,
-    entity_id: &str,
+    entity_id: Uuid,
     expected_status: &str,
     expected_attempts: Option<i32>,
 ) {
@@ -483,7 +482,7 @@ pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, 
 /// Get all observer logs for an entity
 pub async fn get_observer_logs_for_entity(
     pool: &PgPool,
-    entity_id: &str,
+    entity_id: Uuid,
 ) -> Result<Vec<(String, i32, Option<i32>)>, sqlx::Error> {
     sqlx::query_as(
         r"
@@ -504,7 +503,7 @@ pub async fn check_checkpoint_exists(
     listener_id: &str,
 ) -> Result<bool, sqlx::Error> {
     let row: Option<(i64,)> =
-        sqlx::query_as("SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1")
+        sqlx::query_as("SELECT COUNT(*) FROM tb_observer_checkpoint WHERE identifier = $1")
             .bind(listener_id)
             .fetch_optional(pool)
             .await?;
@@ -514,11 +513,12 @@ pub async fn check_checkpoint_exists(
 
 /// Get checkpoint value (last processed ID) for a listener
 pub async fn get_checkpoint_value(pool: &PgPool, listener_id: &str) -> Result<i64, sqlx::Error> {
-    let row: Option<(i64,)> =
-        sqlx::query_as("SELECT last_processed_id FROM observer_checkpoints WHERE listener_id = $1")
-            .bind(listener_id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT last_processed_id FROM tb_observer_checkpoint WHERE identifier = $1",
+    )
+    .bind(listener_id)
+    .fetch_optional(pool)
+    .await?;
 
     Ok(row.map_or(0, |(id,)| id))
 }

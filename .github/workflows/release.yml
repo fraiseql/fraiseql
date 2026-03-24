@@ -17,6 +17,7 @@ jobs:
   validate-release:
     name: Validate Release Prerequisites
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Validate required secrets
         run: |
@@ -44,6 +45,7 @@ jobs:
     name: Create GitHub Release
     needs: validate-release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       version: ${{ steps.get_version.outputs.version }}
     steps:
@@ -82,6 +84,7 @@ jobs:
     name: Build Binary (${{ matrix.target }})
     needs: create-github-release
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -166,6 +169,7 @@ jobs:
     name: Generate SBOM
     needs: create-github-release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -190,6 +194,7 @@ jobs:
     name: Publish to crates.io
     needs: create-github-release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -313,6 +318,7 @@ jobs:
     name: Publish Python Package to PyPI
     needs: create-github-release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -367,6 +373,7 @@ jobs:
     name: Verify Published Packages
     needs: [create-github-release, publish-crates, build-binaries]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: always()
     steps:
       - uses: actions/checkout@v4

@@ -134,10 +134,11 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
 
     async fn execute_parameterized_aggregate(
         &self,
-        _sql: &str,
+        sql: &str,
         _params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
+        // Reuse the same table-lookup logic as execute_raw_query.
+        self.execute_raw_query(sql).await
     }
 
     async fn execute_function_call(

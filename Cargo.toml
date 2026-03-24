@@ -22,6 +22,12 @@ strip = true
 
 [profile.test]
 opt-level = 1
+# Limit codegen units to reduce peak linker memory when building large test binaries.
+# Default (16+) generates many translation units that all land in the linker simultaneously;
+# 4 is a reasonable middle ground between build speed and memory pressure.
+codegen-units = 4
+# Unpack debug info into separate files so the linker doesn't merge one giant DWARF blob.
+split-debuginfo = "unpacked"
 
 [workspace]
 members = [
@@ -46,6 +52,8 @@ resolver = "2"
 # Encryption
 aes-gcm = "0.10"
 anyhow = "1.0"
+# Lock-free atomic swap for hot-reloading Arc<Executor>
+arc-swap = "1"
 async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.8"}
@@ -78,16 +86,23 @@ futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
+http-body = "1"
+http-body-util = "0.1"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
 jsonwebtoken = "9.2"
+# SMTP client
+lettre = {version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"]}
 linked-hash-map = "0.5"
 # Caching
 lru = "0.16"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 # Property-based testing
+prost = "0.14"
+prost-reflect = {version = "0.16", features = ["serde"]}
+prost-types = "0.14"
 proptest = "1.4"
 # Random
 rand = "0.8"
@@ -112,14 +127,16 @@ tempfile = "3.25"
 # NOTE: rustls 0.22 is pulled by tokio-rustls 0.25 via sqlx 0.8; rustls 0.23 by reqwest/tonic.
 # Unification blocked on sqlx 0.9 (which will upgrade to tokio-rustls 0.26 / rustls 0.23).
 thiserror = "2.0"
-# Async runtime
-tokio = {version = "1.0", features = ["full"]}
+# Async runtime — each crate specifies only the tokio features it needs
+tokio = {version = "1.0"}
 # Database drivers
 # PostgreSQL
 tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"]}
 tokio-util = {version = "0.7"}
 # Configuration
 toml = "0.8"
+tonic = "0.14"
+tonic-reflection = "0.14"
 tower = {version = "0.5"}
 tower-http = {version = "0.5", features = ["cors", "compression-gzip"]}
 # Logging
@@ -132,18 +149,17 @@ uuid = {version = "1.21", features = ["v4", "serde"]}
 # ── Global levels ────────────────────────────────────────────────────────────
 # priority = -1 lets individual lint entries below override the group level.
 all = {level = "deny", priority = -1}
-# Reason: crates.io metadata (description, keywords, categories) is missing on
-# some internal crates; this is non-blocking for a private workspace.
-cargo = {level = "warn", priority = -1}
-# Reason: internal crates don't need all crates.io metadata fields.
-cargo_common_metadata = "allow"
+# Reason: crates.io metadata is required for all publishable crates.
+cargo = {level = "deny", priority = -1}
+# Reason: all crates now have the required crates.io metadata fields.
+cargo_common_metadata = "deny"
 # Reason: negative-first guard clauses are sometimes more readable than positive-first.
 if_not_else = "allow"
-# Reason: public fallible functions should document errors — warn, not deny, because
-# coverage is an ongoing effort rather than a gating requirement.
-missing_errors_doc = "warn"
-# Reason: public functions that can panic should document when — same rationale as above.
-missing_panics_doc = "warn"
+# Reason: public fallible functions must document errors. Crates with blanket coverage
+# gaps use crate-level `#![allow(clippy::missing_errors_doc)]` until fully documented.
+missing_errors_doc = "deny"
+# Reason: public functions that can panic must document when. Same override strategy as above.
+missing_panics_doc = "deny"
 # Reason: the `fraiseql-*` naming convention triggers this for every type in every crate
 # (e.g., `fraiseql_core::FraiseQLError`, `fraiseql_server::ServerConfig`).
 # Applying the rule project-wide would require renaming stable public API.
@@ -226,6 +242,7 @@ edition = "2021"
 homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.88"  # MSRV — driven by dependency requirements
+rust-version = "1.92"  # MSRV — driven by dependency requirements
 version = "2.1.0"

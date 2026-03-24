@@ -129,7 +129,7 @@ final class TypeConverter
         if ($type instanceof ReflectionUnionType) {
             // Handle union types
             $types = $type->getTypes();
-            $nonNullTypes = array_filter($types, static fn ($t) => $t->getName() !== 'null');
+            $nonNullTypes = array_filter($types, static fn ($t) => $t instanceof ReflectionNamedType && $t->getName() !== 'null');
 
             if (count($nonNullTypes) === 1) {
                 // Union with null = nullable

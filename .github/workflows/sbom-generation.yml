@@ -22,6 +22,7 @@ jobs:
   generate-sbom:
     name: Generate & Sign SBOM
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
     - name: Checkout repository

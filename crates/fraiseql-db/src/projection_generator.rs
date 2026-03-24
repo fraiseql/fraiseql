@@ -16,8 +16,8 @@
 //! # Example
 //!
 //! ```rust
-//! use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
-//! # use fraiseql_core::error::Result;
+//! use fraiseql_db::projection_generator::PostgresProjectionGenerator;
+//! # use fraiseql_error::Result;
 //! # fn example() -> Result<()> {
 //! let generator = PostgresProjectionGenerator::new();
 //! let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
@@ -105,8 +105,8 @@ impl PostgresProjectionGenerator {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
-    /// # use fraiseql_core::error::Result;
+    /// use fraiseql_db::projection_generator::PostgresProjectionGenerator;
+    /// # use fraiseql_error::Result;
     /// # fn example() -> Result<()> {
     /// let generator = PostgresProjectionGenerator::new();
     /// let fields = vec!["id".to_string(), "email".to_string()];
@@ -120,7 +120,7 @@ impl PostgresProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name contains characters
+    /// Returns `FraiseQLError::Validation` if any field name contains characters
     /// that cannot be safely included in a SQL projection.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
@@ -214,7 +214,7 @@ impl Default for PostgresProjectionGenerator {
 /// # Example
 ///
 /// ```
-/// use fraiseql_core::db::projection_generator::MySqlProjectionGenerator;
+/// use fraiseql_db::projection_generator::MySqlProjectionGenerator;
 ///
 /// let generator = MySqlProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];
@@ -261,7 +261,7 @@ impl MySqlProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
+    /// Returns `FraiseQLError::Validation` if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("`{}`", self.json_column));
@@ -310,7 +310,7 @@ impl Default for MySqlProjectionGenerator {
 /// # Example
 ///
 /// ```
-/// use fraiseql_core::db::projection_generator::SqliteProjectionGenerator;
+/// use fraiseql_db::projection_generator::SqliteProjectionGenerator;
 ///
 /// let generator = SqliteProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];
@@ -356,7 +356,7 @@ impl SqliteProjectionGenerator {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
+    /// Returns `FraiseQLError::Validation` if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("\"{}\"", self.json_column));

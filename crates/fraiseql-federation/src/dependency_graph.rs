@@ -163,6 +163,10 @@ impl DependencyGraph {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if cycles are detected in the graph.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal in-degree map is inconsistent (should never happen).
     pub fn topological_sort(&self) -> Result<Vec<String>> {
         // First check for cycles
         let cycles = self.detect_cycles();

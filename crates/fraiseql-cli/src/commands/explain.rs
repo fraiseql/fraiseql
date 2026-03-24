@@ -37,6 +37,10 @@ pub struct ComplexityInfo {
 }
 
 /// Run explain command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(query: &str) -> Result<CommandResult> {
     // Parse the query to validate syntax
     let parsed = parse_query(query)?;

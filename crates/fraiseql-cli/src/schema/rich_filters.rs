@@ -32,6 +32,10 @@ impl Default for RichFilterConfig {
 }
 
 /// Compile rich filters: generate artifacts for rich scalar types
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn compile_rich_filters(
     schema: &mut CompiledSchema,
     config: &RichFilterConfig,
@@ -208,6 +212,13 @@ fn generate_where_input_type(
             deprecation:      None,
             validation_rules: Vec::new(),
         });
+    }
+
+    // Deduplicate fields by name (rich operators may overlap with standard operators).
+    // Keep the first occurrence (standard operator takes precedence).
+    {
+        let mut seen = std::collections::HashSet::new();
+        fields.retain(|f| seen.insert(f.name.clone()));
     }
 
     // Build SQL template metadata for this rich type

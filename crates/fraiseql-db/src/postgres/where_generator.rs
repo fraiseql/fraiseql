@@ -46,10 +46,11 @@ pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 ///
 /// ```rust
 /// use fraiseql_db::postgres::PostgresWhereGenerator;
+/// use fraiseql_db::dialect::PostgresDialect;
 /// use fraiseql_db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
-/// let generator = PostgresWhereGenerator::new();
+/// let generator = PostgresWhereGenerator::new(PostgresDialect);
 ///
 /// let clause = WhereClause::Field {
 ///     path: vec!["email".to_string()],

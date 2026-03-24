@@ -219,10 +219,33 @@ pub async fn compile_to_schema(
     // 5a. Stamp schema format version for runtime compatibility checks.
     schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
 
-    // 5b. Optional: Validate indexed columns against database
+    // 5b. Optional: Validate schema against database
     if let Some(db_url) = opts.database {
-        info!("Validating indexed columns against database...");
-        validate_indexed_columns(&schema, db_url).await?;
+        info!("Validating schema against database...");
+
+        let introspector = crate::schema::database_validator::create_introspector(db_url).await?;
+
+        let report = crate::schema::database_validator::validate_schema_against_database(
+            &schema,
+            &introspector,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Database validation failed: {e}"))?;
+
+        for warning in &report.warnings {
+            warn!("{warning}");
+        }
+
+        if report.warnings.is_empty() {
+            info!("Database validation passed: all relations, columns, and JSON keys verified.");
+        } else {
+            warn!("Database validation completed with {} warning(s).", report.warnings.len());
+        }
+
+        // Legacy indexed column validation (PostgreSQL-only, kept for backward compat)
+        if db_url.starts_with("postgres") {
+            validate_indexed_columns(&schema, db_url).await?;
+        }
     }
 
     // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
@@ -476,6 +499,9 @@ mod tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        auto_generated: false,
+                        computed:       false,
+                        searchable:     false,
                     },
                     FieldDefinition {
                         name:           "name".into(),
@@ -489,6 +515,9 @@ mod tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        auto_generated: false,
+                        computed:       false,
+                        searchable:     false,
                     },
                 ],
                 description:         Some("User type".to_string()),
@@ -499,6 +528,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             }],
             queries: vec![QueryDefinition {
                 name:                "users".to_string(),
@@ -518,6 +548,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             }],
             enums: vec![],
             input_types: vec![],
@@ -576,6 +608,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             }],
             mutations: vec![],
             subscriptions: vec![],

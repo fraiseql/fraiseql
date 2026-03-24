@@ -25,7 +25,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// - [`FraiseQLError::Validation`] — query violates configured depth/complexity/alias limits
     ///   (only when `RuntimeConfig::query_validation` is `Some`).
     /// - [`FraiseQLError::Timeout`] — query exceeded `RuntimeConfig::query_timeout_ms`.
-    /// - Any error returned by [`Self::execute_internal`].
+    /// - Any error returned by `Self::execute_internal`.
     pub async fn execute(
         &self,
         query: &str,
@@ -155,6 +155,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query fails structural validation,
+    /// `FraiseQLError::Authorization` if field-level RBAC denies access, or any
+    /// database/execution error from the underlying query pipeline.
     pub async fn execute_with_scopes(
         &self,
         query: &str,

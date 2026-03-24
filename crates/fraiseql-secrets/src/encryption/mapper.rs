@@ -19,9 +19,9 @@
 //! # Usage Pattern
 //!
 //! ```no_run
-//! // Requires: DatabaseFieldAdapter backed by a live SecretsManager.
-//! # async fn example(adapter: fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+//! # async fn example(adapter: std::sync::Arc<fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter>) -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
 //! use fraiseql_secrets::encryption::mapper::FieldMapper;
+//!
 //! // Create mapper with encrypted field configuration
 //! let mapper = FieldMapper::new(
 //!     adapter,
@@ -89,6 +89,10 @@ impl FieldMapping {
     }
 
     /// Convert to plaintext string
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if the value is not valid UTF-8.
     pub fn to_string(&self) -> Result<String, SecretsError> {
         String::from_utf8(self.value.clone()).map_err(|e| {
             SecretsError::EncryptionError(format!(
@@ -143,6 +147,11 @@ impl FieldMapper {
     /// # Returns
     ///
     /// Encrypted bytes in format: \[nonce\]\[ciphertext\]\[tag\]
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the field is not configured for encryption.
+    /// - `SecretsError::EncryptionError` if the underlying encryption operation fails.
     pub async fn encrypt_field(
         &self,
         field_name: &str,
@@ -173,6 +182,11 @@ impl FieldMapper {
     /// # Returns
     ///
     /// Decrypted plaintext string
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the field is not configured for decryption.
+    /// - `SecretsError::EncryptionError` if the underlying decryption operation fails.
     pub async fn decrypt_field(
         &self,
         field_name: &str,
@@ -196,6 +210,10 @@ impl FieldMapper {
     /// Encrypt multiple fields (batch operation)
     ///
     /// Returns FieldMapping objects with encryption status.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if any field encryption fails.
     pub async fn encrypt_fields(
         &self,
         fields: &[(String, String)],
@@ -222,6 +240,10 @@ impl FieldMapper {
     /// Decrypt multiple fields (batch operation)
     ///
     /// Returns FieldMapping objects with decrypted values.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if any field decryption fails.
     pub async fn decrypt_fields(
         &self,
         fields: &[(String, Vec<u8>)],
@@ -271,6 +293,10 @@ impl FieldMapper {
     /// Validate field encryption configuration
     ///
     /// Returns error if configuration is inconsistent or incomplete.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if no encrypted fields are configured.
     pub fn validate_configuration(&self) -> Result<(), SecretsError> {
         if self.encrypted_fields().is_empty() {
             return Err(SecretsError::ValidationError(

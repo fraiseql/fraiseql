@@ -72,6 +72,11 @@ impl SchemaConverter {
             inject_params,
             invalidates_fact_tables: intermediate.invalidates_fact_tables,
             invalidates_views: intermediate.invalidates_views,
+            cascade: intermediate.cascade,
+            rest_path: None,
+            rest_method: None,
+            conflict_targets: Vec::new(),
+            upsert_function: None,
         })
     }
 

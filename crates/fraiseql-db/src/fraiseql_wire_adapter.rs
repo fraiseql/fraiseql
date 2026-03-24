@@ -10,7 +10,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
-    traits::DatabaseAdapter,
+    traits::{DatabaseAdapter, MutationCapable},
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
     where_sql_generator::WhereSqlGenerator,
@@ -31,7 +31,7 @@ use super::{
 /// # Example
 ///
 /// ```rust,no_run
-/// use fraiseql_core::db::{FraiseWireAdapter, WhereClause, WhereOperator, DatabaseAdapter};
+/// use fraiseql_db::{FraiseWireAdapter, WhereClause, WhereOperator, DatabaseAdapter};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,7 +70,7 @@ impl FraiseWireAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use fraiseql_core::db::FraiseWireAdapter;
+    /// use fraiseql_db::FraiseWireAdapter;
     ///
     /// let adapter = FraiseWireAdapter::new("postgres://localhost/fraiseql");
     /// ```
@@ -94,7 +94,7 @@ impl FraiseWireAdapter {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use fraiseql_core::db::FraiseWireAdapter;
+    /// use fraiseql_db::FraiseWireAdapter;
     ///
     /// let adapter = FraiseWireAdapter::new("postgres://localhost/fraiseql")
     ///     .with_chunk_size(512);
@@ -113,6 +113,8 @@ impl FraiseWireAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<String> {
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input.
         let mut sql = format!("SELECT data FROM {view} ");
 
         if let Some(clause) = where_clause {
@@ -271,6 +273,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
         DatabaseType::PostgreSQL
     }
 
+    fn supports_mutations(&self) -> bool {
+        false
+    }
+
     async fn health_check(&self) -> Result<()> {
         // fraiseql-wire's FraiseClient contains non-Send types (raw pointers in TLS),
         // which makes it incompatible with the async_trait Send requirement.
@@ -320,6 +326,8 @@ impl DatabaseAdapter for FraiseWireAdapter {
         })
     }
 }
+
+impl MutationCapable for FraiseWireAdapter {}
 
 #[cfg(test)]
 mod tests {

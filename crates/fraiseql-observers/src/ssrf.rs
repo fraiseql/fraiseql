@@ -1,19 +1,42 @@
 //! SSRF URL validation helpers for outbound HTTP connections.
 //!
 //! Consistent with the guards in `fraiseql-federation` and `fraiseql-core`.
+//!
+//! # Development / testing bypass
+//!
+//! Set the environment variable `FRAISEQL_ALLOW_LOCALHOST=1` to permit
+//! connections to loopback and private addresses. This is intended **only**
+//! for local development and integration tests — never set it in production.
 
 use crate::error::ObserverError;
+
+/// Returns `true` when the `FRAISEQL_ALLOW_LOCALHOST` environment variable is
+/// set to a truthy value (`"1"`, `"true"`, or `"yes"`, case-insensitive).
+fn allow_localhost() -> bool {
+    allow_localhost_env()
+}
+
+/// Returns `true` when `FRAISEQL_ALLOW_LOCALHOST` is set to a truthy value.
+///
+/// Exposed for use by other SSRF check sites in this crate.
+pub fn allow_localhost_env() -> bool {
+    std::env::var("FRAISEQL_ALLOW_LOCALHOST")
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
+}
 
 /// Validate that a URL is safe for outbound HTTP contact.
 ///
 /// Rejects URLs targeting private/loopback/link-local IP addresses to prevent
 /// server-side request forgery via misconfigured or attacker-controlled URLs.
 ///
+/// The check is skipped when [`allow_localhost`] returns `true`.
+///
 /// # Errors
 ///
 /// Returns `ObserverError::InvalidConfig` if the URL is unparseable or targets
 /// a forbidden host.
-pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
+pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
         message: format!("Invalid URL '{url}': {e}"),
     })?;
@@ -21,6 +44,12 @@ pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
     let host_raw = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
         message: format!("URL has no host: {url}"),
     })?;
+
+    // In dev/test mode, skip all host-level checks after confirming the URL
+    // is syntactically valid.
+    if allow_localhost() {
+        return Ok(());
+    }
 
     // Strip IPv6 brackets added by the url crate (e.g. "[::1]" → "::1").
     let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
@@ -57,7 +86,7 @@ pub(crate) fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
 ///
 /// Returns `ObserverError::InvalidConfig` if the URL is invalid or targets a forbidden host.
 #[cfg(feature = "nats")]
-pub(crate) fn validate_nats_url(url: &str) -> crate::error::Result<()> {
+pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     if !url.starts_with("nats://") && !url.starts_with("tls://") {
         return Err(ObserverError::InvalidConfig {
             message: format!("NATS URL must use nats:// or tls:// scheme (got: {url})"),

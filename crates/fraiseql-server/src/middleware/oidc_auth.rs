@@ -49,14 +49,20 @@ pub struct AuthUser(pub AuthenticatedUser);
 ///
 /// # Example
 ///
-/// ```no_run
-/// // Requires: OIDC provider reachable for JWKS discovery, running Axum application.
-/// use axum::{middleware, Router};
+/// ```ignore
+/// // Requires a reachable OIDC provider for JWKS discovery at runtime.
+/// use std::sync::Arc;
+/// use axum::{middleware, Router, routing::post};
+/// use fraiseql_server::middleware::oidc_auth::{OidcAuthState, oidc_auth_middleware};
 ///
-/// let oidc_state = OidcAuthState::new(validator);
-/// let app = Router::new()
-///     .route("/graphql", post(graphql_handler))
-///     .layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware));
+/// # async fn graphql_handler() -> &'static str { "ok" }
+/// # async fn example() {
+/// // let validator = OidcValidator::new(oidc_config).await.unwrap();
+/// // let oidc_state = OidcAuthState::new(Arc::new(validator));
+/// // let app = Router::new()
+/// //     .route("/graphql", post(graphql_handler))
+/// //     .layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware));
+/// # }
 /// ```
 pub async fn oidc_auth_middleware(
     State(auth_state): State<OidcAuthState>,

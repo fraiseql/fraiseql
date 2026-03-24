@@ -98,7 +98,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: a live PostgreSQL database.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::schema::CompiledSchema;
@@ -188,7 +188,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: a live PostgreSQL database with relay support.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::schema::CompiledSchema;

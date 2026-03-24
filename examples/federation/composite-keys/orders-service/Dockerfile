@@ -18,14 +18,20 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Create non-root user
+RUN groupadd -r app && useradd -r -g app app
+
 # Copy schema
-COPY schema.py .
+COPY --chown=app:app schema.py .
 
 # Copy compiled CLI
 COPY --from=builder /app/target/release/fraiseql-cli /usr/local/bin/fraiseql
 
 # Compile schema
-RUN fraiseql compile schema.py
+RUN fraiseql compile schema.py && chown app:app schema.compiled.json
+
+# Switch to non-root user
+USER app
 
 # Expose port
 EXPOSE 4000

@@ -86,6 +86,83 @@ defmodule FraiseQL.SchemaExporter do
     File.write!(path, json)
   end
 
+  @doc """
+  Exports a schema module to a JSON string with federation metadata.
+
+  Builds the same intermediate schema as `export/2`, then appends a
+  `"federation"` block containing entity definitions derived from the
+  declared types (error types are excluded).
+
+  For each non-error type, `key_fields` defaults to `["id"]` when not
+  explicitly set.
+
+  ## Options
+
+    * `:compact` — when `true`, produces single-line JSON (default `false`)
+
+  ## Errors
+
+  Raises `ArgumentError` if `module` is not a FraiseQL schema module.
+  """
+  @spec export_with_federation(module(), String.t(), keyword()) :: String.t()
+  def export_with_federation(module, service_name, opts \\ []) when is_atom(module) do
+    schema = to_intermediate_schema(module)
+    map = schema_to_map(schema)
+
+    entities =
+      schema.types
+      |> Enum.reject(& &1.is_error)
+      |> Enum.map(fn t ->
+        keys = t.key_fields || ["id"]
+
+        entity = %{"type_name" => t.name, "key_fields" => keys}
+
+        if t.extends_type do
+          Map.put(entity, "extends", true)
+        else
+          entity
+        end
+      end)
+
+    federation = %{
+      "enabled" => true,
+      "service_name" => service_name,
+      "apollo_version" => 2,
+      "entities" => entities
+    }
+
+    map = Map.put(map, "federation", federation)
+
+    if Keyword.get(opts, :compact, false) do
+      Jason.encode!(map)
+    else
+      Jason.encode!(map, pretty: true)
+    end
+  end
+
+  @doc """
+  Exports a schema module to a JSON file at `path` with federation metadata.
+
+  Parent directories are created automatically. Returns `:ok` on success.
+
+  See `export_with_federation/3` for details on the federation block.
+
+  ## Options
+
+    * `:compact` — when `true`, writes single-line JSON (default `false`)
+
+  ## Errors
+
+  Raises `ArgumentError` if `module` is not a FraiseQL schema module.
+  Raises on file system errors (e.g. permission denied).
+  """
+  @spec export_to_file_with_federation!(module(), String.t(), Path.t(), keyword()) :: :ok
+  def export_to_file_with_federation!(module, service_name, path, opts \\ []) do
+    json = export_with_federation(module, service_name, opts)
+    path |> Path.dirname() |> File.mkdir_p!()
+    File.write!(path, json)
+  end
+
   # ---------------------------------------------------------------------------
   # Private helpers
   # ---------------------------------------------------------------------------
@@ -119,6 +196,9 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_bool("relay", t.relay)
     |> maybe_put_bool("is_input", t.is_input)
     |> maybe_put_bool("is_error", t.is_error)
+    |> maybe_put_bool("tenant_scoped", t.tenant_scoped)
+    |> maybe_put("key_fields", t.key_fields)
+    |> maybe_put_bool("extends", t.extends_type)
   end
 
   defp field_to_map(%FraiseQL.FieldDefinition{} = f) do
@@ -147,6 +227,7 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
+    |> maybe_put("inject_params", q.inject_params)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
@@ -161,6 +242,7 @@ defmodule FraiseQL.SchemaExporter do
 
     base
     |> maybe_put("description", m.description)
+    |> maybe_put("inject_params", m.inject_params)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 

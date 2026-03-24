@@ -13,9 +13,7 @@ use crate::secrets_manager::{SecretsBackend, SecretsError};
 
 /// Fraction of the token TTL after which the token should be proactively renewed.
 /// At 80% of TTL elapsed, renewal is triggered before the token expires.
-// Reason: referenced in the renew_token() doc comment; the actual scheduling logic
-// uses this constant to avoid a magic literal at the call site.
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: used by renew_token() scheduling logic to avoid a magic literal
 const TOKEN_RENEWAL_THRESHOLD: f64 = 0.8;
 
 const VAULT_API_VERSION: &str = "v1";
@@ -68,7 +66,7 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 ///
 /// When the Vault token is obtained via AppRole login (`with_approle`), the token carries
 /// a TTL. To avoid using an expired token, callers should check `token_needs_renewal()` and
-/// call `renew_token()` proactively at [`TOKEN_RENEWAL_THRESHOLD`] (80%) of TTL elapsed.
+/// call `renew_token()` proactively at `TOKEN_RENEWAL_THRESHOLD` (80%) of TTL elapsed.
 ///
 /// A background task should be spawned to call `renew_token()` periodically; for example:
 /// ```rust,ignore
@@ -556,6 +554,12 @@ impl VaultBackend {
     ///
     /// # Returns
     /// Encrypted ciphertext in Vault's standard format.
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the key name is invalid.
+    /// - `SecretsError::BackendError` if the Vault request fails.
+    /// - `SecretsError::NotFound` if the transit key does not exist.
     pub async fn encrypt_field(
         &self,
         key_name: &str,
@@ -594,6 +598,12 @@ impl VaultBackend {
     ///
     /// # Returns
     /// Decrypted plaintext.
+    ///
+    /// # Errors
+    ///
+    /// - `SecretsError::ValidationError` if the key name is invalid.
+    /// - `SecretsError::BackendError` if the Vault request fails.
+    /// - `SecretsError::EncryptionError` if Transit decryption fails.
     pub async fn decrypt_field(
         &self,
         key_name: &str,

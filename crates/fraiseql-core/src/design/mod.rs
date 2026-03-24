@@ -132,6 +132,10 @@ impl DesignAudit {
     }
 
     /// Analyze a schema from JSON string
+    ///
+    /// # Errors
+    ///
+    /// Returns `serde_json::Error` if `json` is not valid JSON.
     pub fn from_schema_json(json: &str) -> Result<Self, serde_json::Error> {
         // Parse the schema JSON
         let schema: serde_json::Value = serde_json::from_str(json)?;
@@ -200,7 +204,7 @@ impl DesignAudit {
         // Clamp to 0-100
         let score = score.clamp(0.0, 100.0);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe.
+        // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe
         {
             score as u8
         }

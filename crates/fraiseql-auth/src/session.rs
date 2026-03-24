@@ -53,7 +53,7 @@ pub struct TokenPair {
 /// ```no_run
 /// // Requires: sqlx PgPool and live PostgreSQL connection.
 /// use async_trait::async_trait;
-/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::session::{SessionData, SessionStore, TokenPair};
 /// use fraiseql_auth::error::Result;
 ///
 /// pub struct PostgresSessionStore {
@@ -65,13 +65,13 @@ pub struct TokenPair {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
 ///         unimplemented!()
 ///     }
-///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
 ///         unimplemented!()
 ///     }
 ///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
 ///         unimplemented!()
 ///     }
-///     async fn cleanup_expired(&self) -> Result<()> {
+///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
 ///         unimplemented!()
 ///     }
 /// }
@@ -81,7 +81,7 @@ pub struct TokenPair {
 /// ```no_run
 /// // Requires: redis crate and live Redis connection.
 /// use async_trait::async_trait;
-/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::session::{SessionData, SessionStore, TokenPair};
 /// use fraiseql_auth::error::Result;
 ///
 /// pub struct RedisSessionStore {
@@ -93,13 +93,13 @@ pub struct TokenPair {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
 ///         unimplemented!()
 ///     }
-///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
 ///         unimplemented!()
 ///     }
 ///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
 ///         unimplemented!()
 ///     }
-///     async fn cleanup_expired(&self) -> Result<()> {
+///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
 ///         unimplemented!()
 ///     }
 /// }
@@ -282,8 +282,7 @@ impl SessionStore for InMemorySessionStore {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

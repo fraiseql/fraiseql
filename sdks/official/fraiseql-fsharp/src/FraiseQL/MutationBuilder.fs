@@ -21,6 +21,8 @@ module MutationBuilder =
             operation: string
             arguments: ArgumentDefinition list
             description: string option
+            restPath: string option
+            restMethod: string option
         }
 
     /// Creates a new <see cref="MutationState"/> for the given mutation name.
@@ -32,6 +34,8 @@ module MutationBuilder =
             operation = "custom"
             arguments = []
             description = None
+            restPath = None
+            restMethod = None
         }
 
     /// Sets the GraphQL return type for this mutation.
@@ -46,6 +50,12 @@ module MutationBuilder =
     /// Sets the optional human-readable description.
     let description (d: string) (s: MutationState) : MutationState =
         { s with description = Some d }
+
+    /// Sets the REST endpoint path for this mutation.
+    let restPath (path: string) (s: MutationState) : MutationState = { s with restPath = Some path }
+
+    /// Sets the HTTP method for the REST endpoint. Defaults to POST for mutations.
+    let restMethod (method: string) (s: MutationState) : MutationState = { s with restMethod = Some method }
 
     /// Adds an argument to this mutation.
     let withArgument (name: string) (type_: string) (isNullable: bool) (s: MutationState) : MutationState =
@@ -72,6 +82,8 @@ module MutationBuilder =
             operation = s.operation
             arguments = s.arguments
             description = s.description
+            rest_path = s.restPath
+            rest_method = s.restMethod
         }
 
     /// Converts the state to a <see cref="MutationDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

@@ -28,6 +28,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// Combined IntermediateSchema
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_files(types_path: &str, toml_path: &str) -> Result<IntermediateSchema> {
         // Load types.json
         let types_json = fs::read_to_string(types_path)
@@ -53,6 +57,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_toml_only(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -72,6 +80,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_from_directory(toml_path: &str, schema_dir: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -142,6 +154,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_explicit_files(
         toml_path: &str,
         type_files: &[String],
@@ -179,6 +195,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from all domains (types.json, queries.json, mutations.json)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_from_domains(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -236,6 +256,10 @@ impl SchemaMerger {
     ///
     /// # Returns
     /// IntermediateSchema from loaded files + TOML definitions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn merge_with_includes(toml_path: &str) -> Result<IntermediateSchema> {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
@@ -554,6 +578,28 @@ impl SchemaMerger {
         if toml_schema.mcp.enabled {
             merged["mcp_config"] =
                 serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
+        }
+
+        // Embed REST config when enabled
+        if toml_schema.rest.enabled {
+            merged["rest_config"] = serde_json::to_value(&toml_schema.rest)
+                .context("Failed to serialize REST config")?;
+        }
+
+        // Embed gRPC config when enabled
+        if toml_schema.grpc.enabled {
+            merged["grpc_config"] = serde_json::to_value(&toml_schema.grpc)
+                .context("Failed to serialize gRPC config")?;
+        }
+
+        // Embed dev config when enabled
+        if toml_schema.dev.enabled {
+            let dev_config = fraiseql_core::schema::DevConfig {
+                enabled:        toml_schema.dev.enabled,
+                default_claims: toml_schema.dev.default_claims.clone(),
+            };
+            merged["dev_config"] =
+                serde_json::to_value(&dev_config).context("Failed to serialize dev config")?;
         }
 
         // Convert to IntermediateSchema

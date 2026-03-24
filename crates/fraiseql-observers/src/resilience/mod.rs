@@ -124,6 +124,10 @@ impl CircuitBreaker {
     /// # Returns
     ///
     /// Returns the result of the function if executed, or an error if the circuit is open
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn call<F, T>(&self, f: F) -> Result<T>
     where
         F: FnOnce() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>,

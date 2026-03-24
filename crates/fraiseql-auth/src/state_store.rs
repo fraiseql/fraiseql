@@ -165,6 +165,10 @@ impl RedisStateStore {
     /// # Arguments
     /// * `redis_url` - Connection string (e.g., "redis://localhost:6379")
     ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::ConfigError` if the Redis URL is invalid or the connection fails.
+    ///
     /// # Example
     /// ```no_run
     /// // Requires: live Redis server.
@@ -258,8 +262,7 @@ impl StateStore for RedisStateStore {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[tokio::test]

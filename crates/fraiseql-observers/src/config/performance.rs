@@ -81,6 +81,10 @@ impl PerformanceConfig {
     }
 
     /// Validate the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self, redis_configured: bool) -> Result<()> {
         // Dedup requires Redis
         if self.enable_dedup && !redis_configured {

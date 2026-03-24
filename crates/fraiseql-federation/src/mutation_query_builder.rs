@@ -22,6 +22,11 @@ fn quote_table_name(typename: &str) -> String {
 
 /// Build an UPDATE query from mutation variables.
 ///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the type or key directive is not found,
+/// variables is not an object, the key field is missing, or no non-key fields to update.
+///
 /// # Example
 ///
 /// Variables: `{ "id": "123", "name": "John", "email": "john@example.com" }`
@@ -78,6 +83,11 @@ pub fn build_update_query(
 
 /// Build an INSERT query from mutation variables.
 ///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if variables is not an object, is empty,
+/// or contains values that cannot be converted to SQL literals.
+///
 /// # Example
 ///
 /// Variables: `{ "id": "123", "name": "John", "email": "john@example.com" }`
@@ -123,10 +133,18 @@ pub fn build_insert_query(
         .join(", ");
     let values_str = values.join(", ");
 
+    // SAFETY: table_name is schema-derived (typename from federation metadata, validated at
+    // compile time) and passed through quote_table_name()/quote_postgres_identifier().
+    // columns are also passed through quote_postgres_identifier().
     Ok(format!("INSERT INTO {} ({}) VALUES ({})", table_name, columns_str, values_str))
 }
 
 /// Build a DELETE query from mutation variables.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the type or key directive is not found,
+/// variables is not an object, or the key field is missing.
 ///
 /// # Example
 ///

@@ -63,6 +63,10 @@ impl MultiListenerCoordinator {
     }
 
     /// Register a listener
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
             listener_id:    listener_id.clone(),
@@ -76,12 +80,20 @@ impl MultiListenerCoordinator {
     }
 
     /// Deregister a listener
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn deregister_listener(&self, listener_id: &str) -> Result<()> {
         self.listeners.remove(listener_id);
         Ok(())
     }
 
     /// Get listener state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn get_listener_state(&self, listener_id: &str) -> Result<ListenerState> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -91,6 +103,10 @@ impl MultiListenerCoordinator {
     }
 
     /// Update listener heartbeat
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn update_heartbeat(&self, listener_id: &str) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -105,6 +121,10 @@ impl MultiListenerCoordinator {
     /// The checkpoint is stored as its raw bit pattern in an `AtomicU64` so that
     /// negative sentinel values (e.g. `-1` for "no checkpoint yet") round-trip
     /// correctly without silent truncation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn update_checkpoint(&self, listener_id: &str, checkpoint: i64) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
@@ -119,6 +139,10 @@ impl MultiListenerCoordinator {
     }
 
     /// Get health status of all listeners
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn check_listener_health(&self) -> Result<Vec<ListenerHealth>> {
         let mut health_statuses = Vec::new();
 
@@ -127,7 +151,7 @@ impl MultiListenerCoordinator {
             let state = handle.state_machine.get_state().await;
             let last_heartbeat = *handle.last_heartbeat.lock().await;
             #[allow(clippy::cast_possible_wrap)]
-            // Reason: intentional bit-preserving reinterpretation
+            // Reason: intentional bit-preserving reinterpretation of atomic u64 to i64
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
             // Healthy if Running and heartbeat within 60s
@@ -147,6 +171,10 @@ impl MultiListenerCoordinator {
     }
 
     /// Elect leader among listeners
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn elect_leader(&self) -> Result<String> {
         let mut leader = self.leader_id.lock().await;
 

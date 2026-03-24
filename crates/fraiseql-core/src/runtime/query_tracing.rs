@@ -160,6 +160,11 @@ impl QueryTraceBuilder {
     /// # Returns
     ///
     /// Complete query execution trace
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept
+    /// for API consistency with the tracing pipeline.
     pub fn finish(
         self,
         success: bool,

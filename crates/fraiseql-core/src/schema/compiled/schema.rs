@@ -17,13 +17,16 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
+use super::{
+    argument::ArgumentDefinition, directive::DirectiveDefinition, mutation::MutationDefinition,
+    query::QueryDefinition,
+};
 use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig,
-            ValidationConfig,
+            DebugConfig, DevConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig,
+            RestConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -145,6 +148,33 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
 
+    /// REST transport configuration.
+    /// Compiled from the `[rest]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_config: Option<RestConfig>,
+
+    /// gRPC transport configuration.
+    /// Compiled from the `[grpc]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_config: Option<GrpcConfig>,
+
+    /// Development mode configuration.
+    /// Compiled from the `[dev]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dev_config: Option<DevConfig>,
+
+    /// Session variable configuration.
+    /// Compiled from the `[session_variables]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_variables_config: Option<SessionVariablesConfig>,
+
+    /// Target database type for SQL generation.
+    ///
+    /// Set by the compiler from `fraiseql.toml` or CLI flags. Used by downstream
+    /// tools (e.g., `generate-views`) to emit dialect-correct DDL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database_target: Option<crate::db::DatabaseType>,
+
     /// Schema format version emitted by the compiler.
     ///
     /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
@@ -208,6 +238,8 @@ impl PartialEq for CompiledSchema {
             && self.validation_config == other.validation_config
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
+            && self.rest_config == other.rest_config
+            && self.grpc_config == other.grpc_config
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -644,14 +676,67 @@ impl CompiledSchema {
     #[must_use]
     pub fn raw_schema(&self) -> String {
         self.schema_sdl.clone().unwrap_or_else(|| {
-            // Generate basic SDL from type definitions if not provided
             let mut sdl = String::new();
 
-            // Add types
+            // Enum definitions
+            for enum_def in &self.enums {
+                sdl.push_str(&format!("enum {} {{\n", enum_def.name));
+                for value in &enum_def.values {
+                    sdl.push_str(&format!("  {}\n", value.name));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Input type definitions
+            for input in &self.input_types {
+                sdl.push_str(&format!("input {} {{\n", input.name));
+                for f in &input.fields {
+                    sdl.push_str(&format!("  {}: {}\n", f.name, f.field_type));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Object type definitions
             for type_def in &self.types {
-                sdl.push_str(&format!("type {} {{\n", type_def.name));
+                if type_def.implements.is_empty() {
+                    sdl.push_str(&format!("type {} {{\n", type_def.name));
+                } else {
+                    sdl.push_str(&format!(
+                        "type {} implements {} {{\n",
+                        type_def.name,
+                        type_def.implements.join(" & ")
+                    ));
+                }
                 for field in &type_def.fields {
-                    sdl.push_str(&format!("  {}: {}\n", field.name, field.field_type));
+                    let bang = if field.nullable { "" } else { "!" };
+                    sdl.push_str(&format!("  {}: {}{}\n", field.name, field.field_type, bang));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Query root type
+            if !self.queries.is_empty() {
+                sdl.push_str("type Query {\n");
+                for query in &self.queries {
+                    let args_str = format_args_sdl(&query.arguments);
+                    let return_str = format_return_type_sdl(
+                        &query.return_type,
+                        query.returns_list,
+                        query.nullable,
+                    );
+                    sdl.push_str(&format!("  {}{}: {}\n", query.name, args_str, return_str));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Mutation root type
+            if !self.mutations.is_empty() {
+                sdl.push_str("type Mutation {\n");
+                for mutation in &self.mutations {
+                    let args_str = format_args_sdl(&mutation.arguments);
+                    // Mutations always return a single non-null result
+                    let return_str = format!("{}!", mutation.return_type);
+                    sdl.push_str(&format!("  {}{}: {}\n", mutation.name, args_str, return_str));
                 }
                 sdl.push_str("}\n\n");
             }
@@ -729,6 +814,184 @@ impl CompiledSchema {
     }
 }
 
+/// Inject synthetic Cascade types into the schema when any mutation has `cascade: true`.
+///
+/// Adds the following types: `CascadeEntity`, `CascadeInvalidation`,
+/// `CascadeMetadata`, and `Cascade`. These are synthetic types (no DB source)
+/// following the same pattern as Relay's `PageInfo`.
+pub fn inject_cascade_types(schema: &mut CompiledSchema) {
+    use crate::schema::{
+        FieldDefinition, FieldDenyPolicy, FieldType, graphql_type_defs::TypeDefinition,
+    };
+
+    let has_cascade_mutation = schema.mutations.iter().any(|m| m.cascade);
+    if !has_cascade_mutation {
+        return;
+    }
+
+    let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
+        name: name.into(),
+        field_type: ft,
+        nullable,
+        description: Some(desc.to_string()),
+        default_value: None,
+        vector_config: None,
+        alias: None,
+        deprecation: None,
+        requires_scope: None,
+        on_deny: FieldDenyPolicy::default(),
+        encryption: None,
+        auto_generated: false,
+        computed: false,
+        searchable: false,
+    };
+
+    let mut new_types: Vec<TypeDefinition> = Vec::new();
+
+    // CascadeEntity
+    if !schema.types.iter().any(|t| t.name == "CascadeEntity") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeEntity".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field("id", FieldType::String, false, "Entity identifier."),
+                make_field("typename", FieldType::String, false, "GraphQL type name."),
+                make_field(
+                    "operation",
+                    FieldType::String,
+                    false,
+                    "Operation performed (created, updated, deleted).",
+                ),
+                make_field("entity", FieldType::Json, false, "Full entity data as JSON."),
+            ],
+            description:         Some("An entity affected by a cascade operation.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
+        });
+    }
+
+    // CascadeInvalidation
+    if !schema.types.iter().any(|t| t.name == "CascadeInvalidation") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeInvalidation".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field(
+                    "queryName",
+                    FieldType::String,
+                    false,
+                    "Name of the query to invalidate.",
+                ),
+                make_field(
+                    "strategy",
+                    FieldType::String,
+                    false,
+                    "Invalidation strategy (e.g., exact, pattern).",
+                ),
+                make_field(
+                    "scope",
+                    FieldType::String,
+                    false,
+                    "Invalidation scope (e.g., global, tenant).",
+                ),
+            ],
+            description:         Some(
+                "A cache invalidation directive from a cascade operation.".to_string(),
+            ),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
+        });
+    }
+
+    // CascadeMetadata
+    if !schema.types.iter().any(|t| t.name == "CascadeMetadata") {
+        new_types.push(TypeDefinition {
+            name:                "CascadeMetadata".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field(
+                    "timestamp",
+                    FieldType::String,
+                    false,
+                    "When the cascade was processed.",
+                ),
+                make_field("affectedCount", FieldType::Int, false, "Number of entities affected."),
+                make_field("depth", FieldType::Int, false, "Cascade depth level."),
+                make_field(
+                    "transactionId",
+                    FieldType::String,
+                    true,
+                    "Database transaction identifier.",
+                ),
+            ],
+            description:         Some("Metadata about a cascade operation.".to_string()),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
+        });
+    }
+
+    // Cascade (top-level envelope)
+    if !schema.types.iter().any(|t| t.name == "Cascade") {
+        new_types.push(TypeDefinition {
+            name:                "Cascade".into(),
+            sql_source:          String::new().into(),
+            jsonb_column:        String::new(),
+            fields:              vec![
+                make_field(
+                    "updated",
+                    FieldType::List(Box::new(FieldType::Object("CascadeEntity".to_string()))),
+                    false,
+                    "Entities updated by the cascade.",
+                ),
+                make_field(
+                    "deleted",
+                    FieldType::List(Box::new(FieldType::Object("CascadeEntity".to_string()))),
+                    false,
+                    "Entities deleted by the cascade.",
+                ),
+                make_field(
+                    "invalidations",
+                    FieldType::List(Box::new(FieldType::Object("CascadeInvalidation".to_string()))),
+                    false,
+                    "Cache invalidation directives.",
+                ),
+                make_field(
+                    "metadata",
+                    FieldType::Object("CascadeMetadata".to_string()),
+                    false,
+                    "Cascade operation metadata.",
+                ),
+            ],
+            description:         Some(
+                "Cascade data from a mutation with cascade enabled.".to_string(),
+            ),
+            sql_projection_hint: None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
+        });
+    }
+
+    schema.types.extend(new_types);
+}
+
 /// Check if a type name is a built-in scalar type.
 fn is_builtin_type(name: &str) -> bool {
     matches!(
@@ -745,4 +1008,100 @@ fn is_builtin_type(name: &str) -> bool {
             | "UUID"
             | "Decimal"
     )
+}
+
+/// Format an argument list as SDL (e.g., `(id: ID!, name: String)`).
+/// Returns empty string when there are no arguments.
+fn format_args_sdl(args: &[ArgumentDefinition]) -> String {
+    if args.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = args
+        .iter()
+        .map(|a| {
+            let bang = if a.nullable { "" } else { "!" };
+            format!("{}: {}{}", a.name, a.arg_type.to_graphql_string(), bang)
+        })
+        .collect();
+    format!("({})", parts.join(", "))
+}
+
+/// Format a return type as SDL (e.g., `User!`, `[User!]!`, `User`).
+fn format_return_type_sdl(type_name: &str, is_list: bool, nullable: bool) -> String {
+    if is_list {
+        if nullable {
+            format!("[{type_name}!]")
+        } else {
+            format!("[{type_name}!]!")
+        }
+    } else if nullable {
+        type_name.to_string()
+    } else {
+        format!("{type_name}!")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::FieldType;
+
+    fn make_arg(name: &str, arg_type: FieldType) -> ArgumentDefinition {
+        ArgumentDefinition {
+            name: name.to_string(),
+            arg_type,
+            nullable: false,
+            default_value: None,
+            description: None,
+            deprecation: None,
+        }
+    }
+
+    #[test]
+    fn test_raw_schema_includes_query_type() {
+        let mut q = QueryDefinition::new("user", "User");
+        q.nullable = true;
+        q.arguments = vec![make_arg("id", FieldType::Id)];
+
+        let schema = CompiledSchema {
+            queries: vec![q],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("type Query {"), "SDL should contain Query type:\n{sdl}");
+        assert!(sdl.contains("user(id: ID!): User"), "SDL should contain user query:\n{sdl}");
+    }
+
+    #[test]
+    fn test_raw_schema_includes_mutation_type() {
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.arguments = vec![make_arg("name", FieldType::String)];
+
+        let schema = CompiledSchema {
+            mutations: vec![m],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("type Mutation {"), "SDL should contain Mutation type:\n{sdl}");
+        assert!(
+            sdl.contains("createUser(name: String!): User!"),
+            "SDL should contain createUser mutation:\n{sdl}"
+        );
+    }
+
+    #[test]
+    fn test_raw_schema_list_query() {
+        let mut q = QueryDefinition::new("users", "User");
+        q.returns_list = true;
+
+        let schema = CompiledSchema {
+            queries: vec![q],
+            ..Default::default()
+        };
+
+        let sdl = schema.raw_schema();
+        assert!(sdl.contains("users: [User!]!"), "SDL should contain list return type:\n{sdl}");
+    }
 }

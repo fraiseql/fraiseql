@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
@@ -18,8 +19,8 @@ use crate::{
 /// Server state containing executor and configuration.
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
-    /// Query executor.
-    pub executor:              Arc<Executor<A>>,
+    /// Query executor (hot-swappable via [`ArcSwap`] for graceful schema reload).
+    pub executor:              Arc<ArcSwap<Executor<A>>>,
     /// Metrics collector.
     pub metrics:               Arc<MetricsCollector>,
     /// Query result cache (optional).
@@ -56,6 +57,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub validator:             crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
     pub debug_config:          Option<fraiseql_core::schema::DebugConfig>,
+    /// Development mode configuration (optional, from `[dev]` in `fraiseql.toml`).
+    pub dev_config:            Option<fraiseql_core::schema::DevConfig>,
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
     /// Defaults to `100_000` (100 KiB).  Configurable via
@@ -63,14 +66,35 @@ pub struct AppState<A: DatabaseAdapter> {
     pub max_get_query_bytes:   usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
     pub pool_tuner:            Option<Arc<crate::pool::PoolSizingAdvisor>>,
+    /// Request-level rate limiter (optional, for metrics exposure).
+    pub rate_limiter:          Option<Arc<crate::middleware::rate_limit::RateLimiter>>,
+    /// Event transport for SSE streaming (requires `observers` feature).
+    #[cfg(feature = "observers")]
+    pub event_transport:       Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
+    /// Load the current executor snapshot.
+    ///
+    /// Returns a cheap `Arc` pointing to the executor that was active at the
+    /// time of the call.  In-flight requests keep the old executor alive even
+    /// after a schema reload swaps in a new one.
+    #[must_use]
+    pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
+        self.executor.load()
+    }
+
+    /// Atomically swap the executor with a newly-built one (e.g., after
+    /// reloading the compiled schema from disk).
+    pub fn swap_executor(&self, new_executor: Arc<Executor<A>>) {
+        self.executor.store(new_executor);
+    }
+
     /// Create new application state.
     #[must_use]
     pub fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor,
+            executor: Arc::new(ArcSwap::from(executor)),
             metrics: Arc::new(MetricsCollector::new()),
             #[cfg(feature = "arrow")]
             cache: None,
@@ -93,8 +117,12 @@ impl<A: DatabaseAdapter> AppState<A> {
             apq_metrics: Arc::new(ApqMetrics::default()),
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
+            dev_config: None,
             pool_tuner: None,
+            rate_limiter: None,
             max_get_query_bytes: 100_000,
+            #[cfg(feature = "observers")]
+            event_transport: None,
         }
     }
 
@@ -254,6 +282,27 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolSizingAdvisor>) -> Self {
         self.pool_tuner = Some(tuner);
+        self
+    }
+
+    /// Attach the request-level rate limiter (for metrics exposure).
+    #[must_use]
+    pub fn with_rate_limiter(
+        mut self,
+        limiter: Arc<crate::middleware::rate_limit::RateLimiter>,
+    ) -> Self {
+        self.rate_limiter = Some(limiter);
+        self
+    }
+
+    /// Attach an event transport for SSE streaming in the REST transport.
+    #[cfg(feature = "observers")]
+    #[must_use]
+    pub fn with_event_transport(
+        mut self,
+        transport: Arc<dyn fraiseql_observers::transport::EventTransport>,
+    ) -> Self {
+        self.event_transport = Some(transport);
         self
     }
 

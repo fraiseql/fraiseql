@@ -28,17 +28,18 @@ use uuid::Uuid;
 
 fn make_observer(event_type: &str, entity: &str, condition: Option<&str>) -> ObserverDefinition {
     ObserverDefinition {
-        event_type: event_type.to_string(),
-        entity:     entity.to_string(),
-        condition:  condition.map(str::to_string),
-        actions:    vec![ActionConfig::Webhook {
+        event_type:  event_type.to_string(),
+        entity:      entity.to_string(),
+        condition:   condition.map(str::to_string),
+        actions:     vec![ActionConfig::Webhook {
             url:           Some("https://example.com/hook".to_string()),
             url_env:       None,
             headers:       HashMap::default(),
             body_template: Some("{}".to_string()),
         }],
-        retry:      RetryConfig::default(),
-        on_failure: FailurePolicy::Log,
+        retry:       RetryConfig::default(),
+        on_failure:  FailurePolicy::Log,
+        synchronous: false,
     }
 }
 

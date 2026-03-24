@@ -128,6 +128,7 @@ impl CodeGenerator {
                     requires_role:       None,
                     is_error:            false,
                     relay:               false,
+                    relationships:       Vec::new(),
                 }
             })
             .collect();
@@ -159,6 +160,8 @@ impl CodeGenerator {
                     cache_ttl_seconds:   None,
                     additional_views:    vec![],
                     requires_role:       None,
+                    rest_path:           None,
+                    rest_method:         None,
                 }
             })
             .collect();
@@ -261,6 +264,9 @@ impl CodeGenerator {
                     requires_scope: None, // Note: IR fields don't have scope requirements yet
                     on_deny: FieldDenyPolicy::default(),
                     encryption: None,
+                    auto_generated: false,
+                    computed: false,
+                    searchable: false,
                 }
             })
             .collect()
@@ -331,6 +337,11 @@ impl CodeGenerator {
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
             invalidates_views: vec![],
+            cascade: false,
+            rest_path: None,
+            rest_method: None,
+            conflict_targets: Vec::new(),
+            upsert_function: None,
         }
     }
 

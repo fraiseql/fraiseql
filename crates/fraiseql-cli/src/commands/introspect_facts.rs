@@ -29,6 +29,10 @@ pub enum OutputFormat {
 
 impl OutputFormat {
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns `String` if the operation fails.
     pub fn parse(s: &str) -> std::result::Result<Self, String> {
         match s.to_lowercase().as_str() {
             "python" | "py" => Ok(Self::Python),
@@ -76,6 +80,10 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql introspect facts --database postgresql://localhost/mydb --format python
 /// ```
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub async fn run(
     database_url: &str,
     format: OutputFormat,

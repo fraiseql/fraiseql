@@ -3,11 +3,9 @@
 //! This module provides caching for schema compilation results, avoiding redundant
 //! compilation of identical schemas. Uses fingerprinting (SHA-256) for cache key generation.
 
-use std::{
-    num::NonZeroUsize,
-    sync::{Arc, Mutex},
-};
+use std::{num::NonZeroUsize, sync::Arc};
 
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -176,6 +174,10 @@ impl CompilationCache {
     /// # Returns
     ///
     /// Compiled schema (cached if possible)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if schema compilation fails.
     pub fn compile(
         &self,
         compiler: &crate::compiler::Compiler,
@@ -185,7 +187,7 @@ impl CompilationCache {
             // Cache disabled - always compile
             let schema = Arc::new(compiler.compile(schema_json)?);
 
-            let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+            let mut metrics = self.metrics.lock();
             metrics.total_compilations += 1;
             metrics.misses += 1;
 
@@ -196,10 +198,10 @@ impl CompilationCache {
 
         // Check cache
         {
-            let mut cache = self.cache.lock().expect("cache lock poisoned");
+            let mut cache = self.cache.lock();
             if let Some(cached) = cache.get_mut(&fingerprint) {
                 // Cache hit
-                let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+                let mut metrics = self.metrics.lock();
                 metrics.hits += 1;
                 cached.hit_count += 1;
                 return Ok(Arc::clone(&cached.schema));
@@ -211,7 +213,7 @@ impl CompilationCache {
 
         // Store in cache
         {
-            let mut cache = self.cache.lock().expect("cache lock poisoned");
+            let mut cache = self.cache.lock();
             cache.put(
                 fingerprint,
                 CachedCompilation {
@@ -220,7 +222,7 @@ impl CompilationCache {
                 },
             );
 
-            let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+            let mut metrics = self.metrics.lock();
             metrics.total_compilations += 1;
             metrics.misses += 1;
             metrics.size = cache.len();
@@ -230,28 +232,40 @@ impl CompilationCache {
     }
 
     /// Get current cache metrics.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
     pub fn metrics(&self) -> Result<CompilationCacheMetrics> {
-        let metrics = self.metrics.lock().expect("metrics lock poisoned");
+        let metrics = self.metrics.lock();
         Ok(metrics.clone())
     }
 
     /// Clear all cached compilations.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
     pub fn clear(&self) -> Result<()> {
-        self.cache.lock().expect("cache lock poisoned").clear();
-        let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+        self.cache.lock().clear();
+        let mut metrics = self.metrics.lock();
         metrics.size = 0;
         Ok(())
     }
 
     /// Get cache hit rate as percentage (0-100).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is kept for API consistency.
     pub fn hit_rate(&self) -> Result<f64> {
-        let metrics = self.metrics.lock().expect("metrics lock poisoned");
+        let metrics = self.metrics.lock();
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
         #[allow(clippy::cast_precision_loss)]
         // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
-        // acceptable here.
+        // acceptable
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
     }
 }

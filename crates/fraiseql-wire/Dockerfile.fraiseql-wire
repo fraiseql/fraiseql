@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Create non-root user
+RUN groupadd -r app && useradd -r -g app app
+
 # Copy built artifacts from builder
 COPY --from=builder /app/target/release/*.rlib /app/target/release/
 
@@ -36,5 +39,8 @@ LABEL description="Minimal async Postgres JSON streaming query engine - library 
 
 # Copy source for reference/documentation
 COPY . /app/src/
+
+# Switch to non-root user
+USER app
 
 CMD ["/bin/sh", "-c", "echo 'fraiseql-wire is a library, not a standalone application. See https://github.com/fraiseql/fraiseql-wire for usage.'"]

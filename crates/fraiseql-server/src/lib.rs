@@ -33,7 +33,6 @@
 #![allow(clippy::doc_markdown)] // Reason: backtick-wrapping all technical terms would reduce readability
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style (e.g., ServerConfig in server mod)
 #![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain, not inspect
-#![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design; remaining are unreachable
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types in handler signatures
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn even for sync operations
 #![allow(clippy::similar_names)] // Reason: domain terms (e.g., req/res, row/col) are conventional pairs
@@ -173,6 +172,9 @@ pub mod arrow;
 // MCP (Model Context Protocol) server - optional
 #[cfg(feature = "mcp")]
 pub mod mcp;
+
+// Object storage backends (local, S3, GCS, Azure)
+pub mod storage;
 
 // Connection pool management and auto-tuning
 pub mod pool;

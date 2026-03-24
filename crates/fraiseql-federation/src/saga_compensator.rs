@@ -83,9 +83,14 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! use fraiseql_federation::saga_compensator::{
+//!     SagaCompensator, CompensationStatus,
+//! };
+//! use uuid::Uuid;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let compensator = SagaCompensator::new();
+//! let saga_id = Uuid::new_v4();
 //!
 //! // Execute compensation for a failed saga
 //! let result = compensator.compensate_saga(saga_id).await?;
@@ -93,23 +98,19 @@
 //! match result.status {
 //!     CompensationStatus::Compensated => {
 //!         println!("All steps rolled back successfully");
-//!         // Saga state: Compensated
-//!         // No manual intervention needed
 //!     }
 //!     CompensationStatus::PartiallyCompensated => {
 //!         println!("Some compensations failed: {:?}", result.failed_steps);
-//!         // Saga state: CompensationFailed
-//!         // Requires manual recovery for failed steps
-//!         for step_num in result.failed_steps {
+//!         for step_num in &result.failed_steps {
 //!             eprintln!("Step {} compensation failed - manual recovery needed", step_num);
 //!         }
 //!     }
 //!     CompensationStatus::CompensationFailed => {
 //!         eprintln!("All compensations failed - manual intervention required");
-//!         eprintln!("Error: {}", result.error.unwrap());
-//!         // May need operator to manually fix state
 //!     }
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use std::{sync::Arc, time::Instant};
@@ -296,9 +297,12 @@ impl SagaCompensator {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_compensator::{SagaCompensator, CompensationStatus};
+    /// use uuid::Uuid;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let compensator = SagaCompensator::new();
+    /// let saga_id = Uuid::new_v4();
     /// let result = compensator.compensate_saga(saga_id).await?;
     ///
     /// if result.status == CompensationStatus::Compensated {
@@ -306,6 +310,8 @@ impl SagaCompensator {
     /// } else if !result.failed_steps.is_empty() {
     ///     eprintln!("Steps that failed compensation: {:?}", result.failed_steps);
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
         let start_time = Instant::now();
@@ -499,22 +505,32 @@ impl SagaCompensator {
     /// - Compensation mutation execution fails
     /// - Subgraph unavailable
     ///
+    /// # Panics
+    ///
+    /// Panics if the internal store reference is inconsistent (unreachable in practice).
+    ///
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_compensator::SagaCompensator;
+    /// use uuid::Uuid;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let compensator = SagaCompensator::new();
+    /// let saga_id = Uuid::new_v4();
     /// let result = compensator.compensate_step(
     ///     saga_id,
     ///     1,
     ///     "deleteOrder",
-    ///     &json!({"id": "order-123"}),
-    ///     "orders-service"
+    ///     &serde_json::json!({"id": "order-123"}),
+    ///     "orders-service",
     /// ).await?;
     ///
     /// if result.success {
     ///     println!("Order deleted successfully");
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn compensate_step(
         &self,
@@ -656,10 +672,18 @@ impl SagaCompensator {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_federation::saga_compensator::SagaCompensator;
+    /// use uuid::Uuid;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let compensator = SagaCompensator::new();
+    /// let saga_id = Uuid::new_v4();
     /// let result = compensator.get_compensation_status(saga_id).await?;
-    /// println!("Compensation status: {:?}", result.status);
+    /// if let Some(comp) = result {
+    ///     println!("Compensation status: {:?}", comp.status);
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn get_compensation_status(
         &self,

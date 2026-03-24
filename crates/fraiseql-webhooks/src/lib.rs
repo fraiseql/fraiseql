@@ -23,7 +23,7 @@
 //! - **Shopify** — HMAC-SHA256 on `X-Shopify-Hmac-Sha256` header
 //! - **SendGrid** — ECDSA on `X-Twilio-Email-Event-Webhook-Signature`
 //! - **Paddle** — RSA-SHA256 on `Paddle-Signature` header
-//! - Custom providers via the [`traits::WebhookProvider`] trait
+//! - Custom providers via the `traits::WebhookProvider` trait
 //!
 //! ## Security Properties
 //!
@@ -34,7 +34,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```no_run
+//! ```text
 //! // See docs/architecture/webhooks.md for the full integration guide.
 //! ```
 //!
@@ -48,8 +48,6 @@
 #![forbid(unsafe_code)]
 // module_name_repetitions, must_use_candidate, uninlined_format_args:
 // allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
-#![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
-#![allow(clippy::missing_panics_doc)] // Reason: panics eliminated by design
 #![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
 #![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
@@ -79,6 +77,16 @@ pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, Signatur
 pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Errors that can occur during webhook request processing.
+///
+/// ```
+/// use fraiseql_webhooks::WebhookError;
+///
+/// let err = WebhookError::MissingSignature;
+/// assert_eq!(err.to_string(), "Missing signature header");
+///
+/// let err = WebhookError::UnknownProvider("custom".to_string());
+/// assert_eq!(err.to_string(), "Unknown webhook provider: custom");
+/// ```
 #[derive(Debug, thiserror::Error)]
 pub enum WebhookError {
     /// The incoming request did not include the expected signature header for the provider.

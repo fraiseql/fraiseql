@@ -270,6 +270,10 @@ pub struct RotationConfigUpdateRequest {
 
 impl RotationConfigUpdateRequest {
     /// Validate configuration values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any field value is out of its valid range.
     pub fn validate(&self) -> Result<(), String> {
         if let Some(threshold) = self.refresh_threshold_percent {
             if !(1..=99).contains(&threshold) {
@@ -660,7 +664,7 @@ mod tests {
     #[test]
     fn test_manual_rotation_response_success() {
         let response = ManualRotationResponse::success(1, 2, 100);
-        assert_eq!(response.status, "success");
+        assert_eq!(response.status, ManualRotationStatus::Success);
         assert_eq!(response.old_version, 1);
         assert_eq!(response.new_version, 2);
         assert!(response.error.is_none());
@@ -669,7 +673,7 @@ mod tests {
     #[test]
     fn test_manual_rotation_response_failure() {
         let response = ManualRotationResponse::failure(1, "Vault error");
-        assert_eq!(response.status, "failed");
+        assert_eq!(response.status, ManualRotationStatus::Failed);
         assert!(response.error.is_some());
     }
 

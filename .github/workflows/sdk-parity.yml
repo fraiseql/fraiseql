@@ -3,12 +3,10 @@ name: SDK Schema Parity
 on:
   push:
     paths:
-      - 'sdks/official/fraiseql-python/**'
-      - 'sdks/official/fraiseql-typescript/**'
+      - 'sdks/official/**'
   pull_request:
     paths:
-      - 'sdks/official/fraiseql-python/**'
-      - 'sdks/official/fraiseql-typescript/**'
+      - 'sdks/official/**'
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -17,14 +15,15 @@ concurrency:
 
 jobs:
   parity:
-    name: Python ↔ TypeScript schema parity
+    name: Cross-SDK schema parity
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # Python SDK
+      # Python SDK (reference)
       # -----------------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -61,75 +60,41 @@ jobs:
         run: npx tsx tests/generate-parity-schema.ts > /tmp/schema_ts.json
 
       # -----------------------------------------------------------------------
-      # Structural comparison
+      # Go SDK
       # -----------------------------------------------------------------------
-      - name: Compare Python and TypeScript schema outputs
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: sdks/official/fraiseql-go/go.sum
+
+      - name: Generate schema via Go SDK
+        working-directory: sdks/official/fraiseql-go
         run: |
-          python3 - <<'EOF'
-          import json
-          import sys
+          go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 \
+            | grep '^{' \
+            | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))" \
+            > /tmp/schema_go.json
 
-          with open("/tmp/schema_python.json") as f:
-              python_schema = json.load(f)
-
-          with open("/tmp/schema_ts.json") as f:
-              ts_schema = json.load(f)
-
-          errors = []
-
-          # Compare top-level keys
-          py_keys = set(python_schema.keys())
-          ts_keys = set(ts_schema.keys())
-          if py_keys != ts_keys:
-              errors.append(f"Top-level keys differ: Python={sorted(py_keys)}, TS={sorted(ts_keys)}")
-
-          # Compare type names
-          py_type_names = {t["name"] for t in python_schema.get("types", [])}
-          ts_type_names = {t["name"] for t in ts_schema.get("types", [])}
-          if py_type_names != ts_type_names:
-              errors.append(f"Type names differ: Python={sorted(py_type_names)}, TS={sorted(ts_type_names)}")
-
-          # Compare query names
-          py_query_names = {q["name"] for q in python_schema.get("queries", [])}
-          ts_query_names = {q["name"] for q in ts_schema.get("queries", [])}
-          if py_query_names != ts_query_names:
-              errors.append(f"Query names differ: Python={sorted(py_query_names)}, TS={sorted(ts_query_names)}")
-
-          # Compare mutation names
-          py_mut_names = {m["name"] for m in python_schema.get("mutations", [])}
-          ts_mut_names = {m["name"] for m in ts_schema.get("mutations", [])}
-          if py_mut_names != ts_mut_names:
-              errors.append(f"Mutation names differ: Python={sorted(py_mut_names)}, TS={sorted(ts_mut_names)}")
-
-          # Compare field names per type
-          py_types_by_name = {t["name"]: t for t in python_schema.get("types", [])}
-          ts_types_by_name = {t["name"]: t for t in ts_schema.get("types", [])}
-          for type_name in py_type_names & ts_type_names:
-              py_fields = {f["name"] for f in py_types_by_name[type_name].get("fields", [])}
-              ts_fields = {f["name"] for f in ts_types_by_name[type_name].get("fields", [])}
-              if py_fields != ts_fields:
-                  errors.append(
-                      f"Fields for {type_name} differ: Python={sorted(py_fields)}, TS={sorted(ts_fields)}"
-                  )
-
-          if errors:
-              print("❌ SDK parity check FAILED:")
-              for err in errors:
-                  print(f"  - {err}")
-              sys.exit(1)
-
-          print("✅ SDK parity check passed:")
-          print(f"  Types:     {sorted(py_type_names)}")
-          print(f"  Queries:   {sorted(py_query_names)}")
-          print(f"  Mutations: {sorted(py_mut_names)}")
-          EOF
+      # -----------------------------------------------------------------------
+      # Deep structural comparison
+      # -----------------------------------------------------------------------
+      - name: Compare all SDK schema outputs
+        run: |
+          # Full parity: Python (reference) vs TypeScript, Go
+          # Checks: type/query/mutation names, field types, nullability,
+          # argument names/types, sql_source, operation, inject_params
+          python3 sdks/official/tests/compare_schemas.py \
+            --reference /tmp/schema_python.json \
+            --compare /tmp/schema_ts.json /tmp/schema_go.json
 
       - name: Upload schema artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: parity-schemas
           path: |
             /tmp/schema_python.json
             /tmp/schema_ts.json
+            /tmp/schema_go.json
           retention-days: 7

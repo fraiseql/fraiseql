@@ -126,6 +126,10 @@ pub trait ConditionEvaluator: Send + Sync {
     ///
     /// # Returns
     /// true if condition is met, false otherwise
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     fn evaluate(&self, condition: &str, event: &EntityEvent) -> Result<bool>;
 }
 
@@ -141,6 +145,10 @@ pub trait TemplateRenderer: Send + Sync {
     ///
     /// # Returns
     /// Rendered template string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     fn render(&self, template: &str, data: &serde_json::Value) -> Result<String>;
 }
 

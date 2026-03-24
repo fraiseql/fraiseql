@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 /// Rate-limiting configuration applied to HTTP endpoints.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RateLimitingConfig {
     /// Whether rate limiting is active.  Default: `true`.
     #[serde(default = "default_enabled")]
@@ -37,6 +38,7 @@ fn default_backend() -> String {
 
 /// A single rate-limit rule applied to a path, mutation, or query pattern.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RateLimitRule {
     /// Match by path pattern (e.g., "/auth/*")
     pub path: Option<String>,
@@ -65,6 +67,7 @@ fn default_key_by() -> String {
 
 /// Backpressure settings that control request queuing and load shedding.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BackpressureConfig {
     /// Enable request queuing when at limit
     #[serde(default)]
@@ -79,17 +82,17 @@ pub struct BackpressureConfig {
     pub queue_timeout: String,
 
     /// Shed load when queue is full (503 vs queue)
-    #[serde(default = "default_load_shed")]
-    pub load_shed: bool,
+    #[serde(default = "default_load_shed_enabled", alias = "load_shed")]
+    pub load_shed_enabled: bool,
 }
 
 impl Default for BackpressureConfig {
     fn default() -> Self {
         Self {
-            queue_enabled:  false,
-            max_queue_size: default_queue_size(),
-            queue_timeout:  default_queue_timeout(),
-            load_shed:      default_load_shed(),
+            queue_enabled:     false,
+            max_queue_size:    default_queue_size(),
+            queue_timeout:     default_queue_timeout(),
+            load_shed_enabled: default_load_shed_enabled(),
         }
     }
 }
@@ -100,6 +103,6 @@ const fn default_queue_size() -> usize {
 fn default_queue_timeout() -> String {
     "5s".to_string()
 }
-const fn default_load_shed() -> bool {
+const fn default_load_shed_enabled() -> bool {
     true
 }

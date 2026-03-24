@@ -64,6 +64,12 @@ impl AuthMiddleware {
     /// 6. Extract optional claims (scope, aud, iss)
     ///
     /// Returns AuthenticatedUser if valid, Err if any check fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecurityError::AuthRequired` if no token is present,
+    /// `SecurityError::InvalidToken` if the token is malformed or signature
+    /// verification fails, or `SecurityError::TokenExpired` if the token has expired.
     pub fn validate_request(&self, req: &AuthRequest) -> Result<AuthenticatedUser> {
         // Check 1: Extract token from Authorization header
         let token = self.extract_token(req)?;

@@ -215,6 +215,10 @@ impl SchemaRegistry {
     ///
     /// Ok(version) with new version number, or error if query fails
     ///
+    /// # Errors
+    ///
+    /// Returns `ArrowFlightError::SchemaNotFound` if the database query fails or the view is empty.
+    ///
     /// # Copy-on-Write Safety
     ///
     /// Old queries keep their old schema Arc references while new queries get the new version.
@@ -226,6 +230,8 @@ impl SchemaRegistry {
     ) -> Result<u64> {
         use tracing::info;
 
+        // SAFETY: view_name is from a hardcoded known-views list or schema-derived,
+        // not user input.
         let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
         let rows = db_adapter.execute_raw_query(&sample_query).await.map_err(|e| {
@@ -271,6 +277,10 @@ impl SchemaRegistry {
     /// # Returns
     ///
     /// Ok(count) with number of successfully reloaded schemas
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if none of the known views could be reloaded.
     pub async fn reload_all_schemas(&self, db_adapter: &dyn DatabaseAdapter) -> Result<usize> {
         use tracing::warn;
 
@@ -410,6 +420,10 @@ impl SchemaRegistry {
     ///
     /// Ok(()) with count of preloaded schemas, or error if database query fails
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the database adapter fails to execute discovery queries.
+    ///
     /// # Note
     ///
     /// This method attempts to discover views by name pattern. If discovery fails,
@@ -424,6 +438,7 @@ impl SchemaRegistry {
 
         for view_name in known_views {
             // Sample one row from the view to infer schema
+            // SAFETY: view_name is from a hardcoded known-views list, not user input.
             let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
             match db_adapter.execute_raw_query(&sample_query).await {

@@ -31,6 +31,11 @@ impl EnumValidator {
     ///
     /// Vec of parsed IREnum definitions
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the value is not an array, any enum
+    /// definition is malformed, has duplicate values, or fails naming conventions.
+    ///
     /// # Example JSON Structure
     ///
     /// ```json

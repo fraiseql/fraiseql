@@ -88,6 +88,10 @@ pub struct TransactionContext {
 
 impl TransactionContext {
     /// Create new transaction context
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system clock is before the UNIX epoch.
     pub fn new(
         user_id: impl Into<String>,
         session_id: impl Into<String>,
@@ -233,6 +237,10 @@ impl TransactionManager {
     }
 
     /// Begin transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the transaction ID is already active.
     pub fn begin(&mut self, context: TransactionContext) -> Result<String, SecretsError> {
         let txn_id = context.transaction_id.clone();
 
@@ -258,6 +266,10 @@ impl TransactionManager {
     }
 
     /// Commit transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the transaction is not found.
     pub fn commit(&mut self, txn_id: &str) -> Result<(), SecretsError> {
         if let Some(txn) = self.active_transactions.get_mut(txn_id) {
             txn.commit();
@@ -269,6 +281,10 @@ impl TransactionManager {
     }
 
     /// Rollback transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the transaction is not found.
     pub fn rollback(&mut self, txn_id: &str) -> Result<(), SecretsError> {
         if let Some(txn) = self.active_transactions.get_mut(txn_id) {
             txn.rollback();
@@ -280,6 +296,10 @@ impl TransactionManager {
     }
 
     /// Create savepoint
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the transaction is not found.
     pub fn savepoint(&mut self, txn_id: &str, name: impl Into<String>) -> Result<(), SecretsError> {
         if let Some(txn) = self.active_transactions.get(txn_id) {
             let savepoint = Savepoint::new(name, txn_id, txn.operation_count());
@@ -291,6 +311,10 @@ impl TransactionManager {
     }
 
     /// Rollback to savepoint
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if the transaction or savepoint is not found.
     pub fn rollback_to_savepoint(&mut self, txn_id: &str, name: &str) -> Result<(), SecretsError> {
         if let Some(savepoints) = self.savepoints.get_mut(txn_id) {
             if let Some(sp_idx) = savepoints.iter().position(|sp| sp.name == name) {

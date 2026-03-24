@@ -13,12 +13,17 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: running server with initialized subscription manager.
+//! use std::sync::Arc;
+//! use axum::{Router, routing::get};
+//! use fraiseql_core::runtime::SubscriptionManager;
+//! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_server::routes::subscriptions::{subscription_handler, SubscriptionState};
 //!
-//! let state = SubscriptionState::new(subscription_manager);
+//! let schema = Arc::new(CompiledSchema::new());
+//! let manager = Arc::new(SubscriptionManager::new(schema));
+//! let state = SubscriptionState::new(manager);
 //!
-//! let app = Router::new()
+//! let app: Router = Router::new()
 //!     .route("/ws", get(subscription_handler))
 //!     .with_state(state);
 //! ```

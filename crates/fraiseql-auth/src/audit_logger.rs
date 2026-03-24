@@ -348,13 +348,24 @@ pub fn get_audit_logger() -> Arc<dyn AuditLogger> {
 /// global [`AuditLogger`] and then returns the result unchanged.  This allows
 /// audit logging to be inserted into call chains without altering the return type:
 ///
-/// ```ignore
-/// let claims = validator
-///     .validate(token, &public_key)
-///     .audit_log(AuditEventType::JwtValidation, SecretType::JwtToken, None, "validate")?;
+/// ```
+/// use fraiseql_auth::audit_logger::{AuditableResult, AuditEventType, SecretType};
+///
+/// let result: Result<&str, String> = Ok("valid_claims");
+/// let claims = result.audit_log(
+///     AuditEventType::JwtValidation,
+///     SecretType::JwtToken,
+///     None,
+///     "validate",
+/// ).unwrap();
+/// assert_eq!(claims, "valid_claims");
 /// ```
 pub trait AuditableResult<T, E> {
-    /// Log success or failure of a result
+    /// Log success or failure of a result.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original `Err(E)` unchanged after logging the failure.
     fn audit_log(
         self,
         event_type: AuditEventType,
@@ -388,8 +399,7 @@ impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
 mod tests {
     use std::sync::Mutex;
 
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     struct TestAuditLogger {

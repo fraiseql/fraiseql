@@ -4,41 +4,64 @@ path = "src/main.rs"
 
 [dependencies]
 # Error handling
-anyhow = "1.0"
+anyhow = {workspace = true}
+# Gateway HTTP server
+axum = {workspace = true}
 # CLI framework
 clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
 deadpool-postgres = {workspace = true}
 # Workspace dependencies
+bb8 = {version = "0.8", optional = true}
+bb8-tiberius = {version = "0.15", optional = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
+fraiseql-db = {workspace = true}
+fraiseql-error = {workspace = true}
+fraiseql-federation = {workspace = true, optional = true}
 fraiseql-server = {workspace = true, optional = true}
+sqlx = {version = "0.8", features = ["runtime-tokio", "mysql", "sqlite"], optional = true}
+tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 glob = "0.3"
+# Gateway HTTP body utilities
+http-body-util = {workspace = true}
+prost = {workspace = true}
+prost-types = {workspace = true}
 # Serialization
 indexmap = {workspace = true}
 # File watching (for serve command)
 notify = "7.0"
 regex = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
+# Gateway subgraph HTTP client
+reqwest = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
 sha2 = {workspace = true}
-thiserror = "2.0"
+thiserror = {workspace = true}
 # Async runtime
-tokio = {version = "1.42", features = ["full"]}
+tokio = {workspace = true, features = ["rt-multi-thread", "macros", "net", "sync", "time"]}
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
-toml = "0.8"
+toml = {workspace = true}
+# Gateway HTTP test utilities
+tower = {workspace = true, features = ["util"]}
 # Logging
-tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true, features = ["fmt", "ansi"]}
+# URL validation
+url = "2"
 # Multi-file schema loading
 walkdir = "2"
 
 [dev-dependencies]
 temp-env = {workspace = true}
-tempfile = "3.25"
+tempfile = {workspace = true}
 
 [features]
 default = []
+gateway = ["dep:fraiseql-federation"]
+mysql = ["fraiseql-core/mysql", "fraiseql-db/mysql", "dep:sqlx"]
 run-server = ["dep:fraiseql-server"]
+sqlite = ["fraiseql-core/sqlite", "fraiseql-db/sqlite", "dep:sqlx"]
+sqlserver = ["fraiseql-core/sqlserver", "fraiseql-db/sqlserver", "dep:bb8", "dep:bb8-tiberius", "dep:tiberius"]
 
 [lints]
 workspace = true
@@ -53,6 +76,7 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true

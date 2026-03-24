@@ -3,8 +3,11 @@
 use super::*;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router.
-    pub(super) fn build_router(&self) -> Router {
+    /// Build the base application router (everything except REST routes).
+    ///
+    /// Both [`build_router`] and [`build_mutation_router`] extend this with
+    /// the appropriate REST route set.
+    fn build_base_router(&self) -> (Router, AppState<A>) {
         let mut state = AppState::new(self.executor.clone());
 
         // Attach secrets manager if configured
@@ -55,6 +58,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!(
                 "Error sanitizer enabled — internal error details will be stripped from responses"
             );
+        }
+
+        // Attach rate limiter reference for metrics exposure
+        if let Some(ref limiter) = self.rate_limiter {
+            state = state.with_rate_limiter(limiter.clone());
         }
 
         // Attach API key authenticator if configured
@@ -112,6 +120,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Attach debug config from compiled schema
         state.debug_config.clone_from(&self.executor.schema().debug_config);
+
+        // Attach dev config from compiled schema (or FRAISEQL_DEV_CLAIMS env var override)
+        state.dev_config = if let Ok(claims_json) = std::env::var("FRAISEQL_DEV_CLAIMS") {
+            serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(
+                &claims_json,
+            )
+            .ok()
+            .map(|claims| fraiseql_core::schema::DevConfig {
+                enabled:        true,
+                default_claims: claims,
+            })
+        } else {
+            self.executor.schema().dev_config.clone()
+        };
 
         // Apply GET query size limit from server config.
         state.max_get_query_bytes = self.config.max_get_query_bytes;
@@ -493,6 +515,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // REST transport routes are NOT mounted here.
+        // - build_router() adds read-only query routes (GET, SSE).
+        // - build_mutation_router() adds full routes (GET, POST, PUT, PATCH, DELETE, SSE).
+
         // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
@@ -523,6 +549,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 );
             }
         }
+
+        // Global error sanitization (outermost layer for error responses).
+        // Strips internal details (SQL, stack traces, file paths) from all 4xx/5xx
+        // JSON responses before they reach the client. Covers both GraphQL and REST.
+        app = app.layer(middleware::from_fn_with_state(
+            self.error_sanitizer.clone(),
+            crate::middleware::error_sanitization::error_sanitization_middleware,
+        ));
 
         // Add HTTP metrics middleware (tracks requests and response status codes)
         // This runs on ALL routes, even when metrics endpoints are disabled
@@ -617,7 +651,108 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.layer(Extension(controller));
         }
 
-        app
+        // Inject DevConfig into request extensions so the OptionalSecurityContext
+        // extractor can synthesize a SecurityContext for unauthenticated requests
+        // during local development.
+        if let Some(ref dev_cfg) = state.dev_config {
+            if fraiseql_core::security::is_dev_mode_active(Some(dev_cfg)) {
+                use axum::Extension;
+
+                tracing::warn!(
+                    "Dev mode active — unauthenticated requests will receive default claims"
+                );
+                app = app.layer(Extension(dev_cfg.clone()));
+            }
+        }
+
+        (app, state)
+    }
+
+    /// Build application router with read-only REST routes (GET and SSE only).
+    ///
+    /// For mutation-capable adapters, use [`build_mutation_router`] instead to
+    /// include REST mutation routes (POST, PUT, PATCH, DELETE).
+    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+        let (app, state) = self.build_base_router();
+
+        #[cfg(feature = "rest")]
+        let app = self.add_rest_query_routes(app, state.clone());
+
+        (app, state)
+    }
+
+    /// Add read-only REST query routes (GET and SSE) to the router.
+    ///
+    /// Derives REST resources from the compiled schema and mounts GET query
+    /// and SSE stream routes under the configured base path (default `/rest/v1`).
+    /// When `require_auth` is `true`, OIDC authentication middleware is applied.
+    /// Returns the router unchanged if REST is not configured or derivation fails.
+    ///
+    /// Mutation routes (POST, PUT, PATCH, DELETE) are added separately by
+    /// [`add_rest_mutation_routes`] on the `MutationCapable` impl block.
+    #[cfg(feature = "rest")]
+    fn add_rest_query_routes(
+        &self,
+        app: Router,
+        state: crate::routes::graphql::AppState<A>,
+    ) -> Router {
+        use crate::routes::rest::rest_query_router;
+
+        let rest_config = self.executor.schema().rest_config.as_ref();
+
+        // Check require_auth before mounting.
+        if let Some(cfg) = rest_config {
+            if cfg.require_auth && self.oidc_validator.is_none() {
+                tracing::error!(
+                    path = %cfg.path,
+                    "REST transport NOT mounted — require_auth=true but no OIDC \
+                     validator is configured. Configure an OIDC validator or set \
+                     require_auth=false (development only)."
+                );
+                return app;
+            }
+        }
+
+        let Some(rest) = rest_query_router(state) else {
+            return app;
+        };
+
+        // Optionally apply OIDC auth middleware to REST routes.
+        let rest = self.apply_rest_auth(rest);
+
+        app.merge(rest)
+    }
+
+    /// Apply OIDC authentication middleware to a REST router if configured.
+    #[cfg(feature = "rest")]
+    fn apply_rest_auth(&self, rest: Router) -> Router {
+        let rest_config = self.executor.schema().rest_config.as_ref();
+        if let Some(cfg) = rest_config {
+            if cfg.require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!(
+                        path = %cfg.path,
+                        "REST transport protected by OIDC authentication"
+                    );
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    rest.route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        oidc_auth_middleware,
+                    ))
+                } else {
+                    rest
+                }
+            } else {
+                tracing::warn!(
+                    path = %cfg.path,
+                    "REST transport mounted without authentication (require_auth=false). \
+                     Enable require_auth in production."
+                );
+                rest
+            }
+        } else {
+            rest
+        }
     }
 
     /// Add observer-related routes to the router.
@@ -671,5 +806,52 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         } else {
             app
         }
+    }
+}
+
+impl<A: DatabaseAdapter + MutationCapable + Clone + Send + Sync + 'static> Server<A> {
+    /// Build application router with full REST support (queries + mutations).
+    ///
+    /// Extends [`build_base_router`] by adding the full REST router (GET, POST,
+    /// PUT, PATCH, DELETE, SSE). Requires the adapter to implement
+    /// [`MutationCapable`].
+    pub(super) fn build_mutation_router(&self) -> (Router, AppState<A>) {
+        let (app, state) = self.build_base_router();
+
+        #[cfg(feature = "rest")]
+        let app = self.add_rest_routes(app, state.clone());
+
+        (app, state)
+    }
+
+    /// Add the full REST router (queries + mutations) to the application router.
+    ///
+    /// Derives REST resources from the compiled schema and mounts all REST
+    /// routes (GET, POST, PUT, PATCH, DELETE, SSE) under the configured base
+    /// path (default `/rest/v1`).  When `require_auth` is `true`, OIDC
+    /// authentication middleware is applied.  Returns the router unchanged if
+    /// REST is not configured or derivation fails.
+    #[cfg(feature = "rest")]
+    fn add_rest_routes(&self, app: Router, state: crate::routes::graphql::AppState<A>) -> Router {
+        use crate::routes::rest::rest_router;
+
+        let rest_config = self.executor.schema().rest_config.as_ref();
+
+        // Bail out if require_auth is set but no OIDC — query routes already logged
+        // the error, so just silently skip mutations too.
+        if let Some(cfg) = rest_config {
+            if cfg.require_auth && self.oidc_validator.is_none() {
+                return app;
+            }
+        }
+
+        let Some(rest) = rest_router(state) else {
+            return app;
+        };
+
+        // Optionally apply OIDC auth middleware to REST routes.
+        let rest = self.apply_rest_auth(rest);
+
+        app.merge(rest)
     }
 }

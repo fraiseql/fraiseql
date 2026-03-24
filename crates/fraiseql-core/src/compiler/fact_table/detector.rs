@@ -562,6 +562,11 @@ impl FactTableDetector {
     }
 
     /// Create metadata from column definitions (for testing)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the resulting metadata fails
+    /// structural validation (e.g., no measure columns found).
     pub fn from_columns(
         table_name: String,
         columns: Vec<(&str, SqlType, bool)>,

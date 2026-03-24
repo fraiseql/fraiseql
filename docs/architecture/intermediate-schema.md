@@ -18,8 +18,8 @@ fraiseql-cli compile
 schema.compiled.json      ← consumed by fraiseql-server at runtime
 ```
 
-The Rust definition lives in
-`crates/fraiseql-cli/src/schema/intermediate.rs`.
+The Rust definitions live in
+`crates/fraiseql-cli/src/schema/intermediate/` (split across modules).
 
 ---
 
@@ -340,6 +340,7 @@ Pre-defined aggregate query (COUNT, SUM, AVG, etc.).
 
 ## See also
 
-- `crates/fraiseql-cli/src/schema/intermediate.rs` — Rust struct definitions
-- `docs/architecture/compiler.md` — how the compiler uses this format
-- `docs/architecture/overview.md` — end-to-end architecture
+- `crates/fraiseql-cli/src/schema/intermediate/` — Rust struct definitions (split across modules)
+- [../authoring-ir-format.md](../authoring-ir-format.md) — practical guide for code generator authors
+- [compiler.md](compiler.md) — how the compiler uses this format
+- [overview.md](overview.md) — end-to-end architecture

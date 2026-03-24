@@ -76,7 +76,7 @@ impl MySQLCheckpointStore {
 impl CheckpointStore for MySQLCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {
         let row: Option<(i64,)> =
-            sqlx::query_as("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = ?")
+            sqlx::query_as("SELECT last_pk FROM tb_transport_checkpoint WHERE identifier = ?")
                 .bind(transport_name)
                 .fetch_optional(&self.pool)
                 .await
@@ -91,7 +91,7 @@ impl CheckpointStore for MySQLCheckpointStore {
         // MySQL UPSERT syntax: INSERT ... ON DUPLICATE KEY UPDATE
         sqlx::query(
             r"
-            INSERT INTO tb_transport_checkpoint (transport_name, last_pk, updated_at)
+            INSERT INTO tb_transport_checkpoint (identifier, last_pk, updated_at)
             VALUES (?, ?, NOW())
             ON DUPLICATE KEY UPDATE last_pk = VALUES(last_pk), updated_at = NOW()
             ",
@@ -108,7 +108,7 @@ impl CheckpointStore for MySQLCheckpointStore {
     }
 
     async fn delete_checkpoint(&self, transport_name: &str) -> Result<()> {
-        sqlx::query("DELETE FROM tb_transport_checkpoint WHERE transport_name = ?")
+        sqlx::query("DELETE FROM tb_transport_checkpoint WHERE identifier = ?")
             .bind(transport_name)
             .execute(&self.pool)
             .await
@@ -173,6 +173,10 @@ pub struct MySQLChangeLogEntry {
 #[cfg(feature = "mysql")]
 impl MySQLChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the modification type is unknown.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -396,6 +400,10 @@ impl MySQLNatsBridge {
     ///
     /// Unlike PostgreSQL, MySQL has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run(&self) -> Result<()> {
         info!("Starting MySQL → NATS bridge: {}", self.config.transport_name);
 
@@ -472,6 +480,10 @@ impl MySQLNatsBridge {
     }
 
     /// Run with graceful shutdown support.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,

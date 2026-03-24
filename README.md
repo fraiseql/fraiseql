@@ -190,4 +190,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Dual-licensed under MIT or Apache 2.0. See [LICENSE](LICENSE).
+Dual-licensed under MIT or Apache 2.0. See [LICENSE](LICENSE) and [LICENSE-APACHE](LICENSE-APACHE).

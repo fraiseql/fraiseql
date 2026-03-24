@@ -307,6 +307,10 @@ where
     }
 
     /// Get pool statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn get_stats(&self) -> Result<super::QueueStats> {
         self.queue.get_stats().await
     }

@@ -34,7 +34,9 @@ pub use security::{
     TrustedDocumentsConfig,
 };
 use serde::{Deserialize, Serialize};
-pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
+pub use server_settings::{
+    DebugConfig, DevConfig, GrpcConfig, McpConfig, RestConfig, ValidationConfig,
+};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
 pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 
@@ -139,10 +141,26 @@ pub struct TomlSchema {
     /// MCP (Model Context Protocol) server configuration.
     #[serde(default)]
     pub mcp: McpConfig,
+
+    /// REST transport configuration.
+    #[serde(default)]
+    pub rest: RestConfig,
+
+    /// gRPC transport configuration.
+    #[serde(default)]
+    pub grpc: GrpcConfig,
+
+    /// Development mode configuration.
+    #[serde(default)]
+    pub dev: DevConfig,
 }
 
 impl TomlSchema {
     /// Load schema from TOML file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn from_file(path: &str) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
@@ -152,12 +170,20 @@ impl TomlSchema {
     /// Parse schema from TOML string.
     ///
     /// Expands `${VAR}` environment variable placeholders before parsing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn parse_toml(content: &str) -> Result<Self> {
         let expanded = expand_env_vars(content);
         toml::from_str(&expanded).context("Failed to parse TOML schema")
     }
 
     /// Validate schema
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn validate(&self) -> Result<()> {
         // Validate that all query return types exist
         for (query_name, query_def) in &self.queries {

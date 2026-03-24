@@ -39,8 +39,7 @@ use serde::{Deserialize, Serialize};
 
 mod detector;
 // Re-export from fraiseql-db to avoid duplication
-pub use fraiseql_db::introspector::DatabaseIntrospector;
-pub use fraiseql_db::types::DatabaseType;
+pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
 pub use self::detector::FactTableDetector;
 
@@ -270,6 +269,42 @@ pub struct FactTableDeclarationMetadata {
     /// Whether this is a slowly changing dimension
     #[serde(default)]
     pub is_slowly_changing_dimension: bool,
+}
+
+/// Test helper: create a standard `tf_sales` fact table metadata.
+///
+/// Returns a `FactTableMetadata` with:
+/// - table_name: "tf_sales"
+/// - measures: revenue (Decimal), quantity (Int)
+/// - dimensions: "dimensions" column with empty paths
+/// - no denormalized filters
+/// - no calendar dimensions
+///
+/// Callers can customize the returned struct by modifying fields after creation.
+#[cfg(any(test, feature = "test-utils"))]
+#[must_use]
+pub fn test_sales_metadata() -> FactTableMetadata {
+    FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
+            MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            },
+            MeasureColumn {
+                name:     "quantity".to_string(),
+                sql_type: SqlType::Int,
+                nullable: false,
+            },
+        ],
+        dimensions:           DimensionColumn {
+            name:  "dimensions".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+    }
 }
 
 impl SqlType {

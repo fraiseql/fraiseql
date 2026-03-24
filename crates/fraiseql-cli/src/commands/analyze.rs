@@ -36,6 +36,10 @@ pub struct AnalysisSummary {
 }
 
 /// Run analyze command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(schema_path: &str) -> Result<CommandResult> {
     // Load schema file to verify it exists
     let schema_content = fs::read_to_string(schema_path)?;

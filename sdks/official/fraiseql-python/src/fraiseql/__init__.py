@@ -38,6 +38,7 @@ Example:
     ```
 """
 
+from fraiseql.config import load_config
 from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, subscription
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import error as error_decorator
@@ -46,8 +47,9 @@ from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
 from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
-from fraiseql.schema import config, export_schema, export_types
+from fraiseql.schema import Federation, config, export_schema, export_types, get_schema_dict
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
+from fraiseql.unset import UNSET, UNSET_TYPE
 from fraiseql.validators import (
     ScalarValidationError,
     get_all_custom_scalars,
@@ -70,6 +72,9 @@ __all__ = [
     "subscription",
     "field",
     "FieldConfig",
+    # UNSET sentinel
+    "UNSET",
+    "UNSET_TYPE",
     # Custom scalars
     "CustomScalar",
     # Scalar types
@@ -85,6 +90,10 @@ __all__ = [
     "config",
     "export_schema",
     "export_types",
+    "get_schema_dict",
+    "load_config",
+    # Federation
+    "Federation",
     # Scope validation (RBAC)
     "validate_scope",
     "ScopeValidationError",

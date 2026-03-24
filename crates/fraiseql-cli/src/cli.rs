@@ -433,17 +433,21 @@ EXAMPLES:
     /// take precedence over defaults.  The database URL is resolved in this order:
     /// --database flag > DATABASE_URL env var > [database].url in fraiseql.toml.
     #[cfg(feature = "run-server")]
-    #[command(after_help = "\
+    #[command(
+        alias = "serve",
+        after_help = "\
 EXAMPLES:
     fraiseql run
     fraiseql run fraiseql.toml --database postgres://localhost/mydb
     fraiseql run --port 3000 --watch
     fraiseql run schema.json --introspection
+    fraiseql run --read-only
 
 TOML CONFIG:
     [server]
     host = \"127.0.0.1\"
     port = 9000
+    read_only = true
 
     [server.cors]
     origins = [\"https://app.example.com\"]
@@ -451,14 +455,15 @@ TOML CONFIG:
     [database]
     url      = \"${DATABASE_URL}\"
     pool_min = 2
-    pool_max = 20")]
+    pool_max = 20"
+    )]
     Run {
         /// Input file path (fraiseql.toml or schema.json); auto-detected if omitted
         #[arg(value_name = "INPUT")]
         input: Option<String>,
 
         /// Database URL (overrides [database].url in fraiseql.toml and DATABASE_URL env var)
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Port to listen on (overrides [server].port in fraiseql.toml)
@@ -476,6 +481,58 @@ TOML CONFIG:
         /// Enable the GraphQL introspection endpoint (no auth required)
         #[arg(long)]
         introspection: bool,
+
+        /// Disable all mutations (read-only mode for demo/replica deployments)
+        #[arg(long)]
+        read_only: bool,
+    },
+
+    /// Generate OpenAPI 3.0.3 specification from compiled schema
+    ///
+    /// Reads a compiled schema with REST configuration and outputs an OpenAPI
+    /// specification documenting all REST endpoints, parameters, and schemas.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql openapi schema.compiled.json
+    fraiseql openapi schema.compiled.json -o openapi.json
+    fraiseql openapi schema.compiled.json -o -")]
+    Openapi {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output file path (use - for stdout)
+        #[arg(short, long, default_value = "openapi.json")]
+        output: String,
+    },
+
+    /// Generate gRPC proto, row-view migrations, and binary descriptor
+    ///
+    /// Reads a compiled schema and produces three files:
+    /// - service.proto: proto3 service definition
+    /// - vr_migrations.sql: row-shaped view DDL for the gRPC transport
+    /// - descriptor.binpb: serialized FileDescriptorSet for gRPC reflection
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate-proto schema.compiled.json
+    fraiseql generate-proto schema.compiled.json -o proto/
+    fraiseql generate-proto schema.compiled.json --package myapp.v1 --dialect mysql")]
+    GenerateProto {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output directory for generated files
+        #[arg(short, long, value_name = "DIR", default_value = "proto")]
+        output: String,
+
+        /// Protobuf package name
+        #[arg(long, value_name = "PACKAGE", default_value = "fraiseql.v1")]
+        package: String,
+
+        /// SQL dialect for row-view DDL (postgres, mysql, sqlite, sqlserver)
+        #[arg(long, value_name = "DIALECT", default_value = "postgres")]
+        dialect: String,
     },
 
     /// Validate a trusted documents manifest
@@ -491,16 +548,28 @@ EXAMPLES:
         manifest: String,
     },
 
-    /// Development server with hot-reload
-    #[command(hide = true)] // Hide until implemented
-    Serve {
-        /// Schema.json file path to watch
-        #[arg(value_name = "SCHEMA")]
+    /// Run diagnostic checks on your FraiseQL setup
+    ///
+    /// Validates configuration, connectivity, and common setup issues.
+    /// Checks: schema exists/parses/version, TOML config, DATABASE_URL,
+    /// database reachability, JWT secret, Redis, TLS, and cache+auth coherence.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql doctor
+    fraiseql doctor --config fraiseql.toml --schema schema.compiled.json
+    fraiseql doctor --json")]
+    Doctor {
+        /// Path to fraiseql.toml config file
+        #[arg(long, default_value = "fraiseql.toml")]
+        config: String,
+
+        /// Path to schema.compiled.json
+        #[arg(long, default_value = "schema.compiled.json")]
         schema: String,
 
-        /// Port to listen on
-        #[arg(short, long, default_value = "8080")]
-        port: u16,
+        /// Override DATABASE_URL for connectivity check
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
     },
 }
 
@@ -529,6 +598,25 @@ pub(crate) enum FederationCommands {
         /// Output format (json, dot, mermaid)
         #[arg(short, long, value_name = "FORMAT", default_value = "json")]
         format: String,
+    },
+
+    /// Start a federation gateway
+    ///
+    /// Loads a gateway configuration file, validates subgraph schemas,
+    /// and starts an HTTP server that routes GraphQL queries across
+    /// multiple FraiseQL subgraph instances.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql federation gateway gateway.toml
+    fraiseql federation gateway gateway.toml --check")]
+    Gateway {
+        /// Path to gateway configuration TOML file
+        #[arg(value_name = "CONFIG")]
+        config: String,
+
+        /// Validate configuration only, don't start the server
+        #[arg(long)]
+        check: bool,
     },
 }
 

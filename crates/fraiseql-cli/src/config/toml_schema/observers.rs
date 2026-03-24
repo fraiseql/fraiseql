@@ -52,4 +52,8 @@ pub struct EventHandler {
     pub max_retries:    Option<u32>,
     /// Handler description
     pub description:    Option<String>,
+    /// When `true`, the mutation waits for this observer to complete before
+    /// returning the response.  Defaults to `false` (fire-and-forget).
+    #[serde(default)]
+    pub synchronous:    Option<bool>,
 }

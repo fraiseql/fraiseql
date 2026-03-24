@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    FactTableMetadata, FraiseQLError, FrameBoundary, FrameExclusion, FrameType, OrderByClause,
+    OrderDirection, Result, SelectColumn, WhereClause, WindowExecutionPlan, WindowFrame,
+    WindowFunction, WindowFunctionType,
+};
 use crate::compiler::window_allowlist::WindowAllowlist;
 
 /// Window function plan generator
@@ -47,6 +51,11 @@ impl WindowFunctionPlanner {
     ///   "limit": 10
     /// }
     /// ```
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query JSON is missing required
+    /// fields, contains unsafe SQL expressions, or references columns not in the
+    /// schema allowlist.
     pub fn plan(
         query: &serde_json::Value,
         metadata: &FactTableMetadata,
@@ -266,6 +275,11 @@ impl WindowFunctionPlanner {
     }
 
     /// Validate window function plan
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the plan uses features unsupported
+    /// by the target database (e.g., `GROUPS` frame or `PERCENT_RANK` on SQLite).
     pub fn validate(
         plan: &WindowExecutionPlan,
         _metadata: &FactTableMetadata,

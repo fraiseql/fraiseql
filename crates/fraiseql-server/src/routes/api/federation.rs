@@ -69,7 +69,8 @@ fn default_format() -> String {
 pub async fn subgraphs_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<SubgraphsResponse>>, ApiError> {
-    let schema = state.executor.schema();
+    let executor = state.executor();
+    let schema = executor.schema();
     let federation = schema.federation.as_ref();
 
     let subgraphs = match federation {
@@ -122,7 +123,8 @@ pub async fn graph_handler<A: DatabaseAdapter>(
         _ => return Err(ApiError::validation_error("format must be 'json', 'dot', or 'mermaid'")),
     };
 
-    let schema = state.executor.schema();
+    let executor = state.executor();
+    let schema = executor.schema();
     let federation = schema.federation.as_ref();
 
     let content = generate_federation_graph(&format, federation);

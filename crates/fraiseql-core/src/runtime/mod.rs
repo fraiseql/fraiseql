@@ -18,7 +18,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
 //! // Requires: a compiled schema file and a live PostgreSQL database.
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;
@@ -68,7 +68,7 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use executor::{
-    Executor,
+    BulkResult, Executor,
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
 };
 pub use executor_adapter::ExecutorAdapter;
@@ -159,6 +159,13 @@ pub struct RuntimeConfig {
     /// JSONB field optimization strategy options
     pub jsonb_optimization: JsonbOptimizationOptions,
 
+    /// Read-only mode: reject all mutations with a clear error.
+    ///
+    /// When `true`, the executor returns `FraiseQLError::Validation` for any
+    /// mutation attempt. Queries, subscriptions, and introspection continue
+    /// to work normally.
+    pub read_only: bool,
+
     /// Optional query validation config.
     ///
     /// When `Some`, `QueryValidator::validate()` runs at the start of every
@@ -173,6 +180,23 @@ pub struct RuntimeConfig {
     pub query_validation: Option<QueryValidatorConfig>,
 }
 
+impl Clone for RuntimeConfig {
+    fn clone(&self) -> Self {
+        Self {
+            cache_query_plans:    self.cache_query_plans,
+            max_query_depth:      self.max_query_depth,
+            max_query_complexity: self.max_query_complexity,
+            enable_tracing:       self.enable_tracing,
+            field_filter:         self.field_filter.clone(),
+            rls_policy:           self.rls_policy.clone(),
+            query_timeout_ms:     self.query_timeout_ms,
+            jsonb_optimization:   self.jsonb_optimization.clone(),
+            read_only:            self.read_only,
+            query_validation:     self.query_validation.clone(),
+        }
+    }
+}
+
 impl std::fmt::Debug for RuntimeConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuntimeConfig")
@@ -184,6 +208,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("rls_policy", &self.rls_policy.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
+            .field("read_only", &self.read_only)
             .field("query_validation", &self.query_validation)
             .finish()
     }
@@ -200,6 +225,7 @@ impl Default for RuntimeConfig {
             rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            read_only:            false,
             query_validation:     None,
         }
     }

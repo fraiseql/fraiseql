@@ -9,13 +9,17 @@ namespace FraiseQL.Models;
 /// <param name="Name">The mutation name.</param>
 /// <param name="ReturnType">The GraphQL return type name.</param>
 /// <param name="SqlSource">The backing SQL function (e.g. <c>fn_create_author</c>).</param>
-/// <param name="Operation">The operation kind: <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
+/// <param name="Operation">The operation kind: <c>"CREATE"</c>, <c>"UPDATE"</c>, <c>"DELETE"</c>, <c>"CUSTOM"</c>, <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="InjectParams">Optional inject parameters, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="Rest">Optional REST annotation, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateMutation(
-    [property: JsonPropertyName("name")]        string Name,
-    [property: JsonPropertyName("return_type")] string ReturnType,
-    [property: JsonPropertyName("sql_source")]  string SqlSource,
-    [property: JsonPropertyName("operation")]   string Operation,
-    [property: JsonPropertyName("arguments")]   IReadOnlyList<IntermediateArgument> Arguments,
-    [property: JsonPropertyName("description")] string? Description = null);
+    [property: JsonPropertyName("name")]           string Name,
+    [property: JsonPropertyName("return_type")]    string ReturnType,
+    [property: JsonPropertyName("sql_source")]     string SqlSource,
+    [property: JsonPropertyName("operation")]      string Operation,
+    [property: JsonPropertyName("arguments")]      IReadOnlyList<IntermediateArgument> Arguments,
+    [property: JsonPropertyName("description")]    string? Description = null,
+    [property: JsonPropertyName("inject_params")]  Dictionary<string, Dictionary<string, string>>? InjectParams = null,
+    [property: JsonPropertyName("rest")]           RestAnnotation? Rest = null);

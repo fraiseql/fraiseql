@@ -1,0 +1,43 @@
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "total", "type": "Float", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_order",
+      "inject_params": {
+        "tenant_id": { "source": "jwt", "claim": "tenant_id" },
+        "read_scope": { "source": "jwt", "claim": "scope" }
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "create_order",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        { "name": "total", "type": "Float", "nullable": false }
+      ],
+      "sql_source": "fn_create_order",
+      "operation": "INSERT",
+      "inject_params": {
+        "tenant_id": { "source": "jwt", "claim": "tenant_id" },
+        "user_id": { "source": "jwt", "claim": "sub" }
+      }
+    }
+  ]
+}

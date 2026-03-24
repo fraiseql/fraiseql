@@ -84,6 +84,11 @@ defmodule FraiseQL.Schema do
     * `:relay` — boolean, enables Relay pagination support (default `false`)
     * `:is_input` — boolean, marks this as a GraphQL input type (default `false`)
     * `:is_error` — boolean, marks this as a mutation error shape (default `false`)
+    * `:tenant_scoped` — boolean, scopes this type to a tenant (default `false`)
+    * `:crud` — auto-generate CRUD operations; `true`, `false`, or list of strings
+      like `["read", "create", "update", "delete"]` (default `false`)
+    * `:key_fields` — list of federation key field names (default `nil`; defaults to `["id"]` at export)
+    * `:extends_type` — boolean, marks this type as extending a type from another subgraph (default `false`)
 
   ## Examples
 
@@ -115,7 +120,11 @@ defmodule FraiseQL.Schema do
           fields: Enum.reverse(@__fraiseql_field_buffer),
           is_input: unquote(Keyword.get(type_opts, :is_input, false)),
           relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false))
+          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
+          tenant_scoped: unquote(Keyword.get(type_opts, :tenant_scoped, false)),
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          key_fields: unquote(type_opts[:key_fields]),
+          extends_type: unquote(Keyword.get(type_opts, :extends_type, false))
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
@@ -132,7 +141,11 @@ defmodule FraiseQL.Schema do
           fields: [],
           is_input: unquote(Keyword.get(type_opts, :is_input, false)),
           relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false))
+          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
+          tenant_scoped: unquote(Keyword.get(type_opts, :tenant_scoped, false)),
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          key_fields: unquote(type_opts[:key_fields]),
+          extends_type: unquote(Keyword.get(type_opts, :extends_type, false))
         }
       end
     end
@@ -159,6 +172,7 @@ defmodule FraiseQL.Schema do
     * `:nullable` — boolean (default `false`)
     * `:cache_ttl_seconds` — optional integer TTL for caching
     * `:description` — optional human-readable description
+    * `:inject` — optional list of `"jwt:claim"` strings to inject as parameters
 
   ## Examples
 
@@ -176,6 +190,7 @@ defmodule FraiseQL.Schema do
   defmacro fraiseql_query(name, opts) do
     {block, query_opts} = Keyword.pop(opts, :do)
     query_name = Atom.to_string(name)
+    inject_params = parse_inject_option(query_opts[:inject])
 
     if block do
       quote do
@@ -194,7 +209,8 @@ defmodule FraiseQL.Schema do
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
           description: unquote(query_opts[:description]),
           rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method])
+          rest_method: unquote(query_opts[:rest_method]),
+          inject_params: unquote(Macro.escape(inject_params))
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -212,7 +228,8 @@ defmodule FraiseQL.Schema do
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
           description: unquote(query_opts[:description]),
           rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method])
+          rest_method: unquote(query_opts[:rest_method]),
+          inject_params: unquote(Macro.escape(inject_params))
         }
       end
     end
@@ -237,6 +254,7 @@ defmodule FraiseQL.Schema do
     * `:sql_source` — (required) the underlying function name
     * `:operation` — (required) one of `"insert"`, `"update"`, `"delete"`
     * `:description` — optional human-readable description
+    * `:inject` — optional list of `"jwt:claim"` strings to inject as parameters
 
   ## Examples
 
@@ -258,6 +276,7 @@ defmodule FraiseQL.Schema do
   defmacro fraiseql_mutation(name, opts) do
     {block, mutation_opts} = Keyword.pop(opts, :do)
     mutation_name = FraiseQL.TypeMapper.to_camel_case(name)
+    inject_params = parse_inject_option(mutation_opts[:inject])
 
     if block do
       quote do
@@ -274,7 +293,8 @@ defmodule FraiseQL.Schema do
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
           description: unquote(mutation_opts[:description]),
           rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method])
+          rest_method: unquote(mutation_opts[:rest_method]),
+          inject_params: unquote(Macro.escape(inject_params))
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -290,7 +310,8 @@ defmodule FraiseQL.Schema do
           arguments: [],
           description: unquote(mutation_opts[:description]),
           rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method])
+          rest_method: unquote(mutation_opts[:rest_method]),
+          inject_params: unquote(Macro.escape(inject_params))
         }
       end
     end
@@ -375,6 +396,182 @@ defmodule FraiseQL.Schema do
   end
 
   # ---------------------------------------------------------------------------
+  # inject option parser
+  # ---------------------------------------------------------------------------
+
+  @doc false
+  @spec parse_inject_option(nil | [String.t()]) :: nil | [map()]
+  def parse_inject_option(nil), do: nil
+  def parse_inject_option([]), do: nil
+
+  def parse_inject_option(inject_list) when is_list(inject_list) do
+    Enum.map(inject_list, fn spec ->
+      case String.split(spec, ":", parts: 2) do
+        [source, path] ->
+          %{"name" => path, "source" => source, "path" => path}
+
+        _ ->
+          raise ArgumentError,
+                "invalid inject spec #{inspect(spec)}: expected \"source:path\" format, e.g. \"jwt:tenant_id\""
+      end
+    end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # CRUD generation helpers
+  # ---------------------------------------------------------------------------
+
+  @doc false
+  def pascal_to_snake(name) do
+    name
+    |> String.replace(~r/([A-Z])/, "_\\1")
+    |> String.downcase()
+    |> String.trim_leading("_")
+  end
+
+  @doc """
+  Pluralizes a snake_case name using basic English rules.
+
+  Rules (ordered):
+  1. Already ends in 's' (but not 'ss') → no change (e.g. 'statistics')
+  2. Ends in 'ss', 'sh', 'ch', 'x', 'z' → append 'es'
+  3. Ends in consonant + 'y' → replace 'y' with 'ies'
+  4. Default → append 's'
+  """
+  @spec pluralize(String.t()) :: String.t()
+  def pluralize(name) do
+    cond do
+      String.ends_with?(name, "s") and not String.ends_with?(name, "ss") ->
+        name
+
+      String.ends_with?(name, ["ss", "sh", "ch", "x", "z"]) ->
+        name <> "es"
+
+      String.ends_with?(name, "y") and byte_size(name) >= 2 and
+          String.at(name, String.length(name) - 2) not in ~w(a e i o u) ->
+        String.slice(name, 0..-2//1) <> "ies"
+
+      true ->
+        name <> "s"
+    end
+  end
+
+  defp generate_crud_operations(types) do
+    Enum.reduce(types, {[], []}, fn type, {queries_acc, mutations_acc} ->
+      case type.crud do
+        false ->
+          {queries_acc, mutations_acc}
+
+        true ->
+          {q, m} = generate_all_crud(type)
+          {queries_acc ++ q, mutations_acc ++ m}
+
+        ops when is_list(ops) ->
+          {q, m} = generate_selective_crud(type, ops)
+          {queries_acc ++ q, mutations_acc ++ m}
+      end
+    end)
+  end
+
+  defp generate_all_crud(type) do
+    generate_selective_crud(type, ["read", "create", "update", "delete"])
+  end
+
+  defp generate_selective_crud(type, ops) do
+    snake = pascal_to_snake(type.name)
+
+    queries =
+      if "read" in ops do
+        [
+          %FraiseQL.QueryDefinition{
+            name: snake,
+            return_type: type.name,
+            sql_source: type.sql_source,
+            returns_list: false,
+            nullable: true,
+            arguments: [
+              %FraiseQL.ArgumentDefinition{name: "id", type: "ID", nullable: false}
+            ]
+          },
+          %FraiseQL.QueryDefinition{
+            name: pluralize(snake),
+            return_type: type.name,
+            sql_source: type.sql_source,
+            returns_list: true,
+            nullable: false,
+            arguments: []
+          }
+        ]
+      else
+        []
+      end
+
+    mutations =
+      Enum.flat_map(ops -- ["read"], fn op ->
+        case op do
+          "create" ->
+            [
+              %FraiseQL.MutationDefinition{
+                name: FraiseQL.TypeMapper.to_camel_case(:"create_#{snake}"),
+                return_type: type.name,
+                sql_source: "fn_create_#{snake}",
+                operation: "insert",
+                arguments: build_create_args(type.fields)
+              }
+            ]
+
+          "update" ->
+            [
+              %FraiseQL.MutationDefinition{
+                name: FraiseQL.TypeMapper.to_camel_case(:"update_#{snake}"),
+                return_type: type.name,
+                sql_source: "fn_update_#{snake}",
+                operation: "update",
+                arguments: [
+                  %FraiseQL.ArgumentDefinition{name: "id", type: "ID", nullable: false}
+                  | build_update_args(type.fields)
+                ]
+              }
+            ]
+
+          "delete" ->
+            [
+              %FraiseQL.MutationDefinition{
+                name: FraiseQL.TypeMapper.to_camel_case(:"delete_#{snake}"),
+                return_type: type.name,
+                sql_source: "fn_delete_#{snake}",
+                operation: "delete",
+                arguments: [
+                  %FraiseQL.ArgumentDefinition{name: "id", type: "ID", nullable: false}
+                ]
+              }
+            ]
+
+          _ ->
+            []
+        end
+      end)
+
+    {queries, mutations}
+  end
+
+  defp build_create_args(fields) do
+    fields
+    |> Enum.reject(&(&1.name == "id"))
+    |> Enum.map(fn f ->
+      %FraiseQL.ArgumentDefinition{name: f.name, type: f.type, nullable: f.nullable}
+    end)
+  end
+
+  defp build_update_args(fields) do
+    fields
+    |> Enum.reject(&(&1.name == "id"))
+    |> Enum.map(fn f ->
+      %FraiseQL.ArgumentDefinition{name: f.name, type: f.type, nullable: true}
+    end)
+  end
+
+  # ---------------------------------------------------------------------------
   # @before_compile — inject accessor functions
   # ---------------------------------------------------------------------------
 
@@ -383,6 +580,10 @@ defmodule FraiseQL.Schema do
     types = Module.get_attribute(env.module, :fraiseql_types) |> Enum.reverse()
     queries = Module.get_attribute(env.module, :fraiseql_queries) |> Enum.reverse()
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
+
+    {crud_queries, crud_mutations} = generate_crud_operations(types)
+    queries = queries ++ crud_queries
+    mutations = mutations ++ crud_mutations
 
     validate_no_duplicate_types!(types, env.module)
 

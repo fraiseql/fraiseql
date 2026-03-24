@@ -54,6 +54,10 @@ struct CargoLock {
 }
 
 /// Run the SBOM command
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(format: SbomFormat, output: Option<&str>) -> Result<()> {
     info!("Generating SBOM in {format} format");
 

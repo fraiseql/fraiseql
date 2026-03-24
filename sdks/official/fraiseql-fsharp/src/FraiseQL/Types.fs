@@ -50,6 +50,12 @@ type TypeDefinition =
         relay: bool
         /// True if this type models a mutation error response.
         is_error: bool
+        /// True if this type is scoped to a tenant for multi-tenant schemas.
+        tenant_scoped: bool
+        /// Federation key fields for entity resolution (empty when not set).
+        key_fields: string[]
+        /// True if this type extends a type defined in another subgraph.
+        extends_type: bool
     }
 
 /// Represents a GraphQL query (read operation).
@@ -72,6 +78,10 @@ type QueryDefinition =
         cache_ttl_seconds: int option
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint path for this query.
+        rest_path: string option
+        /// Optional HTTP method for the REST endpoint.
+        rest_method: string option
     }
 
 /// Represents a GraphQL mutation (write operation).
@@ -90,6 +100,10 @@ type MutationDefinition =
         arguments: ArgumentDefinition list
         /// Optional human-readable description for introspection.
         description: string option
+        /// Optional REST endpoint path for this mutation.
+        rest_path: string option
+        /// Optional HTTP method for the REST endpoint.
+        rest_method: string option
     }
 
 /// The root schema record serialized to schema.json.
@@ -105,6 +119,25 @@ type IntermediateSchema =
         /// All GraphQL mutations defined in this schema.
         mutations: MutationDefinition list
     }
+
+/// Three-state field for update mutation inputs.
+/// Distinguishes "not provided" from "explicitly null" from "has value".
+[<RequireQualifiedAccess>]
+type UpdateField<'T> =
+    | Unset
+    | Null
+    | Value of 'T
+
+module UpdateField =
+    let isUnset = function UpdateField.Unset -> true | _ -> false
+    let isNull = function UpdateField.Null -> true | _ -> false
+    let isValue = function UpdateField.Value _ -> true | _ -> false
+    let getValue = function
+        | UpdateField.Value v -> v
+        | _ -> failwith "Cannot get value from Unset or Null UpdateField"
+    let getValueOr defaultVal = function
+        | UpdateField.Value v -> v
+        | _ -> defaultVal
 
 /// Discriminated union of all GraphQL scalar types.
 type GraphQLScalar =

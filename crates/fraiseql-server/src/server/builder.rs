@@ -23,18 +23,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// // Requires: running PostgreSQL database and compiled schema file.
-    /// # use std::sync::Arc;
-    /// # use fraiseql_server::{Server, ServerConfig};
-    /// # use fraiseql_core::schema::CompiledSchema;
+    /// ```ignore
+    /// // Requires a running PostgreSQL database and a compiled schema file on disk.
+    /// use std::sync::Arc;
+    /// use fraiseql_server::{Server, ServerConfig};
+    /// use fraiseql_core::schema::CompiledSchema;
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let config = ServerConfig::default();
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     ///
     /// let server = Server::new(config, schema, adapter, None).await?;
-    /// server.serve().await?;
+    /// server.serve_mut().await?; // or server.serve() for read-only mode
     /// # Ok(())
     /// # }
     /// ```
@@ -113,7 +114,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Read subscription config from compiled schema (hooks, limits).
         let subscriptions_config = schema.subscriptions_config.clone();
 
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let runtime_config = fraiseql_core::runtime::RuntimeConfig {
+            read_only: config.read_only,
+            ..fraiseql_core::runtime::RuntimeConfig::default()
+        };
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -155,6 +160,29 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "MCP server configured"
                 );
                 server.mcp_config = Some(cfg.clone());
+            }
+        }
+
+        // Initialize gRPC service from compiled schema when the feature is compiled in.
+        #[cfg(feature = "grpc")]
+        {
+            match crate::routes::grpc::build_grpc_service(
+                Arc::new(server.executor.schema().clone()),
+                server.executor.adapter().clone(),
+                server.oidc_validator.clone(),
+                server.rate_limiter.clone(),
+            ) {
+                Ok(Some(grpc_services)) => {
+                    info!(service = %grpc_services.service_name, "gRPC transport service initialized");
+                    server.grpc_service = Some(grpc_services.service);
+                    server.grpc_reflection_bytes = grpc_services.reflection_descriptor_bytes;
+                },
+                Ok(None) => {
+                    // gRPC not configured or disabled — no-op.
+                },
+                Err(e) => {
+                    warn!("gRPC transport initialization failed: {e}");
+                },
             }
         }
 
@@ -317,6 +345,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
             #[cfg(feature = "arrow")]
             flight_service,
+            #[cfg(feature = "grpc")]
+            grpc_service: None,
+            #[cfg(feature = "grpc")]
+            grpc_reflection_bytes: None,
             #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,

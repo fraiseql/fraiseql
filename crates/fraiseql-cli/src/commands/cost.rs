@@ -24,6 +24,10 @@ pub struct CostResponse {
 }
 
 /// Run cost command (minimal complexity analysis)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(query: &str) -> Result<CommandResult> {
     // Validate query syntax
     let _parsed = parse_query(query)?;

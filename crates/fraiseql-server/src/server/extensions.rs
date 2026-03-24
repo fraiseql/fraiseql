@@ -26,12 +26,18 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// // Requires: running PostgreSQL database and compiled schema file.
+    /// ```ignore
+    /// // Requires a running PostgreSQL database and a compiled schema file on disk.
+    /// use std::sync::Arc;
+    /// use fraiseql_server::{Server, ServerConfig};
+    /// use fraiseql_core::schema::CompiledSchema;
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config = ServerConfig::default();
+    /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
-    /// server.serve().await?;
+    /// server.serve_mut().await?; // or server.serve() for read-only mode
     /// # Ok(())
     /// # }
     /// ```
@@ -134,7 +140,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+        #[allow(unused_variables)]
+        // Reason: db_pool is only used when the "observers" or "arrow" features are enabled
+        db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
@@ -268,6 +276,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             flight_service,
+            #[cfg(feature = "grpc")]
+            grpc_service: None,
+            #[cfg(feature = "grpc")]
+            grpc_reflection_bytes: None,
         })
     }
 

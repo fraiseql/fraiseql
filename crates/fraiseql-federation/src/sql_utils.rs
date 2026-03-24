@@ -25,14 +25,20 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 /// - Null: converted to "NULL"
 /// - Arrays/Objects: returns error
 ///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the value is an array or object.
+///
 /// # Examples
 ///
-/// ```no_run
-/// // Requires: fraiseql_core crate context. See unit tests below for runnable examples.
-/// value_to_sql_literal(&json!("test")) // produces "'test'"
-/// value_to_sql_literal(&json!("O'Brien")) // produces "'O''Brien'"
-/// value_to_sql_literal(&json!(123)) // produces "123"
-/// value_to_sql_literal(&json!(null)) // produces "NULL"
+/// ```
+/// use fraiseql_federation::sql_utils::value_to_sql_literal;
+/// use serde_json::json;
+///
+/// assert_eq!(value_to_sql_literal(&json!("test")).unwrap(), "'test'");
+/// assert_eq!(value_to_sql_literal(&json!("O'Brien")).unwrap(), "'O''Brien'");
+/// assert_eq!(value_to_sql_literal(&json!(123)).unwrap(), "123");
+/// assert_eq!(value_to_sql_literal(&json!(null)).unwrap(), "NULL");
 /// ```
 pub fn value_to_sql_literal(value: &Value) -> Result<String> {
     match value {
@@ -54,12 +60,18 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
 ///
 /// This is used for extracting key values before they are escaped and quoted.
 ///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the value is an array or object.
+///
 /// # Examples
 ///
-/// ```no_run
-/// // Requires: fraiseql_core crate context. See unit tests below for runnable examples.
-/// value_to_string(&json!("test")) // produces "test"
-/// value_to_string(&json!(123)) // produces "123"
+/// ```
+/// use fraiseql_federation::sql_utils::value_to_string;
+/// use serde_json::json;
+///
+/// assert_eq!(value_to_string(&json!("test")).unwrap(), "test");
+/// assert_eq!(value_to_string(&json!(123)).unwrap(), "123");
 /// ```
 pub fn value_to_string(value: &Value) -> Result<String> {
     match value {

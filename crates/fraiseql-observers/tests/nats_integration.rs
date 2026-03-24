@@ -10,10 +10,10 @@
 //!    docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Run tests:
+//! 2. Run tests (the env var disables SSRF localhost blocking):
 //!
 //!    ```bash
-//!    cargo test --test nats_integration --features nats -- --ignored
+//!    FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored
 //!    ```
 
 #![allow(unused_imports)]
@@ -83,7 +83,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_connection() {
         let config = NatsConfig {
             consumer_name: format!("test-connection-{}", Uuid::new_v4()),
@@ -99,7 +99,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_health_check() {
         let config = NatsConfig {
             consumer_name: format!("test-health-{}", Uuid::new_v4()),
@@ -117,7 +117,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_publish_subscribe() {
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
@@ -163,7 +163,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_entity_type_filter() {
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
@@ -216,7 +216,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_operation_filter() {
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
@@ -291,7 +291,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_multiple_events() {
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
@@ -340,7 +340,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_durable_consumer() {
         let test_id = Uuid::new_v4();
         let stream_name = format!("test-durable-stream-{test_id}");
@@ -402,7 +402,7 @@ mod nats_tests {
     ///
     /// Requires: NATS server running on localhost:4222
     #[tokio::test]
-    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_event_with_user_id() {
         let test_id = Uuid::new_v4();
         let config = NatsConfig {

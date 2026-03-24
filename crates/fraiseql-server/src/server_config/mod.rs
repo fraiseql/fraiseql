@@ -28,6 +28,7 @@ use crate::middleware::RateLimitConfig;
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
     #[serde(default = "defaults::default_schema_path")]
@@ -48,6 +49,14 @@ pub struct ServerConfig {
     #[cfg(feature = "arrow")]
     #[serde(default = "defaults::default_flight_bind_addr")]
     pub flight_bind_addr: SocketAddr,
+
+    /// gRPC transport bind address (requires `grpc` feature).
+    ///
+    /// Defaults to `0.0.0.0:50052`. Override with `FRAISEQL_GRPC_BIND_ADDR`
+    /// environment variable or this field in the config file.
+    #[cfg(feature = "grpc")]
+    #[serde(default = "defaults::default_grpc_bind_addr")]
+    pub grpc_bind_addr: SocketAddr,
 
     /// Enable CORS.
     #[serde(default = "defaults::default_true")]
@@ -186,6 +195,18 @@ pub struct ServerConfig {
     /// characters. Requires `admin_api_enabled = true` and `admin_token` set.
     #[serde(default)]
     pub admin_readonly_token: Option<String>,
+
+    /// Read-only mode: disable all GraphQL and REST mutations.
+    ///
+    /// When enabled, the server rejects any mutation with a clear error message.
+    /// Queries, subscriptions, and introspection continue to work normally.
+    ///
+    /// Useful for public demo instances and read-replica deployments.
+    ///
+    /// Also configurable via `FRAISEQL_READ_ONLY=true` environment variable
+    /// or `--read-only` CLI flag.
+    #[serde(default)]
+    pub read_only: bool,
 
     /// Enable introspection endpoint (default: false for production safety).
     ///
@@ -398,6 +419,8 @@ impl Default for ServerConfig {
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]
             flight_bind_addr: defaults::default_flight_bind_addr(),
+            #[cfg(feature = "grpc")]
+            grpc_bind_addr: defaults::default_grpc_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: true,
@@ -420,16 +443,17 @@ impl Default for ServerConfig {
             admin_api_enabled: false, // Disabled by default for security
             admin_token: None,
             admin_readonly_token: None,
-            introspection_enabled: false, // Disabled by default for security
+            read_only: false,                 // Mutations allowed by default
+            introspection_enabled: false,     // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
-            design_api_require_auth: true, // Require auth for design endpoints
+            design_api_require_auth: true,    // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,                                               // No auth by default
-            tls: None,                                                // TLS disabled by default
-            database_tls: None,                                       /* Database TLS disabled
-                                                                       * by default */
+            auth: None, // No auth by default
+            tls: None,  // TLS disabled by default
+            database_tls: None, /* Database TLS disabled
+                         * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
             rate_limiting: None,             // Rate limiting uses defaults

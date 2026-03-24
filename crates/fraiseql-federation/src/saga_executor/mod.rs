@@ -55,17 +55,20 @@
 //! # Example
 //!
 //! ```no_run
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
+//! use fraiseql_federation::saga_executor::SagaExecutor;
+//! use uuid::Uuid;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let executor = SagaExecutor::new();
+//! let saga_id = Uuid::new_v4();
 //!
 //! // Execute a single step
 //! let result = executor.execute_step(
 //!     saga_id,
 //!     1,
 //!     "createOrder",
-//!     &json!({"customerId": "c123", "total": 100.0}),
-//!     "orders-service"
+//!     &serde_json::json!({"customerId": "c123", "total": 100.0}),
+//!     "orders-service",
 //! ).await?;
 //!
 //! if result.success {
@@ -73,6 +76,8 @@
 //! } else {
 //!     println!("Step 1 failed: {}", result.error.unwrap());
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use std::{sync::Arc, time::Instant};

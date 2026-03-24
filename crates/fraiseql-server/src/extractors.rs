@@ -8,7 +8,10 @@ use axum::{
     extract::{FromRequestParts, rejection::ExtensionRejection},
     http::request::Parts,
 };
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::{
+    schema::DevConfig,
+    security::{SecurityContext, is_dev_mode_active, security_context_from_dev_claims},
+};
 
 use crate::middleware::AuthUser;
 
@@ -24,12 +27,18 @@ use crate::middleware::AuthUser;
 /// # Example
 ///
 /// ```no_run
-/// // Requires: running Axum server with authentication middleware configured.
+/// use axum::extract::State;
+/// use axum::response::Response;
+/// use fraiseql_server::extractors::OptionalSecurityContext;
+///
+/// // In an Axum handler, extract the optional security context:
 /// async fn graphql_handler(
-///     State(state): State<AppState>,
 ///     OptionalSecurityContext(context): OptionalSecurityContext,
-/// ) -> Result<Response> {
-///     // context is Option<SecurityContext>
+/// ) -> String {
+///     match context {
+///         Some(ctx) => format!("user: {}", ctx.request_id),
+///         None => "anonymous".to_string(),
+///     }
 /// }
 /// ```
 #[derive(Debug, Clone)]
@@ -65,6 +74,22 @@ where
                 context.tenant_id = tenant_id;
                 context
             });
+
+            // If no auth and dev mode is active, inject synthetic security context
+            let security_context = if security_context.is_none() {
+                let dev_config = parts.extensions.get::<DevConfig>();
+                if is_dev_mode_active(dev_config) {
+                    let claims = &dev_config
+                        .expect("dev_config checked by is_dev_mode_active")
+                        .default_claims;
+                    let request_id = extract_request_id(headers);
+                    Some(security_context_from_dev_claims(claims, request_id))
+                } else {
+                    None
+                }
+            } else {
+                security_context
+            };
 
             Ok(OptionalSecurityContext(security_context))
         }

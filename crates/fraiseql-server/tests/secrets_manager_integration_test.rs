@@ -1,5 +1,5 @@
 //! Integration tests for `SecretsManager` initialization and wiring into `AppState`.
-//!
+#![cfg(feature = "secrets")]
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
@@ -57,7 +57,7 @@ async fn test_env_backend_initialization() {
 async fn test_vault_backend_token_initialization() {
     let config = SecretsBackendConfig::Vault {
         addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string()),
+        auth:       VaultAuth::Token("test-token".to_string().into()),
         namespace:  None,
         tls_verify: true,
     };
@@ -76,7 +76,7 @@ async fn test_vault_backend_approle_initialization() {
         addr:       "http://127.0.0.1:8200".to_string(),
         auth:       VaultAuth::AppRole {
             role_id:   "test-role-id".to_string(),
-            secret_id: "test-secret-id".to_string(),
+            secret_id: "test-secret-id".to_string().into(),
         },
         namespace:  None,
         tls_verify: true,
@@ -92,7 +92,7 @@ async fn test_vault_backend_approle_initialization() {
 async fn test_vault_namespace_configuration() {
     let config = SecretsBackendConfig::Vault {
         addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string()),
+        auth:       VaultAuth::Token("test-token".to_string().into()),
         namespace:  Some("fraiseql/prod".to_string()),
         tls_verify: true,
     };
@@ -107,7 +107,7 @@ async fn test_vault_namespace_configuration() {
 async fn test_vault_tls_verification_disabled() {
     let config = SecretsBackendConfig::Vault {
         addr:       "https://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string()),
+        auth:       VaultAuth::Token("test-token".to_string().into()),
         namespace:  None,
         tls_verify: false,
     };

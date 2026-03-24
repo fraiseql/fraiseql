@@ -75,7 +75,7 @@ async fn handle_query(
                                 correlation_id,
                                 &format!("Conversion error: {e}"),
                             )
-                            .await
+                            .await;
                         },
                     }
                 },

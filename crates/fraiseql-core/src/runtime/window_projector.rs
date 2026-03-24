@@ -71,6 +71,11 @@ impl WindowProjector {
     /// // let result = WindowProjector::project(rows, &plan)?;
     /// // result: [{"revenue": 100.00, "category": "Electronics", "rank": 1}]
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible in practice; the `Result` wrapper is reserved
+    /// for future type-coercion and alias-mapping extensions.
     pub fn project(
         rows: Vec<HashMap<String, Value>>,
         _plan: &WindowExecutionPlan,

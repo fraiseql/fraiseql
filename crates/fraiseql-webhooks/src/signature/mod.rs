@@ -51,6 +51,13 @@ pub enum SignatureError {
 ///
 /// Uses the `subtle` crate for verified constant-time operations,
 /// including length-independent comparison.
+///
+/// ```
+/// use fraiseql_webhooks::signature::constant_time_eq;
+///
+/// assert!(constant_time_eq(b"secret", b"secret"));
+/// assert!(!constant_time_eq(b"secret", b"wrong"));
+/// ```
 #[must_use]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;

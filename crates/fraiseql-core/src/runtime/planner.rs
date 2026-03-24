@@ -74,10 +74,18 @@ impl QueryPlanner {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: a QueryMatch from compiled schema matching.
+    /// # use fraiseql_core::runtime::{QueryPlanner, QueryMatcher, QueryMatch};
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let json = std::fs::read_to_string("schema.compiled.json")?;
+    /// # let schema = CompiledSchema::from_json(&json)?;
+    /// # let matcher = QueryMatcher::new(schema);
+    /// # let query_match = matcher.match_query("{ users { id } }", None)?;
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn plan(&self, query_match: &QueryMatch) -> Result<ExecutionPlan> {
         // Note: FraiseQL uses compiled SQL templates, so "query planning" means
@@ -138,6 +146,8 @@ impl QueryPlanner {
         // Select all data — projection happens later in the execution pipeline
         let fields_sql = "data".to_string();
 
+        // SAFETY: table (sql_source) is schema-derived (from CompiledSchema, validated at
+        // compile time), not user input.
         format!("SELECT {fields_sql} FROM {table}")
     }
 
@@ -195,6 +205,8 @@ mod tests {
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {
@@ -221,7 +233,7 @@ mod tests {
             }],
             arguments:      HashMap::new(),
             operation_name: Some("users".to_string()),
-            parsed_query:   ParsedQuery {
+            parsed_query:   Some(ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
                 root_field:     "users".to_string(),
@@ -229,7 +241,7 @@ mod tests {
                 variables:      vec![],
                 fragments:      vec![],
                 source:         "{ users { id name } }".to_string(),
-            },
+            }),
         }
     }
 

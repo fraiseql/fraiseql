@@ -1,8 +1,9 @@
 {
     "name": "fraiseql/fraiseql",
-    "description": "FraiseQL PHP SDK — schema authoring and client library",
+    "description": "FraiseQL schema authoring SDK for PHP",
     "type": "library",
     "license": "MIT",
+    "homepage": "https://github.com/fraiseql/fraiseql",
     "authors": [
         {
             "name": "FraiseQL Team",
@@ -33,7 +34,10 @@
         "bin/fraiseql"
     ],
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.0"
+        }
     },
     "minimum-stability": "stable"
 }

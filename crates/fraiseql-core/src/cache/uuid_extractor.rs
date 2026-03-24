@@ -82,6 +82,10 @@ impl UUIDExtractor {
     /// - `Ok(None)` - No UUID found (e.g., null response)
     /// - `Err(_)` - Invalid UUID format
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the response contains a structurally invalid UUID value.
+    ///
     /// # Examples
     ///
     /// ```
@@ -127,6 +131,10 @@ impl UUIDExtractor {
     /// # Returns
     ///
     /// List of extracted UUIDs (empty if none found)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if any element contains a structurally invalid UUID value.
     ///
     /// # Examples
     ///

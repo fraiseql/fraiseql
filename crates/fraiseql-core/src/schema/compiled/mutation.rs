@@ -97,6 +97,42 @@ pub struct MutationDefinition {
     /// Each entry must be a valid SQL identifier validated at compile time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// Whether this mutation returns cascade data in its response.
+    ///
+    /// When `true`, the mutation executor includes the `cascade` JSONB from the
+    /// database function's `mutation_response` row in the GraphQL response, and
+    /// triggers entity-level cache invalidation via `invalidate_cascade_entities`.
+    ///
+    /// Set via `@fraiseql.mutation(cascade=True)` in the authoring layer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cascade: bool,
+
+    /// Custom REST path override (from `@fraiseql.mutation(rest_path="/custom/path")`).
+    ///
+    /// When set, the REST transport uses this path instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_path: Option<String>,
+
+    /// Custom REST HTTP method override (from `@fraiseql.mutation(rest_method="PUT")`).
+    ///
+    /// When set, the REST transport uses this method instead of the auto-derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_method: Option<String>,
+
+    /// Unique constraint columns for upsert conflict resolution.
+    ///
+    /// Populated by the compiler from database introspection.  When non-empty,
+    /// the REST transport allows `Prefer: resolution=merge-duplicates` on POST.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conflict_targets: Vec<crate::schema::config_types::ConflictTarget>,
+
+    /// Compiler-generated upsert function name (e.g., `"fn_upsert_user"`).
+    ///
+    /// `None` means upsert is not available for this mutation.  The function
+    /// delegates to `fn_create_*` / `fn_update_*` internally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upsert_function: Option<String>,
 }
 
 impl MutationDefinition {
@@ -114,6 +150,11 @@ impl MutationDefinition {
             inject_params:           IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
+            cascade:                 false,
+            rest_path:               None,
+            rest_method:             None,
+            conflict_targets:        Vec::new(),
+            upsert_function:         None,
         }
     }
 
@@ -174,4 +215,77 @@ pub enum MutationOperation {
     /// Custom mutation (for complex operations).
     #[default]
     Custom,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rest_path_defaults_none() {
+        let m = MutationDefinition::new("createUser", "User");
+        assert!(m.rest_path.is_none());
+        assert!(m.rest_method.is_none());
+    }
+
+    #[test]
+    fn test_rest_path_roundtrip() {
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.rest_path = Some("/users".to_string());
+        m.rest_method = Some("PUT".to_string());
+        let json = serde_json::to_string(&m).unwrap();
+        let restored: MutationDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.rest_path.as_deref(), Some("/users"));
+        assert_eq!(restored.rest_method.as_deref(), Some("PUT"));
+    }
+
+    #[test]
+    fn test_deserialization_without_rest_fields() {
+        let json = r#"{"name":"createUser","return_type":"User"}"#;
+        let m: MutationDefinition = serde_json::from_str(json).unwrap();
+        assert!(m.rest_path.is_none());
+        assert!(m.rest_method.is_none());
+    }
+
+    #[test]
+    fn test_conflict_targets_default_empty() {
+        let m = MutationDefinition::new("createUser", "User");
+        assert!(m.conflict_targets.is_empty());
+        assert!(m.upsert_function.is_none());
+    }
+
+    #[test]
+    fn test_conflict_targets_roundtrip() {
+        use crate::schema::config_types::ConflictTarget;
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.conflict_targets = vec![ConflictTarget {
+            name:    "uq_user_email".to_string(),
+            columns: vec!["email".to_string()],
+        }];
+        m.upsert_function = Some("fn_upsert_user".to_string());
+
+        let json = serde_json::to_string(&m).unwrap();
+        let restored: MutationDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.conflict_targets.len(), 1);
+        assert_eq!(restored.conflict_targets[0].name, "uq_user_email");
+        assert_eq!(restored.conflict_targets[0].columns, vec!["email"]);
+        assert_eq!(restored.upsert_function.as_deref(), Some("fn_upsert_user"));
+    }
+
+    #[test]
+    fn test_deserialization_without_conflict_fields() {
+        let json = r#"{"name":"createUser","return_type":"User"}"#;
+        let m: MutationDefinition = serde_json::from_str(json).unwrap();
+        assert!(m.conflict_targets.is_empty());
+        assert!(m.upsert_function.is_none());
+    }
+
+    #[test]
+    fn test_conflict_targets_skipped_when_empty() {
+        let m = MutationDefinition::new("createUser", "User");
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(!json.contains("conflict_targets"));
+        assert!(!json.contains("upsert_function"));
+    }
 }

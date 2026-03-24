@@ -226,7 +226,11 @@ impl RBACPolicy {
         self.roles.insert(role.name.clone(), role);
     }
 
-    /// Check if a user has permission to perform an operation
+    /// Check if a user has permission to perform an operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if none of the user's roles grant the required permission.
     pub fn authorize(
         &self,
         user: &AuthenticatedUser,
@@ -253,7 +257,11 @@ impl RBACPolicy {
         })
     }
 
-    /// Check multiple permissions at once
+    /// Check multiple permissions at once.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if the user does not have any of the listed permissions.
     pub fn authorize_any(
         &self,
         user: &AuthenticatedUser,
@@ -270,7 +278,11 @@ impl RBACPolicy {
         })
     }
 
-    /// Check that user has all permissions
+    /// Check that user has all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::Forbidden` if the user lacks any of the required permissions.
     pub fn authorize_all(
         &self,
         user: &AuthenticatedUser,
@@ -338,8 +350,7 @@ impl RBACPolicy {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
     use crate::jwt::Claims;
 

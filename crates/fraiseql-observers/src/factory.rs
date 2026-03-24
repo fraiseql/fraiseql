@@ -23,18 +23,25 @@
 //! # Examples
 //!
 //! ```no_run
-//! // Requires: Redis (when dedup/caching enabled) and a config.toml file.
-//! use fraiseql_observers::factory::ExecutorFactory;
+//! use std::sync::Arc;
+//! use fraiseql_observers::factory::{ExecutorFactory, ProcessEvent};
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
+//! use fraiseql_observers::DeadLetterQueue;
+//! use fraiseql_observers::event::{EntityEvent, EventKind};
 //!
-//! // Load configuration
-//! # async fn example() -> fraiseql_observers::Result<()> {
-//! let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
+//! # async fn example(dlq: Arc<dyn DeadLetterQueue>) -> fraiseql_observers::Result<()> {
+//! let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
 //!
 //! // Build executor stack (automatically wraps based on config)
-//! let executor_stack = ExecutorFactory::build(&config).await?;
+//! let executor_stack = ExecutorFactory::build(&config, dlq).await?;
 //!
 //! // Process events
+//! let event = EntityEvent::new(
+//!     EventKind::Created,
+//!     "Order".to_string(),
+//!     uuid::Uuid::new_v4(),
+//!     serde_json::json!({"total": 100}),
+//! );
 //! executor_stack.process_event(&event).await?;
 //! # Ok(())
 //! # }
@@ -90,12 +97,10 @@ impl ExecutorFactory {
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
     /// # use std::sync::Arc;
-    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
-    /// # async fn example() -> fraiseql_observers::Result<()> {
-    /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
-    /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
+    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig, DeadLetterQueue};
+    /// # async fn example(dlq: Arc<dyn DeadLetterQueue>) -> fraiseql_observers::Result<()> {
+    /// let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
     ///
     /// // Automatically wraps with dedup/cache based on config
     /// let executor = ExecutorFactory::build(&config, dlq).await?;
@@ -145,6 +150,10 @@ impl ExecutorFactory {
     ///
     /// This is a fallback when features are not enabled. It returns a simple
     /// `ObserverExecutor` without any wrappers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(all(feature = "dedup", feature = "caching")))]
     pub async fn build(
         config: &ObserverRuntimeConfig,
@@ -179,6 +188,10 @@ impl ExecutorFactory {
     }
 
     /// Build Redis job queue from config
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if validation or Redis connection fails.
     #[cfg(feature = "queue")]
     pub async fn build_job_queue(
         job_queue_config: &crate::config::JobQueueConfig,
@@ -271,6 +284,10 @@ impl ExecutorFactory {
     /// - Simple in-process execution
     ///
     /// Best for: Single DB, low volume, simple deployment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn build_postgres_only(
         config: &ObserverRuntimeConfig,
         dlq: Arc<dyn DeadLetterQueue>,
@@ -294,6 +311,10 @@ impl ExecutorFactory {
     /// - Redis for action caching (100x performance)
     ///
     /// Best for: Single DB, medium volume, needs reliability + performance
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if Redis is not configured.
     #[cfg(all(feature = "dedup", feature = "caching"))]
     pub async fn build_postgres_redis(
         config: &ObserverRuntimeConfig,
@@ -317,6 +338,10 @@ impl ExecutorFactory {
     /// - Horizontal scaling with load balancing
     ///
     /// Best for: High volume, HA required, distributed workers
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if NATS transport, Redis, or dedup is not configured.
     #[cfg(all(feature = "nats", feature = "dedup", feature = "caching"))]
     pub async fn build_nats_distributed(
         config: &ObserverRuntimeConfig,
@@ -356,6 +381,11 @@ impl ExecutorFactory {
     /// - Automatic job queueing and retry logic
     ///
     /// Requires: `job_queue` configuration with Redis URL
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if job queue config is missing or Redis connection
+    /// fails.
     #[cfg(feature = "queue")]
     pub async fn build_with_queue(
         config: &ObserverRuntimeConfig,

@@ -105,8 +105,8 @@ fn default_clickhouse_max_retries() -> usize {
 /// - Non-HTTP(S) schemes (file://, ftp://, etc.)
 /// - Loopback addresses (`localhost`, `127.x.x.x`, `::1`)
 /// - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
-/// - Link-local (169.254/16, fe80::/10)
-/// - CGNAT (100.64/10), ULA (fc00::/7)
+/// - Link-local (169.254/16, `fe80::/10`)
+/// - CGNAT (100.64/10), ULA (`fc00::/7`)
 fn validate_clickhouse_url(url: &str) -> Result<()> {
     let lower = url.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
@@ -159,13 +159,13 @@ fn is_ssrf_blocked_host_ch(host: &str) -> bool {
 }
 
 /// Returns `true` for addresses in the CGNAT range 100.64.0.0/10.
-fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
+const fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
     let [a, b, ..] = addr.octets();
     a == 100 && (b & 0xC0) == 64
 }
 
-/// Returns `true` for addresses in the ULA range fc00::/7.
-fn is_ula_v6(addr: std::net::Ipv6Addr) -> bool {
+/// Returns `true` for addresses in the ULA range `fc00::/7`.
+const fn is_ula_v6(addr: std::net::Ipv6Addr) -> bool {
     (addr.segments()[0] & 0xFE00) == 0xFC00
 }
 
@@ -213,7 +213,11 @@ impl ClickHouseSinkConfig {
         self
     }
 
-    /// Validate the configuration
+    /// Validate the configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ArrowFlightError::Configuration` if any field is empty or out of range.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ArrowFlightError::Configuration(
@@ -274,7 +278,11 @@ pub struct ClickHouseSink {
 }
 
 impl ClickHouseSink {
-    /// Create a new `ClickHouse` sink with the given configuration
+    /// Create a new `ClickHouse` sink with the given configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ArrowFlightError::Configuration` if the config fails validation.
     pub fn new(config: ClickHouseSinkConfig) -> Result<Self> {
         config.validate()?;
 

@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [dev, main]
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   feature-matrix:
     name: "check (${{ matrix.features || 'no-default-features' }})"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -21,10 +26,15 @@ jobs:
           - "arrow,wire-backend"
           - "mcp,auth,cors"
           - "observers-enterprise,redis-apq,redis-pkce"
+          - "federation"                                                               # federation standalone
+          - "secrets"                                                                   # secrets standalone
+          - "wire-backend"                                                              # wire protocol standalone
+          - "auth,observers,secrets,federation"                                         # kitchen sink
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo check
         run: |
           if [ -z "${{ matrix.features }}" ]; then
@@ -32,3 +42,51 @@ jobs:
           else
             cargo check -p fraiseql-server --features "${{ matrix.features }}"
           fi
+
+  feature-integration-tests:
+    name: "test (${{ matrix.name }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mcp
+            features: "mcp,auth"
+            test: mcp_integration_test
+          - name: metrics
+            features: "auth"
+            test: metrics_integration_test
+          - name: apq-memory
+            features: "auth"
+            test: redis_apq_integration_test
+          - name: tracing
+            features: "auth"
+            test: tracing_integration_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Run feature-gated integration tests
+        run: cargo test --test "${{ matrix.test }}" -p fraiseql-server --features "${{ matrix.features }}"
+
+  database-matrix:
+    name: "check core (${{ matrix.features }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "postgres"                              # minimal single-backend
+          - "mysql,rich-filters"                    # secondary backend + filters
+          - "sqlite,sqlserver"                      # lightweight + enterprise, no postgres
+          - "postgres,mysql,sqlite,sqlserver"        # all backends, no extras
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo check
+        run: cargo check -p fraiseql-core --no-default-features --features "${{ matrix.features }}"

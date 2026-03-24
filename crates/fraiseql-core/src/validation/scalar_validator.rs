@@ -149,6 +149,10 @@ pub fn validate_custom_scalar(
 }
 
 /// Convenience function that defaults context to ParseValue.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the scalar's `parse_value` rejects the input.
 pub fn validate_custom_scalar_parse_value(
     scalar: &dyn CustomScalar,
     value: &Value,

@@ -118,7 +118,8 @@ fn test_error_serialization() {
 /// Test different error code HTTP status mappings
 #[test]
 fn test_error_code_status_mapping() {
-    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    // GraphQL-over-HTTP spec §7.1.2: validation errors on well-formed requests → 200.
+    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::OK);
     assert_eq!(ErrorCode::Unauthenticated.status_code(), axum::http::StatusCode::UNAUTHORIZED);
     assert_eq!(ErrorCode::Forbidden.status_code(), axum::http::StatusCode::FORBIDDEN);
     assert_eq!(ErrorCode::NotFound.status_code(), axum::http::StatusCode::NOT_FOUND);
@@ -278,8 +279,13 @@ fn test_all_error_codes_have_status() {
 
     for code in codes {
         let status = code.status_code();
-        // Verify status code is 4xx or 5xx (standard HTTP error range)
-        assert!(status.is_client_error() || status.is_server_error());
+        // Every error code must map to a valid HTTP status.
+        // GraphQL-over-HTTP spec §7.1.2: parse/validation errors → 200;
+        // all others → 4xx/5xx.
+        assert!(
+            status.is_success() || status.is_client_error() || status.is_server_error(),
+            "{code:?} mapped to unexpected status {status}"
+        );
     }
 }
 
@@ -292,7 +298,8 @@ fn test_error_response_into_response() {
     let response = ErrorResponse::from_error(error);
 
     let http_response = response.into_response();
-    assert_eq!(http_response.status(), axum::http::StatusCode::BAD_REQUEST);
+    // GraphQL-over-HTTP spec §7.1.2: validation errors on well-formed requests → 200.
+    assert_eq!(http_response.status(), axum::http::StatusCode::OK);
 }
 
 /// Test string handling in query validation

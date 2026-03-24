@@ -88,6 +88,10 @@ pub struct CategoryScores {
 }
 
 /// Run lint command on a schema
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     // Check if file exists
     if !Path::new(schema_path).exists() {

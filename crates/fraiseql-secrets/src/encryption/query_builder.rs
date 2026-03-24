@@ -95,6 +95,10 @@ impl QueryBuilderIntegration {
     /// - Deterministic hash of plaintext
     /// - Separate plaintext index
     /// - Application-level filtering
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any field is encrypted.
     pub fn validate_where_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
             if self.encrypted_fields.contains(*field) {
@@ -115,6 +119,10 @@ impl QueryBuilderIntegration {
     ///
     /// Encrypted fields cannot be compared for sorting because ciphertext
     /// does not preserve plaintext order.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any field is encrypted.
     pub fn validate_order_by_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
             if self.encrypted_fields.contains(*field) {
@@ -134,6 +142,10 @@ impl QueryBuilderIntegration {
     ///
     /// Encrypted fields cannot be compared in JOIN conditions because
     /// ciphertext is non-deterministic (different every time even for same plaintext).
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any field is encrypted.
     pub fn validate_join_condition(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
             if self.encrypted_fields.contains(*field) {
@@ -150,6 +162,10 @@ impl QueryBuilderIntegration {
     }
 
     /// Validate that encrypted fields are not used in GROUP BY clause
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any field is encrypted.
     pub fn validate_group_by_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
             if self.encrypted_fields.contains(*field) {
@@ -168,6 +184,10 @@ impl QueryBuilderIntegration {
     ///
     /// IS NULL checks NULL at database level (before encryption),
     /// so it works correctly with encrypted fields.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; always returns `Ok(())`.
     pub fn validate_is_null_on_encrypted(&self, _field: &str) -> Result<(), SecretsError> {
         // IS NULL is always allowed on encrypted fields
         // NULL is stored at database level, not encrypted
@@ -175,6 +195,10 @@ impl QueryBuilderIntegration {
     }
 
     /// Validate clause type contains allowed fields
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if any field is encrypted.
     pub fn validate_clause(
         &self,
         clause_type: ClauseType,
@@ -210,6 +234,10 @@ impl QueryBuilderIntegration {
     /// Validate entire query structure
     ///
     /// Performs comprehensive validation across multiple clauses.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if encrypted fields appear in restricted clauses.
     pub fn validate_query(
         &self,
         query_type: QueryType,

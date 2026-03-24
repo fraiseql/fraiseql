@@ -15,14 +15,23 @@
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[tb_transport_checkpoint]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[tb_transport_checkpoint] (
-        -- Transport identifier (e.g., "mssql_to_nats", "mssql_to_kafka")
-        [transport_name] NVARCHAR(255) NOT NULL PRIMARY KEY,
+        -- Trinity: internal PK
+        [pk_transport_checkpoint] BIGINT IDENTITY(1,1) PRIMARY KEY,
+
+        -- Trinity: external UUID
+        [id] UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+
+        -- Trinity: human-readable identifier (e.g., "mssql_to_nats", "mssql_to_kafka")
+        [identifier] NVARCHAR(255) NOT NULL,
 
         -- Last processed primary key from source table
         [last_pk] BIGINT NOT NULL,
 
         -- When the checkpoint was last updated
-        [updated_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        [updated_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+
+        CONSTRAINT [UQ_transport_checkpoint_id] UNIQUE ([id]),
+        CONSTRAINT [UQ_transport_checkpoint_identifier] UNIQUE ([identifier])
     );
 
     -- Add table description
@@ -203,15 +212,15 @@ BEGIN
     SET NOCOUNT ON;
 
     MERGE [dbo].[tb_transport_checkpoint] AS target
-    USING (SELECT @transport_name AS transport_name, @last_pk AS last_pk) AS source
-    ON (target.transport_name = source.transport_name)
+    USING (SELECT @transport_name AS identifier, @last_pk AS last_pk) AS source
+    ON (target.identifier = source.identifier)
     WHEN MATCHED THEN
         UPDATE SET
             last_pk = source.last_pk,
             updated_at = GETUTCDATE()
     WHEN NOT MATCHED THEN
-        INSERT (transport_name, last_pk, updated_at)
-        VALUES (source.transport_name, source.last_pk, GETUTCDATE());
+        INSERT (identifier, last_pk, updated_at)
+        VALUES (source.identifier, source.last_pk, GETUTCDATE());
 END;
 GO
 
@@ -306,12 +315,12 @@ GO
 
 CREATE VIEW [dbo].[vw_nats_publication_status] AS
 SELECT
-    checkpoint.transport_name,
+    checkpoint.identifier AS transport_name,
     checkpoint.last_pk AS checkpoint_cursor,
     checkpoint.updated_at AS checkpoint_updated_at,
     (SELECT MAX(pk_entity_change_log) FROM tb_entity_change_log) AS max_pk,
     (SELECT MAX(pk_entity_change_log) FROM tb_entity_change_log) - checkpoint.last_pk AS lag_count,
     (SELECT COUNT(*) FROM tb_entity_change_log WHERE nats_published_at IS NULL) AS unpublished_count
 FROM tb_transport_checkpoint checkpoint
-WHERE checkpoint.transport_name LIKE 'mssql_to_nats%';
+WHERE checkpoint.identifier LIKE 'mssql_to_nats%';
 GO

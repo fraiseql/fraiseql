@@ -39,8 +39,8 @@ fn test_rate_limiter_memory_bounded_by_entry_count() {
 }
 
 #[test]
-fn test_rate_limiter_cap_rejects_new_keys_when_full() {
-    // Build a limiter with a tiny cap to verify that new keys are denied once full.
+fn test_rate_limiter_cap_evicts_oldest_when_full() {
+    // Build a limiter with a tiny cap to verify LRU eviction when full.
     let limiter = KeyedRateLimiter::with_max_entries(high_limit_config(), 3);
 
     limiter.check("ip-1").unwrap();
@@ -48,14 +48,13 @@ fn test_rate_limiter_cap_rejects_new_keys_when_full() {
     limiter.check("ip-3").unwrap();
     assert_eq!(limiter.active_limiters(), 3);
 
-    // 4th unique key must be rejected
-    let err = limiter.check("ip-4").unwrap_err();
-    assert!(
-        matches!(err, fraiseql_auth::AuthError::RateLimited { .. }),
-        "expected RateLimited, got: {err:?}"
-    );
-    // Existing keys must still be accepted
-    limiter.check("ip-1").unwrap();
+    // 4th unique key evicts the oldest (ip-1) and succeeds
+    limiter.check("ip-4").unwrap();
+    assert_eq!(limiter.active_limiters(), 3); // capacity maintained
+
+    // Existing non-evicted keys must still be accepted
+    limiter.check("ip-2").unwrap();
+    limiter.check("ip-3").unwrap();
 }
 
 #[test]

@@ -14,6 +14,7 @@
 
 use std::{
     collections::HashMap,
+    panic::{RefUnwindSafe, UnwindSafe},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -111,7 +112,7 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
 /// than `max_requests` in any single window, even under high concurrency.
 ///
-/// The map is capped at [`DEFAULT_MAX_ENTRIES`] keys. When a new key arrives at
+/// The map is capped at `DEFAULT_MAX_ENTRIES` keys. When a new key arrives at
 /// capacity the entry with the oldest `window_start` is evicted to make room,
 /// bounding memory growth while still tracking new sources.
 ///
@@ -138,8 +139,16 @@ pub struct KeyedRateLimiter {
     check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
     /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
-    clock:       Box<dyn Fn() -> u64 + Send + Sync>,
+    clock:       Box<dyn Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe>,
 }
+
+/// Backward-compatible alias for [`AuthRateLimitConfig`].
+///
+/// This type was renamed from `RateLimitConfig` to `AuthRateLimitConfig` to avoid
+/// confusion with `fraiseql_server::middleware::RateLimitConfig`. Existing code
+/// that references the old name continues to compile via this alias.
+#[deprecated(since = "0.2.0", note = "Renamed to `AuthRateLimitConfig`")]
+pub type RateLimitConfig = AuthRateLimitConfig;
 
 /// Default clock that reads wall-clock time.
 ///
@@ -181,7 +190,7 @@ impl KeyedRateLimiter {
     /// Create a rate limiter with a custom entry cap.
     ///
     /// Use this when the deployment context calls for a tighter or looser bound
-    /// than [`DEFAULT_MAX_ENTRIES`].  Setting `max_entries = 0` disables the cap
+    /// than `DEFAULT_MAX_ENTRIES`.  Setting `max_entries = 0` disables the cap
     /// (unbounded — not recommended in production).
     pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
         Self {
@@ -199,7 +208,7 @@ impl KeyedRateLimiter {
     /// Pass `|| u64::MAX` to simulate a broken system clock and verify fail-open behavior.
     pub fn with_clock<F>(config: AuthRateLimitConfig, clock: F) -> Self
     where
-        F: Fn() -> u64 + Send + Sync + 'static,
+        F: Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe + 'static,
     {
         Self {
             records: Arc::new(Mutex::new(HashMap::new())),
@@ -220,7 +229,7 @@ impl KeyedRateLimiter {
         clock: F,
     ) -> Self
     where
-        F: Fn() -> u64 + Send + Sync + 'static,
+        F: Fn() -> u64 + Send + Sync + UnwindSafe + RefUnwindSafe + 'static,
     {
         Self {
             records: Arc::new(Mutex::new(HashMap::new())),
@@ -247,10 +256,10 @@ impl KeyedRateLimiter {
     /// time-of-check-time-of-use (TOCTOU) race conditions where multiple threads
     /// simultaneously exceed the rate limit.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// - Ok(()) if the request is allowed and counter has been incremented
-    /// - Err(AuthError::RateLimited) if the key has exceeded the rate limit
+    /// Returns `AuthError::RateLimited` if the key has exceeded the rate limit
+    /// within the current window.
     ///
     /// # Panics
     ///
@@ -325,7 +334,11 @@ impl KeyedRateLimiter {
         }
     }
 
-    /// Get the number of active rate limiters (for monitoring)
+    /// Get the number of active rate limiters (for monitoring).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     pub fn active_limiters(&self) -> usize {
         let records = self
             .records
@@ -334,7 +347,11 @@ impl KeyedRateLimiter {
         records.len()
     }
 
-    /// Clear all rate limiters (for testing or reset)
+    /// Clear all rate limiters (for testing or reset).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     pub fn clear(&self) {
         let mut records = self
             .records
@@ -425,8 +442,7 @@ impl Default for RateLimiters {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

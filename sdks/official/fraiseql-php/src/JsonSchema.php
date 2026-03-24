@@ -14,7 +14,7 @@ final class JsonSchema
 {
     /**
      * @param string $version Schema version
-     * @param array<string, array> $types Type definitions indexed by type name
+     * @param array<string, array<string, mixed>> $types Type definitions indexed by type name
      * @param array<string, string> $scalars Scalar type definitions
      * @param string|null $description Optional schema description
      * @param array<string, mixed> $metadata Additional schema metadata

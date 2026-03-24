@@ -47,6 +47,10 @@ impl LuhnValidator {
     /// assert!(LuhnValidator::validate("4532015112830366")); // Valid Visa
     /// assert!(!LuhnValidator::validate("4532015112830367")); // Invalid
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice; digits are pre-filtered to ASCII before `to_digit`.
     pub fn validate(value: &str) -> bool {
         // Must have at least 1 digit and no more than MAX_LUHN_DIGITS.
         if value.is_empty() || value.len() > MAX_LUHN_DIGITS {

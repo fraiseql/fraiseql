@@ -40,6 +40,9 @@ fn bench_compile_empty_schema_rich_types() {
             federation_config:    None,
             debug_config:         None,
             mcp_config:           None,
+            rest_config:          None,
+            grpc_config:          None,
+            dev_config:           None,
             query_defaults:       None,
         };
 
@@ -87,6 +90,9 @@ fn bench_metadata_access_performance() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -140,6 +146,9 @@ fn bench_operator_metadata_parsing() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -197,6 +206,9 @@ fn bench_database_template_access() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -260,6 +272,9 @@ fn bench_lookup_data_access() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 
@@ -317,6 +332,9 @@ fn bench_full_operator_traversal() {
         federation_config:    None,
         debug_config:         None,
         mcp_config:           None,
+        rest_config:          None,
+        grpc_config:          None,
+        dev_config:           None,
         query_defaults:       None,
     };
 

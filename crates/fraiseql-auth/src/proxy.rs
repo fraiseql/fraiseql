@@ -30,7 +30,11 @@ impl ProxyConfig {
         }
     }
 
-    /// Create a proxy config that trusts all local proxies (127.0.0.1 only)
+    /// Create a proxy config that trusts all local proxies (127.0.0.1 only).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hardcoded `"127.0.0.1"` literal fails to parse as an IP address (unreachable).
     pub fn localhost_only() -> Self {
         Self {
             trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")],
@@ -123,8 +127,7 @@ impl ProxyConfig {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

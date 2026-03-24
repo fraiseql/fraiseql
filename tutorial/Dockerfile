@@ -24,10 +24,16 @@ RUN apk add --no-cache curl
 # Copy node_modules from builder
 COPY --from=builder /app/node_modules ./node_modules
 
+# Create non-root user
+RUN addgroup -S app && adduser -S app -G app
+
 # Copy application files
-COPY tutorial/src ./src
-COPY tutorial/web ./web
-COPY tutorial/assets ./assets
+COPY --chown=app:app tutorial/src ./src
+COPY --chown=app:app tutorial/web ./web
+COPY --chown=app:app tutorial/assets ./assets
+
+# Switch to non-root user
+USER app
 
 # Expose tutorial port
 EXPOSE 3001

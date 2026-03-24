@@ -43,6 +43,10 @@ impl ResilientExecutor {
     }
 
     /// Execute with resilience
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn execute<F, T>(&self, f: F) -> Result<T>
     where
         F: Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + 'static,

@@ -52,6 +52,53 @@ impl DatabaseType {
             Self::SQLServer => "sqlserver",
         }
     }
+
+    /// Return the SQL bind-parameter placeholder for the given 1-based index.
+    ///
+    /// - PostgreSQL: `$1`, `$2`, …
+    /// - MySQL / SQLite: `?`
+    /// - SQL Server: `@p1`, `@p2`, …
+    #[must_use]
+    pub fn placeholder(&self, index: usize) -> String {
+        match self {
+            Self::PostgreSQL => format!("${index}"),
+            Self::MySQL | Self::SQLite => "?".to_string(),
+            Self::SQLServer => format!("@p{index}"),
+        }
+    }
+
+    /// Quote a SQL identifier using the correct syntax for this database dialect.
+    ///
+    /// Schema-qualified names (e.g., `schema.table`) are split on `.` and each
+    /// component is quoted separately.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fraiseql_db::DatabaseType;
+    /// assert_eq!(DatabaseType::PostgreSQL.quote_identifier("v_user"), "\"v_user\"");
+    /// assert_eq!(
+    ///     DatabaseType::PostgreSQL.quote_identifier("product.v_offering"),
+    ///     "\"product\".\"v_offering\""
+    /// );
+    /// assert_eq!(
+    ///     DatabaseType::MySQL.quote_identifier("product.v_offering"),
+    ///     "`product`.`v_offering`"
+    /// );
+    /// assert_eq!(
+    ///     DatabaseType::SQLServer.quote_identifier("product.v_offering"),
+    ///     "[product].[v_offering]"
+    /// );
+    /// ```
+    #[must_use]
+    pub fn quote_identifier(&self, identifier: &str) -> String {
+        match self {
+            Self::PostgreSQL => crate::quote_postgres_identifier(identifier),
+            Self::MySQL => crate::quote_mysql_identifier(identifier),
+            Self::SQLite => crate::quote_sqlite_identifier(identifier),
+            Self::SQLServer => crate::quote_sqlserver_identifier(identifier),
+        }
+    }
 }
 
 impl std::fmt::Display for DatabaseType {
@@ -213,6 +260,51 @@ impl PoolMetrics {
     }
 }
 
+/// Typed column value returned by row-shaped view queries.
+///
+/// Each variant corresponds to a [`RowViewColumnType`](crate::dialect::RowViewColumnType)
+/// and carries the Rust-native representation of the database value. Database
+/// driver types (e.g., `tokio_postgres::Row`, `sqlx::Row`) never leak into this
+/// public API.
+#[cfg(feature = "grpc")]
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum ColumnValue {
+    /// SQL NULL.
+    Null,
+    /// Text / VARCHAR / CHAR column.
+    Text(String),
+    /// 32-bit integer (INTEGER / INT).
+    Int32(i32),
+    /// 64-bit integer (BIGINT).
+    Int64(i64),
+    /// Double-precision floating point (DOUBLE PRECISION / REAL).
+    Float64(f64),
+    /// Boolean column.
+    Bool(bool),
+    /// UUID value.
+    Uuid(uuid::Uuid),
+    /// Timestamp with time zone.
+    Timestamp(chrono::DateTime<chrono::Utc>),
+    /// Date (no time component).
+    Date(chrono::NaiveDate),
+    /// JSON / JSONB value (fallback for nested objects).
+    Json(serde_json::Value),
+}
+
+/// Column specification for row-shaped view queries.
+///
+/// Describes a single column to be selected from a `vr_*` row-shaped view,
+/// including the column name and its expected SQL type for typed extraction.
+#[cfg(feature = "grpc")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnSpec {
+    /// Column name in the row-shaped view (e.g., `"id"`, `"name"`).
+    pub name:        String,
+    /// Expected column type, used to select the correct extraction method.
+    pub column_type: crate::dialect::RowViewColumnType,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +355,164 @@ mod tests {
 
         assert!((metrics.utilization() - 1.0).abs() < f64::EPSILON);
         assert!(metrics.is_exhausted());
+    }
+
+    #[cfg(feature = "grpc")]
+    mod grpc_types {
+        use super::*;
+        use crate::dialect::RowViewColumnType;
+
+        #[test]
+        fn column_value_all_variants() {
+            // Verify all RowViewColumnType variants have a corresponding ColumnValue
+            // Use drop() to silence unused-binding lints while still exercising construction.
+            drop(ColumnValue::Text(String::new()));
+            drop(ColumnValue::Int32(0));
+            drop(ColumnValue::Int64(0));
+            drop(ColumnValue::Float64(0.0));
+            drop(ColumnValue::Bool(false));
+            drop(ColumnValue::Uuid(uuid::Uuid::nil()));
+            drop(ColumnValue::Timestamp(chrono::DateTime::<chrono::Utc>::default()));
+            drop(ColumnValue::Date(
+                chrono::NaiveDate::from_ymd_opt(2000, 1, 1).expect("valid date"),
+            ));
+            drop(ColumnValue::Json(serde_json::Value::Null));
+            drop(ColumnValue::Null);
+        }
+
+        #[test]
+        fn column_value_debug_clone_partial_eq() {
+            let values = [
+                ColumnValue::Null,
+                ColumnValue::Text("hello".into()),
+                ColumnValue::Int32(42),
+                ColumnValue::Int64(1_000_000_000_000),
+                ColumnValue::Float64(42.5),
+                ColumnValue::Bool(true),
+                ColumnValue::Uuid(uuid::Uuid::nil()),
+                ColumnValue::Timestamp(chrono::DateTime::<chrono::Utc>::default()),
+                ColumnValue::Date(
+                    chrono::NaiveDate::from_ymd_opt(2026, 3, 20).expect("valid date"),
+                ),
+                ColumnValue::Json(serde_json::json!({"key": "value"})),
+            ];
+
+            for v in &values {
+                // Debug
+                let debug_str = format!("{v:?}");
+                assert!(!debug_str.is_empty());
+
+                // Clone + PartialEq
+                let cloned = v.clone();
+                assert_eq!(v, &cloned);
+            }
+
+            // Inequality
+            assert_ne!(ColumnValue::Null, ColumnValue::Bool(false));
+            assert_ne!(ColumnValue::Int32(1), ColumnValue::Int64(1));
+        }
+
+        /// Verify SQL generation patterns for each dialect's identifier quoting.
+        #[test]
+        fn row_query_sql_generation_postgres() {
+            let cols = [
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+            ];
+            let col_list: String = cols
+                .iter()
+                .map(|c| crate::quote_postgres_identifier(&c.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_postgres_identifier("vr_user"));
+            assert_eq!(sql, r#"SELECT "id", "name" FROM "vr_user""#);
+        }
+
+        #[test]
+        fn row_query_sql_generation_mysql() {
+            let cols = [
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+            ];
+            let col_list: String = cols
+                .iter()
+                .map(|c| crate::quote_mysql_identifier(&c.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_mysql_identifier("vr_user"));
+            assert_eq!(sql, "SELECT `id`, `name` FROM `vr_user`");
+        }
+
+        #[test]
+        fn row_query_sql_generation_sqlite() {
+            let cols = [
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+            ];
+            let col_list: String = cols
+                .iter()
+                .map(|c| crate::quote_sqlite_identifier(&c.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_sqlite_identifier("vr_user"));
+            assert_eq!(sql, r#"SELECT "id", "name" FROM "vr_user""#);
+        }
+
+        #[test]
+        fn row_query_sql_generation_sqlserver() {
+            let cols = [
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+            ];
+            let col_list: String = cols
+                .iter()
+                .map(|c| crate::quote_sqlserver_identifier(&c.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql =
+                format!("SELECT {col_list} FROM {}", crate::quote_sqlserver_identifier("vr_user"));
+            assert_eq!(sql, "SELECT [id], [name] FROM [vr_user]");
+        }
+
+        #[test]
+        fn column_spec_construction() {
+            let spec = ColumnSpec {
+                name:        "email".into(),
+                column_type: RowViewColumnType::Text,
+            };
+            assert_eq!(spec.name, "email");
+            assert_eq!(spec.column_type, RowViewColumnType::Text);
+
+            // Clone + PartialEq
+            let cloned = spec.clone();
+            assert_eq!(spec, cloned);
+        }
     }
 }

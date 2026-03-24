@@ -1,16 +1,28 @@
-//! SQLite database adapter — **read-only** (queries only, no mutations).
+//! SQLite database adapter with query and mutation support.
 //!
 //! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
-//! but does **not** implement [`MutationCapable`](crate::MutationCapable). Attempting
-//! to compile a schema with mutations and run it against SQLite will produce a
-//! **compile-time error** at the mutation executor call site.
+//! and **direct-SQL mutations** (INSERT/UPDATE/DELETE with RETURNING).
+//!
+//! Unlike PostgreSQL/MySQL/SQL Server, SQLite has no stored procedures. Mutations
+//! are executed as direct SQL statements rather than function calls. The adapter
+//! implements [`MutationCapable`](crate::MutationCapable) and uses
+//! [`MutationStrategy::DirectSql`](crate::MutationStrategy::DirectSql).
+//!
+//! # Requirements
+//!
+//! - SQLite 3.35.0+ (2021-03-12) for `RETURNING` clause support.
+//!
+//! # Limitations
+//!
+//! - `MutationOperation::Custom` mutations are not supported (no stored procedures).
+//! - No server-side validation logic beyond constraint checking.
+//! - Each mutation is a single atomic statement (no multi-statement transactions).
 //!
 //! # When to use SQLite
 //!
-//! - Unit testing queries without a real database
-//! - Schema exploration and local development (read-only)
-//!
-//! For mutation support, use PostgreSQL, MySQL, or SQL Server.
+//! - Local development with full read/write cycles
+//! - Unit testing queries and mutations without a real database
+//! - Schema exploration
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
@@ -19,14 +31,22 @@ use sqlx::{
     sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},
 };
 
-use super::where_generator::SqliteWhereGenerator;
+use super::{
+    helpers::{build_direct_mutation_sql, sqlite_row_to_json},
+    where_generator::SqliteWhereGenerator,
+};
 use crate::{
     dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
-    traits::DatabaseAdapter,
+    traits::{
+        DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
+    },
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
+
+/// Hard upper bound on pool size to prevent resource exhaustion.
+const MAX_POOL_SIZE: u32 = 200;
 
 /// SQLite database adapter with connection pooling.
 ///
@@ -36,8 +56,8 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::sqlite::SqliteAdapter;
-/// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
+/// use fraiseql_db::sqlite::SqliteAdapter;
+/// use fraiseql_db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -121,6 +141,13 @@ impl SqliteAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: u32) -> Result<Self> {
+        if max_size == 0 || max_size > MAX_POOL_SIZE {
+            return Err(FraiseQLError::Validation {
+                message: format!("Pool size must be between 1 and {MAX_POOL_SIZE}, got {max_size}"),
+                path:    None,
+            });
+        }
+
         let pool = SqlitePoolOptions::new()
             .max_connections(max_size)
             .connect(connection_string)
@@ -257,6 +284,8 @@ impl DatabaseAdapter for SqliteAdapter {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
+        // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
+        // not user input. Additionally passed through quote_sqlite_identifier().
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
 
         // Add WHERE clause if present
@@ -293,12 +322,230 @@ impl DatabaseAdapter for SqliteAdapter {
         self.execute_raw(&sql, params).await
     }
 
+    #[cfg(feature = "grpc")]
+    async fn execute_row_query(
+        &self,
+        view: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_clause: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        use crate::{dialect::RowViewColumnType, types::ColumnValue};
+
+        let col_list: String = columns
+            .iter()
+            .map(|c| quote_sqlite_identifier(&c.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut sql = format!("SELECT {col_list} FROM {}", quote_sqlite_identifier(view));
+
+        if let Some(wc) = where_clause {
+            sql.push_str(" WHERE ");
+            sql.push_str(wc);
+        }
+        if let Some(ob) = order_by {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(ob);
+        }
+        match (limit, offset) {
+            (Some(lim), Some(off)) => sql.push_str(&format!(" LIMIT {lim} OFFSET {off}")),
+            (Some(lim), None) => sql.push_str(&format!(" LIMIT {lim}")),
+            (None, Some(off)) => sql.push_str(&format!(" LIMIT -1 OFFSET {off}")),
+            (None, None) => {},
+        }
+
+        let rows: Vec<SqliteRow> =
+            sqlx::query(&sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("SQLite row query on view '{view}' failed: {e}"),
+                    sql_state: None,
+                })?;
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let mut row_values = Vec::with_capacity(columns.len());
+            for col in columns {
+                let name = col.name.as_str();
+                let value = match col.column_type {
+                    RowViewColumnType::Text => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' text extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Text),
+                    RowViewColumnType::Int32 => row
+                        .try_get::<Option<i32>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int32 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int32),
+                    RowViewColumnType::Int64 => row
+                        .try_get::<Option<i64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' int64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Int64),
+                    RowViewColumnType::Float64 => row
+                        .try_get::<Option<f64>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' float64 extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Float64),
+                    RowViewColumnType::Boolean => row
+                        .try_get::<Option<bool>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' bool extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, ColumnValue::Bool),
+                    RowViewColumnType::Uuid => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' uuid extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<uuid::Uuid>().map_or(ColumnValue::Text(s), ColumnValue::Uuid)
+                        }),
+                    RowViewColumnType::Timestamptz => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' timestamp extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<chrono::DateTime<chrono::Utc>>()
+                                .map_or(ColumnValue::Text(s), ColumnValue::Timestamp)
+                        }),
+                    RowViewColumnType::Date => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' date extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            s.parse::<chrono::NaiveDate>()
+                                .map_or(ColumnValue::Text(s), ColumnValue::Date)
+                        }),
+                    RowViewColumnType::Json => row
+                        .try_get::<Option<String>, _>(name)
+                        .map_err(|e| FraiseQLError::Database {
+                            message:   format!("Column '{name}' json extraction failed: {e}"),
+                            sql_state: None,
+                        })?
+                        .map_or(ColumnValue::Null, |s| {
+                            serde_json::from_str(&s).map_or(ColumnValue::Null, ColumnValue::Json)
+                        }),
+                    #[allow(unreachable_patterns)]
+                    // Reason: RowViewColumnType is #[non_exhaustive]; wildcard
+                    // handles future variants gracefully.
+                    _ => ColumnValue::Null,
+                };
+                row_values.push(value);
+            }
+            results.push(row_values);
+        }
+
+        Ok(results)
+    }
+
     fn database_type(&self) -> DatabaseType {
         DatabaseType::SQLite
     }
 
     fn supports_mutations(&self) -> bool {
-        false
+        true
+    }
+
+    fn mutation_strategy(&self) -> MutationStrategy {
+        MutationStrategy::DirectSql
+    }
+
+    async fn execute_direct_mutation(
+        &self,
+        ctx: &DirectMutationContext<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let (sql, bind_values) = build_direct_mutation_sql(ctx)?;
+
+        // Bind parameters and execute
+        let mut query = sqlx::query(&sql);
+        for value in bind_values {
+            query = match value {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(value.to_string())
+                },
+            };
+        }
+
+        let row_opt =
+            query.fetch_optional(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite direct mutation failed: {e}"),
+                sql_state: None,
+            })?;
+
+        let Some(row) = row_opt else {
+            // DELETE/UPDATE of non-existent row
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation on table '{}' affected no rows (entity not found)",
+                    ctx.table
+                ),
+                path:    None,
+            });
+        };
+
+        // Convert the RETURNING * row into a JSON object for the `entity` field
+        let entity = sqlite_row_to_json(&row);
+
+        // Determine status and entity_id based on operation
+        let status = match ctx.operation {
+            DirectMutationOp::Insert => "new",
+            DirectMutationOp::Update => "updated",
+            DirectMutationOp::Delete => "deleted",
+        };
+
+        // For UPDATE/DELETE, extract the PK value as entity_id
+        let entity_id: serde_json::Value = match ctx.operation {
+            DirectMutationOp::Update | DirectMutationOp::Delete => {
+                // First value is the PK
+                match &ctx.values[0] {
+                    serde_json::Value::Number(n) => serde_json::json!(n.to_string()),
+                    v => serde_json::json!(v.to_string().trim_matches('"')),
+                }
+            },
+            DirectMutationOp::Insert => serde_json::Value::Null,
+        };
+
+        let mut result = std::collections::HashMap::new();
+        result.insert("status".into(), serde_json::json!(status));
+        result.insert("message".into(), serde_json::Value::Null);
+        result.insert("entity".into(), entity);
+        result.insert("entity_type".into(), serde_json::json!(ctx.return_type));
+        result.insert("entity_id".into(), entity_id);
+        result.insert("cascade".into(), serde_json::Value::Null);
+        result.insert("metadata".into(), serde_json::Value::Null);
+        Ok(vec![result])
     }
 
     async fn health_check(&self) -> Result<()> {
@@ -312,8 +559,7 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: pool sizes are always ≪ u32::MAX in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are always far below u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();
@@ -465,6 +711,8 @@ impl DatabaseAdapter for SqliteAdapter {
                 path:    None,
             });
         }
+        // SAFETY: sql is compiler-generated from schema-derived sources, not user input.
+        // Defense-in-depth: semicolons are rejected above.
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
         let rows: Vec<sqlx::sqlite::SqliteRow> = sqlx::query(&explain_sql)
             .fetch_all(&self.pool)
@@ -485,6 +733,8 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(serde_json::json!(steps))
     }
 }
+
+impl MutationCapable for SqliteAdapter {}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -934,6 +1184,226 @@ mod tests {
         for row in &results {
             assert!(row.as_value().get("name").is_some());
             assert!(row.as_value().get("age").is_none());
+        }
+    }
+
+    // ── gRPC row-shaped view tests ──────────────────────────────────────
+
+    #[cfg(feature = "grpc")]
+    mod grpc_row_query {
+        use sqlx::Executor as _;
+
+        use super::*;
+        use crate::{
+            dialect::RowViewColumnType,
+            traits::DatabaseAdapter,
+            types::{ColumnSpec, ColumnValue},
+        };
+
+        /// Create an in-memory adapter with a `tb_user` table and a `vr_user`
+        /// row-shaped view that extracts typed columns from the JSON `data` column.
+        async fn setup_row_view() -> SqliteAdapter {
+            let adapter =
+                SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+            // Base table
+            adapter
+                .pool
+                .execute(
+                    "CREATE TABLE \"tb_user\" (\
+                         pk_user INTEGER PRIMARY KEY, \
+                         data TEXT NOT NULL\
+                     )",
+                )
+                .await
+                .expect("Failed to create tb_user");
+
+            // Row-shaped view (matches SQLite dialect output from row_views codegen)
+            adapter
+                .pool
+                .execute(
+                    "CREATE VIEW \"vr_user\" AS \
+                     SELECT \
+                       CAST(json_extract(data, '$.id') AS TEXT) AS \"id\", \
+                       CAST(json_extract(data, '$.name') AS TEXT) AS \"name\", \
+                       CAST(json_extract(data, '$.age') AS INTEGER) AS \"age\", \
+                       CAST(json_extract(data, '$.active') AS INTEGER) AS \"active\", \
+                       CAST(json_extract(data, '$.score') AS REAL) AS \"score\", \
+                       CAST(json_extract(data, '$.created_at') AS TEXT) AS \"created_at\", \
+                       json_extract(data, '$.metadata') AS \"metadata\" \
+                     FROM \"tb_user\"",
+                )
+                .await
+                .expect("Failed to create vr_user view");
+
+            // Seed rows
+            let rows = [
+                r#"{"id":"550e8400-e29b-41d4-a716-446655440000","name":"Alice","age":30,"active":true,"score":95.5,"created_at":"2026-03-20","metadata":{"role":"admin"}}"#,
+                r#"{"id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","name":"Bob","age":25,"active":false,"score":82.0,"created_at":"2026-01-15","metadata":null}"#,
+                r#"{"id":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","name":"Charlie","age":null,"active":true,"score":70.0,"created_at":"2025-12-01","metadata":{"role":"user"}}"#,
+            ];
+            for (i, json) in rows.iter().enumerate() {
+                let sql = format!(
+                    "INSERT INTO \"tb_user\" (pk_user, data) VALUES ({}, '{}')",
+                    i + 1,
+                    json.replace('\'', "''"),
+                );
+                adapter.pool.execute(sql.as_str()).await.expect("Failed to insert row");
+            }
+
+            adapter
+        }
+
+        fn user_columns() -> Vec<ColumnSpec> {
+            vec![
+                ColumnSpec {
+                    name:        "id".into(),
+                    column_type: RowViewColumnType::Uuid,
+                },
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+                ColumnSpec {
+                    name:        "age".into(),
+                    column_type: RowViewColumnType::Int32,
+                },
+                ColumnSpec {
+                    name:        "active".into(),
+                    column_type: RowViewColumnType::Boolean,
+                },
+                ColumnSpec {
+                    name:        "score".into(),
+                    column_type: RowViewColumnType::Float64,
+                },
+                ColumnSpec {
+                    name:        "created_at".into(),
+                    column_type: RowViewColumnType::Date,
+                },
+                ColumnSpec {
+                    name:        "metadata".into(),
+                    column_type: RowViewColumnType::Json,
+                },
+            ]
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_returns_typed_columns() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query failed");
+
+            assert_eq!(rows.len(), 3);
+
+            // First row: Alice
+            let alice = &rows[0];
+            assert_eq!(alice.len(), cols.len());
+            assert_eq!(
+                alice[0],
+                ColumnValue::Uuid("550e8400-e29b-41d4-a716-446655440000".parse().unwrap())
+            );
+            assert_eq!(alice[1], ColumnValue::Text("Alice".into()));
+            assert_eq!(alice[2], ColumnValue::Int32(30));
+            // SQLite stores booleans as integers; CAST(json_extract…AS INTEGER) gives 1/0
+            // The adapter reads Option<bool>; sqlx decodes 1→true for SQLite
+            assert_eq!(alice[3], ColumnValue::Bool(true));
+            assert_eq!(alice[4], ColumnValue::Float64(95.5));
+            assert_eq!(
+                alice[5],
+                ColumnValue::Date(chrono::NaiveDate::from_ymd_opt(2026, 3, 20).unwrap())
+            );
+            assert_eq!(alice[6], ColumnValue::Json(serde_json::json!({"role": "admin"})));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_null_handling() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query failed");
+
+            // Row 2 (Bob): metadata is null
+            assert_eq!(rows[1][6], ColumnValue::Null);
+
+            // Row 3 (Charlie): age is null
+            assert_eq!(rows[2][2], ColumnValue::Null);
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_limit_and_offset() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, Some(1), Some(1))
+                .await
+                .expect("execute_row_query with limit+offset failed");
+
+            assert_eq!(rows.len(), 1);
+            // Second row (Bob)
+            assert_eq!(rows[0][1], ColumnValue::Text("Bob".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_where_clause() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, Some("\"name\" = 'Charlie'"), None, None, None)
+                .await
+                .expect("execute_row_query with WHERE failed");
+
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0][1], ColumnValue::Text("Charlie".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_with_order_by() {
+            let adapter = setup_row_view().await;
+            let cols = user_columns();
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, Some("\"name\" DESC"), None, None)
+                .await
+                .expect("execute_row_query with ORDER BY failed");
+
+            assert_eq!(rows.len(), 3);
+            assert_eq!(rows[0][1], ColumnValue::Text("Charlie".into()));
+            assert_eq!(rows[1][1], ColumnValue::Text("Bob".into()));
+            assert_eq!(rows[2][1], ColumnValue::Text("Alice".into()));
+        }
+
+        #[tokio::test]
+        async fn execute_row_query_subset_columns() {
+            let adapter = setup_row_view().await;
+            let cols = vec![
+                ColumnSpec {
+                    name:        "name".into(),
+                    column_type: RowViewColumnType::Text,
+                },
+                ColumnSpec {
+                    name:        "score".into(),
+                    column_type: RowViewColumnType::Float64,
+                },
+            ];
+
+            let rows = adapter
+                .execute_row_query("vr_user", &cols, None, None, None, None)
+                .await
+                .expect("execute_row_query with subset columns failed");
+
+            assert_eq!(rows.len(), 3);
+            assert_eq!(rows[0].len(), 2);
+            assert_eq!(rows[0][0], ColumnValue::Text("Alice".into()));
+            assert_eq!(rows[0][1], ColumnValue::Float64(95.5));
         }
     }
 }

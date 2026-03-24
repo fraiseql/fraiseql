@@ -28,11 +28,24 @@ public static class SchemaExporter
             .ToList()
             .AsReadOnly();
 
+        var queryDefaults = registry.GetMergedQueryDefaults();
+        var mutationDefaults = registry.GetMergedMutationDefaults();
+
+        var queries = registry.GetAllQueries()
+            .Select(q => SchemaRegistry.ApplyInjectDefaults(q, queryDefaults))
+            .ToList()
+            .AsReadOnly();
+
+        var mutations = registry.GetAllMutations()
+            .Select(m => SchemaRegistry.ApplyInjectDefaults(m, mutationDefaults))
+            .ToList()
+            .AsReadOnly();
+
         return new IntermediateSchema(
             Version: SchemaVersion,
             Types: types,
-            Queries: registry.GetAllQueries(),
-            Mutations: registry.GetAllMutations());
+            Queries: queries,
+            Mutations: mutations);
     }
 
     /// <summary>
@@ -58,6 +71,19 @@ public static class SchemaExporter
     }
 
     /// <summary>
+    /// Exports the current registry contents with federation metadata to a JSON string.
+    /// </summary>
+    /// <param name="federation">Federation configuration specifying the service name and defaults.</param>
+    /// <param name="pretty">When <see langword="true"/>, the JSON is indented for readability.</param>
+    /// <returns>The JSON representation of the schema with federation block.</returns>
+    public static string Export(FederationConfig federation, bool pretty = true)
+    {
+        var schema = ToSchema();
+        var federated = ApplyFederation(schema, federation);
+        return Serialize(federated, pretty);
+    }
+
+    /// <summary>
     /// Exports the current registry contents to a file at the given path.
     /// Parent directories are created automatically if they do not exist.
     /// </summary>
@@ -73,6 +99,22 @@ public static class SchemaExporter
     }
 
     /// <summary>
+    /// Exports the current registry contents with federation metadata to a file.
+    /// Parent directories are created automatically if they do not exist.
+    /// </summary>
+    /// <param name="path">The output file path.</param>
+    /// <param name="federation">Federation configuration specifying the service name and defaults.</param>
+    /// <param name="pretty">When <see langword="true"/>, the JSON is indented for readability.</param>
+    public static void ExportToFile(string path, FederationConfig federation, bool pretty = true)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        File.WriteAllText(path, Export(federation, pretty));
+    }
+
+    /// <summary>
     /// Builds <see cref="JsonSerializerOptions"/> configured for the FraiseQL schema format:
     /// snake_case keys via <c>[JsonPropertyName]</c> attributes, and null values omitted.
     /// </summary>
@@ -85,6 +127,42 @@ public static class SchemaExporter
             WriteIndented = pretty,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
+    }
+
+    /// <summary>
+    /// Builds a federation block and attaches it to the schema.
+    /// Iterates all types, skips error types, uses explicit <c>KeyFields</c> when set,
+    /// otherwise falls back to <see cref="FederationConfig.DefaultKeyFields"/>.
+    /// </summary>
+    private static IntermediateSchema ApplyFederation(
+        IntermediateSchema schema, FederationConfig federation)
+    {
+        var registry = SchemaRegistry.Instance;
+        var allTypeDefs = registry.GetAllTypes();
+
+        var entities = new List<FederationEntity>();
+        foreach (var td in allTypeDefs)
+        {
+            // Skip error types — they are not federation entities
+            if (td.IsError)
+                continue;
+
+            var keyFields = td.KeyFields is { Length: > 0 }
+                ? (IReadOnlyList<string>)td.KeyFields.ToList().AsReadOnly()
+                : federation.DefaultKeyFields;
+
+            entities.Add(new FederationEntity(td.Name, keyFields));
+        }
+
+        var apolloVersion = federation.Version == "v2" ? 2 : 1;
+
+        var block = new FederationBlock(
+            Enabled: true,
+            ServiceName: federation.ServiceName,
+            ApolloVersion: apolloVersion,
+            Entities: entities.AsReadOnly());
+
+        return schema with { Federation = block };
     }
 
     /// <summary>Converts a <see cref="TypeDefinition"/> to its serializable intermediate form.</summary>
@@ -106,6 +184,10 @@ public static class SchemaExporter
             Name: td.Name,
             SqlSource: td.SqlSource,
             Description: td.Description,
-            Fields: fields);
+            Fields: fields,
+            TenantScoped: td.TenantScoped ? true : null,
+            KeyFields: td.KeyFields is { Length: > 0 }
+                ? td.KeyFields.ToList().AsReadOnly()
+                : null);
     }
 }

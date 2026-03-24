@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 /// To suppress the `WARN` noise in environments that already tune the pool
 /// manually, set `enabled = false` in `[pool_tuning]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PoolPressureMonitorConfig {
     /// Enable adaptive pool sizing.  Default: `false`.
     #[serde(default)]
@@ -152,7 +153,7 @@ impl PoolPressureMonitorConfig {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]
@@ -235,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
+    #[allow(deprecated)] // Reason: test exercises the deprecated PoolTuningConfig alias to ensure it still works
     fn test_pool_tuning_config_alias_works() {
         // PoolTuningConfig is a deprecated alias for PoolPressureMonitorConfig
         let _cfg: PoolTuningConfig = PoolTuningConfig::default();

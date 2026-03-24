@@ -1,65 +1,77 @@
 //! SQL query construction for federation entity resolution.
 //!
-//! Builds WHERE IN clauses for batch entity queries, with SQL injection prevention
-//! through proper escaping and parameterization.
+//! Builds WHERE IN clauses for batch entity queries using parameterized queries
+//! to eliminate SQL injection risk entirely.
 
+use fraiseql_db::DatabaseType;
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 use crate::{
     metadata_helpers::{find_federation_type, get_key_directive},
-    sql_utils::{escape_sql_string, value_to_string},
+    sql_utils::value_to_string,
     types::{EntityRepresentation, FederationMetadata},
 };
 
-/// Build a WHERE IN clause for batch entity resolution.
+/// Result of parameterized WHERE clause construction.
+#[derive(Debug, Clone)]
+pub struct ParameterizedWhereClause {
+    /// SQL WHERE clause with bind-parameter placeholders (e.g. `id IN ($1, $2)`).
+    pub sql:    String,
+    /// Bind parameter values in placeholder order.
+    pub params: Vec<Value>,
+}
+
+/// Build a parameterized WHERE IN clause for batch entity resolution.
 ///
-/// Example:
-/// ```text
-/// SELECT id, name, email FROM users WHERE id IN ('123', '456', '789')
-/// ```
+/// Returns a `ParameterizedWhereClause` whose `sql` field contains placeholders
+/// appropriate for the given `db_type`, and whose `params` field holds the
+/// corresponding bind values.
 ///
 /// # Arguments
 ///
 /// * `typename` - The entity type name (e.g., "User")
 /// * `representations` - Entity representations with key field values
 /// * `metadata` - Federation metadata for the schema
-///
-/// # Returns
-///
-/// WHERE clause string ready for SQL query
+/// * `db_type` - Database type, used to select placeholder syntax
 ///
 /// # Errors
 ///
-/// Returns error if type not found in metadata or key fields missing
+/// Returns error if type not found in metadata or key fields missing.
 pub fn construct_where_in_clause(
     typename: &str,
     representations: &[EntityRepresentation],
     metadata: &FederationMetadata,
-) -> Result<String> {
-    // Find the entity type and its key directive
+    db_type: DatabaseType,
+) -> Result<ParameterizedWhereClause> {
     let fed_type = find_federation_type(typename, metadata)?;
     let key_directive = get_key_directive(fed_type)?;
 
-    // For single-field keys, build simple WHERE IN
     if key_directive.fields.len() == 1 {
         let key_field = &key_directive.fields[0];
         let key_values = extract_key_values(representations, key_field)?;
 
         if key_values.is_empty() {
-            return Ok("1 = 0".to_string()); // No entities to resolve
+            return Ok(ParameterizedWhereClause {
+                sql:    "1 = 0".to_string(),
+                params: vec![],
+            });
         }
 
-        // Build: key_field IN ('val1', 'val2', ...)
-        let values_str = key_values
-            .iter()
-            .map(|v| format!("'{}'", escape_sql_string(v)))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let mut params = Vec::with_capacity(key_values.len());
+        let mut placeholders = Vec::with_capacity(key_values.len());
 
-        Ok(format!("{} IN ({})", key_field, values_str))
+        for (i, value) in key_values.into_iter().enumerate() {
+            placeholders.push(db_type.placeholder(i + 1));
+            params.push(Value::String(value));
+        }
+
+        Ok(ParameterizedWhereClause {
+            sql: format!("{} IN ({})", key_field, placeholders.join(", ")),
+            params,
+        })
     } else {
-        // For composite keys, build: (key1, key2) IN ((val1a, val1b), ...)
-        construct_composite_where_in(key_directive.fields.clone(), representations)
+        construct_composite_where_in(key_directive.fields.clone(), representations, db_type)
     }
 }
 
@@ -85,34 +97,44 @@ fn extract_key_values(
         .collect()
 }
 
-/// Build WHERE IN clause for composite keys.
+/// Build parameterized WHERE IN clause for composite keys.
 fn construct_composite_where_in(
     key_fields: Vec<String>,
     representations: &[EntityRepresentation],
-) -> Result<String> {
+    db_type: DatabaseType,
+) -> Result<ParameterizedWhereClause> {
     if representations.is_empty() {
-        return Ok("1 = 0".to_string());
+        return Ok(ParameterizedWhereClause {
+            sql:    "1 = 0".to_string(),
+            params: vec![],
+        });
     }
 
-    // Extract all key value combinations
+    let mut params = Vec::new();
     let mut value_tuples = Vec::new();
+    let mut param_idx = 1usize;
 
     for rep in representations {
-        let mut tuple_values = Vec::new();
+        let mut tuple_placeholders = Vec::new();
         for field in &key_fields {
             let value = rep.key_fields.get(field).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Key field '{}' missing in representation", field),
                 path:    None,
             })?;
-            tuple_values.push(format!("'{}'", escape_sql_string(&value_to_string(value)?)));
+            tuple_placeholders.push(db_type.placeholder(param_idx));
+            params.push(Value::String(value_to_string(value)?));
+            param_idx += 1;
         }
-        value_tuples.push(format!("({})", tuple_values.join(", ")));
+        value_tuples.push(format!("({})", tuple_placeholders.join(", ")));
     }
 
     let fields_list = key_fields.join(", ");
     let tuples_str = value_tuples.join(", ");
 
-    Ok(format!("({}) IN ({})", fields_list, tuples_str))
+    Ok(ParameterizedWhereClause {
+        sql: format!("({}) IN ({})", fields_list, tuples_str),
+        params,
+    })
 }
 
 #[cfg(test)]
@@ -162,14 +184,51 @@ mod tests {
             },
         ];
 
-        let clause = construct_where_in_clause("User", &reps, &metadata).unwrap();
-        assert!(clause.contains("id IN"));
-        assert!(clause.contains("'123'"));
-        assert!(clause.contains("'456'"));
+        let result =
+            construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        assert_eq!(result.sql, "id IN ($1, $2)");
+        assert_eq!(result.params, vec![json!("123"), json!("456")]);
     }
 
     #[test]
-    fn test_sql_injection_prevention() {
+    fn test_construct_where_in_mysql_placeholders() {
+        let metadata = make_test_metadata();
+        let reps = vec![
+            EntityRepresentation {
+                typename:   "User".to_string(),
+                key_fields: [(String::from("id"), json!("1"))].iter().cloned().collect(),
+                all_fields: Default::default(),
+            },
+            EntityRepresentation {
+                typename:   "User".to_string(),
+                key_fields: [(String::from("id"), json!("2"))].iter().cloned().collect(),
+                all_fields: Default::default(),
+            },
+        ];
+
+        let result =
+            construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL).unwrap();
+        assert_eq!(result.sql, "id IN (?, ?)");
+        assert_eq!(result.params, vec![json!("1"), json!("2")]);
+    }
+
+    #[test]
+    fn test_construct_where_in_sqlserver_placeholders() {
+        let metadata = make_test_metadata();
+        let reps = vec![EntityRepresentation {
+            typename:   "User".to_string(),
+            key_fields: [(String::from("id"), json!("42"))].iter().cloned().collect(),
+            all_fields: Default::default(),
+        }];
+
+        let result =
+            construct_where_in_clause("User", &reps, &metadata, DatabaseType::SQLServer).unwrap();
+        assert_eq!(result.sql, "id IN (@p1)");
+        assert_eq!(result.params, vec![json!("42")]);
+    }
+
+    #[test]
+    fn test_sql_injection_values_are_parameterized() {
         let metadata = make_test_metadata();
         let reps = vec![EntityRepresentation {
             typename:   "User".to_string(),
@@ -180,18 +239,12 @@ mod tests {
             all_fields: Default::default(),
         }];
 
-        let clause = construct_where_in_clause("User", &reps, &metadata).unwrap();
-        // Dangerous SQL should be escaped
-        assert!(clause.contains("'';")); // Single quote should be doubled
-    }
-
-    #[test]
-    fn test_escape_sql_string() {
-        let result = escape_sql_string("O'Brien");
-        assert_eq!(result, "O''Brien");
-
-        let result = escape_sql_string("test''; DROP--");
-        assert_eq!(result, "test''''; DROP--");
+        let result =
+            construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        // Dangerous value is in params, NOT in the SQL string
+        assert_eq!(result.sql, "id IN ($1)");
+        assert_eq!(result.params, vec![json!("'; DROP TABLE users; --")]);
+        assert!(!result.sql.contains("DROP"));
     }
 
     #[test]
@@ -199,8 +252,10 @@ mod tests {
         let metadata = make_test_metadata();
         let reps = vec![];
 
-        let clause = construct_where_in_clause("User", &reps, &metadata).unwrap();
-        assert_eq!(clause, "1 = 0"); // No rows to resolve
+        let result =
+            construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        assert_eq!(result.sql, "1 = 0");
+        assert!(result.params.is_empty());
     }
 
     #[test]
@@ -208,7 +263,8 @@ mod tests {
         let metadata = make_test_metadata();
         let reps = vec![];
 
-        let result = construct_where_in_clause("NotFound", &reps, &metadata);
+        let result =
+            construct_where_in_clause("NotFound", &reps, &metadata, DatabaseType::PostgreSQL);
         assert!(result.is_err());
     }
 }

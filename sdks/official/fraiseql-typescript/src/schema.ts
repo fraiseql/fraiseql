@@ -6,6 +6,7 @@
  */
 
 import * as fs from "fs";
+import * as path from "path";
 import { SchemaRegistry, Schema } from "./registry";
 
 const BUILTIN_SCALARS = new Set(["String", "Int", "Float", "Boolean", "ID"]);
@@ -249,4 +250,108 @@ export function exportTypes(outputPath: string, options: { pretty?: boolean } = 
     console.log(`   Interfaces: ${minimalSchema.interfaces.length}`);
   }
   console.log(`   → Use with: fraiseql compile fraiseql.toml --types ${outputPath}`);
+}
+
+/**
+ * Parse a minimal subset of TOML (simple key=value pairs and [section] headers).
+ *
+ * Supports the structure needed for inject_defaults:
+ *   [inject_defaults]
+ *   key = "value"
+ *   [inject_defaults.queries]
+ *   key = "value"
+ *   [inject_defaults.mutations]
+ *   key = "value"
+ *
+ * @param content - TOML file content
+ * @returns Parsed sections as nested maps
+ * @internal
+ */
+function parseMinimalToml(content: string): Record<string, Record<string, string>> {
+  const sections: Record<string, Record<string, string>> = {};
+  let currentSection = "";
+
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    // Skip comments and blank lines
+    if (line === "" || line.startsWith("#")) continue;
+
+    // Section header
+    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim();
+      if (!sections[currentSection]) {
+        sections[currentSection] = {};
+      }
+      continue;
+    }
+
+    // Key = value (string values only)
+    const kvMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]*)"$/);
+    if (kvMatch && currentSection) {
+      sections[currentSection][kvMatch[1]] = kvMatch[2];
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Load FraiseQL configuration from a TOML file and apply inject_defaults.
+ *
+ * Reads the `[inject_defaults]`, `[inject_defaults.queries]`, and
+ * `[inject_defaults.mutations]` sections from the given TOML file and
+ * registers them with the SchemaRegistry so they are merged into
+ * queries/mutations at export time.
+ *
+ * @param tomlPath - Path to fraiseql.toml file. Defaults to "fraiseql.toml"
+ *   in the current working directory.
+ *
+ * @example
+ * ```ts
+ * // fraiseql.toml:
+ * // [inject_defaults]
+ * // tenant_id = "jwt:tenant_id"
+ * //
+ * // [inject_defaults.queries]
+ * // user_id = "jwt:sub"
+ *
+ * import { loadConfig } from "fraiseql";
+ * loadConfig("fraiseql.toml");
+ * ```
+ */
+export function loadConfig(tomlPath?: string): void {
+  const resolvedPath = tomlPath
+    ? path.resolve(tomlPath)
+    : path.resolve("fraiseql.toml");
+
+  const content = fs.readFileSync(resolvedPath, { encoding: "utf-8" });
+  const sections = parseMinimalToml(content);
+
+  const base = new Map<string, string>();
+  const queries = new Map<string, string>();
+  const mutations = new Map<string, string>();
+
+  const baseSection = sections["inject_defaults"];
+  if (baseSection) {
+    for (const [k, v] of Object.entries(baseSection)) {
+      base.set(k, v);
+    }
+  }
+
+  const queriesSection = sections["inject_defaults.queries"];
+  if (queriesSection) {
+    for (const [k, v] of Object.entries(queriesSection)) {
+      queries.set(k, v);
+    }
+  }
+
+  const mutationsSection = sections["inject_defaults.mutations"];
+  if (mutationsSection) {
+    for (const [k, v] of Object.entries(mutationsSection)) {
+      mutations.set(k, v);
+    }
+  }
+
+  SchemaRegistry.setInjectDefaults(base, queries, mutations);
 }

@@ -101,13 +101,13 @@ mod tests {
     // Verify that async functions return Send futures (compile-time check)
     // This ensures compatibility with async_trait and multi-threaded executors.
     // The actual assertion doesn't execute - it's type-checked at compile time.
-    // Reason: compile-time Send safety check, never invoked at runtime
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: compile-time Send safety check, never invoked at runtime
     const _SEND_SAFETY_CHECK: fn() = || {
         fn require_send<T: Send>() {}
 
         // Dummy values just for type checking - never executed
         #[allow(unreachable_code)]
+        // Reason: closure body is never executed; exists only for compile-time type checking
         let _ = || {
             // These would be checked at compile time if instantiated
             require_send::<

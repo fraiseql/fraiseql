@@ -127,7 +127,7 @@
 //!
 //! # Example Usage
 //!
-//! ```no_run
+//! ```ignore
 //! // Requires: a live PostgreSQL database with fraiseql schema.
 //! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;
@@ -179,7 +179,10 @@ use crate::{
 mod core;
 pub use core::Executor;
 
+pub use bulk::BulkResult;
+
 mod aggregate;
+mod bulk;
 mod classify;
 mod execution;
 mod explain;

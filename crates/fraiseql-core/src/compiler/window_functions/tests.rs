@@ -1,44 +1,27 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use super::*;
-use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
+use crate::compiler::fact_table::{DimensionPath, FilterColumn, SqlType, test_sales_metadata};
 
 fn create_test_metadata() -> FactTableMetadata {
-    FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
-            MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
-            },
-            MeasureColumn {
-                name:     "quantity".to_string(),
-                sql_type: SqlType::Int,
-                nullable: false,
-            },
-        ],
-        dimensions:           DimensionColumn {
-            name:  "dimensions".to_string(),
-            paths: vec![crate::compiler::fact_table::DimensionPath {
-                name:      "category".to_string(),
-                json_path: "dimensions->>'category'".to_string(),
-                data_type: "text".to_string(),
-            }],
+    let mut m = test_sales_metadata();
+    m.dimensions.paths = vec![DimensionPath {
+        name:      "category".to_string(),
+        json_path: "dimensions->>'category'".to_string(),
+        data_type: "text".to_string(),
+    }];
+    m.denormalized_filters = vec![
+        FilterColumn {
+            name:     "customer_id".to_string(),
+            sql_type: SqlType::Uuid,
+            indexed:  true,
         },
-        denormalized_filters: vec![
-            FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
-            },
-            FilterColumn {
-                name:     "occurred_at".to_string(),
-                sql_type: SqlType::Timestamp,
-                indexed:  true,
-            },
-        ],
-        calendar_dimensions:  vec![],
-    }
+        FilterColumn {
+            name:     "occurred_at".to_string(),
+            sql_type: SqlType::Timestamp,
+            indexed:  true,
+        },
+    ];
+    m
 }
 
 // =============================================================================

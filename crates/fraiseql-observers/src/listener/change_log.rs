@@ -24,10 +24,10 @@ use crate::{
 type ChangeLogRow = (
     i64,
     Uuid,
-    Option<String>,
-    Option<String>,
+    Option<i64>,
+    Option<i64>,
     String,
-    String,
+    Uuid,
     String,
     Option<String>,
     Value,
@@ -88,23 +88,23 @@ impl ChangeLogListenerConfig {
 /// Single entry from `tb_entity_change_log`
 #[derive(Debug, Clone)]
 pub struct ChangeLogEntry {
-    /// Row ID (bigserial)
+    /// Row ID (bigint PK)
     pub id: i64,
 
     /// UUID for the entry
     pub pk_entity_change_log: String,
 
-    /// Multi-tenant: organization that owns this change
-    pub fk_customer_org: String,
+    /// Multi-tenant: organization that owns this change (BIGINT FK)
+    pub fk_customer_org: Option<i64>,
 
-    /// User ID who made the change (optional)
-    pub fk_contact: Option<String>,
+    /// User ID who made the change (BIGINT FK, optional)
+    pub fk_contact: Option<i64>,
 
     /// Entity type (User, Order, Product, etc.)
     pub object_type: String,
 
     /// Entity ID (UUID)
-    pub object_id: String,
+    pub object_id: Uuid,
 
     /// Operation type (INSERT, UPDATE, DELETE, NOOP)
     pub modification_type: String,
@@ -124,6 +124,10 @@ pub struct ChangeLogEntry {
 
 impl ChangeLogEntry {
     /// Parse Debezium envelope to get operation code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn debezium_operation(&self) -> Result<char> {
         self.object_data
             .get("op")
@@ -135,6 +139,10 @@ impl ChangeLogEntry {
     }
 
     /// Get "after" values (entity state after change)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn after_values(&self) -> Result<Value> {
         self.object_data.get("after").cloned().ok_or_else(|| {
             ObserverError::TemplateRenderingFailed {
@@ -150,6 +158,10 @@ impl ChangeLogEntry {
     }
 
     /// Convert to `EntityEvent` for observer processing
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         // Map operation code to EventKind
         let event_kind = match self.debezium_operation()? {
@@ -164,12 +176,7 @@ impl ChangeLogEntry {
             },
         };
 
-        // Parse entity_id from object_id (should be UUID format)
-        let entity_id = Uuid::parse_str(&self.object_id).map_err(|e| {
-            ObserverError::TemplateRenderingFailed {
-                reason: format!("Invalid entity ID (not UUID): {} - {}", self.object_id, e),
-            }
-        })?;
+        let entity_id = self.object_id;
 
         // Parse timestamp from created_at (PostgreSQL TIMESTAMPTZ format)
         // PostgreSQL returns: "2026-01-23 12:34:56.123456" or "2026-01-23 12:34:56.123456+00"
@@ -200,7 +207,7 @@ impl ChangeLogEntry {
         };
 
         // Use fk_contact as user_id if available
-        let user_id = self.fk_contact.clone();
+        let user_id = self.fk_contact.map(|id| id.to_string());
 
         Ok(EntityEvent {
             id: Uuid::parse_str(&self.pk_entity_change_log).unwrap_or_else(|_| Uuid::new_v4()),
@@ -297,6 +304,10 @@ impl ChangeLogListener {
     }
 
     /// Fetch next batch of entries from change log
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn next_batch(&mut self) -> Result<Vec<ChangeLogEntry>> {
         // Query: SELECT * FROM tb_entity_change_log
         // WHERE pk_entity_change_log > last_processed_id
@@ -341,7 +352,7 @@ impl ChangeLogListener {
             entries.push(ChangeLogEntry {
                 id:                   pk,
                 pk_entity_change_log: id.to_string(),
-                fk_customer_org:      org.unwrap_or_default(),
+                fk_customer_org:      org,
                 fk_contact:           contact,
                 object_type:          obj_type,
                 object_id:            obj_id,
@@ -373,6 +384,10 @@ impl ChangeLogListener {
     }
 
     /// Poll indefinitely for events (for background task)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting change log listener (resume from id: {})", self.last_processed_id);
 
@@ -410,11 +425,11 @@ mod tests {
     fn test_change_log_entry_debezium_operation() {
         let entry = ChangeLogEntry {
             id:                   1,
-            pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Order".to_string(),
-            object_id:            "order-id".to_string(),
+            object_id:            Uuid::new_v4(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -433,11 +448,11 @@ mod tests {
     fn test_change_log_entry_after_values() {
         let entry = ChangeLogEntry {
             id:                   1,
-            pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "User".to_string(),
-            object_id:            "user-id".to_string(),
+            object_id:            Uuid::new_v4(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -457,11 +472,11 @@ mod tests {
     fn test_change_log_entry_before_values() {
         let entry = ChangeLogEntry {
             id:                   1,
-            pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Product".to_string(),
-            object_id:            "prod-id".to_string(),
+            object_id:            Uuid::new_v4(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -511,10 +526,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           Some("user-123".to_string()),
+            fk_customer_org:      Some(1),
+            fk_contact:           Some(123),
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -532,7 +547,7 @@ mod tests {
         assert_eq!(event.entity_type, "Order");
         assert_eq!(event.entity_id, entity_id);
         assert_eq!(event.data["total"], 150.00);
-        assert_eq!(event.user_id, Some("user-123".to_string()));
+        assert_eq!(event.user_id, Some("123".to_string()));
         assert!(event.changes.is_none()); // No changes for CREATE
     }
 
@@ -542,10 +557,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           Some("user-456".to_string()),
+            fk_customer_org:      Some(1),
+            fk_contact:           Some(456),
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -577,10 +592,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "DELETE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -606,10 +621,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   4,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Product".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -636,10 +651,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   5,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -666,10 +681,10 @@ mod tests {
         let entry = ChangeLogEntry {
             id:                   6,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({

@@ -91,7 +91,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
         })?;
 
         let mut query =
-            Query::new("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = @P1");
+            Query::new("SELECT last_pk FROM tb_transport_checkpoint WHERE identifier = @P1");
         query.bind(transport_name);
 
         let stream = query.query(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
@@ -135,8 +135,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        let mut query =
-            Query::new("DELETE FROM tb_transport_checkpoint WHERE transport_name = @P1");
+        let mut query = Query::new("DELETE FROM tb_transport_checkpoint WHERE identifier = @P1");
         query.bind(transport_name);
 
         query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
@@ -200,6 +199,10 @@ pub struct MSSQLChangeLogEntry {
 #[cfg(feature = "mssql")]
 impl MSSQLChangeLogEntry {
     /// Convert to `EntityEvent` for publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the modification type is unknown.
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         use crate::event::EventKind;
 
@@ -235,6 +238,10 @@ impl MSSQLChangeLogEntry {
     }
 
     /// Parse a SQL Server row into a `MSSQLChangeLogEntry`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::DatabaseError` if required columns are missing or JSON is invalid.
     pub fn from_row(row: &Row) -> Result<Self> {
         // Helper to extract values with proper error handling
         let pk: i64 = row.get(0).ok_or_else(|| ObserverError::DatabaseError {
@@ -485,6 +492,10 @@ impl MSSQLNatsBridge {
     ///
     /// SQL Server has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run(&self) -> Result<()> {
         info!("Starting MSSQL → NATS bridge: {}", self.config.transport_name);
 
@@ -561,6 +572,10 @@ impl MSSQLNatsBridge {
     }
 
     /// Run with graceful shutdown support.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, publishing, or checkpointing fails.
     pub async fn run_with_shutdown(
         &self,
         mut shutdown: tokio::sync::broadcast::Receiver<()>,
@@ -652,6 +667,10 @@ impl MSSQLNatsBridge {
 ///     "Server=localhost;Database=mydb;User Id=sa;Password=secret;TrustServerCertificate=true"
 /// ).await?;
 /// ```
+/// # Errors
+///
+/// Returns `ObserverError::TransportConnectionFailed` if the connection string
+/// is invalid or the pool cannot be created.
 #[cfg(feature = "mssql")]
 pub async fn create_mssql_pool(connection_string: &str) -> Result<MSSQLPool> {
     use tiberius::Config;

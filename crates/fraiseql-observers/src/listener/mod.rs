@@ -81,6 +81,10 @@ impl EventListener {
     /// 3. Receives NOTIFY events and deserializes them
     /// 4. Sends events through the bounded channel
     /// 5. Handles backpressure according to overflow policy
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub async fn start(&mut self) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ObserverError::ListenerConnectionFailed {

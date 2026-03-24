@@ -207,6 +207,10 @@ impl FieldEncryption {
     ///
     /// # Returns
     /// Encrypted data in format: [12-byte nonce][ciphertext + 16-byte tag]
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if encryption fails.
     pub fn encrypt_with_context(
         &self,
         plaintext: &str,

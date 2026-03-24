@@ -230,7 +230,7 @@ impl SqlQueryLog {
     pub fn duration_ms(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: duration_us is a microsecond counter used for display; f64 precision loss is
-        // acceptable.
+        // acceptable
         {
             self.duration_us as f64 / 1000.0
         }

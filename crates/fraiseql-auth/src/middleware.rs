@@ -76,7 +76,12 @@ impl AuthMiddleware {
         }
     }
 
-    /// Validate a Bearer token and extract claims
+    /// Validate a Bearer token and extract claims.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError::InvalidToken` if the token is malformed or signature verification fails.
+    /// Returns `AuthError::TokenExpired` if the token has expired.
     pub async fn validate_token(&self, token: &str) -> Result<Claims> {
         self.validator.validate(token, &self.public_key)
     }
@@ -219,8 +224,7 @@ impl IntoResponse for AuthError {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module uses wildcard import for brevity
     use super::*;
 
     #[test]

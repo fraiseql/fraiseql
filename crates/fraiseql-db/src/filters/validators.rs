@@ -208,9 +208,8 @@ impl ValidationRule {
                 if let Some(Value::Number(n)) = map.get("length") {
                     if let Some(length) = n.as_u64() {
                         #[allow(clippy::cast_possible_truncation)]
-                        // Reason: length comes from user schema config; values exceeding
-                        // usize::MAX are not meaningful as string-length limits and are
-                        // silently saturated here (32-bit platforms only).
+                        // Reason: length from schema config; values exceeding usize::MAX are
+                        // saturated (32-bit only)
                         let length_usize = usize::try_from(length).unwrap_or(usize::MAX);
                         rules.push(ValidationRule::Length(length_usize));
                     }
@@ -222,8 +221,8 @@ impl ValidationRule {
                 {
                     if let (Some(min_val), Some(max_val)) = (min.as_u64(), max.as_u64()) {
                         #[allow(clippy::cast_possible_truncation)]
-                        // Reason: min/max length limits from schema config; values exceeding
-                        // usize::MAX are not meaningful for string-length validation.
+                        // Reason: min/max length from schema config; values exceeding usize::MAX
+                        // are saturated
                         let (min, max) = (
                             usize::try_from(min_val).unwrap_or(usize::MAX),
                             usize::try_from(max_val).unwrap_or(usize::MAX),
@@ -356,6 +355,7 @@ fn validate_luhn(value: &str) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 

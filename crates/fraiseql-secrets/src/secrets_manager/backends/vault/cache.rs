@@ -13,10 +13,7 @@ pub(super) const DEFAULT_MAX_CACHE_ENTRIES: usize = 1_000;
 
 /// Vault API response structure for secrets.
 #[derive(Debug, Clone, serde::Deserialize)]
-// Reason: fields populated by serde deserialization; only `data` and
-// `lease_duration` are accessed in business logic; the rest are kept for
-// completeness and potential future auditing.
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: fields populated by serde deserialization; only data and lease_duration are accessed; rest kept for future auditing
 pub(super) struct VaultResponse {
     pub(super) request_id:     String,
     pub(super) lease_id:       String,
