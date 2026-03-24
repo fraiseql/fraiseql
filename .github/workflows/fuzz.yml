@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)

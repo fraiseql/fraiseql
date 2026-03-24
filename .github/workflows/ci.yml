@@ -68,7 +68,7 @@ jobs:
           components: clippy
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
@@ -110,7 +110,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
@@ -154,7 +154,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build
         shell: bash
@@ -227,7 +227,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize test database schema
         run: |
@@ -299,7 +299,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize MySQL test database schema
         run: |
@@ -329,7 +329,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Run SQLite integration tests
         run: cargo test -p fraiseql-core --features "sqlite" --test multi_database_integration sqlite
@@ -375,7 +375,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize SQL Server test databases
         run: /opt/mssql-tools18/bin/sqlcmd -S localhost,1434 -U sa -P 'FraiseQL_Test1234' -C -i tests/sql/sqlserver/init.sql
@@ -424,7 +424,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize test database schema
         run: |
@@ -574,7 +574,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Check for actionable duplicate dependencies
         run: |
@@ -617,7 +617,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build documentation
         run: cargo doc --all-features --no-deps
@@ -674,7 +674,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
@@ -731,7 +731,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Run Redis APQ storage tests (fraiseql-core)
         run: cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
@@ -765,7 +765,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -832,7 +832,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -899,7 +899,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Start PostgreSQL with TLS enabled
         # postgres:16 includes openssl; the init script generates self-signed certs
@@ -967,7 +967,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Start Vault in dev mode
         run: |
@@ -1035,7 +1035,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize test database schema
         run: |
@@ -1076,7 +1076,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Apply E2E database schema
         run: |
@@ -1170,7 +1170,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -1262,7 +1262,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize benchmark database
         run: |
@@ -1300,7 +1300,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Test fraiseql-server no-default-features
         run: cargo check -p fraiseql-server --no-default-features
@@ -1393,7 +1393,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build release binaries
         run: cargo build --release -p fraiseql-cli -p fraiseql-server

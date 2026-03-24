@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo check
         run: |
           if [ -z "${{ matrix.features }}" ]; then
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run feature-gated integration tests
         run: cargo test --test "${{ matrix.test }}" -p fraiseql-server --features "${{ matrix.features }}"
 
@@ -87,6 +87,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: cargo check
         run: cargo check -p fraiseql-core --no-default-features --features "${{ matrix.features }}"

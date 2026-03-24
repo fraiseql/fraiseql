@@ -37,7 +37,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Check format
         run: cargo fmt --check
