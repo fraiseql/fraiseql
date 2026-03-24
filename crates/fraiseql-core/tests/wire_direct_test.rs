@@ -1,3 +1,4 @@
+#![cfg(unix)]
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 //! Test fraiseql-wire directly without adapter layer

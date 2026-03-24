@@ -78,7 +78,6 @@ deadpool-postgres.workspace = true
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
-fraiseql-wire = {workspace = true}
 insta = {version = "1.38", features = ["yaml"]}
 proptest = {workspace = true}
 serial_test = "3"
@@ -90,8 +89,9 @@ testcontainers-modules = {version = "0.14", features = ["postgres", "mysql"]}
 tokio-test = "0.4"
 wiremock = "0.6"
 
-# Watchdog uses signal-hook which is Unix-only (SIGQUIT, signal_hook::iterator)
+# fraiseql-wire and watchdog are Unix-only (UnixStream, signal_hook)
 [target.'cfg(unix)'.dev-dependencies]
+fraiseql-wire = {workspace = true}
 testcontainers = {version = "0.26", features = ["watchdog"]}
 
 [features]

@@ -1,3 +1,4 @@
+#![cfg(unix)]
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_possible_truncation)] // Reason: test uses usize→u32 for small test counts
 #![allow(clippy::doc_markdown)] // Reason: test doc comments use non-standard code formatting

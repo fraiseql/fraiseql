@@ -208,7 +208,13 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 };
                 let cast = self.dialect.cast_to_numeric(&field_expr);
                 let p = self.push_param(params, value.clone());
-                Ok(format!("{cast} {op} {p}"))
+                // Apply the same RHS cast as Eq/Neq so that the parameter is
+                // sent as TEXT and cast to NUMERIC on the server side.  Without
+                // this, PostgreSQL infers the parameter type as NUMERIC during
+                // statement preparation but the client sends it as TEXT,
+                // producing an 08P01 protocol-violation error.
+                let rhs = self.dialect.cast_param_numeric(&p);
+                Ok(format!("{cast} {op} {rhs}"))
             },
 
             // ── Containment ───────────────────────────────────────────────────

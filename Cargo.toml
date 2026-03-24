@@ -22,6 +22,12 @@ strip = true
 
 [profile.test]
 opt-level = 1
+# Limit codegen units to reduce peak linker memory when building large test binaries.
+# Default (16+) generates many translation units that all land in the linker simultaneously;
+# 4 is a reasonable middle ground between build speed and memory pressure.
+codegen-units = 4
+# Unpack debug info into separate files so the linker doesn't merge one giant DWARF blob.
+split-debuginfo = "unpacked"
 
 [workspace]
 members = [

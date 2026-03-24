@@ -45,10 +45,12 @@ protocol = "sparse"
 color = "always"
 verbose = false
 
-# Enable mold linker for faster linking on Linux
-# Provides 3-5x speedup on full rebuilds
-# NOTE: Disabled for CI/GitHub Actions compatibility (mold not available in runner)
-# Uncomment locally if you have mold installed for faster builds
-# [target.x86_64-unknown-linux-gnu]
-# linker = "clang"
-# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# Enable mold linker for faster linking on Linux.
+# Provides 3-5x speedup on full rebuilds and uses significantly less memory than lld,
+# which matters on CI runners where OOM during linking can kill large test binaries.
+# All CI jobs already install mold via apt; developers can install it with:
+#   sudo apt-get install mold   (Debian/Ubuntu)
+#   brew install mold           (macOS — no-op, mold is Linux-only)
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
