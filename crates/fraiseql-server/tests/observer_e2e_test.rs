@@ -112,7 +112,7 @@ async fn test_observer_happy_path_insert_webhook() {
     // Verify observer_log entry
     assert_observer_log(
         &pool,
-        &order_id.to_string(),
+        order_id,
         "success",
         Some(1), // Single attempt for success
     )
@@ -319,7 +319,7 @@ async fn test_observer_retry_exponential_backoff() {
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
 
     // Verify retry attempts in tb_observer_log
-    let logs = get_observer_logs_for_entity(&pool, &order_id.to_string())
+    let logs = get_observer_logs_for_entity(&pool, order_id)
         .await
         .expect("Failed to fetch observer logs");
 
