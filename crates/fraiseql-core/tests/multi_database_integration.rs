@@ -799,8 +799,10 @@ mod sqlserver_relay_tests {
         }];
 
         // before = UUID-5 (score=90), limit=3, forward=false, order_by score ASC.
-        // Rows with UUID < UUID-5: item-1(50), item-2(30), item-3(70), item-4(10).
-        // Sorted by score ASC the last 3 are: item-4(10), item-2(30), item-1(50).
+        // Relay cursor filters on the order column: rows with score < 90.
+        // Candidates: item-4(10), item-6(20), item-2(30), item-8(40), item-1(50),
+        //             item-7(60), item-3(70), item-9(80).
+        // Backward (last 3 by score ASC): item-2(30), item-1(50), item-3(70).
         // After backward flip (inner DESC, outer ASC): returned in score ASC order.
         let result = a
             .execute_relay_page(
@@ -821,7 +823,7 @@ mod sqlserver_relay_tests {
 
         // Verify scores are in ascending order (proves backward direction flip is correct).
         let scores: Vec<i64> = result.rows.iter().map(extract_score).collect();
-        assert_eq!(scores, vec![10, 30, 50], "Rows must be in score ASC order");
+        assert_eq!(scores, vec![30, 50, 70], "Rows must be in score ASC order");
     }
 
     #[tokio::test]

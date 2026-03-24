@@ -36,7 +36,6 @@ mod nats_tests {
 
     use super::*;
 
-
     /// Test `NatsConfig` default values
     #[test]
     fn test_nats_config_defaults() {
@@ -86,7 +85,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_connection() {
-
         let config = NatsConfig {
             consumer_name: format!("test-connection-{}", Uuid::new_v4()),
             ..Default::default()
@@ -103,7 +101,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_health_check() {
-
         let config = NatsConfig {
             consumer_name: format!("test-health-{}", Uuid::new_v4()),
             ..Default::default()
@@ -122,7 +119,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_publish_subscribe() {
-
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
             stream_name: format!("test-stream-{test_id}"),
@@ -169,7 +165,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_entity_type_filter() {
-
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
             stream_name: format!("test-filter-stream-{test_id}"),
@@ -223,7 +218,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_operation_filter() {
-
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
             stream_name: format!("test-op-filter-stream-{test_id}"),
@@ -299,7 +293,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_multiple_events() {
-
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
             stream_name: format!("test-multi-stream-{test_id}"),
@@ -349,7 +342,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_durable_consumer() {
-
         let test_id = Uuid::new_v4();
         let stream_name = format!("test-durable-stream-{test_id}");
         let consumer_name = format!("test-durable-consumer-{test_id}");
@@ -412,7 +404,6 @@ mod nats_tests {
     #[tokio::test]
     #[ignore = "requires NATS server - run with: FRAISEQL_ALLOW_LOCALHOST=1 cargo test --test nats_integration --features nats -- --ignored"]
     async fn test_nats_event_with_user_id() {
-
         let test_id = Uuid::new_v4();
         let config = NatsConfig {
             stream_name: format!("test-user-stream-{test_id}"),
