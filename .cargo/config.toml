@@ -46,6 +46,6 @@ color = "always"
 verbose = false
 
 # To use mold linker locally for faster linking on Linux:
-#   sudo apt-get install mold clang
-#   RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" cargo build
+# sudo apt-get install mold clang
+# RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" cargo build
 # Not enabled globally here because not all CI jobs install mold.
