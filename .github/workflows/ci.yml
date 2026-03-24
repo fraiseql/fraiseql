@@ -545,8 +545,13 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTC_WRAPPER: ""
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
