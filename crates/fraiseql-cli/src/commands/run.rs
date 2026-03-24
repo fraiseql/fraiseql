@@ -80,8 +80,16 @@ pub async fn run(
     println!();
 
     if watch {
-        run_watch_loop(&input_path, &db_url, bind_addr, introspection, read_only, &server_cfg, &db_cfg)
-            .await
+        run_watch_loop(
+            &input_path,
+            &db_url,
+            bind_addr,
+            introspection,
+            read_only,
+            &server_cfg,
+            &db_cfg,
+        )
+        .await
     } else {
         run_once(&input_path, &db_url, bind_addr, introspection, read_only, &server_cfg, &db_cfg)
             .await

@@ -135,8 +135,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        let mut query =
-            Query::new("DELETE FROM tb_transport_checkpoint WHERE identifier = @P1");
+        let mut query = Query::new("DELETE FROM tb_transport_checkpoint WHERE identifier = @P1");
         query.bind(transport_name);
 
         query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {

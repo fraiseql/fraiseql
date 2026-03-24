@@ -433,7 +433,9 @@ EXAMPLES:
     /// take precedence over defaults.  The database URL is resolved in this order:
     /// --database flag > DATABASE_URL env var > [database].url in fraiseql.toml.
     #[cfg(feature = "run-server")]
-    #[command(alias = "serve", after_help = "\
+    #[command(
+        alias = "serve",
+        after_help = "\
 EXAMPLES:
     fraiseql run
     fraiseql run fraiseql.toml --database postgres://localhost/mydb
@@ -453,14 +455,15 @@ TOML CONFIG:
     [database]
     url      = \"${DATABASE_URL}\"
     pool_min = 2
-    pool_max = 20")]
+    pool_max = 20"
+    )]
     Run {
         /// Input file path (fraiseql.toml or schema.json); auto-detected if omitted
         #[arg(value_name = "INPUT")]
         input: Option<String>,
 
         /// Database URL (overrides [database].url in fraiseql.toml and DATABASE_URL env var)
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Port to listen on (overrides [server].port in fraiseql.toml)
@@ -568,7 +571,6 @@ EXAMPLES:
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
     },
-
 }
 
 #[derive(Subcommand)]

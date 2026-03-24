@@ -443,10 +443,10 @@ impl Default for ServerConfig {
             admin_api_enabled: false, // Disabled by default for security
             admin_token: None,
             admin_readonly_token: None,
-            read_only: false,                // Mutations allowed by default
-            introspection_enabled: false, // Disabled by default for security
+            read_only: false,                 // Mutations allowed by default
+            introspection_enabled: false,     // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
-            design_api_require_auth: true, // Require auth for design endpoints
+            design_api_require_auth: true,    // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),

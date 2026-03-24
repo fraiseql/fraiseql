@@ -366,8 +366,16 @@ pub async fn run() {
             introspection,
             read_only,
         } => {
-            commands::run::run(input.as_deref(), database, port, bind, watch, introspection, read_only)
-                .await
+            commands::run::run(
+                input.as_deref(),
+                database,
+                port,
+                bind,
+                watch,
+                introspection,
+                read_only,
+            )
+            .await
         },
 
         Commands::Openapi { schema, output } => commands::openapi::run(&schema, &output),
@@ -393,7 +401,6 @@ pub async fn run() {
             database.as_deref(),
             cli.json,
         ),
-
     };
 
     if let Err(e) = result {

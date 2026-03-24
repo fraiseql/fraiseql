@@ -513,11 +513,12 @@ pub async fn check_checkpoint_exists(
 
 /// Get checkpoint value (last processed ID) for a listener
 pub async fn get_checkpoint_value(pool: &PgPool, listener_id: &str) -> Result<i64, sqlx::Error> {
-    let row: Option<(i64,)> =
-        sqlx::query_as("SELECT last_processed_id FROM tb_observer_checkpoint WHERE identifier = $1")
-            .bind(listener_id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT last_processed_id FROM tb_observer_checkpoint WHERE identifier = $1",
+    )
+    .bind(listener_id)
+    .fetch_optional(pool)
+    .await?;
 
     Ok(row.map_or(0, |(id,)| id))
 }
