@@ -96,7 +96,9 @@ pub(super) fn resolve_url(
 /// this static validation.
 fn validate_url_ssrf(url: &str) -> Result<()> {
     // Allow private/loopback addresses in test/dev environments.
-    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok() {
+    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok()
+        || crate::ssrf::allow_localhost_env()
+    {
         return Ok(());
     }
 

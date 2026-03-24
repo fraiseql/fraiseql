@@ -42,6 +42,13 @@ const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 /// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
 /// non-HTTP(S) scheme or resolves to a blocked address range.
 fn validate_outbound_url(url: &str) -> Result<()> {
+    // Allow private/loopback addresses in test/dev environments.
+    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok()
+        || crate::ssrf::allow_localhost_env()
+    {
+        return Ok(());
+    }
+
     let lower = url.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(ObserverError::ActionPermanentlyFailed {

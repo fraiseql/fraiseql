@@ -13,6 +13,13 @@ use crate::error::ObserverError;
 /// Returns `true` when the `FRAISEQL_ALLOW_LOCALHOST` environment variable is
 /// set to a truthy value (`"1"`, `"true"`, or `"yes"`, case-insensitive).
 fn allow_localhost() -> bool {
+    allow_localhost_env()
+}
+
+/// Returns `true` when `FRAISEQL_ALLOW_LOCALHOST` is set to a truthy value.
+///
+/// Exposed for use by other SSRF check sites in this crate.
+pub fn allow_localhost_env() -> bool {
     std::env::var("FRAISEQL_ALLOW_LOCALHOST")
         .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
         .unwrap_or(false)
