@@ -19,6 +19,10 @@ on:
     branches: [main, dev]
     types: [labeled]  # Only run on PRs labeled "perf"
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   load-test:
     name: Load test (k6)
@@ -49,10 +53,8 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: perf-baseline
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
 
       - name: Build release binary
         run: cargo build --release -p fraiseql-cli

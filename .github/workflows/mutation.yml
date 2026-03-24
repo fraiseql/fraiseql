@@ -21,6 +21,10 @@ concurrency:
   group: mutation-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   # Core engine mutation tests (original scope)
   mutants-core:
@@ -31,9 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: mutants-core
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
       - name: Run mutation tests
@@ -62,9 +65,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: mutants-auth
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
       - name: Run mutation tests
@@ -90,9 +92,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: mutants-db
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
       - name: Run mutation tests
@@ -117,9 +118,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: mutants-federation
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
       - name: Run mutation tests

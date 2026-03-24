@@ -5,6 +5,10 @@ on:
     - cron: '0 3 * * 0'  # Weekly, Sunday 3am UTC
   workflow_dispatch:       # Manual trigger
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   fuzz-core:
     name: Fuzz fraiseql-core (${{ matrix.target }})
@@ -23,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)
@@ -55,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)
