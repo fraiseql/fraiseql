@@ -120,7 +120,7 @@ sqlx = {workspace = true, features = ["postgres"]}
 temp-env = {workspace = true}
 tempfile = {workspace = true}
 # Container-based integration tests
-testcontainers = {version = "0.26", features = ["watchdog"]}
+testcontainers = {version = "0.26"}
 testcontainers-modules = {version = "0.14", features = ["postgres"]}
 tokio-postgres = {workspace = true}
 # Testing
@@ -128,6 +128,10 @@ tokio-test = "0.4"
 # Utilities for E2E tests
 tokio-util = {workspace = true}
 wiremock = "0.6"
+
+# Watchdog uses signal-hook which is Unix-only (SIGQUIT, signal_hook::iterator)
+[target.'cfg(unix)'.dev-dependencies]
+testcontainers = {version = "0.26", features = ["watchdog"]}
 
 [features]
 # Arrow Flight server for high-performance data delivery

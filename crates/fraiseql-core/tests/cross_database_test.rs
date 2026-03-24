@@ -50,17 +50,18 @@ INSERT INTO tb_cross_item (id, name, age, data) VALUES
 ON CONFLICT DO NOTHING;
 "#;
 
-const MYSQL_SCHEMA: &str = r"
+const MYSQL_SCHEMA_TABLE: &str = r"
 CREATE TABLE IF NOT EXISTS tb_cross_item (
     id   CHAR(36)     NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     age  INT,
     data JSON         NOT NULL,
     UNIQUE KEY uk_cross_item_name (name)
-);
+)";
+
+const MYSQL_SCHEMA_VIEW: &str = r"
 CREATE OR REPLACE VIEW v_cross_item AS
-    SELECT data FROM tb_cross_item;
-";
+    SELECT data FROM tb_cross_item";
 
 const MYSQL_SEED: &str = r#"
 INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES
@@ -118,10 +119,14 @@ async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
         .await
         .expect("Failed to connect to MySQL container");
 
-    sqlx::query(MYSQL_SCHEMA)
+    sqlx::query(MYSQL_SCHEMA_TABLE)
         .execute(&pool)
         .await
-        .expect("Failed to apply MySQL schema");
+        .expect("Failed to apply MySQL schema (table)");
+    sqlx::query(MYSQL_SCHEMA_VIEW)
+        .execute(&pool)
+        .await
+        .expect("Failed to apply MySQL schema (view)");
     sqlx::query(MYSQL_SEED).execute(&pool).await.expect("Failed to seed MySQL data");
     drop(pool);
 
