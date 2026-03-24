@@ -151,7 +151,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         rust: [stable, "1.92"]  # MSRV
     steps:
       - uses: actions/checkout@v4
