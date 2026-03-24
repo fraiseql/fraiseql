@@ -885,6 +885,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
+          FRAISEQL_ALLOW_PRIVATE_WEBHOOKS: "true"
 
   # Integration tests for TLS wire protocol (PostgreSQL with TLS)
   integration-tls:

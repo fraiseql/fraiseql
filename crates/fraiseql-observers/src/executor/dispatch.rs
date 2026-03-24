@@ -95,6 +95,11 @@ pub(super) fn resolve_url(
 /// a connect-time check at the HTTP client level and is beyond the scope of
 /// this static validation.
 fn validate_url_ssrf(url: &str) -> Result<()> {
+    // Allow private/loopback addresses in test/dev environments.
+    if std::env::var("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS").is_ok() {
+        return Ok(());
+    }
+
     if url.len() > MAX_WEBHOOK_URL_LEN {
         return Err(ObserverError::InvalidActionConfig {
             reason: format!(

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next release notes go here -->
 
-## [2.1.0] — 2026-03-13
+## [2.1.0] — 2026-03-24
 
 ### Changed
 
@@ -69,6 +69,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **REST transport** with auto-derived endpoints from query/mutation names; optional
+  `rest_path`/`rest_method` overrides in all 11 SDKs
+- **gRPC transport** with auto-generated proto definitions, row-shaped views (`vr_*`),
+  binary descriptor for reflection; separate port (default 50052)
+- **`--read-only` flag** for `fraiseql run` — disables all mutations for demo/replica
+  deployments. Also configurable via `FRAISEQL_READ_ONLY=true` env var or
+  `[server] read_only = true` in TOML (#147)
+- **`fraiseql serve` alias** for `fraiseql run` — drop-in replacement for deployment
+  scripts that referenced the old stub (#146)
+- **SDK parity** — all 11 SDKs (Python, TypeScript, Go, Java, C#, Rust, Elixir, F#,
+  PHP, Ruby, Dart) now support REST annotations
+- **Federation** — `key_fields`/`extends` decorator params for SDK-based federation
+- **Observer system** — Trinity Pattern alignment across all observer tables (DLQ,
+  checkpoints, transport checkpoints) for PostgreSQL, MySQL, and MSSQL
+- **SSRF protection for webhooks** — observer webhook dispatch validates target URLs
+  against private/reserved IP ranges, loopback hostnames, and non-HTTP schemes.
+  Bypassable with `FRAISEQL_ALLOW_PRIVATE_WEBHOOKS=true` for local development.
 - **C# SDK v2.0.0** (`sdks/official/fraiseql-csharp`): complete rewrite replacing the old
   dictionary-based v1 API with a modern attribute-driven authoring system.
   `[GraphQLType(Name, SqlSource, IsInput, Relay, IsError)]` and
@@ -155,6 +172,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declaration now uses `rustls-tls`; all crates (`fraiseql-auth`, `fraiseql-observers`,
   `fraiseql-secrets`, `fraiseql-server`) inherit it via `{workspace = true}`. `native-tls` no
   longer appears in the dependency tree.
+- **Observer migrations rewritten** (BREAKING for existing observer deployments):
+  tables renamed to `tb_observer_*` prefix, PKs changed to Trinity Pattern
+  (`pk_* BIGINT GENERATED ALWAYS AS IDENTITY`), FKs changed to BIGINT references.
+  `listener_id` → `identifier` in checkpoint tables, `transport_name` → `identifier`
+  in transport checkpoint tables.
 - **Error messages include "Did you mean?" suggestions**: Mutation-not-found and
   fact-table-not-found errors now suggest similarly-named alternatives (mirrors existing
   query-not-found behaviour via `suggest_similar`). OIDC error response body now matches the
@@ -169,6 +191,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   UPDATE/DELETE mutations when `entity_id` is present, enabling precise cache eviction instead
   of flushing the entire view. View-level flush is still applied for CREATE mutations and when
   `invalidates_views` is explicitly declared.
+- **Clap `-d` short flag conflict** between `--database` and `--debug` on `run` subcommand
+- **Observer test helpers** used TEXT columns for `object_id` instead of UUID (Trinity Pattern
+  violation)
+
+### Removed
+
+- Hidden `serve` subcommand stub (replaced by `run` alias)
 
 ## [2.0.0] - 2026-03-02
 

@@ -1020,7 +1020,7 @@ async fn test_debug_debezium_envelope() {
     .expect("Failed to insert");
 
     // Query the change log entry
-    let entry: Option<(i64, Option<i64>, String, String, String, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)> = sqlx::query_as(
+    let entry: Option<(i64, Option<i64>, String, Uuid, String, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)> = sqlx::query_as(
         "SELECT pk_entity_change_log, fk_customer_org, object_type, object_id, modification_type, change_status, created_at, object_data FROM core.tb_entity_change_log LIMIT 1"
     )
     .fetch_optional(&pool)
