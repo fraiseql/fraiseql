@@ -114,7 +114,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Read subscription config from compiled schema (hooks, limits).
         let subscriptions_config = schema.subscriptions_config.clone();
 
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let runtime_config = fraiseql_core::runtime::RuntimeConfig {
+            read_only: config.read_only,
+            ..fraiseql_core::runtime::RuntimeConfig::default()
+        };
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(

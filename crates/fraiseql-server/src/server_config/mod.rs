@@ -196,6 +196,18 @@ pub struct ServerConfig {
     #[serde(default)]
     pub admin_readonly_token: Option<String>,
 
+    /// Read-only mode: disable all GraphQL and REST mutations.
+    ///
+    /// When enabled, the server rejects any mutation with a clear error message.
+    /// Queries, subscriptions, and introspection continue to work normally.
+    ///
+    /// Useful for public demo instances and read-replica deployments.
+    ///
+    /// Also configurable via `FRAISEQL_READ_ONLY=true` environment variable
+    /// or `--read-only` CLI flag.
+    #[serde(default)]
+    pub read_only: bool,
+
     /// Enable introspection endpoint (default: false for production safety).
     ///
     /// **Security**: Disabled by default. When enabled, the introspection endpoint
@@ -431,6 +443,7 @@ impl Default for ServerConfig {
             admin_api_enabled: false, // Disabled by default for security
             admin_token: None,
             admin_readonly_token: None,
+            read_only: false,                // Mutations allowed by default
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
             design_api_require_auth: true, // Require auth for design endpoints

@@ -60,7 +60,12 @@ pub async fn run(
     bind: Option<String>,
     watch: bool,
     introspection: bool,
+    read_only: bool,
 ) -> Result<()> {
+    // CLI flag or FRAISEQL_READ_ONLY env var
+    let read_only =
+        read_only || std::env::var("FRAISEQL_READ_ONLY").is_ok_and(|v| v == "true" || v == "1");
+
     let input_path = resolve_input(input)?;
 
     let (db_url, bind_addr, server_cfg, db_cfg) =
@@ -69,12 +74,17 @@ pub async fn run(
     println!("FraiseQL");
     println!("   Schema: {}", input_path.display());
     println!("   Server: http://{bind_addr}/graphql");
+    if read_only {
+        println!("   Mode:   read-only (mutations disabled)");
+    }
     println!();
 
     if watch {
-        run_watch_loop(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
+        run_watch_loop(&input_path, &db_url, bind_addr, introspection, read_only, &server_cfg, &db_cfg)
+            .await
     } else {
-        run_once(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
+        run_once(&input_path, &db_url, bind_addr, introspection, read_only, &server_cfg, &db_cfg)
+            .await
     }
 }
 
@@ -86,11 +96,13 @@ async fn run_once(
     db_url: &str,
     bind_addr: SocketAddr,
     introspection: bool,
+    read_only: bool,
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     let schema = compile_schema(input_path).await?;
-    let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+    let mut config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+    config.read_only = read_only;
 
     let adapter = Arc::new(
         PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
@@ -115,12 +127,13 @@ async fn run_watch_loop(
     db_url: &str,
     bind_addr: SocketAddr,
     introspection: bool,
+    read_only: bool,
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     loop {
-        let schema = compile_schema(input_path).await?;
-        let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+        let mut config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+        config.read_only = read_only;
 
         let adapter = Arc::new(
             PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)

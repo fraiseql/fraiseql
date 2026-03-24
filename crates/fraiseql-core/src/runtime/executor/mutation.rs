@@ -124,12 +124,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // Read-only mode guard: reject all mutations when enabled.
+        if self.config.read_only {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{mutation_name}' cannot be executed: this server is running \
+                     in read-only mode. Mutations are disabled."
+                ),
+                path:    None,
+            });
+        }
+
         // Runtime guard: verify this adapter supports mutations.
-        // Note: this is a runtime check, not compile-time enforcement.
-        // The common execute() entry point accepts raw GraphQL strings and
-        // determines the operation type at runtime, which precludes compile-time
-        // mutation gating. A future API revision (separate execute_mutation() method)
-        // would move this to a compile-time bound (see roadmap.md).
         if !self.adapter.supports_mutations() {
             return Err(FraiseQLError::Validation {
                 message: format!(

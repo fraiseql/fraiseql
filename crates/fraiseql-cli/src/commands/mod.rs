@@ -20,7 +20,6 @@ pub mod openapi;
 #[cfg(feature = "run-server")]
 pub mod run;
 pub mod sbom;
-pub mod serve;
 pub mod validate;
 pub mod validate_documents;
 pub mod validate_facts;

@@ -265,6 +265,7 @@ mod query {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            read_only:            false,
             query_validation:     None,
         };
         let executor = Executor::with_config(schema, adapter, config);
@@ -592,6 +593,7 @@ mod config {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            read_only:            false,
             query_validation:     None,
         };
 
@@ -615,6 +617,7 @@ mod config {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   custom_options,
+            read_only:            false,
             query_validation:     None,
         };
 

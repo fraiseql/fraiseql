@@ -433,17 +433,19 @@ EXAMPLES:
     /// take precedence over defaults.  The database URL is resolved in this order:
     /// --database flag > DATABASE_URL env var > [database].url in fraiseql.toml.
     #[cfg(feature = "run-server")]
-    #[command(after_help = "\
+    #[command(alias = "serve", after_help = "\
 EXAMPLES:
     fraiseql run
     fraiseql run fraiseql.toml --database postgres://localhost/mydb
     fraiseql run --port 3000 --watch
     fraiseql run schema.json --introspection
+    fraiseql run --read-only
 
 TOML CONFIG:
     [server]
     host = \"127.0.0.1\"
     port = 9000
+    read_only = true
 
     [server.cors]
     origins = [\"https://app.example.com\"]
@@ -476,6 +478,10 @@ TOML CONFIG:
         /// Enable the GraphQL introspection endpoint (no auth required)
         #[arg(long)]
         introspection: bool,
+
+        /// Disable all mutations (read-only mode for demo/replica deployments)
+        #[arg(long)]
+        read_only: bool,
     },
 
     /// Generate OpenAPI 3.0.3 specification from compiled schema
@@ -563,17 +569,6 @@ EXAMPLES:
         database: Option<String>,
     },
 
-    /// Development server with hot-reload
-    #[command(hide = true)] // Hide until implemented
-    Serve {
-        /// Schema.json file path to watch
-        #[arg(value_name = "SCHEMA")]
-        schema: String,
-
-        /// Port to listen on
-        #[arg(short, long, default_value = "8080")]
-        port: u16,
-    },
 }
 
 #[derive(Subcommand)]
