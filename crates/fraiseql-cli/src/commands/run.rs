@@ -132,6 +132,7 @@ async fn run_watch_loop(
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     loop {
+        let schema = compile_schema(input_path).await?;
         let mut config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
         config.read_only = read_only;
 
