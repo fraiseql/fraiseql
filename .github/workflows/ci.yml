@@ -265,11 +265,13 @@ jobs:
       - name: Run integration tests
         # CARGO_BUILD_JOBS=2 caps parallel linker invocations; linking large test binaries
         # concurrently is the primary cause of OOM (collect2 Bus error) on 7GB CI runners.
+        # RUSTFLAGS uses mold linker for lower memory usage during linking.
         run: cargo test --test '*' --all-features -- --test-threads=1 --skip mysql_tests --skip sqlserver_tests
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
+          RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
       - name: Run database adapter and introspector tests (ignored)
         run: cargo test --lib -- --ignored --test-threads=1
@@ -277,6 +279,7 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
+          RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
       - name: Run fraiseql-core integration tests (fact_table, aggregation)
         run: |
@@ -286,6 +289,7 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
+          RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
   # Integration tests with MySQL
   integration-mysql:
