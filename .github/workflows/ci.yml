@@ -376,10 +376,10 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "FraiseQL_Test123!"
+          MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
           MSSQL_PID: "Developer"
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'FraiseQL_Test123!' -C -Q 'SELECT 1' -b || exit 1"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'FraiseQL_Test1234' -C -Q 'SELECT 1' -b || exit 1"
           --health-interval 10s
           --health-timeout 10s
           --health-retries 10
@@ -390,10 +390,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
+      - name: Install mold linker and mssql-tools18
         run: |
           sudo apt-get update
           sudo apt-get install -y mold
+          # Install mssql-tools18 from Microsoft package repository
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+          curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -407,10 +412,13 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-sqlserver-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Initialize SQL Server test databases
+        run: /opt/mssql-tools18/bin/sqlcmd -S localhost,1434 -U sa -P 'FraiseQL_Test1234' -C -i tests/sql/sqlserver/init.sql
+
       - name: Run SQL Server integration tests
         run: cargo test -p fraiseql-core --features "test-sqlserver" --test multi_database_integration -- --test-threads=1
         env:
-          SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test123!;TrustServerCertificate=true"
+          SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true"
           RUST_LOG: debug
 
   # Code coverage
@@ -852,6 +860,7 @@ jobs:
         run: cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
         env:
           RUST_LOG: debug
+          FRAISEQL_ALLOW_LOCALHOST: "1"
 
       - name: Show NATS logs on failure
         if: failure()
@@ -877,6 +886,10 @@ jobs:
           --health-retries 5
         ports:
           - 5433:5432
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -930,6 +943,7 @@ jobs:
         run: cargo test -p fraiseql-observers --features "postgres,caching,redis-lease" --lib -- --ignored --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
       - name: Run bridge integration tests (PostgreSQL + NATS)
