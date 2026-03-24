@@ -76,7 +76,7 @@ impl MySQLCheckpointStore {
 impl CheckpointStore for MySQLCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {
         let row: Option<(i64,)> =
-            sqlx::query_as("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = ?")
+            sqlx::query_as("SELECT last_pk FROM tb_transport_checkpoint WHERE identifier = ?")
                 .bind(transport_name)
                 .fetch_optional(&self.pool)
                 .await
@@ -91,7 +91,7 @@ impl CheckpointStore for MySQLCheckpointStore {
         // MySQL UPSERT syntax: INSERT ... ON DUPLICATE KEY UPDATE
         sqlx::query(
             r"
-            INSERT INTO tb_transport_checkpoint (transport_name, last_pk, updated_at)
+            INSERT INTO tb_transport_checkpoint (identifier, last_pk, updated_at)
             VALUES (?, ?, NOW())
             ON DUPLICATE KEY UPDATE last_pk = VALUES(last_pk), updated_at = NOW()
             ",
@@ -108,7 +108,7 @@ impl CheckpointStore for MySQLCheckpointStore {
     }
 
     async fn delete_checkpoint(&self, transport_name: &str) -> Result<()> {
-        sqlx::query("DELETE FROM tb_transport_checkpoint WHERE transport_name = ?")
+        sqlx::query("DELETE FROM tb_transport_checkpoint WHERE identifier = ?")
             .bind(transport_name)
             .execute(&self.pool)
             .await

@@ -91,7 +91,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
         })?;
 
         let mut query =
-            Query::new("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = @P1");
+            Query::new("SELECT last_pk FROM tb_transport_checkpoint WHERE identifier = @P1");
         query.bind(transport_name);
 
         let stream = query.query(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
@@ -136,7 +136,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
         })?;
 
         let mut query =
-            Query::new("DELETE FROM tb_transport_checkpoint WHERE transport_name = @P1");
+            Query::new("DELETE FROM tb_transport_checkpoint WHERE identifier = @P1");
         query.bind(transport_name);
 
         query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {

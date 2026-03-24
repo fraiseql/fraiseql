@@ -62,7 +62,9 @@ mod bridge_tests {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS core.tb_transport_checkpoint (
-                transport_name TEXT PRIMARY KEY,
+                pk_transport_checkpoint BIGSERIAL PRIMARY KEY,
+                id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+                identifier TEXT NOT NULL UNIQUE,
                 last_pk BIGINT NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
@@ -100,7 +102,7 @@ mod bridge_tests {
     /// Clean up test data
     async fn cleanup_test_data(pool: &PgPool, test_id: &str) {
         // Delete checkpoint for this test
-        sqlx::query("DELETE FROM core.tb_transport_checkpoint WHERE transport_name LIKE $1")
+        sqlx::query("DELETE FROM core.tb_transport_checkpoint WHERE identifier LIKE $1")
             .bind(format!("%{test_id}%"))
             .execute(pool)
             .await

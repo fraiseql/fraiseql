@@ -3,15 +3,23 @@
 -- - Event logging for debugging and audit trails
 -- - Dead Letter Queue for failed actions
 -- - DLQ history for retry tracking
+--
+-- All tables follow the Trinity Pattern:
+--   pk_{entity} BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
+--   id          UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE
+--   fk_{ref}    BIGINT REFERENCES tb_{ref}(pk_{ref})
 
 -- ============================================================================
 -- Observer Events Table
 -- ============================================================================
 -- Stores all events processed by the observer system for debugging and audit.
 
-CREATE TABLE IF NOT EXISTS observer_events (
-    -- Unique identifier for the event
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS tb_observer_event (
+    -- Trinity: internal PK
+    pk_observer_event BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    -- Trinity: external UUID
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
 
     -- Event type (INSERT, UPDATE, DELETE, CUSTOM)
     event_type VARCHAR(50) NOT NULL,
@@ -36,28 +44,31 @@ CREATE TABLE IF NOT EXISTS observer_events (
 );
 
 -- Index for efficient event lookup by entity type and event type
-CREATE INDEX IF NOT EXISTS idx_observer_events_entity
-ON observer_events(entity_type, event_type);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_event_entity
+ON tb_observer_event(entity_type, event_type);
 
 -- Index for status filtering
-CREATE INDEX IF NOT EXISTS idx_observer_events_status
-ON observer_events(status);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_event_status
+ON tb_observer_event(status);
 
 -- Index for time-range queries
-CREATE INDEX IF NOT EXISTS idx_observer_events_created
-ON observer_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_event_created
+ON tb_observer_event(created_at);
 
 -- ============================================================================
 -- Dead Letter Queue Items Table
 -- ============================================================================
 -- Stores failed action executions for manual retry and debugging.
 
-CREATE TABLE IF NOT EXISTS observer_dlq_items (
-    -- Unique identifier for the DLQ item
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS tb_observer_dlq_item (
+    -- Trinity: internal PK
+    pk_observer_dlq_item BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    -- Reference to the original event that failed
-    event_id UUID NOT NULL REFERENCES observer_events(id) ON DELETE CASCADE,
+    -- Trinity: external UUID
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+
+    -- Reference to the original event that failed (Trinity FK)
+    fk_observer_event BIGINT NOT NULL REFERENCES tb_observer_event(pk_observer_event) ON DELETE CASCADE,
 
     -- Action type that failed (webhook, slack, email, sms, push, search, cache)
     action_type VARCHAR(50) NOT NULL,
@@ -85,32 +96,35 @@ CREATE TABLE IF NOT EXISTS observer_dlq_items (
 );
 
 -- Index for status filtering (find pending items)
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_items_status
-ON observer_dlq_items(status);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_item_status
+ON tb_observer_dlq_item(status);
 
 -- Index for time-based queries (find old items)
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_items_created
-ON observer_dlq_items(created_at);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_item_created
+ON tb_observer_dlq_item(created_at);
 
 -- Index for finding items by action type
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_items_action
-ON observer_dlq_items(action_type);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_item_action
+ON tb_observer_dlq_item(action_type);
 
 -- Index for finding items by event
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_items_event
-ON observer_dlq_items(event_id);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_item_event
+ON tb_observer_dlq_item(fk_observer_event);
 
 -- ============================================================================
 -- Dead Letter Queue History Table
 -- ============================================================================
 -- Tracks all retry attempts and their results for audit and debugging.
 
-CREATE TABLE IF NOT EXISTS observer_dlq_history (
-    -- Auto-incrementing ID for history records
-    id BIGSERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS tb_observer_dlq_history (
+    -- Trinity: internal PK
+    pk_observer_dlq_history BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    -- Reference to the DLQ item being retried
-    dlq_item_id UUID NOT NULL REFERENCES observer_dlq_items(id) ON DELETE CASCADE,
+    -- Trinity: external UUID
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+
+    -- Reference to the DLQ item being retried (Trinity FK)
+    fk_observer_dlq_item BIGINT NOT NULL REFERENCES tb_observer_dlq_item(pk_observer_dlq_item) ON DELETE CASCADE,
 
     -- Which retry attempt this was (1 = first attempt, 2 = first retry, etc.)
     attempt_number INT NOT NULL,
@@ -126,16 +140,16 @@ CREATE TABLE IF NOT EXISTS observer_dlq_history (
 );
 
 -- Index for finding history by DLQ item
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_history_item
-ON observer_dlq_history(dlq_item_id);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_history_item
+ON tb_observer_dlq_history(fk_observer_dlq_item);
 
 -- Index for finding history by result (find failures)
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_history_result
-ON observer_dlq_history(result);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_history_result
+ON tb_observer_dlq_history(result);
 
 -- Index for time-based queries
-CREATE INDEX IF NOT EXISTS idx_observer_dlq_history_executed
-ON observer_dlq_history(executed_at);
+CREATE INDEX IF NOT EXISTS idx_tb_observer_dlq_history_executed
+ON tb_observer_dlq_history(executed_at);
 
 -- ============================================================================
 -- Views for Common Queries
@@ -144,8 +158,9 @@ ON observer_dlq_history(executed_at);
 -- View: All pending retries (useful for monitoring dashboards)
 CREATE OR REPLACE VIEW observer_pending_retries AS
 SELECT
+    dlq.pk_observer_dlq_item,
     dlq.id,
-    dlq.event_id,
+    dlq.fk_observer_event,
     dlq.action_type,
     dlq.error_message,
     dlq.attempt_count,
@@ -155,16 +170,17 @@ SELECT
     ev.entity_type,
     ev.event_type,
     ev.entity_id
-FROM observer_dlq_items dlq
-JOIN observer_events ev ON dlq.event_id = ev.id
+FROM tb_observer_dlq_item dlq
+JOIN tb_observer_event ev ON dlq.fk_observer_event = ev.pk_observer_event
 WHERE dlq.status = 'pending'
 ORDER BY dlq.created_at ASC;
 
 -- View: Retry exhausted items (actions that failed all attempts)
 CREATE OR REPLACE VIEW observer_retry_exhausted AS
 SELECT
+    dlq.pk_observer_dlq_item,
     dlq.id,
-    dlq.event_id,
+    dlq.fk_observer_event,
     dlq.action_type,
     dlq.error_message,
     dlq.attempt_count,
@@ -173,8 +189,8 @@ SELECT
     ev.entity_type,
     ev.event_type,
     ev.entity_id
-FROM observer_dlq_items dlq
-JOIN observer_events ev ON dlq.event_id = ev.id
+FROM tb_observer_dlq_item dlq
+JOIN tb_observer_event ev ON dlq.fk_observer_event = ev.pk_observer_event
 WHERE dlq.status = 'retry_failed'
 AND dlq.attempt_count >= dlq.max_attempts
 ORDER BY dlq.created_at DESC;
@@ -182,22 +198,23 @@ ORDER BY dlq.created_at DESC;
 -- View: Recent failures (last 24 hours)
 CREATE OR REPLACE VIEW observer_recent_failures AS
 SELECT
+    dlq.pk_observer_dlq_item,
     dlq.id,
-    dlq.event_id,
+    dlq.fk_observer_event,
     dlq.action_type,
     dlq.error_message,
     dlq.attempt_count,
     dlq.max_attempts,
     dlq.created_at,
-    COUNT(hist.id) as retry_attempts,
+    COUNT(hist.pk_observer_dlq_history) as retry_attempts,
     ev.entity_type,
     ev.event_type,
     ev.entity_id
-FROM observer_dlq_items dlq
-LEFT JOIN observer_dlq_history hist ON dlq.id = hist.dlq_item_id
-JOIN observer_events ev ON dlq.event_id = ev.id
+FROM tb_observer_dlq_item dlq
+LEFT JOIN tb_observer_dlq_history hist ON dlq.pk_observer_dlq_item = hist.fk_observer_dlq_item
+JOIN tb_observer_event ev ON dlq.fk_observer_event = ev.pk_observer_event
 WHERE dlq.created_at > NOW() - INTERVAL '24 hours'
-GROUP BY dlq.id, ev.id
+GROUP BY dlq.pk_observer_dlq_item, ev.pk_observer_event
 ORDER BY dlq.created_at DESC;
 
 -- ============================================================================
@@ -205,9 +222,9 @@ ORDER BY dlq.created_at DESC;
 -- ============================================================================
 -- Uncomment these if your application uses a separate database user
 
--- GRANT SELECT, INSERT, UPDATE ON observer_events TO app_user;
--- GRANT SELECT, INSERT, UPDATE ON observer_dlq_items TO app_user;
--- GRANT SELECT, INSERT ON observer_dlq_history TO app_user;
+-- GRANT SELECT, INSERT, UPDATE ON tb_observer_event TO app_user;
+-- GRANT SELECT, INSERT, UPDATE ON tb_observer_dlq_item TO app_user;
+-- GRANT SELECT, INSERT ON tb_observer_dlq_history TO app_user;
 -- GRANT SELECT ON observer_pending_retries TO app_user;
 -- GRANT SELECT ON observer_retry_exhausted TO app_user;
 -- GRANT SELECT ON observer_recent_failures TO app_user;

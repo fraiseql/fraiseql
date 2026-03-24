@@ -124,7 +124,7 @@ async fn test_runtime_start_stop_lifecycle() {
         &pool,
         "INSERT",
         &entity_type,
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "status": "new"}),
         None,
     )
@@ -220,7 +220,7 @@ async fn test_checkpoint_recovery_after_restart() {
             &pool,
             "INSERT",
             &entity_type,
-            &order_id.to_string(),
+            order_id,
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
         )
@@ -247,7 +247,7 @@ async fn test_checkpoint_recovery_after_restart() {
             &pool,
             "INSERT",
             &entity_type,
-            &order_id.to_string(),
+            order_id,
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
         )
@@ -348,7 +348,7 @@ async fn test_hot_reload_observers() {
         &pool,
         "INSERT",
         &entity_type,
-        &order_id_1.to_string(),
+        order_id_1,
         serde_json::json!({"id": order_id_1.to_string(), "status": "created"}),
         None,
     )
@@ -381,7 +381,7 @@ async fn test_hot_reload_observers() {
         &pool,
         "UPDATE",
         &entity_type,
-        &order_id_2.to_string(),
+        order_id_2,
         serde_json::json!({"id": order_id_2.to_string(), "status": "updated"}),
         Some(serde_json::json!({"id": order_id_2.to_string(), "status": "created"})),
     )
@@ -474,7 +474,7 @@ async fn test_graceful_shutdown_mid_processing() {
             &pool,
             "INSERT",
             &entity_type,
-            &order_id.to_string(),
+            *order_id,
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
         )
@@ -565,7 +565,7 @@ async fn test_runtime_continues_after_errors() {
         &pool,
         "INSERT",
         &entity_type,
-        &order_id_1.to_string(),
+        order_id_1,
         serde_json::json!({"id": order_id_1.to_string(), "sequence": 1}),
         None,
     )
@@ -598,7 +598,7 @@ async fn test_runtime_continues_after_errors() {
         &pool,
         "INSERT",
         &entity_type,
-        &order_id_2.to_string(),
+        order_id_2,
         serde_json::json!({"id": order_id_2.to_string(), "sequence": 2}),
         None,
     )
@@ -681,7 +681,7 @@ async fn test_high_throughput_processing() {
             &pool,
             "INSERT",
             &entity_type,
-            &order_id.to_string(),
+            order_id,
             serde_json::json!({"id": order_id.to_string(), "sequence": i, "batch": "throughput"}),
             None,
         )
@@ -832,7 +832,7 @@ async fn test_debug_event_processing() {
         &pool,
         "INSERT",
         "TestOrder",
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "amount": 100}),
         None,
     )
@@ -1012,7 +1012,7 @@ async fn test_debug_debezium_envelope() {
         &pool,
         "INSERT",
         "Order",
-        &order_id.to_string(),
+        order_id,
         serde_json::json!({"id": order_id.to_string(), "total": 50}),
         None,
     )
@@ -1145,7 +1145,7 @@ async fn test_with_longer_polling() {
         &pool,
         "INSERT",
         "Widget",
-        &widget_id.to_string(),
+        widget_id,
         serde_json::json!({"id": widget_id.to_string(), "name": "Test Widget"}),
         None,
     )
@@ -1234,7 +1234,7 @@ async fn test_listener_direct() {
         &pool,
         "INSERT",
         "Product",
-        &product_id.to_string(),
+        product_id,
         serde_json::json!({"id": product_id.to_string(), "name": "Test"}),
         None,
     )

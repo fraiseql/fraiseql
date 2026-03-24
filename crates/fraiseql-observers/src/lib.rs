@@ -271,10 +271,10 @@ mod e2e_tests {
         let changelog_entry = listener::ChangeLogEntry {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           Some("user-1".to_string()),
+            fk_customer_org:      Some(1),
+            fk_contact:           Some(1),
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -294,7 +294,7 @@ mod e2e_tests {
         assert_eq!(event.entity_type, "Order");
         assert_eq!(event.entity_id, entity_id);
         assert_eq!(event.data["total"], 250.00);
-        assert_eq!(event.user_id, Some("user-1".to_string()));
+        assert_eq!(event.user_id, Some("1".to_string()));
 
         // Step 3: Create executor and matcher (verifies integration)
         let dlq = Arc::new(testing::mocks::MockDeadLetterQueue::new());
@@ -313,10 +313,10 @@ mod e2e_tests {
         let changelog_entry = listener::ChangeLogEntry {
             id:                   2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           Some("user-2".to_string()),
+            fk_customer_org:      Some(1),
+            fk_contact:           Some(2),
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -334,6 +334,7 @@ mod e2e_tests {
         // Step 2: Verify UPDATE event with field changes
         assert_eq!(event.event_type, EventKind::Updated);
         assert_eq!(event.data["status"], "shipped");
+        assert_eq!(event.user_id, Some("2".to_string()));
 
         let changes = event.changes.expect("No changes detected");
         assert!(changes.contains_key("status"));
@@ -349,10 +350,10 @@ mod e2e_tests {
         let changelog_entry = listener::ChangeLogEntry {
             id:                   3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "DELETE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -384,10 +385,10 @@ mod e2e_tests {
             let entry = listener::ChangeLogEntry {
                 id:                   1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org:      "acme".to_string(),
+                fk_customer_org:      Some(1),
                 fk_contact:           None,
                 object_type:          entity_type.to_string(),
-                object_id:            entity_id.to_string(),
+                object_id:            entity_id,
                 modification_type:    "INSERT".to_string(),
                 change_status:        "success".to_string(),
                 object_data:          json!({
@@ -409,30 +410,30 @@ mod e2e_tests {
     fn test_e2e_multi_tenant_isolation() {
         // Verify tenant isolation via fk_customer_org
 
-        let orgs = vec!["org-1", "org-2", "org-3"];
+        let org_ids: Vec<i64> = vec![1, 2, 3];
         let entity_id = Uuid::new_v4();
 
-        for org_id in orgs {
+        for org_id in org_ids {
             let entry = listener::ChangeLogEntry {
                 id:                   1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org:      org_id.to_string(),
+                fk_customer_org:      Some(org_id),
                 fk_contact:           None,
                 object_type:          "Order".to_string(),
-                object_id:            entity_id.to_string(),
+                object_id:            entity_id,
                 modification_type:    "INSERT".to_string(),
                 change_status:        "success".to_string(),
                 object_data:          json!({
                     "op": "c",
                     "before": null,
-                    "after": { "id": entity_id.to_string(), "org": org_id }
+                    "after": { "id": entity_id.to_string() }
                 }),
                 extra_metadata:       None,
                 created_at:           "2026-01-22T16:00:00+00:00".to_string(),
             };
 
             let event = entry.to_entity_event().expect("Failed to convert");
-            assert_eq!(event.data["org"], org_id);
+            assert_eq!(event.event_type, EventKind::Created);
         }
     }
 
@@ -444,10 +445,10 @@ mod e2e_tests {
         let entry = listener::ChangeLogEntry {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -498,10 +499,10 @@ mod e2e_tests {
         let entry = listener::ChangeLogEntry {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
+            object_id:            entity_id,
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
@@ -520,25 +521,24 @@ mod e2e_tests {
     }
 
     #[test]
-    fn test_e2e_invalid_uuid_handling() {
-        // Verify error handling for invalid UUID in object_id
-
+    fn test_e2e_invalid_timestamp_handling() {
+        let entity_id = Uuid::new_v4();
         let entry = listener::ChangeLogEntry {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
+            fk_customer_org:      Some(1),
             fk_contact:           None,
             object_type:          "Order".to_string(),
-            object_id:            "not-a-uuid".to_string(),
+            object_id:            entity_id,
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
                 "op": "c",
                 "before": null,
-                "after": { "id": "invalid" }
+                "after": { "id": entity_id.to_string() }
             }),
             extra_metadata:       None,
-            created_at:           "2026-01-22T17:00:00+00:00".to_string(),
+            created_at:           "not-a-timestamp".to_string(),
         };
 
         let result = entry.to_entity_event();

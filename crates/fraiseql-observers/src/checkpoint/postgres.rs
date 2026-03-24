@@ -32,24 +32,24 @@ impl PostgresCheckpointStore {
 
 #[async_trait::async_trait]
 impl CheckpointStore for PostgresCheckpointStore {
-    async fn load(&self, listener_id: &str) -> Result<Option<CheckpointState>> {
+    async fn load(&self, identifier: &str) -> Result<Option<CheckpointState>> {
         #[allow(clippy::cast_possible_wrap)]
         // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
             r"
-            SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
-            FROM observer_checkpoints
-            WHERE listener_id = $1
+            SELECT identifier, last_processed_id, last_processed_at, batch_size, event_count
+            FROM tb_observer_checkpoint
+            WHERE identifier = $1
             ",
         )
-        .bind(listener_id)
+        .bind(identifier)
         .fetch_optional(&self.pool)
         .await?;
 
         Ok(record.map(
-            |(listener_id, last_processed_id, last_processed_at, batch_size, event_count)| {
+            |(identifier, last_processed_id, last_processed_at, batch_size, event_count)| {
                 CheckpointState {
-                    listener_id,
+                    listener_id: identifier,
                     last_processed_id,
                     last_processed_at,
                     batch_size: batch_size as usize,
@@ -59,14 +59,14 @@ impl CheckpointStore for PostgresCheckpointStore {
         ))
     }
 
-    async fn save(&self, listener_id: &str, state: &CheckpointState) -> Result<()> {
+    async fn save(&self, identifier: &str, state: &CheckpointState) -> Result<()> {
         #[allow(clippy::cast_possible_wrap)] // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         sqlx::query(
             r"
-            INSERT INTO observer_checkpoints
-                (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
+            INSERT INTO tb_observer_checkpoint
+                (identifier, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
             VALUES ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT (listener_id)
+            ON CONFLICT (identifier)
             DO UPDATE SET
                 last_processed_id = EXCLUDED.last_processed_id,
                 last_processed_at = EXCLUDED.last_processed_at,
@@ -75,7 +75,7 @@ impl CheckpointStore for PostgresCheckpointStore {
                 updated_at = NOW()
             ",
         )
-        .bind(listener_id)
+        .bind(identifier)
         .bind(state.last_processed_id)
         .bind(state.last_processed_at)
         .bind(state.batch_size as i32)
@@ -88,19 +88,19 @@ impl CheckpointStore for PostgresCheckpointStore {
 
     async fn compare_and_swap(
         &self,
-        listener_id: &str,
+        identifier: &str,
         expected_id: i64,
         new_id: i64,
     ) -> Result<bool> {
         // Fast path: update an existing row atomically.
         let result = sqlx::query(
             r"
-            UPDATE observer_checkpoints
+            UPDATE tb_observer_checkpoint
             SET last_processed_id = $3, updated_at = NOW()
-            WHERE listener_id = $1 AND last_processed_id = $2
+            WHERE identifier = $1 AND last_processed_id = $2
             ",
         )
-        .bind(listener_id)
+        .bind(identifier)
         .bind(expected_id)
         .bind(new_id)
         .execute(&self.pool)
@@ -116,13 +116,13 @@ impl CheckpointStore for PostgresCheckpointStore {
         if expected_id == 0 {
             let inserted = sqlx::query(
                 r"
-                INSERT INTO observer_checkpoints
-                    (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
+                INSERT INTO tb_observer_checkpoint
+                    (identifier, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
                 VALUES ($1, $2, NOW(), 0, 0, NOW())
-                ON CONFLICT (listener_id) DO NOTHING
+                ON CONFLICT (identifier) DO NOTHING
                 ",
             )
-            .bind(listener_id)
+            .bind(identifier)
             .bind(new_id)
             .execute(&self.pool)
             .await?;
@@ -133,9 +133,9 @@ impl CheckpointStore for PostgresCheckpointStore {
         Ok(false)
     }
 
-    async fn delete(&self, listener_id: &str) -> Result<()> {
-        sqlx::query("DELETE FROM observer_checkpoints WHERE listener_id = $1")
-            .bind(listener_id)
+    async fn delete(&self, identifier: &str) -> Result<()> {
+        sqlx::query("DELETE FROM tb_observer_checkpoint WHERE identifier = $1")
+            .bind(identifier)
             .execute(&self.pool)
             .await?;
 

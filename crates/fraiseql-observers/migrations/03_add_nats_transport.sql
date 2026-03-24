@@ -3,6 +3,11 @@
 -- - Transport checkpoint table for cursor persistence
 -- - NATS publication tracking columns on entity change log
 -- - NOTIFY trigger for wake-up signals
+--
+-- Trinity Pattern:
+--   pk_{entity} BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
+--   id          UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE
+--   identifier  TEXT NOT NULL UNIQUE  (human-readable key)
 
 -- ============================================================================
 -- Transport Checkpoint Table
@@ -11,8 +16,14 @@
 -- Each transport (e.g., "pg_to_nats") maintains its own checkpoint.
 
 CREATE TABLE IF NOT EXISTS core.tb_transport_checkpoint (
-    -- Transport identifier (e.g., "pg_to_nats", "pg_to_kafka")
-    transport_name TEXT PRIMARY KEY,
+    -- Trinity: internal PK
+    pk_transport_checkpoint BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    -- Trinity: external UUID
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+
+    -- Trinity: human-readable identifier (e.g., "pg_to_nats", "pg_to_kafka")
+    identifier TEXT NOT NULL UNIQUE,
 
     -- Last processed primary key from source table
     last_pk BIGINT NOT NULL,
@@ -104,14 +115,14 @@ EXECUTE FUNCTION core.notify_entity_change();
 
 CREATE OR REPLACE VIEW core.vw_nats_publication_status AS
 SELECT
-    checkpoint.transport_name,
+    checkpoint.identifier AS transport_name,
     checkpoint.last_pk AS checkpoint_cursor,
     checkpoint.updated_at AS checkpoint_updated_at,
     (SELECT MAX(pk_entity_change_log) FROM core.tb_entity_change_log) AS max_pk,
     (SELECT MAX(pk_entity_change_log) FROM core.tb_entity_change_log) - checkpoint.last_pk AS lag_count,
     (SELECT COUNT(*) FROM core.tb_entity_change_log WHERE nats_published_at IS NULL) AS unpublished_count
 FROM core.tb_transport_checkpoint checkpoint
-WHERE checkpoint.transport_name LIKE 'pg_to_nats%';
+WHERE checkpoint.identifier LIKE 'pg_to_nats%';
 
 -- ============================================================================
 -- Comments
@@ -120,7 +131,7 @@ WHERE checkpoint.transport_name LIKE 'pg_to_nats%';
 COMMENT ON TABLE core.tb_transport_checkpoint IS
     'Stores cursor position for event transports (NATS bridge, etc.) for crash recovery';
 
-COMMENT ON COLUMN core.tb_transport_checkpoint.transport_name IS
+COMMENT ON COLUMN core.tb_transport_checkpoint.identifier IS
     'Unique identifier for the transport (e.g., "pg_to_nats")';
 
 COMMENT ON COLUMN core.tb_transport_checkpoint.last_pk IS

@@ -98,7 +98,7 @@ impl PostgresCheckpointStore {
 impl CheckpointStore for PostgresCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {
         let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT last_pk FROM core.tb_transport_checkpoint WHERE transport_name = $1",
+            "SELECT last_pk FROM core.tb_transport_checkpoint WHERE identifier = $1",
         )
         .bind(transport_name)
         .fetch_optional(&self.pool)
@@ -110,9 +110,9 @@ impl CheckpointStore for PostgresCheckpointStore {
     async fn save_checkpoint(&self, transport_name: &str, cursor: i64) -> Result<()> {
         sqlx::query(
             r"
-            INSERT INTO core.tb_transport_checkpoint (transport_name, last_pk, updated_at)
+            INSERT INTO core.tb_transport_checkpoint (identifier, last_pk, updated_at)
             VALUES ($1, $2, NOW())
-            ON CONFLICT (transport_name)
+            ON CONFLICT (identifier)
             DO UPDATE SET last_pk = EXCLUDED.last_pk, updated_at = NOW()
             ",
         )
@@ -125,7 +125,7 @@ impl CheckpointStore for PostgresCheckpointStore {
     }
 
     async fn delete_checkpoint(&self, transport_name: &str) -> Result<()> {
-        sqlx::query("DELETE FROM core.tb_transport_checkpoint WHERE transport_name = $1")
+        sqlx::query("DELETE FROM core.tb_transport_checkpoint WHERE identifier = $1")
             .bind(transport_name)
             .execute(&self.pool)
             .await?;
