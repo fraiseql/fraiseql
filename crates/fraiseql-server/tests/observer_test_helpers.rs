@@ -46,9 +46,14 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
     // 2. Create tb_entity_change_log (with Debezium envelope)
+    // Drop first to avoid column type conflicts with other test suites
+    // (e.g. bridge_integration uses object_id UUID, runtime tests use TEXT).
+    sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log")
+        .execute(pool)
+        .await?;
     sqlx::query(
         r"
-        CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
+        CREATE TABLE core.tb_entity_change_log (
             pk_entity_change_log BIGSERIAL PRIMARY KEY,
             id UUID NOT NULL DEFAULT gen_random_uuid(),
             fk_customer_org TEXT,
