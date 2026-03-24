@@ -40,6 +40,14 @@ redis-rate-limiting = ["redis"]
 [lints]
 workspace = true
 
+[package.metadata.cargo-semver-checks.lints]
+# AuthError is intentionally marked #[non_exhaustive] for forward compatibility;
+# downstream exhaustive matches are expected to be updated when new variants are added.
+enum_marked_non_exhaustive = "allow"
+# verify_id_token gained a third parameter (max_age_secs); the old 2-arg signature
+# is preserved as the deprecated verify_id_token_v1 backward-compat wrapper.
+method_parameter_count_changed = "allow"
+
 [package]
 description = "Authentication, authorization, and session management for FraiseQL"
 name = "fraiseql-auth"
