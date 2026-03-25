@@ -19,6 +19,8 @@ jobs:
     name: Validate Release Prerequisites
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTC_WRAPPER: ""
     steps:
       - name: Validate required secrets
         run: |
@@ -174,6 +176,8 @@ jobs:
     needs: create-github-release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTC_WRAPPER: ""
     steps:
       - uses: actions/checkout@v4
 
