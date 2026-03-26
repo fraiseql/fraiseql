@@ -997,3 +997,32 @@ fn test_extract_rls_conditions_ignores_non_eq() {
     assert_eq!(conditions.len(), 1, "only Eq conditions should be extracted");
     assert_eq!(conditions[0].0, "tenant_id");
 }
+
+// ── C20: Subscription RBAC error variants ────────────────────────────────
+
+/// C20: Verify `AuthenticationRequired` and `Forbidden` error variants exist
+/// and can be constructed. These are reserved for future subscription-level
+/// RBAC enforcement (e.g., `requires_role` on subscription definitions).
+///
+/// Current state: the `subscribe()` method does not check authentication or
+/// authorization — it accepts any `user_context`. These variants are not dead
+/// code but rather forward-looking API surface for when subscription RBAC is
+/// implemented.
+#[test]
+fn test_subscription_error_rbac_variants_constructible() {
+    let auth_err = SubscriptionError::AuthenticationRequired(
+        "onOrderCreated".to_string(),
+    );
+    assert!(
+        format!("{auth_err}").contains("Authentication required"),
+        "AuthenticationRequired variant should format correctly: {auth_err}"
+    );
+
+    let forbidden_err = SubscriptionError::Forbidden(
+        "onOrderCreated".to_string(),
+    );
+    assert!(
+        format!("{forbidden_err}").contains("Not authorized"),
+        "Forbidden variant should format correctly: {forbidden_err}"
+    );
+}
