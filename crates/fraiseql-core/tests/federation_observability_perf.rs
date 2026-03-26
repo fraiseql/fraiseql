@@ -85,6 +85,7 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         _projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Fall back to standard query for tests
         self.execute_where_query(view, where_clause, limit, None).await

@@ -506,8 +506,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit).await
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
+            .await
     }
 
     async fn execute_where_query(

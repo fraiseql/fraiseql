@@ -49,6 +49,7 @@ impl DatabaseAdapter for ErrorMockAdapter {
         _projection: Option<&SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }

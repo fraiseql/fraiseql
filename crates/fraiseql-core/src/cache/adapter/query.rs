@@ -61,12 +61,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
         if !self.cache.is_enabled() {
             return self
                 .adapter
-                .execute_with_projection(view, projection, where_clause, limit)
+                .execute_with_projection(view, projection, where_clause, limit, offset)
                 .await;
         }
 
@@ -75,6 +76,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let projection_info = projection.map_or("", |p| &p.projection_template[..]);
         let variables = json!({
             "limit": limit,
+            "offset": offset,
             "projection": projection_info,
         });
 
@@ -89,7 +91,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Cache miss - execute via underlying adapter
         let result = self
             .adapter
-            .execute_with_projection(view, projection, where_clause, limit)
+            .execute_with_projection(view, projection, where_clause, limit, offset)
             .await?;
 
         // Store in cache; derive entity type from view name so that

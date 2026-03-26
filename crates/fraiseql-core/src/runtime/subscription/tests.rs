@@ -833,3 +833,167 @@ fn test_filter_fields_filtering_events() {
     );
     assert_eq!(manager.publish_event(non_matching), 0);
 }
+
+// =============================================================================
+// RLS event filtering tests (C2 fix verification)
+// =============================================================================
+
+#[test]
+fn test_rls_conditions_filter_subscription_events() {
+    let schema = Arc::new(create_test_schema());
+    let manager = SubscriptionManager::new(schema);
+
+    // Subscribe with RLS: only tenant-abc events should match.
+    manager
+        .subscribe_with_rls(
+            "OrderCreated",
+            serde_json::json!({"user_id": "usr_1"}),
+            serde_json::json!({}),
+            "conn_1",
+            vec![("tenant_id".to_string(), serde_json::json!("tenant-abc"))],
+        )
+        .unwrap();
+
+    // Event for the correct tenant — should match.
+    let matching = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_1", "tenant_id": "tenant-abc", "amount": 50}),
+    );
+    assert_eq!(manager.publish_event(matching), 1, "same-tenant event must match");
+
+    // Event for a different tenant — must NOT match.
+    let other_tenant = SubscriptionEvent::new(
+        "Order",
+        "ord_2",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_2", "tenant_id": "tenant-xyz", "amount": 75}),
+    );
+    assert_eq!(manager.publish_event(other_tenant), 0, "other-tenant event must be filtered");
+
+    // Event with no tenant_id field — must NOT match.
+    let missing_field = SubscriptionEvent::new(
+        "Order",
+        "ord_3",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_3", "amount": 100}),
+    );
+    assert_eq!(
+        manager.publish_event(missing_field),
+        0,
+        "event without tenant_id must be filtered"
+    );
+}
+
+#[test]
+fn test_rls_conditions_multiple_fields() {
+    let schema = Arc::new(create_test_schema());
+    let manager = SubscriptionManager::new(schema);
+
+    // Subscribe with RLS: tenant + author must both match.
+    manager
+        .subscribe_with_rls(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({}),
+            "conn_1",
+            vec![
+                ("tenant_id".to_string(), serde_json::json!("tenant-abc")),
+                ("author_id".to_string(), serde_json::json!("user-1")),
+            ],
+        )
+        .unwrap();
+
+    // Both match.
+    let both_match = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_1", "tenant_id": "tenant-abc", "author_id": "user-1"}),
+    );
+    assert_eq!(manager.publish_event(both_match), 1);
+
+    // Tenant matches but author doesn't.
+    let wrong_author = SubscriptionEvent::new(
+        "Order",
+        "ord_2",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_2", "tenant_id": "tenant-abc", "author_id": "user-2"}),
+    );
+    assert_eq!(manager.publish_event(wrong_author), 0);
+}
+
+#[test]
+fn test_rls_empty_conditions_allows_all() {
+    let schema = Arc::new(create_test_schema());
+    let manager = SubscriptionManager::new(schema);
+
+    // Admin: no RLS conditions.
+    manager
+        .subscribe_with_rls(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({}),
+            "conn_admin",
+            Vec::new(),
+        )
+        .unwrap();
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_1", "tenant_id": "any-tenant"}),
+    );
+    assert_eq!(manager.publish_event(event), 1, "admin with no RLS should see all events");
+}
+
+#[test]
+fn test_extract_rls_conditions_from_where_clause() {
+    use crate::db::{WhereClause, WhereOperator};
+    use super::super::extract_rls_conditions;
+
+    // AND(tenant_id = "abc", author_id = "user-1")
+    let clause = WhereClause::And(vec![
+        WhereClause::Field {
+            path: vec!["tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value: serde_json::json!("abc"),
+        },
+        WhereClause::Field {
+            path: vec!["author_id".to_string()],
+            operator: WhereOperator::Eq,
+            value: serde_json::json!("user-1"),
+        },
+    ]);
+
+    let conditions = extract_rls_conditions(&clause);
+    assert_eq!(conditions.len(), 2);
+    assert_eq!(conditions[0], ("tenant_id".to_string(), serde_json::json!("abc")));
+    assert_eq!(conditions[1], ("author_id".to_string(), serde_json::json!("user-1")));
+}
+
+#[test]
+fn test_extract_rls_conditions_ignores_non_eq() {
+    use crate::db::{WhereClause, WhereOperator};
+    use super::super::extract_rls_conditions;
+
+    // Only Eq conditions are extracted; Gt is skipped.
+    let clause = WhereClause::And(vec![
+        WhereClause::Field {
+            path: vec!["tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value: serde_json::json!("abc"),
+        },
+        WhereClause::Field {
+            path: vec!["score".to_string()],
+            operator: WhereOperator::Gt,
+            value: serde_json::json!(100),
+        },
+    ]);
+
+    let conditions = extract_rls_conditions(&clause);
+    assert_eq!(conditions.len(), 1, "only Eq conditions should be extracted");
+    assert_eq!(conditions[0].0, "tenant_id");
+}

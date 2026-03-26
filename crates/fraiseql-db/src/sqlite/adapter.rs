@@ -238,10 +238,11 @@ impl DatabaseAdapter for SqliteAdapter {
         projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -270,6 +271,11 @@ impl DatabaseAdapter for SqliteAdapter {
         // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
         if let Some(lim) = limit {
             sql.push_str(&format!(" LIMIT {lim}"));
+        }
+
+        // Add OFFSET if present
+        if let Some(off) = offset {
+            sql.push_str(&format!(" OFFSET {off}"));
         }
 
         // Execute the query
@@ -1176,7 +1182,7 @@ mod tests {
             estimated_reduction_percent: 50,
         };
         let results = adapter
-            .execute_with_projection("v_user", Some(&projection), None, None)
+            .execute_with_projection("v_user", Some(&projection), None, None, None)
             .await
             .expect("execute_with_projection should succeed");
         assert_eq!(results.len(), 3);

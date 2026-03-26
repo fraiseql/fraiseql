@@ -240,7 +240,19 @@ impl QueryMatcher {
         let fields = self.extract_field_names(&final_selections);
 
         // 7. Extract arguments from variables
-        let arguments = self.extract_arguments(variables);
+        let mut arguments = self.extract_arguments(variables);
+
+        // 8. Merge inline arguments from root field selection (e.g., `posts(limit: 3)`).
+        //    Variables take precedence over inline arguments when both are provided.
+        if let Some(root) = final_selections.first() {
+            for arg in &root.arguments {
+                if !arguments.contains_key(&arg.name) {
+                    if let Some(val) = Self::resolve_inline_arg(arg, &arguments) {
+                        arguments.insert(arg.name.clone(), val);
+                    }
+                }
+            }
+        }
 
         Ok(QueryMatch {
             query_def,
@@ -279,6 +291,23 @@ impl QueryMatcher {
         } else {
             HashMap::new()
         }
+    }
+
+    /// Resolve an inline GraphQL argument to a JSON value.
+    ///
+    /// Handles both literal values (`limit: 3` → `value_json = "3"`) and
+    /// variable references (`limit: $limit` → `value_json = "$limit"`),
+    /// looking up the latter in the already-extracted variables map.
+    fn resolve_inline_arg(
+        arg: &crate::graphql::GraphQLArgument,
+        variables: &HashMap<String, serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        // Variable reference: "$varName" → look up in variables
+        if let Some(var_name) = arg.value_json.strip_prefix('$') {
+            return variables.get(var_name).cloned();
+        }
+        // Literal value: parse JSON directly (e.g. "3", "true", "\"hello\"")
+        serde_json::from_str(&arg.value_json).ok()
     }
 
     /// Get the compiled schema.

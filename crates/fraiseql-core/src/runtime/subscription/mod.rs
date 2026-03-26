@@ -74,6 +74,58 @@ pub use webhook::{WebhookAdapter, WebhookPayload, WebhookTransportConfig};
 /// Backward-compatible type alias — use [`WebhookTransportConfig`] in new code.
 pub type WebhookConfig = WebhookTransportConfig;
 
+/// Extract `(field, value)` equality conditions from an RLS `WhereClause`.
+///
+/// Walks the clause tree and collects all `Field { op: Eq }` nodes.
+/// `And` nodes are recursively flattened. Other clause types (nested `Or`,
+/// non-Eq operators) are ignored — they cannot be represented as simple
+/// field-value pairs and will not filter subscription events.
+///
+/// The caller should evaluate the RLS policy at subscribe time and pass
+/// the result through this function to produce conditions for
+/// [`ActiveSubscription::with_rls_conditions`].
+///
+/// # Errors
+///
+/// This function is infallible — unsupported clause shapes are silently
+/// skipped, which is a safe default (fewer conditions = more events
+/// delivered, never fewer).
+pub fn extract_rls_conditions(
+    clause: &crate::db::WhereClause,
+) -> Vec<(String, serde_json::Value)> {
+    let mut conditions = Vec::new();
+    collect_eq_conditions(clause, &mut conditions);
+    conditions
+}
+
+fn collect_eq_conditions(
+    clause: &crate::db::WhereClause,
+    out: &mut Vec<(String, serde_json::Value)>,
+) {
+    use crate::db::{WhereClause, WhereOperator};
+    match clause {
+        WhereClause::Field {
+            path,
+            operator: WhereOperator::Eq,
+            value,
+        } => {
+            // Use the last path component as the field name (e.g., ["tenant_id"] → "tenant_id")
+            if let Some(field) = path.last() {
+                out.push((field.clone(), value.clone()));
+            }
+        },
+        WhereClause::And(clauses) => {
+            for c in clauses {
+                collect_eq_conditions(c, out);
+            }
+        },
+        _ => {
+            // Or, Not, non-Eq operators — cannot be represented as simple field-value pairs.
+            // Safe default: skip (delivers more events, never fewer).
+        },
+    }
+}
+
 // =============================================================================
 // Error Types
 // =============================================================================

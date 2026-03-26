@@ -86,7 +86,7 @@ pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, SubscriptionError,
     SubscriptionEvent, SubscriptionId, SubscriptionManager, SubscriptionOperation,
     SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
-    WebhookPayload, protocol,
+    WebhookPayload, extract_rls_conditions, protocol,
 };
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};

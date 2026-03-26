@@ -153,10 +153,25 @@ pub struct ActiveSubscription {
 
     /// Connection/client identifier (for routing).
     pub connection_id: String,
+
+    /// Row-level security conditions evaluated at subscribe time.
+    ///
+    /// Each entry is `(field_path, expected_value)`. An event is only delivered
+    /// when **every** condition matches the event data (AND semantics).
+    /// An empty list means no RLS filtering (admin or no RLS policy).
+    pub rls_conditions: Vec<(String, serde_json::Value)>,
 }
 
 impl ActiveSubscription {
     /// Create a new active subscription.
+    ///
+    /// # Arguments
+    ///
+    /// * `subscription_name` - Schema subscription name
+    /// * `definition` - Subscription definition from compiled schema
+    /// * `user_context` - Raw user context JSON from WebSocket `connection_init`
+    /// * `variables` - Runtime variables from client
+    /// * `connection_id` - Client connection identifier
     #[must_use]
     pub fn new(
         subscription_name: impl Into<String>,
@@ -173,7 +188,20 @@ impl ActiveSubscription {
             variables,
             created_at: chrono::Utc::now(),
             connection_id: connection_id.into(),
+            rls_conditions: Vec::new(),
         }
+    }
+
+    /// Set row-level security conditions for event filtering.
+    ///
+    /// The caller evaluates the RLS policy against the user's `SecurityContext`
+    /// at subscribe time and converts the resulting `WhereClause` into
+    /// `(field, value)` equality conditions. During event delivery,
+    /// `matches_subscription` checks every condition against the event data.
+    #[must_use]
+    pub fn with_rls_conditions(mut self, conditions: Vec<(String, serde_json::Value)>) -> Self {
+        self.rls_conditions = conditions;
+        self
     }
 }
 
