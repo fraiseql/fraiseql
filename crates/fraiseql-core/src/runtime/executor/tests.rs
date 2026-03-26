@@ -2040,3 +2040,157 @@ mod field_rbac {
         assert!(result.is_ok(), "public fields should always be accessible: {:?}", result.err());
     }
 }
+
+// ── mod executor_paths: H3+H4 — untested executor entry points ───────────
+
+mod executor_paths {
+    use super::*;
+    use crate::runtime::matcher::QueryMatch;
+
+    /// H3: execute_query_direct (REST/gRPC path) works through executor
+    #[tokio::test]
+    async fn test_execute_query_direct_returns_results() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query_def = test_schema().queries[0].clone();
+        let qm = QueryMatch::from_operation(
+            query_def,
+            vec!["id".to_string(), "name".to_string()],
+            std::collections::HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        let result = executor.execute_query_direct(&qm, None, None).await.unwrap();
+        assert!(result.contains("\"data\""), "should contain data envelope: {result}");
+        assert!(result.contains("\"users\""), "should contain query name: {result}");
+    }
+
+    /// H3: count_rows returns correct count
+    #[tokio::test]
+    async fn test_count_rows_returns_row_count() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query_def = test_schema().queries[0].clone();
+        let qm = QueryMatch::from_operation(
+            query_def,
+            vec!["id".to_string()],
+            std::collections::HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        let count = executor.count_rows(&qm, None, None).await.unwrap();
+        assert_eq!(count, 2, "mock adapter returns 2 rows");
+    }
+
+    /// H4: requires_role returns "not found" (anti-enumeration), not "forbidden"
+    #[tokio::test]
+    async fn test_requires_role_returns_not_found_not_forbidden() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        // No security context at all → should say "not found"
+        let result = executor.execute("{ users { id } }", None).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "requires_role should produce 'not found', not 'forbidden', got: {err}"
+        );
+        assert!(
+            !err.contains("forbidden") && !err.contains("Forbidden"),
+            "must not reveal the query exists behind a role gate, got: {err}"
+        );
+    }
+
+    /// H4: requires_role with wrong role still returns "not found"
+    #[tokio::test]
+    async fn test_requires_role_wrong_role_returns_not_found() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor
+            .execute_with_security("{ users { id } }", None, &ctx)
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "wrong role should produce 'not found', got: {err}"
+        );
+    }
+
+    /// H4: requires_role with correct role succeeds
+    #[tokio::test]
+    async fn test_requires_role_correct_role_succeeds() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor
+            .execute_with_security("{ users { id } }", None, &ctx)
+            .await;
+        assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());
+    }
+
+    /// H4: Read-only mode rejects mutations
+    #[tokio::test]
+    async fn test_read_only_mode_rejects_mutations() {
+        let mut schema = test_schema();
+        let mut mutation = crate::schema::MutationDefinition::new("createUser", "User");
+        mutation.sql_source = Some("fn_create_user".to_string());
+        schema.mutations.push(mutation);
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let config = RuntimeConfig {
+            read_only: true,
+            ..RuntimeConfig::default()
+        };
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let result = executor
+            .execute("mutation { createUser { id } }", None)
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("read-only") || err.contains("Read-only"),
+            "read-only mode should mention read-only, got: {err}"
+        );
+    }
+}

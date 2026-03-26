@@ -12,10 +12,9 @@ use serde_json::json;
 
 /// Build a `FieldDefinition` with the given name and type string.
 fn field(name: &str, type_str: &str) -> FieldDefinition {
-    let known = std::collections::HashSet::new();
     FieldDefinition {
         name:           name.into(),
-        field_type:     FieldType::parse(type_str, &known),
+        field_type:     FieldType::parse(type_str),
         nullable:       true,
         default_value:  None,
         description:    None,

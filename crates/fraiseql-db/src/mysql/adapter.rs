@@ -235,14 +235,19 @@ impl DatabaseAdapter for MySqlAdapter {
             Vec::new()
         };
 
-        // Add LIMIT if present
-        if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
-        }
-
-        // Add OFFSET if present
-        if let Some(off) = offset {
-            sql.push_str(&format!(" OFFSET {off}"));
+        // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                sql.push_str(&format!(" LIMIT {lim} OFFSET {off}"));
+            }
+            (Some(lim), None) => {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+            (None, Some(off)) => {
+                // MySQL requires LIMIT before OFFSET; use max u64 as "unlimited"
+                sql.push_str(&format!(" LIMIT 18446744073709551615 OFFSET {off}"));
+            }
+            (None, None) => {}
         }
 
         // Execute the query

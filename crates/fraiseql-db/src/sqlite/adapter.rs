@@ -269,14 +269,19 @@ impl DatabaseAdapter for SqliteAdapter {
             Vec::new()
         };
 
-        // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
-        if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
-        }
-
-        // Add OFFSET if present
-        if let Some(off) = offset {
-            sql.push_str(&format!(" OFFSET {off}"));
+        // Add LIMIT/OFFSET — SQLite requires LIMIT before OFFSET
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                sql.push_str(&format!(" LIMIT {lim} OFFSET {off}"));
+            }
+            (Some(lim), None) => {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+            (None, Some(off)) => {
+                // SQLite requires LIMIT before OFFSET; use -1 as "unlimited"
+                sql.push_str(&format!(" LIMIT -1 OFFSET {off}"));
+            }
+            (None, None) => {}
         }
 
         // Execute the query
