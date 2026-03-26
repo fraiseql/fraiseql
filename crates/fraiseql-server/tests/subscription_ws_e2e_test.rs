@@ -31,9 +31,7 @@ use tokio_tungstenite::{connect_async, tungstenite};
 /// Build a `CompiledSchema` that contains a single subscription definition.
 fn schema_with_subscription(name: &str, return_type: &str) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
-    schema
-        .subscriptions
-        .push(SubscriptionDefinition::new(name, return_type));
+    schema.subscriptions.push(SubscriptionDefinition::new(name, return_type));
     schema
 }
 
@@ -44,9 +42,7 @@ async fn spawn_ws_server(state: SubscriptionState) -> String {
         .route("/ws", axum::routing::get(subscription_handler))
         .with_state(state);
 
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind to ephemeral port");
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
@@ -67,9 +63,7 @@ async fn send_json(
     value: serde_json::Value,
 ) {
     let text = serde_json::to_string(&value).unwrap();
-    ws.send(tungstenite::Message::Text(text.into()))
-        .await
-        .unwrap();
+    ws.send(tungstenite::Message::Text(text.into())).await.unwrap();
 }
 
 /// Helper: receive the next text frame and parse as JSON, skipping keepalive
@@ -118,9 +112,7 @@ async fn connect_ws(
         >,
     >,
 ) {
-    let (ws_stream, _) = connect_async(url)
-        .await
-        .expect("WebSocket connect failed");
+    let (ws_stream, _) = connect_async(url).await.expect("WebSocket connect failed");
     ws_stream.split()
 }
 
@@ -198,11 +190,8 @@ async fn ws_e2e_connection_init_ack_handshake() {
     let (mut sink, mut stream) = connect_ws(&url).await;
 
     // Send connection_init with optional payload.
-    send_json(
-        &mut sink,
-        json!({"type": "connection_init", "payload": {"token": "test-jwt"}}),
-    )
-    .await;
+    send_json(&mut sink, json!({"type": "connection_init", "payload": {"token": "test-jwt"}}))
+        .await;
 
     let ack = recv_json(&mut stream).await;
     assert_eq!(ack["type"], "connection_ack");
@@ -277,9 +266,5 @@ async fn ws_e2e_complete_unsubscribes() {
     send_json(&mut sink, json!({"type": "complete", "id": "op_1"})).await;
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(
-        manager.subscription_count(),
-        0,
-        "subscription should be removed after complete"
-    );
+    assert_eq!(manager.subscription_count(), 0, "subscription should be removed after complete");
 }

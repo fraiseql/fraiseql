@@ -508,7 +508,10 @@ async fn test_query_with_zero_limit() {
 #[tokio::test]
 async fn test_large_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1000), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("users", None, Some(1000), None, None)
+        .await
+        .unwrap();
 
     // Should return all 3 users even though we requested 1000
     assert_eq!(results.len(), 3);

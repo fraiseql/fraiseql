@@ -1,16 +1,19 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use async_trait::async_trait;
-
-use super::*;
 use chrono::Utc;
 
+use super::*;
 use crate::{
-    db::{MutationCapable, types::JsonbValue, types::sql_hints::OrderByClause, where_clause::WhereClause},
+    db::{
+        MutationCapable,
+        types::{JsonbValue, sql_hints::OrderByClause},
+        where_clause::WhereClause,
+    },
     runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
     schema::{
-        AutoParams, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InjectedParamSource,
-        QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
+        AutoParams, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType,
+        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
     },
     security::{DefaultRLSPolicy, SecurityContext},
 };
@@ -20,9 +23,9 @@ use crate::{
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 struct CapturingMockAdapter {
-    mock_results:   Vec<JsonbValue>,
-    captured_where: std::sync::Mutex<Option<WhereClause>>,
-    captured_limit: std::sync::Mutex<Option<u32>>,
+    mock_results:    Vec<JsonbValue>,
+    captured_where:  std::sync::Mutex<Option<WhereClause>>,
+    captured_limit:  std::sync::Mutex<Option<u32>>,
     captured_offset: std::sync::Mutex<Option<u32>>,
 }
 
@@ -1487,25 +1490,25 @@ mod auto_params {
     fn schema_with_auto_params(auto_params: AutoParams) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           Vec::new(),
-            sql_source:          Some("v_user".to_string()),
-            description:         None,
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
             auto_params,
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: Default::default(),
+            inject_params: Default::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
         schema
     }
@@ -1608,34 +1611,37 @@ mod auto_params {
 // ── mod rls_composition: C13+C19 — WHERE composition through executor ────
 
 mod rls_composition {
-    use super::*;
     use indexmap::IndexMap;
 
-    fn schema_with_inject_params(inject_params: IndexMap<String, InjectedParamSource>) -> CompiledSchema {
+    use super::*;
+
+    fn schema_with_inject_params(
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           Vec::new(),
-            sql_source:          Some("v_user".to_string()),
-            description:         None,
-            auto_params:         AutoParams {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
                 has_where: true,
                 ..Default::default()
             },
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
+            relay_cursor_type: Default::default(),
             inject_params,
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
         schema
     }
@@ -1660,8 +1666,7 @@ mod rls_composition {
     async fn test_rls_only_produces_where_clause() {
         let schema = schema_with_inject_params(IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig::default()
-            .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         let executor = Executor::with_config(schema, adapter.clone(), config);
 
         let ctx = tenant_security_context();
@@ -1699,8 +1704,7 @@ mod rls_composition {
         inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
         let schema = schema_with_inject_params(inject);
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig::default()
-            .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         let executor = Executor::with_config(schema, adapter.clone(), config);
 
         let ctx = tenant_security_context();
@@ -1732,8 +1736,7 @@ mod rls_composition {
         inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
         let schema = schema_with_inject_params(inject);
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig::default()
-            .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         let executor = Executor::with_config(schema, adapter.clone(), config);
 
         let ctx = tenant_security_context();
@@ -1795,73 +1798,73 @@ mod field_rbac {
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![
-                FieldDefinition {
-                    name:           "id".into(),
-                    field_type:     FieldType::Int,
-                    nullable:       false,
-                    description:    None,
-                    default_value:  None,
-                    vector_config:  None,
-                    alias:          None,
-                    deprecation:    None,
-                    requires_scope: None,
-                    on_deny:        FieldDenyPolicy::Reject,
-                    encryption:     None,
-                    auto_generated: false,
-                    computed:       false,
-                    searchable:     false,
-                },
-                FieldDefinition {
-                    name:           "name".into(),
-                    field_type:     FieldType::String,
-                    nullable:       false,
-                    description:    None,
-                    default_value:  None,
-                    vector_config:  None,
-                    alias:          None,
-                    deprecation:    None,
-                    requires_scope: None,
-                    on_deny:        FieldDenyPolicy::Reject,
-                    encryption:     None,
-                    auto_generated: false,
-                    computed:       false,
-                    searchable:     false,
-                },
-                // Protected field: reject when unauthorized
-                FieldDefinition {
-                    name:           "salary".into(),
-                    field_type:     FieldType::Int,
-                    nullable:       true,
-                    description:    None,
-                    default_value:  None,
-                    vector_config:  None,
-                    alias:          None,
-                    deprecation:    None,
-                    requires_scope: Some("admin:*".to_string()),
-                    on_deny:        FieldDenyPolicy::Reject,
-                    encryption:     None,
-                    auto_generated: false,
-                    computed:       false,
-                    searchable:     false,
-                },
-                // Protected field: mask when unauthorized
-                FieldDefinition {
-                    name:           "email".into(),
-                    field_type:     FieldType::String,
-                    nullable:       true,
-                    description:    None,
-                    default_value:  None,
-                    vector_config:  None,
-                    alias:          None,
-                    deprecation:    None,
-                    requires_scope: Some("read:User.email".to_string()),
-                    on_deny:        FieldDenyPolicy::Mask,
-                    encryption:     None,
-                    auto_generated: false,
-                    computed:       false,
-                    searchable:     false,
-                },
-            ];
+            FieldDefinition {
+                name:           "id".into(),
+                field_type:     FieldType::Int,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            FieldDefinition {
+                name:           "name".into(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            // Protected field: reject when unauthorized
+            FieldDefinition {
+                name:           "salary".into(),
+                field_type:     FieldType::Int,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: Some("admin:*".to_string()),
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            // Protected field: mask when unauthorized
+            FieldDefinition {
+                name:           "email".into(),
+                field_type:     FieldType::String,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: Some("read:User.email".to_string()),
+                on_deny:        FieldDenyPolicy::Mask,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+        ];
 
         // Set up security config with role definitions for scope-based RBAC
         schema.security = Some(SecurityConfig {
@@ -1877,9 +1880,9 @@ mod field_rbac {
                     scopes:      vec!["admin:*".into(), "read:User.email".into()],
                 },
             ],
-            default_role: None,
-            multi_tenant: false,
-            additional:   Default::default(),
+            default_role:     None,
+            multi_tenant:     false,
+            additional:       Default::default(),
         });
 
         schema.types.push(user_type);
@@ -1927,15 +1930,17 @@ mod field_rbac {
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
-        let result = executor
-            .execute_with_security("{ users { id salary } }", None, &ctx)
-            .await;
+        let result = executor.execute_with_security("{ users { id salary } }", None, &ctx).await;
 
         assert!(result.is_err(), "querying rejected field should fail");
         let err = result.unwrap_err();
         let err_msg = format!("{err}");
         assert!(
-            err_msg.contains("salary") || err_msg.contains("authorization") || err_msg.contains("Authorization") || err_msg.contains("forbidden") || err_msg.contains("Forbidden"),
+            err_msg.contains("salary")
+                || err_msg.contains("authorization")
+                || err_msg.contains("Authorization")
+                || err_msg.contains("forbidden")
+                || err_msg.contains("Forbidden"),
             "error should mention the forbidden field or authorization, got: {err_msg}"
         );
     }
@@ -1949,18 +1954,22 @@ mod field_rbac {
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = admin_context();
-        let result = executor
-            .execute_with_security("{ users { id salary } }", None, &ctx)
-            .await;
+        let result = executor.execute_with_security("{ users { id salary } }", None, &ctx).await;
 
-        assert!(result.is_ok(), "admin should be able to query rejected field: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "admin should be able to query rejected field: {:?}",
+            result.err()
+        );
     }
 
     /// C17: Querying a masked field as unauthorized user returns null
     #[tokio::test]
     async fn test_mask_field_returns_null_for_unauthorized() {
         let schema = schema_with_rbac_fields();
-        let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}),
+        )];
         let adapter = Arc::new(MockAdapter::new(results));
         let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
@@ -1982,10 +1991,7 @@ mod field_rbac {
                 user["email"]
             );
             // id should still have real value
-            assert!(
-                !user["id"].is_null(),
-                "unmasked field 'id' should have real value"
-            );
+            assert!(!user["id"].is_null(), "unmasked field 'id' should have real value");
         }
     }
 
@@ -1993,7 +1999,9 @@ mod field_rbac {
     #[tokio::test]
     async fn test_mask_field_returns_real_value_for_authorized() {
         let schema = schema_with_rbac_fields();
-        let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}),
+        )];
         let adapter = Arc::new(MockAdapter::new(results));
         let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
@@ -2023,9 +2031,7 @@ mod field_rbac {
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
-        let result = executor
-            .execute_with_security("{ users { id name } }", None, &ctx)
-            .await;
+        let result = executor.execute_with_security("{ users { id name } }", None, &ctx).await;
 
         assert!(result.is_ok(), "public fields should always be accessible: {:?}", result.err());
     }
@@ -2121,9 +2127,7 @@ mod executor_paths {
             issuer:           None,
             audience:         None,
         };
-        let result = executor
-            .execute_with_security("{ users { id } }", None, &ctx)
-            .await;
+        let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -2153,9 +2157,7 @@ mod executor_paths {
             issuer:           None,
             audience:         None,
         };
-        let result = executor
-            .execute_with_security("{ users { id } }", None, &ctx)
-            .await;
+        let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());
     }
 
@@ -2173,9 +2175,7 @@ mod executor_paths {
         };
         let executor = Executor::with_config(schema, adapter, config);
 
-        let result = executor
-            .execute("mutation { createUser { id } }", None)
-            .await;
+        let result = executor.execute("mutation { createUser { id } }", None).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(

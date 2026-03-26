@@ -90,9 +90,7 @@ pub type WebhookConfig = WebhookTransportConfig;
 /// This function is infallible — unsupported clause shapes are silently
 /// skipped, which is a safe default (fewer conditions = more events
 /// delivered, never fewer).
-pub fn extract_rls_conditions(
-    clause: &crate::db::WhereClause,
-) -> Vec<(String, serde_json::Value)> {
+pub fn extract_rls_conditions(clause: &crate::db::WhereClause) -> Vec<(String, serde_json::Value)> {
     let mut conditions = Vec::new();
     collect_eq_conditions(clause, &mut conditions);
     conditions

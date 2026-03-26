@@ -15,9 +15,7 @@ use crate::{
 ///
 /// Order matters: `\` is escaped first to avoid double-escaping.
 pub(crate) fn escape_like_literal(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
 }
 
 /// Maximum allowed length for user-supplied regex patterns.
@@ -39,7 +37,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
             message: format!(
                 "Regex pattern exceeds maximum length of {MAX_REGEX_PATTERN_LEN} bytes"
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -72,7 +70,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
                                       ReDoS). Simplify the pattern to avoid `(…+)+`, \
                                       `(…*)*`, or similar constructs."
                                 .to_string(),
-                            path: None,
+                            path:    None,
                         });
                     }
                 }

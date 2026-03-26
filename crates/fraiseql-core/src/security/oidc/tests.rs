@@ -431,26 +431,20 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
     let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes())
         .expect("test RSA private key PEM should be valid");
 
-    let token = jsonwebtoken::encode(&header, &claims, &encoding_key)
-        .expect("JWT encoding should succeed");
+    let token =
+        jsonwebtoken::encode(&header, &claims, &encoding_key).expect("JWT encoding should succeed");
 
     // ── 4. Create OidcValidator pointing at wiremock ─────────────────
     let config = OidcConfig {
-        issuer:             issuer.clone(),
-        audience:           Some("fraiseql-test-api".to_string()),
+        issuer: issuer.clone(),
+        audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(
-        config,
-        format!("{issuer}{jwks_path}"),
-    );
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
 
     // ── 5. Validate the token end-to-end ─────────────────────────────
-    let user = validator
-        .validate_token(&token)
-        .await
-        .expect("token validation should succeed");
+    let user = validator.validate_token(&token).await.expect("token validation should succeed");
 
     assert_eq!(user.user_id, "user-42");
     assert_eq!(user.scopes, vec!["read", "write", "admin"]);
@@ -517,8 +511,8 @@ async fn validate_token_rejects_wrong_signing_key() {
     let token: String = chars.into_iter().collect();
 
     let config = OidcConfig {
-        issuer:             issuer.clone(),
-        audience:           Some("fraiseql-test-api".to_string()),
+        issuer: issuer.clone(),
+        audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
@@ -577,8 +571,8 @@ async fn validate_token_rejects_expired_jwt() {
     let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
 
     let config = OidcConfig {
-        issuer:             issuer.clone(),
-        audience:           Some("fraiseql-test-api".to_string()),
+        issuer: issuer.clone(),
+        audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
@@ -641,8 +635,8 @@ async fn validate_token_rejects_wrong_audience() {
     let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
 
     let config = OidcConfig {
-        issuer:             issuer.clone(),
-        audience:           Some("fraiseql-test-api".to_string()),
+        issuer: issuer.clone(),
+        audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };

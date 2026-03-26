@@ -64,10 +64,16 @@ async fn test_cache_miss_with_different_where_clause() {
         value:    json!(2),
     };
 
-    let _ = cached.execute_where_query("v_user", Some(&where1), None, None, None).await.unwrap();
+    let _ = cached
+        .execute_where_query("v_user", Some(&where1), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(cached.inner().query_count(), 1);
 
-    let _ = cached.execute_where_query("v_user", Some(&where2), None, None, None).await.unwrap();
+    let _ = cached
+        .execute_where_query("v_user", Some(&where2), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(cached.inner().query_count(), 2); // Different where = cache miss
 }
 

@@ -172,11 +172,17 @@ async fn test_different_where_clauses_produce_different_cache_entries() {
     };
 
     // Query 1
-    adapter.execute_where_query("v_user", Some(&where1), None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", Some(&where1), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query 2 - different WHERE - should miss cache
-    adapter.execute_where_query("v_user", Some(&where2), None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", Some(&where2), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 }
 
@@ -284,11 +290,17 @@ async fn test_all_queries_are_cached() {
     assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
 
     // Query with small LIMIT — different cache key (different limit), so a miss
-    adapter.execute_where_query("v_user", None, Some(1000), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 
     // Identical small-limit query — cache hit
-    adapter.execute_where_query("v_user", None, Some(1000), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2); // Still 2 - cache hit!
 
     // Query with WHERE clause — cached normally

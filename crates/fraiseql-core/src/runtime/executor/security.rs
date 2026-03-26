@@ -282,7 +282,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.execute_regular_query_with_security(query, variables, security_context)
                     .await
             },
-            // Other query types don't support RLS yet (relay is handled inside execute_regular_query_with_security)
+            // Other query types don't support RLS yet (relay is handled inside
+            // execute_regular_query_with_security)
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
             },

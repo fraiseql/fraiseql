@@ -98,7 +98,13 @@ impl SubscriptionManager {
         variables: serde_json::Value,
         connection_id: &str,
     ) -> Result<SubscriptionId, SubscriptionError> {
-        self.subscribe_with_rls(subscription_name, user_context, variables, connection_id, Vec::new())
+        self.subscribe_with_rls(
+            subscription_name,
+            user_context,
+            variables,
+            connection_id,
+            Vec::new(),
+        )
     }
 
     /// Subscribe with pre-evaluated RLS conditions for event-level filtering.

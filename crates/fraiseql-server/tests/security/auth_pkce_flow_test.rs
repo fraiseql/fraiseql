@@ -249,9 +249,7 @@ async fn auth_callback_missing_code_and_state_returns_400() {
 /// Build a router where:
 /// - The OIDC token endpoint is a `wiremock` mock returning a valid token.
 /// - `post_login_redirect_uri` is set, so the callback uses cookie mode.
-async fn session_cookie_router(
-    mock_server: &MockServer,
-) -> Router {
+async fn session_cookie_router(mock_server: &MockServer) -> Router {
     // Mount a mock that replies to POST /token with a valid token response.
     Mock::given(method("POST"))
         .and(path("/token"))
@@ -368,10 +366,7 @@ async fn auth_callback_session_cookie_mode() {
     );
 
     // Path=/ is required by the __Host- cookie prefix.
-    assert!(
-        set_cookie.contains("Path=/"),
-        "cookie must have Path=/, got: {set_cookie}"
-    );
+    assert!(set_cookie.contains("Path=/"), "cookie must have Path=/, got: {set_cookie}");
 
     // Max-Age must match the token's expires_in (3600).
     assert!(

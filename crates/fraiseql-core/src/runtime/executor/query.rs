@@ -56,9 +56,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
-            return self
-                .execute_relay_query(&query_match, variables, Some(security_context))
-                .await;
+            return self.execute_relay_query(&query_match, variables, Some(security_context)).await;
         }
 
         // Delegate to shared execution logic
@@ -139,9 +137,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
-        // 4. Generate SQL projection hint for requested fields (optimization)
-        //    Look up field types from schema to use the correct JSONB operator:
-        //    `->` for objects/lists (preserves JSONB), `->>` for scalars (text).
+        // 4. Generate SQL projection hint for requested fields (optimization) Look up field types
+        //    from schema to use the correct JSONB operator: `->` for objects/lists (preserves
+        //    JSONB), `->>` for scalars (text).
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
@@ -154,7 +152,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         .and_then(|td| td.fields.iter().find(|f| f.name == name.as_str()))
                         .is_some_and(|f| !f.field_type.is_scalar());
                     ProjectionField {
-                        name:         name.clone(),
+                        name: name.clone(),
                         is_composite,
                     }
                 })
@@ -389,9 +387,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
-            return self
-                .execute_relay_query(query_match, variables, security_context)
-                .await;
+            return self.execute_relay_query(query_match, variables, security_context).await;
         }
 
         // Apply query timeout if configured

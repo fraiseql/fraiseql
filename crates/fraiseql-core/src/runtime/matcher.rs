@@ -242,8 +242,8 @@ impl QueryMatcher {
         // 7. Extract arguments from variables
         let mut arguments = self.extract_arguments(variables);
 
-        // 8. Merge inline arguments from root field selection (e.g., `posts(limit: 3)`).
-        //    Variables take precedence over inline arguments when both are provided.
+        // 8. Merge inline arguments from root field selection (e.g., `posts(limit: 3)`). Variables
+        //    take precedence over inline arguments when both are provided.
         if let Some(root) = final_selections.first() {
             for arg in &root.arguments {
                 if !arguments.contains_key(&arg.name) {

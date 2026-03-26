@@ -951,20 +951,20 @@ fn test_rls_empty_conditions_allows_all() {
 
 #[test]
 fn test_extract_rls_conditions_from_where_clause() {
-    use crate::db::{WhereClause, WhereOperator};
     use super::super::extract_rls_conditions;
+    use crate::db::{WhereClause, WhereOperator};
 
     // AND(tenant_id = "abc", author_id = "user-1")
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["tenant_id".to_string()],
+            path:     vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value: serde_json::json!("abc"),
+            value:    serde_json::json!("abc"),
         },
         WhereClause::Field {
-            path: vec!["author_id".to_string()],
+            path:     vec!["author_id".to_string()],
             operator: WhereOperator::Eq,
-            value: serde_json::json!("user-1"),
+            value:    serde_json::json!("user-1"),
         },
     ]);
 
@@ -976,20 +976,20 @@ fn test_extract_rls_conditions_from_where_clause() {
 
 #[test]
 fn test_extract_rls_conditions_ignores_non_eq() {
-    use crate::db::{WhereClause, WhereOperator};
     use super::super::extract_rls_conditions;
+    use crate::db::{WhereClause, WhereOperator};
 
     // Only Eq conditions are extracted; Gt is skipped.
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["tenant_id".to_string()],
+            path:     vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value: serde_json::json!("abc"),
+            value:    serde_json::json!("abc"),
         },
         WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value: serde_json::json!(100),
+            value:    serde_json::json!(100),
         },
     ]);
 
@@ -1010,17 +1010,13 @@ fn test_extract_rls_conditions_ignores_non_eq() {
 /// implemented.
 #[test]
 fn test_subscription_error_rbac_variants_constructible() {
-    let auth_err = SubscriptionError::AuthenticationRequired(
-        "onOrderCreated".to_string(),
-    );
+    let auth_err = SubscriptionError::AuthenticationRequired("onOrderCreated".to_string());
     assert!(
         format!("{auth_err}").contains("Authentication required"),
         "AuthenticationRequired variant should format correctly: {auth_err}"
     );
 
-    let forbidden_err = SubscriptionError::Forbidden(
-        "onOrderCreated".to_string(),
-    );
+    let forbidden_err = SubscriptionError::Forbidden("onOrderCreated".to_string());
     assert!(
         format!("{forbidden_err}").contains("Not authorized"),
         "Forbidden variant should format correctly: {forbidden_err}"

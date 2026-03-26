@@ -127,8 +127,10 @@ fn bench_postgres_10k_rows(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let start = Instant::now();
-                let results =
-                    adapter.execute_where_query("v_users", None, Some(10_000), None, None).await.unwrap();
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(10_000), None, None)
+                    .await
+                    .unwrap();
 
                 black_box(results.len());
                 black_box(start.elapsed());
@@ -164,8 +166,10 @@ fn bench_wire_10k_rows(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let start = Instant::now();
-                let results =
-                    adapter.execute_where_query("v_users", None, Some(10_000), None, None).await.unwrap();
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(10_000), None, None)
+                    .await
+                    .unwrap();
 
                 black_box(results.len());
                 black_box(start.elapsed());

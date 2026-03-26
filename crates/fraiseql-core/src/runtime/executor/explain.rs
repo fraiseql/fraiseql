@@ -175,7 +175,10 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        db::{DatabaseType, PoolMetrics, WhereClause, types::{JsonbValue, OrderByClause}},
+        db::{
+            DatabaseType, PoolMetrics, WhereClause,
+            types::{JsonbValue, OrderByClause},
+        },
         error::{FraiseQLError, Result},
         runtime::Executor,
         schema::{CompiledSchema, MutationDefinition, QueryDefinition},

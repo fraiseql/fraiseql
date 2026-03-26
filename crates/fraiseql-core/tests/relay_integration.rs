@@ -1035,7 +1035,6 @@ async fn relay_cursor_column_is_pk_user_not_id() {
 // =============================================================================
 
 mod relay_security {
-    use super::*;
     use std::sync::Mutex;
 
     use fraiseql_core::{
@@ -1044,10 +1043,12 @@ mod relay_security {
         security::{DefaultRLSPolicy, SecurityContext},
     };
 
+    use super::*;
+
     /// A relay mock adapter that records the WHERE clause passed to
     /// `execute_relay_page`, so tests can assert RLS/inject composition.
     struct RecordingRelayAdapter {
-        rows: Vec<JsonbValue>,
+        rows:           Vec<JsonbValue>,
         recorded_where: Mutex<Vec<Option<String>>>,
     }
 
@@ -1074,7 +1075,7 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1086,7 +1087,7 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1148,14 +1149,14 @@ mod relay_security {
             include_total_count: bool,
         ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
             // Record the WHERE clause for assertion.
-            self.recorded_where
-                .lock()
-                .unwrap()
-                .push(where_clause.map(|w| format!("{w:?}")));
+            self.recorded_where.lock().unwrap().push(where_clause.map(|w| format!("{w:?}")));
 
             // Minimal keyset pagination (same as RelayMockAdapter).
-            let total_count =
-                if include_total_count { Some(self.rows.len() as u64) } else { None };
+            let total_count = if include_total_count {
+                Some(self.rows.len() as u64)
+            } else {
+                None
+            };
 
             let after_pk = after.and_then(|c| {
                 if let CursorValue::Int64(v) = c {
@@ -1169,8 +1170,7 @@ mod relay_security {
                 .rows
                 .iter()
                 .filter(|r| {
-                    let pk =
-                        r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
+                    let pk = r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
                     if forward {
                         after_pk.is_none_or(|a| pk > a)
                     } else {
@@ -1223,18 +1223,15 @@ mod relay_security {
     /// Build an executor with RLS policy and a recording adapter.
     fn rls_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
-        let config =
-            RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
-        let exec =
-            Executor::with_config_and_relay(relay_schema(), adapter.clone(), config);
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let exec = Executor::with_config_and_relay(relay_schema(), adapter.clone(), config);
         (exec, adapter)
     }
 
     /// Build an executor with both RLS policy and `inject_params` on the relay query.
     fn rls_inject_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
-        let config =
-            RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
 
         let mut schema = relay_schema();
         // Add inject_params to the relay query: tenant_id from JWT.

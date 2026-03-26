@@ -239,15 +239,15 @@ impl DatabaseAdapter for MySqlAdapter {
         match (limit, offset) {
             (Some(lim), Some(off)) => {
                 sql.push_str(&format!(" LIMIT {lim} OFFSET {off}"));
-            }
+            },
             (Some(lim), None) => {
                 sql.push_str(&format!(" LIMIT {lim}"));
-            }
+            },
             (None, Some(off)) => {
                 // MySQL requires LIMIT before OFFSET; use max u64 as "unlimited"
                 sql.push_str(&format!(" LIMIT 18446744073709551615 OFFSET {off}"));
-            }
-            (None, None) => {}
+            },
+            (None, None) => {},
         }
 
         // Execute the query

@@ -21,18 +21,9 @@ permissions:
   actions: read
 
 jobs:
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
+  # NOTE: dependency-review-action requires Dependency Graph enabled in repo settings
+  # (https://github.com/fraiseql/fraiseql/settings/security_analysis).
+  # Re-enable this job once the setting is turned on.
 
   secrets-scan:
     name: Secrets Detection

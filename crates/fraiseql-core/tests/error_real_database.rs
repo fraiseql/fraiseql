@@ -168,7 +168,10 @@ async fn pool_metrics_reflect_real_state() {
 #[tokio::test]
 async fn query_seeded_view_returns_data() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let results = adapter.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("test.v_user", None, None, None, None)
+        .await
+        .unwrap();
     assert!(!results.is_empty(), "seeded v_user should return rows");
 }
 
