@@ -14,17 +14,17 @@ async fn test_recovery_after_transient_database_failure() {
         .with_response("v_user", vec![fraiseql_core::db::types::JsonbValue::new(json!({"id": 1}))]);
 
     // Succeed first
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_ok());
 
     // Inject failure
     adapter.set_fail_on_query(adapter.query_count());
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_err());
 
     // Reset and recover
     adapter.reset();
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 1);
 }
@@ -36,7 +36,7 @@ async fn test_recovery_after_timeout() {
 
     // Inject timeout
     adapter.set_fail_with_timeout(5000);
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -45,7 +45,7 @@ async fn test_recovery_after_timeout() {
 
     // Reset and recover
     adapter.reset();
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_ok());
 }
 
@@ -72,11 +72,11 @@ async fn test_adapter_state_independent_between_queries() {
         .fail_on_query(0);
 
     // First query fails (query 0)
-    let result = adapter.execute_where_query("v_user", None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_err());
 
     // Second query succeeds (query 1 != fail_on_query(0))
-    let result = adapter.execute_where_query("v_post", None, None, None).await;
+    let result = adapter.execute_where_query("v_post", None, None, None, None).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 1);
 }
@@ -86,14 +86,14 @@ async fn test_query_count_tracks_across_failures() {
     let adapter = FailingAdapter::new().fail_on_query(1);
 
     // Query 0 — succeeds
-    let _ = adapter.execute_where_query("v_user", None, None, None).await;
+    let _ = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert_eq!(adapter.query_count(), 1);
 
     // Query 1 — fails
-    let _ = adapter.execute_where_query("v_user", None, None, None).await;
+    let _ = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert_eq!(adapter.query_count(), 2); // Incremented even on failure
 
     // Query 2 — succeeds
-    let _ = adapter.execute_where_query("v_user", None, None, None).await;
+    let _ = adapter.execute_where_query("v_user", None, None, None, None).await;
     assert_eq!(adapter.query_count(), 3);
 }

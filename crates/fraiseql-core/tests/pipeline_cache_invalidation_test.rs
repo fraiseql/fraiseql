@@ -26,7 +26,7 @@ use fraiseql_core::{
     },
     db::{
         traits::{DatabaseAdapter, MutationCapable},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
     error::Result,
@@ -61,6 +61,7 @@ impl DatabaseAdapter for InnerMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -71,6 +72,7 @@ impl DatabaseAdapter for InnerMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }

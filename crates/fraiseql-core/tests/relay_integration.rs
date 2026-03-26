@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
@@ -81,6 +81,7 @@ impl DatabaseAdapter for RelayMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         let mut out: Vec<JsonbValue> = match where_clause {
             // Filter by `id` equality — used for node queries.
@@ -111,8 +112,9 @@ impl DatabaseAdapter for RelayMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn health_check(&self) -> Result<()> {
@@ -696,6 +698,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -707,6 +710,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -1070,6 +1074,7 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1081,6 +1086,7 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }

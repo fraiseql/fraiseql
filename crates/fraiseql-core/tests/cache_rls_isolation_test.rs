@@ -145,7 +145,7 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 
     // Query tenant A.
     let result_a = cached
-        .execute_where_query("v_tenant_item", Some(&where_a), None, None)
+        .execute_where_query("v_tenant_item", Some(&where_a), None, None, None)
         .await
         .expect("query tenant A");
     assert_eq!(
@@ -158,7 +158,7 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 
     // Query tenant B — must NOT get tenant A's cached response.
     let result_b = cached
-        .execute_where_query("v_tenant_item", Some(&where_b), None, None)
+        .execute_where_query("v_tenant_item", Some(&where_b), None, None, None)
         .await
         .expect("query tenant B");
     assert_eq!(
@@ -171,7 +171,7 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 
     // A second query for tenant A must still return 3 (cache hit, correct entry).
     let result_a_cached = cached
-        .execute_where_query("v_tenant_item", Some(&where_a), None, None)
+        .execute_where_query("v_tenant_item", Some(&where_a), None, None, None)
         .await
         .expect("cached query tenant A");
     assert_eq!(result_a_cached.len(), 3, "Cached result for tenant A must still be 3");

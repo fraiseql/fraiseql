@@ -213,6 +213,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
+        // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
+        //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
         // 6. Extract limit/offset from query arguments when auto_params are enabled
         let limit = if query_match.query_def.auto_params.has_limit {
             query_match
@@ -234,6 +252,17 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
+        // 6b. Extract order_by from query arguments when has_order_by is enabled
+        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
+            query_match
+                .arguments
+                .get("orderBy")
+                .map(crate::db::OrderByClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
         // 7. Execute query with combined WHERE clause filter
         let results = self
             .adapter
@@ -243,6 +272,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 combined_where.as_ref(),
                 limit,
                 offset,
+                order_by_clauses.as_deref(),
             )
             .await?;
 
@@ -460,10 +490,27 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
+        // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query(sql_source, combined_where.as_ref(), None, None)
+            .execute_where_query(sql_source, combined_where.as_ref(), None, None, None)
             .await?;
 
         // Return the row count
@@ -871,7 +918,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Execute the query (limit 1).
         let rows = self
             .adapter
-            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None)
+            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None, None)
             .await?;
 
         // 6. Return the first matching row (or null).

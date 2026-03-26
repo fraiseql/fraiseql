@@ -69,7 +69,7 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -326,7 +326,7 @@ impl PostgresAdapter {
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset).await;
+            return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");

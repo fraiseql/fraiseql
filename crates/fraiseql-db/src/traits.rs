@@ -304,6 +304,7 @@ pub trait DatabaseAdapter: Send + Sync {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Execute a WHERE query with SQL field projection optimization.
@@ -427,6 +428,7 @@ pub trait DatabaseAdapter: Send + Sync {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Get database type (for logging/metrics).

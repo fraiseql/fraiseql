@@ -41,7 +41,7 @@ use crate::{
     traits::{
         DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationCapable, MutationStrategy,
     },
-    types::{DatabaseType, JsonbValue, PoolMetrics},
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
 
@@ -75,7 +75,7 @@ const MAX_POOL_SIZE: u32 = 200;
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -239,10 +239,11 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset).await;
+            return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -288,6 +289,7 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
         // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
@@ -835,7 +837,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), None)
+            .execute_where_query("v_user", None, Some(2), None, None)
             .await
             .expect("Failed to execute query");
 
@@ -864,7 +866,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, None, Some(2))
+            .execute_where_query("v_user", None, None, Some(2), None)
             .await
             .expect("Failed to execute query");
 
@@ -893,7 +895,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1))
+            .execute_where_query("v_user", None, Some(2), Some(1), None)
             .await
             .expect("Failed to execute query");
 
@@ -934,7 +936,7 @@ mod tests {
             value:    json!("user3"),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].as_value()["name"], "user3");
     }
@@ -948,7 +950,7 @@ mod tests {
             value:    json!("user1"),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -962,7 +964,7 @@ mod tests {
             value:    json!(23),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -976,7 +978,7 @@ mod tests {
             value:    json!(23),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -990,7 +992,7 @@ mod tests {
             value:    json!(23),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -1004,7 +1006,7 @@ mod tests {
             value:    json!(23),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -1017,7 +1019,7 @@ mod tests {
             value:    json!(["user1", "user3", "user5"]),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -1030,7 +1032,7 @@ mod tests {
             value:    json!(["user1", "user2"]),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -1044,7 +1046,7 @@ mod tests {
             value:    json!("user%"),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 5);
     }
 
@@ -1058,7 +1060,7 @@ mod tests {
             value:    json!(true),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -1072,7 +1074,7 @@ mod tests {
             value:    json!(false),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 0);
     }
 
@@ -1093,7 +1095,7 @@ mod tests {
             },
         ]);
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].as_value()["name"], "user2");
     }
@@ -1115,7 +1117,7 @@ mod tests {
             },
         ]);
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -1130,7 +1132,7 @@ mod tests {
             value:    json!("nonexistent"),
         };
         let results =
-            adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+            adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
         assert!(results.is_empty());
     }
 
@@ -1182,7 +1184,7 @@ mod tests {
             estimated_reduction_percent: 50,
         };
         let results = adapter
-            .execute_with_projection("v_user", Some(&projection), None, None, None)
+            .execute_with_projection("v_user", Some(&projection), None, None, None, None)
             .await
             .expect("execute_with_projection should succeed");
         assert_eq!(results.len(), 3);
