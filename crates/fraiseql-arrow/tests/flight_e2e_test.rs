@@ -215,6 +215,7 @@ mod tests {
     /// 4. Receive data batches
     /// 5. Verify data integrity
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_do_get_optimized_view_full_flow() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -239,6 +240,7 @@ mod tests {
     /// 2. Execute same query with cache enabled (second request)
     /// 3. Verify cache hit (same result, no database query)
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_do_get_with_cache_hit() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -264,6 +266,7 @@ mod tests {
     /// 2. Query is executed and result is cached
     /// 3. Verify cache now contains result
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_do_get_with_cache_miss() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -289,6 +292,7 @@ mod tests {
     /// 3. Receive combined Arrow stream
     /// 4. Verify results from all queries are streamed
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_batched_queries_full_flow() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -316,6 +320,7 @@ mod tests {
     /// 4. Verify all rows are streamed correctly
     /// 5. Verify batch size limits are respected
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_large_result_set_streaming() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -345,6 +350,7 @@ mod tests {
     /// 4. No data corruption or race conditions
     /// 5. Cache is thread-safe if enabled
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL"]
     async fn test_concurrent_do_get_requests() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
