@@ -115,13 +115,19 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
         )));
     }
 
-    // Extract the host portion (strip scheme, then take up to the first / : ? #)
     let after_scheme = if lower.starts_with("https://") {
         &url[8..]
     } else {
         &url[7..]
     };
-    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
+
+    // IPv6 addresses are enclosed in brackets (e.g. [::1]:8123) — extract them intact
+    let host = if after_scheme.starts_with('[') {
+        // Find the closing bracket; everything between [ and ] is the host
+        after_scheme.find(']').map_or("", |end| &after_scheme[1..end])
+    } else {
+        after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("")
+    };
 
     if is_ssrf_blocked_host_ch(host) {
         return Err(ArrowFlightError::Configuration(format!(
