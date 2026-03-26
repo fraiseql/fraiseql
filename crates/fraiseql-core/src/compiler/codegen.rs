@@ -161,7 +161,7 @@ impl CodeGenerator {
             })
             .collect();
 
-        let mutations = ir.mutations.iter().map(|m| Self::map_mutation(m)).collect();
+        let mutations = ir.mutations.iter().map(Self::map_mutation).collect();
 
         let subscriptions = ir
             .subscriptions
@@ -186,14 +186,14 @@ impl CodeGenerator {
 
         // Map interfaces
         let interfaces =
-            ir.interfaces.iter().map(|i| Self::map_interface(i)).collect();
+            ir.interfaces.iter().map(Self::map_interface).collect();
 
         // Map unions
         let unions = ir.unions.iter().map(Self::map_union).collect();
 
         // Map input types
         let input_types =
-            ir.input_types.iter().map(|i| Self::map_input_type(i)).collect();
+            ir.input_types.iter().map(Self::map_input_type).collect();
 
         // Build custom type registry from IRScalars
         let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;

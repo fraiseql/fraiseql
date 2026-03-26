@@ -1923,9 +1923,7 @@ mod field_rbac {
     async fn test_reject_field_returns_authorization_error() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
@@ -1947,9 +1945,7 @@ mod field_rbac {
     async fn test_reject_field_allowed_for_admin() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = admin_context();
@@ -1966,9 +1962,7 @@ mod field_rbac {
         let schema = schema_with_rbac_fields();
         let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
         let adapter = Arc::new(MockAdapter::new(results));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
@@ -2001,9 +1995,7 @@ mod field_rbac {
         let schema = schema_with_rbac_fields();
         let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
         let adapter = Arc::new(MockAdapter::new(results));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = admin_context();
@@ -2027,9 +2019,7 @@ mod field_rbac {
     async fn test_public_fields_always_accessible() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();

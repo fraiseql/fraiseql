@@ -288,8 +288,8 @@ async fn session_cookie_router(
 }
 
 /// C15: When `post_login_redirect_uri` is configured the callback must:
-/// 1. Return a 302/303 redirect to the configured URI (NOT the caller's redirect_uri).
-/// 2. Set a `__Host-access_token` cookie with HttpOnly, Secure, SameSite=Strict.
+/// 1. Return a 302/303 redirect to the configured URI (NOT the caller's `redirect_uri`).
+/// 2. Set a `__Host-access_token` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`.
 /// 3. Include the access token in the cookie value.
 #[tokio::test]
 async fn auth_callback_session_cookie_mode() {

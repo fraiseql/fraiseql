@@ -224,8 +224,6 @@ mod relay_sql_tests {
 }
 
 mod projection_sql_tests {
-    use super::*;
-
     /// Verify the fix for C10: execute_with_projection must NOT emit both
     /// `SELECT TOP N` and `OFFSET M ROWS FETCH NEXT N ROWS ONLY` — these are
     /// mutually exclusive in T-SQL.
