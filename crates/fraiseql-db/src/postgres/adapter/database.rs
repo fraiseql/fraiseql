@@ -424,7 +424,6 @@ impl MutationCapable for PostgresAdapter {}
 ///
 /// Schema-qualified function names (e.g. `dimensions.fn_create`) are quoted
 /// per-segment via [`quote_postgres_identifier`]: `"dimensions"."fn_create"($1, $2)`.
-///
 fn build_function_call_sql(function_name: &str, arg_count: usize) -> String {
     let quoted_fn = quote_postgres_identifier(function_name);
     let placeholders: Vec<String> = (1..=arg_count).map(|i| format!("${i}")).collect();
