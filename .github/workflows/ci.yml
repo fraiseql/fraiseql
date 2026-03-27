@@ -268,6 +268,7 @@ jobs:
         run: cargo test --lib -- --ignored --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
           RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
