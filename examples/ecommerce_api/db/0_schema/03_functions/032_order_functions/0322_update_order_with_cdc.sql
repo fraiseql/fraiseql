@@ -5,23 +5,18 @@
 CREATE OR REPLACE FUNCTION app.update_order(
     order_id UUID,
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_before_data JSONB;
     v_after_data JSONB;
-    v_mutation_response JSONB;
+    v_mutation_response mutation_response;
 BEGIN
     -- Get order data BEFORE update (for CDC event)
     SELECT data INTO v_before_data FROM tv_order WHERE id = order_id;
 
     IF v_before_data IS NULL THEN
         -- Order not found - return error immediately
-        RETURN app.build_mutation_response(
-            false,
-            'NOT_FOUND',
-            'Order not found',
-            jsonb_build_object('order_id', order_id)
-        );
+        RETURN app.build_mutation_response('failed:not_found', 'Order not found');
     END IF;
 
     -- Delegate to core business logic (actual update)
@@ -38,10 +33,11 @@ BEGIN
 
     -- Build ultra-direct response for client (snake_case, Rust transforms)
     v_mutation_response := app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'updated',
         'Order updated successfully',
-        jsonb_build_object('order', v_after_data)
+        p_entity := v_after_data,
+        p_entity_type := 'Order',
+        p_entity_id := order_id::text
     );
 
     -- Log CDC event ASYNCHRONOUSLY (doesn't block response)

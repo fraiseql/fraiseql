@@ -1,10 +1,10 @@
 -- Create product functions
 -- App and core layers for product creation
 
--- App function: Create product (ultra-direct mutation)
+-- App function: Create product
 CREATE OR REPLACE FUNCTION app.create_product(
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_product_id UUID;
 BEGIN
@@ -18,19 +18,17 @@ BEGIN
         input_payload->>'tags'
     );
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'new',
         'Product created successfully',
         jsonb_build_object(
-            'product', jsonb_build_object(
-                'id', v_product_id,
-                'sku', input_payload->>'sku',
-                'name', input_payload->>'name',
-                'description', input_payload->>'description'
-            )
-        )
+            'id', v_product_id,
+            'sku', input_payload->>'sku',
+            'name', input_payload->>'name',
+            'description', input_payload->>'description'
+        ),
+        'Product',
+        v_product_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -1,27 +1,20 @@
 -- Blog API CQRS Schema - SQL Functions for Mutations
--- All functions accept JSON parameters and return JSON results
+-- All functions return mutation_response type
 
 -- Function to create a user
 CREATE OR REPLACE FUNCTION fn_create_user(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 DECLARE
     new_user_id UUID;
-    result JSON;
 BEGIN
     -- Validate required fields
     IF input_data->>'email' IS NULL OR input_data->>'name' IS NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Email and name are required'
-        );
+        RETURN ROW('failed:validation', 'Email and name are required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if email already exists
     IF EXISTS (SELECT 1 FROM tb_user WHERE email = input_data->>'email') THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Email already exists'
-        );
+        RETURN ROW('failed:validation', 'Email already exists', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Insert new user
@@ -34,34 +27,34 @@ BEGIN
     )
     RETURNING id INTO new_user_id;
 
-    -- Return success with new user ID
-    RETURN json_build_object(
-        'success', true,
-        'user_id', new_user_id
-    );
+    -- Return success with new user
+    RETURN ROW(
+        'new',
+        'User created successfully',
+        new_user_id::text,
+        'User',
+        jsonb_build_object('id', new_user_id, 'email', input_data->>'email', 'name', input_data->>'name'),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to create a post
 CREATE OR REPLACE FUNCTION fn_create_post(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 DECLARE
     new_post_id UUID;
     generated_slug VARCHAR(500);
 BEGIN
     -- Validate required fields
     IF input_data->>'author_id' IS NULL OR input_data->>'title' IS NULL OR input_data->>'content' IS NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Author ID, title, and content are required'
-        );
+        RETURN ROW('failed:validation', 'Author ID, title, and content are required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Generate slug from title
@@ -96,43 +89,39 @@ BEGIN
     )
     RETURNING id INTO new_post_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'post_id', new_post_id,
-        'slug', generated_slug
-    );
+    RETURN ROW(
+        'new',
+        'Post created successfully',
+        new_post_id::text,
+        'Post',
+        jsonb_build_object('id', new_post_id, 'slug', generated_slug, 'title', input_data->>'title'),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to update a post
 CREATE OR REPLACE FUNCTION fn_update_post(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 DECLARE
     post_exists BOOLEAN;
 BEGIN
     -- Validate required fields
     IF input_data->>'id' IS NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post ID is required'
-        );
+        RETURN ROW('failed:validation', 'Post ID is required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if post exists
     SELECT EXISTS (SELECT 1 FROM tb_posts WHERE id = (input_data->>'id')::UUID) INTO post_exists;
 
     IF NOT post_exists THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post not found'
-        );
+        RETURN ROW('failed:validation', 'Post not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Update post fields that are provided
@@ -154,41 +143,38 @@ BEGIN
         END
     WHERE id = (input_data->>'id')::UUID;
 
-    RETURN json_build_object(
-        'success', true,
-        'post_id', input_data->>'id'
-    );
+    RETURN ROW(
+        'success',
+        'Post updated successfully',
+        input_data->>'id',
+        'Post',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to create a comment
 CREATE OR REPLACE FUNCTION fn_create_comment(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 DECLARE
     new_comment_id UUID;
 BEGIN
     -- Validate required fields
     IF input_data->>'post_id' IS NULL OR input_data->>'author_id' IS NULL OR input_data->>'content' IS NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post ID, author ID, and content are required'
-        );
+        RETURN ROW('failed:validation', 'Post ID, author ID, and content are required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Validate parent comment if provided
     IF input_data->>'parent_id' IS NOT NULL THEN
         IF NOT EXISTS (SELECT 1 FROM tb_comments WHERE id = (input_data->>'parent_id')::UUID) THEN
-            RETURN json_build_object(
-                'success', false,
-                'error', 'Parent comment not found'
-            );
+            RETURN ROW('failed:validation', 'Parent comment not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
         END IF;
     END IF;
 
@@ -202,80 +188,81 @@ BEGIN
     )
     RETURNING id INTO new_comment_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'comment_id', new_comment_id
-    );
+    RETURN ROW(
+        'new',
+        'Comment created successfully',
+        new_comment_id::text,
+        'Comment',
+        jsonb_build_object('id', new_comment_id, 'post_id', input_data->>'post_id'),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to delete a post
 CREATE OR REPLACE FUNCTION fn_delete_post(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 BEGIN
     -- Validate required fields
     IF input_data->>'id' IS NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post ID is required'
-        );
+        RETURN ROW('failed:validation', 'Post ID is required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Delete post (comments will cascade)
     DELETE FROM tb_posts WHERE id = (input_data->>'id')::UUID;
 
     IF NOT FOUND THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post not found'
-        );
+        RETURN ROW('failed:validation', 'Post not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Post deleted successfully'
-    );
+    RETURN ROW(
+        'success',
+        'Post deleted successfully',
+        input_data->>'id',
+        'Post',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to increment view count
 CREATE OR REPLACE FUNCTION fn_increment_view_count(input_data JSON)
-RETURNS JSON AS $$
+RETURNS mutation_response AS $$
 BEGIN
     UPDATE tb_posts
     SET view_count = view_count + 1
     WHERE id = (input_data->>'post_id')::UUID;
 
     IF NOT FOUND THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'Post not found'
-        );
+        RETURN ROW('failed:validation', 'Post not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
-    RETURN json_build_object(
-        'success', true
-    );
+    RETURN ROW(
+        'success',
+        'View count incremented',
+        input_data->>'post_id',
+        'Post',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;

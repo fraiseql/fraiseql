@@ -115,48 +115,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- mutation_response composite type for structured mutation returns
+CREATE TYPE mutation_response AS (
+    status          text,
+    message         text,
+    entity_id       text,
+    entity_type     text,
+    entity          jsonb,
+    updated_fields  text[],
+    cascade         jsonb,
+    metadata        jsonb
+);
+
 -- Mutation function with CASCADE
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
-RETURNS jsonb AS $$
+RETURNS mutation_response AS $$
 DECLARE
     v_post_id uuid;
     v_author_id uuid;
     v_cascade jsonb;
+    v_entity jsonb;
 BEGIN
     -- Validate input
     IF input->>'title' IS NULL OR trim(input->>'title') = '' THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', jsonb_build_object(
-                'code', 'VALIDATION_ERROR',
-                'message', 'Title is required',
-                'field', 'title'
-            )
-        );
+        RETURN ROW('failed:validation', 'Title is required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     IF input->>'author_id' IS NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', jsonb_build_object(
-                'code', 'VALIDATION_ERROR',
-                'message', 'Author ID is required',
-                'field', 'author_id'
-            )
-        );
+        RETURN ROW('failed:validation', 'Author ID is required', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if author exists
     v_author_id := (input->>'author_id')::uuid;
     IF NOT EXISTS (SELECT 1 FROM tb_user WHERE id = v_author_id) THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', jsonb_build_object(
-                'code', 'NOT_FOUND',
-                'message', 'Author not found',
-                'field', 'author_id'
-            )
-        );
+        RETURN ROW('failed:validation', 'Author not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Create post
@@ -183,18 +175,27 @@ BEGIN
         )
     );
 
-    -- Return success with CASCADE
-    RETURN jsonb_build_object(
-        'success', true,
-        'data', jsonb_build_object(
-            'id', v_post_id,
-            'message', 'Post created successfully'
-        ),
-        '_cascade', v_cascade
+    -- Build entity data
+    v_entity := jsonb_build_object(
+        'id', v_post_id,
+        'title', trim(input->>'title'),
+        'content', trim(input->>'content'),
+        'author_id', v_author_id
     );
+
+    -- Return success with CASCADE
+    RETURN ROW(
+        'new',
+        'Post created successfully',
+        v_post_id::text,
+        'Post',
+        v_entity,
+        NULL::text[],
+        v_cascade,
+        NULL::jsonb
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Sample data
-INSERT INTO tb_user (name) VALUES ('Alice'), ('Bob'), ('Charlie');</content>
-</xai:function_call<parameter name="filePath">examples/cascade-create-post/client-example.js
+INSERT INTO tb_user (name) VALUES ('Alice'), ('Bob'), ('Charlie');

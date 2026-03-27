@@ -1,10 +1,10 @@
 -- Create order functions
 -- App and core layers for order creation
 
--- App function: Create order (ultra-direct mutation)
+-- App function: Create order
 CREATE OR REPLACE FUNCTION app.create_order(
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_order_id UUID;
 BEGIN
@@ -17,18 +17,16 @@ BEGIN
         input_payload->>'notes'
     );
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'new',
         'Order created successfully',
         jsonb_build_object(
-            'order', jsonb_build_object(
-                'id', v_order_id,
-                'customer_id', input_payload->>'customer_id',
-                'status', 'pending'
-            )
-        )
+            'id', v_order_id,
+            'customer_id', input_payload->>'customer_id',
+            'status', 'pending'
+        ),
+        'Order',
+        v_order_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
