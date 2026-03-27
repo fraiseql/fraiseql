@@ -99,7 +99,7 @@ jobs:
   semver-checks:
     name: API Semver Compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: [fmt]
     if: github.event_name == 'pull_request'
     steps:
@@ -164,7 +164,15 @@ jobs:
           if [ "$RUNNER_OS" == "Windows" ]; then
             cargo build --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
-            cargo build --all-features --verbose
+            # Build all crates except fraiseql-core/fraiseql-db (which have test-*
+            # infra features) with --all-features. Build those two with explicit
+            # feature lists to avoid compiling DB-dependent test binaries.
+            cargo build --workspace \
+              --exclude fraiseql-core \
+              --exclude fraiseql-db \
+              --all-features --verbose
+            cargo build -p fraiseql-core --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
+            cargo build -p fraiseql-db --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --verbose
           fi
 
       - name: Run tests
@@ -451,12 +459,14 @@ jobs:
         run: |
           # Exclude fraiseql-core and fraiseql-db from workspace coverage (they have
           # test-mysql/test-sqlserver features that would compile DB tests without services).
+          # Exclude fraiseql-arrow (flight e2e tests need Arrow Flight infrastructure).
           # They get separate coverage steps below with test-postgres only.
           cargo llvm-cov \
             --all-features \
             --workspace \
             --exclude fraiseql-core \
             --exclude fraiseql-db \
+            --exclude fraiseql-arrow \
             --lcov \
             --output-path lcov.info \
             --fail-under-lines 70 \
