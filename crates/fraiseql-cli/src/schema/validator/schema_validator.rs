@@ -11,6 +11,18 @@ use super::{
 };
 use crate::schema::intermediate::IntermediateSchema;
 
+/// Strip GraphQL type modifiers (`!`, `[]`) to extract the base type name.
+///
+/// Examples: `"UUID!"` → `"UUID"`, `"[User!]!"` → `"User"`, `"String"` → `"String"`
+fn extract_base_type(type_str: &str) -> &str {
+    let s = type_str.trim();
+    let s = s.trim_start_matches('[').trim_end_matches(']');
+    let s = s.trim_end_matches('!').trim_start_matches('!');
+    let s = s.trim_start_matches('[').trim_end_matches(']');
+    let s = s.trim_end_matches('!');
+    s.trim()
+}
+
 /// Enhanced schema validator
 pub struct SchemaValidator;
 
@@ -124,35 +136,37 @@ impl SchemaValidator {
             }
             query_names.insert(query.name.clone());
 
-            // Validate return type exists
-            if !type_names.contains(&query.return_type) {
+            // Validate return type exists (strip ! and [] modifiers)
+            let base_return = extract_base_type(&query.return_type);
+            if !type_names.contains(base_return) {
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Query '{}' references unknown type '{}'",
-                        query.name, query.return_type
+                        query.name, base_return
                     ),
                     path:       format!("queries[{idx}].return_type"),
                     severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
-                        Self::suggest_similar_type(&query.return_type, &type_names)
+                        Self::suggest_similar_type(base_return, &type_names)
                     )),
                 });
             }
 
             // Validate argument types
             for (arg_idx, arg) in query.arguments.iter().enumerate() {
-                if !type_names.contains(&arg.arg_type) {
+                let base_arg = extract_base_type(&arg.arg_type);
+                if !type_names.contains(base_arg) {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Query '{}' argument '{}' references unknown type '{}'",
-                            query.name, arg.name, arg.arg_type
+                            query.name, arg.name, base_arg
                         ),
                         path:       format!("queries[{idx}].arguments[{arg_idx}].type"),
                         severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
-                            Self::suggest_similar_type(&arg.arg_type, &type_names)
+                            Self::suggest_similar_type(base_arg, &type_names)
                         )),
                     });
                 }
@@ -199,35 +213,37 @@ impl SchemaValidator {
             }
             mutation_names.insert(mutation.name.clone());
 
-            // Validate return type exists
-            if !type_names.contains(&mutation.return_type) {
+            // Validate return type exists (strip ! and [] modifiers)
+            let base_return = extract_base_type(&mutation.return_type);
+            if !type_names.contains(base_return) {
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Mutation '{}' references unknown type '{}'",
-                        mutation.name, mutation.return_type
+                        mutation.name, base_return
                     ),
                     path:       format!("mutations[{idx}].return_type"),
                     severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
-                        Self::suggest_similar_type(&mutation.return_type, &type_names)
+                        Self::suggest_similar_type(base_return, &type_names)
                     )),
                 });
             }
 
             // Validate argument types
             for (arg_idx, arg) in mutation.arguments.iter().enumerate() {
-                if !type_names.contains(&arg.arg_type) {
+                let base_arg = extract_base_type(&arg.arg_type);
+                if !type_names.contains(base_arg) {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Mutation '{}' argument '{}' references unknown type '{}'",
-                            mutation.name, arg.name, arg.arg_type
+                            mutation.name, arg.name, base_arg
                         ),
                         path:       format!("mutations[{idx}].arguments[{arg_idx}].type"),
                         severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
-                            Self::suggest_similar_type(&arg.arg_type, &type_names)
+                            Self::suggest_similar_type(base_arg, &type_names)
                         )),
                     });
                 }
@@ -493,7 +509,11 @@ impl SchemaValidator {
         Ok(report)
     }
 
-    /// Suggest similar type names for typos
+    /// Suggest similar type names for typos.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `typo` is empty (cannot slice first character).
     fn suggest_similar_type(typo: &str, available: &HashSet<String>) -> String {
         // Simple Levenshtein-style similarity (first letter match)
         let similar: Vec<&String> = available
@@ -510,5 +530,170 @@ impl SchemaValidator {
         } else {
             similar.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(missing_docs)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+    use crate::schema::intermediate::{
+        IntermediateSchema,
+        operations::{IntermediateArgument, IntermediateMutation, IntermediateQuery},
+        types::{IntermediateField, IntermediateType},
+    };
+
+    fn field(name: &str, ty: &str) -> IntermediateField {
+        IntermediateField {
+            name:           name.to_string(),
+            field_type:     ty.to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
+            requires_scope: None,
+            on_deny:        None,
+        }
+    }
+
+    fn arg(name: &str, ty: &str) -> IntermediateArgument {
+        IntermediateArgument {
+            name:       name.to_string(),
+            arg_type:   ty.to_string(),
+            nullable:   false,
+            default:    None,
+            deprecated: None,
+        }
+    }
+
+    fn minimal_schema() -> IntermediateSchema {
+        let mut schema = IntermediateSchema::default();
+        schema.types.push(IntermediateType {
+            name: "Item".to_string(),
+            fields: vec![field("id", "UUID")],
+            ..Default::default()
+        });
+        schema
+    }
+
+    // ── extract_base_type unit tests ────────────────────────────────
+
+    #[test]
+    fn extract_base_type_strips_non_null_suffix() {
+        assert_eq!(extract_base_type("UUID!"), "UUID");
+        assert_eq!(extract_base_type("String!"), "String");
+        assert_eq!(extract_base_type("Json!"), "Json");
+    }
+
+    #[test]
+    fn extract_base_type_strips_list_brackets() {
+        assert_eq!(extract_base_type("[User]"), "User");
+        assert_eq!(extract_base_type("[User!]!"), "User");
+        assert_eq!(extract_base_type("[String!]"), "String");
+    }
+
+    #[test]
+    fn extract_base_type_passthrough() {
+        assert_eq!(extract_base_type("String"), "String");
+        assert_eq!(extract_base_type("UUID"), "UUID");
+    }
+
+    // ── Issue #151: ! suffix accepted in queries ────────────────────
+
+    #[test]
+    fn query_with_bang_suffixed_return_type_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "Item!".to_string(),
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "Item! should resolve to Item: {errors:?}");
+    }
+
+    #[test]
+    fn query_arg_with_bang_suffix_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "Item".to_string(),
+            arguments: vec![arg("id", "UUID!")],
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "UUID! should resolve to UUID: {errors:?}");
+    }
+
+    #[test]
+    fn mutation_with_bang_suffixed_types_is_valid() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(IntermediateMutation {
+            name: "createItem".to_string(),
+            return_type: "Item!".to_string(),
+            arguments: vec![arg("name", "String!")],
+            sql_source: Some("fn_create_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "Item! and String! should be valid: {errors:?}");
+    }
+
+    #[test]
+    fn list_type_with_bang_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "items".to_string(),
+            return_type: "[Item!]!".to_string(),
+            returns_list: true,
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "[Item!]! should resolve to Item: {errors:?}");
+    }
+
+    // ── Truly unknown types are still rejected ──────────────────────
+
+    #[test]
+    fn truly_unknown_type_still_rejected() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "NonExistent!".to_string(),
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(!errors.is_empty(), "NonExistent should still be rejected");
+        assert!(
+            errors[0].message.contains("NonExistent"),
+            "error should name the base type, not 'NonExistent!': {}",
+            errors[0].message
+        );
+        // Error message should show the base type, not the raw "NonExistent!"
+        assert!(
+            !errors[0].message.contains("NonExistent!"),
+            "error should strip ! from type name: {}",
+            errors[0].message
+        );
     }
 }

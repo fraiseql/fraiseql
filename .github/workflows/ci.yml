@@ -240,7 +240,7 @@ jobs:
         # CARGO_BUILD_JOBS=2 caps parallel linker invocations; linking large test binaries
         # concurrently is the primary cause of OOM (collect2 Bus error) on 7GB CI runners.
         # RUSTFLAGS uses mold linker for lower memory usage during linking.
-        run: cargo test --test '*' --all-features -- --test-threads=1 --skip mysql_tests --skip sqlserver_tests
+        run: cargo test --test '*' --all-features -- --test-threads=1 --skip mysql_tests --skip sqlserver_tests --skip sqlserver_relay_tests
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
