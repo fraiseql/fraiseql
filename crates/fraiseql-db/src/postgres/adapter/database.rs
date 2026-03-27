@@ -6,6 +6,7 @@ use tokio_postgres::Row;
 
 use super::{PostgresAdapter, build_where_select_sql};
 use crate::{
+    identifier::quote_postgres_identifier,
     traits::{DatabaseAdapter, MutationCapable},
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam,
@@ -221,15 +222,7 @@ impl DatabaseAdapter for PostgresAdapter {
         function_name: &str,
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Build: SELECT * FROM "fn_name"($1, $2, ...)
-        // The function name is double-quoted so that reserved words, mixed-case
-        // names, and names with special characters are handled correctly.
-        // Any embedded double quotes are escaped by doubling them ("").
-        // SAFETY: function_name is schema-derived (from CompiledSchema, validated at compile
-        // time), not user input. Additionally double-quoted to escape special characters.
-        let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
-        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
-        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
+        let sql = build_function_call_sql(function_name, args.len());
 
         let client = self.acquire_connection_with_retry().await?;
 
@@ -426,3 +419,37 @@ impl DatabaseAdapter for PostgresAdapter {
 }
 
 impl MutationCapable for PostgresAdapter {}
+
+/// Build the SQL string for a PostgreSQL function call.
+///
+/// Schema-qualified function names (e.g. `dimensions.fn_create`) are quoted
+/// per-segment via [`quote_postgres_identifier`]: `"dimensions"."fn_create"($1, $2)`.
+///
+fn build_function_call_sql(function_name: &str, arg_count: usize) -> String {
+    let quoted_fn = quote_postgres_identifier(function_name);
+    let placeholders: Vec<String> = (1..=arg_count).map(|i| format!("${i}")).collect();
+    format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_function_call_sql_schema_qualified() {
+        let sql = build_function_call_sql("dimensions.fn_create_upload_session", 2);
+        assert_eq!(sql, "SELECT * FROM \"dimensions\".\"fn_create_upload_session\"($1, $2)");
+    }
+
+    #[test]
+    fn test_build_function_call_sql_simple() {
+        let sql = build_function_call_sql("fn_create_user", 3);
+        assert_eq!(sql, "SELECT * FROM \"fn_create_user\"($1, $2, $3)");
+    }
+
+    #[test]
+    fn test_build_function_call_sql_no_args() {
+        let sql = build_function_call_sql("public.fn_now", 0);
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_now\"()");
+    }
+}
