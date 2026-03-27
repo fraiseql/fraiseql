@@ -74,7 +74,6 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_schema_for_ta_orders() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -123,7 +122,6 @@ async fn test_get_schema_for_ta_orders() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_schema_for_ta_users() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -168,7 +166,6 @@ async fn test_get_schema_for_ta_users() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_do_get_ta_orders_returns_data() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -233,7 +230,6 @@ async fn test_do_get_ta_orders_returns_data() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_do_get_ta_users_returns_data() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -291,7 +287,6 @@ async fn test_do_get_ta_users_returns_data() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_ta_orders_schema_has_correct_fields() {
     let service = FraiseQLFlightService::new();
 
@@ -308,7 +303,6 @@ async fn test_ta_orders_schema_has_correct_fields() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_ta_users_schema_has_correct_fields() {
     let service = FraiseQLFlightService::new();
 

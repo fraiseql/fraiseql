@@ -1,3 +1,5 @@
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![cfg(feature = "test-postgres")]
 //! Error handling tests for Arrow Flight service.
 //!
 //! These tests verify proper error reporting and recovery for:
@@ -180,7 +182,6 @@ mod tests {
     /// 2. Error message includes view name
     /// 3. Service remains functional after error
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_invalid_view_name_error() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -208,7 +209,6 @@ mod tests {
     /// 2. Error message is informative
     /// 3. Request fails gracefully without panicking
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_database_connection_failure() -> Result<(), Box<dyn std::error::Error>> {
         // Create a Flight service without database adapter
         let service = fraiseql_arrow::FraiseQLFlightService::new();
@@ -227,7 +227,6 @@ mod tests {
     /// 2. Error message describes conversion problem
     /// 3. Streaming can continue or fails gracefully
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_arrow_conversion_error() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -254,7 +253,6 @@ mod tests {
     /// 2. Appropriate error is returned to client
     /// 3. Service recovers and can handle subsequent requests
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_ipc_encoding_failure() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -278,7 +276,6 @@ mod tests {
     /// 2. Error message indicates invalid argument
     /// 3. Service is ready for next request
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_batched_queries_empty_error() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -306,7 +303,6 @@ mod tests {
     /// 3. Partial results are streamed correctly
     /// 4. Error doesn't break the entire batch
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_batched_queries_partial_failure() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();

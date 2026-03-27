@@ -57,6 +57,8 @@ uuid = {workspace = true}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
+# Gate integration tests that require a running PostgreSQL instance
+test-postgres = []
 testing = []
 wire-backend = []
 

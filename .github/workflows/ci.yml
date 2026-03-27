@@ -173,7 +173,16 @@ jobs:
           if [ "$RUNNER_OS" == "Windows" ]; then
             cargo test --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
-            cargo test --all-features --verbose
+            # Test all crates except those with test-* infra features.
+            # fraiseql-core and fraiseql-db have test-postgres/test-mysql/test-sqlserver
+            # features that compile DB-dependent tests — those run in integration jobs.
+            cargo test --workspace \
+              --exclude fraiseql-core \
+              --exclude fraiseql-db \
+              --all-features --verbose
+            # Test fraiseql-core and fraiseql-db with all features EXCEPT test-* infra features
+            cargo test -p fraiseql-core --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
+            cargo test -p fraiseql-db --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --verbose
           fi
 
       - name: Run doc tests
@@ -236,11 +245,16 @@ jobs:
         env:
           PGPASSWORD: fraiseql_test_password
 
-      - name: Run integration tests
+      - name: Run integration tests (PostgreSQL only)
         # CARGO_BUILD_JOBS=2 caps parallel linker invocations; linking large test binaries
         # concurrently is the primary cause of OOM (collect2 Bus error) on 7GB CI runners.
         # RUSTFLAGS uses mold linker for lower memory usage during linking.
-        run: cargo test --test '*' --all-features -- --test-threads=1 --skip mysql_tests --skip sqlserver_tests --skip sqlserver_relay_tests
+        # Uses test-postgres feature to compile only PostgreSQL-dependent tests.
+        # MySQL and SQL Server tests run in their own integration jobs.
+        run: |
+          cargo test -p fraiseql-core --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
+          cargo test -p fraiseql-db --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --test '*' -- --test-threads=1
+          cargo test -p fraiseql-arrow --features "test-postgres,clickhouse,testing,wire-backend" --test '*' -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
@@ -257,8 +271,8 @@ jobs:
 
       - name: Run fraiseql-core integration tests (fact_table, aggregation)
         run: |
-          cargo test -p fraiseql-core --test fact_table_integration -- --ignored --test-threads=1
-          cargo test -p fraiseql-core --test aggregation_integration -- --ignored --test-threads=1
+          cargo test -p fraiseql-core --features "test-postgres" --test fact_table_integration -- --ignored --test-threads=1
+          cargo test -p fraiseql-core --features "test-postgres" --test aggregation_integration -- --ignored --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
@@ -435,9 +449,14 @@ jobs:
 
       - name: Generate coverage
         run: |
+          # Exclude fraiseql-core and fraiseql-db from workspace coverage (they have
+          # test-mysql/test-sqlserver features that would compile DB tests without services).
+          # They get separate coverage steps below with test-postgres only.
           cargo llvm-cov \
             --all-features \
             --workspace \
+            --exclude fraiseql-core \
+            --exclude fraiseql-db \
             --lcov \
             --output-path lcov.info \
             --fail-under-lines 70 \
@@ -458,8 +477,9 @@ jobs:
       - name: Check fraiseql-core coverage
         run: |
           # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
+          # Uses test-postgres only (MySQL/SQL Server have their own integration jobs).
           cargo llvm-cov \
-            --all-features \
+            --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
             -p fraiseql-core \
             --fail-under-lines 70 \
             -- --test-threads=1
@@ -470,7 +490,7 @@ jobs:
         run: |
           # fraiseql-db contains dialect SQL output and injection-escaping logic.
           cargo llvm-cov \
-            --all-features \
+            --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
             -p fraiseql-db \
             --fail-under-lines 65 \
             -- --test-threads=1

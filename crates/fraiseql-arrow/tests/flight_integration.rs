@@ -1,3 +1,5 @@
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![cfg(feature = "test-postgres")]
 //! Integration tests for Arrow Flight service with real PostgreSQL data.
 //!
 //! These tests verify that the Flight service can execute queries against
@@ -233,7 +235,6 @@ mod tests {
 
     /// Test that Flight database adapter can connect and execute queries
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_flight_adapter_executes_query() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -266,7 +267,6 @@ mod tests {
 
     /// Test querying ta_users table with Flight service
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_ta_users() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -289,7 +289,6 @@ mod tests {
 
     /// Test querying ta_orders table with Flight service
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_ta_orders() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -312,7 +311,6 @@ mod tests {
 
     /// Test that adapter correctly handles pagination with LIMIT
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_with_limit() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -336,7 +334,6 @@ mod tests {
 
     /// Test that adapter correctly handles OFFSET for pagination
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_with_offset() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -367,7 +364,6 @@ mod tests {
 
     /// Test that adapter can handle WHERE clauses
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_with_filter() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -395,7 +391,6 @@ mod tests {
 
     /// Test that adapter returns data in correct JSON format
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_query_returns_json_format() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -429,7 +424,6 @@ mod tests {
 
     /// Test that ta_orders data is correctly persisted
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_orders_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -455,7 +449,6 @@ mod tests {
 
     /// Test that ta_users data is correctly persisted
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_users_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
@@ -574,7 +567,6 @@ mod tests {
 
     /// Test Flight service with caching enabled
     #[tokio::test]
-    #[ignore = "requires running PostgreSQL"]
     async fn test_flight_service_with_cache() -> Result<(), Box<dyn std::error::Error>> {
         use fraiseql_arrow::FraiseQLFlightService;
 

@@ -31,7 +31,6 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_schema_versions_action() {
     let addr = start_test_server().await.unwrap();
 
@@ -59,7 +58,6 @@ async fn test_get_schema_versions_action() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_schema_versioning_metadata() {
     use std::sync::Arc;
 
@@ -93,7 +91,6 @@ async fn test_schema_versioning_metadata() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_all_versions_list() {
     use std::sync::Arc;
 
@@ -123,7 +120,6 @@ async fn test_get_all_versions_list() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_schema_copy_on_write_safety() {
     use std::sync::Arc;
 
@@ -159,7 +155,6 @@ async fn test_schema_copy_on_write_safety() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_concurrent_schema_updates() {
     use std::sync::Arc;
 

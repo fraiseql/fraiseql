@@ -42,7 +42,6 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_server_starts_and_accepts_connections() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -65,7 +64,6 @@ async fn test_server_starts_and_accepts_connections() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_schema_for_observer_events() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -107,7 +105,6 @@ async fn test_get_schema_for_observer_events() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_get_schema_for_graphql_query() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -141,7 +138,6 @@ async fn test_get_schema_for_graphql_query() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_do_get_returns_empty_stream() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -220,7 +216,6 @@ async fn test_do_get_returns_empty_stream() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_invalid_ticket_returns_error() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
@@ -284,7 +279,6 @@ async fn test_invalid_ticket_returns_error() {
 }
 
 #[tokio::test]
-#[ignore = "requires running PostgreSQL"]
 async fn test_bulk_export_ticket_not_implemented() {
     temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
         let addr = start_test_server().await.unwrap();
