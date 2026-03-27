@@ -16,6 +16,9 @@
   "no-emphasis-as-heading": {
     "severity": "warning"
   },
+  "blanks-around-fences": {
+    "severity": "warning"
+  },
   "table-pipe-alignment": false,
   "table-column-alignment": false,
   "table-columns": false,

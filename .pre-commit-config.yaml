@@ -1,6 +1,11 @@
 # Pre-commit hooks for FraiseQL v2
 # Install: pip install pre-commit && pre-commit install
 
+# pre-commit.ci configuration — skip hooks that require system toolchains
+# (Rust, cargo) since pre-commit.ci doesn't provide them.
+ci:
+  skip: [fmt, clippy, cargo-audit, python-build-check, cargo-package-check, check-snapshot-pairing]
+
 repos:
   # Rust formatting
   - repo: https://github.com/doublify/pre-commit-rust
@@ -30,6 +35,7 @@ repos:
         exclude: '\.md$'
       - id: end-of-file-fixer
       - id: check-yaml
+        args: ['--allow-multiple-documents', '--unsafe']
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=1000']
