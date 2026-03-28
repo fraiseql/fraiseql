@@ -377,8 +377,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    # Coverage instruments all crates + runs tests with llvm-cov; 60m is too tight.
-    timeout-minutes: 75
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -409,108 +408,75 @@ jobs:
       - name: Initialize test database schema
         uses: ./.github/actions/init-postgres
 
-      - name: Generate coverage
+      # Phase 1: Run all tests with --no-report (collect profdata, compile once)
+      # fraiseql-core and fraiseql-db need explicit features to avoid test-mysql/test-sqlserver
+      # which would compile tests requiring MySQL/SQL Server infrastructure.
+      - name: "Collect coverage: workspace (excluding core/db)"
         run: |
-          # Exclude fraiseql-core and fraiseql-db from workspace coverage (they have
-          # test-mysql/test-sqlserver features that would compile DB tests without services).
-          # Exclude fraiseql-arrow (flight e2e tests need Arrow Flight infrastructure).
-          # They get separate coverage steps below with test-postgres only.
-          cargo llvm-cov \
+          cargo llvm-cov --no-report \
             --all-features \
             --workspace \
             --exclude fraiseql-core \
             --exclude fraiseql-db \
-            --exclude fraiseql-arrow \
-            --exclude fraiseql-observers \
-            --exclude fraiseql-server \
-            --lcov \
-            --output-path lcov.info \
-            --fail-under-lines 70 \
-            -- --test-threads=1
-
-      - name: Check security-critical crate coverage
-        run: |
-          # fraiseql-auth and fraiseql-secrets must maintain ≥80% line coverage.
-          cargo llvm-cov \
-            --all-features \
-            -p fraiseql-auth \
-            -p fraiseql-secrets \
-            --fail-under-lines 80 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
-      - name: Check fraiseql-core coverage
+      - name: "Collect coverage: fraiseql-core"
         run: |
-          # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
-          # Uses test-postgres only (MySQL/SQL Server have their own integration jobs).
           # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
-          cargo llvm-cov \
+          cargo llvm-cov --no-report --no-clean \
             --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
             -p fraiseql-core \
-            --fail-under-lines 70 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
-      - name: Check fraiseql-db coverage
+      - name: "Collect coverage: fraiseql-db"
         run: |
-          # fraiseql-db contains dialect SQL output and injection-escaping logic.
           # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
-          cargo llvm-cov \
+          cargo llvm-cov --no-report --no-clean \
             --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
             -p fraiseql-db \
-            --fail-under-lines 65 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
-      - name: Check fraiseql-server coverage
+      # Phase 2: Generate reports from collected profdata (no recompilation)
+      - name: Generate lcov report
         run: |
-          # fraiseql-server is integration-heavy with many feature-gated paths.
-          cargo llvm-cov \
-            --all-features \
-            -p fraiseql-server \
-            --fail-under-lines 60 \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          cargo llvm-cov report \
+            --lcov --output-path lcov.info
 
-      - name: Check fraiseql-federation coverage
+      - name: Generate JSON report for trend tracking
         run: |
-          # fraiseql-federation has infrastructure-dependent test paths.
-          cargo llvm-cov \
-            --all-features \
-            -p fraiseql-federation \
-            --fail-under-lines 60 \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          cargo llvm-cov report \
+            --json --output-path coverage.json
 
-      - name: Check remaining crate coverage
+      - name: "Check threshold: security-critical crates (≥80%)"
         run: |
-          # All other crates must maintain ≥50% line coverage.
+          cargo llvm-cov report \
+            -p fraiseql-auth -p fraiseql-secrets \
+            --fail-under-lines 80
+
+      - name: "Check threshold: fraiseql-core (≥70%)"
+        run: cargo llvm-cov report -p fraiseql-core --fail-under-lines 70
+
+      - name: "Check threshold: fraiseql-db (≥65%)"
+        run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 65
+
+      - name: "Check threshold: fraiseql-server (≥60%)"
+        run: cargo llvm-cov report -p fraiseql-server --fail-under-lines 60
+
+      - name: "Check threshold: fraiseql-federation (≥60%)"
+        run: cargo llvm-cov report -p fraiseql-federation --fail-under-lines 60
+
+      - name: "Check threshold: remaining crates (≥50%)"
+        run: |
           for crate in fraiseql-error fraiseql-wire fraiseql-cli fraiseql-arrow fraiseql-observers; do
-            echo "Checking coverage for $crate..."
-            cargo llvm-cov \
-              --all-features \
-              -p "$crate" \
-              --fail-under-lines 50 \
-              -- --test-threads=1 || exit 1
+            echo "Checking $crate..."
+            cargo llvm-cov report -p "$crate" --fail-under-lines 50 || exit 1
           done
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-
-      - name: Generate coverage JSON for trend tracking
-        run: |
-          cargo llvm-cov \
-            --all-features \
-            --workspace \
-            --json \
-            --output-path coverage.json \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
