@@ -117,7 +117,10 @@ jobs:
 
       - name: Check semver compatibility
         run: |
+          # Crates are not yet published to crates.io, so compare against
+          # the base branch (dev/main) instead of the registry.
           cargo semver-checks check-release \
+            --baseline-rev ${{ github.event.pull_request.base.sha || 'origin/dev' }} \
             -p fraiseql-error \
             -p fraiseql-db \
             -p fraiseql-core \
