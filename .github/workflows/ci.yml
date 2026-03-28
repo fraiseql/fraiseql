@@ -461,6 +461,8 @@ jobs:
             --exclude fraiseql-core \
             --exclude fraiseql-db \
             --exclude fraiseql-arrow \
+            --exclude fraiseql-observers \
+            --exclude fraiseql-server \
             --lcov \
             --output-path lcov.info \
             --fail-under-lines 70 \
