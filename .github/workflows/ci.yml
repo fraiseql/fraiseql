@@ -431,11 +431,12 @@ jobs:
 
       - name: "Collect coverage: fraiseql-db"
         run: |
-          # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
-          # --lib only: integration tests are #[ignore]d and covered in PostgreSQL Integration job.
+          # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
+          # Excludes test-postgres: integration tests need fixtures beyond init.sql
+          # and are covered by the dedicated PostgreSQL Integration job.
           cargo llvm-cov --no-report \
-            --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
-            -p fraiseql-db --lib \
+            --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
+            -p fraiseql-db \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
