@@ -99,7 +99,7 @@ jobs:
   semver-checks:
     name: API Semver Compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [fmt]
     if: github.event_name == 'pull_request'
     steps:
@@ -134,7 +134,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -408,7 +408,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     services:
       postgres:
