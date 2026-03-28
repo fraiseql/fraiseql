@@ -269,7 +269,10 @@ jobs:
           RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
 
       - name: Run database adapter and introspector tests (ignored)
-        run: cargo test --lib -- --ignored --test-threads=1
+        # Scoped to fraiseql-db and fraiseql-core — these are the only crates with
+        # #[ignore]d lib tests that need DATABASE_URL. Running workspace-wide would
+        # pick up ignored tests in other crates that may need NATS_URL, REDIS_URL, etc.
+        run: cargo test -p fraiseql-db -p fraiseql-core --lib -- --ignored --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
