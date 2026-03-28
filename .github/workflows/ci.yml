@@ -71,7 +71,10 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        # --all-features is avoided because test-postgres/test-mysql/test-sqlserver
+        # compile database integration test code that requires infrastructure not
+        # available on CI lint runners.
+        run: cargo clippy --all-targets --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" -- -D warnings
 
       - name: Check unwrap allow drift
         run: make lint-unwrap UNWRAP_ALLOW_LIMIT=3

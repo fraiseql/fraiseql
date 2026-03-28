@@ -24,21 +24,21 @@
 //! ```
 
 // Database adapters (conditionally compiled based on features)
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use std::sync::Arc;
 
-#[cfg(feature = "mysql")]
+#[cfg(feature = "test-mysql")]
 use fraiseql_core::db::mysql::MySqlAdapter;
 #[cfg(feature = "sqlite")]
 use fraiseql_core::db::sqlite::SqliteAdapter;
-#[cfg(feature = "sqlserver")]
+#[cfg(feature = "test-sqlserver")]
 use fraiseql_core::db::sqlserver::SqlServerAdapter;
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use fraiseql_core::db::types::DatabaseType;
 // Note: WhereClause and WhereOperator available for future WHERE tests
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(unused_imports)]
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
@@ -892,13 +892,13 @@ mod sqlserver_relay_tests {
 // ============================================================================
 
 /// Trait for database-agnostic test execution
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn run_basic_health_check<A: DatabaseAdapter>(adapter: &A) -> bool {
     adapter.health_check().await.is_ok()
 }
 
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
     let metrics = adapter.pool_metrics();
@@ -906,7 +906,7 @@ async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
 }
 
 // Helper to run queries and verify JSON structure
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn verify_view_returns_json<A: DatabaseAdapter>(
     adapter: &A,
