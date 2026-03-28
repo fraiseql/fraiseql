@@ -22,6 +22,9 @@ repos:
       - id: clippy
         name: cargo clippy
         description: Lint Rust code with Clippy
+        # Uses --all-features for local convenience. CI uses an explicit feature list
+        # (see SYNC:CORE_FEATURES in ci.yml) to exclude test-* infra features.
+        # Skipped on pre-commit.ci (no Rust toolchain); run `make clippy` locally.
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
         types: [rust]

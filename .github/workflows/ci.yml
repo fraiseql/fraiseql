@@ -13,6 +13,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -53,7 +57,8 @@ jobs:
   clippy:
     name: Clippy Lints
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Full workspace compilation + linting
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +79,7 @@ jobs:
         # --all-features is avoided because test-postgres/test-mysql/test-sqlserver
         # compile database integration test code that requires infrastructure not
         # available on CI lint runners.
+        # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
         run: cargo clippy --all-targets --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" -- -D warnings
 
       - name: Check unwrap allow drift
@@ -157,6 +163,7 @@ jobs:
           # rdkafka requires a POSIX configure script and does not build on Windows
           # fraiseql-wire is Unix-only (uses tokio::net::UnixStream)
           if [ "$RUNNER_OS" == "Windows" ]; then
+            # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
             cargo build --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             cargo build --all-features --verbose
@@ -166,6 +173,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
+            # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
             cargo test --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             # Test all crates except those needing external services.
@@ -181,12 +189,15 @@ jobs:
               --exclude fraiseql-server \
               --all-features --verbose
             # Test crates with explicit feature lists (no test-* infra features)
+            # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
             cargo test -p fraiseql-core --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
+            # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
             cargo test -p fraiseql-db --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --verbose
             # Server lib tests only (integration tests need PostgreSQL)
             # --all-features is avoided because observers-nats, redis-rate-limiting,
             # redis-pkce, redis-idempotency, and observers-enterprise require NATS/Redis
             # infrastructure not available in the Test Suite runner.
+            # SYNC:SERVER_FEATURES — keep in sync with other SYNC:SERVER_FEATURES locations
             cargo test -p fraiseql-server --lib --features "arrow,auth,aws-s3,cors,database,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend" --verbose
           fi
 
@@ -194,6 +205,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
+            # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
             cargo test --doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             cargo test --doc --all-features --verbose
@@ -203,6 +215,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
+            # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
             RUSTDOCFLAGS="-D warnings" cargo doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --no-deps
           else
             RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps
@@ -257,7 +270,9 @@ jobs:
         # Uses test-postgres feature to compile only PostgreSQL-dependent tests.
         # MySQL and SQL Server tests run in their own integration jobs.
         run: |
+          # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
           cargo test -p fraiseql-core --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
+          # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
           cargo test -p fraiseql-db --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --test '*' -- --test-threads=1
           # fraiseql-arrow flight tests have a pre-existing compilation issue (tokio rt-multi-thread)
           # and require Arrow Flight infrastructure — skip in this job.
@@ -493,6 +508,7 @@ jobs:
         run: |
           # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
           # Uses test-postgres only (MySQL/SQL Server have their own integration jobs).
+          # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
           cargo llvm-cov \
             --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
             -p fraiseql-core \
@@ -504,6 +520,7 @@ jobs:
       - name: Check fraiseql-db coverage
         run: |
           # fraiseql-db contains dialect SQL output and injection-escaping logic.
+          # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
           cargo llvm-cov \
             --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
             -p fraiseql-db \
