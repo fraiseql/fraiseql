@@ -377,7 +377,8 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Coverage instruments all crates + runs tests with llvm-cov; 60m is too tight.
+    timeout-minutes: 75
 
     services:
       postgres:
