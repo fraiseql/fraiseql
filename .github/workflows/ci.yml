@@ -169,15 +169,19 @@ jobs:
             # fraiseql-core/fraiseql-db: test-postgres/test-mysql/test-sqlserver features
             # fraiseql-arrow: Arrow Flight e2e tests
             # fraiseql-observers: dedup/caching tests need Redis
+            # fraiseql-server: observer_repository tests need PostgreSQL via testcontainers
             cargo test --workspace \
               --exclude fraiseql-core \
               --exclude fraiseql-db \
               --exclude fraiseql-arrow \
               --exclude fraiseql-observers \
+              --exclude fraiseql-server \
               --all-features --verbose
-            # Test fraiseql-core and fraiseql-db with all features EXCEPT test-* infra features
+            # Test crates with explicit feature lists (no test-* infra features)
             cargo test -p fraiseql-core --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
             cargo test -p fraiseql-db --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --verbose
+            # Server lib tests only (integration tests need PostgreSQL)
+            cargo test -p fraiseql-server --lib --all-features --verbose
           fi
 
       - name: Run doc tests
