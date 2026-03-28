@@ -202,22 +202,22 @@ jobs:
       # Tier 1: No fraiseql dependencies
       - name: Publish fraiseql-error
         id: publish-error
-        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-auth
         id: publish-auth
-        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-webhooks
         id: publish-webhooks
-        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-wire
         id: publish-wire
-        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 1)
@@ -226,7 +226,7 @@ jobs:
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
         id: publish-db
-        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 2)
@@ -235,7 +235,7 @@ jobs:
       # Tier 3: Depends on fraiseql-db, fraiseql-error
       - name: Publish fraiseql-federation
         id: publish-federation
-        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 3)
@@ -244,7 +244,7 @@ jobs:
       # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
       - name: Publish fraiseql-core
         id: publish-core
-        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 4)
@@ -253,12 +253,12 @@ jobs:
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
         id: publish-arrow
-        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-secrets
         id: publish-secrets
-        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 5)
@@ -267,7 +267,7 @@ jobs:
       # Tier 6: Depends on fraiseql-arrow
       - name: Publish fraiseql-observers
         id: publish-observers
-        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 6)
@@ -276,7 +276,7 @@ jobs:
       # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
       - name: Publish fraiseql-server
         id: publish-server
-        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 7)
@@ -285,7 +285,7 @@ jobs:
       # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
       - name: Publish fraiseql-cli
         id: publish-cli
-        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 8)
@@ -294,7 +294,7 @@ jobs:
       # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
         id: publish-root
-        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Report crates.io publishing results
