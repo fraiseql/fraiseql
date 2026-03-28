@@ -62,18 +62,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
           components: clippy
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Run Clippy
         # --all-features is avoided because test-postgres/test-mysql/test-sqlserver
@@ -116,10 +108,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
@@ -143,19 +133,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
           toolchain: ${{ matrix.rust }}
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build
         shell: bash
@@ -245,23 +226,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Initialize test database schema
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
+        uses: ./.github/actions/init-postgres
 
       - name: Run integration tests (PostgreSQL only)
         # CARGO_BUILD_JOBS=2 caps parallel linker invocations; linking large test binaries
@@ -330,16 +299,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Initialize MySQL test database schema
         run: |
@@ -360,16 +321,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Run SQLite integration tests
         run: cargo test -p fraiseql-core --features "sqlite" --test multi_database_integration sqlite
@@ -401,21 +354,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker and mssql-tools18
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Install mssql-tools18
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-          # Install mssql-tools18 from Microsoft package repository
           curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
           curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Initialize SQL Server test databases
         run: /opt/mssql-tools18/bin/sqlcmd -S localhost,1434 -U sa -P 'FraiseQL_Test1234' -C -i tests/sql/sqlserver/init.sql
@@ -450,28 +397,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
       - name: Initialize test database schema
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
+        uses: ./.github/actions/init-postgres
 
       - name: Generate coverage
         run: |
@@ -628,10 +563,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Check for actionable duplicate dependencies
         run: |
@@ -665,16 +598,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Build documentation
         run: cargo doc --all-features --no-deps
@@ -722,16 +647,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
@@ -779,16 +696,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Run Redis APQ storage tests (fraiseql-core)
         run: cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
@@ -813,16 +722,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -880,16 +781,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -906,11 +799,7 @@ jobs:
           done
 
       - name: Initialize test database schema
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
+        uses: ./.github/actions/init-postgres
 
       - name: Run PostgreSQL NOTIFY transport tests
         run: cargo test -p fraiseql-observers --features "postgres" --lib postgres_notify -- --ignored --test-threads=1
@@ -949,16 +838,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker + psql client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold postgresql-client
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          extra-packages: postgresql-client
 
       - name: Start PostgreSQL with TLS enabled
         # postgres:16 includes openssl; the init script generates self-signed certs
@@ -1017,16 +900,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Start Vault in dev mode
         run: |
@@ -1085,23 +960,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Initialize test database schema
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
+        uses: ./.github/actions/init-postgres
 
       - name: Run server database query tests
         run: cargo test -p fraiseql-server --test database_query_test -- --ignored --test-threads=1
@@ -1132,10 +995,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Apply E2E database schema
         run: |
@@ -1220,16 +1082,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Start NATS with JetStream
         run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
@@ -1312,23 +1166,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Initialize benchmark database
-        run: |
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
-          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
-        env:
-          PGPASSWORD: fraiseql_test_password
+        uses: ./.github/actions/init-postgres
 
       - name: Run benchmarks
         run: cargo bench --no-fail-fast
@@ -1350,16 +1192,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mold linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mold
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Test fraiseql-server no-default-features
         run: cargo check -p fraiseql-server --no-default-features
@@ -1449,10 +1283,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Build release binaries
         run: cargo build --release -p fraiseql-cli -p fraiseql-server
