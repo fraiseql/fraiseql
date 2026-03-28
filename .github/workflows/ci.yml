@@ -409,29 +409,21 @@ jobs:
       - name: Initialize test database schema
         uses: ./.github/actions/init-postgres
 
-      # Phase 1: Run all tests with --no-report (collect profdata, compile once)
-      # fraiseql-core and fraiseql-db need explicit features to avoid test-mysql/test-sqlserver
-      # which would compile tests requiring MySQL/SQL Server infrastructure.
-      - name: "Collect coverage: workspace (excluding core/db)"
-        run: |
-          cargo llvm-cov --no-report \
-            --all-features \
-            --workspace \
-            --exclude fraiseql-core \
-            --exclude fraiseql-db \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-
+      # Phase 1: Run tests with --no-report (collect profdata).
+      # Split into targeted runs to avoid compiling the full workspace with instrumentation.
+      # fraiseql-core and fraiseql-db need explicit features (no test-mysql/test-sqlserver).
+      # fraiseql-server uses --lib only (integration tests need testcontainers).
+      # CARGO_BUILD_JOBS=2 prevents OOM on 7GB runners during instrumented linking.
       - name: "Collect coverage: fraiseql-core"
         run: |
           # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
-          cargo llvm-cov --no-report --no-clean \
+          cargo llvm-cov --no-report \
             --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
             -p fraiseql-core \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
 
       - name: "Collect coverage: fraiseql-db"
         run: |
@@ -442,6 +434,36 @@ jobs:
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
+
+      - name: "Collect coverage: fraiseql-server (lib only)"
+        run: |
+          # SYNC:SERVER_FEATURES — keep in sync with other SYNC:SERVER_FEATURES locations
+          cargo llvm-cov --no-report --no-clean \
+            --features "arrow,auth,aws-s3,cors,database,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend" \
+            -p fraiseql-server --lib \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
+
+      - name: "Collect coverage: remaining crates"
+        run: |
+          cargo llvm-cov --no-report --no-clean \
+            --all-features \
+            -p fraiseql-error \
+            -p fraiseql-auth \
+            -p fraiseql-secrets \
+            -p fraiseql-wire \
+            -p fraiseql-cli \
+            -p fraiseql-federation \
+            -p fraiseql-arrow \
+            -p fraiseql-observers \
+            -p fraiseql-webhooks \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
 
       # Phase 2: Generate reports from collected profdata (no recompilation)
       - name: Generate lcov report
