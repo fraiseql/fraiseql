@@ -377,8 +377,9 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    # Instrumented build + 3 test runs + report generation on 7GB CI runners.
-    timeout-minutes: 90
+    # Instrumented build (4 collection runs) + report generation on 7GB CI runners.
+    # Core/DB/Server: ~20m, remaining crates (arrow, observers, cli): ~70m, reports: ~5m.
+    timeout-minutes: 120
 
     services:
       postgres:
@@ -461,11 +462,11 @@ jobs:
             -p fraiseql-auth \
             -p fraiseql-secrets \
             -p fraiseql-wire \
-            -p fraiseql-cli \
+            -p fraiseql-webhooks \
             -p fraiseql-federation \
+            -p fraiseql-cli \
             -p fraiseql-arrow \
             -p fraiseql-observers \
-            -p fraiseql-webhooks \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
