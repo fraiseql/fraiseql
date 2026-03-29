@@ -6,10 +6,11 @@ use regex::Regex;
 
 use super::types::{ErrorSeverity, ValidationError};
 
-/// Pattern for safe SQL identifiers: `schema.name` or just `name`.
-/// Each part must start with a letter or underscore, followed by alphanumerics/underscores.
+/// Pattern for safe SQL identifiers: up to three dot-separated segments
+/// (`name`, `schema.name`, or `catalog.schema.name`).
+/// Each segment must start with a letter or underscore, followed by alphanumerics/underscores.
 static SAFE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
+    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$")
         .expect("static regex is valid")
 });
 
@@ -18,9 +19,9 @@ const PG_MAX_IDENTIFIER_BYTES: usize = 63;
 
 /// Validates that `value` is a safe SQL identifier.
 ///
-/// Accepts `[A-Za-z_][A-Za-z0-9_]*` with an optional single schema dot
-/// (e.g. `"v_user"` or `"public.v_user"`). Rejects anything that could be
-/// SQL injection or cause a runtime syntax error.
+/// Accepts `[A-Za-z_][A-Za-z0-9_]*` with up to two schema dots
+/// (e.g. `"v_user"`, `"public.v_user"`, or `"catalog.schema.table"`).
+/// Rejects anything that could be SQL injection or cause a runtime syntax error.
 ///
 /// Each dot-separated segment is limited to 63 bytes (PostgreSQL `NAMEDATALEN - 1`).
 /// Identifiers exceeding this limit are silently truncated by PostgreSQL, which can
@@ -74,8 +75,9 @@ pub fn validate_sql_identifier(
         return Err(ValidationError {
             message:    format!(
                 "`{field}` value {value:?} at `{path}` is not a valid SQL identifier. \
-                 Only ASCII letters, digits, underscores, and an optional schema dot are \
-                 allowed. Valid examples: \"v_user\", \"public.v_user\", \"fn_create_post\"."
+                 Only ASCII letters, digits, underscores, and up to two schema dots are \
+                 allowed (1-3 segments). Valid examples: \"v_user\", \"public.v_user\", \
+                 \"catalog.schema.table\"."
             ),
             path:       path.to_string(),
             severity:   ErrorSeverity::Error,
@@ -144,6 +146,35 @@ mod tests {
         let ident = format!("public.{name_part}");
         let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
         assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+    }
+
+    #[test]
+    fn test_valid_three_part_identifier() {
+        assert!(validate_sql_identifier("catalog.schema.table", "sql_source", "Query.x").is_ok());
+    }
+
+    #[test]
+    fn test_four_part_identifier_rejected() {
+        let err = validate_sql_identifier("a.b.c.d", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_leading_dot_rejected() {
+        let err = validate_sql_identifier(".foo", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_trailing_dot_rejected() {
+        let err = validate_sql_identifier("foo.", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_double_dot_rejected() {
+        let err = validate_sql_identifier("foo..bar", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
     }
 
     #[test]

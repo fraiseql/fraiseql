@@ -220,18 +220,78 @@ impl SchemaConverter {
 
     /// Check whether a string is a safe SQL identifier.
     ///
-    /// Accepts identifiers matching `[A-Za-z_][A-Za-z0-9_]*` (no spaces, dots, or
-    /// special characters).  This prevents SQL injection via view names supplied in
+    /// Accepts up to three dot-separated segments (`name`, `schema.name`, or
+    /// `catalog.schema.name`), each matching `[A-Za-z_][A-Za-z0-9_]*`.
+    /// This prevents SQL injection via view names supplied in
     /// `additional_views` or `invalidates_fact_tables`.
     pub(super) fn is_safe_sql_identifier(s: &str) -> bool {
         if s.is_empty() {
             return false;
         }
-        let mut chars = s.chars();
-        let first = chars.next().expect("non-empty checked above");
-        if !first.is_ascii_alphabetic() && first != '_' {
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.len() > 3 {
             return false;
         }
-        chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        parts.iter().all(|part| {
+            if part.is_empty() {
+                return false;
+            }
+            let mut chars = part.chars();
+            let first = chars.next().expect("non-empty checked above");
+            if !first.is_ascii_alphabetic() && first != '_' {
+                return false;
+            }
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_safe_sql_identifier_simple() {
+        assert!(SchemaConverter::is_safe_sql_identifier("v_user"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_schema_qualified() {
+        assert!(SchemaConverter::is_safe_sql_identifier("public.v_user"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_three_part() {
+        assert!(SchemaConverter::is_safe_sql_identifier("catalog.schema.table"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_empty_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier(""));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_leading_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier(".foo"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_trailing_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("foo."));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_double_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("foo..bar"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_four_parts_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("a.b.c.d"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_special_chars_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("v_user; DROP TABLE"));
     }
 }
