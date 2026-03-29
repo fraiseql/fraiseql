@@ -5,8 +5,6 @@
 //! Takes validated IR and SQL templates, produces runtime-optimized
 //! `CompiledSchema` ready for execution.
 
-use std::collections::HashSet;
-
 use super::ir::{
     AuthoringIR, IRArgument, IREnum, IREnumValue, IRField, IRInputField, IRInputType, IRInterface,
     IRMutation, IRUnion,
@@ -115,9 +113,6 @@ impl CodeGenerator {
     /// unknown types, or conflicting definitions. Returns [`FraiseQLError::Internal`]
     /// for unexpected code-generation failures.
     pub fn generate(&self, ir: &AuthoringIR) -> Result<CompiledSchema> {
-        // Build set of known type names for field type parsing
-        let known_types: HashSet<String> = ir.types.iter().map(|t| t.name.clone()).collect();
-
         let types = ir
             .types
             .iter()
@@ -128,7 +123,7 @@ impl CodeGenerator {
                         t.sql_source.clone().unwrap_or_else(|| t.name.clone()),
                     ),
                     jsonb_column:        "data".to_string(),
-                    fields:              Self::map_fields(&t.fields, &known_types),
+                    fields:              Self::map_fields(&t.fields),
                     description:         t.description.clone(),
                     sql_projection_hint: None, // Populated during optimization pass
                     implements:          Vec::new(), /* Note: IR doesn't have interface
@@ -149,7 +144,7 @@ impl CodeGenerator {
                     return_type:         q.return_type.clone(),
                     returns_list:        q.returns_list,
                     nullable:            q.nullable,
-                    arguments:           Self::map_arguments(&q.arguments, &known_types),
+                    arguments:           Self::map_arguments(&q.arguments),
                     sql_source:          q.sql_source.clone(),
                     description:         q.description.clone(),
                     auto_params:         SchemaAutoParams {
@@ -171,7 +166,7 @@ impl CodeGenerator {
             })
             .collect();
 
-        let mutations = ir.mutations.iter().map(|m| Self::map_mutation(m, &known_types)).collect();
+        let mutations = ir.mutations.iter().map(|m| Self::map_mutation(m)).collect();
 
         let subscriptions = ir
             .subscriptions
@@ -180,7 +175,7 @@ impl CodeGenerator {
                 SubscriptionDefinition {
                     name:          s.name.clone(),
                     return_type:   s.return_type.clone(),
-                    arguments:     Self::map_arguments(&s.arguments, &known_types),
+                    arguments:     Self::map_arguments(&s.arguments),
                     description:   s.description.clone(),
                     topic:         None, // Populated from decorator topic binding
                     filter:        None, // Populated from decorator filters
@@ -196,14 +191,14 @@ impl CodeGenerator {
 
         // Map interfaces
         let interfaces =
-            ir.interfaces.iter().map(|i| Self::map_interface(i, &known_types)).collect();
+            ir.interfaces.iter().map(|i| Self::map_interface(i)).collect();
 
         // Map unions
         let unions = ir.unions.iter().map(Self::map_union).collect();
 
         // Map input types
         let input_types =
-            ir.input_types.iter().map(|i| Self::map_input_type(i, &known_types)).collect();
+            ir.input_types.iter().map(|i| Self::map_input_type(i)).collect();
 
         // Build custom type registry from IRScalars
         let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;
@@ -252,11 +247,11 @@ impl CodeGenerator {
     }
 
     /// Map IR fields to compiled schema fields.
-    fn map_fields(ir_fields: &[IRField], known_types: &HashSet<String>) -> Vec<FieldDefinition> {
+    fn map_fields(ir_fields: &[IRField]) -> Vec<FieldDefinition> {
         ir_fields
             .iter()
             .map(|f| {
-                let field_type = FieldType::parse(&f.field_type, known_types);
+                let field_type = FieldType::parse(&f.field_type);
                 FieldDefinition {
                     name: f.name.clone().into(),
                     field_type,
@@ -275,14 +270,11 @@ impl CodeGenerator {
     }
 
     /// Map IR arguments to compiled schema arguments.
-    fn map_arguments(
-        ir_args: &[IRArgument],
-        known_types: &HashSet<String>,
-    ) -> Vec<ArgumentDefinition> {
+    fn map_arguments(ir_args: &[IRArgument]) -> Vec<ArgumentDefinition> {
         ir_args
             .iter()
             .map(|a| {
-                let arg_type = FieldType::parse(&a.arg_type, known_types);
+                let arg_type = FieldType::parse(&a.arg_type);
                 ArgumentDefinition {
                     name: a.name.clone(),
                     arg_type,
@@ -296,7 +288,7 @@ impl CodeGenerator {
     }
 
     /// Map IR mutation to compiled schema mutation.
-    fn map_mutation(m: &IRMutation, known_types: &HashSet<String>) -> MutationDefinition {
+    fn map_mutation(m: &IRMutation) -> MutationDefinition {
         use super::ir::MutationOperation as IRMutationOp;
         use crate::schema::MutationOperation;
 
@@ -331,7 +323,7 @@ impl CodeGenerator {
         MutationDefinition {
             name: m.name.clone(),
             return_type: m.return_type.clone(),
-            arguments: Self::map_arguments(&m.arguments, known_types),
+            arguments: Self::map_arguments(&m.arguments),
             description: m.description.clone(),
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
@@ -363,10 +355,10 @@ impl CodeGenerator {
     }
 
     /// Map IR interface to compiled schema interface.
-    fn map_interface(i: &IRInterface, known_types: &HashSet<String>) -> InterfaceDefinition {
+    fn map_interface(i: &IRInterface) -> InterfaceDefinition {
         InterfaceDefinition {
             name:        i.name.clone(),
-            fields:      Self::map_fields(&i.fields, known_types),
+            fields:      Self::map_fields(&i.fields),
             description: i.description.clone(),
         }
     }
@@ -381,20 +373,17 @@ impl CodeGenerator {
     }
 
     /// Map IR input type to compiled schema input object.
-    fn map_input_type(i: &IRInputType, known_types: &HashSet<String>) -> InputObjectDefinition {
+    fn map_input_type(i: &IRInputType) -> InputObjectDefinition {
         InputObjectDefinition {
             name:        i.name.clone(),
-            fields:      Self::map_input_fields(&i.fields, known_types),
+            fields:      Self::map_input_fields(&i.fields),
             description: i.description.clone(),
             metadata:    None,
         }
     }
 
     /// Map IR input fields to compiled schema input fields.
-    fn map_input_fields(
-        ir_fields: &[IRInputField],
-        _known_types: &HashSet<String>,
-    ) -> Vec<InputFieldDefinition> {
+    fn map_input_fields(ir_fields: &[IRInputField]) -> Vec<InputFieldDefinition> {
         ir_fields
             .iter()
             .map(|f| {

@@ -1732,3 +1732,90 @@ mod field_rbac {
         assert!(result.is_ok(), "public fields should always be accessible: {:?}", result.err());
     }
 }
+
+// ── mod executor_paths: H4 — requires_role anti-enumeration tests ─────────
+
+mod executor_paths {
+    use super::*;
+
+    /// H4: requires_role returns "not found" (anti-enumeration), not "forbidden"
+    #[tokio::test]
+    async fn test_requires_role_returns_not_found_not_forbidden() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        // No security context at all → should say "not found"
+        let result = executor.execute("{ users { id } }", None).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "requires_role should produce 'not found', not 'forbidden', got: {err}"
+        );
+        assert!(
+            !err.contains("forbidden") && !err.contains("Forbidden"),
+            "must not reveal the query exists behind a role gate, got: {err}"
+        );
+    }
+
+    /// H4: requires_role with wrong role still returns "not found"
+    #[tokio::test]
+    async fn test_requires_role_wrong_role_returns_not_found() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor
+            .execute_with_security("{ users { id } }", None, &ctx)
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "wrong role should produce 'not found', got: {err}"
+        );
+    }
+
+    /// H4: requires_role with correct role succeeds
+    #[tokio::test]
+    async fn test_requires_role_correct_role_succeeds() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor
+            .execute_with_security("{ users { id } }", None, &ctx)
+            .await;
+        assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());
+    }
+}

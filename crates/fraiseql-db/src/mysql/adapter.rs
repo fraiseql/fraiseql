@@ -231,14 +231,19 @@ impl DatabaseAdapter for MySqlAdapter {
             Vec::new()
         };
 
-        // Add LIMIT if present
-        if let Some(lim) = limit {
-            write!(sql, " LIMIT {lim}").expect("write to String");
-        }
-
-        // Add OFFSET if present
-        if let Some(off) = offset {
-            write!(sql, " OFFSET {off}").expect("write to String");
+        // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                write!(sql, " LIMIT {lim} OFFSET {off}").expect("write to String");
+            }
+            (Some(lim), None) => {
+                write!(sql, " LIMIT {lim}").expect("write to String");
+            }
+            (None, Some(off)) => {
+                // MySQL requires LIMIT before OFFSET; use max u64 as "unlimited"
+                write!(sql, " LIMIT 18446744073709551615 OFFSET {off}").expect("write to String");
+            }
+            (None, None) => {}
         }
 
         // Execute the query
