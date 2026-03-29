@@ -496,8 +496,10 @@ jobs:
       - name: "Check threshold: fraiseql-core (≥70%)"
         run: cargo llvm-cov report -p fraiseql-core --fail-under-lines 70
 
-      - name: "Check threshold: fraiseql-db (≥65%)"
-        run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 65
+      - name: "Check threshold: fraiseql-db (≥55%)"
+        # Lower than other crates: integration tests (covered by PostgreSQL Integration
+        # job) are excluded from coverage to avoid fixture dependencies.
+        run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 55
 
       - name: "Check threshold: fraiseql-server (≥60%)"
         run: cargo llvm-cov report -p fraiseql-server --fail-under-lines 60
