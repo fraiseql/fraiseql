@@ -1,0 +1,83 @@
+{
+  "types": [
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "name", "type": "String", "nullable": false },
+        { "name": "price", "type": "Float", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false }
+      ],
+      "description": "Get Product by ID.",
+      "sql_source": "v_product"
+    },
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "List Product records.",
+      "sql_source": "v_product",
+      "auto_params": {
+        "where": true,
+        "order_by": true,
+        "limit": true,
+        "offset": true
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "create_product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "name", "type": "String", "nullable": false },
+        { "name": "price", "type": "Float", "nullable": false }
+      ],
+      "description": "Create a new Product.",
+      "sql_source": "fn_create_product",
+      "operation": "INSERT"
+    },
+    {
+      "name": "update_product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "name", "type": "String", "nullable": true },
+        { "name": "price", "type": "Float", "nullable": true }
+      ],
+      "description": "Update an existing Product.",
+      "sql_source": "fn_update_product",
+      "operation": "UPDATE"
+    },
+    {
+      "name": "delete_product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false }
+      ],
+      "description": "Delete a Product.",
+      "sql_source": "fn_delete_product",
+      "operation": "DELETE"
+    }
+  ]
+}

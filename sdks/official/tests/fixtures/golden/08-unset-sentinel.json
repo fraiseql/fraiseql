@@ -1,0 +1,17 @@
+{
+  "description": "UNSET sentinel convention for update mutation inputs",
+  "convention": {
+    "UNSET": "Sentinel value meaning 'field not provided' — omit from generated SQL",
+    "null": "Explicitly set field to NULL in database",
+    "value": "Set field to the given value"
+  },
+  "input_types": [
+    {
+      "name": "UpdateUserInput",
+      "fields": [
+        { "name": "name", "type": "String", "nullable": true, "default": "UNSET" },
+        { "name": "email", "type": "String", "nullable": true, "default": "UNSET" }
+      ]
+    }
+  ]
+}
