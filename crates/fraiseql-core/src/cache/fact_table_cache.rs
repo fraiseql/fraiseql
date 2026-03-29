@@ -4,8 +4,6 @@
 //! (`tf_*` prefix), using version-table, time-based, or schema-version
 //! strategies to determine cache validity.
 
-use sha2::{Digest, Sha256};
-
 use super::{
     adapter::CachedDatabaseAdapter,
     fact_table_version::{FactTableVersionStrategy, generate_version_key_component},
@@ -48,15 +46,21 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         sql: &str,
         schema_version: &str,
         version_component: Option<&str>,
-    ) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(sql.as_bytes());
-        hasher.update(schema_version.as_bytes());
+    ) -> u64 {
+        use std::hash::{BuildHasher, Hasher};
+        let mut hasher =
+            ahash::RandomState::with_seeds(0x5172_7f6a, 0x8a4e_3c2b, 0xd6f1_48c5, 0x3e9a_7d14)
+                .build_hasher();
+        hasher.write_u8(b'A'); // "aggregation" domain separator
+        hasher.write(sql.as_bytes());
+        hasher.write(schema_version.as_bytes());
         if let Some(vc) = version_component {
-            hasher.update(vc.as_bytes());
+            hasher.write_u8(1);
+            hasher.write(vc.as_bytes());
+        } else {
+            hasher.write_u8(0);
         }
-        let result = hasher.finalize();
-        format!("agg:{:x}", result)
+        hasher.finish()
     }
 
     /// Fetch version from `tf_versions` table.
@@ -168,7 +172,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         );
 
         // Try cache first
-        if let Some(cached_result) = self.cache.get(&cache_key)? {
+        if let Some(cached_result) = self.cache.get(cache_key)? {
             // Cache hit - convert JsonbValue back to HashMap
             let results: Vec<std::collections::HashMap<String, serde_json::Value>> = cached_result
                 .iter()

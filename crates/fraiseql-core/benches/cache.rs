@@ -33,18 +33,18 @@ fn bench_cache_put_get(c: &mut Criterion) {
         let result = make_result();
         let mut i: u64 = 0;
         b.iter(|| {
-            let key = format!("key-{i}");
+            let key = i;
             i = i.wrapping_add(1);
             cache
                 .put(
-                    key.clone(),
+                    key,
                     result.clone(),
                     vec!["v_user".to_string()],
                     None,
                     Some("User"),
                 )
                 .unwrap();
-            let _ = cache.get(&key).unwrap();
+            let _ = cache.get(key).unwrap();
         });
     });
 
@@ -52,7 +52,7 @@ fn bench_cache_put_get(c: &mut Criterion) {
     group.bench_function(BenchmarkId::new("miss", "cold"), |b| {
         let cache = QueryResultCache::new(CacheConfig::with_max_entries(1_000));
         b.iter(|| {
-            let _ = cache.get(criterion::black_box("non-existent-key")).unwrap();
+            let _ = cache.get(criterion::black_box(u64::MAX)).unwrap();
         });
     });
 
@@ -61,10 +61,10 @@ fn bench_cache_put_get(c: &mut Criterion) {
         let cache = QueryResultCache::new(CacheConfig::with_max_entries(10_000));
         let result = make_result();
         // Warm up 100 entries
-        for i in 0..100_usize {
+        for i in 0..100_u64 {
             cache
                 .put(
-                    format!("key-{i}"),
+                    i,
                     result.clone(),
                     vec!["v_user".to_string()],
                     None,
@@ -72,11 +72,11 @@ fn bench_cache_put_get(c: &mut Criterion) {
                 )
                 .unwrap();
         }
-        let mut i: usize = 0;
+        let mut i: u64 = 0;
         b.iter(|| {
-            let key = format!("key-{}", i % 100);
+            let key = i % 100;
             i = i.wrapping_add(1);
-            let _ = cache.get(criterion::black_box(&key)).unwrap();
+            let _ = cache.get(criterion::black_box(key)).unwrap();
         });
     });
 
@@ -85,10 +85,10 @@ fn bench_cache_put_get(c: &mut Criterion) {
         let result = make_result();
         b.iter(|| {
             let cache = QueryResultCache::new(CacheConfig::with_max_entries(10_000));
-            for i in 0..100_usize {
+            for i in 0..100_u64 {
                 cache
                     .put(
-                        format!("key-{i}"),
+                        i,
                         result.clone(),
                         vec!["v_user".to_string()],
                         None,

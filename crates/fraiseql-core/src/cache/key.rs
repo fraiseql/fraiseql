@@ -8,10 +8,13 @@
 //!
 //! # Key Composition
 //!
-//! Cache keys are generated from:
-//! 1. Query string + variables (via APQ's security-audited `hash_query_with_variables`)
-//! 2. WHERE clause structure (ensures different filters = different keys)
-//! 3. Schema version (auto-invalidates on schema changes)
+//! Cache keys are generated from a single-pass ahash over:
+//! 1. Query string bytes
+//! 2. Recursively hashed variable values (canonical ordering)
+//! 3. WHERE clause structure (hashed structurally, not via serde)
+//! 4. Schema version string
+//!
+//! The hasher uses fixed seeds so that keys are deterministic across restarts.
 //!
 //! # Example
 //!
@@ -39,29 +42,44 @@
 //! assert_ne!(key1, key2);
 //! ```
 
-use serde_json::Value as JsonValue;
-use sha2::{Digest, Sha256};
+use std::hash::{BuildHasher, Hash, Hasher};
 
-use crate::{
-    apq::hasher::hash_query_with_variables, db::where_clause::WhereClause, schema::QueryDefinition,
-};
+use ahash::RandomState;
+use serde_json::Value as JsonValue;
+
+use crate::db::{where_clause::WhereClause, WhereOperator};
+use crate::schema::QueryDefinition;
+
+// Fixed seeds for deterministic hashing across process restarts.
+// These are arbitrary constants — changing them invalidates all cached entries.
+const SEED_K0: u64 = 0x5241_4953_454F_4E31; // "RAISEON1"
+const SEED_K1: u64 = 0x4652_4149_5345_514C; // "FRAISEQL"
+const SEED_K2: u64 = 0x4341_4348_454B_4559; // "CACHEKEY"
+const SEED_K3: u64 = 0x5632_5F43_4143_4845; // "V2_CACHE"
+
+/// Create a new hasher from the fixed-seed `RandomState`.
+fn new_hasher() -> impl Hasher {
+    RandomState::with_seeds(SEED_K0, SEED_K1, SEED_K2, SEED_K3).build_hasher()
+}
 
 /// Generate cache key for query result.
 ///
 /// # Security Critical
 ///
 /// **DIFFERENT VARIABLE VALUES MUST PRODUCE DIFFERENT KEYS** to prevent data
-/// leakage between users. This function leverages APQ's security-audited
-/// `hash_query_with_variables()` which correctly handles variable normalization.
+/// leakage between users. This function feeds the full query, variables, WHERE
+/// clause, and schema version into a single-pass ahash for a fast, deterministic
+/// `u64` key.
 ///
 /// # Key Composition
 ///
-/// The cache key is a SHA-256 hash of:
+/// The cache key is a single ahash pass over:
 /// ```text
-/// SHA256(
-///   hash_query_with_variables(query, variables) +
-///   serde_json(WHERE_clause) +   ← JSON, not Debug, for refactor-stability
-///   schema_version
+/// ahash(
+///   query_bytes          +
+///   hash(variables)      +   ← recursive, canonical key ordering
+///   hash(WHERE_clause)   +   ← structural, not serde-dependent
+///   schema_version_bytes
 /// )
 /// ```
 ///
@@ -70,7 +88,6 @@ use crate::{
 /// - Different variables = different key (security)
 /// - Different WHERE clauses = different key (correctness)
 /// - Schema changes = different key (validity)
-/// - Renaming internal fields cannot silently shift a key (stability)
 ///
 /// # Arguments
 ///
@@ -81,7 +98,7 @@ use crate::{
 ///
 /// # Returns
 ///
-/// 64-character hex string (SHA-256 hash)
+/// A `u64` cache key suitable for use as a hash-map key.
 ///
 /// # Security Examples
 ///
@@ -100,67 +117,132 @@ use crate::{
 /// let alice_key2 = generate_cache_key(query, &json!({"id": "alice"}), None, "v1");
 /// assert_eq!(alice_key, alice_key2, "Determinism: same inputs must produce same key");
 /// ```
-///
-/// # Examples
-///
-/// ```rust
-/// use fraiseql_core::cache::generate_cache_key;
-/// use fraiseql_core::db::{WhereClause, WhereOperator};
-/// use serde_json::json;
-///
-/// // Simple query with variables
-/// let key = generate_cache_key(
-///     "query { users(limit: $limit) { id } }",
-///     &json!({"limit": 10}),
-///     None,
-///     "abc123"
-/// );
-/// assert_eq!(key.len(), 64); // SHA-256 hex
-///
-/// // Query with WHERE clause
-/// let where_clause = WhereClause::Field {
-///     path: vec!["email".to_string()],
-///     operator: WhereOperator::Icontains,
-///     value: json!("example.com"),
-/// };
-///
-/// let key_with_where = generate_cache_key(
-///     "query { users { id } }",
-///     &json!({}),
-///     Some(&where_clause),
-///     "abc123"
-/// );
-/// assert_eq!(key_with_where.len(), 64);
-/// ```
 #[must_use]
 pub fn generate_cache_key(
     query: &str,
     variables: &JsonValue,
     where_clause: Option<&WhereClause>,
     schema_version: &str,
-) -> String {
-    // Step 1: Base key from APQ (query + variables)
-    // This is security-audited and handles variable ordering correctly
-    // Different variables WILL produce different hashes (critical for security)
-    let base_key = hash_query_with_variables(query, variables);
+) -> u64 {
+    let mut h = new_hasher();
 
-    // Step 2: Add WHERE clause structure if present
-    // Different WHERE clauses must produce different keys for correctness.
-    // Using serde_json serialization (not Debug) for a stable, refactor-proof
-    // representation: renaming fields or changing #[derive] attributes cannot
-    // silently shift the key and cause a stale-cache window on deploy.
-    let where_structure =
-        where_clause.and_then(|w| serde_json::to_string(w).ok()).unwrap_or_default();
+    // Domain-separate the four sections with unique tags so that, e.g.,
+    // a query ending with "v1" and an empty schema_version can never
+    // collide with a shorter query and schema_version = "v1".
+    h.write(b"q:");
+    h.write(query.as_bytes());
 
-    // Step 3: Combine with schema version
-    // Schema changes invalidate all cached queries automatically
-    let combined = format!("{}:{}:{}", base_key, where_structure, schema_version);
+    h.write(b"\0v:");
+    hash_json_value(&mut h, variables);
 
-    // Step 4: Hash the combination for final cache key
-    // SHA-256 provides collision resistance and fixed-length output
-    let mut hasher = Sha256::new();
-    hasher.update(combined.as_bytes());
-    hex::encode(hasher.finalize())
+    h.write(b"\0w:");
+    if let Some(wc) = where_clause {
+        h.write_u8(1);
+        hash_where_clause(&mut h, wc);
+    } else {
+        h.write_u8(0);
+    }
+
+    h.write(b"\0s:");
+    h.write(schema_version.as_bytes());
+
+    h.finish()
+}
+
+/// Recursively hash a `serde_json::Value` into the given hasher.
+///
+/// Object keys are sorted before hashing so that insertion order does not
+/// affect the output (critical for variable-order independence).
+fn hash_json_value(h: &mut impl Hasher, value: &JsonValue) {
+    // Write a type discriminant so that `null`, `false`, `0`, `""`, `[]`, and `{}`
+    // all produce distinct hashes.
+    match value {
+        JsonValue::Null => h.write_u8(0),
+        JsonValue::Bool(b) => {
+            h.write_u8(1);
+            b.hash(h);
+        }
+        JsonValue::Number(n) => {
+            h.write_u8(2);
+            // Use the canonical string form so that 1.0 and 1 hash identically
+            // when serde represents them the same way.
+            h.write(n.to_string().as_bytes());
+        }
+        JsonValue::String(s) => {
+            h.write_u8(3);
+            h.write(s.as_bytes());
+        }
+        JsonValue::Array(arr) => {
+            h.write_u8(4);
+            h.write_usize(arr.len());
+            for item in arr {
+                hash_json_value(h, item);
+            }
+        }
+        JsonValue::Object(map) => {
+            h.write_u8(5);
+            h.write_usize(map.len());
+            // Sort keys for canonical ordering.
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort_unstable();
+            for key in keys {
+                h.write(key.as_bytes());
+                hash_json_value(h, &map[key]);
+            }
+        }
+    }
+}
+
+/// Hash a `WhereClause` tree structurally.
+///
+/// Uses discriminant tags and recursion so that structurally different clauses
+/// always produce different hash contributions.
+fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
+    match clause {
+        WhereClause::Field { path, operator, value } => {
+            h.write_u8(b'F');
+            h.write_usize(path.len());
+            for segment in path {
+                h.write(segment.as_bytes());
+                h.write_u8(0); // separator
+            }
+            hash_where_operator(h, operator);
+            hash_json_value(h, value);
+        }
+        WhereClause::And(clauses) => {
+            h.write_u8(b'A');
+            h.write_usize(clauses.len());
+            for c in clauses {
+                hash_where_clause(h, c);
+            }
+        }
+        WhereClause::Or(clauses) => {
+            h.write_u8(b'O');
+            h.write_usize(clauses.len());
+            for c in clauses {
+                hash_where_clause(h, c);
+            }
+        }
+        WhereClause::Not(inner) => {
+            h.write_u8(b'N');
+            hash_where_clause(h, inner);
+        }
+        // WhereClause is #[non_exhaustive]; unknown variants get a distinct tag
+        // plus their Debug representation as a conservative fallback.
+        _ => {
+            h.write_u8(b'?');
+            h.write(format!("{clause:?}").as_bytes());
+        }
+    }
+}
+
+/// Hash a `WhereOperator` by its `Debug` representation.
+///
+/// `WhereOperator` is `#[non_exhaustive]` with 40+ variants (including
+/// `Extended(ExtendedOperator)`). Using the `Debug` string is stable across
+/// refactors and automatically covers new variants without maintenance.
+fn hash_where_operator(h: &mut impl Hasher, op: &WhereOperator) {
+    h.write(format!("{op:?}").as_bytes());
 }
 
 /// Extract accessed views from query definition.
@@ -235,19 +317,6 @@ pub fn extract_accessed_views(query_def: &QueryDefinition) -> Vec<String> {
 /// # Returns
 ///
 /// `true` if two sequential key generations produce identical keys
-///
-/// # Example
-///
-/// ```rust
-/// use fraiseql_core::cache::verify_deterministic;
-/// use serde_json::json;
-///
-/// assert!(verify_deterministic(
-///     "query { users { id } }",
-///     &json!({}),
-///     "v1"
-/// ));
-/// ```
 #[cfg(test)]
 #[must_use]
 pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: &str) -> bool {
@@ -258,11 +327,12 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use indexmap::IndexMap;
     use serde_json::json;
 
     use super::*;
-    use crate::db::WhereOperator;
     use crate::schema::CursorType;
 
     // ========================================================================
@@ -312,12 +382,11 @@ mod tests {
 
     #[test]
     fn test_variable_order_independence() {
-        // APQ handles variable ordering, so this should be deterministic
+        // Object keys are sorted before hashing, so insertion order should
+        // not affect the result. serde_json's default Map is BTreeMap (sorted),
+        // but we sort explicitly in hash_json_value to be safe regardless.
         let query = "query($a: Int, $b: Int) { users { id } }";
 
-        // Note: serde_json maintains insertion order, so we can't easily test
-        // reordering without custom JSON construction. This test documents
-        // the expectation that APQ handles this correctly.
         let key1 = generate_cache_key(query, &json!({"a": 1, "b": 2}), None, "v1");
         let key2 = generate_cache_key(query, &json!({"a": 1, "b": 2}), None, "v1");
 
@@ -429,9 +498,8 @@ mod tests {
             },
         ]);
 
-        let key = generate_cache_key(query, &json!({}), Some(&where_clause), "v1");
-
-        assert_eq!(key.len(), 64, "Should produce valid SHA-256 hex");
+        // Should not panic; produces a valid u64.
+        let _key = generate_cache_key(query, &json!({}), Some(&where_clause), "v1");
     }
 
     // ========================================================================
@@ -463,21 +531,49 @@ mod tests {
     }
 
     // ========================================================================
-    // Output Format Tests
+    // Collision Avoidance Test
     // ========================================================================
 
     #[test]
-    fn test_cache_key_length() {
-        let key = generate_cache_key("query { users }", &json!({}), None, "v1");
-        assert_eq!(key.len(), 64, "SHA-256 hex should be 64 characters");
-    }
+    fn test_no_collisions_in_sample() {
+        // Generate a sample of cache keys from varied inputs and verify
+        // that no two distinct inputs produce the same u64.
+        let mut keys = HashSet::new();
+        let mut count = 0u32;
 
-    #[test]
-    fn test_cache_key_format() {
-        let key = generate_cache_key("query { users }", &json!({}), None, "v1");
+        let queries = [
+            "query { users { id } }",
+            "query { posts { id } }",
+            "query { users { id name } }",
+            "query getUser($id: ID!) { user(id: $id) { name } }",
+            "",
+        ];
+        let variable_sets: &[JsonValue] = &[
+            json!({}),
+            json!(null),
+            json!({"id": 1}),
+            json!({"id": 2}),
+            json!({"id": "alice"}),
+            json!({"limit": 10, "offset": 0}),
+            json!({"filter": {"active": true}}),
+        ];
+        let schema_versions = ["v1", "v2", "abc123"];
 
-        // Verify it's valid hexadecimal
-        assert!(key.chars().all(|c| c.is_ascii_hexdigit()), "Cache key should be hexadecimal");
+        for query in &queries {
+            for vars in variable_sets {
+                for sv in &schema_versions {
+                    let key = generate_cache_key(query, vars, None, sv);
+                    keys.insert(key);
+                    count += 1;
+                }
+            }
+        }
+
+        assert_eq!(
+            keys.len(),
+            count as usize,
+            "Collision detected among {count} sample cache keys"
+        );
     }
 
     // ========================================================================
@@ -584,14 +680,14 @@ mod tests {
 
     #[test]
     fn test_empty_query_string() {
-        let key = generate_cache_key("", &json!({}), None, "v1");
-        assert_eq!(key.len(), 64, "Empty query should still produce valid key");
+        // Should not panic; produces a valid u64.
+        let _key = generate_cache_key("", &json!({}), None, "v1");
     }
 
     #[test]
     fn test_null_variables() {
-        let key = generate_cache_key("query { users }", &json!(null), None, "v1");
-        assert_eq!(key.len(), 64, "Null variables should produce valid key");
+        // Should not panic; produces a valid u64.
+        let _key = generate_cache_key("query { users }", &json!(null), None, "v1");
     }
 
     #[test]
@@ -608,14 +704,14 @@ mod tests {
             }
         });
 
-        let key = generate_cache_key("query { users }", &large_vars, None, "v1");
-        assert_eq!(key.len(), 64, "Large variables should produce valid key");
+        // Should not panic; produces a valid u64.
+        let _key = generate_cache_key("query { users }", &large_vars, None, "v1");
     }
 
     #[test]
     fn test_special_characters_in_query() {
         let query = r#"query { user(email: "test@example.com") { name } }"#;
-        let key = generate_cache_key(query, &json!({}), None, "v1");
-        assert_eq!(key.len(), 64, "Special characters should be handled");
+        // Should not panic; produces a valid u64.
+        let _key = generate_cache_key(query, &json!({}), None, "v1");
     }
 }

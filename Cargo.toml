@@ -52,6 +52,7 @@ async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.8"}
 # Encoding
+ahash = "0.8"
 base64 = "0.22"
 # Utilities
 bytes = "1.0"

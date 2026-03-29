@@ -43,7 +43,7 @@ fn make_result() -> Vec<JsonbValue> {
 fn populate(cache: &QueryResultCache) {
     for i in 0..KEY_COUNT {
         let _ = cache.put(
-            format!("key-{i}"),
+            i as u64,
             make_result(),
             vec!["users".to_string()],
             None,
@@ -74,7 +74,7 @@ fn bench_cache_reads(c: &mut Criterion) {
                             let c: Arc<QueryResultCache> = Arc::clone(&cache);
                             thread::spawn(move || {
                                 for i in 0..OPS_PER_THREAD {
-                                    let _ = c.get(&format!("key-{}", i % KEY_COUNT));
+                                    let _ = c.get((i % KEY_COUNT) as u64);
                                 }
                             })
                         })
@@ -114,7 +114,7 @@ fn bench_cache_writes(c: &mut Criterion) {
                                 for i in 0..OPS_PER_THREAD {
                                     // Use thread-local keys to avoid false sharing
                                     let _ = c.put(
-                                        format!("key-{}", (t * OPS_PER_THREAD + i) % KEY_COUNT),
+                                        ((t * OPS_PER_THREAD + i) % KEY_COUNT) as u64,
                                         (*r).clone(),
                                         vec!["users".to_string()],
                                         None,
@@ -159,14 +159,14 @@ fn bench_cache_mixed(c: &mut Criterion) {
                             // 90% reads, 10% writes
                             if (t * OPS_PER_THREAD + i).is_multiple_of(10) {
                                 let _ = c.put(
-                                    format!("key-{}", i % KEY_COUNT),
+                                    (i % KEY_COUNT) as u64,
                                     (*r).clone(),
                                     vec!["users".to_string()],
                                     None,
                                     Some("users"),
                                 );
                             } else {
-                                let _ = c.get(&format!("key-{}", i % KEY_COUNT));
+                                let _ = c.get((i % KEY_COUNT) as u64);
                             }
                         }
                     })
@@ -193,14 +193,14 @@ fn bench_cache_latency(c: &mut Criterion) {
     group.bench_function("single_get", |b| {
         let mut rng = rand::thread_rng();
         b.iter(|| {
-            let _ = cache.get(&format!("key-{}", rng.gen_range(0..KEY_COUNT)));
+            let _ = cache.get(rng.gen_range(0..KEY_COUNT) as u64);
         });
     });
     group.bench_function("single_put", |b| {
         let mut rng = rand::thread_rng();
         b.iter(|| {
             let _ = cache.put(
-                format!("key-{}", rng.gen_range(0..KEY_COUNT)),
+                rng.gen_range(0..KEY_COUNT) as u64,
                 make_result(),
                 vec!["users".to_string()],
                 None,

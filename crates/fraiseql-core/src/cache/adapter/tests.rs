@@ -264,7 +264,7 @@ async fn test_cache_disabled() {
 /// The previous "simple query bypass" (Issue #40 workaround) was removed.
 /// It skipped caching for `where_clause.is_none() && limit <= 1000`, which
 /// prevented caching for public / unauthenticated endpoints.  The cache
-/// overhead (SHA-256 + LRU lookup ≈ 100-150 µs) is negligible relative to a
+/// overhead (ahash + LRU lookup) is negligible relative to a
 /// database round-trip; the bypass was a premature optimisation.
 #[tokio::test]
 async fn test_all_queries_are_cached() {
@@ -881,11 +881,6 @@ fn test_generate_aggregation_cache_key() {
         "2.0.0", // Different schema
         Some("tv:42"),
     );
-
-    // Keys should start with "agg:" prefix
-    assert!(key1.starts_with("agg:"));
-    assert!(key2.starts_with("agg:"));
-    assert!(key3.starts_with("agg:"));
 
     // Different versions/schema produce different keys
     assert_ne!(key1, key2);
