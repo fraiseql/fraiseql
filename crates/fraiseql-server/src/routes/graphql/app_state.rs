@@ -411,6 +411,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -422,6 +423,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }

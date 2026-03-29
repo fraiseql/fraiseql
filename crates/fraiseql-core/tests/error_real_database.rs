@@ -57,7 +57,7 @@ async fn raw_query_with_syntax_error_returns_database_error() {
 #[tokio::test]
 async fn query_on_nonexistent_view_returns_database_error() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let result = adapter.execute_where_query("v_does_not_exist", None, None, None).await;
+    let result = adapter.execute_where_query("v_does_not_exist", None, None, None, None).await;
     assert!(result.is_err(), "expected Err querying nonexistent view, got: {result:?}");
     let err = result.unwrap_err();
     assert!(
@@ -168,7 +168,7 @@ async fn pool_metrics_reflect_real_state() {
 #[tokio::test]
 async fn query_seeded_view_returns_data() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let results = adapter.execute_where_query("test.v_user", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
     assert!(!results.is_empty(), "seeded v_user should return rows");
 }
 
@@ -176,7 +176,7 @@ async fn query_seeded_view_returns_data() {
 async fn query_with_limit_respects_limit() {
     let adapter = common::testcontainer::get_test_adapter().await;
     let results = adapter
-        .execute_where_query("test.v_project", None, Some(2), None)
+        .execute_where_query("test.v_project", None, Some(2), None, None)
         .await
         .unwrap();
     assert!(results.len() <= 2, "limit 2 should return at most 2 rows");

@@ -241,7 +241,7 @@ mod tests {
     use crate::{
         db::{
             WhereClause,
-            types::{DatabaseType, JsonbValue, PoolMetrics},
+            types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         },
         graphql::parse_query,
         runtime::Executor,
@@ -278,6 +278,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> crate::error::Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -289,6 +290,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> crate::error::Result<Vec<JsonbValue>> {
             Ok(vec![JsonbValue::new(serde_json::json!({"id": 1}))])
         }

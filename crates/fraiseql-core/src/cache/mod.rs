@@ -100,7 +100,7 @@
 //!
 //! // Use as normal DatabaseAdapter - caching is transparent
 //! let users = adapter
-//!     .execute_where_query("v_user", None, Some(10), None)
+//!     .execute_where_query("v_user", None, Some(10), None, None)
 //!     .await?;
 //!
 //! println!("Found {} users", users.len());

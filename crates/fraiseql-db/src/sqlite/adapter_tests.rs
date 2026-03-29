@@ -90,7 +90,7 @@ async fn test_parameterized_limit_only() {
     }
 
     let results = adapter
-        .execute_where_query("v_user", None, Some(2), None)
+        .execute_where_query("v_user", None, Some(2), None, None)
         .await
         .expect("Failed to execute query");
 
@@ -119,7 +119,7 @@ async fn test_parameterized_offset_only() {
     }
 
     let results = adapter
-        .execute_where_query("v_user", None, None, Some(2))
+        .execute_where_query("v_user", None, None, Some(2), None)
         .await
         .expect("Failed to execute query");
 
@@ -148,7 +148,7 @@ async fn test_parameterized_limit_and_offset() {
     }
 
     let results = adapter
-        .execute_where_query("v_user", None, Some(2), Some(1))
+        .execute_where_query("v_user", None, Some(2), Some(1), None)
         .await
         .expect("Failed to execute query");
 
@@ -404,7 +404,7 @@ async fn test_where_eq_operator() {
         value:    json!("user3"),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].as_value()["name"], "user3");
 }
@@ -418,7 +418,7 @@ async fn test_where_neq_operator() {
         value:    json!("user1"),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -432,7 +432,7 @@ async fn test_where_gt_operator() {
         value:    json!(23),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -446,7 +446,7 @@ async fn test_where_gte_operator() {
         value:    json!(23),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -460,7 +460,7 @@ async fn test_where_lt_operator() {
         value:    json!(23),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -474,7 +474,7 @@ async fn test_where_lte_operator() {
         value:    json!(23),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -487,7 +487,7 @@ async fn test_where_in_operator() {
         value:    json!(["user1", "user3", "user5"]),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -500,7 +500,7 @@ async fn test_where_not_in_operator() {
         value:    json!(["user1", "user2"]),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -514,7 +514,7 @@ async fn test_where_like_operator() {
         value:    json!("user%"),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 5);
 }
 
@@ -528,7 +528,7 @@ async fn test_where_is_null_operator() {
         value:    json!(true),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -542,7 +542,7 @@ async fn test_where_is_not_null_operator() {
         value:    json!(false),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 0);
 }
 
@@ -563,7 +563,7 @@ async fn test_where_multiple_conditions_and() {
         },
     ]);
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].as_value()["name"], "user2");
 }
@@ -585,7 +585,7 @@ async fn test_where_multiple_conditions_or() {
         },
     ]);
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -600,7 +600,7 @@ async fn test_empty_result_set() {
         value:    json!("nonexistent"),
     };
     let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
     assert!(results.is_empty());
 }
 
@@ -652,7 +652,7 @@ async fn test_projection_filters_fields() {
         estimated_reduction_percent: 50,
     };
     let results = adapter
-        .execute_with_projection("v_user", Some(&projection), None, None, None)
+        .execute_with_projection("v_user", Some(&projection), None, None, None, None)
         .await
         .expect("execute_with_projection should succeed");
     assert_eq!(results.len(), 3);

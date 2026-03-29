@@ -88,7 +88,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -106,7 +106,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), None)
+            .execute_where_query("v_user", None, Some(2), None, None)
             .await
             .expect("Query should succeed");
 
@@ -119,13 +119,13 @@ mod mysql_tests {
 
         // Get all users first
         let all_results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
         // Get users with offset
         let offset_results = adapter
-            .execute_where_query("v_user", None, Some(10), Some(1))
+            .execute_where_query("v_user", None, Some(10), Some(1), None)
             .await
             .expect("Query should succeed");
 
@@ -139,7 +139,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_post", None, Some(5), None)
+            .execute_where_query("v_post", None, Some(5), None, None)
             .await
             .expect("Query should succeed");
 
@@ -179,7 +179,7 @@ mod mysql_tests {
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone.execute_where_query("v_user", None, Some(5), None).await
+                adapter_clone.execute_where_query("v_user", None, Some(5), None, None).await
             });
             handles.push(handle);
         }
@@ -266,7 +266,7 @@ mod sqlite_tests {
 
         // Query the view
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -305,7 +305,7 @@ mod sqlite_tests {
 
         // Query with limit
         let results = adapter
-            .execute_where_query("v_items", None, Some(2), None)
+            .execute_where_query("v_items", None, Some(2), None, None)
             .await
             .expect("Query should succeed");
 
@@ -339,7 +339,7 @@ mod sqlite_tests {
 
         // Query with offset
         let results = adapter
-            .execute_where_query("v_items", None, Some(10), Some(2))
+            .execute_where_query("v_items", None, Some(10), Some(2), None)
             .await
             .expect("Query should succeed");
 
@@ -405,7 +405,7 @@ mod sqlite_tests {
 
         // Query the view
         let results = adapter
-            .execute_where_query("v_post", None, Some(10), None)
+            .execute_where_query("v_post", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -451,7 +451,7 @@ mod sqlite_tests {
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone.execute_where_query("v_test", None, Some(5), None).await
+                adapter_clone.execute_where_query("v_test", None, Some(5), None, None).await
             });
             handles.push(handle);
         }
@@ -525,7 +525,7 @@ mod sqlserver_tests {
         };
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -1539,7 +1539,7 @@ async fn verify_view_returns_json<A: DatabaseAdapter>(
     view_name: &str,
     expected_fields: &[&str],
 ) -> bool {
-    let results = adapter.execute_where_query(view_name, None, Some(1), None).await;
+    let results = adapter.execute_where_query(view_name, None, Some(1), None, None).await;
 
     if let Ok(rows) = results {
         if rows.is_empty() {

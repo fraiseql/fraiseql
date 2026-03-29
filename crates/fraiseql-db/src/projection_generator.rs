@@ -827,4 +827,110 @@ mod tests {
         );
         assert!(sql.contains("SELECT"), "SELECT clause must start with SELECT");
     }
+
+    // ── generate_typed_projection_sql tests (C12) ─────────────────────────
+
+    #[test]
+    fn test_typed_projection_empty_fields_returns_data_column() {
+        let generator = PostgresProjectionGenerator::new();
+        let result = generator.generate_typed_projection_sql(&[]).unwrap();
+        assert_eq!(result, "\"data\"");
+    }
+
+    #[test]
+    fn test_typed_projection_scalar_field_uses_text_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "name".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Scalar fields use ->> (text extraction)
+        assert!(sql.contains("->>'name'"), "scalar field must use ->> operator, got: {sql}");
+        assert!(!sql.contains("->'name'"), "scalar field must NOT use -> operator, got: {sql}");
+    }
+
+    #[test]
+    fn test_typed_projection_composite_field_uses_jsonb_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "address".to_string(),
+            is_composite: true,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Composite fields use -> (JSONB extraction, preserves structure)
+        assert!(sql.contains("->'address'"), "composite field must use -> operator, got: {sql}");
+    }
+
+    #[test]
+    fn test_typed_projection_mixed_scalar_and_composite() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ProjectionField {
+                name:         "id".to_string(),
+                is_composite: false,
+            },
+            ProjectionField {
+                name:         "address".to_string(),
+                is_composite: true,
+            },
+            ProjectionField {
+                name:         "tags".to_string(),
+                is_composite: true,
+            },
+            ProjectionField {
+                name:         "email".to_string(),
+                is_composite: false,
+            },
+        ];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+        // Scalars use ->>
+        assert!(sql.contains("->>'id'"), "id (scalar) must use ->>, got: {sql}");
+        assert!(sql.contains("->>'email'"), "email (scalar) must use ->>, got: {sql}");
+
+        // Composites use ->
+        assert!(sql.contains("->'address'"), "address (composite) must use ->, got: {sql}");
+        assert!(sql.contains("->'tags'"), "tags (composite) must use ->, got: {sql}");
+
+        // Must be wrapped in jsonb_build_object
+        assert!(
+            sql.starts_with("jsonb_build_object("),
+            "must wrap in jsonb_build_object, got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_typed_projection_camel_case_maps_to_snake_case_jsonb_key() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "firstName".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Response key is camelCase, JSONB key is snake_case
+        assert!(
+            sql.contains("'firstName'"),
+            "response key must be camelCase 'firstName', got: {sql}"
+        );
+        assert!(
+            sql.contains("->>'first_name'"),
+            "JSONB key must be snake_case 'first_name', got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_typed_projection_single_quote_in_field_name_escaped() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "it's".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Single quotes must be doubled for SQL safety
+        assert!(
+            sql.contains("'it''s'"),
+            "single quote in field name must be escaped, got: {sql}"
+        );
+    }
 }

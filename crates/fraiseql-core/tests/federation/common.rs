@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, SupportsMutations},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
     error::Result,
@@ -53,8 +53,9 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -63,6 +64,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(Vec::new())
     }
@@ -146,8 +148,9 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -156,6 +159,7 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(Vec::new())
     }

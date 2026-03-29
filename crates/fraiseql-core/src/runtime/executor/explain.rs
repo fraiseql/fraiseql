@@ -175,7 +175,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        db::{DatabaseType, PoolMetrics, WhereClause, types::JsonbValue},
+        db::{DatabaseType, PoolMetrics, WhereClause, types::{JsonbValue, OrderByClause}},
         error::{FraiseQLError, Result},
         runtime::Executor,
         schema::{CompiledSchema, MutationDefinition, QueryDefinition},
@@ -195,6 +195,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -206,6 +207,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }

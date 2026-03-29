@@ -25,7 +25,7 @@ async fn test_cache_miss_hits_database() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
-    let result = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let result = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(result.len(), 2);
     assert_eq!(cached.inner().query_count(), 1);
 }
@@ -37,11 +37,11 @@ async fn test_cache_hit_skips_database() {
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // First call — cache miss
-    let _ = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 1);
 
     // Second call — cache hit
-    let result = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let result = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(result.len(), 2);
     assert_eq!(cached.inner().query_count(), 1); // Still 1
 }
@@ -64,10 +64,10 @@ async fn test_cache_miss_with_different_where_clause() {
         value:    json!(2),
     };
 
-    let _ = cached.execute_where_query("v_user", Some(&where1), None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", Some(&where1), None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 1);
 
-    let _ = cached.execute_where_query("v_user", Some(&where2), None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", Some(&where2), None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 2); // Different where = cache miss
 }
 
@@ -78,13 +78,13 @@ async fn test_database_error_not_cached() {
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // First call fails
-    let result = cached.execute_where_query("v_user", None, None, None).await;
+    let result = cached.execute_where_query("v_user", None, None, None, None).await;
     assert!(result.is_err(), "expected Err from adapter failure on first call, got: {result:?}");
 
     // Reset the failure — next call should hit the adapter again (error was NOT cached)
     cached.inner().reset();
 
-    let result = cached.execute_where_query("v_user", None, None, None).await;
+    let result = cached.execute_where_query("v_user", None, None, None, None).await;
     result.unwrap_or_else(|e| panic!("expected Ok after reset (error should not have been cached): {e}"));
     // query_count is 1 because reset() zeroed it, then we made 1 successful call
     assert_eq!(cached.inner().query_count(), 1);
@@ -98,11 +98,11 @@ async fn test_cache_with_schema_version_isolation() {
     let cache_v1 = QueryResultCache::new(CacheConfig::enabled());
     let cached_v1 = CachedDatabaseAdapter::new(adapter_v1, cache_v1, "1.0.0".to_string());
 
-    let _ = cached_v1.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached_v1.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached_v1.inner().query_count(), 1);
 
     // Verify cache hit works within same version
-    let _ = cached_v1.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached_v1.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached_v1.inner().query_count(), 1); // Cache hit
 
     // Different schema version — separate adapter, separate cache
@@ -110,7 +110,7 @@ async fn test_cache_with_schema_version_isolation() {
     let cache_v2 = QueryResultCache::new(CacheConfig::enabled());
     let cached_v2 = CachedDatabaseAdapter::new(adapter_v2, cache_v2, "2.0.0".to_string());
 
-    let _ = cached_v2.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached_v2.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached_v2.inner().query_count(), 1); // Cache miss — fresh cache
 }
 
@@ -121,11 +121,11 @@ async fn test_invalidate_view_forces_cache_miss() {
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // Populate cache
-    let _ = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 1);
 
     // Cache hit
-    let _ = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 1);
 
     // Invalidate
@@ -133,6 +133,6 @@ async fn test_invalidate_view_forces_cache_miss() {
     assert_eq!(invalidated, 1);
 
     // Must hit adapter again
-    let _ = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let _ = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), 2);
 }

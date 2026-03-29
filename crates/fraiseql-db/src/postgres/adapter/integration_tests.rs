@@ -83,7 +83,7 @@ async fn test_query_all_users() {
     let adapter = create_test_adapter().await;
 
     let results = adapter
-        .execute_where_query("v_user", None, None, None)
+        .execute_where_query("v_user", None, None, None, None)
         .await
         .expect("Failed to query users");
 
@@ -101,7 +101,7 @@ async fn test_query_all_posts() {
     let adapter = create_test_adapter().await;
 
     let results = adapter
-        .execute_where_query("v_post", None, None, None)
+        .execute_where_query("v_post", None, None, None, None)
         .await
         .expect("Failed to query posts");
 
@@ -128,7 +128,7 @@ async fn test_where_eq() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -147,7 +147,7 @@ async fn test_where_neq() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -169,7 +169,7 @@ async fn test_where_gt() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -193,7 +193,7 @@ async fn test_where_gte() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -218,7 +218,7 @@ async fn test_where_icontains() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -240,7 +240,7 @@ async fn test_where_startswith() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -270,7 +270,7 @@ async fn test_where_and() {
     ]);
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -299,7 +299,7 @@ async fn test_where_or() {
     ]);
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -321,7 +321,7 @@ async fn test_where_not() {
     }));
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -345,7 +345,7 @@ async fn test_where_in() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -365,7 +365,7 @@ async fn test_limit() {
     let adapter = create_test_adapter().await;
 
     let results = adapter
-        .execute_where_query("v_user", None, Some(2), None)
+        .execute_where_query("v_user", None, Some(2), None, None)
         .await
         .expect("Failed to execute query");
 
@@ -377,12 +377,12 @@ async fn test_offset() {
     let adapter = create_test_adapter().await;
 
     let results_all = adapter
-        .execute_where_query("v_user", None, None, None)
+        .execute_where_query("v_user", None, None, None, None)
         .await
         .expect("Failed to execute query");
 
     let results_offset = adapter
-        .execute_where_query("v_user", None, None, Some(2))
+        .execute_where_query("v_user", None, None, Some(2), None)
         .await
         .expect("Failed to execute query");
 
@@ -394,7 +394,7 @@ async fn test_limit_and_offset() {
     let adapter = create_test_adapter().await;
 
     let results = adapter
-        .execute_where_query("v_user", None, Some(2), Some(1))
+        .execute_where_query("v_user", None, Some(2), Some(1), None)
         .await
         .expect("Failed to execute query");
 
@@ -416,7 +416,7 @@ async fn test_nested_object_query() {
     };
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -456,7 +456,7 @@ async fn test_complex_nested_where() {
     ]);
 
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .expect("Failed to execute query");
 
@@ -476,7 +476,7 @@ async fn test_complex_nested_where() {
 async fn test_invalid_view_name() {
     let adapter = create_test_adapter().await;
 
-    let result = adapter.execute_where_query("v_nonexistent", None, None, None).await;
+    let result = adapter.execute_where_query("v_nonexistent", None, None, None, None).await;
 
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
@@ -505,7 +505,7 @@ async fn test_parameterized_limit_only() {
 
     // Test that LIMIT is parameterized (not interpolated)
     let results = adapter
-        .execute_where_query("v_user", None, Some(3), None)
+        .execute_where_query("v_user", None, Some(3), None, None)
         .await
         .expect("Failed to execute query");
 
@@ -517,13 +517,13 @@ async fn test_parameterized_offset_only() {
     let adapter = create_test_adapter().await;
 
     let results_all = adapter
-        .execute_where_query("v_user", None, None, None)
+        .execute_where_query("v_user", None, None, None, None)
         .await
         .expect("Failed to execute query");
 
     let offset_val = 1;
     let results_offset = adapter
-        .execute_where_query("v_user", None, None, Some(offset_val))
+        .execute_where_query("v_user", None, None, Some(offset_val), None)
         .await
         .expect("Failed to execute query");
 
@@ -538,7 +538,7 @@ async fn test_parameterized_limit_and_offset() {
     let limit_val = 2;
     let offset_val = 1;
     let results = adapter
-        .execute_where_query("v_user", None, Some(limit_val), Some(offset_val))
+        .execute_where_query("v_user", None, Some(limit_val), Some(offset_val), None)
         .await
         .expect("Failed to execute query");
 
@@ -557,7 +557,7 @@ async fn test_parameterized_limit_with_where_clause() {
 
     // Parameterized LIMIT with WHERE clause
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), Some(2), None)
+        .execute_where_query("v_user", Some(&where_clause), Some(2), None, None)
         .await
         .expect("Failed to execute query");
 
@@ -579,7 +579,7 @@ async fn test_parameterized_limit_and_offset_with_where_clause() {
 
     // Parameterized LIMIT and OFFSET with WHERE clause
     let results = adapter
-        .execute_where_query("v_user", Some(&where_clause), Some(2), Some(1))
+        .execute_where_query("v_user", Some(&where_clause), Some(2), Some(1), None)
         .await
         .expect("Failed to execute query");
 

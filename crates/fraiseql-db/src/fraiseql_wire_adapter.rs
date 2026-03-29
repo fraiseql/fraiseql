@@ -12,7 +12,7 @@ use futures::stream::StreamExt;
 
 use super::{
     traits::DatabaseAdapter,
-    types::{DatabaseType, JsonbValue, PoolMetrics},
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,
@@ -48,7 +48,7 @@ use super::{
 ///
 /// // Execute query
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -225,10 +225,11 @@ impl DatabaseAdapter for FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // FraiseWire uses streaming, so projection is handled by field selection
         // Fall back to standard query for now
-        self.execute_where_query(view, where_clause, limit, offset).await
+        self.execute_where_query(view, where_clause, limit, offset, _order_by).await
     }
 
     /// # Errors
@@ -241,6 +242,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // fraiseql-wire generates SQL as: SELECT data FROM {entity}
         // where entity is used exactly as provided (no prefix modifications)

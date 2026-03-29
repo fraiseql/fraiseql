@@ -56,7 +56,7 @@
 //!
 //! // Use as normal DatabaseAdapter - caching is transparent
 //! let users = cached_adapter
-//!     .execute_where_query("v_user", None, Some(10), None)
+//!     .execute_where_query("v_user", None, Some(10), None, None)
 //!     .await?;
 //! # Ok(())
 //! # }
@@ -78,7 +78,7 @@ use crate::{
     cache::config::RlsEnforcement,
     db::{
         DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
-        types::JsonbValue,
+        types::{JsonbValue, OrderByClause},
     },
     error::{FraiseQLError, Result},
     schema::CompiledSchema,
@@ -120,10 +120,10 @@ pub use query::view_name_to_entity_type;
 /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
 ///
 /// // First query - cache miss (slower)
-/// let users1 = adapter.execute_where_query("v_user", None, None, None).await?;
+/// let users1 = adapter.execute_where_query("v_user", None, None, None, None).await?;
 ///
 /// // Second query - cache hit (fast!)
-/// let users2 = adapter.execute_where_query("v_user", None, None, None).await?;
+/// let users2 = adapter.execute_where_query("v_user", None, None, None, None).await?;
 ///
 /// // After mutation, invalidate
 /// let invalidation = InvalidationContext::for_mutation(
@@ -508,6 +508,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
             .await
@@ -519,6 +520,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_where_query_impl(view, where_clause, limit, offset).await
     }

@@ -7,7 +7,10 @@ use tokio_postgres::Row;
 use super::{PostgresAdapter, build_where_select_sql};
 use crate::{
     traits::{DatabaseAdapter, SupportsMutations},
-    types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam, sql_hints::SqlProjectionHint},
+    types::{
+        DatabaseType, JsonbValue, PoolMetrics, QueryParam,
+        sql_hints::{OrderByClause, SqlProjectionHint},
+    },
     where_clause::WhereClause,
 };
 
@@ -51,6 +54,7 @@ impl DatabaseAdapter for PostgresAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_with_projection(view, projection, where_clause, limit, offset).await
     }
@@ -61,6 +65,7 @@ impl DatabaseAdapter for PostgresAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         let (sql, typed_params) = build_where_select_sql(view, where_clause, limit, offset)?;
 

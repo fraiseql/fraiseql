@@ -68,7 +68,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() {
             return self
                 .adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset)
+                .execute_with_projection(view, projection, where_clause, limit, offset, None)
                 .await;
         }
 
@@ -92,7 +92,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Cache miss - execute via underlying adapter
         let result = self
             .adapter
-            .execute_with_projection(view, projection, where_clause, limit, offset)
+            .execute_with_projection(view, projection, where_clause, limit, offset, None)
             .await?;
 
         // Store in cache; derive entity type from view name so that
@@ -124,7 +124,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ) -> Result<Vec<JsonbValue>> {
         // Short-circuit when cache is disabled: skip cache key generation and result clone.
         if !self.cache.is_enabled() {
-            return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
+            return self.adapter.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
         // Generate cache key
@@ -143,7 +143,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         }
 
         // Cache miss - execute query
-        let result = self.adapter.execute_where_query(view, where_clause, limit, offset).await?;
+        let result = self.adapter.execute_where_query(view, where_clause, limit, offset, None).await?;
 
         // Store in cache with entity-type index so that mutation-side
         // invalidate_by_entity() can evict only the entries that actually

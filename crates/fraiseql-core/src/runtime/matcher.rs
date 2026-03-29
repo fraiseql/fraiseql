@@ -209,18 +209,30 @@ impl QueryMatcher {
     /// Resolve an inline GraphQL argument to a JSON value.
     ///
     /// Handles both literal values (`limit: 3` → `value_json = "3"`) and
-    /// variable references (`limit: $limit` → `value_json = "$limit"`),
+    /// variable references (`limit: $limit` → `value_json = "\"$limit\""`),
     /// looking up the latter in the already-extracted variables map.
+    ///
+    /// Variable references are serialized by the parser as JSON-quoted strings
+    /// (e.g. `Variable("myLimit")` → `"\"$myLimit\""`), so we must parse the
+    /// JSON first and then check for the `$` prefix on the inner string.
     fn resolve_inline_arg(
         arg: &crate::graphql::GraphQLArgument,
         variables: &HashMap<String, serde_json::Value>,
     ) -> Option<serde_json::Value> {
-        // Variable reference: "$varName" → look up in variables
+        // Try raw `$varName` first (defensive, in case any code path produces unquoted refs)
         if let Some(var_name) = arg.value_json.strip_prefix('$') {
             return variables.get(var_name).cloned();
         }
-        // Literal value: parse JSON directly (e.g. "3", "true", "\"hello\"")
-        serde_json::from_str(&arg.value_json).ok()
+        // Parse the JSON value
+        let parsed: serde_json::Value = serde_json::from_str(&arg.value_json).ok()?;
+        // Check if the parsed value is a string starting with "$" (variable reference)
+        if let Some(s) = parsed.as_str() {
+            if let Some(var_name) = s.strip_prefix('$') {
+                return variables.get(var_name).cloned();
+            }
+        }
+        // Literal value (number, boolean, string, object, array, null)
+        Some(parsed)
     }
 
     /// Get the compiled schema.
@@ -556,5 +568,121 @@ mod tests {
         let err = result.expect_err("expected Err for typo'd query name");
         let msg = err.to_string();
         assert!(msg.contains("Did you mean 'users'?"), "expected suggestion in: {msg}");
+    }
+
+    // =========================================================================
+    // resolve_inline_arg tests (C11)
+    // =========================================================================
+
+    #[test]
+    fn test_resolve_inline_arg_literal_integer() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "limit".to_string(),
+            value_json: "3".to_string(),
+            value_type: "int".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!(3)));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_literal_string() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "status".to_string(),
+            value_json: "\"active\"".to_string(),
+            value_type: "string".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!("active")));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_literal_boolean() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "active".to_string(),
+            value_json: "true".to_string(),
+            value_type: "boolean".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!(true)));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_literal_null() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "limit".to_string(),
+            value_json: "null".to_string(),
+            value_type: "null".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::Value::Null));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_variable_reference_json_quoted() {
+        // Parser serializes Variable("myLimit") as "\"$myLimit\""
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "limit".to_string(),
+            value_json: "\"$myLimit\"".to_string(),
+            value_type: "variable".to_string(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("myLimit".to_string(), serde_json::json!(5));
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!(5)));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_variable_reference_raw() {
+        // Defensive: unquoted $var format
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "limit".to_string(),
+            value_json: "$limit".to_string(),
+            value_type: "variable".to_string(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("limit".to_string(), serde_json::json!(10));
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!(10)));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_variable_not_found() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "limit".to_string(),
+            value_json: "\"$missing\"".to_string(),
+            value_type: "variable".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_object() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "where".to_string(),
+            value_json: r#"{"status":{"eq":"active"}}"#.to_string(),
+            value_type: "object".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!({"status": {"eq": "active"}})));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_list() {
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "ids".to_string(),
+            value_json: "[1,2,3]".to_string(),
+            value_type: "list".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!([1, 2, 3])));
     }
 }

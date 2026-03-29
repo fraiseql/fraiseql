@@ -162,6 +162,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
+        // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
+        //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
         // 8. Extract limit/offset from query arguments when auto_params are enabled
         let limit = if query_match.query_def.auto_params.has_limit {
             query_match
@@ -183,6 +201,17 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
+        // 8b. Extract order_by from query arguments when has_order_by is enabled
+        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
+            query_match
+                .arguments
+                .get("orderBy")
+                .map(crate::db::OrderByClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
         // 9. Execute query with combined WHERE clause filter
         let results = self
             .adapter
@@ -192,6 +221,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 combined_where.as_ref(),
                 limit,
                 offset,
+                order_by_clauses.as_deref(),
             )
             .await?;
 
@@ -295,9 +325,59 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
+        // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
+        let user_where: Option<WhereClause> =
+            if query_match.query_def.auto_params.has_where {
+                query_match
+                    .arguments
+                    .get("where")
+                    .map(WhereClause::from_graphql_json)
+                    .transpose()?
+            } else {
+                None
+            };
+
+        let limit = if query_match.query_def.auto_params.has_limit {
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let offset = if query_match.query_def.auto_params.has_offset {
+            query_match
+                .arguments
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let order_by_clauses =
+            if query_match.query_def.auto_params.has_order_by {
+                query_match
+                    .arguments
+                    .get("orderBy")
+                    .map(crate::db::OrderByClause::from_graphql_json)
+                    .transpose()?
+            } else {
+                None
+            };
+
         let results = self
             .adapter
-            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None, None)
+            .execute_with_projection(
+                sql_source,
+                projection_hint.as_ref(),
+                user_where.as_ref(),
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
+            )
             .await?;
 
         // 4. Project results
@@ -310,6 +390,113 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 6. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Count the total number of rows matching the query's WHERE and RLS conditions.
+    ///
+    /// Issues a `SELECT COUNT(*) FROM {view} WHERE {conditions}` query, ignoring
+    /// pagination (ORDER BY, LIMIT, OFFSET). Useful for REST `X-Total-Count` headers
+    /// and `count=exact` query parameter support.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_match` - Pre-built query match identifying the SQL source and filters
+    /// * `variables` - Optional variables (unused for count, reserved for future use)
+    /// * `security_context` - Optional authenticated user context for RLS and inject
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source, or if
+    /// inject params are required but no security context is provided.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn count_rows(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        _variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<u64> {
+        // 1. Evaluate RLS policy
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
+
+        // 2. Get SQL source
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // 3. Build combined WHERE clause (RLS + inject)
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but no security context is available",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
+
+        // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
+        // 4. Execute COUNT query via adapter
+        let rows = self
+            .adapter
+            .execute_where_query(sql_source, combined_where.as_ref(), None, None, None)
+            .await?;
+
+        // Return the row count
+        #[allow(clippy::cast_possible_truncation)] // Reason: row count fits u64
+        Ok(rows.len() as u64)
     }
 
     /// Execute a Relay connection query with cursor-based (keyset) pagination.
@@ -717,7 +904,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Execute the query (limit 1).
         let rows = self
             .adapter
-            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None)
+            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None, None)
             .await?;
 
         // 6. Return the first matching row (or null).

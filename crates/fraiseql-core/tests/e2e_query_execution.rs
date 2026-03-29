@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, SupportsMutations},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
@@ -126,9 +126,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Fall back to standard query for tests
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -137,6 +138,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         let mut results = self.get_table(view);
 
@@ -197,7 +199,7 @@ impl SupportsMutations for MockDatabaseAdapter {}
 #[tokio::test]
 async fn test_seed_data_users_available() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -205,7 +207,7 @@ async fn test_seed_data_users_available() {
 #[tokio::test]
 async fn test_seed_data_products_available() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -213,7 +215,7 @@ async fn test_seed_data_products_available() {
 #[tokio::test]
 async fn test_seed_data_contains_correct_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let users = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let users = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     let user = &users[0];
     let user_obj = user.as_value();
@@ -229,7 +231,7 @@ async fn test_seed_data_contains_correct_fields() {
 #[tokio::test]
 async fn test_query_execution_all_users() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -237,7 +239,7 @@ async fn test_query_execution_all_users() {
 #[tokio::test]
 async fn test_query_execution_with_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(2), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(2), None, None).await.unwrap();
 
     assert_eq!(results.len(), 2);
 }
@@ -245,7 +247,7 @@ async fn test_query_execution_with_limit() {
 #[tokio::test]
 async fn test_query_execution_products() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -257,7 +259,7 @@ async fn test_query_execution_products() {
 #[tokio::test]
 async fn test_result_projection_single_field() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     // Project only id and name
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
@@ -277,7 +279,7 @@ async fn test_result_projection_single_field() {
 #[tokio::test]
 async fn test_result_projection_multiple_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     // Project id, name, and email
     let projector =
@@ -293,7 +295,7 @@ async fn test_result_projection_multiple_fields() {
 #[tokio::test]
 async fn test_result_projection_products() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
 
     // Project only name and price
     let projector = ResultProjector::new(vec!["name".to_string(), "price".to_string()]);
@@ -318,7 +320,7 @@ async fn test_result_projection_products() {
 #[tokio::test]
 async fn test_graphql_response_data_envelope() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     let projected = projector.project_results(&results, false).unwrap();
@@ -334,7 +336,7 @@ async fn test_graphql_response_data_envelope() {
 #[tokio::test]
 async fn test_graphql_response_with_typename() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     let _projected = projector.project_results(&results, false).unwrap();
@@ -348,7 +350,7 @@ async fn test_graphql_response_with_typename() {
 #[tokio::test]
 async fn test_graphql_response_list_with_typename() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string()]);
 
@@ -383,7 +385,7 @@ async fn test_graphql_error_response() {
 async fn test_complete_e2e_pipeline_single_user() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let db_results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     assert_eq!(db_results.len(), 1);
 
@@ -415,7 +417,7 @@ async fn test_complete_e2e_pipeline_single_user() {
 async fn test_complete_e2e_pipeline_user_list() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let db_results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     assert_eq!(db_results.len(), 3);
 
@@ -441,7 +443,7 @@ async fn test_complete_e2e_pipeline_user_list() {
 async fn test_complete_e2e_pipeline_products() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter.execute_where_query("products", None, None, None).await.unwrap();
+    let db_results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
 
     // Step 2: Project fields
     let projector =
@@ -470,7 +472,7 @@ async fn test_complete_e2e_pipeline_products() {
 #[tokio::test]
 async fn test_empty_projection_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec![]);
     let _projected = projector.project_results(&results, false).unwrap();
@@ -482,7 +484,7 @@ async fn test_empty_projection_fields() {
 #[tokio::test]
 async fn test_projection_nonexistent_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec![
         "nonexistent_field".to_string(),
@@ -498,7 +500,7 @@ async fn test_projection_nonexistent_fields() {
 #[tokio::test]
 async fn test_query_with_zero_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(0), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(0), None, None).await.unwrap();
 
     assert_eq!(results.len(), 0);
 }
@@ -506,7 +508,7 @@ async fn test_query_with_zero_limit() {
 #[tokio::test]
 async fn test_large_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter.execute_where_query("users", None, Some(1000), None).await.unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1000), None, None).await.unwrap();
 
     // Should return all 3 users even though we requested 1000
     assert_eq!(results.len(), 3);
@@ -521,8 +523,8 @@ async fn test_seed_data_not_mutated() {
     let adapter = MockDatabaseAdapter::with_sample_data();
 
     // Query multiple times
-    let results1 = adapter.execute_where_query("users", None, None, None).await.unwrap();
-    let results2 = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results1 = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results2 = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
 
     // Should return same data
     assert_eq!(results1.len(), results2.len());
@@ -535,8 +537,8 @@ async fn test_seed_data_not_mutated() {
 async fn test_different_tables_independent() {
     let adapter = MockDatabaseAdapter::with_sample_data();
 
-    let users = adapter.execute_where_query("users", None, None, None).await.unwrap();
-    let products = adapter.execute_where_query("products", None, None, None).await.unwrap();
+    let users = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let products = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
 
     assert_eq!(users.len(), 3);
     assert_eq!(products.len(), 3);
