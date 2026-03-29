@@ -5,8 +5,7 @@
 //! 1. **Determinism** — same inputs always produce the same key.
 //! 2. **Key uniqueness** — different variables produce different keys (security).
 //! 3. **Schema isolation** — different schema versions produce different keys.
-//! 4. **Output format** — keys are always 64-char lowercase hex (SHA-256).
-//! 5. **WHERE isolation** — different WHERE clauses produce different keys.
+//! 4. **WHERE isolation** — different WHERE clauses produce different keys.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
@@ -62,26 +61,6 @@ proptest! {
         let key1 = generate_cache_key(&query, &vars, None, &version);
         let key2 = generate_cache_key(&query, &vars, None, &version);
         prop_assert_eq!(key1, key2, "Cache key must be deterministic");
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Property: Output format — always 64-char lowercase hex
-// ---------------------------------------------------------------------------
-
-proptest! {
-    #[test]
-    fn cache_key_is_valid_sha256_hex(
-        query in arb_query(),
-        vars in arb_variables(),
-        version in arb_schema_version(),
-    ) {
-        let key = generate_cache_key(&query, &vars, None, &version);
-        prop_assert_eq!(key.len(), 64, "SHA-256 hex must be 64 chars");
-        prop_assert!(
-            key.chars().all(|c| c.is_ascii_hexdigit()),
-            "Key must be hexadecimal: {key}"
-        );
     }
 }
 

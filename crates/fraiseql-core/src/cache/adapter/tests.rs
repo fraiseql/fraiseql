@@ -882,11 +882,6 @@ fn test_generate_aggregation_cache_key() {
         Some("tv:42"),
     );
 
-    // Keys should start with "agg:" prefix
-    assert!(key1.starts_with("agg:"));
-    assert!(key2.starts_with("agg:"));
-    assert!(key3.starts_with("agg:"));
-
     // Different versions/schema produce different keys
     assert_ne!(key1, key2);
     assert_ne!(key1, key3);

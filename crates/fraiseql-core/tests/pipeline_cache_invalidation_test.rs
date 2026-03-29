@@ -188,11 +188,11 @@ async fn mutation_invalidates_listed_views_in_cache() {
 
     // Build an enabled cache and pre-populate stale entries for each view.
     let cache = QueryResultCache::new(CacheConfig::enabled());
-    for view in &views {
-        let key = format!("pipeline4_stale:{view}");
+    for (i, view) in views.iter().enumerate() {
+        let key = (i + 1) as u64;
         cache
             .put(
-                key.clone(),
+                key,
                 vec![JsonbValue::new(json!({"stale": true}))],
                 vec![view.clone()],
                 None,
@@ -200,7 +200,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
             )
             .expect("pre-population must succeed");
         assert!(
-            cache.get(&key).unwrap().is_some(),
+            cache.get(key).unwrap().is_some(),
             "pre-condition: stale entry for '{view}' must exist before mutation"
         );
     }
@@ -221,9 +221,9 @@ async fn mutation_invalidates_listed_views_in_cache() {
         .expect("mutation must succeed");
 
     // After the mutation, all stale view entries must be gone
-    for view in &views {
-        let key = format!("pipeline4_stale:{view}");
-        let entry = cached_adapter.cache().get(&key).expect("cache.get must not error");
+    for (i, view) in views.iter().enumerate() {
+        let key = (i + 1) as u64;
+        let entry = cached_adapter.cache().get(key).expect("cache.get must not error");
         assert!(entry.is_none(), "mutation must have invalidated cache entry for view '{view}'");
     }
 }
@@ -241,11 +241,11 @@ async fn failed_mutation_does_not_invalidate_cache() {
     let views = m.invalidates_views.clone();
 
     let cache = QueryResultCache::new(CacheConfig::enabled());
-    for view in &views {
-        let key = format!("pipeline4_valid:{view}");
+    for (i, view) in views.iter().enumerate() {
+        let key = (i + 100) as u64;
         cache
             .put(
-                key.clone(),
+                key,
                 vec![JsonbValue::new(json!({"valid": true}))],
                 vec![view.clone()],
                 None,
@@ -278,9 +278,9 @@ async fn failed_mutation_does_not_invalidate_cache() {
         .await;
 
     // Regardless of GraphQL-level result, valid cache entries must remain intact
-    for view in &views {
-        let key = format!("pipeline4_valid:{view}");
-        let entry = cached_adapter.cache().get(&key).expect("cache.get must not error");
+    for (i, view) in views.iter().enumerate() {
+        let key = (i + 100) as u64;
+        let entry = cached_adapter.cache().get(key).expect("cache.get must not error");
         assert!(
             entry.is_some(),
             "failed mutation must NOT invalidate cache entry for view '{view}'"

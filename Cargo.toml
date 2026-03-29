@@ -49,6 +49,8 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
+# Fast non-cryptographic hashing (cache keys)
+ahash = "0.8"
 # Encryption
 aes-gcm = "0.10"
 anyhow = "1.0"

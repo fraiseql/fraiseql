@@ -82,7 +82,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
 
         // Try cache first
-        if let Some(cached_result) = self.cache.get(&cache_key)? {
+        if let Some(cached_result) = self.cache.get(cache_key)? {
             return Ok((*cached_result).clone());
         }
 
@@ -134,7 +134,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
 
         // Try cache first
-        if let Some(cached_result) = self.cache.get(&cache_key)? {
+        if let Some(cached_result) = self.cache.get(cache_key)? {
             // Cache hit - return cached result
             return Ok((*cached_result).clone());
         }
