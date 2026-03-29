@@ -46,12 +46,15 @@
 //! assert_ne!(key1, key2);
 //! ```
 
-use std::hash::{BuildHasher, Hasher};
+use std::hash::{BuildHasher, Hash, Hasher};
 
 use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
-use crate::{db::where_clause::WhereClause, schema::QueryDefinition};
+use crate::{
+    db::where_clause::{WhereClause, WhereOperator},
+    schema::QueryDefinition,
+};
 
 /// Fixed seeds for deterministic hashing within a process.
 ///
@@ -240,10 +243,9 @@ fn hash_where_clause(hasher: &mut impl Hasher, clause: &WhereClause) {
                 hasher.write_usize(segment.len());
                 hasher.write(segment.as_bytes());
             }
-            // Hash operator via its Debug representation — stable across
-            // the ~50 variants (including Extended) without requiring Hash.
-            let op_str = format!("{operator:?}");
-            hasher.write(op_str.as_bytes());
+            // Hash operator discriminant (zero-allocation). For the Extended
+            // variant which carries data, also hash its Debug representation.
+            hash_where_operator(hasher, operator);
             hash_json_value(hasher, value);
         }
         WhereClause::And(clauses) => {
@@ -264,6 +266,25 @@ fn hash_where_clause(hasher: &mut impl Hasher, clause: &WhereClause) {
             hasher.write_u8(3); // Not discriminant
             hash_where_clause(hasher, inner);
         }
+    }
+}
+
+/// Hash a `WhereOperator` without allocating.
+///
+/// Uses `std::mem::discriminant` for the variant tag (zero-allocation).
+/// For the `Extended(op)` variant which carries data, also hashes the
+/// Debug representation of the inner operator (rare path, acceptable allocation).
+fn hash_where_operator(hasher: &mut impl Hasher, op: &WhereOperator) {
+    // discriminant is a fixed-size hashable value — no allocation
+    std::mem::discriminant(op).hash(hasher);
+
+    // Extended operators carry inner data that affects the hash.
+    // All other variants are fully distinguished by their discriminant.
+    if let WhereOperator::Extended(inner) = op {
+        // Rare path: Extended operators are uncommon. The Debug allocation
+        // here is acceptable because it only triggers for rich-filter queries.
+        let inner_str = format!("{inner:?}");
+        hasher.write(inner_str.as_bytes());
     }
 }
 
