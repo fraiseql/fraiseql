@@ -44,6 +44,7 @@ impl DatabaseAdapter for MockAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -1180,6 +1181,7 @@ impl DatabaseAdapter for BumpAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }

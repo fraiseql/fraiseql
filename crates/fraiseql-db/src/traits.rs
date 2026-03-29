@@ -335,7 +335,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// };
     ///
     /// let results = adapter
-    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100))
+    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100), None)
     ///     .await?;
     ///
     /// // results only contain id, name, email fields
@@ -352,7 +352,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // For debugging or when projection not available
     /// let results = adapter
-    ///     .execute_with_projection("v_user", None, None, Some(100))
+    ///     .execute_with_projection("v_user", None, None, Some(100), None)
     ///     .await?;
     ///
     /// // Equivalent to execute_where_query() - returns full objects
@@ -371,6 +371,7 @@ pub trait DatabaseAdapter: Send + Sync {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Get database type (for logging/metrics).

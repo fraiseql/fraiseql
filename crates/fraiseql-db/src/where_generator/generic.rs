@@ -10,6 +10,90 @@ use crate::{
     where_clause::{WhereClause, WhereOperator},
 };
 
+/// Escape LIKE metacharacters (`%`, `_`, `\`) in a user-supplied string so
+/// that it is treated as a literal substring inside a LIKE/ILIKE pattern.
+///
+/// Order matters: `\` is escaped first to avoid double-escaping.
+pub(crate) fn escape_like_literal(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+/// Maximum allowed length for user-supplied regex patterns.
+///
+/// PostgreSQL has no built-in regex timeout, so excessively long patterns
+/// or patterns with nested quantifiers can cause CPU exhaustion (ReDoS).
+const MAX_REGEX_PATTERN_LEN: usize = 1_000;
+
+/// Validate a user-supplied regex pattern for obvious ReDoS risks.
+///
+/// Rejects:
+/// - Patterns exceeding `MAX_REGEX_PATTERN_LEN` bytes
+/// - Patterns containing nested quantifiers (e.g., `(a+)+`, `(a*)*`, `(a+)*`)
+///
+/// This is not a full ReDoS detector but catches the most common attack vectors.
+fn validate_regex_pattern(pattern: &str) -> Result<()> {
+    if pattern.len() > MAX_REGEX_PATTERN_LEN {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Regex pattern exceeds maximum length of {MAX_REGEX_PATTERN_LEN} bytes"
+            ),
+            path: None,
+        });
+    }
+
+    // Detect nested quantifiers: a quantifier (+, *, ?, {n}) immediately after
+    // a closing paren that itself follows a quantifier. Simplified heuristic:
+    // look for `)` followed by a quantifier, where the group contains a quantifier.
+    let bytes = pattern.as_bytes();
+    let mut depth: i32 = 0;
+    let mut group_has_quantifier = Vec::new(); // stack: does current group have a quantifier?
+
+    for (i, &b) in bytes.iter().enumerate() {
+        // Skip escaped characters
+        if i > 0 && bytes[i - 1] == b'\\' {
+            continue;
+        }
+        match b {
+            b'(' => {
+                depth += 1;
+                group_has_quantifier.push(false);
+            },
+            b')' => {
+                let had_quantifier = group_has_quantifier.pop().unwrap_or(false);
+                depth -= 1;
+                // Check if a quantifier follows this closing paren
+                if had_quantifier {
+                    let next = bytes.get(i + 1).copied();
+                    if matches!(next, Some(b'+' | b'*' | b'?' | b'{')) {
+                        return Err(FraiseQLError::Validation {
+                            message: "Regex pattern contains nested quantifiers (potential \
+                                      ReDoS). Simplify the pattern to avoid `(…+)+`, \
+                                      `(…*)*`, or similar constructs."
+                                .to_string(),
+                            path: None,
+                        });
+                    }
+                }
+            },
+            b'+' | b'*' | b'?' => {
+                if let Some(flag) = group_has_quantifier.last_mut() {
+                    *flag = true;
+                }
+            },
+            b'{' if depth > 0 => {
+                if let Some(flag) = group_has_quantifier.last_mut() {
+                    *flag = true;
+                }
+            },
+            _ => {},
+        }
+    }
+
+    Ok(())
+}
+
 /// Generic WHERE clause SQL generator.
 ///
 /// Replaces `PostgresWhereGenerator`, `MySqlWhereGenerator`,
@@ -245,37 +329,43 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             // ── String: LIKE family ───────────────────────────────────────────
             WhereOperator::Contains => {
                 let val_str = self.require_str(value, "Contains")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&["'%'", &p, "'%'"]);
                 Ok(self.dialect.like_sql(&field_expr, &pattern))
             },
             WhereOperator::Icontains => {
                 let val_str = self.require_str(value, "Icontains")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&["'%'", &p, "'%'"]);
                 Ok(self.dialect.ilike_sql(&field_expr, &pattern))
             },
             WhereOperator::Startswith => {
                 let val_str = self.require_str(value, "Startswith")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&[&p, "'%'"]);
                 Ok(self.dialect.like_sql(&field_expr, &pattern))
             },
             WhereOperator::Istartswith => {
                 let val_str = self.require_str(value, "Istartswith")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&[&p, "'%'"]);
                 Ok(self.dialect.ilike_sql(&field_expr, &pattern))
             },
             WhereOperator::Endswith => {
                 let val_str = self.require_str(value, "Endswith")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&["'%'", &p]);
                 Ok(self.dialect.like_sql(&field_expr, &pattern))
             },
             WhereOperator::Iendswith => {
                 let val_str = self.require_str(value, "Iendswith")?;
-                let p = self.push_param(params, serde_json::Value::String(val_str.to_string()));
+                let escaped = escape_like_literal(val_str);
+                let p = self.push_param(params, serde_json::Value::String(escaped));
                 let pattern = self.dialect.concat_sql(&["'%'", &p]);
                 Ok(self.dialect.ilike_sql(&field_expr, &pattern))
             },
@@ -298,24 +388,36 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
             // ── String: Regex ─────────────────────────────────────────────────
             WhereOperator::Regex => {
+                if let Some(s) = value.as_str() {
+                    validate_regex_pattern(s)?;
+                }
                 let p = self.push_param(params, value.clone());
                 self.dialect
                     .regex_sql(&field_expr, &p, false, false)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Iregex => {
+                if let Some(s) = value.as_str() {
+                    validate_regex_pattern(s)?;
+                }
                 let p = self.push_param(params, value.clone());
                 self.dialect
                     .regex_sql(&field_expr, &p, true, false)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Nregex => {
+                if let Some(s) = value.as_str() {
+                    validate_regex_pattern(s)?;
+                }
                 let p = self.push_param(params, value.clone());
                 self.dialect
                     .regex_sql(&field_expr, &p, false, true)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::Niregex => {
+                if let Some(s) = value.as_str() {
+                    validate_regex_pattern(s)?;
+                }
                 let p = self.push_param(params, value.clone());
                 self.dialect
                     .regex_sql(&field_expr, &p, true, true)
@@ -821,5 +923,82 @@ mod tests {
         let err = gen.generate(&clause).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("Inet") || msg.contains("not supported"), "Got: {msg}");
+    }
+
+    // ── LIKE metacharacter escaping (C3 fix verification) ──────────────
+
+    #[test]
+    fn escape_like_literal_escapes_percent_and_underscore() {
+        assert_eq!(super::escape_like_literal("50%"), "50\\%");
+        assert_eq!(super::escape_like_literal("user_name"), "user\\_name");
+        assert_eq!(super::escape_like_literal("a%b_c\\d"), "a\\%b\\_c\\\\d");
+        assert_eq!(super::escape_like_literal("plain"), "plain");
+    }
+
+    #[test]
+    fn contains_escapes_like_metacharacters() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Contains, json!("50%off"));
+        let (_sql, params) = gen.generate(&clause).unwrap();
+        // The param value must have % escaped so it's treated as a literal.
+        assert_eq!(params[0], json!("50\\%off"));
+    }
+
+    #[test]
+    fn startswith_escapes_like_metacharacters() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Startswith, json!("user_"));
+        let (_sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(params[0], json!("user\\_"));
+    }
+
+    #[test]
+    fn endswith_escapes_like_metacharacters() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Endswith, json!("100%"));
+        let (_sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(params[0], json!("100\\%"));
+    }
+
+    // ── Regex complexity guard (C5 fix verification) ──────────────────
+
+    #[test]
+    fn regex_rejects_nested_quantifiers() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Regex, json!("(a+)+$"));
+        let err = gen.generate(&clause).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("nested quantifiers"), "Got: {msg}");
+    }
+
+    #[test]
+    fn regex_rejects_star_star_pattern() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Regex, json!("(x*)*"));
+        let err = gen.generate(&clause).unwrap_err();
+        assert!(err.to_string().contains("nested quantifiers"));
+    }
+
+    #[test]
+    fn regex_rejects_too_long_pattern() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let long_pattern = "a".repeat(1_001);
+        let clause = field("name", WhereOperator::Regex, json!(long_pattern));
+        let err = gen.generate(&clause).unwrap_err();
+        assert!(err.to_string().contains("maximum length"));
+    }
+
+    #[test]
+    fn regex_allows_safe_patterns() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Regex, json!("^[a-z]+$"));
+        assert!(gen.generate(&clause).is_ok());
+    }
+
+    #[test]
+    fn iregex_also_validates_pattern() {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("name", WhereOperator::Iregex, json!("(a+)+"));
+        assert!(gen.generate(&clause).is_err());
     }
 }

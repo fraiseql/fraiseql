@@ -5,8 +5,8 @@ use std::sync::Arc;
 use super::{Executor, null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
-        CursorValue, WhereClause, WhereOperator, projection_generator::PostgresProjectionGenerator,
-        traits::DatabaseAdapter,
+        CursorValue, ProjectionField, WhereClause, WhereOperator,
+        projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
     },
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
@@ -60,6 +60,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Route relay queries to dedicated handler with security context.
+        if query_match.query_def.relay {
+            return self
+                .execute_relay_query(&query_match, variables, Some(security_context))
+                .await;
+        }
+
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
@@ -87,13 +94,29 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization)
-        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
+        //    Look up field types from schema to use the correct JSONB operator:
+        //    `->` for objects/lists (preserves JSONB), `->>` for scalars (text).
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
+            let type_def = self.schema.find_type(&query_match.query_def.return_type);
+            let typed_fields: Vec<ProjectionField> = plan
+                .projection_fields
+                .iter()
+                .map(|name| {
+                    let is_composite = type_def
+                        .and_then(|td| td.fields.iter().find(|f| f.name == name.as_str()))
+                        .is_some_and(|f| !f.field_type.is_scalar());
+                    ProjectionField {
+                        name:         name.clone(),
+                        is_composite,
+                    }
+                })
+                .collect();
+
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
-                .generate_projection_sql(&plan.projection_fields)
+                .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
@@ -139,25 +162,47 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
-        // 8. Execute query with combined WHERE clause filter
+        // 8. Extract limit/offset from query arguments when auto_params are enabled
+        let limit = if query_match.query_def.auto_params.has_limit {
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let offset = if query_match.query_def.auto_params.has_offset {
+            query_match
+                .arguments
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        // 9. Execute query with combined WHERE clause filter
         let results = self
             .adapter
             .execute_with_projection(
                 sql_source,
                 projection_hint.as_ref(),
                 combined_where.as_ref(),
-                None,
+                limit,
+                offset,
             )
             .await?;
 
-        // 9. Apply field-level RBAC filtering (reject / mask / allow)
+        // 10. Apply field-level RBAC filtering (reject / mask / allow)
         let access = self.apply_field_rbac_filtering(
             &query_match.query_def.return_type,
             plan.projection_fields,
             security_context,
         )?;
 
-        // 10. Project results — include both allowed and masked fields in projection
+        // 11. Project results — include both allowed and masked fields in projection
         let mut all_projection_fields = access.allowed;
         all_projection_fields.extend(access.masked.iter().cloned());
         let projector = ResultProjector::new(all_projection_fields);
@@ -213,7 +258,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Route relay queries to dedicated handler.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables).await;
+            return self.execute_relay_query(&query_match, variables, None).await;
         }
 
         // 2. Create execution plan
@@ -252,7 +297,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         let results = self
             .adapter
-            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None)
+            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None, None)
             .await?;
 
         // 4. Project results
@@ -295,6 +340,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
     ) -> Result<String> {
         use crate::{
             compiler::aggregation::OrderByClause,
@@ -303,6 +349,17 @@ impl<A: DatabaseAdapter> Executor<A> {
         };
 
         let query_def = &query_match.query_def;
+
+        // Guard: queries with inject params require a security context.
+        if !query_def.inject_params.is_empty() && security_context.is_none() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_def.name
+                ),
+                path:    None,
+            });
+        }
 
         let sql_source =
             query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
@@ -333,6 +390,50 @@ impl<A: DatabaseAdapter> Executor<A> {
             ),
             path:    None,
         })?;
+
+        // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
+        // Evaluate RLS policy to generate security WHERE clause.
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_def.name)?
+        } else {
+            None
+        };
+
+        // Resolve inject_params from JWT claims and compose with RLS.
+        let security_where: Option<WhereClause> = if query_def.inject_params.is_empty() {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
 
         // Extract relay pagination arguments from variables.
         let vars = variables.and_then(|v| v.as_object());
@@ -414,12 +515,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fetch_limit = page_size + 1;
 
         // Parse optional `where` filter from variables.
-        let where_clause = if query_def.auto_params.has_where {
+        let user_where_clause = if query_def.auto_params.has_where {
             vars.and_then(|v| v.get("where"))
                 .map(WhereClause::from_graphql_json)
                 .transpose()?
         } else {
             None
+        };
+
+        // Compose final WHERE: security (RLS + inject) AND user-supplied WHERE.
+        // Security conditions always come first so they cannot be bypassed.
+        let combined_where = match (security_where, user_where_clause) {
+            (None, None) => None,
+            (Some(sec), None) => Some(sec),
+            (None, Some(user)) => Some(user),
+            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
         // Parse optional `orderBy` from variables.
@@ -455,7 +565,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 before_pk,
                 fetch_limit,
                 forward,
-                where_clause.as_ref(),
+                combined_where.as_ref(),
                 order_by.as_deref(),
                 include_total_count,
             )

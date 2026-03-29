@@ -216,12 +216,14 @@ impl SqlDialect for PostgresDialect {
                 Ok(format!("SPLIT_PART({field_sql}, '@', 2) IN ({})", placeholders.join(", ")))
             },
             ExtendedOperator::EmailDomainEndswith(suffix) => {
-                params.push(serde_json::Value::String(suffix.clone()));
+                let escaped = crate::where_generator::generic::escape_like_literal(suffix);
+                params.push(serde_json::Value::String(escaped));
                 let idx = params.len();
                 Ok(format!("SPLIT_PART({field_sql}, '@', 2) LIKE '%' || ${idx}"))
             },
             ExtendedOperator::EmailLocalPartStartswith(prefix) => {
-                params.push(serde_json::Value::String(prefix.clone()));
+                let escaped = crate::where_generator::generic::escape_like_literal(prefix);
+                params.push(serde_json::Value::String(escaped));
                 let idx = params.len();
                 Ok(format!("SPLIT_PART({field_sql}, '@', 1) LIKE ${idx} || '%'"))
             },

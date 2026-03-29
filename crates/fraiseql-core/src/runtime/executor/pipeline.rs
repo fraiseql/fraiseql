@@ -288,6 +288,7 @@ mod tests {
             _projection: Option<&SqlProjectionHint>,
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
+            _offset: Option<u32>,
         ) -> crate::error::Result<Vec<JsonbValue>> {
             Ok(vec![JsonbValue::new(serde_json::json!({"id": 1}))])
         }

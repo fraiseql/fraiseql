@@ -52,7 +52,38 @@ impl SecretsBackend for FileBackend {
     }
 
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+        // Reject path traversal attempts (e.g., "../../etc/passwd").
+        if name.contains("..") {
+            return Err(SecretsError::BackendError(format!(
+                "Secret name '{}' contains path traversal sequence",
+                name
+            )));
+        }
+
         let path = self.base_path.join(name);
+
+        // Defence-in-depth: after joining, verify the resolved path still
+        // starts with base_path. This catches edge cases like symlinks.
+        let canonical_base = self.base_path.canonicalize().map_err(|e| {
+            SecretsError::BackendError(format!(
+                "Failed to resolve base path {}: {}",
+                self.base_path.display(),
+                e
+            ))
+        })?;
+        let canonical_path = path.canonicalize().map_err(|e| {
+            SecretsError::BackendError(format!(
+                "Failed to resolve secret path {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+        if !canonical_path.starts_with(&canonical_base) {
+            return Err(SecretsError::BackendError(format!(
+                "Secret path escapes base directory: {}",
+                name
+            )));
+        }
 
         let content = tokio::fs::read_to_string(&path).await.map_err(|e| {
             SecretsError::BackendError(format!(
@@ -204,5 +235,34 @@ mod tests {
         let secret = backend.get_secret("empty").await.unwrap();
 
         assert_eq!(secret, "");
+    }
+
+    /// Test FileBackend rejects path traversal in secret name
+    #[tokio::test]
+    async fn test_file_backend_rejects_path_traversal() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let backend = FileBackend::new(dir.path());
+
+        let result = backend.get_secret("../../etc/passwd").await;
+        assert!(result.is_err(), "path traversal must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("path traversal"),
+            "error should mention path traversal; got: {msg}"
+        );
+    }
+
+    /// Test FileBackend rejects relative parent in secret name
+    #[tokio::test]
+    async fn test_file_backend_rejects_dotdot_in_name() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let backend = FileBackend::new(dir.path());
+
+        let result = backend.get_secret("subdir/../../../etc/shadow").await;
+        assert!(result.is_err());
     }
 }

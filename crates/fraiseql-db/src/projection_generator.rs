@@ -29,6 +29,46 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
+/// A field in a SQL projection with type information.
+///
+/// Used by typed projection generators to choose the correct JSONB extraction
+/// operator: `->` (preserves JSONB) for objects/arrays, `->>` (text) for scalars.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionField {
+    /// GraphQL field name (camelCase).
+    pub name: String,
+
+    /// Whether this field is a composite type (Object or List) that should
+    /// be extracted as JSONB (`->`) rather than text (`->>`).
+    pub is_composite: bool,
+}
+
+impl ProjectionField {
+    /// Create a scalar projection field (uses `->>` text extraction).
+    #[must_use]
+    pub fn scalar(name: impl Into<String>) -> Self {
+        Self {
+            name:         name.into(),
+            is_composite: false,
+        }
+    }
+
+    /// Create a composite (object/list) projection field (uses `->` JSONB extraction).
+    #[must_use]
+    pub fn composite(name: impl Into<String>) -> Self {
+        Self {
+            name:         name.into(),
+            is_composite: true,
+        }
+    }
+}
+
+impl From<String> for ProjectionField {
+    fn from(name: String) -> Self {
+        Self::scalar(name)
+    }
+}
+
 /// Validate that a GraphQL field name contains only characters that are safe
 /// for use in SQL projections (alphanumeric characters and underscores only).
 ///
@@ -178,6 +218,42 @@ impl PostgresProjectionGenerator {
             .collect();
 
         // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
+        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+    }
+
+    /// Generate type-aware PostgreSQL projection SQL.
+    ///
+    /// Uses `->` (JSONB extraction) for composite fields (objects, lists) and
+    /// `->>` (text extraction) for scalar fields. This avoids the unnecessary
+    /// text→JSON round-trip that occurs when `->>` is used for nested objects.
+    ///
+    /// # Arguments
+    ///
+    /// * `fields` - Projection fields with type information
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if any field name contains characters
+    /// that cannot be safely included in a SQL projection.
+    pub fn generate_typed_projection_sql(&self, fields: &[ProjectionField]) -> Result<String> {
+        if fields.is_empty() {
+            return Ok(format!("\"{}\"", self.jsonb_column));
+        }
+
+        let field_pairs: Vec<String> = fields
+            .iter()
+            .map(|field| {
+                let safe_field = Self::escape_sql_string(&field.name);
+                let jsonb_key = to_snake_case(&field.name);
+                let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
+                let operator = if field.is_composite { "->" } else { "->>" };
+                format!(
+                    "'{}', \"{}\"{}'{}' ",
+                    safe_field, self.jsonb_column, operator, safe_jsonb_key
+                )
+            })
+            .collect();
+
         Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
     }
 

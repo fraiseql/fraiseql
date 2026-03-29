@@ -52,6 +52,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         _projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_where_query(view, where_clause, limit, None).await
     }
@@ -144,6 +145,7 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         _projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_where_query(view, where_clause, limit, None).await
     }

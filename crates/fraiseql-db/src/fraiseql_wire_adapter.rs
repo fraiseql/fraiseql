@@ -224,10 +224,11 @@ impl DatabaseAdapter for FraiseWireAdapter {
         _projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // FraiseWire uses streaming, so projection is handled by field selection
         // Fall back to standard query for now
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, offset).await
     }
 
     /// # Errors

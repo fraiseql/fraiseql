@@ -652,7 +652,7 @@ async fn test_projection_filters_fields() {
         estimated_reduction_percent: 50,
     };
     let results = adapter
-        .execute_with_projection("v_user", Some(&projection), None, None)
+        .execute_with_projection("v_user", Some(&projection), None, None, None)
         .await
         .expect("execute_with_projection should succeed");
     assert_eq!(results.len(), 3);

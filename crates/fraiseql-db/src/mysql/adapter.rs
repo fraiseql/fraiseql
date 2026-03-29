@@ -201,10 +201,11 @@ impl DatabaseAdapter for MySqlAdapter {
         projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -232,6 +233,11 @@ impl DatabaseAdapter for MySqlAdapter {
         // Add LIMIT if present
         if let Some(lim) = limit {
             write!(sql, " LIMIT {lim}").expect("write to String");
+        }
+
+        // Add OFFSET if present
+        if let Some(off) = offset {
+            write!(sql, " OFFSET {off}").expect("write to String");
         }
 
         // Execute the query

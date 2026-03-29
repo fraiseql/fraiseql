@@ -50,8 +50,9 @@ impl DatabaseAdapter for PostgresAdapter {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection(view, projection, where_clause, limit).await
+        self.execute_with_projection(view, projection, where_clause, limit, offset).await
     }
 
     async fn execute_where_query(

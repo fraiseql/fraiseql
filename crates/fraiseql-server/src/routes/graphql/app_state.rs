@@ -421,6 +421,7 @@ mod tests {
             _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
+            _offset: Option<u32>,
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }

@@ -93,7 +93,8 @@ pub use mysql::MySqlAdapter;
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{
-    MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
+    MySqlProjectionGenerator, PostgresProjectionGenerator, ProjectionField,
+    SqliteProjectionGenerator,
 };
 #[cfg(feature = "sqlite")]
 pub use sqlite::SqliteAdapter;

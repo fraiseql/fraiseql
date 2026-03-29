@@ -110,6 +110,7 @@ impl DatabaseAdapter for RelayMockAdapter {
         _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         self.execute_where_query(view, where_clause, limit, None).await
     }
@@ -705,6 +706,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -1022,4 +1024,331 @@ async fn relay_cursor_column_is_pk_user_not_id() {
         vec![PK_ALICE, PK_BOB, PK_CAROL],
         "cursor values must correspond to pk_user column values in order"
     );
+}
+
+// =============================================================================
+// RLS + inject_params on relay queries (C1 + C7 fix verification)
+// =============================================================================
+
+mod relay_security {
+    use super::*;
+    use std::sync::Mutex;
+
+    use fraiseql_core::{
+        runtime::RuntimeConfig,
+        schema::InjectedParamSource,
+        security::{DefaultRLSPolicy, SecurityContext},
+    };
+
+    /// A relay mock adapter that records the WHERE clause passed to
+    /// `execute_relay_page`, so tests can assert RLS/inject composition.
+    struct RecordingRelayAdapter {
+        rows: Vec<JsonbValue>,
+        recorded_where: Mutex<Vec<Option<String>>>,
+    }
+
+    impl RecordingRelayAdapter {
+        fn new() -> Self {
+            Self {
+                rows:           vec![alice(), bob(), carol()],
+                recorded_where: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn recorded_wheres(&self) -> Vec<Option<String>> {
+            self.recorded_where.lock().unwrap().clone()
+        }
+    }
+
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
+    impl DatabaseAdapter for RecordingRelayAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 1,
+                idle_connections:   0,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for RecordingRelayAdapter {}
+
+    impl RelayDatabaseAdapter for RecordingRelayAdapter {
+        async fn execute_relay_page(
+            &self,
+            _view: &str,
+            cursor_column: &str,
+            after: Option<CursorValue>,
+            _before: Option<CursorValue>,
+            limit: u32,
+            forward: bool,
+            where_clause: Option<&fraiseql_core::db::WhereClause>,
+            _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
+            include_total_count: bool,
+        ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
+            // Record the WHERE clause for assertion.
+            self.recorded_where
+                .lock()
+                .unwrap()
+                .push(where_clause.map(|w| format!("{w:?}")));
+
+            // Minimal keyset pagination (same as RelayMockAdapter).
+            let total_count =
+                if include_total_count { Some(self.rows.len() as u64) } else { None };
+
+            let after_pk = after.and_then(|c| {
+                if let CursorValue::Int64(v) = c {
+                    Some(v)
+                } else {
+                    None
+                }
+            });
+
+            let mut filtered: Vec<&JsonbValue> = self
+                .rows
+                .iter()
+                .filter(|r| {
+                    let pk =
+                        r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
+                    if forward {
+                        after_pk.is_none_or(|a| pk > a)
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+
+            if !forward {
+                filtered.reverse();
+            }
+
+            let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+            Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
+        }
+    }
+
+    fn security_context(user_id: &str, tenant_id: &str) -> SecurityContext {
+        SecurityContext {
+            user_id:          user_id.to_string(),
+            roles:            vec!["user".to_string()],
+            tenant_id:        Some(tenant_id.to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
+            authenticated_at: chrono::Utc::now(),
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    fn admin_context() -> SecurityContext {
+        SecurityContext {
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        Some("tenant-abc".to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "test-admin-req".to_string(),
+            ip_address:       None,
+            authenticated_at: chrono::Utc::now(),
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    /// Build an executor with RLS policy and a recording adapter.
+    fn rls_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+        let adapter = Arc::new(RecordingRelayAdapter::new());
+        let config =
+            RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let exec =
+            Executor::with_config_and_relay(relay_schema(), adapter.clone(), config);
+        (exec, adapter)
+    }
+
+    /// Build an executor with both RLS policy and `inject_params` on the relay query.
+    fn rls_inject_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+        let adapter = Arc::new(RecordingRelayAdapter::new());
+        let config =
+            RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+
+        let mut schema = relay_schema();
+        // Add inject_params to the relay query: tenant_id from JWT.
+        for q in &mut schema.queries {
+            if q.name == "users" {
+                q.inject_params.insert(
+                    "tenant_id".to_string(),
+                    InjectedParamSource::Jwt("tenant_id".to_string()),
+                );
+            }
+        }
+
+        let exec = Executor::with_config_and_relay(schema, adapter.clone(), config);
+        (exec, adapter)
+    }
+
+    // ── C1: Relay queries must apply RLS ──────────────────────────────
+
+    /// Non-admin relay query must receive an RLS WHERE clause.
+    #[tokio::test]
+    async fn relay_query_applies_rls_for_non_admin() {
+        let (exec, adapter) = rls_executor();
+        let ctx = security_context("user-1", "tenant-abc");
+
+        let result = exec
+            .execute_with_security(
+                "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
+                Some(&json!({"first": 10})),
+                &ctx,
+            )
+            .await;
+
+        assert!(result.is_ok(), "relay query with RLS should succeed: {result:?}");
+
+        let wheres = adapter.recorded_wheres();
+        assert_eq!(wheres.len(), 1, "exactly one relay page call expected");
+        let where_str = wheres[0].as_ref().expect("RLS WHERE must be present for non-admin");
+
+        // DefaultRLSPolicy with tenant_id produces AND(tenant_id=.., author_id=..)
+        assert!(
+            where_str.contains("tenant_id"),
+            "RLS WHERE must contain tenant_id filter; got: {where_str}"
+        );
+        assert!(
+            where_str.contains("author_id"),
+            "RLS WHERE must contain author_id (owner) filter; got: {where_str}"
+        );
+    }
+
+    /// Admin relay query should NOT have an RLS WHERE clause (admin bypass).
+    #[tokio::test]
+    async fn relay_query_bypasses_rls_for_admin() {
+        let (exec, adapter) = rls_executor();
+        let ctx = admin_context();
+
+        let result = exec
+            .execute_with_security(
+                "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
+                Some(&json!({"first": 10})),
+                &ctx,
+            )
+            .await;
+
+        assert!(result.is_ok(), "admin relay query should succeed: {result:?}");
+
+        let wheres = adapter.recorded_wheres();
+        assert_eq!(wheres.len(), 1);
+        assert!(
+            wheres[0].is_none(),
+            "admin should have no RLS WHERE clause; got: {:?}",
+            wheres[0]
+        );
+    }
+
+    // ── C7: Relay queries must apply inject_params ────────────────────
+
+    /// Relay query with `inject_params` must compose RLS + inject in the WHERE clause.
+    #[tokio::test]
+    async fn relay_query_applies_inject_params_with_rls() {
+        let (exec, adapter) = rls_inject_executor();
+        let ctx = security_context("user-1", "tenant-abc");
+
+        let result = exec
+            .execute_with_security(
+                "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
+                Some(&json!({"first": 10})),
+                &ctx,
+            )
+            .await;
+
+        assert!(result.is_ok(), "relay with inject+RLS should succeed: {result:?}");
+
+        let wheres = adapter.recorded_wheres();
+        assert_eq!(wheres.len(), 1);
+        let where_str = wheres[0].as_ref().expect("combined WHERE must be present");
+
+        // Should contain both RLS fields and inject_params tenant_id
+        assert!(
+            where_str.contains("tenant_id"),
+            "WHERE must include inject_params tenant_id; got: {where_str}"
+        );
+    }
+
+    /// Relay query with `inject_params` but no security context must fail.
+    #[tokio::test]
+    async fn relay_query_rejects_inject_params_without_security_context() {
+        let (exec, _adapter) = rls_inject_executor();
+
+        let result = exec
+            .execute(
+                "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
+                Some(&json!({"first": 10})),
+            )
+            .await;
+
+        assert!(result.is_err(), "relay with inject but no auth must fail");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("inject params") || err_msg.contains("security context"),
+            "error should mention inject params or security context; got: {err_msg}"
+        );
+    }
 }

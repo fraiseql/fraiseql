@@ -305,6 +305,7 @@ impl DatabaseAdapter for FailingAdapter {
         _projection: Option<&SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         self.check_failure(view)?;
         Ok(self.get_response(view))

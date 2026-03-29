@@ -344,7 +344,7 @@ impl PostgresAdapter {
     /// };
     ///
     /// let results = adapter
-    ///     .execute_with_projection("v_user", Some(&projection), None, Some(10))
+    ///     .execute_with_projection("v_user", Some(&projection), None, Some(10), None)
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -355,10 +355,11 @@ impl PostgresAdapter {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -379,18 +380,23 @@ impl PostgresAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add parameterized LIMIT
-            let mut params = where_params;
-            let mut param_count = params.len();
+            // Convert WHERE params to typed params first
+            let mut typed_params: Vec<QueryParam> =
+                where_params.into_iter().map(QueryParam::from).collect();
+            let mut param_count = typed_params.len();
 
+            // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type)
             if let Some(lim) = limit {
                 param_count += 1;
                 write!(sql, " LIMIT ${param_count}").expect("write to String");
-                params.push(serde_json::Value::Number(lim.into()));
+                typed_params.push(QueryParam::BigInt(i64::from(lim)));
             }
 
-            // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
+            if let Some(off) = offset {
+                param_count += 1;
+                write!(sql, " OFFSET ${param_count}").expect("write to String");
+                typed_params.push(QueryParam::BigInt(i64::from(off)));
+            }
 
             tracing::debug!("SQL with projection = {}", sql);
             tracing::debug!("typed_params = {:?}", typed_params);
@@ -403,18 +409,21 @@ impl PostgresAdapter {
 
             self.execute_raw(&sql, &param_refs).await
         } else {
-            // No WHERE clause
-            let mut params: Vec<serde_json::Value> = vec![];
+            // No WHERE clause — only LIMIT/OFFSET params
+            let mut typed_params: Vec<QueryParam> = Vec::new();
             let mut param_count = 0;
 
             if let Some(lim) = limit {
                 param_count += 1;
                 write!(sql, " LIMIT ${param_count}").expect("write to String");
-                params.push(serde_json::Value::Number(lim.into()));
+                typed_params.push(QueryParam::BigInt(i64::from(lim)));
             }
 
-            // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
+            if let Some(off) = offset {
+                param_count += 1;
+                write!(sql, " OFFSET ${param_count}").expect("write to String");
+                typed_params.push(QueryParam::BigInt(i64::from(off)));
+            }
 
             // Create references to QueryParam for ToSql
             let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
