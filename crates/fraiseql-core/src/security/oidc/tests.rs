@@ -277,6 +277,8 @@ async fn oidc_discovery_oversized_response_is_rejected() {
 
     // Use localhost (not the raw 127.0.0.1 from mock.uri()) to pass the HTTPS
     // validation exception for development. The test targets the size check, not HTTPS.
+    // Allow localhost for SSRF check since we are testing against a local mock server.
+    std::env::set_var("FRAISEQL_OIDC_ALLOW_LOCALHOST", "1");
     let port = mock.uri().rsplit(':').next().unwrap().to_string();
     let config = OidcConfig {
         issuer: format!("http://localhost:{port}"),
@@ -284,6 +286,7 @@ async fn oidc_discovery_oversized_response_is_rejected() {
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;
+    std::env::remove_var("FRAISEQL_OIDC_ALLOW_LOCALHOST");
     assert!(result.is_err(), "oversized discovery response must be rejected");
     let msg = result.err().unwrap().to_string();
     assert!(msg.contains("too large"), "error must mention size limit: {msg}");
@@ -305,6 +308,8 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
         .mount(&mock)
         .await;
 
+    // Allow localhost for SSRF check since we are testing against a local mock server.
+    std::env::set_var("FRAISEQL_OIDC_ALLOW_LOCALHOST", "1");
     let port = mock.uri().rsplit(':').next().unwrap().to_string();
     let config = OidcConfig {
         issuer: format!("http://localhost:{port}"),
@@ -312,6 +317,7 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
         ..Default::default()
     };
     let result = OidcValidator::new(config).await;
+    std::env::remove_var("FRAISEQL_OIDC_ALLOW_LOCALHOST");
     // Must fail with a JSON parse error, NOT a size error
     assert!(result.is_err());
     let msg = result.err().unwrap().to_string();
@@ -336,4 +342,96 @@ fn with_jwks_uri_creates_validator_without_panicking() {
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks".to_string());
     assert_eq!(validator.issuer(), "https://example.com");
+}
+
+// ============================================================================
+// SSRF validation for OIDC URLs
+// ============================================================================
+
+#[test]
+fn ssrf_rejects_localhost() {
+    let err = super::validate_oidc_url("https://localhost/.well-known/openid-configuration");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_localhost_subdomain() {
+    let err = super::validate_oidc_url("https://evil.localhost/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_loopback_ipv4() {
+    let err = super::validate_oidc_url("https://127.0.0.1/.well-known/openid-configuration");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_loopback_ipv6() {
+    let err = super::validate_oidc_url("https://[::1]/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_private_10_network() {
+    let err = super::validate_oidc_url("https://10.0.0.1/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_private_172_network() {
+    let err = super::validate_oidc_url("https://172.16.0.1/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_private_192_168_network() {
+    let err = super::validate_oidc_url("https://192.168.1.1/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_link_local() {
+    let err = super::validate_oidc_url("https://169.254.169.254/metadata");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_cgnat() {
+    let err = super::validate_oidc_url("https://100.64.0.1/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_rejects_unspecified() {
+    let err = super::validate_oidc_url("https://0.0.0.0/jwks");
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("SSRF blocked"));
+}
+
+#[test]
+fn ssrf_allows_public_https_url() {
+    let result = super::validate_oidc_url("https://accounts.google.com/.well-known/openid-configuration");
+    assert!(result.is_ok());
+}
+
+#[test]
+fn ssrf_allows_public_ip() {
+    let result = super::validate_oidc_url("https://8.8.8.8/jwks");
+    assert!(result.is_ok());
+}
+
+#[test]
+fn ssrf_rejects_invalid_url() {
+    let err = super::validate_oidc_url("not a url");
+    assert!(err.is_err());
 }

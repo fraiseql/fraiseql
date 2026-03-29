@@ -1,5 +1,6 @@
+#![allow(missing_docs)] // Reason: integration test crate
+#![cfg(feature = "axum-compat")]
 #![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
-#![allow(missing_docs)]
 
 use axum::{
     http::{HeaderValue, StatusCode},

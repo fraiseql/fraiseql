@@ -516,8 +516,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    #[allow(unused_mut)]
-    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
+    #[allow(unused_mut)] // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,

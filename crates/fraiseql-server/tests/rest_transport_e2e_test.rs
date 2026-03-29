@@ -1,3 +1,4 @@
+#![allow(missing_docs)] // Reason: integration test crate
 #![cfg(feature = "rest")]
 //! End-to-end integration tests for the REST transport (Cycle 9).
 //!

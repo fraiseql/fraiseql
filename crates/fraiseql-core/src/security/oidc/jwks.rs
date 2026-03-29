@@ -168,6 +168,8 @@ impl OidcValidator {
     async fn fetch_jwks(&self) -> Result<Jwks> {
         tracing::debug!(uri = %self.jwks_uri, "Fetching JWKS");
 
+        super::validate_oidc_url(&self.jwks_uri)?;
+
         let response = self.http_client.get(&self.jwks_uri).send().await.map_err(|e| {
             tracing::error!(error = %e, "Failed to fetch JWKS");
             SecurityError::SecurityConfigError(format!("Failed to fetch JWKS: {e}"))

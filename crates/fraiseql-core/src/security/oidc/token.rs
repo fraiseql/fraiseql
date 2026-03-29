@@ -77,6 +77,8 @@ impl OidcValidator {
 
             tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
 
+            super::validate_oidc_url(&discovery_url)?;
+
             let response = http_client.get(&discovery_url).send().await.map_err(|e| {
                 SecurityError::SecurityConfigError(format!("OIDC discovery failed: {e}"))
             })?;
@@ -114,6 +116,9 @@ impl OidcValidator {
 
             discovery.jwks_uri
         };
+
+        // Validate the JWKS URI against SSRF before any fetch occurs.
+        super::validate_oidc_url(&jwks_uri)?;
 
         Ok(Self {
             config,

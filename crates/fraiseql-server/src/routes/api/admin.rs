@@ -342,7 +342,6 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 /// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
-// Reason: `cache_enabled = "false"` appears in both the else-branch and the
 #[allow(clippy::branches_sharing_code)] // Reason: shared code is inside cfg(feature = "arrow") branches; extracting would break conditional logic
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,

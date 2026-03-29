@@ -1,3 +1,4 @@
+#![allow(missing_docs)] // Reason: integration test crate
 #![cfg(feature = "grpc")]
 //! End-to-end integration tests for the gRPC transport (Cycle 7).
 //!

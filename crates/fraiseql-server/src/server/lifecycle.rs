@@ -464,8 +464,7 @@ mod tests {
         unreachable_code,
         clippy::diverging_sub_expression,
         unused_variables
-    )]
-    // Reason: compile-time type check only; body is never executed.
+    )] // Reason: compile-time type check only; body is never executed.
     fn static_assert_wire_adapter_can_serve() {
         let server: Server<fraiseql_core::db::FraiseWireAdapter> = todo!();
         drop(server.serve());
@@ -478,8 +477,7 @@ mod tests {
         unreachable_code,
         clippy::diverging_sub_expression,
         unused_variables
-    )]
-    // Reason: compile-time type check only; body is never executed.
+    )] // Reason: compile-time type check only; body is never executed.
     fn static_assert_postgres_can_serve_and_serve_mut() {
         let server: Server<fraiseql_core::db::postgres::PostgresAdapter> = todo!();
         drop(server.serve());

@@ -14,6 +14,9 @@ toml = {workspace = true}
 # Enable this feature in crates that serve HTTP responses (e.g. fraiseql-server).
 axum-compat = ["dep:axum"]
 
+[dev-dependencies]
+axum = {workspace = true}
+
 [lints]
 workspace = true
 
