@@ -378,8 +378,8 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
     # Instrumented build (4 collection runs) + report generation on 7GB CI runners.
-    # Core/DB/Server: ~20m, remaining crates (arrow, observers, cli): ~70m, reports: ~5m.
-    timeout-minutes: 120
+    # Core/DB/Server: ~20m, remaining crates (default features): ~15m, reports: ~5m.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -456,8 +456,10 @@ jobs:
 
       - name: "Collect coverage: remaining crates"
         run: |
+          # Default features only — avoids compiling heavy optional deps (rdkafka,
+          # arrow-flight, tonic/gRPC, nats) with LLVM instrumentation. Feature-gated
+          # code paths are validated by dedicated integration test jobs.
           cargo llvm-cov --no-report \
-            --all-features \
             -p fraiseql-error \
             -p fraiseql-auth \
             -p fraiseql-secrets \
