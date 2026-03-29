@@ -456,9 +456,10 @@ jobs:
 
       - name: "Collect coverage: remaining crates"
         run: |
-          # Default features only — avoids compiling heavy optional deps (rdkafka,
-          # arrow-flight, tonic/gRPC, nats) with LLVM instrumentation. Feature-gated
-          # code paths are validated by dedicated integration test jobs.
+          # Default features + --lib only — avoids compiling heavy optional deps
+          # (rdkafka, arrow-flight, tonic/gRPC, nats) with LLVM instrumentation,
+          # and skips integration tests that need specific features (e.g. axum-compat).
+          # Feature-gated paths are validated by dedicated integration test jobs.
           cargo llvm-cov --no-report \
             -p fraiseql-error \
             -p fraiseql-auth \
@@ -469,6 +470,7 @@ jobs:
             -p fraiseql-cli \
             -p fraiseql-arrow \
             -p fraiseql-observers \
+            --lib \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
