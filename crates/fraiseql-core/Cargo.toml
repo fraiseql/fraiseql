@@ -100,16 +100,13 @@ testcontainers = {version = "0.26", features = ["watchdog"]}
 # Provides arrow_executor module for Arrow RecordBatch conversion.
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
-default = ["postgres", "rich-filters"]
+default = ["postgres"]
 # gRPC transport: row-shaped view queries returning typed ColumnValue vectors
 grpc = ["fraiseql-db/grpc"]
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]
 redis-apq = ["redis"]
-# Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
-# Includes specialized filter operators for 49 rich scalar types
-rich-filters = ["fraiseql-db/rich-filters"]
 # Schema linting: anti-pattern detection, cost analysis, quality scoring.
 # Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
 schema-lint = []

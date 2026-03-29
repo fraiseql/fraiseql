@@ -142,12 +142,10 @@ auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 azure-blob = []
 gcs = []
-cors = []
-database = []
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
-# Note: `--no-default-features` currently fails to compile (some code paths are not yet gated).
-# Full `default = []` is a planned improvement (see roadmap.md).
+# `--no-default-features` compiles cleanly. Auth stubbing in lib.rs provides zero-sized
+# stand-ins so internal code compiles without the `auth` feature.
 default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
@@ -169,8 +167,6 @@ testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
 webhooks = ["dep:fraiseql-webhooks"]
 # Wire backend for streaming JSON queries with low memory overhead
-# Federation gateway support
-federation = []
 wire-backend = ["fraiseql-core/wire-backend"]
 
 [lints]

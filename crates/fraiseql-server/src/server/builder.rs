@@ -222,8 +222,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
         error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
-        state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))] state_encryption: Option<
+            Arc<crate::auth::state_encryption::StateEncryptionService>,
+        >,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))]
         pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
+        #[cfg_attr(not(feature = "auth"), allow(unused_variables))]
         oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
         schema_rate_limiter: Option<Arc<RateLimiter>>,
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,

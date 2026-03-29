@@ -37,8 +37,6 @@ default = ["postgres"]
 grpc = []
 mysql = ["sqlx/mysql"]
 postgres = []
-# Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
-rich-filters = []
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
 test-mysql = ["mysql"]
