@@ -334,3 +334,313 @@ fn with_jwks_uri_creates_validator_without_panicking() {
     let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks".to_string());
     assert_eq!(validator.issuer(), "https://example.com");
 }
+
+// ============================================================================
+// C14: JWT validation with real RSA keypair + wiremock JWKS endpoint
+// ============================================================================
+
+/// Test RSA private key (2048-bit, PEM PKCS#8 format).
+/// Generated offline for testing only — not a real secret.
+const TEST_RSA_PRIVATE_KEY_PEM: &str = "\
+-----BEGIN PRIVATE KEY-----\n\
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCpf3bisHt/omOk\n\
+VFHz/xb4p14mkeOerg4balAN0NznbieVbmnKwPjaaUfS9ZspwwCn9bLbIAaMIa3G\n\
+oKqsSyfIITWNikiLp8ZnzaQH8JbgPLGaSfvy4w6dTp0cm9kL4te6KRk2J7owbVdp\n\
+wW6nfFKyYwtNAJLSDg6aX7HCJ9QAoWT9rWC8lKvCodTwYvrf2T5PkLje8UDZYHx1\n\
+WC+T9bal+0uKl+hP7j5NIM84Kh2W0KfMEOkMlGdQ6r8Y7aSuum2qYnH5K8gSoWlB\n\
+Tn7393F+dbkTGmfGlo9k36flmIhu1eFWUgrYhG5HdKwofOI4HQEH9cuW+RHplrpt\n\
+S6D9BJnRAgMBAAECggEAOz6FVGjxUcR15YtfddR0uAbwHrUhhWY7IhP/1URq4i2b\n\
+glysd6UJlnX0F+WnDWrOgOadVIAWKcbf0ax4224NgqMw778k6kODUucK7YeHhOtR\n\
+/KbdfKEmi49d1REYRVJNqxEQceBi8OhXBG0K+1m2IgoCejC4INmu+wB1xnJbZLhz\n\
+B4uGLljKaqBssFIfsV4n+zcZcqesCTpsCcqcWURjcCWbWVBpqG7EkTFRtq35T/+c\n\
+eQQTeH/UR/Bv9IHALJeTXQ41GYskZ4UPV0OMQ/bQtpojB6KZfTyz+CNn2iUeLNN6\n\
+HXE8oAg3h4Unhajq8jT4XrWxY69HZhb/8zSeXRxEfQKBgQDdwvNmcG2GH1quysD+\n\
+9qvO+w19lRun4AC886nQoaalrhaXAeK/GjS1D6vnUiJoN/rhkfI8mzhWdjHVgtql\n\
+yJjKWb6C2bwTGsF1eDn1JTOZx+O4E/ToU/h1OzyAjrRTTPIiabSLNsCugwF45KHM\n\
+ACEctgfUKVel/KAPeN0dkpPjEwKBgQDDqs/RZWj/FqJtj+SGBl6xcOL6F7L9d2hW\n\
+0nZj/8/bgmRyvncO8A0YooqcJnMsYUWuhxdkkOH5f/q6FEuDrxJn9EdUxJNp4g4H\n\
+65pcTJynQEF0QN/cc/1zR2H0h2TblS5mTW/Ya1GbLmu5KYshLjqDfKGDUgqpV73+\n\
+6juxARHICwKBgQC3YgaLmL9JYVZJIwu0C+IJ2JvQVOS4z0ls94ZfK742Vh8CIyIR\n\
+7CbX76y1LrubOWey71DFA4r0HOua54nN/HM1Kj+bz1hy5/ZBIPm0ml3wdlb+myo0\n\
+kXPt5d1jZh8Cn6fAA2+0i8OMzHMEOPT/UMAREQqqTMHZVm46PTWExfiblwKBgQCH\n\
+EYqTyaVJMZ6+cu4VdqA3bO3CJknwnlTwWihPr28U4FXmv4QAU8U2lD2KvSAUKrGn\n\
+YKnNShYz3Rx/BzN5m4jhKcdzxJ7eIKX+4ayUum4JJloInh/qVkdHJKeB3VTKH5kA\n\
+FcR3aN3UeZ7zGrJoHTlXOtljhWbGr0MAjUDXVx2nMQKBgAOyNRVrUMJiwamU2Gc1\n\
+BapbzTBbUEbvWImcNE0hk7GyENBNhse6z/nIdp/DPMEJH8N45qpePcHGsgCBjS2M\n\
+uwC0NSetnZwbndQWR409pzWQL9oeQL1vo0w+lHGhX7Ll7onkWgzJg7rPMc7swmoC\n\
+AKX8L9QxXylh0eeeaWhGmS8M\n\
+-----END PRIVATE KEY-----\n";
+
+/// RSA modulus (n) as base64url, matching the test private key above.
+const TEST_RSA_N: &str = "qX924rB7f6JjpFRR8_8W-KdeJpHjnq4OG2pQDdDc524nlW5pysD42mlH0vWbKcMAp_Wy2yAGjCGtxqCqrEsnyCE1jYpIi6fGZ82kB_CW4Dyxmkn78uMOnU6dHJvZC-LXuikZNie6MG1XacFup3xSsmMLTQCS0g4Oml-xwifUAKFk_a1gvJSrwqHU8GL639k-T5C43vFA2WB8dVgvk_W2pftLipfoT-4-TSDPOCodltCnzBDpDJRnUOq_GO2krrptqmJx-SvIEqFpQU5-9_dxfnW5ExpnxpaPZN-n5ZiIbtXhVlIK2IRuR3SsKHziOB0BB_XLlvkR6Za6bUug_QSZ0Q";
+
+/// RSA public exponent (e) as base64url (65537 = 0x010001).
+const TEST_RSA_E: &str = "AQAB";
+
+#[tokio::test]
+async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    // ── 1. Start wiremock and derive issuer URL ──────────────────────
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    // ── 2. Serve JWKS containing our test public key ─────────────────
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "test-key-c14",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    // ── 3. Sign a JWT with the test private key ──────────────────────
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub":   "user-42",
+        "iss":   issuer,
+        "aud":   "fraiseql-test-api",
+        "exp":   now + 3600,
+        "iat":   now,
+        "scope": "read write admin",
+    });
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key-c14".to_string());
+
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes())
+        .expect("test RSA private key PEM should be valid");
+
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .expect("JWT encoding should succeed");
+
+    // ── 4. Create OidcValidator pointing at wiremock ─────────────────
+    let config = OidcConfig {
+        issuer:             issuer.clone(),
+        audience:           Some("fraiseql-test-api".to_string()),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(
+        config,
+        format!("{issuer}{jwks_path}"),
+    );
+
+    // ── 5. Validate the token end-to-end ─────────────────────────────
+    let user = validator
+        .validate_token(&token)
+        .await
+        .expect("token validation should succeed");
+
+    assert_eq!(user.user_id, "user-42");
+    assert_eq!(user.scopes, vec!["read", "write", "admin"]);
+    assert!(user.expires_at > chrono::Utc::now(), "token should not be expired yet");
+}
+
+#[tokio::test]
+async fn validate_token_rejects_wrong_signing_key() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    // Serve JWKS with the *correct* public key
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "test-key-c14",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub": "user-42",
+        "iss": issuer,
+        "aud": "fraiseql-test-api",
+        "exp": now + 3600,
+        "iat": now,
+    });
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key-c14".to_string());
+
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+
+    // Corrupt the signature portion (everything after the last '.')
+    let last_dot = token.rfind('.').unwrap();
+    let mut chars: Vec<char> = token.chars().collect();
+    // Flip the last character of the signature
+    chars[last_dot + 1] = if chars[last_dot + 1] == 'A' { 'B' } else { 'A' };
+    let token: String = chars.into_iter().collect();
+
+    let config = OidcConfig {
+        issuer:             issuer.clone(),
+        audience:           Some("fraiseql-test-api".to_string()),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+
+    let result = validator.validate_token(&token).await;
+    assert!(result.is_err(), "corrupted signature must be rejected");
+}
+
+#[tokio::test]
+async fn validate_token_rejects_expired_jwt() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "test-key-c14",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    // Sign a JWT that is already expired (exp in the past, beyond clock skew)
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub": "user-42",
+        "iss": issuer,
+        "aud": "fraiseql-test-api",
+        "exp": now - 600, // expired 10 minutes ago (beyond 60s default skew)
+        "iat": now - 4200,
+    });
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key-c14".to_string());
+
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+
+    let config = OidcConfig {
+        issuer:             issuer.clone(),
+        audience:           Some("fraiseql-test-api".to_string()),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+
+    let result = validator.validate_token(&token).await;
+    assert!(result.is_err(), "expired token must be rejected");
+    assert!(
+        matches!(result, Err(SecurityError::TokenExpired { .. })),
+        "error should be TokenExpired, got: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn validate_token_rejects_wrong_audience() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "test-key-c14",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    // Sign a JWT with a WRONG audience
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub": "user-42",
+        "iss": issuer,
+        "aud": "wrong-audience",
+        "exp": now + 3600,
+        "iat": now,
+    });
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key-c14".to_string());
+
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+
+    let config = OidcConfig {
+        issuer:             issuer.clone(),
+        audience:           Some("fraiseql-test-api".to_string()),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+
+    let result = validator.validate_token(&token).await;
+    assert!(result.is_err(), "wrong audience must be rejected");
+}
