@@ -241,8 +241,23 @@ fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
 /// `WhereOperator` is `#[non_exhaustive]` with 40+ variants (including
 /// `Extended(ExtendedOperator)`). Using the `Debug` string is stable across
 /// refactors and automatically covers new variants without maintenance.
+/// Hash a `WhereOperator` without allocating.
+///
+/// Uses `std::mem::discriminant` for the variant tag (zero-allocation).
+/// For the `Extended(op)` variant which carries data, also hashes the
+/// Debug representation of the inner operator (rare path, acceptable allocation).
 fn hash_where_operator(h: &mut impl Hasher, op: &WhereOperator) {
-    h.write(format!("{op:?}").as_bytes());
+    // discriminant is a fixed-size hashable value — no allocation
+    std::mem::discriminant(op).hash(h);
+
+    // Extended operators carry inner data that affects the hash.
+    // All other variants are fully distinguished by their discriminant.
+    if let WhereOperator::Extended(inner) = op {
+        // Rare path: Extended operators are uncommon. The Debug allocation
+        // here is acceptable because it only triggers for rich-filter queries.
+        let inner_str = format!("{inner:?}");
+        h.write(inner_str.as_bytes());
+    }
 }
 
 /// Extract accessed views from query definition.
