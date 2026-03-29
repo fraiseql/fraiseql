@@ -1,0 +1,139 @@
+name: Code Coverage (Weekly)
+
+on:
+  schedule:
+    # Every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    # Full --all-features instrumented build on 7GB runners is slow.
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Initialize test database schema
+        uses: ./.github/actions/init-postgres
+
+      # Collect profdata across multiple runs with --no-report.
+      # fraiseql-core and fraiseql-db use explicit features (no test-mysql/test-sqlserver).
+      # All other crates use --all-features for maximum coverage.
+      - name: Clean previous coverage data
+        run: cargo llvm-cov clean --workspace
+
+      - name: "Collect coverage: fraiseql-core"
+        run: |
+          # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
+          cargo llvm-cov --no-report \
+            --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
+            -p fraiseql-core \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
+
+      - name: "Collect coverage: fraiseql-db"
+        run: |
+          # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
+          cargo llvm-cov --no-report \
+            --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" \
+            -p fraiseql-db \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
+
+      - name: "Collect coverage: remaining crates"
+        run: |
+          cargo llvm-cov --no-report \
+            --all-features \
+            --workspace \
+            --exclude fraiseql-core \
+            --exclude fraiseql-db \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          CARGO_BUILD_JOBS: 2
+
+      # Generate reports from collected profdata (no recompilation)
+      - name: Generate lcov report
+        run: cargo llvm-cov report --lcov --output-path lcov.info
+
+      - name: Generate JSON report for trend tracking
+        run: cargo llvm-cov report --json --output-path coverage.json
+
+      # Per-crate threshold checks
+      - name: "Check threshold: security-critical crates (≥80%)"
+        run: cargo llvm-cov report -p fraiseql-auth -p fraiseql-secrets --fail-under-lines 80
+
+      - name: "Check threshold: fraiseql-core (≥70%)"
+        run: cargo llvm-cov report -p fraiseql-core --fail-under-lines 70
+
+      - name: "Check threshold: fraiseql-db (≥65%)"
+        run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 65
+
+      - name: "Check threshold: fraiseql-server (≥60%)"
+        run: cargo llvm-cov report -p fraiseql-server --fail-under-lines 60
+
+      - name: "Check threshold: fraiseql-federation (≥60%)"
+        run: cargo llvm-cov report -p fraiseql-federation --fail-under-lines 60
+
+      - name: "Check threshold: remaining crates (≥50%)"
+        run: |
+          for crate in fraiseql-error fraiseql-wire fraiseql-cli fraiseql-arrow fraiseql-observers; do
+            echo "Checking $crate..."
+            cargo llvm-cov report -p "$crate" --fail-under-lines 50 || exit 1
+          done
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+
+      - name: Archive coverage data
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-${{ github.sha }}
+          path: |
+            lcov.info
+            coverage.json
+          retention-days: 90
