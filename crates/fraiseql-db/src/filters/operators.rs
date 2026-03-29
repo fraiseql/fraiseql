@@ -1,6 +1,6 @@
 //! Extended filter operators for rich scalar types.
 //!
-//! This module defines specialized operators for 44 rich scalar types including
+//! This module defines specialized operators for 49 rich scalar types including
 //! Email, PhoneNumber, VIN, IBAN, CountryCode, and many others.
 //!
 //! These operators are organized by type category and compiled conditionally

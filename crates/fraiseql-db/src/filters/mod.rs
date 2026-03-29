@@ -1,6 +1,6 @@
 //! Rich type filter operators and handlers.
 //!
-//! This module provides specialized filter operators for 44 rich scalar types,
+//! This module provides specialized filter operators for 49 rich scalar types,
 //! enabling powerful queries like:
 //!
 //! - Extract and filter by email domain: `email.domain_eq('example.com')`
