@@ -264,7 +264,7 @@ async fn test_cache_disabled() {
 /// The previous "simple query bypass" (Issue #40 workaround) was removed.
 /// It skipped caching for `where_clause.is_none() && limit <= 1000`, which
 /// prevented caching for public / unauthenticated endpoints.  The cache
-/// overhead (SHA-256 + LRU lookup ≈ 100-150 µs) is negligible relative to a
+/// overhead (ahash + LRU lookup) is negligible relative to a
 /// database round-trip; the bypass was a premature optimisation.
 #[tokio::test]
 async fn test_all_queries_are_cached() {

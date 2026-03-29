@@ -100,7 +100,7 @@ pub struct CachedResult {
 /// // Cache a result
 /// let result = vec![JsonbValue::new(json!({"id": 1, "name": "Alice"}))];
 /// cache.put(
-///     "cache_key_123".to_string(),
+///     12345_u64,
 ///     result.clone(),
 ///     vec!["v_user".to_string()],
 ///     None, // use global TTL

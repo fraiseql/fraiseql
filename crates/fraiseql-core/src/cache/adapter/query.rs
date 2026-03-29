@@ -62,7 +62,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
+        // Short-circuit when cache is disabled: skip cache key generation and result clone.
         if !self.cache.is_enabled() {
             return self
                 .adapter
@@ -118,7 +118,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
+        // Short-circuit when cache is disabled: skip cache key generation and result clone.
         if !self.cache.is_enabled() {
             return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
         }

@@ -24,7 +24,7 @@
 //!            │
 //!            ↓ generate_cache_key()
 //! ┌─────────────────────┐
-//! │ SHA-256 Cache Key   │ ← Includes variables for security
+//! │ ahash Cache Key     │ ← Includes variables for security
 //! └──────────┬──────────┘
 //!            │
 //!            ↓ QueryResultCache::get()
