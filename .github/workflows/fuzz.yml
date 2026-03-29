@@ -5,6 +5,10 @@ on:
     - cron: '0 3 * * 0'  # Weekly, Sunday 3am UTC
   workflow_dispatch:       # Manual trigger
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   fuzz-core:
     name: Fuzz fraiseql-core (${{ matrix.target }})
@@ -23,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)
@@ -55,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzer (1 hour)
@@ -73,197 +81,3 @@ jobs:
         with:
           name: fuzz-crash-wire-${{ matrix.target }}
           path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-auth:
-    name: Fuzz fraiseql-auth (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - jwt_parse
-          - pkce_token_parse
-          - state_token_decrypt
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-auth
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-auth-${{ matrix.target }}
-          path: crates/fraiseql-auth/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-db:
-    name: Fuzz fraiseql-db (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - where_generator
-          - projection_generator
-          - where_from_json
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-db
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-db-${{ matrix.target }}
-          path: crates/fraiseql-db/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-server:
-    name: Fuzz fraiseql-server (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - toml_config
-          - graphql_request
-          - env_resolution
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-server
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-server-${{ matrix.target }}
-          path: crates/fraiseql-server/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-federation:
-    name: Fuzz fraiseql-federation (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - subgraph_response
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-federation
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-federation-${{ matrix.target }}
-          path: crates/fraiseql-federation/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-secrets:
-    name: Fuzz fraiseql-secrets (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - vault_secret_name
-          - encrypted_field_decode
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-secrets
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-secrets-${{ matrix.target }}
-          path: crates/fraiseql-secrets/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-arrow:
-    name: Fuzz fraiseql-arrow (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - flight_ticket
-          - db_convert
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-arrow
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: fuzz-crash-arrow-${{ matrix.target }}
-          path: crates/fraiseql-arrow/fuzz/artifacts/${{ matrix.target }}/

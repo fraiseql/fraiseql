@@ -18,19 +18,6 @@ description = "SaaS platform with account management, billing, teams, and integr
 name = "saas"
 version = "1.0.0"
 
-[tracing]
-enabled = true
-level = "info"
-format = "json"
-service_name = "fraiseql"
-# Uncomment to enable OpenTelemetry OTLP export:
-# otlp_endpoint = "http://otel-collector:4317"
-# otlp_export_timeout_secs = 10
-
-[validation]
-max_query_depth = 10          # Default: 10. Maximum nesting depth for GraphQL queries.
-max_query_complexity = 100    # Default: 100. Maximum computed complexity score.
-
 [security]
 default_policy = "authenticated"
 

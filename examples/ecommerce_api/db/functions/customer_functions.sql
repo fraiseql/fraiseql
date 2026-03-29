@@ -8,14 +8,14 @@ CREATE OR REPLACE FUNCTION register_customer(
     p_first_name VARCHAR,
     p_last_name VARCHAR,
     p_phone VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_customer_id UUID;
     v_wishlist_id UUID;
 BEGIN
     -- Check if email already exists
     IF EXISTS (SELECT 1 FROM customers WHERE email = LOWER(p_email)) THEN
-        RAISE EXCEPTION 'Email already registered';
+        RETURN ROW('conflict:duplicate', 'Email already registered', NULL, 'Customer', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Create customer (password should be hashed in application layer)
@@ -38,23 +38,24 @@ BEGIN
     VALUES (v_customer_id, 'My Wishlist')
     RETURNING id INTO v_wishlist_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'customer_id', v_customer_id,
-        'message', 'Customer registered successfully',
-        'customer', json_build_object(
+    RETURN ROW(
+        'new',
+        'Customer registered successfully',
+        v_customer_id::text,
+        'Customer',
+        jsonb_build_object(
             'id', v_customer_id,
             'email', LOWER(p_email),
             'first_name', p_first_name,
             'last_name', p_last_name
-        )
-    );
+        ),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -65,8 +66,16 @@ CREATE OR REPLACE FUNCTION update_customer_profile(
     p_last_name VARCHAR DEFAULT NULL,
     p_phone VARCHAR DEFAULT NULL,
     p_metadata JSONB DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
+DECLARE
+    v_updated_fields text[] := '{}';
 BEGIN
+    -- Track which fields are being updated
+    IF p_first_name IS NOT NULL THEN v_updated_fields := v_updated_fields || 'first_name'; END IF;
+    IF p_last_name IS NOT NULL THEN v_updated_fields := v_updated_fields || 'last_name'; END IF;
+    IF p_phone IS NOT NULL THEN v_updated_fields := v_updated_fields || 'phone'; END IF;
+    IF p_metadata IS NOT NULL THEN v_updated_fields := v_updated_fields || 'metadata'; END IF;
+
     UPDATE customers
     SET first_name = COALESCE(p_first_name, first_name),
         last_name = COALESCE(p_last_name, last_name),
@@ -76,24 +85,22 @@ BEGIN
     WHERE id = p_customer_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Customer not found';
+        RETURN ROW('failed:not_found', 'Customer not found', p_customer_id::text, 'Customer', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Profile updated successfully',
-        'customer', (
-            SELECT row_to_json(c.*)
-            FROM customers c
-            WHERE c.id = p_customer_id
-        )
-    );
+    RETURN ROW(
+        'updated',
+        'Profile updated successfully',
+        p_customer_id::text,
+        'Customer',
+        (SELECT to_jsonb(c.*) FROM customers c WHERE c.id = p_customer_id),
+        v_updated_fields,
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -112,7 +119,7 @@ CREATE OR REPLACE FUNCTION add_customer_address(
     p_country_code VARCHAR,
     p_phone VARCHAR DEFAULT NULL,
     p_is_default BOOLEAN DEFAULT false
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_address_id UUID;
 BEGIN
@@ -155,17 +162,25 @@ BEGIN
         p_is_default
     ) RETURNING id INTO v_address_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'address_id', v_address_id,
-        'message', 'Address added successfully'
-    );
+    RETURN ROW(
+        'new',
+        'Address added successfully',
+        v_address_id::text,
+        'Address',
+        jsonb_build_object(
+            'id', v_address_id,
+            'type', p_type,
+            'city', p_city,
+            'country_code', p_country_code,
+            'is_default', p_is_default
+        ),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -177,9 +192,10 @@ CREATE OR REPLACE FUNCTION add_to_wishlist(
     p_wishlist_id UUID DEFAULT NULL,
     p_priority INTEGER DEFAULT 0,
     p_notes TEXT DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_wishlist_id UUID;
+    v_wishlist_item_id UUID;
 BEGIN
     -- Get wishlist ID
     IF p_wishlist_id IS NOT NULL THEN
@@ -189,7 +205,7 @@ BEGIN
         WHERE id = p_wishlist_id AND customer_id = p_customer_id;
 
         IF v_wishlist_id IS NULL THEN
-            RAISE EXCEPTION 'Wishlist not found or access denied';
+            RETURN ROW('failed:not_found', 'Wishlist not found or access denied', p_wishlist_id::text, 'Wishlist', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
         END IF;
     ELSE
         -- Get default wishlist
@@ -214,7 +230,7 @@ BEGIN
         AND product_id = p_product_id
         AND (variant_id = p_variant_id OR (variant_id IS NULL AND p_variant_id IS NULL))
     ) THEN
-        RAISE EXCEPTION 'Product already in wishlist';
+        RETURN ROW('conflict:duplicate', 'Product already in wishlist', v_wishlist_id::text, 'Wishlist', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Add to wishlist
@@ -230,19 +246,25 @@ BEGIN
         p_variant_id,
         p_priority,
         p_notes
-    );
+    ) RETURNING id INTO v_wishlist_item_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Added to wishlist',
-        'wishlist_id', v_wishlist_id
-    );
+    RETURN ROW(
+        'new',
+        'Added to wishlist',
+        v_wishlist_item_id::text,
+        'WishlistItem',
+        jsonb_build_object(
+            'wishlist_id', v_wishlist_id,
+            'product_id', p_product_id,
+            'variant_id', p_variant_id
+        ),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -254,14 +276,14 @@ CREATE OR REPLACE FUNCTION submit_review(
     p_rating INTEGER,
     p_title VARCHAR DEFAULT NULL,
     p_comment TEXT DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_review_id UUID;
     v_is_verified_purchase BOOLEAN := false;
 BEGIN
     -- Validate rating
     IF p_rating < 1 OR p_rating > 5 THEN
-        RAISE EXCEPTION 'Rating must be between 1 and 5';
+        RETURN ROW('failed:validation', 'Rating must be between 1 and 5', NULL, 'Review', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if already reviewed
@@ -271,7 +293,7 @@ BEGIN
         AND product_id = p_product_id
         AND (order_id = p_order_id OR (order_id IS NULL AND p_order_id IS NULL))
     ) THEN
-        RAISE EXCEPTION 'You have already reviewed this product';
+        RETURN ROW('conflict:duplicate', 'You have already reviewed this product', NULL, 'Review', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Verify purchase if order_id provided
@@ -308,18 +330,24 @@ BEGIN
         'pending' -- Reviews go through moderation
     ) RETURNING id INTO v_review_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'review_id', v_review_id,
-        'message', 'Review submitted for moderation',
-        'is_verified_purchase', v_is_verified_purchase
-    );
+    RETURN ROW(
+        'new',
+        'Review submitted for moderation',
+        v_review_id::text,
+        'Review',
+        jsonb_build_object(
+            'id', v_review_id,
+            'rating', p_rating,
+            'is_verified_purchase', v_is_verified_purchase,
+            'status', 'pending'
+        ),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -329,7 +357,7 @@ CREATE OR REPLACE FUNCTION mark_review_helpful(
     p_is_helpful BOOLEAN,
     p_customer_id UUID DEFAULT NULL,
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     -- In production, track who marked what to prevent multiple votes
     IF p_is_helpful THEN
@@ -343,18 +371,21 @@ BEGIN
     END IF;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Review not found or not approved';
+        RETURN ROW('failed:not_found', 'Review not found or not approved', p_review_id::text, 'Review', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Thank you for your feedback'
-    );
+    RETURN ROW(
+        'updated',
+        'Thank you for your feedback',
+        p_review_id::text,
+        'Review',
+        NULL::jsonb,
+        CASE WHEN p_is_helpful THEN ARRAY['helpful_count'] ELSE ARRAY['not_helpful_count'] END,
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;

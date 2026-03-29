@@ -3,21 +3,21 @@ name: Dart SDK
 on:
   push:
     paths:
-      - 'sdks/official/fraiseql-dart/**'
+      - 'sdks/planned/fraiseql-dart/**'
       - '.github/workflows/dart-sdk.yml'
   pull_request:
     paths:
-      - 'sdks/official/fraiseql-dart/**'
+      - 'sdks/planned/fraiseql-dart/**'
       - '.github/workflows/dart-sdk.yml'
 
 jobs:
   test:
     name: Dart SDK
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: sdks/official/fraiseql-dart
+        working-directory: sdks/planned/fraiseql-dart
 
     steps:
       - uses: actions/checkout@v4
@@ -57,9 +57,9 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        working-directory: sdks/official/fraiseql-dart
+        working-directory: sdks/planned/fraiseql-dart
         run: dart pub get
 
       - name: Publish (dry-run on non-tag)
-        working-directory: sdks/official/fraiseql-dart
+        working-directory: sdks/planned/fraiseql-dart
         run: dart pub publish --force

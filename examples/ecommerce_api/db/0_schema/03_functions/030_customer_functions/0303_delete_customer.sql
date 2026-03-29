@@ -1,10 +1,10 @@
 -- Delete customer functions
 -- App and core layers for customer deletion
 
--- App function: Delete customer (ultra-direct mutation)
+-- App function: Delete customer
 CREATE OR REPLACE FUNCTION app.delete_customer(
     customer_id UUID
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_deleted_data JSONB;
 BEGIN
@@ -14,12 +14,12 @@ BEGIN
     -- Delegate to core business logic
     PERFORM core.delete_customer(customer_id);
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'deleted',
         'Customer deleted successfully',
-        jsonb_build_object('customer', v_deleted_data)
+        v_deleted_data,
+        'Customer',
+        customer_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

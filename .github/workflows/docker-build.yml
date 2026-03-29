@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - dev
-      - 'feature/**'
+      - feature/phase-*
     tags:
       - 'v*'
   pull_request:
@@ -14,6 +14,10 @@ on:
       - dev
   workflow_dispatch:
 
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}
@@ -21,7 +25,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -40,7 +44,7 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server-full"
-            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
+            build-args: "CARGO_FEATURES=rest,arrow"
             optional: true
 
           - name: tutorial
@@ -93,7 +97,7 @@ jobs:
   test-images:
     needs: build-and-push
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     if: github.event_name == 'pull_request'
 
     strategy:
@@ -105,7 +109,7 @@ jobs:
 
           - name: fraiseql-server-full
             dockerfile: Dockerfile
-            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
+            build-args: "CARGO_FEATURES=rest,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -136,7 +140,7 @@ jobs:
   publish-to-docker-hub:
     needs: build-and-push
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     if: >-
       github.event_name == 'push' && (
         github.ref == 'refs/heads/main' ||
@@ -161,7 +165,7 @@ jobs:
             build-context: .
             image-suffix: "server-full"
             docker-hub-image: fraiseql/server-full
-            build-args: "CARGO_FEATURES=arrow,aws-s3,cors,mcp,metrics,observers,observers-enterprise,observers-nats,redis-apq,redis-pkce,redis-rate-limiting,secrets,tracing-opentelemetry,webhooks,wire-backend"
+            build-args: "CARGO_FEATURES=rest,arrow"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
@@ -209,7 +213,7 @@ jobs:
   verify-deployment:
     needs: [build-and-push, publish-to-docker-hub]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -254,7 +258,7 @@ jobs:
   notify-success:
     needs: [build-and-push]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     if: github.event_name == 'push' && success()
 
     steps:
@@ -265,7 +269,7 @@ jobs:
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/server\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (all optional features)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY

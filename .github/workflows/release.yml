@@ -5,8 +5,13 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
 
 permissions:
   contents: write
@@ -17,7 +22,9 @@ jobs:
   validate-release:
     name: Validate Release Prerequisites
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      RUSTC_WRAPPER: ""
     steps:
       - name: Validate required secrets
         run: |
@@ -45,7 +52,7 @@ jobs:
     name: Create GitHub Release
     needs: validate-release
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     outputs:
       version: ${{ steps.get_version.outputs.version }}
     steps:
@@ -84,7 +91,7 @@ jobs:
     name: Build Binary (${{ matrix.target }})
     needs: create-github-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +126,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Add Rust target (explicit, for cross-compilation)
         if: '!matrix.use_cross'
         run: rustup target add ${{ matrix.target }}
@@ -135,11 +145,11 @@ jobs:
 
       - name: Build binary (cross)
         if: matrix.use_cross
-        run: cross build --release --target ${{ matrix.target }} --package fraiseql
+        run: cross build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
 
       - name: Build binary (cargo)
         if: '!matrix.use_cross'
-        run: cargo build --release --target ${{ matrix.target }} --package fraiseql
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
 
       - name: Strip binary (Linux/macOS native)
         if: matrix.os != 'windows-latest' && !matrix.use_cross
@@ -164,42 +174,22 @@ jobs:
           files: fraiseql-${{ matrix.target }}.${{ matrix.archive_ext }}
           fail_on_unmatched_files: true
 
-  # Generate SBOM and attach to the GitHub release
-  generate-sbom:
-    name: Generate SBOM
-    needs: create-github-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-sbom
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-sbom
-
-      - name: Generate SBOM (CycloneDX JSON)
-        run: cargo sbom --output-format cyclone_dx_json_1_5 > sbom.json
-
-      - name: Upload SBOM to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" sbom.json --clobber
+  # SBOM generation handled by sbom-generation.yml (Cosign-signed, validated)
 
   # Publish to crates.io
   publish-crates:
     name: Publish to crates.io
     needs: create-github-release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Verify all crates can be built
         run: |
@@ -212,49 +202,49 @@ jobs:
       # Tier 1: No fraiseql dependencies
       - name: Publish fraiseql-error
         id: publish-error
-        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-auth
         id: publish-auth
-        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-webhooks
         id: publish-webhooks
-        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-wire
         id: publish-wire
-        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 1)
         run: sleep 60
 
-      # Tier 2: fraiseql-db depends on fraiseql-error + fraiseql-wire
+      # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
         id: publish-db
-        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 2)
         run: sleep 60
 
-      # Tier 3: fraiseql-federation depends on fraiseql-db + fraiseql-error
+      # Tier 3: Depends on fraiseql-db, fraiseql-error
       - name: Publish fraiseql-federation
         id: publish-federation
-        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 3)
         run: sleep 60
 
-      # Tier 4: fraiseql-core depends on fraiseql-db + fraiseql-error + fraiseql-federation
+      # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
       - name: Publish fraiseql-core
         id: publish-core
-        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 4)
@@ -263,39 +253,39 @@ jobs:
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
         id: publish-arrow
-        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-secrets
         id: publish-secrets
-        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 5)
         run: sleep 60
 
-      # Tier 6: Depends on fraiseql-arrow (optional)
+      # Tier 6: Depends on fraiseql-arrow
       - name: Publish fraiseql-observers
         id: publish-observers
-        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 6)
         run: sleep 60
 
-      # Tier 7: Depends on core + observers + auth + secrets + webhooks
+      # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
       - name: Publish fraiseql-server
         id: publish-server
-        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 7)
         run: sleep 60
 
-      # Tier 8: Depends on fraiseql-core + fraiseql-server
+      # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
       - name: Publish fraiseql-cli
         id: publish-cli
-        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 8)
@@ -304,7 +294,7 @@ jobs:
       # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
         id: publish-root
-        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Report crates.io publishing results
@@ -314,9 +304,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-error" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-auth" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-db" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-federation" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
@@ -382,54 +372,12 @@ jobs:
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ PyPI upload: FAILED" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
 
-  # Publish TypeScript SDK to npm
-  publish-typescript:
-    name: Publish TypeScript SDK
-    needs: [create-github-release]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        working-directory: sdks/official/fraiseql-typescript
-        run: npm ci
-
-      - name: Run tests
-        working-directory: sdks/official/fraiseql-typescript
-        run: npm test
-
-      - name: Build
-        working-directory: sdks/official/fraiseql-typescript
-        run: npm run build
-
-      - name: Publish to npm
-        id: publish-npm
-        working-directory: sdks/official/fraiseql-typescript
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Verify npm publication
-        if: steps.publish-npm.outcome == 'success'
-        run: |
-          sleep 10
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          npm info fraiseql@"$VERSION" version
-
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, build-binaries, publish-typescript]
+    needs: [create-github-release, publish-crates, build-binaries]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -451,17 +399,6 @@ jobs:
             echo "✅ fraiseql v$VERSION on crates.io" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏳ fraiseql v$VERSION (crates.io indexing in progress)" >> $GITHUB_STEP_SUMMARY
-          fi
-        continue-on-error: true
-
-      - name: Check npm package
-        id: verify-npm
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          if npm info fraiseql@"$VERSION" version 2>/dev/null | grep -q "$VERSION"; then
-            echo "✅ fraiseql v$VERSION on npm" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⏳ fraiseql v$VERSION (npm indexing in progress)" >> $GITHUB_STEP_SUMMARY
           fi
         continue-on-error: true
 

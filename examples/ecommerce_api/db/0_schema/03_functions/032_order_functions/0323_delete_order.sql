@@ -1,10 +1,10 @@
 -- Delete order functions
 -- App and core layers for order deletion
 
--- App function: Delete order (ultra-direct mutation)
+-- App function: Delete order
 CREATE OR REPLACE FUNCTION app.delete_order(
     order_id UUID
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_deleted_data JSONB;
 BEGIN
@@ -14,12 +14,12 @@ BEGIN
     -- Delegate to core business logic
     PERFORM core.delete_order(order_id);
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'deleted',
         'Order deleted successfully',
-        jsonb_build_object('order', v_deleted_data)
+        v_deleted_data,
+        'Order',
+        order_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

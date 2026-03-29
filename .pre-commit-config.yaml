@@ -1,6 +1,11 @@
 # Pre-commit hooks for FraiseQL v2
 # Install: pip install pre-commit && pre-commit install
 
+# pre-commit.ci configuration — skip hooks that require system toolchains
+# (Rust, cargo) since pre-commit.ci doesn't provide them.
+ci:
+  skip: [fmt, clippy, cargo-audit, python-build-check, cargo-package-check, check-snapshot-pairing]
+
 repos:
   # Rust formatting
   - repo: https://github.com/doublify/pre-commit-rust
@@ -17,6 +22,9 @@ repos:
       - id: clippy
         name: cargo clippy
         description: Lint Rust code with Clippy
+        # Uses --all-features for local convenience. CI uses an explicit feature list
+        # (see SYNC:CORE_FEATURES in ci.yml) to exclude test-* infra features.
+        # Skipped on pre-commit.ci (no Rust toolchain); run `make clippy` locally.
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
@@ -30,6 +38,8 @@ repos:
         exclude: '\.md$'
       - id: end-of-file-fixer
       - id: check-yaml
+        args: ['--allow-multiple-documents', '--unsafe']
+        exclude: '(deploy/kubernetes/helm/.*templates/|examples/ci/|vagga\.yaml|vendor-drift\.yml)'
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=1000']
@@ -48,7 +58,7 @@ repos:
         # must precede [[bin]], and workspace-inherited fields must stay in [package]
         # not [package.metadata.*] subsections). The generic TOML formatter breaks
         # these invariants by sorting table headers alphabetically.
-        exclude: '(^|/)Cargo\.toml$'
+        exclude: '(^|/)Cargo\.(toml|lock)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -56,6 +66,7 @@ repos:
     hooks:
       - id: markdownlint
         args: [--fix]
+        exclude: '(node_modules/|vendor/|\.claude/)'
 
   # Snapshot pairing policy
   - repo: local

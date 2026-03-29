@@ -3,12 +3,10 @@ name: SDK Schema Parity
 on:
   push:
     paths:
-      - 'sdks/official/fraiseql-*/**'
-      - 'tools/compare_parity_schemas.py'
+      - 'sdks/official/**'
   pull_request:
     paths:
-      - 'sdks/official/fraiseql-*/**'
-      - 'tools/compare_parity_schemas.py'
+      - 'sdks/official/**'
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -16,16 +14,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-typescript-parity:
-    name: Python ↔ TypeScript schema parity
+  parity:
+    name: Cross-SDK schema parity
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # Python SDK
+      # Python SDK (reference)
       # -----------------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -62,487 +60,41 @@ jobs:
         run: npx tsx tests/generate-parity-schema.ts > /tmp/schema_ts.json
 
       # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and TypeScript schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_ts.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-ts
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_ts.json
-          retention-days: 7
-
-  python-go-parity:
-    name: Python ↔ Go schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
       # Go SDK
       # -----------------------------------------------------------------------
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache-dependency-path: sdks/official/fraiseql-go/go.sum
 
       - name: Generate schema via Go SDK
         working-directory: sdks/official/fraiseql-go
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_go.json
-        run: go test -run TestGenerateParitySchema -v ./fraiseql/
+        run: |
+          go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 \
+            | grep '^{' \
+            | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))" \
+            > /tmp/schema_go.json
 
       # -----------------------------------------------------------------------
-      # Structural comparison
+      # Deep structural comparison
       # -----------------------------------------------------------------------
-      - name: Compare Python and Go schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_go.json
+      - name: Compare all SDK schema outputs
+        run: |
+          # Full parity: Python (reference) vs TypeScript, Go
+          # Checks: type/query/mutation names, field types, nullability,
+          # argument names/types, sql_source, operation, inject_params
+          python3 sdks/official/tests/compare_schemas.py \
+            --reference /tmp/schema_python.json \
+            --compare /tmp/schema_ts.json /tmp/schema_go.json
 
       - name: Upload schema artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: parity-schemas-python-go
+          name: parity-schemas
           path: |
             /tmp/schema_python.json
+            /tmp/schema_ts.json
             /tmp/schema_go.json
-          retention-days: 7
-
-  python-java-parity:
-    name: Python ↔ Java schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # Java SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Generate schema via Java SDK
-        working-directory: sdks/official/fraiseql-java
-        run: mvn -q test -Dtest=GenerateParitySchema -DschemaOutputFile=/tmp/schema_java.json
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and Java schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_java.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-java
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_java.json
-          retention-days: 7
-
-  python-php-parity:
-    name: Python ↔ PHP schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # PHP SDK
-      # -----------------------------------------------------------------------
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-
-      - name: Install PHP SDK dependencies
-        working-directory: sdks/official/fraiseql-php
-        run: composer install --no-interaction --no-progress
-
-      - name: Generate schema via PHP SDK
-        working-directory: sdks/official/fraiseql-php
-        run: php tests/GenerateParitySchema.php > /tmp/schema_php.json
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and PHP schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_php.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-php
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_php.json
-          retention-days: 7
-
-  python-csharp-parity:
-    name: Python ↔ C# schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # C# SDK
-      # -----------------------------------------------------------------------
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0'
-
-      - name: Generate schema via C# SDK
-        working-directory: sdks/official/fraiseql-csharp
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_csharp.json
-        run: dotnet test tests/FraiseQL.Tests --filter GenerateParitySchema
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and C# schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_csharp.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-csharp
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_csharp.json
-          retention-days: 7
-
-  python-fsharp-parity:
-    name: Python ↔ F# schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # F# SDK
-      # -----------------------------------------------------------------------
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0'
-
-      - name: Generate schema via F# SDK
-        working-directory: sdks/official/fraiseql-fsharp
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_fsharp.json
-        run: dotnet test tests/FraiseQL.Tests --filter GenerateParitySchema
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and F# schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_fsharp.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-fsharp
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_fsharp.json
-          retention-days: 7
-
-  python-elixir-parity:
-    name: Python ↔ Elixir schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # Elixir SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
-        with:
-          elixir-version: '1.15'
-          otp-version: '26'
-
-      - name: Install Elixir SDK dependencies
-        working-directory: sdks/official/fraiseql-elixir
-        run: mix deps.get
-
-      - name: Generate schema via Elixir SDK
-        working-directory: sdks/official/fraiseql-elixir
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_elixir.json
-          MIX_ENV: test
-        run: mix test test/generate_parity_schema_test.exs
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and Elixir schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_elixir.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-elixir
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_elixir.json
-          retention-days: 7
-
-  python-dart-parity:
-    name: Python ↔ Dart schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # Dart SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: '3.5'
-
-      - name: Install Dart SDK dependencies
-        working-directory: sdks/official/fraiseql-dart
-        run: dart pub get
-
-      - name: Generate schema via Dart SDK
-        working-directory: sdks/official/fraiseql-dart
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_dart.json
-        run: dart test test/generate_parity_schema_test.dart
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and Dart schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_dart.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-dart
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_dart.json
-          retention-days: 7
-
-  python-ruby-parity:
-    name: Python ↔ Ruby schema parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # -----------------------------------------------------------------------
-      # Python SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # Ruby SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-          working-directory: sdks/official/fraiseql-ruby
-
-      - name: Generate schema via Ruby SDK
-        working-directory: sdks/official/fraiseql-ruby
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_ruby.json
-        run: bundle exec rspec spec/generate_parity_schema_spec.rb
-
-      # -----------------------------------------------------------------------
-      # Structural comparison
-      # -----------------------------------------------------------------------
-      - name: Compare Python and Ruby schema outputs
-        run: python3 tools/compare_parity_schemas.py /tmp/schema_python.json /tmp/schema_ruby.json
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parity-schemas-python-ruby
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_ruby.json
           retention-days: 7
