@@ -190,10 +190,9 @@ mod tests {
     use crate::schema::{FieldDenyPolicy, FieldType};
 
     fn make_field(name: &str, type_str: &str) -> FieldDefinition {
-        let known = std::collections::HashSet::new();
         FieldDefinition {
             name:           name.into(),
-            field_type:     FieldType::parse(type_str, &known),
+            field_type:     FieldType::parse(type_str),
             nullable:       true,
             default_value:  None,
             description:    None,

@@ -43,6 +43,10 @@ use fraiseql_server::{
 };
 use http::{Request, StatusCode};
 use tower::ServiceExt;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -236,6 +240,139 @@ async fn auth_callback_missing_code_and_state_returns_400() {
     let router = auth_router();
     let (status, _) = get_request(&router, "/auth/callback").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "callback with no params must return 400");
+}
+
+// ---------------------------------------------------------------------------
+// C15: Session cookie mode (__Host-access_token Set-Cookie)
+// ---------------------------------------------------------------------------
+
+/// Build a router where:
+/// - The OIDC token endpoint is a `wiremock` mock returning a valid token.
+/// - `post_login_redirect_uri` is set, so the callback uses cookie mode.
+async fn session_cookie_router(mock_server: &MockServer) -> Router {
+    // Mount a mock that replies to POST /token with a valid token response.
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "test-access-token-xyz",
+            "id_token": "test-id-token",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        })))
+        .mount(mock_server)
+        .await;
+
+    let oidc_client = OidcServerClient::new(
+        "test-client",
+        "test-secret",
+        "http://localhost/auth/callback",
+        "https://auth.example.com/authorize",
+        format!("{}/token", mock_server.uri()),
+    );
+
+    let pkce_store = PkceStateStore::new(300, None);
+
+    let state = Arc::new(AuthPkceState {
+        pkce_store:              Arc::new(pkce_store),
+        oidc_client:             Arc::new(oidc_client),
+        http_client:             Arc::new(reqwest::Client::new()),
+        post_login_redirect_uri: Some("https://app.example.com/dashboard".to_string()),
+    });
+
+    Router::new()
+        .route("/auth/start", get(auth_start))
+        .route("/auth/callback", get(auth_callback))
+        .with_state(state)
+}
+
+/// C15: When `post_login_redirect_uri` is configured the callback must:
+/// 1. Return a 302/303 redirect to the configured URI (NOT the caller's `redirect_uri`).
+/// 2. Set a `__Host-access_token` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`.
+/// 3. Include the access token in the cookie value.
+#[tokio::test]
+async fn auth_callback_session_cookie_mode() {
+    let mock_server = MockServer::start().await;
+    let router = session_cookie_router(&mock_server).await;
+
+    // ── Step 1: auth_start → redirect to IdP ─────────────────────────────
+    let (status, location) =
+        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
+    let loc = location.expect("auth_start must set Location header");
+    let state_token = extract_state_param(&loc);
+    assert!(!state_token.is_empty(), "state token must not be empty");
+
+    // ── Step 2: auth_callback → cookie redirect ──────────────────────────
+    let callback_uri = format!("/auth/callback?code=valid_code&state={state_token}");
+    let response = router
+        .clone()
+        .oneshot(Request::builder().uri(&callback_uri).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    let status = response.status();
+    // Axum's Redirect::to() returns 303 See Other.
+    assert!(
+        status == StatusCode::SEE_OTHER || status == StatusCode::FOUND,
+        "session cookie mode must redirect, got: {status}"
+    );
+
+    // ── Verify redirect target ───────────────────────────────────────────
+    let redirect_location = response
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .expect("redirect response must have Location header");
+    assert_eq!(
+        redirect_location, "https://app.example.com/dashboard",
+        "redirect must point to post_login_redirect_uri, not the caller's redirect_uri"
+    );
+
+    // ── Verify Set-Cookie header ─────────────────────────────────────────
+    let set_cookie = response
+        .headers()
+        .get("set-cookie")
+        .and_then(|v| v.to_str().ok())
+        .expect("session cookie mode must set a Set-Cookie header");
+
+    // Cookie name must use the __Host- prefix.
+    assert!(
+        set_cookie.starts_with("__Host-access_token="),
+        "cookie must use __Host-access_token prefix, got: {set_cookie}"
+    );
+
+    // Cookie must contain the access token.
+    assert!(
+        set_cookie.contains("test-access-token-xyz"),
+        "cookie must contain the access token, got: {set_cookie}"
+    );
+
+    // HttpOnly attribute prevents JavaScript access.
+    assert!(
+        set_cookie.contains("HttpOnly"),
+        "cookie must have HttpOnly attribute, got: {set_cookie}"
+    );
+
+    // Secure attribute (required by __Host- prefix).
+    assert!(
+        set_cookie.contains("Secure"),
+        "cookie must have Secure attribute, got: {set_cookie}"
+    );
+
+    // SameSite=Strict prevents CSRF via cross-origin requests.
+    assert!(
+        set_cookie.contains("SameSite=Strict"),
+        "cookie must have SameSite=Strict, got: {set_cookie}"
+    );
+
+    // Path=/ is required by the __Host- cookie prefix.
+    assert!(set_cookie.contains("Path=/"), "cookie must have Path=/, got: {set_cookie}");
+
+    // Max-Age must match the token's expires_in (3600).
+    assert!(
+        set_cookie.contains("Max-Age=3600"),
+        "cookie Max-Age must match token expires_in (3600), got: {set_cookie}"
+    );
 }
 
 // ---------------------------------------------------------------------------

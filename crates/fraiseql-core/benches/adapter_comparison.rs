@@ -81,7 +81,7 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
     {
         match PostgresAdapter::new(conn_str).await {
             Ok(adapter) => {
-                match adapter.execute_where_query("v_users", None, Some(1), None).await {
+                match adapter.execute_where_query("v_users", None, Some(1), None, None).await {
                     Ok(results) => !results.is_empty(),
                     Err(_) => false,
                 }
@@ -127,8 +127,10 @@ fn bench_postgres_10k_rows(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let start = Instant::now();
-                let results =
-                    adapter.execute_where_query("v_users", None, Some(10_000), None).await.unwrap();
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(10_000), None, None)
+                    .await
+                    .unwrap();
 
                 black_box(results.len());
                 black_box(start.elapsed());
@@ -164,8 +166,10 @@ fn bench_wire_10k_rows(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let start = Instant::now();
-                let results =
-                    adapter.execute_where_query("v_users", None, Some(10_000), None).await.unwrap();
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(10_000), None, None)
+                    .await
+                    .unwrap();
 
                 black_box(results.len());
                 black_box(start.elapsed());
@@ -205,7 +209,7 @@ fn bench_postgres_100k_rows(c: &mut Criterion) {
             async move {
                 let start = Instant::now();
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -243,7 +247,7 @@ fn bench_wire_100k_rows(c: &mut Criterion) {
             async move {
                 let start = Instant::now();
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -285,7 +289,7 @@ fn bench_postgres_1m_rows(c: &mut Criterion) {
             async move {
                 let start = Instant::now();
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(1_000_000), None)
+                    .execute_where_query("v_users", None, Some(1_000_000), None, None)
                     .await
                     .unwrap();
 
@@ -323,7 +327,7 @@ fn bench_wire_1m_rows(c: &mut Criterion) {
             async move {
                 let start = Instant::now();
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(1_000_000), None)
+                    .execute_where_query("v_users", None, Some(1_000_000), None, None)
                     .await
                     .unwrap();
 
@@ -370,7 +374,7 @@ fn bench_postgres_with_where(c: &mut Criterion) {
             let where_clause = where_clause.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", Some(&where_clause), None, None)
+                    .execute_where_query("v_users", Some(&where_clause), None, None, None)
                     .await
                     .unwrap();
 
@@ -412,7 +416,7 @@ fn bench_wire_with_where(c: &mut Criterion) {
             let where_clause = where_clause.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", Some(&where_clause), None, None)
+                    .execute_where_query("v_users", Some(&where_clause), None, None, None)
                     .await
                     .unwrap();
 
@@ -452,7 +456,7 @@ fn bench_postgres_pagination(c: &mut Criterion) {
                 // Simulate fetching 10 pages of 100 rows each
                 for page in 0..10 {
                     let results = adapter
-                        .execute_where_query("v_users", None, Some(100), Some(page * 100))
+                        .execute_where_query("v_users", None, Some(100), Some(page * 100), None)
                         .await
                         .unwrap();
 
@@ -489,7 +493,7 @@ fn bench_wire_pagination(c: &mut Criterion) {
                 // Simulate fetching 10 pages of 100 rows each
                 for page in 0..10 {
                     let results = adapter
-                        .execute_where_query("v_users", None, Some(100), Some(page * 100))
+                        .execute_where_query("v_users", None, Some(100), Some(page * 100), None)
                         .await
                         .unwrap();
 
@@ -535,7 +539,7 @@ fn bench_postgres_100k_with_json_parse(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -573,7 +577,7 @@ fn bench_wire_100k_with_json_parse(c: &mut Criterion) {
             let adapter = adapter.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -628,7 +632,7 @@ fn bench_postgres_100k_with_graphql_transform(c: &mut Criterion) {
             let fields = fields.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -689,7 +693,7 @@ fn bench_postgres_100k_sql_projection_vs_rust(c: &mut Criterion) {
             async move {
                 // Get full JSONB from database
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -742,7 +746,7 @@ fn bench_wire_100k_with_graphql_transform(c: &mut Criterion) {
             let fields = fields.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .execute_where_query("v_users", None, Some(100_000), None, None)
                     .await
                     .unwrap();
 
@@ -835,7 +839,7 @@ async fn setup_god_objects(conn_str: &str) -> bool {
     }
 
     // Verify data was inserted
-    match adapter.execute_where_query("v_god_objects", None, Some(1), None).await {
+    match adapter.execute_where_query("v_god_objects", None, Some(1), None, None).await {
         Ok(results) => !results.is_empty(),
         Err(_) => false,
     }
@@ -883,7 +887,7 @@ fn bench_postgres_god_objects_projection_comparison(c: &mut Criterion) {
             let fields = fields.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_god_objects", None, Some(1000), None)
+                    .execute_where_query("v_god_objects", None, Some(1000), None, None)
                     .await
                     .unwrap();
 
@@ -1079,7 +1083,7 @@ fn bench_wire_god_objects_projection_comparison(c: &mut Criterion) {
             let fields = fields.clone();
             async move {
                 let results = adapter
-                    .execute_where_query("v_god_objects", None, Some(1000), None)
+                    .execute_where_query("v_god_objects", None, Some(1000), None, None)
                     .await
                     .unwrap();
 
@@ -1114,7 +1118,7 @@ fn bench_wire_god_objects_projection_comparison(c: &mut Criterion) {
                     // Note: Wire's execute_raw_query may work differently
                     // This is to test if Wire can handle the pre-filtered payload
                     let results = adapter
-                        .execute_where_query("v_god_objects", None, Some(1000), None)
+                        .execute_where_query("v_god_objects", None, Some(1000), None, None)
                         .await
                         .unwrap();
 

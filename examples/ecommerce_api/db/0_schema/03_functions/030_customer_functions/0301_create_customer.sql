@@ -1,10 +1,10 @@
 -- Create customer functions
 -- App and core layers for customer creation
 
--- App function: Create customer (ultra-direct mutation)
+-- App function: Create customer
 CREATE OR REPLACE FUNCTION app.create_customer(
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_customer_id UUID;
 BEGIN
@@ -16,19 +16,17 @@ BEGIN
         input_payload->>'last_name'
     );
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'new',
         'Customer created successfully',
         jsonb_build_object(
-            'customer', jsonb_build_object(
-                'id', v_customer_id,
-                'email', input_payload->>'email',
-                'first_name', input_payload->>'first_name',
-                'last_name', input_payload->>'last_name'
-            )
-        )
+            'id', v_customer_id,
+            'email', input_payload->>'email',
+            'first_name', input_payload->>'first_name',
+            'last_name', input_payload->>'last_name'
+        ),
+        'Customer',
+        v_customer_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -1,11 +1,11 @@
 -- Update order functions
 -- App and core layers for order updates
 
--- App function: Update order (ultra-direct mutation)
+-- App function: Update order
 CREATE OR REPLACE FUNCTION app.update_order(
     order_id UUID,
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_updated_data JSONB;
 BEGIN
@@ -21,12 +21,12 @@ BEGIN
     -- Get updated order data
     SELECT data INTO v_updated_data FROM tv_order WHERE id = order_id;
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'updated',
         'Order updated successfully',
-        jsonb_build_object('order', v_updated_data)
+        v_updated_data,
+        'Order',
+        order_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

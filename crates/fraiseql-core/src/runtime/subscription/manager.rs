@@ -98,6 +98,33 @@ impl SubscriptionManager {
         variables: serde_json::Value,
         connection_id: &str,
     ) -> Result<SubscriptionId, SubscriptionError> {
+        self.subscribe_with_rls(
+            subscription_name,
+            user_context,
+            variables,
+            connection_id,
+            Vec::new(),
+        )
+    }
+
+    /// Subscribe with pre-evaluated RLS conditions for event-level filtering.
+    ///
+    /// The caller should evaluate the RLS policy at subscribe time and pass
+    /// the resulting conditions (via [`extract_rls_conditions`](super::extract_rls_conditions)).
+    /// During event delivery, each condition is checked against the event data:
+    /// the event is only delivered if **every** condition matches.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if subscription not found or connection limit exceeded.
+    pub fn subscribe_with_rls(
+        &self,
+        subscription_name: &str,
+        user_context: serde_json::Value,
+        variables: serde_json::Value,
+        connection_id: &str,
+        rls_conditions: Vec<(String, serde_json::Value)>,
+    ) -> Result<SubscriptionId, SubscriptionError> {
         // Find subscription definition
         let mut definition = self
             .schema
@@ -122,14 +149,15 @@ impl SubscriptionManager {
             }
         }
 
-        // Create active subscription
+        // Create active subscription with RLS conditions
         let active = ActiveSubscription::new(
             subscription_name,
             definition,
             user_context,
             variables,
             connection_id,
-        );
+        )
+        .with_rls_conditions(rls_conditions);
 
         let id = active.id;
 
@@ -322,7 +350,7 @@ impl SubscriptionManager {
         matched
     }
 
-    /// Check if an event matches a subscription's filters.
+    /// Check if an event matches a subscription's filters and RLS conditions.
     fn matches_subscription(
         &self,
         event: &SubscriptionEvent,
@@ -352,6 +380,22 @@ impl SubscriptionManager {
                 if event.operation != expected {
                     return false;
                 }
+            }
+        }
+
+        // Check row-level security conditions (evaluated at subscribe time).
+        // Every condition must match (AND semantics) — RLS always wins.
+        for (field, expected_value) in &subscription.rls_conditions {
+            let actual = get_json_pointer_value(&event.data, field);
+            if actual != Some(expected_value) {
+                tracing::trace!(
+                    subscription_id = %subscription.id,
+                    field = field,
+                    expected = ?expected_value,
+                    actual = ?actual,
+                    "RLS condition mismatch — event filtered"
+                );
+                return false;
             }
         }
 

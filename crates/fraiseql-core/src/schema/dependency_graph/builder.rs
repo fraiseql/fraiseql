@@ -132,7 +132,7 @@ impl SchemaDependencyGraph {
         for input_def in &schema.input_types {
             for field in &input_def.fields {
                 // Parse the field_type string to extract type references
-                let parsed = FieldType::parse(&field.field_type, &all_types);
+                let parsed = FieldType::parse(&field.field_type);
                 if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                     if all_types.contains(&ref_type) {
                         outgoing
@@ -150,7 +150,7 @@ impl SchemaDependencyGraph {
 
         // Build dependencies from queries to their return types
         for query in &schema.queries {
-            let parsed = FieldType::parse(&query.return_type, &all_types);
+            let parsed = FieldType::parse(&query.return_type);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
                     outgoing.entry("Query".to_string()).or_default().insert(ref_type.clone());
@@ -161,7 +161,7 @@ impl SchemaDependencyGraph {
 
         // Build dependencies from mutations to their return types
         for mutation in &schema.mutations {
-            let parsed = FieldType::parse(&mutation.return_type, &all_types);
+            let parsed = FieldType::parse(&mutation.return_type);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
                     outgoing.entry("Mutation".to_string()).or_default().insert(ref_type.clone());
@@ -172,7 +172,7 @@ impl SchemaDependencyGraph {
 
         // Build dependencies from subscriptions to their return types
         for subscription in &schema.subscriptions {
-            let parsed = FieldType::parse(&subscription.return_type, &all_types);
+            let parsed = FieldType::parse(&subscription.return_type);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
                     outgoing

@@ -24,21 +24,21 @@
 //! ```
 
 // Database adapters (conditionally compiled based on features)
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use std::sync::Arc;
 
-#[cfg(feature = "mysql")]
+#[cfg(feature = "test-mysql")]
 use fraiseql_core::db::mysql::MySqlAdapter;
 #[cfg(feature = "sqlite")]
 use fraiseql_core::db::sqlite::SqliteAdapter;
-#[cfg(feature = "sqlserver")]
+#[cfg(feature = "test-sqlserver")]
 use fraiseql_core::db::sqlserver::SqlServerAdapter;
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 use fraiseql_core::db::types::DatabaseType;
 // Note: WhereClause and WhereOperator available for future WHERE tests
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(unused_imports)]
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
@@ -88,7 +88,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -106,7 +106,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), None)
+            .execute_where_query("v_user", None, Some(2), None, None)
             .await
             .expect("Query should succeed");
 
@@ -119,13 +119,13 @@ mod mysql_tests {
 
         // Get all users first
         let all_results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
         // Get users with offset
         let offset_results = adapter
-            .execute_where_query("v_user", None, Some(10), Some(1))
+            .execute_where_query("v_user", None, Some(10), Some(1), None)
             .await
             .expect("Query should succeed");
 
@@ -139,7 +139,7 @@ mod mysql_tests {
         let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_post", None, Some(5), None)
+            .execute_where_query("v_post", None, Some(5), None, None)
             .await
             .expect("Query should succeed");
 
@@ -179,7 +179,7 @@ mod mysql_tests {
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone.execute_where_query("v_user", None, Some(5), None).await
+                adapter_clone.execute_where_query("v_user", None, Some(5), None, None).await
             });
             handles.push(handle);
         }
@@ -266,7 +266,7 @@ mod sqlite_tests {
 
         // Query the view
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -305,7 +305,7 @@ mod sqlite_tests {
 
         // Query with limit
         let results = adapter
-            .execute_where_query("v_items", None, Some(2), None)
+            .execute_where_query("v_items", None, Some(2), None, None)
             .await
             .expect("Query should succeed");
 
@@ -339,7 +339,7 @@ mod sqlite_tests {
 
         // Query with offset
         let results = adapter
-            .execute_where_query("v_items", None, Some(10), Some(2))
+            .execute_where_query("v_items", None, Some(10), Some(2), None)
             .await
             .expect("Query should succeed");
 
@@ -405,7 +405,7 @@ mod sqlite_tests {
 
         // Query the view
         let results = adapter
-            .execute_where_query("v_post", None, Some(10), None)
+            .execute_where_query("v_post", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -451,7 +451,7 @@ mod sqlite_tests {
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone.execute_where_query("v_test", None, Some(5), None).await
+                adapter_clone.execute_where_query("v_test", None, Some(5), None, None).await
             });
             handles.push(handle);
         }
@@ -525,7 +525,7 @@ mod sqlserver_tests {
         };
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(10), None)
+            .execute_where_query("v_user", None, Some(10), None, None)
             .await
             .expect("Query should succeed");
 
@@ -892,13 +892,13 @@ mod sqlserver_relay_tests {
 // ============================================================================
 
 /// Trait for database-agnostic test execution
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn run_basic_health_check<A: DatabaseAdapter>(adapter: &A) -> bool {
     adapter.health_check().await.is_ok()
 }
 
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
     let metrics = adapter.pool_metrics();
@@ -906,14 +906,14 @@ async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
 }
 
 // Helper to run queries and verify JSON structure
-#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+#[cfg(any(feature = "test-mysql", feature = "sqlite", feature = "test-sqlserver"))]
 #[allow(dead_code)]
 async fn verify_view_returns_json<A: DatabaseAdapter>(
     adapter: &A,
     view_name: &str,
     expected_fields: &[&str],
 ) -> bool {
-    let results = adapter.execute_where_query(view_name, None, Some(1), None).await;
+    let results = adapter.execute_where_query(view_name, None, Some(1), None, None).await;
 
     if let Ok(rows) = results {
         if rows.is_empty() {

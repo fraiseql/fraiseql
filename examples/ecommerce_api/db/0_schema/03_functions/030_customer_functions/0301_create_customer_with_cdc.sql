@@ -4,11 +4,11 @@
 -- App function: Create customer (ultra-direct + CDC)
 CREATE OR REPLACE FUNCTION app.create_customer(
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_customer_id UUID;
     v_after_data JSONB;
-    v_mutation_response JSONB;
+    v_mutation_response mutation_response;
 BEGIN
     -- Delegate to core business logic (actual creation)
     v_customer_id := core.create_customer(
@@ -29,10 +29,11 @@ BEGIN
 
     -- Build ultra-direct response for client (snake_case, Rust transforms)
     v_mutation_response := app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'new',
         'Customer created successfully',
-        jsonb_build_object('customer', v_after_data)
+        p_entity := v_after_data,
+        p_entity_type := 'Customer',
+        p_entity_id := v_customer_id::text
     );
 
     -- Log CDC event ASYNCHRONOUSLY (doesn't block response)

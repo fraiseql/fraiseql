@@ -1,5 +1,6 @@
 -- Chat Functions for Real-time Chat API
 -- CQRS pattern: Functions for mutations
+-- All functions return mutation_response type
 
 -- Create a new room
 CREATE OR REPLACE FUNCTION create_room(
@@ -10,18 +11,18 @@ CREATE OR REPLACE FUNCTION create_room(
     p_owner_id UUID,
     p_max_members INTEGER DEFAULT 1000,
     p_settings JSONB DEFAULT '{}'
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_room_id UUID;
 BEGIN
     -- Check if slug is available
     IF EXISTS (SELECT 1 FROM rooms WHERE slug = p_slug) THEN
-        RAISE EXCEPTION 'Room slug already exists';
+        RETURN ROW('failed:validation', 'Room slug already exists', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Validate room type
     IF p_type NOT IN ('public', 'private', 'direct') THEN
-        RAISE EXCEPTION 'Invalid room type';
+        RETURN ROW('failed:validation', 'Invalid room type', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Create room
@@ -33,17 +34,19 @@ BEGIN
     INSERT INTO room_members (room_id, user_id, role)
     VALUES (v_room_id, p_owner_id, 'owner');
 
-    RETURN json_build_object(
-        'success', true,
-        'room_id', v_room_id,
-        'message', 'Room created successfully'
-    );
+    RETURN ROW(
+        'new',
+        'Room created successfully',
+        v_room_id::text,
+        'Room',
+        jsonb_build_object('id', v_room_id, 'name', p_name, 'slug', p_slug, 'type', p_type),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -52,7 +55,7 @@ CREATE OR REPLACE FUNCTION join_room(
     p_room_id UUID,
     p_user_id UUID,
     p_role VARCHAR DEFAULT 'member'
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_room RECORD;
     v_member_count INTEGER;
@@ -61,7 +64,7 @@ BEGIN
     SELECT * INTO v_room FROM rooms WHERE id = p_room_id AND is_active = true;
 
     IF v_room IS NULL THEN
-        RAISE EXCEPTION 'Room not found or inactive';
+        RETURN ROW('failed:validation', 'Room not found or inactive', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if already a member
@@ -69,7 +72,7 @@ BEGIN
         SELECT 1 FROM room_members
         WHERE room_id = p_room_id AND user_id = p_user_id
     ) THEN
-        RAISE EXCEPTION 'User is already a member';
+        RETURN ROW('failed:validation', 'User is already a member', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check room capacity
@@ -78,7 +81,7 @@ BEGIN
     WHERE room_id = p_room_id AND is_banned = false;
 
     IF v_member_count >= v_room.max_members THEN
-        RAISE EXCEPTION 'Room is at maximum capacity';
+        RETURN ROW('failed:validation', 'Room is at maximum capacity', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- For private rooms, check if user has permission (simplified)
@@ -98,19 +101,22 @@ BEGIN
         p_user_id,
         'joined the room',
         'system',
-        json_build_object('action', 'user_joined')::jsonb
+        jsonb_build_object('action', 'user_joined')
     );
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Successfully joined room'
-    );
+    RETURN ROW(
+        'success',
+        'Successfully joined room',
+        p_room_id::text,
+        'Room',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -122,7 +128,7 @@ CREATE OR REPLACE FUNCTION send_message(
     p_message_type VARCHAR DEFAULT 'text',
     p_parent_message_id UUID DEFAULT NULL,
     p_metadata JSONB DEFAULT '{}'
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_message_id UUID;
     v_room_member RECORD;
@@ -133,12 +139,12 @@ BEGIN
     WHERE room_id = p_room_id AND user_id = p_user_id AND is_banned = false;
 
     IF v_room_member IS NULL THEN
-        RAISE EXCEPTION 'User is not a member of this room or is banned';
+        RETURN ROW('failed:validation', 'User is not a member of this room or is banned', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Validate message type
     IF p_message_type NOT IN ('text', 'image', 'file', 'system') THEN
-        RAISE EXCEPTION 'Invalid message type';
+        RETURN ROW('failed:validation', 'Invalid message type', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Insert message
@@ -155,17 +161,19 @@ BEGIN
     DELETE FROM typing_indicators
     WHERE room_id = p_room_id AND user_id = p_user_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message_id', v_message_id,
-        'message', 'Message sent successfully'
-    );
+    RETURN ROW(
+        'new',
+        'Message sent successfully',
+        v_message_id::text,
+        'Message',
+        jsonb_build_object('id', v_message_id, 'room_id', p_room_id, 'content', p_content),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -174,7 +182,7 @@ CREATE OR REPLACE FUNCTION edit_message(
     p_message_id UUID,
     p_user_id UUID,
     p_new_content TEXT
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_message RECORD;
 BEGIN
@@ -184,12 +192,12 @@ BEGIN
     WHERE id = p_message_id AND user_id = p_user_id AND is_deleted = false;
 
     IF v_message IS NULL THEN
-        RAISE EXCEPTION 'Message not found or you do not have permission to edit it';
+        RETURN ROW('failed:validation', 'Message not found or you do not have permission to edit it', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check if message is too old to edit (e.g., 1 hour)
     IF v_message.created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN
-        RAISE EXCEPTION 'Message is too old to edit';
+        RETURN ROW('failed:validation', 'Message is too old to edit', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Update message
@@ -200,23 +208,26 @@ BEGIN
             COALESCE(metadata, '{}'::jsonb),
             '{edit_history}',
             COALESCE(metadata->'edit_history', '[]'::jsonb) ||
-            json_build_object(
+            jsonb_build_object(
                 'previous_content', v_message.content,
                 'edited_at', CURRENT_TIMESTAMP
-            )::jsonb
+            )
         )
     WHERE id = p_message_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Message edited successfully'
-    );
+    RETURN ROW(
+        'success',
+        'Message edited successfully',
+        p_message_id::text,
+        'Message',
+        jsonb_build_object('id', p_message_id, 'content', p_new_content),
+        ARRAY['content']::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -225,7 +236,7 @@ CREATE OR REPLACE FUNCTION delete_message(
     p_message_id UUID,
     p_user_id UUID,
     p_is_moderator BOOLEAN DEFAULT false
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_message RECORD;
 BEGIN
@@ -236,14 +247,14 @@ BEGIN
     WHERE m.id = p_message_id AND m.is_deleted = false;
 
     IF v_message IS NULL THEN
-        RAISE EXCEPTION 'Message not found';
+        RETURN ROW('failed:validation', 'Message not found', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check permissions
     IF v_message.user_id != p_user_id AND
        NOT p_is_moderator AND
        v_message.role NOT IN ('owner', 'admin', 'moderator') THEN
-        RAISE EXCEPTION 'You do not have permission to delete this message';
+        RETURN ROW('failed:validation', 'You do not have permission to delete this message', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Soft delete the message
@@ -252,24 +263,27 @@ BEGIN
         metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{deleted_by}',
-            json_build_object(
+            jsonb_build_object(
                 'user_id', p_user_id,
                 'deleted_at', CURRENT_TIMESTAMP,
                 'is_moderator_action', p_is_moderator
-            )::jsonb
+            )
         )
     WHERE id = p_message_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Message deleted successfully'
-    );
+    RETURN ROW(
+        'success',
+        'Message deleted successfully',
+        p_message_id::text,
+        'Message',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -278,7 +292,7 @@ CREATE OR REPLACE FUNCTION add_message_reaction(
     p_message_id UUID,
     p_user_id UUID,
     p_emoji VARCHAR
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     -- Check if user can access this message (member of room)
     IF NOT EXISTS (
@@ -289,7 +303,7 @@ BEGIN
         AND rm.is_banned = false
         AND m.is_deleted = false
     ) THEN
-        RAISE EXCEPTION 'Message not found or access denied';
+        RETURN ROW('failed:validation', 'Message not found or access denied', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Add or update reaction
@@ -297,16 +311,19 @@ BEGIN
     VALUES (p_message_id, p_user_id, p_emoji)
     ON CONFLICT (message_id, user_id, emoji) DO NOTHING;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Reaction added'
-    );
+    RETURN ROW(
+        'new',
+        'Reaction added',
+        NULL::text,
+        'Reaction',
+        jsonb_build_object('message_id', p_message_id, 'emoji', p_emoji),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -315,23 +332,26 @@ CREATE OR REPLACE FUNCTION remove_message_reaction(
     p_message_id UUID,
     p_user_id UUID,
     p_emoji VARCHAR
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     DELETE FROM message_reactions
     WHERE message_id = p_message_id
     AND user_id = p_user_id
     AND emoji = p_emoji;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Reaction removed'
-    );
+    RETURN ROW(
+        'success',
+        'Reaction removed',
+        NULL::text,
+        'Reaction',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -341,7 +361,7 @@ CREATE OR REPLACE FUNCTION update_user_presence(
     p_room_id UUID DEFAULT NULL,
     p_status VARCHAR DEFAULT 'online',
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     -- Update or insert presence
     INSERT INTO user_presence (user_id, room_id, status, session_id)
@@ -357,16 +377,19 @@ BEGIN
         last_seen = CASE WHEN p_status = 'offline' THEN CURRENT_TIMESTAMP ELSE last_seen END
     WHERE id = p_user_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Presence updated'
-    );
+    RETURN ROW(
+        'success',
+        'Presence updated',
+        p_user_id::text,
+        'Presence',
+        jsonb_build_object('user_id', p_user_id, 'status', p_status),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -375,7 +398,7 @@ CREATE OR REPLACE FUNCTION set_typing_indicator(
     p_room_id UUID,
     p_user_id UUID,
     p_is_typing BOOLEAN DEFAULT true
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     IF p_is_typing THEN
         -- Add or update typing indicator
@@ -391,16 +414,19 @@ BEGIN
         WHERE room_id = p_room_id AND user_id = p_user_id;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Typing indicator updated'
-    );
+    RETURN ROW(
+        'success',
+        'Typing indicator updated',
+        NULL::text,
+        NULL::text,
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -409,7 +435,7 @@ CREATE OR REPLACE FUNCTION mark_messages_read(
     p_room_id UUID,
     p_user_id UUID,
     p_up_to_message_id UUID DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_timestamp TIMESTAMP WITH TIME ZONE;
 BEGIN
@@ -418,7 +444,7 @@ BEGIN
         SELECT 1 FROM room_members
         WHERE room_id = p_room_id AND user_id = p_user_id AND is_banned = false
     ) THEN
-        RAISE EXCEPTION 'User is not a member of this room';
+        RETURN ROW('failed:validation', 'User is not a member of this room', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Get timestamp of the message or use current time
@@ -428,7 +454,7 @@ BEGIN
         WHERE id = p_up_to_message_id AND room_id = p_room_id;
 
         IF v_timestamp IS NULL THEN
-            RAISE EXCEPTION 'Message not found in this room';
+            RETURN ROW('failed:validation', 'Message not found in this room', NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
         END IF;
     ELSE
         v_timestamp := CURRENT_TIMESTAMP;
@@ -452,16 +478,19 @@ BEGIN
     )
     ON CONFLICT (message_id, user_id) DO NOTHING;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Messages marked as read'
-    );
+    RETURN ROW(
+        'success',
+        'Messages marked as read',
+        NULL::text,
+        NULL::text,
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -469,7 +498,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION create_direct_conversation(
     p_user1_id UUID,
     p_user2_id UUID
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_room_id UUID;
     v_conversation_id UUID;
@@ -491,11 +520,16 @@ BEGIN
     WHERE user1_id = v_ordered_user1 AND user2_id = v_ordered_user2;
 
     IF v_room_id IS NOT NULL THEN
-        RETURN json_build_object(
-            'success', true,
-            'room_id', v_room_id,
-            'message', 'Direct conversation already exists'
-        );
+        RETURN ROW(
+            'success',
+            'Direct conversation already exists',
+            v_room_id::text,
+            'Conversation',
+            jsonb_build_object('room_id', v_room_id),
+            NULL::text[],
+            NULL::jsonb,
+            NULL::jsonb
+        )::mutation_response;
     END IF;
 
     -- Create room for direct conversation
@@ -518,17 +552,18 @@ BEGIN
     (v_room_id, v_ordered_user1, 'member'),
     (v_room_id, v_ordered_user2, 'member');
 
-    RETURN json_build_object(
-        'success', true,
-        'room_id', v_room_id,
-        'conversation_id', v_conversation_id,
-        'message', 'Direct conversation created'
-    );
+    RETURN ROW(
+        'new',
+        'Direct conversation created',
+        v_conversation_id::text,
+        'Conversation',
+        jsonb_build_object('room_id', v_room_id, 'conversation_id', v_conversation_id),
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;

@@ -1,15 +1,129 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use async_trait::async_trait;
+use chrono::Utc;
 
 use super::*;
 use crate::{
-    db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
-    runtime::{JsonbOptimizationOptions, JsonbStrategy},
-    schema::{AutoParams, CompiledSchema, QueryDefinition},
+    db::{
+        MutationCapable,
+        types::{JsonbValue, sql_hints::OrderByClause},
+        where_clause::WhereClause,
+    },
+    runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
+    schema::{
+        AutoParams, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType,
+        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
+    },
+    security::{DefaultRLSPolicy, SecurityContext},
 };
 
 // ── Shared test fixtures (accessible to all sub-modules via `use super::*`) ──
+
+/// Capturing mock that records the WHERE clause and limit/offset it receives.
+/// Used to verify parameter threading from executor to adapter.
+struct CapturingMockAdapter {
+    mock_results:    Vec<JsonbValue>,
+    captured_where:  std::sync::Mutex<Option<WhereClause>>,
+    captured_limit:  std::sync::Mutex<Option<u32>>,
+    captured_offset: std::sync::Mutex<Option<u32>>,
+}
+
+impl CapturingMockAdapter {
+    fn new(mock_results: Vec<JsonbValue>) -> Self {
+        Self {
+            mock_results,
+            captured_where: std::sync::Mutex::new(None),
+            captured_limit: std::sync::Mutex::new(None),
+            captured_offset: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn captured_where(&self) -> Option<WhereClause> {
+        self.captured_where.lock().unwrap().clone()
+    }
+
+    fn captured_limit(&self) -> Option<u32> {
+        *self.captured_limit.lock().unwrap()
+    }
+
+    fn captured_offset(&self) -> Option<u32> {
+        *self.captured_offset.lock().unwrap()
+    }
+}
+
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl DatabaseAdapter for CapturingMockAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.execute_where_query(view, where_clause, limit, offset, None).await
+    }
+
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        *self.captured_where.lock().unwrap() = where_clause.cloned();
+        *self.captured_limit.lock().unwrap() = limit;
+        *self.captured_offset.lock().unwrap() = offset;
+        Ok(self.mock_results.clone())
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::PostgreSQL
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections:  1,
+            active_connections: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+impl MutationCapable for CapturingMockAdapter {}
 
 /// Mock database adapter for testing.
 ///
@@ -50,9 +164,11 @@ impl DatabaseAdapter for MockAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Fall back to standard query for tests
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -61,6 +177,7 @@ impl DatabaseAdapter for MockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Return per-view override if registered, otherwise fall back to uniform results.
         if let Some(results) = self.view_responses.get(view) {
@@ -127,8 +244,10 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -137,6 +256,7 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -863,8 +983,10 @@ mod cascade {
             _projection: Option<&crate::schema::SqlProjectionHint>,
             where_clause: Option<&WhereClause>,
             limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
-            self.execute_where_query(view, where_clause, limit, None).await
+            self.execute_where_query(view, where_clause, limit, None, None).await
         }
 
         async fn execute_where_query(
@@ -873,6 +995,7 @@ mod cascade {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1355,6 +1478,709 @@ mod routing {
         assert!(
             result.contains("\"type\":\"user\""),
             "expected user row from v_user, got: {result}"
+        );
+    }
+}
+
+// ── mod auto_params: has_where, has_limit, has_offset threading ──────────
+
+mod auto_params {
+    use super::*;
+
+    fn schema_with_auto_params(auto_params: AutoParams) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
+            inject_params: Default::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+        });
+        schema
+    }
+
+    #[tokio::test]
+    async fn test_has_limit_threads_to_adapter() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({"limit": 3});
+        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        assert_eq!(adapter.captured_limit(), Some(3));
+    }
+
+    #[tokio::test]
+    async fn test_has_offset_threads_to_adapter() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    false,
+            has_offset:   true,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({"offset": 10});
+        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        assert_eq!(adapter.captured_offset(), Some(10));
+    }
+
+    #[tokio::test]
+    async fn test_has_where_threads_user_filter_to_adapter() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    true,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({
+            "where": {"name": {"eq": "Alice"}}
+        });
+        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        // The adapter should have received a WHERE clause
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "expected WHERE clause to be passed to adapter");
+    }
+
+    #[tokio::test]
+    async fn test_has_where_false_ignores_user_filter() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({
+            "where": {"name": {"eq": "Alice"}}
+        });
+        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        // WHERE clause should NOT be passed when has_where is false
+        let captured = adapter.captured_where();
+        assert!(captured.is_none(), "expected no WHERE clause when has_where is false");
+    }
+
+    #[tokio::test]
+    async fn test_has_limit_and_offset_together() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   true,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({"limit": 5, "offset": 20});
+        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        assert_eq!(adapter.captured_limit(), Some(5));
+        assert_eq!(adapter.captured_offset(), Some(20));
+    }
+}
+
+// ── mod rls_composition: C13+C19 — WHERE composition through executor ────
+
+mod rls_composition {
+    use indexmap::IndexMap;
+
+    use super::*;
+
+    fn schema_with_inject_params(
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
+                has_where: true,
+                ..Default::default()
+            },
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
+            inject_params,
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+        });
+        schema
+    }
+
+    fn tenant_security_context() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        Some("tenant-abc".to_string()),
+            scopes:           vec!["read:User".to_string()],
+            attributes:       Default::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_rls_only_produces_where_clause() {
+        let schema = schema_with_inject_params(IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let ctx = tenant_security_context();
+        let _result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "RLS policy should produce a WHERE clause for tenant user");
+    }
+
+    #[tokio::test]
+    async fn test_inject_params_produces_where_clause() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = schema_with_inject_params(inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = tenant_security_context();
+        let _result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "inject_params should produce a WHERE clause");
+    }
+
+    /// C13: Verify RLS + inject_params compose into AND(rls, inject)
+    #[tokio::test]
+    async fn test_rls_and_inject_params_compose_into_and() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = schema_with_inject_params(inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let ctx = tenant_security_context();
+        let _result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "combined RLS + inject should produce a WHERE clause");
+        // Should be an AND clause wrapping both conditions
+        let where_clause = captured.unwrap();
+        match &where_clause {
+            WhereClause::And(clauses) => {
+                assert!(
+                    clauses.len() >= 2,
+                    "expected at least 2 AND clauses (RLS + inject), got {}",
+                    clauses.len()
+                );
+            },
+            _ => panic!("expected AND composition, got: {where_clause:?}"),
+        }
+    }
+
+    /// C19: Verify three-way composition: RLS + inject + user WHERE
+    #[tokio::test]
+    async fn test_three_way_where_composition_rls_inject_user() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = schema_with_inject_params(inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let ctx = tenant_security_context();
+        let vars = serde_json::json!({
+            "where": {"name": {"eq": "Alice"}}
+        });
+        let _result = executor
+            .execute_with_security("{ users { id name } }", Some(&vars), &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "three-way composition should produce a WHERE clause");
+        // Outermost should be AND(security_clause, user_where)
+        let where_clause = captured.unwrap();
+        match &where_clause {
+            WhereClause::And(clauses) => {
+                assert!(
+                    clauses.len() >= 2,
+                    "expected at least 2 top-level AND clauses, got {}",
+                    clauses.len()
+                );
+                // The first clause should be the security AND(rls, inject)
+                // The second clause should be the user WHERE
+                // Together: AND(AND(rls, inject), user_where)
+            },
+            _ => panic!("expected AND composition, got: {where_clause:?}"),
+        }
+    }
+}
+
+// ── mod field_rbac: C16+C17 — RBAC reject/mask through executor ──────────
+
+mod field_rbac {
+    use super::*;
+
+    fn schema_with_rbac_fields() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         Default::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+        });
+        let mut user_type = TypeDefinition::new("User", "v_user");
+        user_type.fields = vec![
+            FieldDefinition {
+                name:           "id".into(),
+                field_type:     FieldType::Int,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            FieldDefinition {
+                name:           "name".into(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            // Protected field: reject when unauthorized
+            FieldDefinition {
+                name:           "salary".into(),
+                field_type:     FieldType::Int,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: Some("admin:*".to_string()),
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+            // Protected field: mask when unauthorized
+            FieldDefinition {
+                name:           "email".into(),
+                field_type:     FieldType::String,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: Some("read:User.email".to_string()),
+                on_deny:        FieldDenyPolicy::Mask,
+                encryption:     None,
+                auto_generated: false,
+                computed:       false,
+                searchable:     false,
+            },
+        ];
+
+        // Set up security config with role definitions for scope-based RBAC
+        schema.security = Some(SecurityConfig {
+            role_definitions: vec![
+                RoleDefinition {
+                    name:        "viewer".into(),
+                    description: None,
+                    scopes:      vec!["read:User".into()],
+                },
+                RoleDefinition {
+                    name:        "admin".into(),
+                    description: None,
+                    scopes:      vec!["admin:*".into(), "read:User.email".into()],
+                },
+            ],
+            default_role:     None,
+            multi_tenant:     false,
+            additional:       Default::default(),
+        });
+
+        schema.types.push(user_type);
+        schema
+    }
+
+    fn viewer_context() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec!["read:User".to_string()],
+            attributes:       Default::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    fn admin_context() -> SecurityContext {
+        SecurityContext {
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec!["admin:*".to_string(), "read:User.email".to_string()],
+            attributes:       Default::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    /// C16: Querying a rejected field as unauthorized user returns Authorization error
+    #[tokio::test]
+    async fn test_reject_field_returns_authorization_error() {
+        let schema = schema_with_rbac_fields();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let ctx = viewer_context();
+        let result = executor.execute_with_security("{ users { id salary } }", None, &ctx).await;
+
+        assert!(result.is_err(), "querying rejected field should fail");
+        let err = result.unwrap_err();
+        let err_msg = format!("{err}");
+        assert!(
+            err_msg.contains("salary")
+                || err_msg.contains("authorization")
+                || err_msg.contains("Authorization")
+                || err_msg.contains("forbidden")
+                || err_msg.contains("Forbidden"),
+            "error should mention the forbidden field or authorization, got: {err_msg}"
+        );
+    }
+
+    /// C16b: Querying a rejected field as admin succeeds
+    #[tokio::test]
+    async fn test_reject_field_allowed_for_admin() {
+        let schema = schema_with_rbac_fields();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let ctx = admin_context();
+        let result = executor.execute_with_security("{ users { id salary } }", None, &ctx).await;
+
+        assert!(
+            result.is_ok(),
+            "admin should be able to query rejected field: {:?}",
+            result.err()
+        );
+    }
+
+    /// C17: Querying a masked field as unauthorized user returns null
+    #[tokio::test]
+    async fn test_mask_field_returns_null_for_unauthorized() {
+        let schema = schema_with_rbac_fields();
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}),
+        )];
+        let adapter = Arc::new(MockAdapter::new(results));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let ctx = viewer_context();
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx)
+            .await
+            .unwrap();
+
+        // Parse response JSON to verify masking
+        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let users = &response["data"]["users"];
+        assert!(users.is_array(), "expected users array in response: {result}");
+        for user in users.as_array().unwrap() {
+            assert!(
+                user["email"].is_null(),
+                "masked field 'email' should be null for unauthorized user, got: {}",
+                user["email"]
+            );
+            // id should still have real value
+            assert!(!user["id"].is_null(), "unmasked field 'id' should have real value");
+        }
+    }
+
+    /// C17b: Querying a masked field as authorized user returns real value
+    #[tokio::test]
+    async fn test_mask_field_returns_real_value_for_authorized() {
+        let schema = schema_with_rbac_fields();
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}),
+        )];
+        let adapter = Arc::new(MockAdapter::new(results));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let ctx = admin_context();
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let users = &response["data"]["users"];
+        for user in users.as_array().unwrap() {
+            assert_eq!(
+                user["email"], "alice@example.com",
+                "authorized user should see real email value"
+            );
+        }
+    }
+
+    /// C16+C17: Public fields always accessible
+    #[tokio::test]
+    async fn test_public_fields_always_accessible() {
+        let schema = schema_with_rbac_fields();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let ctx = viewer_context();
+        let result = executor.execute_with_security("{ users { id name } }", None, &ctx).await;
+
+        assert!(result.is_ok(), "public fields should always be accessible: {:?}", result.err());
+    }
+}
+
+// ── mod executor_paths: H3+H4 — untested executor entry points ───────────
+
+mod executor_paths {
+    use super::*;
+    use crate::runtime::matcher::QueryMatch;
+
+    /// H3: execute_query_direct (REST/gRPC path) works through executor
+    #[tokio::test]
+    async fn test_execute_query_direct_returns_results() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query_def = test_schema().queries[0].clone();
+        let qm = QueryMatch::from_operation(
+            query_def,
+            vec!["id".to_string(), "name".to_string()],
+            std::collections::HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        let result = executor.execute_query_direct(&qm, None, None).await.unwrap();
+        assert!(result.contains("\"data\""), "should contain data envelope: {result}");
+        assert!(result.contains("\"users\""), "should contain query name: {result}");
+    }
+
+    /// H3: count_rows returns correct count
+    #[tokio::test]
+    async fn test_count_rows_returns_row_count() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query_def = test_schema().queries[0].clone();
+        let qm = QueryMatch::from_operation(
+            query_def,
+            vec!["id".to_string()],
+            std::collections::HashMap::new(),
+            None,
+        )
+        .unwrap();
+
+        let count = executor.count_rows(&qm, None, None).await.unwrap();
+        assert_eq!(count, 2, "mock adapter returns 2 rows");
+    }
+
+    /// H4: requires_role returns "not found" (anti-enumeration), not "forbidden"
+    #[tokio::test]
+    async fn test_requires_role_returns_not_found_not_forbidden() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        // No security context at all → should say "not found"
+        let result = executor.execute("{ users { id } }", None).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "requires_role should produce 'not found', not 'forbidden', got: {err}"
+        );
+        assert!(
+            !err.contains("forbidden") && !err.contains("Forbidden"),
+            "must not reveal the query exists behind a role gate, got: {err}"
+        );
+    }
+
+    /// H4: requires_role with wrong role still returns "not found"
+    #[tokio::test]
+    async fn test_requires_role_wrong_role_returns_not_found() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found in schema"),
+            "wrong role should produce 'not found', got: {err}"
+        );
+    }
+
+    /// H4: requires_role with correct role succeeds
+    #[tokio::test]
+    async fn test_requires_role_correct_role_succeeds() {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = SecurityContext {
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       Default::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        };
+        let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
+        assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());
+    }
+
+    /// H4: Read-only mode rejects mutations
+    #[tokio::test]
+    async fn test_read_only_mode_rejects_mutations() {
+        let mut schema = test_schema();
+        let mut mutation = crate::schema::MutationDefinition::new("createUser", "User");
+        mutation.sql_source = Some("fn_create_user".to_string());
+        schema.mutations.push(mutation);
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let config = RuntimeConfig {
+            read_only: true,
+            ..RuntimeConfig::default()
+        };
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let result = executor.execute("mutation { createUser { id } }", None).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("read-only") || err.contains("Read-only"),
+            "read-only mode should mention read-only, got: {err}"
         );
     }
 }

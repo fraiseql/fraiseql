@@ -220,7 +220,7 @@ pub struct DirectMutationContext<'a> {
 ///
 /// // Execute query with parameters
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users matching filter", results.len());
@@ -293,7 +293,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // Simple query without WHERE clause
     /// let all_users = adapter
-    ///     .execute_where_query("v_user", None, Some(10), Some(0))
+    ///     .execute_where_query("v_user", None, Some(10), Some(0), None)
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -304,6 +304,7 @@ pub trait DatabaseAdapter: Send + Sync {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Execute a WHERE query with SQL field projection optimization.
@@ -390,7 +391,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// };
     ///
     /// let results = adapter
-    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100))
+    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100), None, None)
     ///     .await?;
     ///
     /// // results only contain id, name, email fields
@@ -407,7 +408,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // For debugging or when projection not available
     /// let results = adapter
-    ///     .execute_with_projection("v_user", None, None, Some(100))
+    ///     .execute_with_projection("v_user", None, None, Some(100), None, None)
     ///     .await?;
     ///
     /// // Equivalent to execute_where_query() - returns full objects
@@ -426,6 +427,8 @@ pub trait DatabaseAdapter: Send + Sync {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Get database type (for logging/metrics).

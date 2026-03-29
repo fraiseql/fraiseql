@@ -30,6 +30,7 @@ fn valid_schema_qualified_identifiers_pass() {
         "public.v_user",
         "myschema.fn_create_post",
         "_internal.v_data",
+        "catalog.schema.table",
     ];
     for id in cases {
         assert!(validate_sql_identifier(id, "sql_source", "Query.test").is_ok(), "{id}");
@@ -58,7 +59,7 @@ fn invalid_identifiers_rejected() {
         ("v user", "space"),
         ("v-user", "dash"),
         ("", "empty string"),
-        ("a.b.c", "two dots / three-part name"),
+        ("a.b.c.d", "four-part name"),
         (".v_user", "leading dot"),
         ("v_user.", "trailing dot"),
     ];

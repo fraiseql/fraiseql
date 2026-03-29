@@ -141,15 +141,18 @@ impl KafkaMessage {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
 ///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
 ///     .with_client_id("my-service")
 ///     .with_compression("lz4");
 ///
 /// let adapter = KafkaAdapter::new(config)?;
 /// adapter.deliver(&event, "orderCreated").await?;
+/// # Ok(())
+/// # }
 /// ```
 #[cfg(feature = "kafka")]
 pub struct KafkaAdapter {

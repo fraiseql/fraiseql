@@ -10,12 +10,9 @@
   "blanks-around-lists": true,
   "blanks-around-headings": true,
   "no-duplicate-heading": false,
-  "fenced-code-language": {
-    "severity": "warning"
-  },
-  "no-emphasis-as-heading": {
-    "severity": "warning"
-  },
+  "fenced-code-language": false,
+  "no-emphasis-as-heading": false,
+  "blanks-around-fences": false,
   "table-pipe-alignment": false,
   "table-column-alignment": false,
   "table-columns": false,

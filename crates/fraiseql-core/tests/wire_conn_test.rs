@@ -7,6 +7,7 @@
 #![allow(missing_docs)] // Reason: test binary does not require crate-level documentation
 #[cfg(feature = "wire-backend")]
 #[tokio::test]
+#[ignore = "requires DATABASE_URL with running PostgreSQL; runs in integration job"]
 async fn test_wire_connection() {
     let conn_str = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql:///fraiseql_bench".to_string());

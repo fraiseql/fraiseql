@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION create_order_from_cart(
     p_billing_address_id UUID DEFAULT NULL,
     p_payment_method JSONB DEFAULT NULL,
     p_notes TEXT DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_order_id UUID;
     v_order_number VARCHAR(50);
@@ -31,7 +31,7 @@ BEGIN
     AND EXISTS (SELECT 1 FROM cart_items WHERE cart_id = p_cart_id);
 
     IF v_cart_metadata IS NULL THEN
-        RAISE EXCEPTION 'Cart not found, empty, or access denied';
+        RETURN ROW('failed:validation', 'Cart not found, empty, or access denied', p_cart_id::text, 'Order', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Generate order number
@@ -86,11 +86,11 @@ BEGIN
         p_shipping_address_id,
         COALESCE(p_billing_address_id, p_shipping_address_id),
         p_notes,
-        json_build_object(
+        jsonb_build_object(
             'payment_method', p_payment_method,
             'coupon', v_cart_metadata->'coupon',
             'cart_id', p_cart_id
-        )::jsonb
+        )
     ) RETURNING id INTO v_order_id;
 
     -- Create order items and reserve inventory
@@ -140,25 +140,25 @@ BEGIN
     WHERE id = p_cart_id;
 
     -- Return order details
-    RETURN json_build_object(
-        'success', true,
-        'order_id', v_order_id,
-        'order_number', v_order_number,
-        'total_amount', v_total_amount,
-        'message', 'Order created successfully',
-        'order', (
-            SELECT row_to_json(order_detail.*)
-            FROM order_detail
-            WHERE id = v_order_id
-        )
-    );
+    RETURN ROW(
+        'new',
+        'Order created successfully',
+        v_order_id::text,
+        'Order',
+        jsonb_build_object(
+            'id', v_order_id,
+            'order_number', v_order_number,
+            'total_amount', v_total_amount,
+            'status', 'pending'
+        ),
+        NULL::text[],
+        NULL::jsonb,
+        jsonb_build_object('cart_id', p_cart_id)
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
         -- Rollback will happen automatically
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -167,7 +167,7 @@ CREATE OR REPLACE FUNCTION update_order_status(
     p_order_id UUID,
     p_status VARCHAR,
     p_notes TEXT DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_old_status VARCHAR;
     v_customer_id UUID;
@@ -178,12 +178,12 @@ BEGIN
     WHERE id = p_order_id;
 
     IF v_old_status IS NULL THEN
-        RAISE EXCEPTION 'Order not found';
+        RETURN ROW('failed:not_found', 'Order not found', p_order_id::text, 'Order', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Validate status transition
     IF v_old_status = 'cancelled' OR v_old_status = 'completed' THEN
-        RAISE EXCEPTION 'Cannot update status of % order', v_old_status;
+        RETURN ROW('failed:validation', 'Cannot update status of ' || v_old_status || ' order', p_order_id::text, 'Order', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Update order status
@@ -194,12 +194,12 @@ BEGIN
             COALESCE(metadata, '{}'::jsonb),
             '{status_history}',
             COALESCE(metadata->'status_history', '[]'::jsonb) ||
-            json_build_object(
+            jsonb_build_object(
                 'from', v_old_status,
                 'to', p_status,
                 'timestamp', CURRENT_TIMESTAMP,
                 'notes', p_notes
-            )::jsonb
+            )
         )
     WHERE id = p_order_id;
 
@@ -221,19 +221,23 @@ BEGIN
         AND i.variant_id = oi.variant_id;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Order status updated',
-        'order_id', p_order_id,
-        'old_status', v_old_status,
-        'new_status', p_status
-    );
+    RETURN ROW(
+        'updated',
+        'Order status updated',
+        p_order_id::text,
+        'Order',
+        jsonb_build_object(
+            'id', p_order_id,
+            'old_status', v_old_status,
+            'new_status', p_status
+        ),
+        ARRAY['status'],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -241,7 +245,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION process_order_payment(
     p_order_id UUID,
     p_payment_details JSONB
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_order RECORD;
     v_payment_id VARCHAR;
@@ -253,7 +257,7 @@ BEGIN
     AND payment_status != 'paid';
 
     IF v_order IS NULL THEN
-        RAISE EXCEPTION 'Order not found or already paid';
+        RETURN ROW('failed:not_found', 'Order not found or already paid', p_order_id::text, 'Order', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Simulate payment processing
@@ -270,31 +274,35 @@ BEGIN
         metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{payment}',
-            json_build_object(
+            jsonb_build_object(
                 'payment_id', v_payment_id,
                 'method', p_payment_details->>'method',
                 'amount', v_order.total_amount,
                 'currency', v_order.currency_code,
                 'processed_at', CURRENT_TIMESTAMP,
                 'details', p_payment_details
-            )::jsonb
+            )
         ),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = p_order_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Payment processed successfully',
-        'payment_id', v_payment_id,
-        'order_id', p_order_id,
-        'amount', v_order.total_amount
-    );
+    RETURN ROW(
+        'success',
+        'Payment processed successfully',
+        p_order_id::text,
+        'Order',
+        jsonb_build_object(
+            'payment_id', v_payment_id,
+            'order_id', p_order_id,
+            'amount', v_order.total_amount
+        ),
+        ARRAY['payment_status'],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -303,7 +311,7 @@ CREATE OR REPLACE FUNCTION cancel_order(
     p_order_id UUID,
     p_customer_id UUID,
     p_reason TEXT
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_order RECORD;
 BEGIN
@@ -315,7 +323,7 @@ BEGIN
     AND status NOT IN ('shipped', 'delivered', 'completed', 'cancelled');
 
     IF v_order IS NULL THEN
-        RAISE EXCEPTION 'Order not found or cannot be cancelled';
+        RETURN ROW('failed:not_found', 'Order not found or cannot be cancelled', p_order_id::text, 'Order', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Update order status
@@ -324,11 +332,11 @@ BEGIN
         metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{cancellation}',
-            json_build_object(
+            jsonb_build_object(
                 'reason', p_reason,
                 'cancelled_at', CURRENT_TIMESTAMP,
                 'cancelled_by', 'customer'
-            )::jsonb
+            )
         ),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = p_order_id;
@@ -347,17 +355,22 @@ BEGIN
         WHERE id = p_order_id;
     END IF;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Order cancelled successfully',
-        'order_id', p_order_id,
-        'refund_pending', v_order.payment_status = 'paid'
-    );
+    RETURN ROW(
+        'deleted',
+        'Order cancelled successfully',
+        p_order_id::text,
+        'Order',
+        jsonb_build_object(
+            'id', p_order_id,
+            'status', 'cancelled',
+            'refund_pending', v_order.payment_status = 'paid'
+        ),
+        ARRAY['status'],
+        NULL::jsonb,
+        jsonb_build_object('reason', p_reason)
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;

@@ -125,6 +125,7 @@ testcontainers-modules = {version = "0.14", features = ["postgres"]}
 tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"
+tokio-tungstenite = "0.28"
 # Utilities for E2E tests
 tokio-util = {workspace = true}
 wiremock = "0.6"

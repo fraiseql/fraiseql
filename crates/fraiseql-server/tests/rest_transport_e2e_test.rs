@@ -1,3 +1,4 @@
+#![allow(missing_docs)] // Reason: test code does not require documentation
 #![cfg(feature = "rest")]
 //! End-to-end integration tests for the REST transport (Cycle 9).
 //!

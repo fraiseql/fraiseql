@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION add_to_cart(
     p_quantity INTEGER,
     p_customer_id UUID DEFAULT NULL,
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_cart_id UUID;
     v_cart_item_id UUID;
@@ -22,7 +22,7 @@ BEGIN
     WHERE id = p_variant_id AND is_active = true;
 
     IF v_current_price IS NULL THEN
-        RAISE EXCEPTION 'Product variant not found or inactive';
+        RETURN ROW('failed:not_found', 'Product variant not found or inactive', p_variant_id::text, 'CartItem', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Check inventory
@@ -31,7 +31,7 @@ BEGIN
     WHERE variant_id = p_variant_id;
 
     IF v_available_quantity IS NULL OR v_available_quantity < p_quantity THEN
-        RAISE EXCEPTION 'Insufficient inventory';
+        RETURN ROW('failed:validation', 'Insufficient inventory', p_variant_id::text, 'CartItem', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Get or create cart
@@ -48,7 +48,7 @@ BEGIN
                 (session_id = p_session_id AND p_session_id IS NOT NULL)
             )
         ) THEN
-            RAISE EXCEPTION 'Cart not found or access denied';
+            RETURN ROW('failed:not_found', 'Cart not found or access denied', p_cart_id::text, 'Cart', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
         END IF;
     ELSE
         -- Create new cart
@@ -81,23 +81,19 @@ BEGIN
     UPDATE carts SET updated_at = CURRENT_TIMESTAMP WHERE id = v_cart_id;
 
     -- Return cart summary
-    RETURN json_build_object(
-        'success', true,
-        'cart_id', v_cart_id,
-        'cart_item_id', v_cart_item_id,
-        'message', 'Item added to cart',
-        'cart', (
-            SELECT row_to_json(shopping_cart.*)
-            FROM shopping_cart
-            WHERE id = v_cart_id
-        )
-    );
+    RETURN ROW(
+        'new',
+        'Item added to cart',
+        v_cart_item_id::text,
+        'CartItem',
+        (SELECT to_jsonb(shopping_cart.*) FROM shopping_cart WHERE id = v_cart_id),
+        NULL::text[],
+        NULL::jsonb,
+        jsonb_build_object('cart_id', v_cart_id)
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -107,7 +103,7 @@ CREATE OR REPLACE FUNCTION update_cart_item(
     p_quantity INTEGER,
     p_customer_id UUID DEFAULT NULL,
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_cart_id UUID;
     v_variant_id UUID;
@@ -126,18 +122,23 @@ BEGIN
     );
 
     IF v_cart_id IS NULL THEN
-        RAISE EXCEPTION 'Cart item not found or access denied';
+        RETURN ROW('failed:not_found', 'Cart item not found or access denied', p_cart_item_id::text, 'CartItem', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     IF p_quantity <= 0 THEN
         -- Remove item
         DELETE FROM cart_items WHERE id = p_cart_item_id;
 
-        RETURN json_build_object(
-            'success', true,
-            'message', 'Item removed from cart',
-            'cart_id', v_cart_id
-        );
+        RETURN ROW(
+            'deleted',
+            'Item removed from cart',
+            p_cart_item_id::text,
+            'CartItem',
+            NULL::jsonb,
+            NULL::text[],
+            NULL::jsonb,
+            jsonb_build_object('cart_id', v_cart_id)
+        )::mutation_response;
     ELSE
         -- Check inventory
         SELECT quantity - reserved_quantity INTO v_available_quantity
@@ -145,7 +146,7 @@ BEGIN
         WHERE variant_id = v_variant_id;
 
         IF v_available_quantity < p_quantity THEN
-            RAISE EXCEPTION 'Insufficient inventory';
+            RETURN ROW('failed:validation', 'Insufficient inventory', p_cart_item_id::text, 'CartItem', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
         END IF;
 
         -- Update quantity
@@ -157,22 +158,20 @@ BEGIN
         -- Update cart timestamp
         UPDATE carts SET updated_at = CURRENT_TIMESTAMP WHERE id = v_cart_id;
 
-        RETURN json_build_object(
-            'success', true,
-            'message', 'Cart updated',
-            'cart', (
-                SELECT row_to_json(shopping_cart.*)
-                FROM shopping_cart
-                WHERE id = v_cart_id
-            )
-        );
+        RETURN ROW(
+            'updated',
+            'Cart updated',
+            p_cart_item_id::text,
+            'CartItem',
+            (SELECT to_jsonb(shopping_cart.*) FROM shopping_cart WHERE id = v_cart_id),
+            ARRAY['quantity'],
+            NULL::jsonb,
+            jsonb_build_object('cart_id', v_cart_id)
+        )::mutation_response;
     END IF;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -181,7 +180,7 @@ CREATE OR REPLACE FUNCTION clear_cart(
     p_cart_id UUID,
     p_customer_id UUID DEFAULT NULL,
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     -- Verify cart ownership
     IF NOT EXISTS (
@@ -193,7 +192,7 @@ BEGIN
             (session_id = p_session_id AND p_session_id IS NOT NULL)
         )
     ) THEN
-        RAISE EXCEPTION 'Cart not found or access denied';
+        RETURN ROW('failed:not_found', 'Cart not found or access denied', p_cart_id::text, 'Cart', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Delete all items
@@ -204,17 +203,19 @@ BEGIN
     SET updated_at = CURRENT_TIMESTAMP
     WHERE id = p_cart_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Cart cleared',
-        'cart_id', p_cart_id
-    );
+    RETURN ROW(
+        'deleted',
+        'Cart cleared',
+        p_cart_id::text,
+        'Cart',
+        NULL::jsonb,
+        NULL::text[],
+        NULL::jsonb,
+        NULL::jsonb
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -224,7 +225,7 @@ CREATE OR REPLACE FUNCTION apply_coupon_to_cart(
     p_coupon_code VARCHAR,
     p_customer_id UUID DEFAULT NULL,
     p_session_id VARCHAR DEFAULT NULL
-) RETURNS JSON AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_coupon RECORD;
     v_cart_subtotal DECIMAL(10, 2);
@@ -240,7 +241,7 @@ BEGIN
             (session_id = p_session_id AND p_session_id IS NOT NULL)
         )
     ) THEN
-        RAISE EXCEPTION 'Cart not found or access denied';
+        RETURN ROW('failed:not_found', 'Cart not found or access denied', p_cart_id::text, 'Cart', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Get coupon details
@@ -253,7 +254,7 @@ BEGIN
     AND (usage_limit IS NULL OR usage_count < usage_limit);
 
     IF v_coupon IS NULL THEN
-        RAISE EXCEPTION 'Invalid or expired coupon';
+        RETURN ROW('failed:validation', 'Invalid or expired coupon', NULL, 'Coupon', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Get cart subtotal
@@ -264,7 +265,7 @@ BEGIN
     -- Check minimum purchase amount
     IF v_coupon.minimum_purchase_amount IS NOT NULL AND
        v_cart_subtotal < v_coupon.minimum_purchase_amount THEN
-        RAISE EXCEPTION 'Cart total does not meet minimum purchase requirement';
+        RETURN ROW('failed:validation', 'Cart total does not meet minimum purchase requirement', p_cart_id::text, 'Cart', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
     -- Calculate discount
@@ -279,31 +280,28 @@ BEGIN
     SET metadata = jsonb_set(
         COALESCE(metadata, '{}'::jsonb),
         '{coupon}',
-        json_build_object(
+        jsonb_build_object(
             'code', v_coupon.code,
             'discount_amount', v_discount_amount,
             'discount_type', v_coupon.discount_type,
             'discount_value', v_coupon.discount_value
-        )::jsonb
+        )
     ),
     updated_at = CURRENT_TIMESTAMP
     WHERE id = p_cart_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Coupon applied',
-        'discount_amount', v_discount_amount,
-        'cart', (
-            SELECT row_to_json(shopping_cart.*)
-            FROM shopping_cart
-            WHERE id = p_cart_id
-        )
-    );
+    RETURN ROW(
+        'updated',
+        'Coupon applied',
+        p_cart_id::text,
+        'Cart',
+        (SELECT to_jsonb(shopping_cart.*) FROM shopping_cart WHERE id = p_cart_id),
+        ARRAY['metadata'],
+        NULL::jsonb,
+        jsonb_build_object('discount_amount', v_discount_amount, 'coupon_code', v_coupon.code)
+    )::mutation_response;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', SQLERRM
-        );
+        RETURN ROW('failed:error', SQLERRM, NULL, NULL, NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
 END;
 $$ LANGUAGE plpgsql;

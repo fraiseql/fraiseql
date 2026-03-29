@@ -21,6 +21,10 @@ permissions:
   actions: read
 
 jobs:
+  # NOTE: dependency-review-action requires Dependency Graph enabled in repo settings
+  # (https://github.com/fraiseql/fraiseql/settings/security_analysis).
+  # Re-enable this job once the setting is turned on.
+
   secrets-scan:
     name: Secrets Detection
     runs-on: ubuntu-latest

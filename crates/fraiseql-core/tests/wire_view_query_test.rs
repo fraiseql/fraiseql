@@ -8,6 +8,7 @@ mod wire_view_tests {
     use fraiseql_core::db::{DatabaseAdapter, FraiseWireAdapter};
 
     #[tokio::test]
+    #[ignore = "requires DATABASE_URL with seeded v_users view; runs in integration job"]
     async fn test_query_v_users_view() {
         let conn_str = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgresql:///fraiseql_bench".to_string());
@@ -18,7 +19,7 @@ mod wire_view_tests {
 
         println!("Querying v_users with limit 10...");
 
-        let results = adapter.execute_where_query("v_users", None, Some(10), None).await;
+        let results = adapter.execute_where_query("v_users", None, Some(10), None, None).await;
 
         match &results {
             Ok(rows) => {

@@ -19,7 +19,7 @@ use fraiseql_core::{
     compiler::Compiler,
     db::{
         traits::{DatabaseAdapter, MutationCapable},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
     error::Result,
@@ -56,8 +56,10 @@ impl DatabaseAdapter for PipelineMockAdapter {
         _projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None).await
+        self.execute_where_query(view, where_clause, limit, None, None).await
     }
 
     async fn execute_where_query(
@@ -66,6 +68,7 @@ impl DatabaseAdapter for PipelineMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(self.rows.clone())
     }

@@ -967,23 +967,19 @@ impl FieldType {
     /// # Arguments
     ///
     /// * `type_str` - GraphQL type string
-    /// * `known_types` - Set of known object type names (to distinguish from scalars)
     ///
     /// # Example
     ///
     /// ```
     /// use fraiseql_core::schema::FieldType;
-    /// use std::collections::HashSet;
     ///
-    /// let known_types: HashSet<String> = ["User", "Post"].iter().map(|s| s.to_string()).collect();
-    ///
-    /// assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
-    /// assert_eq!(FieldType::parse("Int!", &known_types), FieldType::Int);
-    /// assert_eq!(FieldType::parse("[String]", &known_types), FieldType::List(Box::new(FieldType::String)));
-    /// assert_eq!(FieldType::parse("User", &known_types), FieldType::Object("User".to_string()));
+    /// assert_eq!(FieldType::parse("String"), FieldType::String);
+    /// assert_eq!(FieldType::parse("Int!"), FieldType::Int);
+    /// assert_eq!(FieldType::parse("[String]"), FieldType::List(Box::new(FieldType::String)));
+    /// assert_eq!(FieldType::parse("User"), FieldType::Object("User".to_string()));
     /// ```
     #[must_use]
-    pub fn parse(type_str: &str, _known_types: &std::collections::HashSet<String>) -> Self {
+    pub fn parse(type_str: &str) -> Self {
         Self::parse_type_string(type_str.trim())
     }
 
@@ -1047,7 +1043,7 @@ impl FieldType {
         type_str: &str,
         known_types: &std::collections::HashSet<String>,
     ) -> Self {
-        let result = Self::parse(type_str, known_types);
+        let result = Self::parse(type_str);
         match result {
             Self::Object(name) if !known_types.contains(&name) => Self::Scalar(name),
             other => other,
@@ -1063,62 +1059,54 @@ mod tests {
 
     #[test]
     fn test_parse_builtin_scalars() {
-        let known_types = std::collections::HashSet::new();
-
-        assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
-        assert_eq!(FieldType::parse("Int", &known_types), FieldType::Int);
-        assert_eq!(FieldType::parse("Float", &known_types), FieldType::Float);
-        assert_eq!(FieldType::parse("Boolean", &known_types), FieldType::Boolean);
-        assert_eq!(FieldType::parse("ID", &known_types), FieldType::Id);
-        assert_eq!(FieldType::parse("DateTime", &known_types), FieldType::DateTime);
-        assert_eq!(FieldType::parse("Date", &known_types), FieldType::Date);
-        assert_eq!(FieldType::parse("Time", &known_types), FieldType::Time);
-        assert_eq!(FieldType::parse("JSON", &known_types), FieldType::Json);
-        assert_eq!(FieldType::parse("UUID", &known_types), FieldType::Uuid);
+        assert_eq!(FieldType::parse("String"), FieldType::String);
+        assert_eq!(FieldType::parse("Int"), FieldType::Int);
+        assert_eq!(FieldType::parse("Float"), FieldType::Float);
+        assert_eq!(FieldType::parse("Boolean"), FieldType::Boolean);
+        assert_eq!(FieldType::parse("ID"), FieldType::Id);
+        assert_eq!(FieldType::parse("DateTime"), FieldType::DateTime);
+        assert_eq!(FieldType::parse("Date"), FieldType::Date);
+        assert_eq!(FieldType::parse("Time"), FieldType::Time);
+        assert_eq!(FieldType::parse("JSON"), FieldType::Json);
+        assert_eq!(FieldType::parse("UUID"), FieldType::Uuid);
     }
 
     #[test]
     fn test_parse_rich_scalars_exact_case() {
-        let known_types = std::collections::HashSet::new();
-
         // Email is in RICH_SCALARS and should be recognized with exact case
-        let result = FieldType::parse("Email", &known_types);
+        let result = FieldType::parse("Email");
         assert_eq!(result, FieldType::Scalar("Email".to_string()));
 
         // IBAN is in RICH_SCALARS
-        let result = FieldType::parse("IBAN", &known_types);
+        let result = FieldType::parse("IBAN");
         assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
 
         // URL is in RICH_SCALARS
-        let result = FieldType::parse("URL", &known_types);
+        let result = FieldType::parse("URL");
         assert_eq!(result, FieldType::Scalar("URL".to_string()));
     }
 
     #[test]
     fn test_parse_rich_scalars_case_insensitive() {
-        let known_types = std::collections::HashSet::new();
-
         // Email is in RICH_SCALARS - should match case-insensitively
-        let result = FieldType::parse("email", &known_types);
+        let result = FieldType::parse("email");
         assert_eq!(result, FieldType::Scalar("Email".to_string()));
 
         // Should also work for mixed case
-        let result = FieldType::parse("EMAIL", &known_types);
+        let result = FieldType::parse("EMAIL");
         assert_eq!(result, FieldType::Scalar("Email".to_string()));
 
         // IBAN - case insensitive matching
-        let result = FieldType::parse("iban", &known_types);
+        let result = FieldType::parse("iban");
         assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
 
         // PhoneNumber - case insensitive
-        let result = FieldType::parse("phonenumber", &known_types);
+        let result = FieldType::parse("phonenumber");
         assert_eq!(result, FieldType::Scalar("PhoneNumber".to_string()));
     }
 
     #[test]
     fn test_parse_all_rich_scalars() {
-        let known_types = std::collections::HashSet::new();
-
         // Test a sampling of all rich scalar categories
         let rich_scalars = vec![
             // Contact/Communication
@@ -1167,7 +1155,7 @@ mod tests {
         ];
 
         for scalar_name in rich_scalars {
-            let result = FieldType::parse(scalar_name, &known_types);
+            let result = FieldType::parse(scalar_name);
             assert_eq!(
                 result,
                 FieldType::Scalar(scalar_name.to_string()),
@@ -1179,60 +1167,52 @@ mod tests {
 
     #[test]
     fn test_parse_unknown_type_as_object() {
-        let known_types = std::collections::HashSet::new();
-
         // Unknown types should become Object types
-        let result = FieldType::parse("CustomType", &known_types);
+        let result = FieldType::parse("CustomType");
         assert_eq!(result, FieldType::Object("CustomType".to_string()));
 
-        let result = FieldType::parse("User", &known_types);
+        let result = FieldType::parse("User");
         assert_eq!(result, FieldType::Object("User".to_string()));
     }
 
     #[test]
     fn test_parse_with_list_syntax() {
-        let known_types = std::collections::HashSet::new();
-
         // List of builtin scalar
-        let result = FieldType::parse("[String]", &known_types);
+        let result = FieldType::parse("[String]");
         assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
 
         // List of rich scalar
-        let result = FieldType::parse("[Email]", &known_types);
+        let result = FieldType::parse("[Email]");
         assert_eq!(result, FieldType::List(Box::new(FieldType::Scalar("Email".to_string()))));
 
         // List of object type
-        let result = FieldType::parse("[User]", &known_types);
+        let result = FieldType::parse("[User]");
         assert_eq!(result, FieldType::List(Box::new(FieldType::Object("User".to_string()))));
     }
 
     #[test]
     fn test_parse_with_non_null_marker() {
-        let known_types = std::collections::HashSet::new();
-
         // Non-null scalar
-        let result = FieldType::parse("String!", &known_types);
+        let result = FieldType::parse("String!");
         assert_eq!(result, FieldType::String);
 
         // Non-null rich scalar
-        let result = FieldType::parse("Email!", &known_types);
+        let result = FieldType::parse("Email!");
         assert_eq!(result, FieldType::Scalar("Email".to_string()));
 
         // Non-null list of non-null items
-        let result = FieldType::parse("[String!]!", &known_types);
+        let result = FieldType::parse("[String!]!");
         assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
     }
 
     #[test]
     fn test_parse_nested_lists() {
-        let known_types = std::collections::HashSet::new();
-
         // Nested list
-        let result = FieldType::parse("[[String]]", &known_types);
+        let result = FieldType::parse("[[String]]");
         assert_eq!(result, FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String)))));
 
         // Nested list with rich scalar
-        let result = FieldType::parse("[[Email]]", &known_types);
+        let result = FieldType::parse("[[Email]]");
         assert_eq!(
             result,
             FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Scalar(
@@ -1246,7 +1226,7 @@ mod tests {
         let mut known_types = std::collections::HashSet::new();
 
         // Without known_types, unknown types become objects
-        let result = FieldType::parse("CustomType", &known_types);
+        let result = FieldType::parse("CustomType");
         assert_eq!(result, FieldType::Object("CustomType".to_string()));
 
         // With parse_as_scalar_if_unknown, they become scalars
@@ -1261,18 +1241,16 @@ mod tests {
 
     #[test]
     fn test_parse_case_variations() {
-        let known_types = std::collections::HashSet::new();
-
         // Test various case combinations for builtin types
-        assert_eq!(FieldType::parse("string", &known_types), FieldType::String);
-        assert_eq!(FieldType::parse("STRING", &known_types), FieldType::String);
-        assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
+        assert_eq!(FieldType::parse("string"), FieldType::String);
+        assert_eq!(FieldType::parse("STRING"), FieldType::String);
+        assert_eq!(FieldType::parse("String"), FieldType::String);
 
         // Test integer variations
-        assert_eq!(FieldType::parse("int", &known_types), FieldType::Int);
-        assert_eq!(FieldType::parse("INT", &known_types), FieldType::Int);
-        assert_eq!(FieldType::parse("integer", &known_types), FieldType::Int);
-        assert_eq!(FieldType::parse("INTEGER", &known_types), FieldType::Int);
+        assert_eq!(FieldType::parse("int"), FieldType::Int);
+        assert_eq!(FieldType::parse("INT"), FieldType::Int);
+        assert_eq!(FieldType::parse("integer"), FieldType::Int);
+        assert_eq!(FieldType::parse("INTEGER"), FieldType::Int);
     }
 
     #[test]

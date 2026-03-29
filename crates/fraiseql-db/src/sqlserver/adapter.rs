@@ -75,7 +75,7 @@ const MAX_POOL_SIZE: u32 = 200;
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -260,10 +260,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -271,14 +273,24 @@ impl DatabaseAdapter for SqlServerAdapter {
         // Build SQL with SQL Server-specific JSON projection
         // The projection_template contains the SELECT clause with JSON functions
         // SQL Server uses square brackets for identifiers and TOP for LIMIT
-        // e.g., "JSON_QUERY((SELECT data FOR JSON PATH, WITHOUT_ARRAY_WRAPPER))"
+        // TOP and OFFSET...FETCH are mutually exclusive in T-SQL, so only use
+        // TOP when there is no OFFSET (otherwise OFFSET...FETCH handles both).
         let mut sql = if let Some(lim) = limit {
-            format!(
-                "SELECT TOP {} {} FROM {}",
-                lim,
-                projection.projection_template,
-                quote_sqlserver_identifier(view)
-            )
+            if offset.is_some() {
+                // With OFFSET, we use OFFSET...FETCH instead of TOP
+                format!(
+                    "SELECT {} FROM {}",
+                    projection.projection_template,
+                    quote_sqlserver_identifier(view)
+                )
+            } else {
+                format!(
+                    "SELECT TOP {} {} FROM {}",
+                    lim,
+                    projection.projection_template,
+                    quote_sqlserver_identifier(view)
+                )
+            }
         } else {
             format!(
                 "SELECT {} FROM {}",
@@ -298,6 +310,15 @@ impl DatabaseAdapter for SqlServerAdapter {
             Vec::new()
         };
 
+        // Add OFFSET/FETCH for pagination (SQL Server requires ORDER BY for OFFSET)
+        if let Some(off) = offset {
+            // SQL Server requires ORDER BY for OFFSET/FETCH NEXT syntax
+            sql.push_str(&format!(" ORDER BY (SELECT NULL) OFFSET {off} ROWS"));
+            if let Some(lim) = limit {
+                sql.push_str(&format!(" FETCH NEXT {lim} ROWS ONLY"));
+            }
+        }
+
         // Execute the query
         self.execute_raw(&sql, params).await
     }
@@ -308,6 +329,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQL Server uses square brackets for identifiers
         // SQL Server uses TOP instead of LIMIT, and OFFSET...FETCH for pagination

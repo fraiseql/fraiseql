@@ -1,3 +1,5 @@
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![cfg(feature = "test-postgres")]
 //! Error handling tests for Arrow Flight service.
 //!
 //! These tests verify proper error reporting and recovery for:

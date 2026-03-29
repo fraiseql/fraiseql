@@ -5,8 +5,8 @@ use std::sync::Arc;
 use super::{Executor, null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
-        CursorValue, WhereClause, WhereOperator, projection_generator::PostgresProjectionGenerator,
-        traits::DatabaseAdapter,
+        CursorValue, ProjectionField, WhereClause, WhereOperator,
+        projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
     },
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
@@ -54,6 +54,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Route relay queries to dedicated handler with security context.
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables, Some(security_context)).await;
+        }
+
         // Delegate to shared execution logic
         self.execute_from_match(&query_match, Some(security_context)).await
     }
@@ -87,7 +92,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Route relay queries to dedicated handler.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables).await;
+            return self.execute_relay_query(&query_match, variables, None).await;
         }
 
         // Delegate to shared execution logic
@@ -132,13 +137,30 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
-        // 4. Generate SQL projection hint for requested fields (optimization)
+        // 4. Generate SQL projection hint for requested fields (optimization) Look up field types
+        //    from schema to use the correct JSONB operator: `->` for objects/lists (preserves
+        //    JSONB), `->>` for scalars (text).
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
+            let type_def = self.schema.find_type(&query_match.query_def.return_type);
+            let typed_fields: Vec<ProjectionField> = plan
+                .projection_fields
+                .iter()
+                .map(|name| {
+                    let is_composite = type_def
+                        .and_then(|td| td.fields.iter().find(|f| f.name == name.as_str()))
+                        .is_some_and(|f| !f.field_type.is_scalar());
+                    ProjectionField {
+                        name: name.clone(),
+                        is_composite,
+                    }
+                })
+                .collect();
+
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
-                .generate_projection_sql(&plan.projection_fields)
+                .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
@@ -189,18 +211,70 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
-        // 6. Execute query with combined WHERE clause filter
+        // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
+        //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
+        // 6. Extract limit/offset from query arguments when auto_params are enabled
+        let limit = if query_match.query_def.auto_params.has_limit {
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let offset = if query_match.query_def.auto_params.has_offset {
+            query_match
+                .arguments
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        // 6b. Extract order_by from query arguments when has_order_by is enabled
+        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
+            query_match
+                .arguments
+                .get("orderBy")
+                .map(crate::db::OrderByClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
+        // 7. Execute query with combined WHERE clause filter
         let results = self
             .adapter
             .execute_with_projection(
                 sql_source,
                 projection_hint.as_ref(),
                 combined_where.as_ref(),
-                None,
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
             )
             .await?;
 
-        // 7. Handle scalar return types (Int, String, Float, etc.)
+        // 8. Handle scalar return types (Int, String, Float, etc.)
         //
         // When a query has a scalar return type and returns_list is false, the
         // result should be a scalar value, not a projected object. The database
@@ -217,7 +291,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             return Ok(serde_json::to_string(&response)?);
         }
 
-        // 8. Apply field-level RBAC filtering (reject / mask / allow)
+        // 9. Apply field-level RBAC filtering (reject / mask / allow)
         if let Some(ctx) = security_context {
             let access = self.apply_field_rbac_filtering(
                 &query_match.query_def.return_type,
@@ -311,9 +385,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             });
         }
 
-        // Route relay queries to dedicated handler.
+        // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
-            return self.execute_relay_query(query_match, variables).await;
+            return self.execute_relay_query(query_match, variables, security_context).await;
         }
 
         // Apply query timeout if configured
@@ -412,10 +486,27 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         };
 
+        // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query(sql_source, combined_where.as_ref(), None, None)
+            .execute_where_query(sql_source, combined_where.as_ref(), None, None, None)
             .await?;
 
         // Return the row count
@@ -445,14 +536,27 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
     ) -> Result<String> {
         use crate::{
             compiler::aggregation::OrderByClause,
             runtime::relay::{decode_edge_cursor, decode_uuid_cursor, encode_edge_cursor},
             schema::CursorType,
+            security::RlsWhereClause,
         };
 
         let query_def = &query_match.query_def;
+
+        // Guard: queries with inject params require a security context.
+        if !query_def.inject_params.is_empty() && security_context.is_none() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_def.name
+                ),
+                path:    None,
+            });
+        }
 
         let sql_source =
             query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
@@ -483,6 +587,50 @@ impl<A: DatabaseAdapter> Executor<A> {
             ),
             path:    None,
         })?;
+
+        // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
+        // Evaluate RLS policy to generate security WHERE clause.
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_def.name)?
+        } else {
+            None
+        };
+
+        // Resolve inject_params from JWT claims and compose with RLS.
+        let security_where: Option<WhereClause> = if query_def.inject_params.is_empty() {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(WhereClause::Field {
+                        path: vec![col.clone()],
+                        operator: WhereOperator::Eq,
+                        value,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
 
         // Extract relay pagination arguments from variables.
         let vars = variables.and_then(|v| v.as_object());
@@ -564,12 +712,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fetch_limit = page_size + 1;
 
         // Parse optional `where` filter from variables.
-        let where_clause = if query_def.auto_params.has_where {
+        let user_where_clause = if query_def.auto_params.has_where {
             vars.and_then(|v| v.get("where"))
                 .map(WhereClause::from_graphql_json)
                 .transpose()?
         } else {
             None
+        };
+
+        // Compose final WHERE: security (RLS + inject) AND user-supplied WHERE.
+        // Security conditions always come first so they cannot be bypassed.
+        let combined_where = match (security_where, user_where_clause) {
+            (None, None) => None,
+            (Some(sec), None) => Some(sec),
+            (None, Some(user)) => Some(user),
+            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
         // Parse optional `orderBy` from variables.
@@ -605,7 +762,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 before_pk,
                 fetch_limit,
                 forward,
-                where_clause.as_ref(),
+                combined_where.as_ref(),
                 order_by.as_deref(),
                 include_total_count,
             )
@@ -757,7 +914,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Execute the query (limit 1).
         let rows = self
             .adapter
-            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None)
+            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None, None)
             .await?;
 
         // 6. Return the first matching row (or null).

@@ -1,11 +1,11 @@
 -- Update product functions
 -- App and core layers for product updates
 
--- App function: Update product (ultra-direct mutation)
+-- App function: Update product
 CREATE OR REPLACE FUNCTION app.update_product(
     product_id UUID,
     input_payload JSONB
-) RETURNS JSONB AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     v_updated_data JSONB;
 BEGIN
@@ -24,12 +24,12 @@ BEGIN
     -- Get updated product data
     SELECT data INTO v_updated_data FROM tv_product WHERE id = product_id;
 
-    -- Return ultra-direct response (Rust transformer handles formatting)
     RETURN app.build_mutation_response(
-        true,
-        'SUCCESS',
+        'updated',
         'Product updated successfully',
-        jsonb_build_object('product', v_updated_data)
+        v_updated_data,
+        'Product',
+        product_id::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

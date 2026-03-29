@@ -47,7 +47,7 @@ const MAX_POOL_SIZE: u32 = 200;
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -205,10 +205,12 @@ impl DatabaseAdapter for MySqlAdapter {
         projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -233,9 +235,19 @@ impl DatabaseAdapter for MySqlAdapter {
             Vec::new()
         };
 
-        // Add LIMIT if present
-        if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
+        // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                sql.push_str(&format!(" LIMIT {lim} OFFSET {off}"));
+            },
+            (Some(lim), None) => {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            },
+            (None, Some(off)) => {
+                // MySQL requires LIMIT before OFFSET; use max u64 as "unlimited"
+                sql.push_str(&format!(" LIMIT 18446744073709551615 OFFSET {off}"));
+            },
+            (None, None) => {},
         }
 
         // Execute the query
@@ -248,6 +260,7 @@ impl DatabaseAdapter for MySqlAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
         // SAFETY: view is schema-derived (from CompiledSchema, validated at compile time),
@@ -887,7 +900,7 @@ mod tests {
         let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), None)
+            .execute_where_query("v_user", None, Some(2), None, None)
             .await
             .expect("Failed to execute query");
 
@@ -899,7 +912,7 @@ mod tests {
         let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, None, Some(1))
+            .execute_where_query("v_user", None, None, Some(1), None)
             .await
             .expect("Failed to execute query");
 
@@ -911,7 +924,7 @@ mod tests {
         let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1))
+            .execute_where_query("v_user", None, Some(2), Some(1), None)
             .await
             .expect("Failed to execute query");
 

@@ -44,6 +44,8 @@ impl DatabaseAdapter for MockAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -60,6 +62,7 @@ impl DatabaseAdapter for MockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -135,7 +138,7 @@ async fn test_cache_miss_then_hit() {
 
     // First query - cache miss
     let result1 = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(result1.len(), 2);
@@ -143,7 +146,7 @@ async fn test_cache_miss_then_hit() {
 
     // Second query - cache hit
     let result2 = adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(result2.len(), 2);
@@ -169,11 +172,17 @@ async fn test_different_where_clauses_produce_different_cache_entries() {
     };
 
     // Query 1
-    adapter.execute_where_query("v_user", Some(&where1), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", Some(&where1), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query 2 - different WHERE - should miss cache
-    adapter.execute_where_query("v_user", Some(&where2), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", Some(&where2), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 }
 
@@ -192,14 +201,14 @@ async fn test_invalidation_clears_cache() {
 
     // Query 1 - cache miss
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query 2 - cache hit
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
@@ -210,7 +219,7 @@ async fn test_invalidation_clears_cache() {
 
     // Query 3 - cache miss again (was invalidated)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -223,11 +232,11 @@ async fn test_different_limits_produce_different_cache_entries() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     // Query with limit 10
-    adapter.execute_where_query("v_user", None, Some(10), None).await.unwrap();
+    adapter.execute_where_query("v_user", None, Some(10), None, None).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query with limit 20 - should miss cache
-    adapter.execute_where_query("v_user", None, Some(20), None).await.unwrap();
+    adapter.execute_where_query("v_user", None, Some(20), None, None).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 }
 
@@ -246,14 +255,14 @@ async fn test_cache_disabled() {
 
     // First query
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Second query - should NOT hit cache (cache disabled)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -273,19 +282,25 @@ async fn test_all_queries_are_cached() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     // Query with no WHERE, no LIMIT — first call misses the cache
-    adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Identical query — now a cache hit, DB not called again
-    adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
 
     // Query with small LIMIT — different cache key (different limit), so a miss
-    adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 
     // Identical small-limit query — cache hit
-    adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2); // Still 2 - cache hit!
 
     // Query with WHERE clause — cached normally
@@ -295,14 +310,14 @@ async fn test_all_queries_are_cached() {
         value:    json!(1),
     };
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 3);
 
     // Identical WHERE query — cache hit
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 3); // Still 3 - cache hit!
@@ -326,7 +341,7 @@ async fn test_schema_version_change_invalidates_cache() {
     };
 
     // Query with v1
-    adapter_v1.execute_where_query("v_user", None, None, None).await.unwrap();
+    adapter_v1.execute_where_query("v_user", None, None, None, None).await.unwrap();
 
     // Create new adapter with version 2.0.0 (same cache!)
     let mock2 = MockAdapter::new();
@@ -341,7 +356,7 @@ async fn test_schema_version_change_invalidates_cache() {
     };
 
     // Query with v2 - should miss cache (different schema version)
-    adapter_v2.execute_where_query("v_user", None, None, None).await.unwrap();
+    adapter_v2.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(adapter_v2.inner().call_count(), 1); // Cache miss
 }
 
@@ -410,14 +425,14 @@ async fn test_invalidate_cascade_entities_with_single_entity() {
 
     // Pre-populate cache with query reading from v_user
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Cache hit on second query
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
@@ -445,7 +460,7 @@ async fn test_invalidate_cascade_entities_with_single_entity() {
 
     // Next query should be a cache miss (was invalidated)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -466,15 +481,15 @@ async fn test_invalidate_cascade_entities_with_multiple_entities() {
 
     // Pre-populate cache with multiple views (WHERE clause required to enter cache)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_comment", Some(&where_clause), None, None)
+        .execute_where_query("v_comment", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 3);
@@ -502,15 +517,15 @@ async fn test_invalidate_cascade_entities_with_multiple_entities() {
     // All queries should now be cache misses (same WHERE clause, different cache key after
     // invalidation)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_comment", Some(&where_clause), None, None)
+        .execute_where_query("v_comment", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     // Should have 6 total calls (3 initial + 3 after invalidation)
@@ -531,11 +546,11 @@ async fn test_invalidate_cascade_entities_with_deleted_entities() {
 
     // Pre-populate cache with both views (WHERE clause required to enter cache)
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_comment", Some(&where_clause), None, None)
+        .execute_where_query("v_comment", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -561,11 +576,11 @@ async fn test_invalidate_cascade_entities_with_deleted_entities() {
 
     // Both queries should now be cache misses after invalidation
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_comment", Some(&where_clause), None, None)
+        .execute_where_query("v_comment", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 4);
@@ -586,7 +601,7 @@ async fn test_invalidate_cascade_entities_with_no_cascade_field() {
 
     // Pre-populate cache
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
@@ -609,7 +624,7 @@ async fn test_invalidate_cascade_entities_with_no_cascade_field() {
 
     // Cache should still be valid - should be a cache hit
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
@@ -630,11 +645,11 @@ async fn test_invalidate_cascade_entities_mixed_updated_and_deleted() {
 
     // Pre-populate cache (WHERE clause required to enter cache)
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -661,11 +676,11 @@ async fn test_invalidate_cascade_entities_mixed_updated_and_deleted() {
 
     // Both queries should now be cache misses after invalidation
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 4);
@@ -686,7 +701,7 @@ async fn test_cascade_invalidation_deduplicates_entity_types() {
 
     // Pre-populate cache
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
@@ -728,11 +743,11 @@ async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
     let adapter1 = CachedDatabaseAdapter::new(mock1, cache1, "1.0.0".to_string());
 
     adapter1
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter1
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
 
@@ -758,11 +773,11 @@ async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
     let adapter2 = CachedDatabaseAdapter::new(mock2, cache2, "1.0.0".to_string());
 
     adapter2
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter2
-        .execute_where_query("v_post", Some(&where_clause), None, None)
+        .execute_where_query("v_post", Some(&where_clause), None, None, None)
         .await
         .unwrap();
 
@@ -790,7 +805,7 @@ async fn test_cascade_invalidation_with_empty_cascade() {
 
     // Pre-populate cache
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
@@ -813,7 +828,7 @@ async fn test_cascade_invalidation_with_empty_cascade() {
 
     // Cache should still be valid
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1); // Cache hit
@@ -1065,15 +1080,15 @@ async fn test_cascade_invalidator_expands_transitive_views() {
 
     // Populate cache with all three views
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_user_stats", Some(&where_clause), None, None)
+        .execute_where_query("v_user_stats", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_dashboard", Some(&where_clause), None, None)
+        .execute_where_query("v_dashboard", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 3);
@@ -1084,15 +1099,15 @@ async fn test_cascade_invalidator_expands_transitive_views() {
 
     // All three should now be cache misses
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_user_stats", Some(&where_clause), None, None)
+        .execute_where_query("v_user_stats", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_dashboard", Some(&where_clause), None, None)
+        .execute_where_query("v_dashboard", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -1116,11 +1131,11 @@ async fn test_no_cascade_invalidator_only_direct_views() {
     };
 
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_user_stats", Some(&where_clause), None, None)
+        .execute_where_query("v_user_stats", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
@@ -1130,11 +1145,11 @@ async fn test_no_cascade_invalidator_only_direct_views() {
     assert_eq!(count, 1);
 
     adapter
-        .execute_where_query("v_user", Some(&where_clause), None, None)
+        .execute_where_query("v_user", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     adapter
-        .execute_where_query("v_user_stats", Some(&where_clause), None, None)
+        .execute_where_query("v_user_stats", Some(&where_clause), None, None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -1175,6 +1190,7 @@ impl DatabaseAdapter for BumpAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -1185,6 +1201,8 @@ impl DatabaseAdapter for BumpAdapter {
         _projection: Option<&crate::schema::SqlProjectionHint>,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }

@@ -228,9 +228,9 @@ lint-expect:
 
 # Gate: ensure the number of #[async_trait] usages has not grown above the baseline.
 # async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425).
-# Baseline: 135 (crates/*/src/ only; +2 from gRPC transport traits requiring dyn dispatch).
+# Baseline: 137 (crates/*/src/ only; +2 gRPC transport, +2 security/executor path traits).
 # Run `make lint-async-trait` to detect regressions (e.g. a new dyn-dispatch trait added without tracking comment).
-ASYNC_TRAIT_LIMIT := 135
+ASYNC_TRAIT_LIMIT := 137
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

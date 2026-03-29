@@ -275,7 +275,7 @@ mod tests {
     use async_trait::async_trait;
     use fraiseql_core::db::{
         WhereClause,
-        types::{DatabaseType, JsonbValue},
+        types::{DatabaseType, JsonbValue, OrderByClause},
     };
     use fraiseql_error::Result as FraiseQLResult;
 
@@ -303,6 +303,7 @@ mod tests {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -313,6 +314,8 @@ mod tests {
             _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }

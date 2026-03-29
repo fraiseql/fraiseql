@@ -11,7 +11,10 @@
 use std::process::Command;
 
 fn cli() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"));
+    // Suppress tracing logs that may leak into stdout and break JSON parsing
+    cmd.env("RUST_LOG", "off");
+    cmd
 }
 
 // ── SBOM basic ────────────────────────────────────────────────────

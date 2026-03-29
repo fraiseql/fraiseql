@@ -29,6 +29,46 @@
 
 use fraiseql_error::Result;
 
+/// A field in a SQL projection with type information.
+///
+/// Used by typed projection generators to choose the correct JSONB extraction
+/// operator: `->` (preserves JSONB) for objects/arrays, `->>` (text) for scalars.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionField {
+    /// GraphQL field name (camelCase).
+    pub name: String,
+
+    /// Whether this field is a composite type (Object or List) that should
+    /// be extracted as JSONB (`->`) rather than text (`->>`).
+    pub is_composite: bool,
+}
+
+impl ProjectionField {
+    /// Create a scalar projection field (uses `->>` text extraction).
+    #[must_use]
+    pub fn scalar(name: impl Into<String>) -> Self {
+        Self {
+            name:         name.into(),
+            is_composite: false,
+        }
+    }
+
+    /// Create a composite (object/list) projection field (uses `->` JSONB extraction).
+    #[must_use]
+    pub fn composite(name: impl Into<String>) -> Self {
+        Self {
+            name:         name.into(),
+            is_composite: true,
+        }
+    }
+}
+
+impl From<String> for ProjectionField {
+    fn from(name: String) -> Self {
+        Self::scalar(name)
+    }
+}
+
 /// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
 ///
 /// FraiseQL converts schema field names from snake_case to camelCase for GraphQL spec compliance.
@@ -143,6 +183,42 @@ impl PostgresProjectionGenerator {
             .collect();
 
         // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
+        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+    }
+
+    /// Generate type-aware PostgreSQL projection SQL.
+    ///
+    /// Uses `->` (JSONB extraction) for composite fields (objects, lists) and
+    /// `->>` (text extraction) for scalar fields. This avoids the unnecessary
+    /// text→JSON round-trip that occurs when `->>` is used for nested objects.
+    ///
+    /// # Arguments
+    ///
+    /// * `fields` - Projection fields with type information
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if any field name contains characters
+    /// that cannot be safely included in a SQL projection.
+    pub fn generate_typed_projection_sql(&self, fields: &[ProjectionField]) -> Result<String> {
+        if fields.is_empty() {
+            return Ok(format!("\"{}\"", self.jsonb_column));
+        }
+
+        let field_pairs: Vec<String> = fields
+            .iter()
+            .map(|field| {
+                let safe_field = Self::escape_sql_string(&field.name);
+                let jsonb_key = to_snake_case(&field.name);
+                let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
+                let operator = if field.is_composite { "->" } else { "->>" };
+                format!(
+                    "'{}', \"{}\"{}'{}' ",
+                    safe_field, self.jsonb_column, operator, safe_jsonb_key
+                )
+            })
+            .collect();
+
         Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
     }
 
@@ -663,5 +739,111 @@ mod tests {
             "SELECT clause must include FROM clause with table name"
         );
         assert!(sql.contains("SELECT"), "SELECT clause must start with SELECT");
+    }
+
+    // ── generate_typed_projection_sql tests (C12) ─────────────────────────
+
+    #[test]
+    fn test_typed_projection_empty_fields_returns_data_column() {
+        let generator = PostgresProjectionGenerator::new();
+        let result = generator.generate_typed_projection_sql(&[]).unwrap();
+        assert_eq!(result, "\"data\"");
+    }
+
+    #[test]
+    fn test_typed_projection_scalar_field_uses_text_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "name".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Scalar fields use ->> (text extraction)
+        assert!(sql.contains("->>'name'"), "scalar field must use ->> operator, got: {sql}");
+        assert!(!sql.contains("->'name'"), "scalar field must NOT use -> operator, got: {sql}");
+    }
+
+    #[test]
+    fn test_typed_projection_composite_field_uses_jsonb_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "address".to_string(),
+            is_composite: true,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Composite fields use -> (JSONB extraction, preserves structure)
+        assert!(sql.contains("->'address'"), "composite field must use -> operator, got: {sql}");
+    }
+
+    #[test]
+    fn test_typed_projection_mixed_scalar_and_composite() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ProjectionField {
+                name:         "id".to_string(),
+                is_composite: false,
+            },
+            ProjectionField {
+                name:         "address".to_string(),
+                is_composite: true,
+            },
+            ProjectionField {
+                name:         "tags".to_string(),
+                is_composite: true,
+            },
+            ProjectionField {
+                name:         "email".to_string(),
+                is_composite: false,
+            },
+        ];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+        // Scalars use ->>
+        assert!(sql.contains("->>'id'"), "id (scalar) must use ->>, got: {sql}");
+        assert!(sql.contains("->>'email'"), "email (scalar) must use ->>, got: {sql}");
+
+        // Composites use ->
+        assert!(sql.contains("->'address'"), "address (composite) must use ->, got: {sql}");
+        assert!(sql.contains("->'tags'"), "tags (composite) must use ->, got: {sql}");
+
+        // Must be wrapped in jsonb_build_object
+        assert!(
+            sql.starts_with("jsonb_build_object("),
+            "must wrap in jsonb_build_object, got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_typed_projection_camel_case_maps_to_snake_case_jsonb_key() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "firstName".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Response key is camelCase, JSONB key is snake_case
+        assert!(
+            sql.contains("'firstName'"),
+            "response key must be camelCase 'firstName', got: {sql}"
+        );
+        assert!(
+            sql.contains("->>'first_name'"),
+            "JSONB key must be snake_case 'first_name', got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_typed_projection_single_quote_in_field_name_escaped() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![ProjectionField {
+            name:         "it's".to_string(),
+            is_composite: false,
+        }];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Single quotes must be doubled for SQL safety
+        assert!(
+            sql.contains("'it''s'"),
+            "single quote in field name must be escaped, got: {sql}"
+        );
     }
 }

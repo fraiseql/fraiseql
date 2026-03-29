@@ -1,3 +1,5 @@
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![cfg(feature = "test-postgres")]
 //! End-to-end integration tests for Arrow Flight `DoGet` flows.
 //!
 //! These tests verify complete request→response cycles for:

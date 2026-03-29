@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
@@ -170,32 +174,7 @@ jobs:
           files: fraiseql-${{ matrix.target }}.${{ matrix.archive_ext }}
           fail_on_unmatched_files: true
 
-  # Generate SBOM and attach to the GitHub release
-  generate-sbom:
-    name: Generate SBOM
-    needs: create-github-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      RUSTC_WRAPPER: ""
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-sbom
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-sbom
-
-      - name: Generate SBOM (CycloneDX JSON)
-        run: cargo sbom --output-format cyclone_dx_json_1_5 > sbom.json
-
-      - name: Upload SBOM to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" sbom.json --clobber
+  # SBOM generation handled by sbom-generation.yml (Cosign-signed, validated)
 
   # Publish to crates.io
   publish-crates:
@@ -223,86 +202,99 @@ jobs:
       # Tier 1: No fraiseql dependencies
       - name: Publish fraiseql-error
         id: publish-error
-        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
-        continue-on-error: true
-
-      - name: Publish fraiseql-observers-macros
-        id: publish-observers-macros
-        run: cargo publish --package fraiseql-observers-macros --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-auth
         id: publish-auth
-        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-webhooks
         id: publish-webhooks
-        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Publish fraiseql-wire
         id: publish-wire
-        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 1)
         run: sleep 60
 
-      # Tier 2: Depends only on Tier 1 (fraiseql-core needs fraiseql-wire)
-      - name: Publish fraiseql-core
-        id: publish-core
-        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+      # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
+      - name: Publish fraiseql-db
+        id: publish-db
+        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 2)
         run: sleep 60
 
-      # Tier 3: Depends on fraiseql-core
-      - name: Publish fraiseql-arrow
-        id: publish-arrow
-        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
-        continue-on-error: true
-
-      - name: Publish fraiseql-secrets
-        id: publish-secrets
-        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+      # Tier 3: Depends on fraiseql-db, fraiseql-error
+      - name: Publish fraiseql-federation
+        id: publish-federation
+        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 3)
         run: sleep 60
 
-      # Tier 4: Depends on fraiseql-arrow + fraiseql-observers-macros
-      - name: Publish fraiseql-observers
-        id: publish-observers
-        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+      # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
+      - name: Publish fraiseql-core
+        id: publish-core
+        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 4)
         run: sleep 60
 
-      # Tier 5: Depends on everything above
-      - name: Publish fraiseql-server
-        id: publish-server
-        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+      # Tier 5: Depends on fraiseql-core
+      - name: Publish fraiseql-arrow
+        id: publish-arrow
+        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish fraiseql-secrets
+        id: publish-secrets
+        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 5)
         run: sleep 60
 
-      # Tier 6: Depends on fraiseql-core + fraiseql-server
-      - name: Publish fraiseql-cli
-        id: publish-cli
-        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+      # Tier 6: Depends on fraiseql-arrow
+      - name: Publish fraiseql-observers
+        id: publish-observers
+        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 6)
         run: sleep 60
 
-      # Tier 7: Root umbrella crate — depends on all others
+      # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
+      - name: Publish fraiseql-server
+        id: publish-server
+        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io indexing (Tier 7)
+        run: sleep 60
+
+      # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
+      - name: Publish fraiseql-cli
+        id: publish-cli
+        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io indexing (Tier 8)
+        run: sleep 60
+
+      # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
         id: publish-root
-        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
         continue-on-error: true
 
       - name: Report crates.io publishing results
@@ -312,13 +304,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-error" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-observers-macros.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-auth" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-db" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-federation" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-server" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-cli" >> $GITHUB_STEP_SUMMARY

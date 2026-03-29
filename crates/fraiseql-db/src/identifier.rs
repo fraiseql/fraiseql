@@ -183,6 +183,32 @@ mod tests {
         );
     }
 
+    // Issue #152 regression tests — schema-qualified function names must be quoted per-segment.
+
+    #[test]
+    fn test_postgres_schema_qualified_function_issue_152() {
+        assert_eq!(
+            quote_postgres_identifier("dimensions.fn_create_upload_session"),
+            "\"dimensions\".\"fn_create_upload_session\""
+        );
+    }
+
+    #[test]
+    fn test_mysql_schema_qualified_function() {
+        assert_eq!(
+            quote_mysql_identifier("analytics.sp_create_order"),
+            "`analytics`.`sp_create_order`"
+        );
+    }
+
+    #[test]
+    fn test_sqlserver_dbo_function() {
+        assert_eq!(
+            quote_sqlserver_identifier("dbo.fn_create_upload_session"),
+            "[dbo].[fn_create_upload_session]"
+        );
+    }
+
     // Delimiter-escape tests — the delimiter character must be doubled inside the quoted name.
 
     #[test]
