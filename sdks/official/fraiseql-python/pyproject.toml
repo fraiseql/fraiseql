@@ -73,50 +73,50 @@ ignore = [
 # SIM - flake8-simplify (simplification suggestions)
 # TCH - flake8-type-checking (type checking imports)
 select = [
-  "E",    # pycodestyle errors
-  "F",    # pyflakes
-  "I",    # isort (import sorting)
-  "N",    # pep8-naming
-  "W",    # pycodestyle warnings
-  "UP",   # pyupgrade (modern Python syntax)
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "I",  # isort (import sorting)
+  "N",  # pep8-naming
+  "W",  # pycodestyle warnings
+  "UP",  # pyupgrade (modern Python syntax)
   "ANN",  # flake8-annotations (type annotations)
-  "B",    # flake8-bugbear (likely bugs)
-  "C4",   # flake8-comprehensions (better comprehensions)
+  "B",  # flake8-bugbear (likely bugs)
+  "C4",  # flake8-comprehensions (better comprehensions)
   "SIM",  # flake8-simplify (simplification suggestions)
   "TCH",  # flake8-type-checking (type checking imports)
   "ARG",  # flake8-unused-arguments
   "ERA",  # eradicate (commented-out code)
-  "PL",   # pylint
+  "PL",  # pylint
   "RUF",  # Ruff-specific rules
-  "PERF", # perflint
-  "FURB", # refurb
+  "PERF",  # perflint
+  "FURB"  # refurb
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "examples/**/*.py" = [
-  "ERA001" # Field grouping comments are not commented-out code
+  "ERA001"  # Field grouping comments are not commented-out code
 ]
 "src/fraiseql/integrations/langchain.py" = [
-  "ARG002", # run_manager is part of LangChain abstract interface; must be accepted but is unused
-  "TC002",  # Runtime try/except imports cannot be moved to TYPE_CHECKING
+  "ARG002",  # run_manager is part of LangChain abstract interface; must be accepted but is unused
+  "TC002"  # Runtime try/except imports cannot be moved to TYPE_CHECKING
 ]
 "src/fraiseql/integrations/llamaindex.py" = [
   "TC001"  # Runtime import used in __init__ constructor
 ]
 "tests/**/*.py" = [
-  "ANN",    # Don't require type annotations in tests
-  "ARG",    # Mock handler signatures must accept unused arguments (e.g., request)
-  "PLC0415", # Deferred imports in test functions are intentional (registry isolation)
-  "PLR2004", # Magic values OK in tests
+  "ANN",  # Don't require type annotations in tests
+  "ARG",  # Mock handler signatures must accept unused arguments (e.g., request)
+  "PLC0415",  # Deferred imports in test functions are intentional (registry isolation)
+  "PLR2004"  # Magic values OK in tests
 ]
 
 [tool.ty.environment]
 python-version = "3.10"
 
 [tool.ty.rules]
-# Optional integration dependencies (langchain, llamaindex, pydantic) are not
-# installed by default; suppress unresolved-import for these extras.
-unresolved-import = "ignore"
 # `type` decorator in decorators.py shadows builtins.type; annotations use
 # string-deferred evaluation (from __future__ import annotations) so are valid.
 invalid-type-form = "ignore"
+# Optional integration dependencies (langchain, llamaindex, pydantic) are not
+# installed by default; suppress unresolved-import for these extras.
+unresolved-import = "ignore"
