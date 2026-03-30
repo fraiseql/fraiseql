@@ -2,7 +2,7 @@
 # Run: cargo deny check
 # Skip entries last reviewed: 2026-03-30
 # Pending resolution:
-#   rustls 0.22  — async-nats 0.40 transitively requires (tracked: async-nats upgrade)
+# rustls 0.22  — async-nats 0.40 transitively requires (tracked: async-nats upgrade)
 
 [advisories]
 db-path = "~/.cargo/advisory-db"
@@ -11,7 +11,7 @@ ignore = [
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
   {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: dev-only dep via testcontainers 0.26; awaiting testcontainers 0.27 upgrade. Revisit by 2026-04-15."},
-  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102: transitive via async-nats 0.40 (rustls 0.22); awaiting async-nats upgrade. Revisit by 2026-04-15."},
+  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102: transitive via async-nats 0.40 (rustls 0.22); awaiting async-nats upgrade. Revisit by 2026-04-15."}
 ]
 unmaintained = "workspace"
 
@@ -19,244 +19,235 @@ unmaintained = "workspace"
 multiple-versions = "deny"
 wildcards = "allow"
 
-# --- Transitive duplicate skip-trees ---
-# These subtrees pull in older versions of many crates (crypto, http, TLS).
-# Skipping the tree root avoids dozens of individual skip entries.
-
-[[bans.skip-tree]]
-name = "hyper"
-version = "=0.14.32"
-reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
-
-[[bans.skip-tree]]
-name = "rustls"
-version = "=0.21.12"
-reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
-
-
-[[bans.skip-tree]]
-name = "p256"
-version = "=0.11.1"
-reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
-
-# --- Individual duplicate skips ---
-
 [[bans.skip]]
 name = "aws-smithy-http"
-version = "=0.62.6"
 reason = "aws-sdk-s3 transitively depends on two smithy-http versions"
+version = "=0.62.6"
 
 [[bans.skip]]
 name = "aws-smithy-json"
-version = "=0.61.9"
 reason = "aws-sdk-s3 transitively depends on two smithy-json versions"
+version = "=0.61.9"
 
 [[bans.skip]]
 name = "hyper-rustls"
-version = "=0.24.2"
 reason = "aws-sdk-s3 via rustls 0.21 chain; upgrade tracked"
+version = "=0.24.2"
 
 [[bans.skip]]
 name = "rustls-native-certs"
-version = "=0.7.3"
 reason = "transitive via rustls 0.21/aws-sdk dependency chain"
+version = "=0.7.3"
 
 [[bans.skip]]
 name = "tokio-rustls"
-version = "=0.24.1"
 reason = "transitive via rustls 0.21 (aws-sdk)"
-
+version = "=0.24.1"
 
 [[bans.skip]]
 name = "hashbrown"
-version = "=0.14.5"
 reason = "transitive via indexmap 2.x in some dependency chains"
+version = "=0.14.5"
 
 [[bans.skip]]
 name = "hashbrown"
-version = "=0.15.5"
 reason = "transitive; ecosystem migrating to 0.16"
+version = "=0.15.5"
 
 [[bans.skip]]
 name = "getrandom"
-version = "=0.1.16"
 reason = "transitive via rand 0.7 (quickcheck dependency)"
+version = "=0.1.16"
 
 [[bans.skip]]
 name = "getrandom"
-version = "=0.2.17"
 reason = "transitive via rand 0.8 (many dependencies)"
+version = "=0.2.17"
 
 [[bans.skip]]
 name = "getrandom"
+reason = "transitive via rand 0.9"
 version = "=0.3.4"
-reason = "transitive via rand 0.9"
 
 [[bans.skip]]
 name = "rand"
-version = "=0.7.3"
 reason = "transitive via quickcheck"
+version = "=0.7.3"
 
 [[bans.skip]]
 name = "rand"
-version = "=0.8.5"
 reason = "transitive via many dependencies not yet migrated to rand 0.9+"
+version = "=0.8.5"
 
 [[bans.skip]]
 name = "rand"
-version = "=0.9.2"
 reason = "transitive; ecosystem migrating to rand 0.10"
+version = "=0.9.2"
 
 [[bans.skip]]
 name = "rand_chacha"
+reason = "transitive via rand 0.7"
 version = "=0.2.2"
-reason = "transitive via rand 0.7"
 
 [[bans.skip]]
 name = "rand_chacha"
+reason = "transitive via rand 0.8"
 version = "=0.3.1"
-reason = "transitive via rand 0.8"
 
 [[bans.skip]]
 name = "rand_core"
-version = "=0.5.1"
 reason = "transitive via rand 0.7"
+version = "=0.5.1"
 
 [[bans.skip]]
 name = "rand_core"
-version = "=0.6.4"
 reason = "transitive via rand 0.8"
+version = "=0.6.4"
 
 [[bans.skip]]
 name = "rand_core"
-version = "=0.9.5"
 reason = "transitive via rand 0.9"
+version = "=0.9.5"
 
 [[bans.skip]]
 name = "windows-sys"
-version = "=0.48.0"
 reason = "transitive via older windows ecosystem crates"
+version = "=0.48.0"
 
 [[bans.skip]]
 name = "windows-sys"
+reason = "transitive via windows ecosystem migration"
 version = "=0.52.0"
-reason = "transitive via windows ecosystem migration"
 
 [[bans.skip]]
 name = "windows-sys"
-version = "=0.59.0"
 reason = "transitive via windows ecosystem migration"
-
+version = "=0.59.0"
 
 [[bans.skip]]
 name = "windows-targets"
-version = "=0.48.5"
 reason = "transitive via windows-sys 0.48"
+version = "=0.48.5"
 
 [[bans.skip]]
 name = "windows-targets"
-version = "=0.52.6"
 reason = "transitive via windows-sys 0.52"
+version = "=0.52.6"
 
 [[bans.skip]]
 name = "thiserror"
-version = "=1.0.69"
 reason = "graphql-parser and other deps not yet migrated to thiserror 2.x"
+version = "=1.0.69"
 
 [[bans.skip]]
 name = "thiserror-impl"
-version = "=1.0.69"
 reason = "paired with thiserror 1.x"
+version = "=1.0.69"
 
 [[bans.skip]]
 name = "wasi"
-version = "=0.9.0+wasi-snapshot-preview1"
 reason = "transitive via getrandom 0.1"
+version = "=0.9.0+wasi-snapshot-preview1"
 
 [[bans.skip]]
 name = "wasi"
-version = "=0.11.1+wasi-snapshot-preview1"
 reason = "transitive via getrandom 0.2"
+version = "=0.11.1+wasi-snapshot-preview1"
 
 [[bans.skip]]
 name = "metrics"
-version = "=0.22.4"
 reason = "transitive via metrics-exporter-prometheus older version"
+version = "=0.22.4"
 
 [[bans.skip]]
 name = "toml_datetime"
-version = "=0.6.11"
 reason = "transitive via toml_edit 0.22"
+version = "=0.6.11"
 
 [[bans.skip]]
 name = "toml_edit"
-version = "=0.22.27"
 reason = "transitive via cargo-manifest or similar"
+version = "=0.22.27"
 
 [[bans.skip]]
 name = "lru"
-version = "=0.12.5"
 reason = "transitive via older dependency"
+version = "=0.12.5"
 
 [[bans.skip]]
 name = "lz4_flex"
-version = "=0.11.6"
 reason = "transitive via clickhouse dependency chain (0.11.x); parquet uses 0.12.x"
+version = "=0.11.6"
 
 [[bans.skip]]
 name = "cpufeatures"
-version = "=0.2.17"
 reason = "transitive via older sha2/aes crate versions"
+version = "=0.2.17"
 
 [[bans.skip]]
 name = "core-foundation"
-version = "=0.9.4"
 reason = "transitive via security-framework 2.x (macOS)"
+version = "=0.9.4"
 
 [[bans.skip]]
 name = "security-framework"
-version = "=2.11.1"
 reason = "transitive via older native-tls dependency chain"
+version = "=2.11.1"
 
 [[bans.skip]]
 name = "openssl-probe"
-version = "=0.1.6"
 reason = "transitive via older native-tls dependency chain"
+version = "=0.1.6"
 
 [[bans.skip]]
 name = "chacha20"
-version = "=0.9.1"
 reason = "transitive via older chacha20poly1305 version"
+version = "=0.9.1"
 
 [[bans.skip]]
 name = "webpki-roots"
-version = "=0.26.11"
 reason = "transitive via rustls 0.23 dependency chain"
+version = "=0.26.11"
 
 [[bans.skip]]
 name = "whoami"
-version = "=1.6.1"
 reason = "transitive via older sqlx version"
+version = "=1.6.1"
 
 [[bans.skip]]
 name = "wasite"
-version = "=0.1.0"
 reason = "transitive via whoami 1.x"
+version = "=0.1.0"
 
 [[bans.skip]]
 name = "md-5"
-version = "=0.10.6"
 reason = "transitive via aws-smithy-checksums and sqlx-mysql"
+version = "=0.10.6"
 
 [[bans.skip]]
 name = "rustls-webpki"
-version = "=0.102.8"
 reason = "transitive via async-nats 0.40 (rustls 0.22 chain); awaiting async-nats upgrade"
+version = "=0.102.8"
 
 [[bans.skip]]
 name = "winnow"
-version = "=0.7.15"
 reason = "transitive via toml_edit 0.22; ecosystem migrating to winnow 1.0"
+version = "=0.7.15"
+
+[[bans.skip-tree]]
+name = "hyper"
+reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
+version = "=0.14.32"
+
+[[bans.skip-tree]]
+name = "rustls"
+reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
+version = "=0.21.12"
+
+[[bans.skip-tree]]
+name = "p256"
+reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
+version = "=0.11.1"
 
 [graph]
 all-features = true
