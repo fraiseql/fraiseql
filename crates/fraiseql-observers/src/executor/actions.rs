@@ -57,6 +57,7 @@ impl ObserverExecutor {
     }
 
     /// Handle action failure based on failure policy
+    #[allow(clippy::cognitive_complexity)] // Reason: failure policy dispatch with per-policy logging and DLQ routing
     pub(crate) async fn handle_action_failure(
         &self,
         action: &ActionConfig,

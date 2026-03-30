@@ -185,7 +185,7 @@ impl ProjectionMapper {
     }
 
     /// Project a nested value, adding typename if configured.
-    #[allow(clippy::only_used_in_recursion, clippy::self_only_used_in_recursion)] // Reason: &self required for method dispatch; recursive structure is intentional
+    #[allow(clippy::only_used_in_recursion)] // Reason: &self required for method dispatch; recursive structure is intentional
     fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Result<JsonValue> {
         match value {
             JsonValue::Object(obj) => {

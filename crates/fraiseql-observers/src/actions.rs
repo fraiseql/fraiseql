@@ -224,6 +224,7 @@ impl WebhookAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if the HTTP request fails or the response is not 2xx.
+    #[allow(clippy::cognitive_complexity)] // Reason: sequential HTTP request/response handling with logging and error classification
     pub async fn execute(
         &self,
         url: &str,

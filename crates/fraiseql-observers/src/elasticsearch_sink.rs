@@ -216,6 +216,7 @@ impl ElasticsearchSink {
     /// # Errors
     ///
     /// Returns [`ObserverError::DatabaseError`] if a bulk index request to Elasticsearch fails.
+    #[allow(clippy::cognitive_complexity)] // Reason: event loop with buffering, flush logic, and error recovery — splitting would scatter the state machine
     pub async fn run(&self, mut rx: mpsc::Receiver<EntityEvent>) -> Result<()> {
         info!("Starting Elasticsearch sink");
 

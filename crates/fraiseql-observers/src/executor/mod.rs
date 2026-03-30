@@ -201,6 +201,7 @@ impl ObserverExecutor {
     /// Propagates errors from the condition parser if a condition expression is invalid.
     /// Action execution failures are recorded in the `ExecutionSummary` rather than
     /// returned as errors.
+    #[allow(clippy::cognitive_complexity)] // Reason: event processing with condition evaluation, action dispatch, and summary collection
     pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummary> {
         // Record metrics
         #[cfg(feature = "metrics")]

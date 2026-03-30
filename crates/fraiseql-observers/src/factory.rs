@@ -153,6 +153,7 @@ impl ExecutorFactory {
     ///
     /// Returns `ObserverError` if the event matcher configuration is invalid.
     #[cfg(not(all(feature = "dedup", feature = "caching")))]
+    #[allow(clippy::unused_async)] // Reason: must match async signature of the cfg(dedup,caching) variant; callers always .await
     pub async fn build(
         config: &ObserverRuntimeConfig,
         dlq: Arc<dyn DeadLetterQueue>,

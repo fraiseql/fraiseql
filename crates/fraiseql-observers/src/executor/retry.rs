@@ -15,6 +15,7 @@ use crate::{
 
 impl ObserverExecutor {
     /// Execute a single action with retry logic
+    #[allow(clippy::cognitive_complexity)] // Reason: retry loop with backoff, jitter, and per-attempt logging — inherently sequential
     pub(crate) async fn execute_action_with_retry(
         &self,
         action: &ActionConfig,
@@ -159,6 +160,7 @@ impl ObserverExecutor {
     ///
     /// Returns `ObserverError` if the transport subscription fails or an unrecoverable
     /// processing error occurs.
+    #[allow(clippy::cognitive_complexity)] // Reason: transport event loop with reconnection, filtering, and error recovery
     pub async fn run_with_transport(
         &self,
         transport: Arc<dyn crate::transport::EventTransport>,
@@ -249,6 +251,7 @@ impl ObserverExecutor {
     /// Returns `ObserverError` if the listener encounters an unrecoverable database error
     /// after exhausting retry attempts.
     #[cfg(feature = "postgres")]
+    #[allow(clippy::cognitive_complexity)] // Reason: postgres LISTEN/NOTIFY loop with reconnection, batch processing, and retry logic
     pub async fn run_listener_loop(
         &self,
         listener: &mut crate::listener::ChangeLogListener,

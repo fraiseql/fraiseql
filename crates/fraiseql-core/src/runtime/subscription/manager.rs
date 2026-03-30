@@ -345,6 +345,7 @@ impl SubscriptionManager {
     }
 
     /// Check if an event matches a subscription's filters and RLS conditions.
+    #[allow(clippy::cognitive_complexity)] // Reason: multi-criteria subscription matching (entity type, operation, filters, RLS conditions)
     fn matches_subscription(
         &self,
         event: &SubscriptionEvent,

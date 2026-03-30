@@ -246,6 +246,7 @@ impl Compiler {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::cognitive_complexity)] // Reason: sequential compilation pipeline (parse → validate → generate SQL → assemble)
     pub fn compile(&self, schema_json: &str) -> Result<CompiledSchema> {
         // Parse JSON → Authoring IR
         tracing::debug!("Parsing schema...");

@@ -11,6 +11,7 @@ impl SchemaDependencyGraph {
     /// This analyzes all types, queries, mutations, and subscriptions to
     /// build a complete dependency graph.
     #[must_use]
+    #[allow(clippy::cognitive_complexity)] // Reason: iterates all schema elements (types, queries, mutations, subscriptions) to build a complete dependency graph
     pub fn build(schema: &CompiledSchema) -> Self {
         let mut outgoing: HashMap<String, HashSet<String>> = HashMap::new();
         let mut incoming: HashMap<String, HashSet<String>> = HashMap::new();

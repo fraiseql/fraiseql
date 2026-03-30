@@ -169,7 +169,7 @@ impl ActiveSubscription {
     ///
     /// * `subscription_name` - Schema subscription name
     /// * `definition` - Subscription definition from compiled schema
-    /// * `user_context` - Raw user context JSON from WebSocket `connection_init`
+    /// * `user_context` - Raw user context JSON from `WebSocket` `connection_init`
     /// * `variables` - Runtime variables from client
     /// * `connection_id` - Client connection identifier
     #[must_use]

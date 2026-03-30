@@ -69,6 +69,7 @@ impl StructuredLogger {
     }
 
     /// Log with automatic trace ID injection
+    #[allow(clippy::cognitive_complexity)] // Reason: log formatting with conditional field injection and format-specific serialization
     fn log_internal(&self, level: &str, event: &str, fields: Vec<(&str, &str)>) {
         let mut all_fields = HashMap::new();
 
