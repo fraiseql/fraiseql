@@ -642,6 +642,7 @@ data. An attacker with direct database write access could recompute the entire
 chain after modification.
 
 **Recommendation for high-compliance environments** (SOC2, PCI-DSS):
+
 1. Stream audit logs to an external immutable store (S3 with Object Lock, CloudWatch
    Logs, or a SIEM like Splunk/Loki)
 2. Use the `fraiseql_audit_logs` table as the primary source, external store as

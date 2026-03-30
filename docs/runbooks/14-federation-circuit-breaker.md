@@ -102,11 +102,13 @@ docker logs -f fraiseql-server 2>&1 | grep -i "circuit"
 ### Manual Intervention
 
 **If upstream is down (expected behavior):**
+
 - The breaker is protecting your service from cascading failures — no action needed
 - Contact the upstream subgraph team to restore their service
 - Monitor for automatic recovery once upstream is healthy
 
 **If upstream recovered but breaker appears stuck:**
+
 - Restart the FraiseQL server to reset all circuit breaker state:
 
 ```bash
@@ -116,6 +118,7 @@ systemctl restart fraiseql-server
 ```
 
 **If tripping is a false positive (transient network blip):**
+
 - Increase `failure_threshold` to require more consecutive failures before tripping:
 
 ```toml
