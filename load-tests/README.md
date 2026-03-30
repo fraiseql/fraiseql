@@ -361,6 +361,7 @@ Load tests run nightly (03:00 UTC) via `.github/workflows/load-test.yml` and can
 be triggered manually with a scenario selector via `workflow_dispatch`.
 
 The workflow:
+
 1. Provisions a PostgreSQL 16 service container
 2. Builds `fraiseql-server` in release mode
 3. Initializes the test database with `tests/sql/postgres/init.sql`
