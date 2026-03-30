@@ -89,127 +89,119 @@ impl AuthMiddleware {
     }
 }
 
-impl IntoResponse for AuthError {
-    fn into_response(self) -> Response {
-        use tracing::warn;
-
-        let (status, error_code, sanitized_message) = match self {
-            AuthError::TokenExpired => {
+impl AuthError {
+    /// Map each error variant to its HTTP response parts.
+    ///
+    /// SECURITY: Sanitized messages never expose internal details.
+    #[allow(clippy::cognitive_complexity)] // Reason: exhaustive 1:1 mapping of AuthError variants to HTTP response tuples
+    fn response_parts(&self) -> (StatusCode, &'static str, String) {
+        match self {
+            Self::TokenExpired => {
                 (StatusCode::UNAUTHORIZED, "token_expired", "Authentication failed".to_string())
             },
-            AuthError::InvalidSignature => (
+            Self::InvalidSignature => (
                 StatusCode::UNAUTHORIZED,
                 "invalid_signature",
                 "Authentication failed".to_string(),
             ),
-            AuthError::InvalidToken { ref reason } => {
-                // SECURITY: Log internal reason but return generic message
-                warn!("Invalid token error: {}", reason);
-                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
-            },
-            AuthError::MissingClaim { ref claim } => {
-                // SECURITY: Don't expose which claim is missing
-                warn!("Missing required claim: {}", claim);
-                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
-            },
-            AuthError::InvalidClaimValue {
-                ref claim,
-                ref reason,
-            } => {
-                // SECURITY: Don't expose claim names or validation rules to attackers
-                warn!("Invalid claim value for '{}': {}", claim, reason);
-                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
-            },
-            AuthError::TokenNotFound => {
-                (StatusCode::UNAUTHORIZED, "token_not_found", "Authentication failed".to_string())
-            },
-            AuthError::SessionRevoked => {
-                (StatusCode::UNAUTHORIZED, "session_revoked", "Authentication failed".to_string())
-            },
-            AuthError::InvalidState => {
-                (StatusCode::BAD_REQUEST, "invalid_state", "Authentication failed".to_string())
-            },
-            AuthError::Forbidden { ref message } => {
-                // SECURITY: Log detailed permission error but return generic message
-                warn!("Authorization denied: {}", message);
-                (StatusCode::FORBIDDEN, "forbidden", "Permission denied".to_string())
-            },
-            AuthError::OAuthError { ref message } => {
-                // SECURITY: Don't expose OAuth provider details to client
-                warn!("OAuth provider error: {}", message);
-                (StatusCode::UNAUTHORIZED, "oauth_error", "Authentication failed".to_string())
-            },
-            AuthError::SessionError { ref message } => {
-                // SECURITY: Don't expose session implementation details
-                warn!("Session error: {}", message);
-                (StatusCode::UNAUTHORIZED, "session_error", "Authentication failed".to_string())
-            },
-            AuthError::DatabaseError { ref message } => {
-                // SECURITY: NEVER expose database errors to clients
-                warn!("Database error (should not reach client): {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "Service temporarily unavailable".to_string(),
-                )
-            },
-            AuthError::ConfigError { ref message } => {
-                // SECURITY: NEVER expose configuration details to clients
-                warn!("Configuration error (should not reach client): {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "Service temporarily unavailable".to_string(),
-                )
-            },
-            AuthError::OidcMetadataError { ref message } => {
-                // SECURITY: Don't expose OIDC provider metadata details
-                warn!("OIDC metadata error: {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "Service temporarily unavailable".to_string(),
-                )
-            },
-            AuthError::PkceError { ref message } => {
-                // SECURITY: Don't expose PKCE implementation details
-                warn!("PKCE error: {}", message);
-                (StatusCode::BAD_REQUEST, "pkce_error", "Authentication failed".to_string())
-            },
-            AuthError::Internal { ref message } => {
-                // SECURITY: NEVER expose internal errors to clients
-                warn!("Internal error (should not reach client): {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "Service temporarily unavailable".to_string(),
-                )
-            },
-            AuthError::SystemTimeError { ref message } => {
-                // SECURITY: Don't expose system errors to clients
-                warn!("System time error (should not reach client): {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "Service temporarily unavailable".to_string(),
-                )
-            },
-            AuthError::RateLimited { retry_after_secs } => (
-                StatusCode::TOO_MANY_REQUESTS,
-                "rate_limited",
-                format!("Too many requests. Retry after {} seconds", retry_after_secs),
-            ),
+            Self::InvalidToken { .. }
+            | Self::MissingClaim { .. }
+            | Self::InvalidClaimValue { .. }
             // OIDC replay-protection errors: return 401 without revealing
             // which specific claim was invalid to avoid oracle attacks.
-            AuthError::MissingNonce | AuthError::NonceMismatch => {
-                warn!("OIDC nonce validation failed: {}", self);
+            | Self::MissingNonce
+            | Self::NonceMismatch
+            | Self::MissingAuthTime
+            | Self::SessionTooOld { .. } => {
                 (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
             },
-            AuthError::MissingAuthTime | AuthError::SessionTooOld { .. } => {
-                warn!("OIDC auth_time validation failed: {}", self);
-                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
+            Self::TokenNotFound => {
+                (StatusCode::UNAUTHORIZED, "token_not_found", "Authentication failed".to_string())
             },
-        };
+            Self::SessionRevoked => {
+                (StatusCode::UNAUTHORIZED, "session_revoked", "Authentication failed".to_string())
+            },
+            Self::InvalidState => {
+                (StatusCode::BAD_REQUEST, "invalid_state", "Authentication failed".to_string())
+            },
+            Self::Forbidden { .. } => {
+                (StatusCode::FORBIDDEN, "forbidden", "Permission denied".to_string())
+            },
+            Self::OAuthError { .. } => {
+                (StatusCode::UNAUTHORIZED, "oauth_error", "Authentication failed".to_string())
+            },
+            Self::SessionError { .. } => {
+                (StatusCode::UNAUTHORIZED, "session_error", "Authentication failed".to_string())
+            },
+            Self::DatabaseError { .. }
+            | Self::ConfigError { .. }
+            | Self::OidcMetadataError { .. }
+            | Self::Internal { .. }
+            | Self::SystemTimeError { .. } => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "Service temporarily unavailable".to_string(),
+            ),
+            Self::PkceError { .. } => {
+                (StatusCode::BAD_REQUEST, "pkce_error", "Authentication failed".to_string())
+            },
+            Self::RateLimited { retry_after_secs } => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+                format!("Too many requests. Retry after {retry_after_secs} seconds"),
+            ),
+        }
+    }
+
+    /// Log security-sensitive error details server-side before returning a sanitized response.
+    #[allow(clippy::cognitive_complexity)] // Reason: exhaustive match logging security-sensitive details per AuthError variant
+    fn log_security_details(&self) {
+        use tracing::warn;
+
+        match self {
+            Self::InvalidToken { reason } => warn!("Invalid token error: {reason}"),
+            Self::MissingClaim { claim } => warn!("Missing required claim: {claim}"),
+            Self::InvalidClaimValue { claim, reason } => {
+                warn!("Invalid claim value for '{claim}': {reason}");
+            },
+            Self::Forbidden { message } => warn!("Authorization denied: {message}"),
+            Self::OAuthError { message } => warn!("OAuth provider error: {message}"),
+            Self::SessionError { message } => warn!("Session error: {message}"),
+            Self::DatabaseError { message } => {
+                warn!("Database error (should not reach client): {message}");
+            },
+            Self::ConfigError { message } => {
+                warn!("Configuration error (should not reach client): {message}");
+            },
+            Self::OidcMetadataError { message } => warn!("OIDC metadata error: {message}"),
+            Self::PkceError { message } => warn!("PKCE error: {message}"),
+            Self::Internal { message } => {
+                warn!("Internal error (should not reach client): {message}");
+            },
+            Self::SystemTimeError { message } => {
+                warn!("System time error (should not reach client): {message}");
+            },
+            Self::MissingNonce | Self::NonceMismatch => {
+                warn!("OIDC nonce validation failed: {self}");
+            },
+            Self::MissingAuthTime | Self::SessionTooOld { .. } => {
+                warn!("OIDC auth_time validation failed: {self}");
+            },
+            // No server-side logging needed for these variants
+            Self::TokenExpired
+            | Self::InvalidSignature
+            | Self::TokenNotFound
+            | Self::SessionRevoked
+            | Self::InvalidState
+            | Self::RateLimited { .. } => {},
+        }
+    }
+}
+
+impl IntoResponse for AuthError {
+    fn into_response(self) -> Response {
+        self.log_security_details();
+        let (status, error_code, sanitized_message) = self.response_parts();
 
         let body = serde_json::json!({
             "errors": [{
