@@ -63,6 +63,7 @@ impl SagaExecutor {
     ///     eprintln!("Step failed: {}", result.error.unwrap());
     /// }
     /// ```
+    #[allow(clippy::cognitive_complexity)] // Reason: sequential step execution with @requires pre-fetch, store validation, mutation dispatch, and result persistence
     pub async fn execute_step(
         &self,
         saga_id: Uuid,

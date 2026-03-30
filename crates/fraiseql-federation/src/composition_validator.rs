@@ -197,6 +197,7 @@ impl CrossSubgraphValidator {
     ///
     /// Returns `Err` with vector of all consistency errors found.
     /// Returns `Ok(())` if all validation passes.
+    #[allow(clippy::cognitive_complexity)] // Reason: linear orchestration of sub-validators with logging; extracting would scatter sequential flow
     pub fn validate_consistency(&self) -> Result<(), Vec<CompositionError>> {
         let mut errors = Vec::new();
 

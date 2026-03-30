@@ -218,6 +218,7 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 ///
 /// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
 /// Returns `FraiseQLError` if the database query fails.
+#[allow(clippy::cognitive_complexity)] // Reason: sequential batch resolution with per-typename tracing spans and metrics; splitting would lose the linear flow
 pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,

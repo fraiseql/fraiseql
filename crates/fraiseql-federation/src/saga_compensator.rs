@@ -299,6 +299,7 @@ impl SagaCompensator {
     ///     eprintln!("Steps that failed compensation: {:?}", result.failed_steps);
     /// }
     /// ```
+    #[allow(clippy::cognitive_complexity)] // Reason: saga compensation is an inherently sequential state machine (load → verify → transition → compensate steps → finalize)
     pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
         let start_time = Instant::now();
         info!(saga_id = %saga_id, "Saga compensation started");
@@ -521,6 +522,7 @@ impl SagaCompensator {
     ///
     /// Cannot panic in practice — the `expect` on `self.store` is guarded by
     /// an `is_none()` early-return immediately above.
+    #[allow(clippy::cognitive_complexity)] // Reason: sequential step compensation with store validation, mutation execution, and result persistence
     pub async fn compensate_step(
         &self,
         saga_id: Uuid,

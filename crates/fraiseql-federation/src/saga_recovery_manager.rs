@@ -372,6 +372,7 @@ impl SagaRecoveryManager {
     /// 2. Loads and processes pending sagas
     /// 3. Detects executing sagas
     /// 4. Cleans up stale sagas
+    #[allow(clippy::cognitive_complexity)] // Reason: linear recovery loop iteration (load pending → transition → detect stuck → cleanup stale)
     async fn run_recovery_iteration(
         store: &PostgresSagaStore,
         config: RecoveryConfig,

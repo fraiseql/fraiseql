@@ -219,6 +219,7 @@ impl RequiresProvidesValidator {
     /// - All @requires fields are available (external or local)
     /// - All @provides fields exist on the return type
     /// - No circular dependencies in @requires chains
+    #[allow(clippy::cognitive_complexity)] // Reason: simple iteration over types/fields with logging; complexity from nested loops, not deep branching
     pub fn validate_all(&self) -> Result<(), Vec<DirectiveValidationError>> {
         let mut errors = Vec::new();
 
@@ -256,6 +257,7 @@ impl RequiresProvidesValidator {
     ///
     /// Validates @requires, @provides, and checks for circular dependencies.
     /// Multiple errors are collected to provide complete feedback.
+    #[allow(clippy::cognitive_complexity)] // Reason: sequential validation of @requires, @provides, and circular deps with error collection
     fn validate_field_directives(
         &self,
         typename: &str,

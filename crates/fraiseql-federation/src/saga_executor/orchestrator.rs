@@ -20,6 +20,7 @@ impl SagaExecutor {
     /// # Errors
     ///
     /// Returns an error if the saga cannot be loaded or step execution fails.
+    #[allow(clippy::cognitive_complexity)] // Reason: saga forward-phase is an inherently sequential state machine (load → transition → execute steps → finalize)
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
         info!(saga_id = %saga_id, "Saga forward phase started");
 
