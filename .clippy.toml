@@ -1,6 +1,10 @@
 # Clippy configuration for FraiseQL v2
 # https://rust-lang.github.io/rust-clippy/master/index.html#configuration
 
+# Large stack arrays: raised from 16 KiB to 64 KiB because criterion's benchmark
+# scaffolding generates arrays with no source span (clippy bug); no real oversized
+# stack allocation exists in production code.
+array-size-threshold = 65536
 # Cognitive complexity threshold
 cognitive-complexity-threshold = 30
 # Documentation
@@ -20,7 +24,3 @@ too-many-lines-threshold = 300
 type-complexity-threshold = 500
 # Verbose bit mask
 verbose-bit-mask-threshold = 1
-# Large stack arrays: raised from 16 KiB to 64 KiB because criterion's benchmark
-# scaffolding generates arrays with no source span (clippy bug); no real oversized
-# stack allocation exists in production code.
-array-size-threshold = 65536
