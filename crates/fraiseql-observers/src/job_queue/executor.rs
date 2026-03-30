@@ -170,6 +170,7 @@ impl JobExecutor {
         #[cfg(feature = "metrics")] metrics: MetricsRegistry,
     ) {
         let job_id = job.id;
+        #[cfg(feature = "metrics")]
         let action_type = job.action_type().to_string();
         let start_time = std::time::Instant::now();
 

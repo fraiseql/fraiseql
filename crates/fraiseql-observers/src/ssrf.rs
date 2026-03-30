@@ -14,6 +14,16 @@ use crate::error::ObserverError;
 /// Returns `ObserverError::InvalidConfig` if the URL is unparseable or targets
 /// a forbidden host.
 pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
+    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // This is intended for local development and integration testing only —
+    // never set in production.
+    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if allow_insecure {
+        return Ok(());
+    }
+
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
         message: format!("Invalid URL '{url}': {e}"),
     })?;

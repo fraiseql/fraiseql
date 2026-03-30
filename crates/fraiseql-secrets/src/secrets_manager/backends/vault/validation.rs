@@ -24,6 +24,16 @@ pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 /// Returns [`SecretsError::ValidationError`] if the address uses a non-HTTP(S) scheme,
 /// is not a valid URL, or targets a private/loopback address (SSRF protection).
 pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
+    // When `FRAISEQL_VAULT_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // This is intended for local development and integration testing only —
+    // never set in production.
+    let allow_insecure = std::env::var("FRAISEQL_VAULT_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if allow_insecure {
+        return Ok(());
+    }
+
     let lower = addr.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(SecretsError::ValidationError(format!(
