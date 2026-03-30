@@ -64,8 +64,8 @@ pub use compiled::{
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
     DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
-    FederationConfig, FederationEntity, FieldAuthRule, McpConfig, ObserversConfig,
-    SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    FederationConfig, FederationEntity, FieldAuthRule, GrpcConfig, McpConfig, ObserversConfig,
+    RestConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

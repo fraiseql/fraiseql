@@ -1,8 +1,12 @@
 //! Tests for the MySQL database adapter.
 
-use super::*;
-use crate::{identifier::quote_mysql_identifier, types::DatabaseType};
-// Helper functions are available via `super::*` (re-imported in adapter.rs).
+use fraiseql_error::FraiseQLError;
+
+use super::adapter::map_mysql_error_code;
+use super::helpers::{build_mysql_relay_order_sql, build_mysql_relay_where};
+use super::MySqlAdapter;
+use crate::identifier::quote_mysql_identifier;
+use crate::types::DatabaseType;
 
 // Unit tests for MySQL adapter internals.
 // These tests do NOT require a live MySQL connection.

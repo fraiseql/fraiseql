@@ -25,9 +25,7 @@ use super::where_generator::SqliteWhereGenerator;
 use crate::{
     dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
-    traits::{
-        DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationStrategy,
-    },
+    traits::{DatabaseAdapter, DirectMutationContext, MutationStrategy},
     types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
@@ -68,7 +66,7 @@ use crate::{
 /// ```
 #[derive(Clone)]
 pub struct SqliteAdapter {
-    pool: SqlitePool,
+    pub(super) pool: SqlitePool,
 }
 
 impl SqliteAdapter {
@@ -315,7 +313,90 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     fn supports_mutations(&self) -> bool {
-        false
+        true
+    }
+
+    fn mutation_strategy(&self) -> MutationStrategy {
+        MutationStrategy::DirectSql
+    }
+
+    async fn execute_direct_mutation(
+        &self,
+        ctx: &DirectMutationContext<'_>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let (sql, bind_values) = super::helpers::build_direct_mutation_sql(ctx)?;
+
+        let mut query = sqlx::query(&sql);
+        for val in &bind_values {
+            query = match val {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(val.to_string())
+                },
+            };
+        }
+
+        let rows: Vec<SqliteRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite direct mutation failed: {e}"),
+                sql_state: None,
+            })?;
+
+        if rows.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Direct mutation on '{}' affected no rows — \
+                     the target row may not exist or RLS filters rejected it",
+                    ctx.table
+                ),
+                path: None,
+            });
+        }
+
+        let status = match ctx.operation {
+            crate::traits::DirectMutationOp::Insert => "new",
+            crate::traits::DirectMutationOp::Update => "updated",
+            crate::traits::DirectMutationOp::Delete => "deleted",
+        };
+
+        let mut results = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let entity = super::helpers::sqlite_row_to_json(row);
+
+            // For INSERT, entity_id is null (new entity). For UPDATE/DELETE,
+            // extract the primary key value from the first client column.
+            let entity_id = match ctx.operation {
+                crate::traits::DirectMutationOp::Insert => None,
+                crate::traits::DirectMutationOp::Update
+                | crate::traits::DirectMutationOp::Delete => {
+                    ctx.values.first().map(|v| v.to_string().trim_matches('"').to_string())
+                },
+            };
+
+            results.push(serde_json::json!({
+                "status": status,
+                "message": null,
+                "entity_id": entity_id,
+                "entity_type": ctx.return_type,
+                "entity": entity,
+                "updated_fields": null,
+                "cascade": null,
+                "metadata": null,
+            }));
+        }
+
+        Ok(results)
     }
 
     async fn health_check(&self) -> Result<()> {

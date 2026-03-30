@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// MySQL dialect for [`GenericWhereGenerator`].
 ///
@@ -51,6 +51,24 @@ impl SqlDialect for MySqlDialect {
 
     fn array_overlaps_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
         Ok(format!("JSON_OVERLAPS({lhs}, {rhs})"))
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        col_type: &RowViewColumnType,
+    ) -> String {
+        let mysql_type = match col_type {
+            RowViewColumnType::Text | RowViewColumnType::Uuid => "CHAR",
+            RowViewColumnType::Int32 => "SIGNED",
+            RowViewColumnType::Int64 => "SIGNED",
+            RowViewColumnType::Float64 => "DOUBLE",
+            RowViewColumnType::Boolean => "UNSIGNED",
+            RowViewColumnType::Timestamptz => "DATETIME",
+            RowViewColumnType::Json => "JSON",
+        };
+        format!("CAST(JSON_UNQUOTE(JSON_EXTRACT({json_column}, '$.{field_name}')) AS {mysql_type})")
     }
 
     // MySQL FTS: all variants map to MATCH/AGAINST

@@ -580,7 +580,7 @@ impl DatabaseAdapter for MySqlAdapter {
 /// # Returns
 ///
 /// Returns a SQLSTATE string if a mapping exists, or `None` for unmapped codes.
-fn map_mysql_error_code(code: u16) -> Option<String> {
+pub(super) fn map_mysql_error_code(code: u16) -> Option<String> {
     let sqlstate = match code {
         // 1062: Duplicate entry for key (unique constraint violation)
         // 1169: Unique constraint violation (alternate code)

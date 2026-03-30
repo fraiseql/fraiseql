@@ -125,7 +125,11 @@ wiremock = "0.6"
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
+azure-blob = []
 cors = []
+gcs = []
+# gRPC transport (requires tonic + prost_reflect; not yet fully wired)
+grpc = ["dep:tonic"]
 database = []
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
@@ -140,6 +144,8 @@ observers = ["fraiseql-observers"]
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
+# REST transport (auto-generated resource endpoints; not yet fully wired)
+rest = []
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
 secrets = ["dep:fraiseql-secrets"]

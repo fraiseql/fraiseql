@@ -645,6 +645,36 @@ pub trait DatabaseAdapter: Send + Sync {
                 .to_string(),
         })
     }
+
+    /// Returns the mutation strategy used by this adapter.
+    ///
+    /// The default is `FunctionCall` (stored procedures). Adapters that generate
+    /// direct SQL (e.g., SQLite) override this to return `DirectSql`.
+    fn mutation_strategy(&self) -> MutationStrategy {
+        MutationStrategy::FunctionCall
+    }
+
+    /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the
+    /// mutation response rows as JSON objects.
+    ///
+    /// Only adapters using `MutationStrategy::DirectSql` need to override this.
+    /// The default implementation returns `Unsupported`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` by default.
+    /// Returns `FraiseQLError::Database` on SQL execution failure.
+    /// Returns `FraiseQLError::Validation` on invalid mutation parameters.
+    async fn execute_direct_mutation(
+        &self,
+        _ctx: &DirectMutationContext<'_>,
+    ) -> Result<Vec<serde_json::Value>> {
+        Err(FraiseQLError::Unsupported {
+            message: "Direct SQL mutations are not supported by this adapter. \
+                      Use execute_function_call for stored-procedure mutations."
+                .to_string(),
+        })
+    }
 }
 
 /// Database capabilities and feature support.
@@ -708,6 +738,51 @@ impl DatabaseCapabilities {
             DatabaseType::SQLServer => "Language-specific collations",
         }
     }
+}
+
+/// Strategy used by an adapter for executing mutations.
+///
+/// Adapters that use stored database functions (PostgreSQL, MySQL, SQL Server) use
+/// `FunctionCall`. Adapters that generate INSERT/UPDATE/DELETE SQL directly (SQLite)
+/// use `DirectSql`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MutationStrategy {
+    /// Mutations execute via stored database functions (`SELECT * FROM fn_create_user($1, $2)`).
+    FunctionCall,
+    /// Mutations execute via direct SQL (`INSERT INTO ... RETURNING *`).
+    DirectSql,
+}
+
+/// The kind of direct mutation operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DirectMutationOp {
+    /// `INSERT INTO ... RETURNING *`
+    Insert,
+    /// `UPDATE ... SET ... WHERE pk = ? RETURNING *`
+    Update,
+    /// `DELETE FROM ... WHERE pk = ? RETURNING *`
+    Delete,
+}
+
+/// Context for a direct SQL mutation (used by `DirectSql` strategy adapters).
+///
+/// All field references are borrowed from the caller to avoid allocation.
+#[derive(Debug)]
+pub struct DirectMutationContext<'a> {
+    /// The mutation operation to perform.
+    pub operation: DirectMutationOp,
+    /// Target table name (e.g., `"users"`).
+    pub table: &'a str,
+    /// Client-supplied column names (in bind order).
+    pub columns: &'a [String],
+    /// All bind values: client values first, then injected values.
+    pub values: &'a [serde_json::Value],
+    /// Server-injected column names (e.g., RLS tenant columns), appended after client columns.
+    pub inject_columns: &'a [String],
+    /// GraphQL return type name (e.g., `"User"`), used in the mutation response envelope.
+    pub return_type: &'a str,
 }
 
 /// A typed cursor value for keyset (relay) pagination.

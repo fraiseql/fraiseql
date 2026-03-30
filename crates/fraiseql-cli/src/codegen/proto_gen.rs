@@ -98,6 +98,7 @@ fn field_type_to_proto(ft: &FieldType) -> ProtoFieldType {
             let inner_proto = field_type_to_proto(inner);
             ProtoFieldType::repeated(&inner_proto.type_name)
         },
+        _ => ProtoFieldType::scalar("string"),
     }
 }
 
@@ -437,9 +438,6 @@ mod tests {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
-            auto_generated: false,
-            computed: false,
-            searchable: false,
         }
     }
 
@@ -455,7 +453,6 @@ mod tests {
             requires_role: None,
             is_error: false,
             relay: false,
-            relationships: vec![],
         }
     }
 

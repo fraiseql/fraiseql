@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::fmt::Write;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// PostgreSQL dialect for [`GenericWhereGenerator`].
 ///
@@ -188,6 +188,25 @@ impl SqlDialect for PostgresDialect {
         placeholders: &[String],
     ) -> Result<String, UnsupportedOperator> {
         Ok(format!("{lhs}::ltree = lca(ARRAY[{}])", placeholders.join(", ")))
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        col_type: &RowViewColumnType,
+    ) -> String {
+        let pg_type = match col_type {
+            RowViewColumnType::Text => "text",
+            RowViewColumnType::Int32 => "int",
+            RowViewColumnType::Int64 => "bigint",
+            RowViewColumnType::Float64 => "double precision",
+            RowViewColumnType::Boolean => "boolean",
+            RowViewColumnType::Uuid => "uuid",
+            RowViewColumnType::Timestamptz => "timestamptz",
+            RowViewColumnType::Json => "jsonb",
+        };
+        format!("({json_column}->>'{field_name}')::{pg_type}")
     }
 
     fn generate_extended_sql(

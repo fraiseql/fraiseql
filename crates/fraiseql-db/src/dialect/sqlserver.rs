@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use super::trait_def::{SqlDialect, UnsupportedOperator};
+use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 
 /// SQL Server dialect for [`GenericWhereGenerator`].
 ///
@@ -61,6 +61,43 @@ impl SqlDialect for SqlServerDialect {
 
     fn array_contains_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
         Ok(format!("EXISTS (SELECT 1 FROM OPENJSON({lhs}) WHERE value = {rhs})"))
+    }
+
+    fn row_view_column_expr(
+        &self,
+        json_column: &str,
+        field_name: &str,
+        col_type: &RowViewColumnType,
+    ) -> String {
+        let tsql_type = match col_type {
+            RowViewColumnType::Text => "NVARCHAR(MAX)",
+            RowViewColumnType::Int32 => "INT",
+            RowViewColumnType::Int64 => "BIGINT",
+            RowViewColumnType::Float64 => "FLOAT",
+            RowViewColumnType::Boolean => "BIT",
+            RowViewColumnType::Uuid => "UNIQUEIDENTIFIER",
+            RowViewColumnType::Timestamptz => "DATETIMEOFFSET",
+            RowViewColumnType::Json => "NVARCHAR(MAX)",
+        };
+        format!("CAST(JSON_VALUE({json_column}, '$.{field_name}') AS {tsql_type})")
+    }
+
+    fn create_row_view_ddl(
+        &self,
+        view_name: &str,
+        source_table: &str,
+        columns: &[(String, String)],
+    ) -> String {
+        let quoted_view = self.quote_identifier(view_name);
+        let quoted_table = self.quote_identifier(source_table);
+        let col_list: Vec<String> = columns
+            .iter()
+            .map(|(alias, expr)| format!("{expr} AS {}", self.quote_identifier(alias)))
+            .collect();
+        format!(
+            "CREATE OR ALTER VIEW {quoted_view} AS\nSELECT\n  {}\nFROM {quoted_table};",
+            col_list.join(",\n  ")
+        )
     }
 
     fn fts_matches_sql(&self, expr: &str, param: &str) -> Result<String, UnsupportedOperator> {

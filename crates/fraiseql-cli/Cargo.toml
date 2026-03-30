@@ -12,7 +12,11 @@ deadpool-postgres = {workspace = true}
 # Workspace dependencies
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-server = {workspace = true, optional = true}
+axum = {workspace = true, optional = true}
 glob = "0.3"
+prost = "0.13"
+prost-types = "0.13"
+reqwest = {workspace = true}
 # Serialization
 indexmap = {workspace = true}
 # File watching (for serve command)
@@ -41,7 +45,7 @@ tempfile = "3.25"
 
 [features]
 default = []
-run-server = ["dep:fraiseql-server"]
+run-server = ["dep:fraiseql-server", "dep:axum"]
 
 [lints]
 workspace = true

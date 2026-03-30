@@ -11,6 +11,11 @@ pub mod playground;
 pub mod subscriptions;
 pub mod well_known;
 
+#[cfg(feature = "rest")]
+pub mod rest;
+#[cfg(feature = "grpc")]
+pub mod grpc;
+
 #[cfg(feature = "auth")]
 pub use auth::{
     AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens, revoke_token,

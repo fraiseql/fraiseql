@@ -135,6 +135,9 @@ pub mod mcp;
 // Connection pool management and auto-tuning
 pub mod pool;
 
+// Object storage backends (local, S3, GCS, Azure Blob)
+pub mod storage;
+
 // Trusted documents (query allowlist)
 pub mod trusted_documents;
 

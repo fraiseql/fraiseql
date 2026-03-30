@@ -23,8 +23,8 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig,
-            ValidationConfig,
+            DebugConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig, RestConfig,
+            SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -145,6 +145,16 @@ pub struct CompiledSchema {
     /// Compiled from the `[mcp]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
+
+    /// REST transport configuration.
+    /// Compiled from the `[rest]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_config: Option<RestConfig>,
+
+    /// gRPC transport configuration.
+    /// Compiled from the `[grpc]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_config: Option<GrpcConfig>,
 
     /// Schema format version emitted by the compiler.
     ///

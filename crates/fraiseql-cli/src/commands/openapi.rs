@@ -178,6 +178,7 @@ fn field_type_to_json_schema(ft: &FieldType) -> serde_json::Value {
         FieldType::Interface(name) | FieldType::Union(name) => {
             serde_json::json!({ "type": "object", "description": format!("See {name}") })
         },
+        _ => serde_json::json!({ "type": "string" }),
     }
 }
 

@@ -18,6 +18,10 @@ pub mod migrate;
 pub mod run;
 pub mod sbom;
 pub mod serve;
+#[cfg(feature = "run-server")]
+pub mod gateway;
+pub mod generate_proto;
+pub mod openapi;
 pub mod validate;
 pub mod validate_documents;
 pub mod validate_facts;

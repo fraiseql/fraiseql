@@ -165,9 +165,6 @@ mod tests {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
-            auto_generated: false,
-            computed: false,
-            searchable: false,
         }
     }
 
@@ -183,7 +180,6 @@ mod tests {
             requires_role: None,
             is_error: false,
             relay: false,
-            relationships: vec![],
         }
     }
 

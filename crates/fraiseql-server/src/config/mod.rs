@@ -370,13 +370,25 @@ pub struct LoggingConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend identifier (e.g. `"s3"`, `"gcs"`, `"local"`).
-    pub backend: String,
+    pub backend:      String,
     /// Bucket or container name (required for cloud backends).
     #[serde(default)]
-    pub bucket:  Option<String>,
+    pub bucket:       Option<String>,
     /// Local filesystem path (used by the `"local"` backend).
     #[serde(default)]
-    pub path:    Option<String>,
+    pub path:         Option<String>,
+    /// Cloud region (e.g. `"eu-west-1"` for AWS, `"fr-par"` for Scaleway).
+    #[serde(default)]
+    pub region:       Option<String>,
+    /// Custom endpoint URL (for S3-compatible providers or local development).
+    #[serde(default)]
+    pub endpoint:     Option<String>,
+    /// GCP project ID (used by the `"gcs"` backend).
+    #[serde(default)]
+    pub project_id:   Option<String>,
+    /// Azure storage account name (used by the `"azure"` backend).
+    #[serde(default)]
+    pub account_name: Option<String>,
 }
 
 /// Reserved: placeholder for future full-text search indexing configuration.

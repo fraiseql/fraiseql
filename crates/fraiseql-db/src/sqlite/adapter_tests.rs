@@ -1,9 +1,13 @@
 //! Tests for the SQLite database adapter.
 
+use fraiseql_error::FraiseQLError;
 use serde_json::json;
 use sqlx::Executor as _;
 
 use super::*;
+use crate::traits::{DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationStrategy};
+use crate::types::DatabaseType;
+use crate::where_clause::WhereClause;
 
 /// Create an in-memory adapter and seed a `v_user` table with N rows.
 async fn setup_user_table(n: usize) -> SqliteAdapter {

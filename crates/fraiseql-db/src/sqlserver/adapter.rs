@@ -36,7 +36,7 @@ use crate::{
 /// | 1205       | Deadlock victim                 | 40001     |
 /// | 8152       | String or binary data truncation| 22001     |
 /// | 701        | Insufficient memory             | (unmapped)|
-fn map_mssql_error_code(code: u32) -> Option<String> {
+pub(super) fn map_mssql_error_code(code: u32) -> Option<String> {
     let sqlstate = match code {
         // Unique constraint / duplicate key → ANSI unique violation
         2627 | 2601 => "23505",
@@ -1170,7 +1170,7 @@ mod tests {
         // SQL Server requires ORDER BY for OFFSET...FETCH
         // This test just ensures parameterization works
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1))
+            .execute_where_query("v_user", None, Some(2), Some(1), None)
             .await
             .expect("Failed to execute query");
 

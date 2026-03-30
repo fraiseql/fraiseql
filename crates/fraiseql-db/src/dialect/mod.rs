@@ -26,4 +26,4 @@ pub use mysql::MySqlDialect;
 pub use postgres::PostgresDialect;
 pub use sqlite::SqliteDialect;
 pub use sqlserver::SqlServerDialect;
-pub use trait_def::{SqlDialect, UnsupportedOperator};
+pub use trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};

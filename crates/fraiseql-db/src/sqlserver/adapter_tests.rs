@@ -1,6 +1,6 @@
 //! Tests for the SQL Server database adapter.
 
-use super::*;
+use super::adapter::map_mssql_error_code;
 
 mod error_code_tests {
     use super::*;
@@ -224,7 +224,6 @@ mod relay_sql_tests {
 }
 
 mod projection_sql_tests {
-    use super::*;
 
     /// Verify the fix for C10: execute_with_projection must NOT emit both
     /// `SELECT TOP N` and `OFFSET M ROWS FETCH NEXT N ROWS ONLY` — these are
@@ -253,7 +252,9 @@ mod projection_sql_tests {
 
 #[cfg(feature = "test-sqlserver")]
 mod integration_tests {
-    use super::*;
+    use crate::sqlserver::SqlServerAdapter;
+    use crate::traits::DatabaseAdapter;
+    use crate::types::DatabaseType;
 
     // Note: These tests require a running SQL Server instance with test data.
     // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter

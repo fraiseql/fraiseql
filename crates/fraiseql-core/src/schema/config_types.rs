@@ -506,3 +506,25 @@ mod tests {
         assert_eq!(config, restored);
     }
 }
+
+/// REST transport configuration (compiled from `[rest]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RestConfig {
+    /// Whether the REST transport is enabled.
+    pub enabled: bool,
+    /// Base path for REST endpoints (e.g., `"/rest/v1"`).
+    pub path:    String,
+}
+
+/// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GrpcConfig {
+    /// Whether the gRPC transport is enabled.
+    pub enabled:       bool,
+    /// Whitelist of type names to include (empty = all).
+    pub include_types: Vec<String>,
+    /// Blacklist of type names to exclude.
+    pub exclude_types: Vec<String>,
+}

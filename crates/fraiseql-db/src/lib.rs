@@ -87,7 +87,7 @@ pub use identifier::{
     quote_mysql_identifier, quote_postgres_identifier, quote_sqlite_identifier,
     quote_sqlserver_identifier,
 };
-pub use introspector::DatabaseIntrospector;
+pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 #[cfg(feature = "mysql")]
 pub use mysql::MySqlAdapter;
 #[cfg(feature = "postgres")]
@@ -102,7 +102,8 @@ pub use sqlite::SqliteAdapter;
 pub use sqlserver::SqlServerAdapter;
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
+    DirectMutationContext, DirectMutationOp, MutationStrategy, RelayDatabaseAdapter,
+    RelayPageResult, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,

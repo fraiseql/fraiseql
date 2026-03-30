@@ -238,7 +238,7 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
     // Validate each subgraph
     for (name, sg) in &config.subgraphs {
         // URL must be parseable
-        if let Err(e) = url::Url::parse(&sg.url) {
+        if let Err(e) = reqwest::Url::parse(&sg.url) {
             errors.push(ConfigError::InvalidUrl {
                 name:   name.clone(),
                 url:    sg.url.clone(),

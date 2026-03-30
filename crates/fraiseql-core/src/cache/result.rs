@@ -253,7 +253,7 @@ impl QueryResultCache {
 
     /// Select the shard for a given cache key.
     ///
-    /// The key is already a hash (u64), so we just modulo into shard_count
+    /// The key is already a hash (u64), so we just modulo into `shard_count`
     /// directly — no need to rehash.
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
