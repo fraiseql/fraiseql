@@ -128,7 +128,7 @@ aws-s3 = ["aws-sdk-s3", "aws-config"]
 azure-blob = []
 cors = []
 gcs = []
-# gRPC transport (requires tonic + prost_reflect; not yet fully wired)
+# gRPC transport — EXPERIMENTAL, does not compile in v2.1.0 (planned for v2.2.0)
 grpc = ["dep:tonic"]
 database = []
 # auth is included by default because auth middleware is wired into the core request pipeline.
@@ -144,7 +144,7 @@ observers = ["fraiseql-observers"]
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
-# REST transport (auto-generated resource endpoints; not yet fully wired)
+# REST transport — EXPERIMENTAL, does not compile in v2.1.0 (planned for v2.2.0)
 rest = []
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]

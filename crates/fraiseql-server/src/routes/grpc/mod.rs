@@ -1,3 +1,8 @@
+compile_error!(
+    "The `grpc` feature is experimental and not yet compatible with v2.1.0. \
+     It will be updated in a future release."
+);
+
 //! gRPC transport — row-shaped view queries via protobuf wire encoding.
 //!
 //! This module implements a tonic gRPC service that accepts protobuf

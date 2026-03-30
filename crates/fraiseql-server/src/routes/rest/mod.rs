@@ -1,3 +1,8 @@
+compile_error!(
+    "The `rest` feature is experimental and not yet compatible with v2.1.0. \
+     It will be updated in a future release."
+);
+
 //! REST transport — resource-centric HTTP API auto-generated from compiled schema.
 //!
 //! Provides `rest_router` which builds an axum `Router` from a
