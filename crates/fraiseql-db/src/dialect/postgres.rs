@@ -204,6 +204,7 @@ impl SqlDialect for PostgresDialect {
             RowViewColumnType::Boolean => "boolean",
             RowViewColumnType::Uuid => "uuid",
             RowViewColumnType::Timestamptz => "timestamptz",
+            RowViewColumnType::Date => "date",
             RowViewColumnType::Json => "jsonb",
         };
         format!("({json_column}->>'{field_name}')::{pg_type}")

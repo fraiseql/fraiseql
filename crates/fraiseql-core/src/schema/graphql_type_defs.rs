@@ -36,6 +36,7 @@ use crate::validation::ValidationRule;
 ///     requires_role: None,
 ///     is_error: false,
 ///     relay: false,
+///     relationships: Vec::new(),
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -94,6 +95,10 @@ pub struct TypeDefinition {
     /// Cursor-based pagination uses `pk_{snake_case(name)}` (BIGINT) for keyset ordering.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// Relationships to other types (used by REST resource embedding).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<super::config_types::Relationship>,
 }
 
 pub(super) fn default_jsonb_column() -> String {
@@ -115,6 +120,7 @@ impl TypeDefinition {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         }
     }
 
@@ -174,6 +180,24 @@ impl TypeDefinition {
     #[must_use]
     pub fn typename(&self) -> &str {
         self.name.as_str()
+    }
+
+    /// Return fields that are searchable (non-ID text-like fields).
+    #[must_use]
+    pub fn searchable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields
+            .iter()
+            .filter(|f| matches!(f.field_type, super::field_type::FieldType::String))
+            .collect()
+    }
+
+    /// Return writable fields (all fields except auto-generated primary keys).
+    #[must_use]
+    pub fn writable_fields(&self) -> Vec<&FieldDefinition> {
+        self.fields
+            .iter()
+            .filter(|f| !f.is_primary_key())
+            .collect()
     }
 }
 

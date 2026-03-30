@@ -62,10 +62,11 @@ pub use compiled::{
     QueryDefinition, is_safe_sql_identifier,
 };
 pub use config_types::{
-    AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
-    DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
-    FederationConfig, FederationEntity, FieldAuthRule, GrpcConfig, McpConfig, ObserversConfig,
-    RestConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
+    CompiledSecurityConfig, DebugConfig, DeleteResponse, EnterpriseSecurityConfig,
+    EntityCircuitBreakerOverride, EventHandler, FederationConfig, FederationEntity, FieldAuthRule,
+    GrpcConfig, McpConfig, ObserversConfig, Relationship, RestConfig, SubscriptionHooksConfig,
+    SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

@@ -146,6 +146,7 @@ impl WhereClause {
         }
 
         if conditions.len() == 1 {
+            // Reason: iterator has exactly one element — length was checked on the line above
             Ok(conditions.into_iter().next().expect("checked len == 1"))
         } else {
             Ok(Self::And(conditions))

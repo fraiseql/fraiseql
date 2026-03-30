@@ -298,6 +298,12 @@ impl<'a> RestParamExtractor<'a> {
 
         // 6a. Validate and parse search.
         let search_query = if let Some(raw) = search_raw {
+            if !is_list {
+                return Err(validation_error(
+                    "Full-text search not available on single-resource endpoints."
+                        .to_string(),
+                ));
+            }
             if let Some(td) = self.type_def {
                 if td.searchable_fields().is_empty() {
                     return Err(validation_error(format!(
@@ -433,7 +439,7 @@ impl<'a> RestParamExtractor<'a> {
                     flat_fields.push(name);
                 },
                 SelectEntry::Embedded(spec) => {
-                    validate_embedding_depth(&spec, 1, max_depth)?;
+                    validate_embedding_depth(&spec, 1, max_depth as usize)?;
                     self.validate_embedding_relationship(&spec)?;
                     embedded.push(spec);
                 },
@@ -566,7 +572,7 @@ impl<'a> RestParamExtractor<'a> {
         };
 
         // Size check.
-        if raw.len() > self.config.max_filter_bytes {
+        if raw.len() > self.config.max_filter_bytes as usize {
             return Err(validation_error(format!(
                 "Filter parameter exceeds maximum size ({} bytes). \
                  Maximum allowed: {} bytes.",
@@ -748,7 +754,8 @@ impl<'a> RestParamExtractor<'a> {
             },
             None if logical.len() == 1 => {
                 // Single logical group with no other filters.
-                Ok(Some(logical.into_iter().next().expect("len checked")))
+                // SAFE: match guard `logical.len() == 1` guarantees next() returns Some.
+                Ok(Some(logical.into_iter().next().expect("match guard guarantees len == 1")))
             },
             None => {
                 // Multiple logical groups, no regular filters — wrap in _and.
@@ -1273,7 +1280,7 @@ fn validate_embedding_depth(
 mod tests {
     use fraiseql_core::schema::{
         ArgumentDefinition, AutoParams, Cardinality, FieldDefinition, FieldType, QueryDefinition,
-        RelationshipDef, RestConfig, TypeDefinition,
+        Relationship, RestConfig, TypeDefinition,
     };
 
     use super::*;
@@ -2021,7 +2028,7 @@ mod tests {
 
     fn user_type_with_relationships() -> TypeDefinition {
         let mut td = user_type_def();
-        td.relationships = vec![RelationshipDef {
+        td.relationships = vec![Relationship {
             name:           "posts".to_string(),
             target_type:    "Post".to_string(),
             foreign_key:    "fk_user".to_string(),
@@ -2106,15 +2113,10 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn article_type_def() -> TypeDefinition {
-        let mut title = FieldDefinition::new("title", FieldType::String);
-        title.searchable = true;
-        let mut body = FieldDefinition::new("body", FieldType::String);
-        body.searchable = true;
-
         TypeDefinition::new("Article", "v_article")
             .with_field(FieldDefinition::new("id", FieldType::Uuid))
-            .with_field(title)
-            .with_field(body)
+            .with_field(FieldDefinition::new("title", FieldType::String))
+            .with_field(FieldDefinition::new("body", FieldType::String))
             .with_field(FieldDefinition::new("status", FieldType::String))
     }
 
@@ -2163,8 +2165,11 @@ mod tests {
     #[test]
     fn search_on_resource_without_searchable_fields_fails() {
         let config = test_config();
-        let qd = list_query_def(); // users — no searchable fields
-        let td = user_type_def();
+        let qd = list_query_def();
+        // Use a type with no String fields so searchable_fields() returns empty.
+        let td = TypeDefinition::new("Counter", "v_counter")
+            .with_field(FieldDefinition::new("id", FieldType::Uuid))
+            .with_field(FieldDefinition::new("value", FieldType::Int));
         let ext = extractor_list(&config, &qd, &td);
 
         let err = ext.extract(&[], &[("search", "hello")]).unwrap_err();

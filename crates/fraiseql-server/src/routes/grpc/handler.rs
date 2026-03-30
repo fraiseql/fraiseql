@@ -502,12 +502,12 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
         ColumnValue::Int32(n) => Some(Value::I32(*n)),
         ColumnValue::Int64(n) => Some(Value::I64(*n)),
         ColumnValue::Float64(f) => Some(Value::F64(*f)),
-        ColumnValue::Bool(b) => Some(Value::Bool(*b)),
-        ColumnValue::Uuid(u) => Some(Value::String(u.to_string())),
-        ColumnValue::Timestamp(ts) => {
+        ColumnValue::Boolean(b) => Some(Value::Bool(*b)),
+        ColumnValue::Uuid(u) => Some(Value::String(u.clone())),
+        ColumnValue::Timestamptz(ts) => {
             // Encode as ISO 8601 string. A full implementation would use
             // google.protobuf.Timestamp, but string is simpler for the MVP.
-            Some(Value::String(ts.to_rfc3339()))
+            Some(Value::String(ts.clone()))
         },
         ColumnValue::Date(d) => Some(Value::String(d.to_string())),
         ColumnValue::Json(v) => Some(Value::String(v.to_string())),
@@ -840,29 +840,26 @@ mod tests {
 
     #[test]
     fn bool_encodes() {
-        let v = column_value_to_proto(&ColumnValue::Bool(true));
+        let v = column_value_to_proto(&ColumnValue::Boolean(true));
         assert_eq!(v, Some(Value::Bool(true)));
     }
 
     #[test]
     fn uuid_encodes_as_string() {
-        let u = uuid::Uuid::nil();
-        let v = column_value_to_proto(&ColumnValue::Uuid(u));
+        let v = column_value_to_proto(&ColumnValue::Uuid("00000000-0000-0000-0000-000000000000".into()));
         assert_eq!(v, Some(Value::String("00000000-0000-0000-0000-000000000000".into())));
     }
 
     #[test]
     fn date_encodes_as_string() {
-        let d = chrono::NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
-        let v = column_value_to_proto(&ColumnValue::Date(d));
+        let v = column_value_to_proto(&ColumnValue::Date("2025-01-15".into()));
         assert_eq!(v, Some(Value::String("2025-01-15".into())));
     }
 
     #[test]
     fn json_encodes_as_string() {
-        let j = serde_json::json!({"key": "value"});
-        let v = column_value_to_proto(&ColumnValue::Json(j));
-        assert_eq!(v, Some(Value::String("{\"key\":\"value\"}".into())));
+        let v = column_value_to_proto(&ColumnValue::Json(r#"{"key":"value"}"#.into()));
+        assert_eq!(v, Some(Value::String(r#"{"key":"value"}"#.into())));
     }
 
     // ── proto_value_to_json ─────────────────────────────────────────────

@@ -77,6 +77,7 @@ impl SqlDialect for SqlServerDialect {
             RowViewColumnType::Boolean => "BIT",
             RowViewColumnType::Uuid => "UNIQUEIDENTIFIER",
             RowViewColumnType::Timestamptz => "DATETIMEOFFSET",
+            RowViewColumnType::Date => "DATE",
             RowViewColumnType::Json => "NVARCHAR(MAX)",
         };
         format!("CAST(JSON_VALUE({json_column}, '$.{field_name}') AS {tsql_type})")

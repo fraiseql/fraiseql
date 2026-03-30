@@ -30,6 +30,54 @@ pub struct QueryMatch {
     pub parsed_query: ParsedQuery,
 }
 
+impl QueryMatch {
+    /// Build a `QueryMatch` directly from a query definition and arguments,
+    /// bypassing GraphQL string parsing.
+    ///
+    /// Used by the REST transport to construct sub-queries for resource embedding
+    /// and bulk operations without synthesising a GraphQL query string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query definition has no SQL source.
+    pub fn from_operation(
+        query_def: QueryDefinition,
+        fields: Vec<String>,
+        arguments: HashMap<String, serde_json::Value>,
+        _type_def: Option<&crate::schema::TypeDefinition>,
+    ) -> Result<Self> {
+        let selections = fields
+            .iter()
+            .map(|f| FieldSelection {
+                name:          f.clone(),
+                alias:         None,
+                arguments:     Vec::new(),
+                nested_fields: Vec::new(),
+                directives:    Vec::new(),
+            })
+            .collect();
+
+        let parsed_query = ParsedQuery {
+            operation_type: "query".to_string(),
+            operation_name: Some(query_def.name.clone()),
+            root_field:     query_def.name.clone(),
+            selections:     Vec::new(),
+            variables:      Vec::new(),
+            fragments:      Vec::new(),
+            source:         String::new(),
+        };
+
+        Ok(Self {
+            query_def,
+            fields,
+            selections,
+            arguments,
+            operation_name: None,
+            parsed_query,
+        })
+    }
+}
+
 /// Query pattern matcher.
 ///
 /// Matches incoming GraphQL queries against the compiled schema to determine
@@ -326,6 +374,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         schema
     }
@@ -526,6 +576,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -560,6 +612,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let matcher = QueryMatcher::new(schema);
 

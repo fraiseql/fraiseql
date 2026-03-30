@@ -119,6 +119,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        relationships:       vec![],
     };
 
     let mut security_config = SecurityConfig::new();

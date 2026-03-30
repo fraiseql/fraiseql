@@ -559,6 +559,7 @@ impl TestTypeBuilder {
         t.description = self.description;
         t.relay = self.relay;
         t.implements = self.implements;
+        t.relationships = Vec::new();
         t
     }
 }

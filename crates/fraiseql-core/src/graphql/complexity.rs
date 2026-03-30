@@ -262,8 +262,9 @@ impl RequestValidator {
                     "Variables must be an object".to_string(),
                 ));
             }
-            // Safety: we just verified `vars` is an object above.
-            let obj = vars.as_object().expect("checked above");
+            // Reason: `is_object()` check on the line above guarantees this is an object;
+            // `as_object()` cannot return None here.
+            let obj = vars.as_object().expect("invariant: vars.is_object() checked above");
             if obj.len() > MAX_VARIABLES_COUNT {
                 return Err(ComplexityValidationError::InvalidVariables(format!(
                     "Too many variables: {} exceeds maximum of {}",

@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, MutationCapable},
+    db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::{Executor, QueryMatch},
     schema::{CompiledSchema, DeleteResponse, RestConfig, TypeDefinition},
     security::SecurityContext,
@@ -653,7 +653,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
     }
 }
 
-impl<'a, A: DatabaseAdapter + MutationCapable> RestHandler<'a, A> {
+impl<'a, A: DatabaseAdapter + SupportsMutations> RestHandler<'a, A> {
     /// Handle a POST request (create mutation, bulk insert, or custom action).
     ///
     /// Array body on a collection route triggers bulk insert mode.
@@ -1239,14 +1239,14 @@ fn stored_response_to_rest(stored: StoredResponse, request_headers: &HeaderMap) 
 }
 
 /// Execute a mutation, routing through security context when available.
-async fn execute_mutation<A: DatabaseAdapter + MutationCapable>(
+async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
     executor: &Executor<A>,
     mutation_name: &str,
     variables: Option<&serde_json::Value>,
     security_context: Option<&SecurityContext>,
 ) -> Result<String, RestError> {
     let result = if let Some(ctx) = security_context {
-        executor.execute_mutation_with_security(mutation_name, variables, ctx).await
+        executor.execute_mutation_with_security(mutation_name, variables.unwrap_or(&serde_json::json!({})), Some(ctx)).await
     } else {
         executor.execute_mutation(mutation_name, variables).await
     };
@@ -1498,7 +1498,8 @@ fn build_fts_where_clause(
         .collect();
 
     if clauses.len() == 1 {
-        Some(clauses.into_iter().next().expect("len checked"))
+        // Reason: len == 1 checked above; iterator always yields Some on a non-empty vec.
+        Some(clauses.into_iter().next().expect("len checked above"))
     } else {
         Some(json!({ "_or": clauses }))
     }
@@ -2015,14 +2016,10 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn make_user_type() -> TypeDefinition {
-        let mut created_at = FieldDefinition::new("created_at", FieldType::DateTime);
-        created_at.auto_generated = true;
-
         TypeDefinition::new("User", "v_user")
             .with_field(FieldDefinition::new("pk_user", FieldType::Int))
             .with_field(FieldDefinition::new("name", FieldType::String))
             .with_field(FieldDefinition::new("email", FieldType::String))
-            .with_field(created_at)
     }
 
     #[test]
@@ -2050,9 +2047,9 @@ mod tests {
     }
 
     #[test]
-    fn validate_put_body_excludes_pk_and_auto() {
+    fn validate_put_body_excludes_pk() {
         let td = make_user_type();
-        // pk_user and created_at should NOT be required
+        // pk_user should NOT be required (primary key excluded by writable_fields)
         let body = json!({
             "name": "Alice",
             "email": "alice@test.com",
@@ -2303,12 +2300,11 @@ mod tests {
 
     fn searchable_type_def() -> TypeDefinition {
         let mut td = TypeDefinition::new("Article", "v_article");
-        let mut title = FieldDefinition::new("title", FieldType::String);
-        title.searchable = true;
-        let mut body = FieldDefinition::new("body", FieldType::String);
-        body.searchable = true;
-        let status = FieldDefinition::new("status", FieldType::String);
-        td.fields = vec![title, body, status];
+        td.fields = vec![
+            FieldDefinition::new("title", FieldType::String),
+            FieldDefinition::new("body", FieldType::String),
+            FieldDefinition::new("status", FieldType::Int),
+        ];
         td
     }
 
@@ -2327,9 +2323,7 @@ mod tests {
     #[test]
     fn fts_where_clause_with_single_searchable_field() {
         let mut td = TypeDefinition::new("Note", "v_note");
-        let mut content = FieldDefinition::new("content", FieldType::String);
-        content.searchable = true;
-        td.fields = vec![content];
+        td.fields = vec![FieldDefinition::new("content", FieldType::String)];
 
         let clause = build_fts_where_clause("hello", Some(&td)).unwrap();
 

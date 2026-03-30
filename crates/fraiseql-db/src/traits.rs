@@ -443,6 +443,73 @@ pub trait DatabaseAdapter: Send + Sync {
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
+    /// Execute a row-shaped query against a view, returning typed column values.
+    ///
+    /// Used by the gRPC transport for protobuf encoding of query results.
+    /// The default implementation delegates to `execute_raw_query` and converts
+    /// JSON results to `ColumnValue` vectors.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    async fn execute_row_query(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        use crate::types::ColumnValue;
+
+        let mut sql = format!("SELECT * FROM \"{view_name}\"");
+        if let Some(w) = where_sql {
+            sql.push_str(" WHERE ");
+            sql.push_str(w);
+        }
+        if let Some(ob) = order_by {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(ob);
+        }
+        if let Some(l) = limit {
+            use std::fmt::Write;
+            let _ = write!(sql, " LIMIT {l}");
+        }
+        if let Some(o) = offset {
+            use std::fmt::Write;
+            let _ = write!(sql, " OFFSET {o}");
+        }
+
+        let results = self.execute_raw_query(&sql).await?;
+
+        Ok(results
+            .iter()
+            .map(|row| {
+                columns
+                    .iter()
+                    .map(|col| {
+                        row.get(&col.name).map_or(ColumnValue::Null, |v| match v {
+                            serde_json::Value::Null => ColumnValue::Null,
+                            serde_json::Value::Bool(b) => ColumnValue::Boolean(*b),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    ColumnValue::Int64(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    ColumnValue::Float64(f)
+                                } else {
+                                    ColumnValue::Text(n.to_string())
+                                }
+                            },
+                            serde_json::Value::String(s) => ColumnValue::Text(s.clone()),
+                            other => ColumnValue::Json(other.to_string()),
+                        })
+                    })
+                    .collect()
+            })
+            .collect())
+    }
+
     /// Execute a parameterized aggregate SQL query (GROUP BY / HAVING / window).
     ///
     /// `sql` contains `$N` (PostgreSQL), `?` (MySQL / SQLite), or `@P1` (SQL Server)

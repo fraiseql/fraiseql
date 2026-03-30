@@ -107,6 +107,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         }
     }
 
@@ -203,6 +204,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       Vec::new(),
         };
 
         let ddl = generate_row_view_sql(&PostgresDialect, &td);
@@ -245,6 +247,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       Vec::new(),
             },
         ];
 

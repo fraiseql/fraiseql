@@ -785,6 +785,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
         }
     }
 

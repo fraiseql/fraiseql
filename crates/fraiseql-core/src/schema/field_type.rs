@@ -580,6 +580,12 @@ impl FieldDefinition {
     pub const fn is_encrypted(&self) -> bool {
         self.encryption.is_some()
     }
+
+    /// Whether this field is a primary key (name starts with "pk_" or equals "id").
+    #[must_use]
+    pub fn is_primary_key(&self) -> bool {
+        self.name.as_str() == "id" || self.name.as_str().starts_with("pk_")
+    }
 }
 
 /// Supported field types in GraphQL schema.

@@ -12,7 +12,7 @@ use std::{collections::HashMap, sync::Arc};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::{Executor, QueryMatch},
-    schema::{Cardinality, CompiledSchema, RelationshipDef, RestConfig},
+    schema::{Cardinality, CompiledSchema, Relationship, RestConfig},
     security::SecurityContext,
 };
 
@@ -204,7 +204,7 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
 /// Embed related resources into each row of a parent array.
 async fn embed_into_rows<A: DatabaseAdapter>(
     ctx: &EmbedCtx<'_, A>,
-    rel: &RelationshipDef,
+    rel: &Relationship,
     output_name: &str,
     sub_field_names: &[String],
     embedded_filter: Option<&serde_json::Value>,
@@ -219,7 +219,7 @@ async fn embed_into_rows<A: DatabaseAdapter>(
 /// Embed related resources into a single parent row.
 async fn embed_into_single<A: DatabaseAdapter>(
     ctx: &EmbedCtx<'_, A>,
-    rel: &RelationshipDef,
+    rel: &Relationship,
     output_name: &str,
     sub_field_names: &[String],
     embedded_filter: Option<&serde_json::Value>,
@@ -333,7 +333,7 @@ async fn embed_into_single<A: DatabaseAdapter>(
 }
 
 /// Extract the join key value from a parent row.
-fn extract_join_key(row: &serde_json::Value, rel: &RelationshipDef) -> Option<serde_json::Value> {
+fn extract_join_key(row: &serde_json::Value, rel: &Relationship) -> Option<serde_json::Value> {
     // For OneToMany: use the parent's referenced key (e.g., pk_user).
     // For ManyToOne/OneToOne: use the parent's foreign key (e.g., fk_user).
     let key_field = match rel.cardinality {
@@ -379,7 +379,7 @@ fn extract_query_data(parsed: &serde_json::Value, query_name: &str) -> Option<se
 async fn count_related<A: DatabaseAdapter>(
     executor: &Arc<Executor<A>>,
     schema: &CompiledSchema,
-    rel: &RelationshipDef,
+    rel: &Relationship,
     row: &serde_json::Value,
     security_context: Option<&SecurityContext>,
 ) -> Result<u64, RestError> {
@@ -431,13 +431,13 @@ async fn count_related<A: DatabaseAdapter>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test assertions
 mod tests {
-    use fraiseql_core::schema::{Cardinality, RelationshipDef};
+    use fraiseql_core::schema::{Cardinality, Relationship};
 
     use super::*;
 
     #[test]
     fn extract_join_key_one_to_many() {
-        let rel = RelationshipDef {
+        let rel = Relationship {
             name:           "posts".to_string(),
             target_type:    "Post".to_string(),
             foreign_key:    "fk_user".to_string(),
@@ -451,7 +451,7 @@ mod tests {
 
     #[test]
     fn extract_join_key_many_to_one() {
-        let rel = RelationshipDef {
+        let rel = Relationship {
             name:           "author".to_string(),
             target_type:    "User".to_string(),
             foreign_key:    "fk_user".to_string(),
@@ -465,7 +465,7 @@ mod tests {
 
     #[test]
     fn extract_join_key_null_returns_none() {
-        let rel = RelationshipDef {
+        let rel = Relationship {
             name:           "author".to_string(),
             target_type:    "User".to_string(),
             foreign_key:    "fk_user".to_string(),
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn extract_join_key_missing_field_returns_none() {
-        let rel = RelationshipDef {
+        let rel = Relationship {
             name:           "posts".to_string(),
             target_type:    "Post".to_string(),
             foreign_key:    "fk_user".to_string(),

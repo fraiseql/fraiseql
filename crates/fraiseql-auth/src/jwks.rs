@@ -234,6 +234,8 @@ impl JwksCache {
                     h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1"
                 };
                 if !is_localhost {
+                    // Reason: only https (→443) and http (→80) pass `new()` validation,
+                    // both have known default ports; fallback 443 is unreachable in practice.
                     let port = parsed.port_or_known_default().unwrap_or(443);
                     dns_resolve_and_check(host, port).await?;
                 }
@@ -297,6 +299,7 @@ impl JwksCache {
 // no useful diagnostic info and exposing the reqwest::Client handle is noisy.
 impl std::fmt::Debug for JwksCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Reason: poisoned lock during Debug formatting → degrade gracefully to 0.
         let key_count = self.keys.read().map(|k| k.len()).unwrap_or(0);
         f.debug_struct("JwksCache")
             .field("jwks_uri", &self.jwks_uri)

@@ -119,6 +119,7 @@ fn to_snake_case(name: &str) -> String {
             result.push(
                 ch.to_lowercase()
                     .next()
+                    // Reason: Unicode spec guarantees to_lowercase yields ≥ 1 char
                     .expect("char::to_lowercase always yields at least one char"),
             );
         } else {

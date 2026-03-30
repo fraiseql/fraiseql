@@ -24,6 +24,8 @@ pub enum RowViewColumnType {
     Timestamptz,
     /// JSON / JSONB.
     Json,
+    /// Date (without time).
+    Date,
 }
 
 /// Error returned when an operator is not supported by a dialect.

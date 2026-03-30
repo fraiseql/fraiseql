@@ -166,6 +166,14 @@ pub struct QueryDefinition {
     /// to prevent role enumeration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Custom REST path override (e.g., `"/users/{id}/posts"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_path: Option<String>,
+
+    /// REST HTTP method override (e.g., `"GET"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_method: Option<String>,
 }
 
 impl QueryDefinition {
@@ -190,6 +198,8 @@ impl QueryDefinition {
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         }
     }
 

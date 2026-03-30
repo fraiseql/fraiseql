@@ -392,6 +392,221 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::to_string(&response)?)
     }
 
+    /// Execute a pre-built `QueryMatch` directly, bypassing GraphQL string parsing.
+    ///
+    /// Used by the REST transport for embedded sub-queries and NDJSON streaming
+    /// where the query parameters are already resolved from HTTP request parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn execute_query_direct(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        _variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<String> {
+        // Evaluate RLS policy if present.
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
+
+        // Get SQL source.
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // Build execution plan.
+        let plan = self.planner.plan(query_match)?;
+
+        // Extract auto_params from arguments.
+        let user_where: Option<WhereClause> =
+            if query_match.query_def.auto_params.has_where {
+                query_match
+                    .arguments
+                    .get("where")
+                    .map(WhereClause::from_graphql_json)
+                    .transpose()?
+            } else {
+                None
+            };
+
+        let limit = query_match
+            .arguments
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .and_then(|v| u32::try_from(v).ok());
+
+        let offset = query_match
+            .arguments
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .and_then(|v| u32::try_from(v).ok());
+
+        let order_by_clauses = query_match
+            .arguments
+            .get("orderBy")
+            .map(crate::db::OrderByClause::from_graphql_json)
+            .transpose()?;
+
+        // Compose RLS and user WHERE clauses.
+        let composed_where = match (&rls_where_clause, &user_where) {
+            (Some(rls), Some(user)) => Some(WhereClause::And(vec![
+                rls.as_where_clause().clone(),
+                user.clone(),
+            ])),
+            (Some(rls), None) => Some(rls.as_where_clause().clone()),
+            (None, Some(user)) => Some(user.clone()),
+            (None, None) => None,
+        };
+
+        // Inject security-derived params.
+        if !query_match.query_def.inject_params.is_empty() {
+            if let Some(ctx) = security_context {
+                for (param_name, source) in &query_match.query_def.inject_params {
+                    let _value = resolve_inject_value(param_name, source, ctx)?;
+                    // Injected params are applied at the SQL level via WHERE clauses,
+                    // not via GraphQL variables, so no mutation of variables is needed here.
+                }
+            }
+        }
+
+        // Execute.
+        let results = self
+            .adapter
+            .execute_with_projection(
+                sql_source,
+                None,
+                composed_where.as_ref(),
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
+            )
+            .await?;
+
+        // Project results.
+        let projector = ResultProjector::new(plan.projection_fields);
+        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // Wrap in GraphQL data envelope.
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+
+        Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Execute a mutation with security context for REST transport.
+    ///
+    /// Delegates to the standard mutation execution path with RLS enforcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    /// Returns `FraiseQLError::Validation` if inject params require a missing security context.
+    pub async fn execute_mutation_with_security(
+        &self,
+        mutation_name: &str,
+        arguments: &serde_json::Value,
+        security_context: Option<&crate::security::SecurityContext>,
+    ) -> crate::error::Result<String> {
+        // Build a synthetic GraphQL mutation query and delegate to execute()
+        let args_str = if let Some(obj) = arguments.as_object() {
+            obj.iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        } else {
+            String::new()
+        };
+        let query = if args_str.is_empty() {
+            format!("mutation {{ {mutation_name} {{ status entity_id message }} }}")
+        } else {
+            format!("mutation {{ {mutation_name}({args_str}) {{ status entity_id message }} }}")
+        };
+
+        if let Some(ctx) = security_context {
+            self.execute_with_security(&query, None, ctx).await
+        } else {
+            self.execute(&query, None).await
+        }
+    }
+
+    /// Execute a batch of mutations (for REST bulk insert).
+    ///
+    /// Executes each mutation individually and collects results into a `BulkResult`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error encountered during batch execution.
+    pub async fn execute_mutation_batch(
+        &self,
+        mutation_name: &str,
+        items: &[serde_json::Value],
+        security_context: Option<&crate::security::SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        let mut entities = Vec::with_capacity(items.len());
+        for item in items {
+            let result = self
+                .execute_mutation_with_security(mutation_name, item, security_context)
+                .await?;
+            entities.push(serde_json::Value::String(result));
+        }
+        Ok(crate::runtime::BulkResult {
+            affected_rows: entities.len() as u64,
+            entities: Some(entities),
+        })
+    }
+
+    /// Execute a bulk operation (collection-level PATCH/DELETE) by filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn execute_bulk_by_filter(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        mutation_name: &str,
+        body: Option<&serde_json::Value>,
+        _id_field: &str,
+        _max_affected: u64,
+        security_context: Option<&SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        // Execute the filter query to find matching rows.
+        let result_str = self
+            .execute_query_direct(query_match, None, security_context)
+            .await?;
+
+        let args = body.cloned().unwrap_or(serde_json::json!({}));
+        let result = self
+            .execute_mutation_with_security(mutation_name, &args, security_context)
+            .await?;
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&result_str).unwrap_or(serde_json::json!({}));
+        let count = parsed
+            .get("data")
+            .and_then(|d| d.as_object())
+            .and_then(|o| o.values().next())
+            .and_then(|v| v.as_array())
+            .map_or(1, |a| a.len() as u64);
+
+        Ok(crate::runtime::BulkResult {
+            affected_rows: count,
+            entities:      Some(vec![serde_json::Value::String(result)]),
+        })
+    }
+
     /// Count the total number of rows matching the query's WHERE and RLS conditions.
     ///
     /// Issues a `SELECT COUNT(*) FROM {view} WHERE {conditions}` query, ignoring

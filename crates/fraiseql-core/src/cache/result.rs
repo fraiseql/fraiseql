@@ -224,6 +224,8 @@ impl QueryResultCache {
         // Below that threshold, a single shard preserves exact global LRU ordering.
         let num_shards = if config.max_entries >= NUM_SHARDS { NUM_SHARDS } else { 1 };
         let per_shard = config.max_entries.div_ceil(num_shards);
+        // Reason: per_shard = max_entries.div_ceil(num_shards); max_entries > 0 is asserted above
+        // and num_shards is always ≥ 1, so per_shard ≥ 1 and NonZeroUsize::new cannot return None.
         let per_shard_nz = NonZeroUsize::new(per_shard).expect("per_shard > 0");
 
         let shards: Box<[_]> = (0..num_shards)

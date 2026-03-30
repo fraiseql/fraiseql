@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, MutationCapable},
+    db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::{Executor, QueryMatch},
     schema::{CompiledSchema, MutationOperation, RestConfig},
     security::SecurityContext,
@@ -45,7 +45,7 @@ pub struct BulkHandler<'a, A: DatabaseAdapter> {
     route_table: &'a RestRouteTable,
 }
 
-impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
+impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
     /// Create a new bulk handler.
     pub const fn new(
         executor: &'a Arc<Executor<A>>,
@@ -115,10 +115,9 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             .await
             .map_err(RestError::from)?;
 
-        let affected = results.len() as u64;
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
-        set_rows_affected(&mut response_headers, affected);
+        set_rows_affected(&mut response_headers, results.affected_rows);
 
         // Collect all applied preferences into a single header
         let mut applied: Vec<String> = Vec::new();
@@ -141,8 +140,18 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             })
         } else {
             // Parse and collect entity data from results
-            let entities: Vec<serde_json::Value> =
-                results.iter().filter_map(|r| extract_entity_from_result(r)).collect();
+            let entities: Vec<serde_json::Value> = results
+                .entities
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|r| {
+                    if let serde_json::Value::String(s) = r {
+                        extract_entity_from_result(s)
+                    } else {
+                        Some(r.clone())
+                    }
+                })
+                .collect();
 
             if prefer.return_representation {
                 applied.push("return=representation".to_string());
@@ -252,7 +261,7 @@ impl<'a, A: DatabaseAdapter + MutationCapable> BulkHandler<'a, A> {
             .execute_bulk_by_filter(
                 &query_match,
                 mutation_name,
-                body,
+                Some(body),
                 id_field,
                 max_affected,
                 security_context,

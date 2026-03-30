@@ -8,7 +8,7 @@ help:
 	@echo "  make test               - Run unit + integration tests (PostgreSQL)"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
-	@echo "  make test-full          - Run ALL categories: unit + integration + cross-db + federation"
+	@echo "  make test-full          - Run ALL categories: unit + snapshots + DBs + Redis/NATS/Vault + server + federation"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
@@ -86,35 +86,67 @@ release:
 # Run all tests (unit + integration)
 test: test-unit test-integration
 
-# Run the full test suite: unit + SQL snapshots + integration (all DBs) + cross-database parity + federation
+# Run the full test suite: unit + snapshots + all DBs + Redis/NATS/Vault + server + federation
 # Requires full infrastructure: Docker with PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault + Apollo Router
+# Reports a single pass/fail at the end.
 test-full: db-up federation-up
-	@echo "=== Running full test suite ==="
+	@echo "=== Running full test suite (9 steps) ==="
 	@echo ""
-	@echo "[1/5] Unit tests..."
+	@echo "[1/9] Unit tests..."
 	@cargo test --lib --all-features
 	@echo ""
-	@echo "[2/5] SQL snapshot tests..."
+	@echo "[2/9] SQL snapshot tests..."
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
-	@echo "[3/5] Behavioral integration tests (all databases)..."
+	@echo "[3/9] Database integration tests (PostgreSQL, MySQL, SQL Server)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
 	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
 	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
 	@echo ""
-	@echo "[4/5] Cross-database parity tests..."
+	@echo "[4/9] Cross-database parity tests..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	MYSQL_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
 		cargo test --features test-postgres,test-mysql -p fraiseql-core \
 		    --test cross_database_test -- --ignored --test-threads=1
 	@echo ""
-	@echo "[5/5] Federation integration tests..."
+	@echo "[5/9] Redis tests (APQ + observer queue/lease)..."
+	REDIS_URL="redis://localhost:6379" \
+		cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
+	REDIS_URL="redis://localhost:6379" \
+		cargo test -p fraiseql-observers --features "caching,queue,redis-lease" --lib -- --ignored --test-threads=1
+	@echo ""
+	@echo "[6/9] NATS + observer bridge tests..."
+	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-observers --features "postgres,nats" --test bridge_integration -- --ignored --test-threads=1
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-observers --features "postgres,redis-lease" --lib -- --ignored --test-threads=1
+	@echo ""
+	@echo "[7/9] Vault secrets manager tests..."
+	VAULT_ADDR="http://localhost:8200" \
+	VAULT_TOKEN="fraiseql-test-token" \
+		cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "[8/9] Server integration tests (database queries + observers)..."
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-server --test database_query_test -- --ignored --test-threads=1
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-server --features "observers-nats" --test observer_runtime_integration_test -- --ignored --test-threads=1
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	REDIS_URL="redis://localhost:6379" \
+		cargo test --features "postgres,dedup,caching,testing" -p fraiseql-observers --test integration_test -- --ignored
+	@echo ""
+	@echo "[9/9] Federation integration tests..."
 	@cd docker/federation-ci && pytest -q --tb=short
 	@echo ""
-	@echo "=== Full test suite complete ==="
+	@echo "=== Full test suite complete (all 9 steps passed) ==="
 
 # Run unit tests only (no database required)
 test-unit:

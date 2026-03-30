@@ -93,6 +93,15 @@ pub use subscription::{
     WebhookPayload, extract_rls_conditions, protocol,
 };
 pub use tenant_enforcer::TenantEnforcer;
+
+/// Result of a bulk REST operation (collection-level PATCH/DELETE).
+#[derive(Debug, Clone)]
+pub struct BulkResult {
+    /// Number of rows affected.
+    pub affected_rows: u64,
+    /// Entities returned when `Prefer: return=representation` is set.
+    pub entities: Option<Vec<serde_json::Value>>,
+}
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;

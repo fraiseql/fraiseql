@@ -613,6 +613,8 @@ fn derive_mutation_routes(
                 });
             }
         },
+        // Reason: MutationOperation is #[non_exhaustive]; skip unknown variants.
+        _ => {},
     }
 }
 
@@ -703,6 +705,8 @@ fn validate_cqrs_mutation(
         | MutationOperation::Update { table }
         | MutationOperation::Delete { table } => table.as_str(),
         MutationOperation::Custom => return,
+        // Reason: MutationOperation is #[non_exhaustive]; skip unknown variants.
+        _ => return,
     };
 
     if table.starts_with("v_") || table.starts_with("tv_") {
@@ -795,7 +799,7 @@ fn parse_http_method(s: &str) -> Option<HttpMethod> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
-    use fraiseql_core::schema::{FieldDefinition, FieldEncryptionConfig, FieldType};
+    use fraiseql_core::schema::{FieldDefinition, FieldType};
 
     use super::*;
 
@@ -804,24 +808,11 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn user_type_def() -> TypeDefinition {
-        let mut auto = FieldDefinition::new("created_at", FieldType::DateTime);
-        auto.auto_generated = true;
-        let mut computed = FieldDefinition::new("full_name", FieldType::String);
-        computed.computed = true;
-
         TypeDefinition::new("User", "v_user")
             .with_field(FieldDefinition::new("id", FieldType::Uuid))
             .with_field(FieldDefinition::new("pk_user", FieldType::Int))
             .with_field(FieldDefinition::new("email", FieldType::String))
             .with_field(FieldDefinition::new("name", FieldType::String))
-            .with_field(auto)
-            .with_field(computed)
-            .with_field(FieldDefinition::new("ssn", FieldType::String).with_encryption(
-                FieldEncryptionConfig {
-                    key_reference: "keys/ssn".to_string(),
-                    algorithm:     "AES-256-GCM".to_string(),
-                },
-            ))
     }
 
     fn list_query(name: &str, return_type: &str) -> QueryDefinition {

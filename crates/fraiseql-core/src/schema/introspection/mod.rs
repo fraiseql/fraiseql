@@ -79,6 +79,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         // Add a user query with argument
@@ -107,6 +109,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         schema
@@ -227,6 +231,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
@@ -476,6 +481,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
@@ -492,6 +498,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
@@ -556,6 +563,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),
@@ -774,6 +782,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -814,6 +824,8 @@ mod tests {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

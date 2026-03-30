@@ -507,24 +507,138 @@ mod tests {
     }
 }
 
+/// How DELETE endpoints report success.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum DeleteResponse {
+    /// Return `204 No Content` (default).
+    #[default]
+    NoContent,
+    /// Return `200` with the deleted entity in the body.
+    Entity,
+}
+
+/// Relationship cardinality between REST resources.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum Cardinality {
+    /// Parent has many children (array embed).
+    OneToMany,
+    /// Child points to one parent (object embed).
+    ManyToOne,
+    /// Exactly one related resource (object or null).
+    OneToOne,
+}
+
+/// A relationship between two schema types for REST resource embedding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Relationship {
+    /// Relationship name (used in `?select=posts` embedding syntax).
+    pub name:           String,
+    /// Target GraphQL type name (e.g., "Post").
+    pub target_type:    String,
+    /// Cardinality of the relationship.
+    pub cardinality:    Cardinality,
+    /// Foreign key column on the child table (e.g., `fk_author`).
+    #[serde(default)]
+    pub foreign_key:    String,
+    /// Referenced key column on the parent table (e.g., `id`).
+    #[serde(default)]
+    pub referenced_key: String,
+}
+
 /// REST transport configuration (compiled from `[rest]` in `fraiseql.toml`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RestConfig {
     /// Whether the REST transport is enabled.
-    pub enabled: bool,
+    pub enabled:           bool,
     /// Base path for REST endpoints (e.g., `"/rest/v1"`).
-    pub path:    String,
+    pub path:              String,
+    /// Maximum rows per page (clamps `?limit=` and `?first=`).
+    pub max_page_size:     u64,
+    /// Default page size when no `?limit=` is specified.
+    pub default_page_size: u64,
+    /// Batch size for NDJSON streaming responses.
+    pub ndjson_batch_size: u64,
+    /// Maximum affected rows for bulk PATCH/DELETE.
+    pub max_bulk_affected: u64,
+    /// Maximum byte length for `?filter=` JSON values.
+    pub max_filter_bytes:       u64,
+    /// How DELETE endpoints report success.
+    pub delete_response:        DeleteResponse,
+    /// Default result cache TTL in seconds (0 = no caching).
+    pub default_cache_ttl:      u64,
+    /// CDN `s-maxage` value in seconds for `Cache-Control` headers (`None` = omit).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cdn_max_age:            Option<u64>,
+    /// Whether REST endpoints require authentication by default.
+    pub require_auth:           bool,
+    /// SSE heartbeat interval in seconds.
+    pub sse_heartbeat_seconds:  u64,
+    /// Maximum depth for resource embedding (`?select=posts(comments)`).
+    pub max_embedding_depth:    u32,
+    /// Whitelist of type names to expose as REST resources (empty = all).
+    pub include:                Vec<String>,
+    /// Blacklist of type names to exclude from REST resources.
+    pub exclude:                Vec<String>,
+    /// Whether to enable `ETag` / `If-None-Match` conditional response support.
+    pub etag:                   bool,
+    /// TTL in seconds for idempotency key deduplication.
+    pub idempotency_ttl_seconds: u64,
+}
+
+impl Default for RestConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                false,
+            path:                   "/rest/v1".to_string(),
+            max_page_size:          1_000,
+            default_page_size:      100,
+            ndjson_batch_size:      500,
+            max_bulk_affected:      10_000,
+            max_filter_bytes:       4_096,
+            delete_response:        DeleteResponse::NoContent,
+            default_cache_ttl:      0,
+            cdn_max_age:            None,
+            require_auth:           false,
+            sse_heartbeat_seconds:  30,
+            max_embedding_depth:    3,
+            include:                Vec::new(),
+            exclude:                Vec::new(),
+            etag:                   true,
+            idempotency_ttl_seconds: 300,
+        }
+    }
 }
 
 /// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GrpcConfig {
     /// Whether the gRPC transport is enabled.
-    pub enabled:       bool,
+    pub enabled:          bool,
     /// Whitelist of type names to include (empty = all).
-    pub include_types: Vec<String>,
+    pub include_types:    Vec<String>,
     /// Blacklist of type names to exclude.
-    pub exclude_types: Vec<String>,
+    pub exclude_types:    Vec<String>,
+    /// Path to the `FileDescriptorSet` binary (`.binpb`).
+    pub descriptor_path:  String,
+    /// Whether to enable gRPC Server Reflection.
+    pub reflection:       bool,
+    /// Batch size for server-streaming responses.
+    pub stream_batch_size: u32,
+}
+
+impl Default for GrpcConfig {
+    fn default() -> Self {
+        Self {
+            enabled:          false,
+            include_types:    Vec::new(),
+            exclude_types:    Vec::new(),
+            descriptor_path:  String::new(),
+            reflection:       true,
+            stream_batch_size: 500,
+        }
+    }
 }

@@ -54,7 +54,8 @@ pub fn graphql_to_proto_type(graphql_type: &str) -> &'static str {
 #[must_use]
 pub fn graphql_to_row_view_type(graphql_type: &str) -> RowViewColumnType {
     match graphql_type {
-        "String" | "Date" => RowViewColumnType::Text,
+        "String" => RowViewColumnType::Text,
+        "Date" => RowViewColumnType::Date,
         "Int" => RowViewColumnType::Int32,
         "BigInt" => RowViewColumnType::Int64,
         "Float" => RowViewColumnType::Float64,
@@ -453,6 +454,7 @@ mod tests {
             requires_role: None,
             is_error: false,
             relay: false,
+            relationships: Vec::new(),
         }
     }
 
@@ -596,8 +598,8 @@ mod tests {
     }
 
     #[test]
-    fn test_row_view_type_date_is_text() {
-        assert_eq!(graphql_to_row_view_type("Date"), RowViewColumnType::Text);
+    fn test_row_view_type_date() {
+        assert_eq!(graphql_to_row_view_type("Date"), RowViewColumnType::Date);
     }
 
     #[test]

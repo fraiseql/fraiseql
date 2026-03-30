@@ -59,6 +59,7 @@ mod tests {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            relationships:       vec![],
         }
     }
 
@@ -467,6 +468,7 @@ mod tests {
                 requires_role:       None,
                 is_error:            false,
                 relay:               false,
+                relationships:       vec![],
             }],
             interfaces: vec![InterfaceDefinition {
                 name:        "Node".to_string(),

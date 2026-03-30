@@ -1,8 +1,3 @@
-compile_error!(
-    "The `grpc` feature is experimental and not yet compatible with v2.1.0. \
-     It will be updated in a future release."
-);
-
 //! gRPC transport — row-shaped view queries via protobuf wire encoding.
 //!
 //! This module implements a tonic gRPC service that accepts protobuf
@@ -420,7 +415,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         match validator.validate_token(&token).await {
             Ok(user) => {
                 debug!(user_id = %user.user_id, "gRPC user authenticated");
-                Ok(Some(SecurityContext::from_user(user, request_id)))
+                Ok(Some(SecurityContext::from_user(&user, request_id)))
             },
             Err(e) => {
                 warn!(error = %e, "gRPC token validation failed");

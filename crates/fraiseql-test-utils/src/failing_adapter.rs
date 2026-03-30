@@ -18,7 +18,7 @@ use fraiseql_core::{
         CursorValue, DatabaseAdapter, DatabaseType, SupportsMutations, RelayDatabaseAdapter,
         WhereClause,
         traits::RelayPageResult,
-        types::{JsonbValue, OrderByClause, PoolMetrics},
+        types::{ColumnSpec, ColumnValue, JsonbValue, OrderByClause, PoolMetrics},
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
@@ -101,13 +101,19 @@ impl FailError {
 #[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
-    responses:   Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    /// Canned row-shaped responses per view name (for gRPC transport).
+    row_responses:      Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
+    /// Canned function call responses per function name.
+    function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
     /// Failure injection configuration.
-    fail_config: Arc<Mutex<FailConfig>>,
+    fail_config:        Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count: Arc<AtomicU64>,
+    query_count:        Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log:   Arc<Mutex<Vec<String>>>,
+    query_log:          Arc<Mutex<Vec<String>>>,
+    /// Log of WHERE clauses passed to row queries.
+    where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
 }
 
 impl FailingAdapter {
@@ -115,10 +121,13 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:   Arc::new(Mutex::new(HashMap::new())),
-            fail_config: Arc::new(Mutex::new(FailConfig::default())),
-            query_count: Arc::new(AtomicU64::new(0)),
-            query_log:   Arc::new(Mutex::new(Vec::new())),
+            responses:          Arc::new(Mutex::new(HashMap::new())),
+            row_responses:      Arc::new(Mutex::new(HashMap::new())),
+            function_responses: Arc::new(Mutex::new(HashMap::new())),
+            fail_config:        Arc::new(Mutex::new(FailConfig::default())),
+            query_count:        Arc::new(AtomicU64::new(0)),
+            query_log:          Arc::new(Mutex::new(Vec::new())),
+            where_clause_log:   Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -130,6 +139,35 @@ impl FailingAdapter {
     #[must_use]
     pub fn with_response(self, view: &str, data: Vec<JsonbValue>) -> Self {
         self.responses.lock().unwrap().insert(view.to_string(), data);
+        self
+    }
+
+    /// Set a canned row-shaped response for a specific view (gRPC transport).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal row responses mutex is poisoned.
+    #[must_use]
+    pub fn with_row_response(self, view: &str, data: Vec<Vec<ColumnValue>>) -> Self {
+        self.row_responses.lock().unwrap().insert(view.to_string(), data);
+        self
+    }
+
+    /// Set a canned response for a specific function call.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal function responses mutex is poisoned.
+    #[must_use]
+    pub fn with_function_response(
+        self,
+        function_name: &str,
+        data: Vec<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.function_responses
+            .lock()
+            .unwrap()
+            .insert(function_name.to_string(), data);
         self
     }
 
@@ -186,6 +224,7 @@ impl FailingAdapter {
         *self.fail_config.lock().unwrap() = FailConfig::default();
         self.query_count.store(0, Ordering::SeqCst);
         self.query_log.lock().unwrap().clear();
+        self.where_clause_log.lock().unwrap().clear();
     }
 
     /// Get all recorded query view names.
@@ -196,6 +235,16 @@ impl FailingAdapter {
     #[must_use]
     pub fn recorded_queries(&self) -> Vec<String> {
         self.query_log.lock().unwrap().clone()
+    }
+
+    /// Get all recorded WHERE clauses from row queries.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal where clause log mutex is poisoned.
+    #[must_use]
+    pub fn recorded_where_clauses(&self) -> Vec<Option<String>> {
+        self.where_clause_log.lock().unwrap().clone()
     }
 
     /// Get the current query count.
@@ -361,6 +410,31 @@ impl DatabaseAdapter for FailingAdapter {
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
+        let responses = self.function_responses.lock().unwrap();
+        if let Some(data) = responses.get(function_name) {
+            return Ok(data.clone());
+        }
+        Ok(vec![])
+    }
+
+    async fn execute_row_query(
+        &self,
+        view_name: &str,
+        _columns: &[ColumnSpec],
+        where_sql: Option<&str>,
+        _order_by: Option<&str>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<Vec<ColumnValue>>> {
+        self.check_failure(view_name)?;
+        self.where_clause_log
+            .lock()
+            .unwrap()
+            .push(where_sql.map(String::from));
+        let responses = self.row_responses.lock().unwrap();
+        if let Some(data) = responses.get(view_name) {
+            return Ok(data.clone());
+        }
         Ok(vec![])
     }
 }

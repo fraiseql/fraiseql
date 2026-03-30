@@ -3,10 +3,9 @@
 //! This module provides caching for schema compilation results, avoiding redundant
 //! compilation of identical schemas. Uses fingerprinting (SHA-256) for cache key generation.
 
-use std::{
-    num::NonZeroUsize,
-    sync::{Arc, Mutex},
-};
+use std::{num::NonZeroUsize, sync::Arc};
+
+use parking_lot::Mutex;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -121,7 +120,8 @@ impl CompilationCache {
     ///
     /// # Panics
     ///
-    /// Panics if cache is enabled but `max_entries` is 0.
+    /// Panics if cache is enabled but `max_entries` is 0.  Uses `parking_lot::Mutex`
+    /// internally, so lock operations are infallible (no poison panics).
     #[must_use]
     pub fn new(config: CompilationCacheConfig) -> Self {
         if config.enabled {
@@ -139,7 +139,8 @@ impl CompilationCache {
             }
         } else {
             // Create dummy cache (won't be used)
-            let max = NonZeroUsize::new(1).expect("impossible");
+            // Reason: literal `1` can never be zero; `NonZeroUsize::new` is infallible here.
+            let max = NonZeroUsize::new(1).expect("1 is non-zero");
             Self {
                 cache: Arc::new(Mutex::new(lru::LruCache::new(max))),
                 config,
@@ -176,10 +177,6 @@ impl CompilationCache {
     /// # Errors
     ///
     /// Returns `FraiseQLError` if schema compilation fails.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an internal mutex (cache or metrics) is poisoned.
     pub fn compile(
         &self,
         compiler: &crate::compiler::Compiler,
@@ -189,7 +186,7 @@ impl CompilationCache {
             // Cache disabled - always compile
             let schema = Arc::new(compiler.compile(schema_json)?);
 
-            let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+            let mut metrics = self.metrics.lock();
             metrics.total_compilations += 1;
             metrics.misses += 1;
 
@@ -200,10 +197,10 @@ impl CompilationCache {
 
         // Check cache
         {
-            let mut cache = self.cache.lock().expect("cache lock poisoned");
+            let mut cache = self.cache.lock();
             if let Some(cached) = cache.get_mut(&fingerprint) {
                 // Cache hit
-                let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+                let mut metrics = self.metrics.lock();
                 metrics.hits += 1;
                 cached.hit_count += 1;
                 return Ok(Arc::clone(&cached.schema));
@@ -215,7 +212,7 @@ impl CompilationCache {
 
         // Store in cache
         {
-            let mut cache = self.cache.lock().expect("cache lock poisoned");
+            let mut cache = self.cache.lock();
             cache.put(
                 fingerprint,
                 CachedCompilation {
@@ -224,7 +221,7 @@ impl CompilationCache {
                 },
             );
 
-            let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+            let mut metrics = self.metrics.lock();
             metrics.total_compilations += 1;
             metrics.misses += 1;
             metrics.size = cache.len();
@@ -239,12 +236,8 @@ impl CompilationCache {
     ///
     /// This function is currently infallible. The `Result` return type is
     /// reserved for future implementations that may use fallible storage.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal metrics mutex is poisoned.
     pub fn metrics(&self) -> Result<CompilationCacheMetrics> {
-        let metrics = self.metrics.lock().expect("metrics lock poisoned");
+        let metrics = self.metrics.lock();
         Ok(metrics.clone())
     }
 
@@ -254,13 +247,9 @@ impl CompilationCache {
     ///
     /// This function is currently infallible. The `Result` return type is
     /// reserved for future implementations that may use fallible storage.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal cache or metrics mutex is poisoned.
     pub fn clear(&self) -> Result<()> {
-        self.cache.lock().expect("cache lock poisoned").clear();
-        let mut metrics = self.metrics.lock().expect("metrics lock poisoned");
+        self.cache.lock().clear();
+        let mut metrics = self.metrics.lock();
         metrics.size = 0;
         Ok(())
     }
@@ -271,12 +260,8 @@ impl CompilationCache {
     ///
     /// This function is currently infallible. The `Result` return type is
     /// reserved for future implementations that may use fallible storage.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal metrics mutex is poisoned.
     pub fn hit_rate(&self) -> Result<f64> {
-        let metrics = self.metrics.lock().expect("metrics lock poisoned");
+        let metrics = self.metrics.lock();
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }

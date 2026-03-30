@@ -97,6 +97,18 @@ pub struct MutationDefinition {
     /// Each entry must be a valid SQL identifier validated at compile time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// Custom REST path override (e.g., `"/users/{id}"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_path: Option<String>,
+
+    /// REST HTTP method override (e.g., `"POST"`, `"PUT"`, `"PATCH"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_method: Option<String>,
+
+    /// PostgreSQL upsert function name for `PUT` semantics (insert-or-update).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upsert_function: Option<String>,
 }
 
 impl MutationDefinition {
@@ -114,6 +126,9 @@ impl MutationDefinition {
             inject_params:           IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
+            rest_path:               None,
+            rest_method:             None,
+            upsert_function:         None,
         }
     }
 

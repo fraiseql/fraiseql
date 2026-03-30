@@ -2952,6 +2952,8 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "http 1.4.0",
+ "http-body 1.0.1",
+ "http-body-util",
  "ipnet",
  "jsonwebtoken",
  "metrics 0.22.4",
@@ -2962,6 +2964,8 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "proptest",
+ "prost",
+ "prost-reflect",
  "rand 0.8.5",
  "redis",
  "reqwest",
@@ -2988,6 +2992,7 @@ dependencies = [
  "tokio-util",
  "toml",
  "tonic",
+ "tonic-reflection",
  "tower",
  "tower-http",
  "tracing",
@@ -2996,6 +3001,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wiremock",
+ "xxhash-rust",
  "zeroize",
 ]
 
@@ -5330,6 +5336,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-reflect"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
+dependencies = [
+ "base64 0.22.1",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde-value",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6238,6 +6257,16 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
+dependencies = [
+ "ordered-float",
+ "serde",
 ]
 
 [[package]]
@@ -7403,6 +7432,20 @@ dependencies = [
  "bytes",
  "prost",
  "tonic",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf0685a51e6d02b502ba0764002e766b7f3042aed13d9234925b6ffbfa3fca7"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]

@@ -66,6 +66,7 @@ impl SqlDialect for MySqlDialect {
             RowViewColumnType::Float64 => "DOUBLE",
             RowViewColumnType::Boolean => "UNSIGNED",
             RowViewColumnType::Timestamptz => "DATETIME",
+            RowViewColumnType::Date => "DATE",
             RowViewColumnType::Json => "JSON",
         };
         format!("CAST(JSON_UNQUOTE(JSON_EXTRACT({json_column}, '$.{field_name}')) AS {mysql_type})")

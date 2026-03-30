@@ -317,6 +317,8 @@ fn test_schema() -> CompiledSchema {
         cache_ttl_seconds:   None,
         additional_views:    vec![],
         requires_role:       None,
+        rest_path:           None,
+        rest_method:         None,
     });
     schema
 }
@@ -841,6 +843,8 @@ mod inject {
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -1175,6 +1179,8 @@ mod routing {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -1216,6 +1222,8 @@ mod auto_params {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         schema
     }
@@ -1344,6 +1352,8 @@ mod rls_composition {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         schema
     }
@@ -1498,6 +1508,8 @@ mod field_rbac {
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![

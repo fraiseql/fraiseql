@@ -106,18 +106,22 @@ pub async fn security_headers_middleware(
     let headers = response.headers_mut();
 
     // Prevent MIME type sniffing
+    // Reason: "nosniff" is a valid static ASCII header value; parse() is infallible here.
     headers.insert("X-Content-Type-Options", "nosniff".parse().expect("valid header value"));
 
     // Prevent framing/clickjacking
+    // Reason: "DENY" is a valid static ASCII header value; parse() is infallible here.
     headers.insert("X-Frame-Options", "DENY".parse().expect("valid header value"));
 
     // Enforce HTTPS (1 year with subdomains)
+    // Reason: static ASCII header value; parse() is infallible here.
     headers.insert(
         "Strict-Transport-Security",
         "max-age=31536000; includeSubDomains".parse().expect("valid header value"),
     );
 
     // Control referrer leakage
+    // Reason: static ASCII header value; parse() is infallible here.
     headers.insert(
         "Referrer-Policy",
         "strict-origin-when-cross-origin".parse().expect("valid header value"),
@@ -126,6 +130,7 @@ pub async fn security_headers_middleware(
     // Content Security Policy - restrict resource loading
     // Note: 'unsafe-inline' is intentionally omitted; callers that need
     // inline styles for a GraphQL playground should set their own CSP.
+    // Reason: static ASCII header value; parse() is infallible here.
     headers.insert(
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self'"
@@ -136,6 +141,7 @@ pub async fn security_headers_middleware(
     // Disable the legacy XSS auditor.  The `0` value is the modern best
     // practice: the auditor is absent from current browsers and its
     // "enabled" modes could introduce XSS on certain pages.
+    // Reason: "0" is a valid static ASCII header value; parse() is infallible here.
     headers.insert("X-XSS-Protection", "0".parse().expect("valid header value"));
 
     response

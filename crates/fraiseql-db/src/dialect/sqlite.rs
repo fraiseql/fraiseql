@@ -51,9 +51,10 @@ impl SqlDialect for SqliteDialect {
     ) -> String {
         // SQLite has limited CAST targets; use TEXT for most types.
         let sqlite_type = match col_type {
-            RowViewColumnType::Text | RowViewColumnType::Uuid | RowViewColumnType::Timestamptz => {
-                "TEXT"
-            },
+            RowViewColumnType::Text
+            | RowViewColumnType::Uuid
+            | RowViewColumnType::Timestamptz
+            | RowViewColumnType::Date => "TEXT",
             RowViewColumnType::Int32 | RowViewColumnType::Int64 | RowViewColumnType::Boolean => {
                 "INTEGER"
             },

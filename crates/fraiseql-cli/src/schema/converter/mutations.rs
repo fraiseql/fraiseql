@@ -72,6 +72,9 @@ impl SchemaConverter {
             inject_params,
             invalidates_fact_tables: intermediate.invalidates_fact_tables,
             invalidates_views: intermediate.invalidates_views,
+            rest_path: None,
+            rest_method: None,
+            upsert_function: None,
         })
     }
 

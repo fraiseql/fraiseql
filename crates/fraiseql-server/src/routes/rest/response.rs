@@ -593,11 +593,17 @@ pub(crate) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut
     }
 }
 
-/// Create a `HeaderValue` from a string, panicking on invalid characters.
+/// Create a `HeaderValue` from an ETag string.
 ///
-/// Only used for values known to be valid ASCII (ETag hex strings).
+/// # Panics
+///
+/// Panics if `s` contains non-visible-ASCII characters. This is a programmer
+/// invariant: callers must only pass values produced by [`compute_etag`], which
+/// returns `W/"<16 lowercase hex chars>"` — always valid ASCII.
 fn header_value(s: &str) -> HeaderValue {
-    HeaderValue::from_str(s).unwrap_or_else(|_| HeaderValue::from_static(""))
+    // Reason: `s` is always the output of `compute_etag`, which produces
+    // `W/"<16 hex chars>"` — guaranteed valid ASCII for HeaderValue.
+    HeaderValue::from_str(s).expect("ETag string must be valid ASCII")
 }
 
 // ---------------------------------------------------------------------------

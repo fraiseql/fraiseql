@@ -1166,6 +1166,8 @@ fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Interface(name) | FieldType::Union(name) => {
             json!({ "type": "object", "description": format!("See {name}") })
         },
+        // Reason: FieldType is #[non_exhaustive]; default to string for unknown variants.
+        _ => json!({ "type": "string" }),
     }
 }
 
@@ -1320,7 +1322,8 @@ mod tests {
             .build();
 
         schema.rest_config = Some(RestConfig {
-            enabled: true,
+            enabled:      true,
+            require_auth: true,
             ..RestConfig::default()
         });
 
@@ -1800,17 +1803,8 @@ mod tests {
 
     #[test]
     fn fts_enabled_resource_has_search_param() {
-        let mut schema = rest_schema();
-        // Mark a field as searchable.
-        for td in &mut schema.types {
-            if td.name == "User" {
-                for f in &mut td.fields {
-                    if f.name.as_str() == "name" {
-                        f.searchable = true;
-                    }
-                }
-            }
-        }
+        let schema = rest_schema();
+        // All String fields are searchable by default (via searchable_fields()).
 
         let spec = generate(&schema);
         let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
@@ -1822,8 +1816,25 @@ mod tests {
 
     #[test]
     fn non_fts_resource_has_no_search_param() {
-        let spec = generate(&rest_schema());
-        let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
+        // Build a schema whose type has no String fields so searchable_fields() is empty.
+        let mut users_query = fraiseql_core::schema::QueryDefinition::new("counters", "Counter");
+        users_query.returns_list = true;
+        users_query.auto_params = fraiseql_core::schema::AutoParams::all();
+        users_query.sql_source = Some("v_counter".to_string());
+
+        let mut schema = TestSchemaBuilder::new()
+            .with_query(users_query)
+            .with_type(
+                TestTypeBuilder::new("Counter", "v_counter")
+                    .with_field(TestFieldBuilder::new("pk_id", FieldType::Int).build())
+                    .with_field(TestFieldBuilder::new("value", FieldType::Int).build())
+                    .build(),
+            )
+            .build();
+        schema.rest_config = Some(RestConfig::default());
+
+        let spec = generate(&schema);
+        let params = spec["paths"]["/counters"]["get"]["parameters"].as_array().unwrap();
         let search_param = params.iter().find(|p| p["name"] == "search");
         assert!(search_param.is_none(), "Non-FTS resource should not have search param");
     }
