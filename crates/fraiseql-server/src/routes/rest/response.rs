@@ -37,8 +37,8 @@ impl<'a> RestResponseFormatter<'a> {
 
     /// Format a single-resource GET response.
     ///
-    /// Returns 200 with `{ "data": ... }` envelope, ETag, and `X-Request-Id`.
-    /// If `If-None-Match` matches the computed ETag, returns 304 Not Modified.
+    /// Returns 200 with `{ "data": ... }` envelope, `ETag`, and `X-Request-Id`.
+    /// If `If-None-Match` matches the computed `ETag`, returns 304 Not Modified.
     ///
     /// # Errors
     ///
@@ -272,38 +272,35 @@ impl<'a> RestResponseFormatter<'a> {
         if want_entity {
             let entity = extract_delete_entity(result, mutation_name);
 
-            match entity {
-                Some(entity_value) => {
-                    if prefer.return_representation {
-                        headers.insert(
-                            "preference-applied",
-                            HeaderValue::from_static("return=representation"),
-                        );
-                    }
-                    RestResponse {
-                        status: StatusCode::OK,
-                        headers,
-                        body: Some(json!({ "data": entity_value })),
-                    }
-                },
-                None => {
-                    // Graceful degradation: entity unavailable
-                    if prefer.return_representation {
-                        headers.insert(
-                            "preference-applied",
-                            HeaderValue::from_static("return=minimal"),
-                        );
-                        headers.insert(
-                            "x-preference-fallback",
-                            HeaderValue::from_static("entity-unavailable"),
-                        );
-                    }
-                    RestResponse {
-                        status: StatusCode::NO_CONTENT,
-                        headers,
-                        body: None,
-                    }
-                },
+            if let Some(entity_value) = entity {
+                if prefer.return_representation {
+                    headers.insert(
+                        "preference-applied",
+                        HeaderValue::from_static("return=representation"),
+                    );
+                }
+                RestResponse {
+                    status: StatusCode::OK,
+                    headers,
+                    body: Some(json!({ "data": entity_value })),
+                }
+            } else {
+                // Graceful degradation: entity unavailable
+                if prefer.return_representation {
+                    headers.insert(
+                        "preference-applied",
+                        HeaderValue::from_static("return=minimal"),
+                    );
+                    headers.insert(
+                        "x-preference-fallback",
+                        HeaderValue::from_static("entity-unavailable"),
+                    );
+                }
+                RestResponse {
+                    status: StatusCode::NO_CONTENT,
+                    headers,
+                    body: None,
+                }
             }
         } else {
             if prefer.return_minimal {
@@ -352,15 +349,15 @@ impl<'a> RestResponseFormatter<'a> {
 // ETag helpers
 // ---------------------------------------------------------------------------
 
-/// Compute a weak ETag from response body bytes using xxHash64.
+/// Compute a weak `ETag` from response body bytes using xxHash64.
 fn compute_etag(body: &[u8]) -> String {
     let hash = xxh3_64(body);
     format!("W/\"{hash:016x}\"")
 }
 
-/// Check `If-None-Match` header against computed ETag.
+/// Check `If-None-Match` header against computed `ETag`.
 ///
-/// Returns `Some(true)` if the ETag matches (304 should be returned),
+/// Returns `Some(true)` if the `ETag` matches (304 should be returned),
 /// `Some(false)` if it doesn't match, `None` if no `If-None-Match` header.
 fn check_if_none_match(headers: &HeaderMap, etag: &str) -> Option<bool> {
     let inm = headers.get("if-none-match")?.to_str().ok()?;
@@ -584,16 +581,14 @@ fn extract_end_cursor(data: &serde_json::Value) -> Option<&str> {
 pub(crate) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
     let request_id = request_headers
         .get("x-request-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        .and_then(|v| v.to_str().ok()).map_or_else(|| uuid::Uuid::new_v4().to_string(), |s| s.to_string());
 
     if let Ok(val) = HeaderValue::from_str(&request_id) {
         response_headers.insert("x-request-id", val);
     }
 }
 
-/// Create a `HeaderValue` from an ETag string.
+/// Create a `HeaderValue` from an `ETag` string.
 ///
 /// # Panics
 ///

@@ -1,6 +1,6 @@
 //! Redis-backed idempotency store for multi-replica deployments.
 //!
-//! Uses MessagePack for compact binary serialization and Redis `SET EX` for
+//! Uses `MessagePack` for compact binary serialization and Redis `SET EX` for
 //! automatic TTL-based expiry.
 
 use std::time::Duration;

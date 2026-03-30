@@ -66,6 +66,8 @@ rand = "0.8"
 # Redis for rate limiting (optional)
 redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 reqwest = {workspace = true}
+# MessagePack serialization for Redis idempotency store
+rmp-serde = {version = "1", optional = true}
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
 # TLS/SSL support
@@ -150,6 +152,8 @@ observers = ["fraiseql-observers"]
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
+# REST idempotency backed by Redis for multi-replica deployments
+redis-idempotency = ["redis", "rmp-serde"]
 # REST transport
 rest = []
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]

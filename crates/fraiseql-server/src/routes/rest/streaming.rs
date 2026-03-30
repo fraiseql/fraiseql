@@ -7,8 +7,8 @@
 //!
 //! Rows are fetched from the database in batches (configured via
 //! `ndjson_batch_size`), serialized to NDJSON, and streamed to the client
-//! incrementally.  Memory usage is bounded by O(batch_size) rather than
-//! O(total_rows).
+//! incrementally.  Memory usage is bounded by `O(batch_size)` rather than
+//! `O(total_rows)`.
 
 use std::sync::Arc;
 
@@ -274,7 +274,6 @@ pub enum NdjsonBody {
 
 impl NdjsonBody {
     /// Convert to an axum `Body`.
-    #[must_use]
     pub fn into_body(self) -> axum::body::Body {
         match self {
             Self::Stream(stream) => axum::body::Body::from_stream(stream),

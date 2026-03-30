@@ -20,6 +20,7 @@ use fraiseql_core::{
 };
 use fraiseql_error::FraiseQLError;
 use handler::{RpcDispatchTable, build_dispatch_table};
+use prost::Message as _;
 use prost_reflect::DescriptorPool;
 use tonic::{body::Body as TonicBody, server::NamedService};
 use tracing::{Instrument as _, debug, info, info_span, warn};
@@ -111,14 +112,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     ) -> http::Response<TonicBody> {
         use http_body_util::BodyExt as _;
 
-        let op = match self.dispatch.get(method) {
-            Some(op) => op,
-            None => {
-                return grpc_error_response(
-                    tonic::Code::Unimplemented,
-                    &format!("Method not found: {method}"),
-                );
-            },
+        let Some(op) = self.dispatch.get(method) else {
+            return grpc_error_response(
+                tonic::Code::Unimplemented,
+                &format!("Method not found: {method}"),
+            );
         };
 
         // ── Auth interceptor ──────────────────────────────────────────
@@ -199,22 +197,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         let msg_bytes = &body_bytes[5..];
 
         // Find the request message descriptor.
-        let service_desc = match self.pool.get_service_by_name(&self.service_name) {
-            Some(s) => s,
-            None => {
-                return grpc_error_response(tonic::Code::Internal, "Service descriptor not found");
-            },
+        let Some(service_desc) = self.pool.get_service_by_name(&self.service_name) else {
+            return grpc_error_response(tonic::Code::Internal, "Service descriptor not found");
         };
 
         let method_name = method.rsplit('/').next().unwrap_or(method);
-        let method_desc = match service_desc.methods().find(|m| m.name() == method_name) {
-            Some(m) => m,
-            None => {
-                return grpc_error_response(
-                    tonic::Code::Unimplemented,
-                    &format!("Method not found: {method_name}"),
-                );
-            },
+        let Some(method_desc) = service_desc.methods().find(|m| m.name() == method_name) else {
+            return grpc_error_response(
+                tonic::Code::Unimplemented,
+                &format!("Method not found: {method_name}"),
+            );
         };
 
         let request_desc = method_desc.input();
@@ -238,14 +230,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
             row_descriptor,
         } = &op.kind
         {
-            let type_def = match self.schema.find_type(&op.type_name) {
-                Some(t) => t.clone(),
-                None => {
-                    return grpc_error_response(
-                        tonic::Code::Internal,
-                        &format!("Type '{}' not found in schema", op.type_name),
-                    );
-                },
+            let Some(type_def) = self.schema.find_type(&op.type_name) else {
+                return grpc_error_response(
+                    tonic::Code::Internal,
+                    &format!("Type '{}' not found in schema", op.type_name),
+                );
             };
 
             let batch_size = self.schema.grpc_config.as_ref().map_or(500, |c| c.stream_batch_size);
@@ -279,14 +268,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                 row_descriptor,
             } => {
                 // Look up the type definition.
-                let type_def = match self.schema.find_type(&op.type_name) {
-                    Some(t) => t,
-                    None => {
-                        return grpc_error_response(
-                            tonic::Code::Internal,
-                            &format!("Type '{}' not found in schema", op.type_name),
-                        );
-                    },
+                let Some(type_def) = self.schema.find_type(&op.type_name) else {
+                    return grpc_error_response(
+                        tonic::Code::Internal,
+                        &format!("Type '{}' not found in schema", op.type_name),
+                    );
                 };
 
                 let rows = match handler::execute_grpc_query(
@@ -349,7 +335,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         };
 
         // Serialize to protobuf bytes with gRPC framing.
-        use prost::Message as _;
         let response_bytes = response_msg.encode_to_vec();
         let mut framed = Vec::with_capacity(5 + response_bytes.len());
         framed.push(0); // no compression
@@ -386,9 +371,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         auth_header: Option<String>,
         request_id: String,
     ) -> std::result::Result<Option<SecurityContext>, http::Response<TonicBody>> {
-        let validator = match self.oidc_validator.as_ref() {
-            Some(v) => v,
-            None => return Ok(None), // Auth not configured — allow anonymous access.
+        let Some(validator) = self.oidc_validator.as_ref() else {
+            return Ok(None); // Auth not configured — allow anonymous access.
         };
 
         let token = match auth_header.as_deref() {

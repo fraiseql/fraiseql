@@ -1,5 +1,7 @@
 //! Tests for the SQLite database adapter.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 use sqlx::Executor as _;

@@ -1,6 +1,6 @@
 //! Azure Blob Storage backend.
 //!
-//! Authentication uses the SharedKey scheme: the storage account key is read
+//! Authentication uses the `SharedKey` scheme: the storage account key is read
 //! from the `AZURE_STORAGE_KEY` environment variable (base64-encoded).
 
 use std::time::Duration;

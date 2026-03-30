@@ -92,7 +92,7 @@ where
         route_table: route_table.clone(),
         idempotency_store,
         #[cfg(feature = "observers")]
-        event_transport: state.event_transport.clone(),
+        event_transport: None,
     };
 
     Some((base_path, route_table, rest_state))
@@ -114,11 +114,11 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_query_router<A>(state: AppState<A>) -> Option<Router>
+pub fn rest_query_router<A>(state: &AppState<A>) -> Option<Router>
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    let (base_path, route_table, rest_state) = derive_rest_context(&state)?;
+    let (base_path, route_table, rest_state) = derive_rest_context(state)?;
     let executor = state.executor();
     let schema = executor.schema();
 
@@ -199,11 +199,11 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(state: AppState<A>) -> Option<Router>
+pub fn rest_router<A>(state: &AppState<A>) -> Option<Router>
 where
     A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
 {
-    let (base_path, route_table, rest_state) = derive_rest_context(&state)?;
+    let (base_path, route_table, rest_state) = derive_rest_context(state)?;
     let executor = state.executor();
     let schema = executor.schema();
 
@@ -700,15 +700,12 @@ fn parse_query_pairs(query: &str) -> Vec<(String, String)> {
 
 /// Read and parse a JSON request body.
 async fn read_json_body(body: Body) -> Result<serde_json::Value, Response> {
-    let bytes = match axum::body::to_bytes(body, 1_048_576).await {
-        Ok(b) => b,
-        Err(_) => {
-            return Err(error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "PAYLOAD_TOO_LARGE",
-                "Request body too large",
-            ));
-        },
+    let Ok(bytes) = axum::body::to_bytes(body, 1_048_576).await else {
+        return Err(error_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "PAYLOAD_TOO_LARGE",
+            "Request body too large",
+        ));
     };
 
     if bytes.is_empty() {
@@ -879,19 +876,19 @@ mod tests {
     #[test]
     fn rest_query_router_returns_none_when_no_config() {
         let state = make_app_state(schema_without_rest());
-        assert!(rest_query_router(state).is_none());
+        assert!(rest_query_router(&state).is_none());
     }
 
     #[test]
     fn rest_query_router_returns_none_when_disabled() {
         let state = make_app_state(schema_with_rest_disabled());
-        assert!(rest_query_router(state).is_none());
+        assert!(rest_query_router(&state).is_none());
     }
 
     #[test]
     fn rest_query_router_returns_some_when_enabled() {
         let state = make_app_state(schema_with_rest());
-        assert!(rest_query_router(state).is_some());
+        assert!(rest_query_router(&state).is_some());
     }
 
     // -----------------------------------------------------------------------
@@ -901,19 +898,19 @@ mod tests {
     #[test]
     fn rest_router_returns_none_when_no_config() {
         let state = make_app_state(schema_without_rest());
-        assert!(rest_router(state).is_none());
+        assert!(rest_router(&state).is_none());
     }
 
     #[test]
     fn rest_router_returns_none_when_disabled() {
         let state = make_app_state(schema_with_rest_disabled());
-        assert!(rest_router(state).is_none());
+        assert!(rest_router(&state).is_none());
     }
 
     #[test]
     fn rest_router_returns_some_when_enabled() {
         let state = make_app_state(schema_with_rest());
-        assert!(rest_router(state).is_some());
+        assert!(rest_router(&state).is_some());
     }
 
     #[test]
@@ -926,7 +923,7 @@ mod tests {
         });
         let state = make_app_state(schema);
         // Should succeed — custom path doesn't prevent creation.
-        assert!(rest_router(state).is_some());
+        assert!(rest_router(&state).is_some());
     }
 
     // -----------------------------------------------------------------------

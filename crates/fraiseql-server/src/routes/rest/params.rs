@@ -136,7 +136,7 @@ pub enum SelectEntry {
 /// Represents `posts(id,title)` or `author:fk_user(id,name)` syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedSpec {
-    /// Relationship name (e.g., "posts") or FK column (e.g., "fk_user").
+    /// Relationship name (e.g., "posts") or FK column (e.g., "`fk_user`").
     pub relationship: String,
     /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
     pub rename:       Option<String>,
@@ -351,10 +351,10 @@ impl<'a> RestParamExtractor<'a> {
                     last,
                     before,
                 } => {
-                    first.is_some() as usize
-                        + after.is_some() as usize
-                        + last.is_some() as usize
-                        + before.is_some() as usize
+                    usize::from(first.is_some())
+                        + usize::from(after.is_some())
+                        + usize::from(last.is_some())
+                        + usize::from(before.is_some())
                 },
                 PaginationParams::None => 0,
             }
@@ -572,7 +572,7 @@ impl<'a> RestParamExtractor<'a> {
         };
 
         // Size check.
-        if raw.len() > self.config.max_filter_bytes as usize {
+        if raw.len() > usize::try_from(self.config.max_filter_bytes).unwrap_or(usize::MAX) {
             return Err(validation_error(format!(
                 "Filter parameter exceeds maximum size ({} bytes). \
                  Maximum allowed: {} bytes.",
@@ -922,9 +922,7 @@ fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value
             let v: f64 = raw
                 .parse()
                 .map_err(|_| validation_error(format!("Expected numeric value, got '{raw}'.")))?;
-            Ok(serde_json::Number::from_f64(v)
-                .map(serde_json::Value::Number)
-                .unwrap_or_else(|| serde_json::Value::String(raw.to_string())))
+            Ok(serde_json::Number::from_f64(v).map_or_else(|| serde_json::Value::String(raw.to_string()), serde_json::Value::Number))
         },
         FieldType::Boolean => {
             let v = match raw {
@@ -938,12 +936,6 @@ fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value
             };
             Ok(serde_json::Value::Bool(v))
         },
-        FieldType::Id
-        | FieldType::Uuid
-        | FieldType::String
-        | FieldType::DateTime
-        | FieldType::Date
-        | FieldType::Time => Ok(serde_json::Value::String(raw.to_string())),
         FieldType::Json => serde_json::from_str(raw)
             .map_err(|e| validation_error(format!("Expected JSON value, got '{raw}': {e}"))),
         FieldType::List(_) => {
@@ -960,7 +952,7 @@ fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value
                 .collect();
             Ok(serde_json::Value::Array(items))
         },
-        // Scalar, Enum, Object, etc. — pass through as string.
+        // Id, Uuid, String, DateTime, Date, Time, Scalar, Enum, Object, etc. — pass through as string.
         _ => Ok(serde_json::Value::String(raw.to_string())),
     }
 }

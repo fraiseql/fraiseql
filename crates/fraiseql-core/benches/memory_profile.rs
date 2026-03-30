@@ -72,11 +72,10 @@ fn profile_cache_put_get() {
     let result = make_cache_result();
 
     // 1000 put + get cycles
-    for i in 0..1000 {
-        let key = format!("key_{i}");
+    for i in 0_u64..1000 {
         cache
             .put(
-                key.clone(),
+                i,
                 result.clone(),
                 vec!["view_a".to_string()],
                 None,
@@ -84,8 +83,8 @@ fn profile_cache_put_get() {
             )
             .unwrap();
     }
-    for i in 0..1000 {
-        let _ = cache.get(&format!("key_{i}"));
+    for i in 0_u64..1000 {
+        let _ = cache.get(i);
     }
 
     // 50 MB peak, 200 MB total

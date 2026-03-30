@@ -232,5 +232,5 @@ homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.88"  # MSRV — driven by dependency requirements
+rust-version = "1.91"  # MSRV — driven by dependency requirements
 version = "2.1.0"

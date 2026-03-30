@@ -197,7 +197,7 @@ fn build_router(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(state).expect("REST router should be created")
+    rest_router(&state).expect("REST router should be created")
 }
 
 fn build_router_with_relay(
@@ -206,7 +206,7 @@ fn build_router_with_relay(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new_with_relay(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(state).expect("REST router should be created")
+    rest_router(&state).expect("REST router should be created")
 }
 
 async fn send_request(

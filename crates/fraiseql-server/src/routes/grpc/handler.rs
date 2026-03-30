@@ -185,7 +185,7 @@ pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Optio
 fn proto_value_to_json(value: &Value) -> serde_json::Value {
     match value {
         Value::Bool(b) => serde_json::Value::Bool(*b),
-        Value::I32(n) => serde_json::json!(*n),
+        Value::I32(n) | Value::EnumNumber(n) => serde_json::json!(*n),
         Value::I64(n) => serde_json::json!(*n),
         Value::U32(n) => serde_json::json!(*n),
         Value::U64(n) => serde_json::json!(*n),
@@ -193,7 +193,6 @@ fn proto_value_to_json(value: &Value) -> serde_json::Value {
         Value::F64(f) => serde_json::json!(*f),
         Value::String(s) => serde_json::Value::String(s.clone()),
         Value::Bytes(b) => serde_json::Value::String(base64_encode(b)),
-        Value::EnumNumber(n) => serde_json::json!(*n),
         Value::List(items) => {
             serde_json::Value::Array(items.iter().map(proto_value_to_json).collect())
         },
@@ -269,7 +268,7 @@ pub fn extract_offset(msg: &DynamicMessage) -> Option<u32> {
     None
 }
 
-/// Extract order_by from the request message.
+/// Extract `order_by` from the request message.
 pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Option<String> {
     for field_desc in msg.descriptor().fields() {
         if field_desc.name() == "order_by" && msg.has_field(&field_desc) {
@@ -509,10 +508,8 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
             // google.protobuf.Timestamp, but string is simpler for the MVP.
             Some(Value::String(ts.clone()))
         },
-        ColumnValue::Date(d) => Some(Value::String(d.to_string())),
-        ColumnValue::Json(v) => Some(Value::String(v.to_string())),
-        // ColumnValue is #[non_exhaustive]; future variants fall back to string.
-        _ => None,
+        ColumnValue::Date(d) => Some(Value::String(d.clone())),
+        ColumnValue::Json(v) => Some(Value::String(v.clone())),
     }
 }
 
@@ -706,7 +703,7 @@ fn grpc_method_to_query_name(method: &str) -> String {
 
 /// Convert a gRPC method name to a schema mutation name.
 ///
-/// Convention: `"CreateUser"` → `"createUser"` (PascalCase → camelCase).
+/// Convention: `"CreateUser"` → `"createUser"` (`PascalCase` → camelCase).
 fn grpc_method_to_mutation_name(method: &str) -> String {
     let mut chars = method.chars();
     match chars.next() {
@@ -890,7 +887,7 @@ mod tests {
 
     // ── encode_row / encode_response ────────────────────────────────────
 
-    /// Helper: build a minimal DescriptorPool with a User message.
+    /// Helper: build a minimal `DescriptorPool` with a User message.
     fn test_descriptor_pool() -> prost_reflect::DescriptorPool {
         // Minimal FileDescriptorProto for a User message with id (string) and name (string).
         use prost::Message;

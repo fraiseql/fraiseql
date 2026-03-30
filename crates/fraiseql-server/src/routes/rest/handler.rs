@@ -53,7 +53,7 @@ pub struct PreferHeader {
     pub count_exact:           bool,
     /// `count=planned` — EXPLAIN-based estimate (PostgreSQL).
     pub count_planned:         bool,
-    /// `count=estimated` — pg_stats estimate (PostgreSQL).
+    /// `count=estimated` — `pg_stats` estimate (PostgreSQL).
     pub count_estimated:       bool,
     /// `return=representation` — return entity body on mutating operations.
     pub return_representation: bool,
@@ -593,10 +593,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         }
 
         // X-Preference-Fallback when planned/estimated fell back to exact
-        if prefer.count_planned && count_applied == Some("count=exact") {
-            response_headers
-                .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
-        } else if prefer.count_estimated && count_applied == Some("count=exact") {
+        if (prefer.count_planned || prefer.count_estimated) && count_applied == Some("count=exact") {
             response_headers
                 .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         }
@@ -653,7 +650,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
     }
 }
 
-impl<'a, A: DatabaseAdapter + SupportsMutations> RestHandler<'a, A> {
+impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
     /// Handle a POST request (create mutation, bulk insert, or custom action).
     ///
     /// Array body on a collection route triggers bulk insert mode.
@@ -1035,34 +1032,31 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> RestHandler<'a, A> {
                 if want_entity {
                     let entity = extract_delete_entity(&result, mutation_name);
 
-                    match entity {
-                        Some(entity_value) => {
-                            if prefer.return_representation {
-                                set_preference_applied(
-                                    &mut response_headers,
-                                    &["return=representation"],
-                                );
-                            }
-                            Ok(RestResponse {
-                                status:  StatusCode::OK,
-                                headers: response_headers,
-                                body:    Some(entity_value),
-                            })
-                        },
-                        None => {
-                            if prefer.return_representation {
-                                set_preference_applied(&mut response_headers, &["return=minimal"]);
-                                response_headers.insert(
-                                    "x-preference-fallback",
-                                    HeaderValue::from_static("entity-unavailable"),
-                                );
-                            }
-                            Ok(RestResponse {
-                                status:  StatusCode::NO_CONTENT,
-                                headers: response_headers,
-                                body:    None,
-                            })
-                        },
+                    if let Some(entity_value) = entity {
+                        if prefer.return_representation {
+                            set_preference_applied(
+                                &mut response_headers,
+                                &["return=representation"],
+                            );
+                        }
+                        Ok(RestResponse {
+                            status:  StatusCode::OK,
+                            headers: response_headers,
+                            body:    Some(entity_value),
+                        })
+                    } else {
+                        if prefer.return_representation {
+                            set_preference_applied(&mut response_headers, &["return=minimal"]);
+                            response_headers.insert(
+                                "x-preference-fallback",
+                                HeaderValue::from_static("entity-unavailable"),
+                            );
+                        }
+                        Ok(RestResponse {
+                            status:  StatusCode::NO_CONTENT,
+                            headers: response_headers,
+                            body:    None,
+                        })
                     }
                 } else {
                     if prefer.return_minimal {
@@ -1300,11 +1294,8 @@ fn coerce_path_param_value(value: &str) -> serde_json::Value {
 /// Returns `RestError::UnprocessableEntity` with field-level details for each
 /// missing field.
 fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Result<(), RestError> {
-    let body_map = match body {
-        serde_json::Value::Object(m) => m,
-        _ => {
-            return Err(RestError::bad_request("PUT body must be a JSON object"));
-        },
+    let serde_json::Value::Object(body_map) = body else {
+        return Err(RestError::bad_request("PUT body must be a JSON object"));
     };
 
     let writable = type_def.writable_fields();
@@ -1469,9 +1460,7 @@ pub(super) fn set_preference_applied(headers: &mut HeaderMap, prefs: &[&str]) {
 pub(super) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
     let request_id = request_headers
         .get("x-request-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        .and_then(|v| v.to_str().ok()).map_or_else(|| uuid::Uuid::new_v4().to_string(), |s| s.to_string());
 
     if let Ok(val) = HeaderValue::from_str(&request_id) {
         response_headers.insert("x-request-id", val);

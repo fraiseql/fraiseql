@@ -189,10 +189,7 @@ impl RestRouteTable {
         let mut diagnostics = Vec::new();
 
         for type_name in all_types {
-            let type_def = match schema.find_type(type_name) {
-                Some(td) => td,
-                None => continue,
-            };
+            let Some(type_def) = schema.find_type(type_name) else { continue };
             let queries = query_groups.get(type_name).map_or(&[][..], |v| v.as_slice());
             let mutations = mutation_groups.get(type_name).map_or(&[][..], |v| v.as_slice());
 
@@ -572,7 +569,6 @@ fn derive_mutation_routes(
         },
         MutationOperation::Delete { .. } => {
             let status = match config.delete_response {
-                DeleteResponse::NoContent => 204,
                 DeleteResponse::Entity => 200,
                 // non_exhaustive future variants default to 204.
                 _ => 204,
@@ -704,8 +700,7 @@ fn validate_cqrs_mutation(
         MutationOperation::Insert { table }
         | MutationOperation::Update { table }
         | MutationOperation::Delete { table } => table.as_str(),
-        MutationOperation::Custom => return,
-        // Reason: MutationOperation is #[non_exhaustive]; skip unknown variants.
+        // Reason: MutationOperation is #[non_exhaustive]; Custom and unknown variants are skipped.
         _ => return,
     };
 

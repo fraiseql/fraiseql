@@ -237,7 +237,7 @@ mod tests {
         assert_eq!(secret, "");
     }
 
-    /// Test FileBackend rejects path traversal in secret name
+    /// Test `FileBackend` rejects path traversal in secret name
     #[tokio::test]
     async fn test_file_backend_rejects_path_traversal() {
         use tempfile::tempdir;
@@ -254,7 +254,7 @@ mod tests {
         );
     }
 
-    /// Test FileBackend rejects relative parent in secret name
+    /// Test `FileBackend` rejects relative parent in secret name
     #[tokio::test]
     async fn test_file_backend_rejects_dotdot_in_name() {
         use tempfile::tempdir;

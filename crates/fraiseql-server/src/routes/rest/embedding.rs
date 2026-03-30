@@ -241,7 +241,6 @@ async fn embed_into_single<A: DatabaseAdapter>(
     // ManyToOne: parent's FK = child's referenced key value (query by child's PK)
     // OneToOne: same as ManyToOne
     let filter_field = match rel.cardinality {
-        Cardinality::OneToMany => &rel.foreign_key,
         Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
         _ => &rel.foreign_key,
     };
@@ -337,7 +336,6 @@ fn extract_join_key(row: &serde_json::Value, rel: &Relationship) -> Option<serde
     // For OneToMany: use the parent's referenced key (e.g., pk_user).
     // For ManyToOne/OneToOne: use the parent's foreign key (e.g., fk_user).
     let key_field = match rel.cardinality {
-        Cardinality::OneToMany => &rel.referenced_key,
         Cardinality::ManyToOne | Cardinality::OneToOne => &rel.foreign_key,
         _ => &rel.referenced_key,
     };
@@ -351,9 +349,6 @@ fn set_empty_embedding(row: &mut serde_json::Value, output_name: &str, cardinali
         match cardinality {
             Cardinality::OneToMany => {
                 obj.insert(output_name.to_string(), serde_json::json!([]));
-            },
-            Cardinality::ManyToOne | Cardinality::OneToOne => {
-                obj.insert(output_name.to_string(), serde_json::Value::Null);
             },
             _ => {
                 obj.insert(output_name.to_string(), serde_json::Value::Null);
@@ -390,7 +385,6 @@ async fn count_related<A: DatabaseAdapter>(
     };
 
     let filter_field = match rel.cardinality {
-        Cardinality::OneToMany => &rel.foreign_key,
         Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
         _ => &rel.foreign_key,
     };

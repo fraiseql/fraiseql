@@ -2,7 +2,7 @@
 //!
 //! Clients include an `Idempotency-Key` header on POST requests.  If a response
 //! for that key has already been stored, it is replayed.  If the same key is
-//! reused with a different request body, a 422 IDEMPOTENCY_CONFLICT error is
+//! reused with a different request body, a 422 `IDEMPOTENCY_CONFLICT` error is
 //! returned.
 //!
 //! GET, PUT, and DELETE are inherently idempotent — the key is ignored for those

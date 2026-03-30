@@ -1410,7 +1410,7 @@ mod rls_composition {
         assert!(captured.is_some(), "inject_params should produce a WHERE clause");
     }
 
-    /// C13: Verify RLS + inject_params compose into AND(rls, inject)
+    /// C13: Verify RLS + `inject_params` compose into AND(rls, inject)
     #[tokio::test]
     async fn test_rls_and_inject_params_compose_into_and() {
         let mut inject = IndexMap::new();
@@ -1742,7 +1742,7 @@ mod field_rbac {
 mod executor_paths {
     use super::*;
 
-    /// H4: requires_role returns "not found" (anti-enumeration), not "forbidden"
+    /// H4: `requires_role` returns "not found" (anti-enumeration), not "forbidden"
     #[tokio::test]
     async fn test_requires_role_returns_not_found_not_forbidden() {
         let mut schema = test_schema();
@@ -1764,7 +1764,7 @@ mod executor_paths {
         );
     }
 
-    /// H4: requires_role with wrong role still returns "not found"
+    /// H4: `requires_role` with wrong role still returns "not found"
     #[tokio::test]
     async fn test_requires_role_wrong_role_returns_not_found() {
         let mut schema = test_schema();
@@ -1796,7 +1796,7 @@ mod executor_paths {
         );
     }
 
-    /// H4: requires_role with correct role succeeds
+    /// H4: `requires_role` with correct role succeeds
     #[tokio::test]
     async fn test_requires_role_correct_role_succeeds() {
         let mut schema = test_schema();

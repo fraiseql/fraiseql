@@ -4,7 +4,7 @@
 //! module streams rows from the database in batches, encoding each row
 //! as an individual gRPC frame (5-byte header + protobuf bytes).
 //!
-//! Memory usage is bounded by O(batch_size) rather than O(total_rows).
+//! Memory usage is bounded by `O(batch_size)` rather than `O(total_rows)`.
 
 use std::sync::Arc;
 
@@ -68,13 +68,13 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
     view_name: String,
     columns: Vec<ColumnSpec>,
     row_descriptor: MessageDescriptor,
-    type_def: TypeDefinition,
+    type_def: &TypeDefinition,
     request_msg: &prost_reflect::DynamicMessage,
     security_context: Option<&SecurityContext>,
     batch_size: u32,
 ) -> impl futures::Stream<Item = Result<Frame<Bytes>, std::convert::Infallible>> + Send {
     // Extract filters and build WHERE clause up front.
-    let user_where = handler::extract_filters(request_msg, &type_def);
+    let user_where = handler::extract_filters(request_msg, type_def);
 
     let rls_where = security_context.and_then(|ctx| {
         use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy as _};
@@ -98,7 +98,7 @@ pub fn build_streaming_body<A: DatabaseAdapter + 'static>(
         gen.generate(&clause).ok().map(|(sql, _)| sql)
     });
 
-    let order_by = handler::extract_order_by(request_msg, &type_def);
+    let order_by = handler::extract_order_by(request_msg, type_def);
 
     stream::unfold(
         StreamState {

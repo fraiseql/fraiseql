@@ -40,7 +40,7 @@ fn make_repr(typename: &str, id: &str) -> EntityRepresentation {
 
 fn field_selection(fields: &[&str]) -> FieldSelection {
     FieldSelection {
-        fields: fields.iter().map(|s| s.to_string()).collect(),
+        fields: fields.iter().map(|&s| s.to_string()).collect(),
     }
 }
 

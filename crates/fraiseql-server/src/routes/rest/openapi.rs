@@ -1,6 +1,6 @@
-//! OpenAPI 3.0.3 specification generator for the REST transport.
+//! `OpenAPI` 3.0.3 specification generator for the REST transport.
 //!
-//! Generates a complete OpenAPI spec from a [`CompiledSchema`] and its
+//! Generates a complete `OpenAPI` spec from a [`CompiledSchema`] and its
 //! [`RestRouteTable`].  The spec is built using `serde_json::Value` directly —
 //! no runtime dependency on `openapiv3`.
 //!
@@ -23,7 +23,7 @@ use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, Route
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Generate an OpenAPI 3.0.3 specification from a compiled schema and its
+/// Generate an `OpenAPI` 3.0.3 specification from a compiled schema and its
 /// derived REST route table.
 ///
 /// # Errors
@@ -46,7 +46,7 @@ pub fn generate_openapi(
 // Generator
 // ---------------------------------------------------------------------------
 
-/// Generates an OpenAPI 3.0.3 spec from schema metadata.
+/// Generates an `OpenAPI` 3.0.3 spec from schema metadata.
 struct OpenApiGenerator<'a> {
     schema:      &'a CompiledSchema,
     route_table: &'a RestRouteTable,
@@ -399,15 +399,12 @@ impl<'a> OpenApiGenerator<'a> {
             },
             (RouteSource::Mutation { name }, HttpMethod::Post) => {
                 let mutation = self.schema.mutations.iter().find(|m| m.name == *name);
-                match mutation.map(|m| &m.operation) {
-                    Some(MutationOperation::Insert { .. }) => {
-                        (format!("Create {type_name}"), format!("create_{}", to_snake(type_name)))
-                    },
-                    _ => {
-                        // Custom action.
-                        let action = extract_action(name, type_name);
-                        (format!("{} {type_name}", capitalize(&action)), name.clone())
-                    },
+                if let Some(MutationOperation::Insert { .. }) = mutation.map(|m| &m.operation) {
+                    (format!("Create {type_name}"), format!("create_{}", to_snake(type_name)))
+                } else {
+                    // Custom action.
+                    let action = extract_action(name, type_name);
+                    (format!("{} {type_name}", capitalize(&action)), name.clone())
                 }
             },
             (RouteSource::Mutation { name: _ }, HttpMethod::Put) => {
@@ -981,7 +978,7 @@ impl<'a> OpenApiGenerator<'a> {
 
         for type_name in &referenced_types {
             if let Some(td) = self.schema.find_type(type_name) {
-                schemas.insert(type_name.to_string(), self.type_to_schema(td));
+                schemas.insert((*type_name).to_string(), self.type_to_schema(td));
             }
         }
 
@@ -1144,25 +1141,23 @@ const BRACKET_OPERATORS_DESC: &str = "eq, ne, gt, gte, lt, lte, in, nin, like, i
 /// Map a `FieldType` to a JSON Schema type object.
 fn field_type_to_json_schema(ft: &FieldType) -> Value {
     match ft {
-        FieldType::String => json!({ "type": "string" }),
         FieldType::Int => json!({ "type": "integer" }),
         FieldType::Float => json!({ "type": "number" }),
         FieldType::Boolean => json!({ "type": "boolean" }),
-        FieldType::Id => json!({ "type": "string", "format": "uuid" }),
+        FieldType::Id | FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
         FieldType::DateTime => json!({ "type": "string", "format": "date-time" }),
         FieldType::Date => json!({ "type": "string", "format": "date" }),
         FieldType::Time => json!({ "type": "string", "format": "time" }),
         FieldType::Json => json!({ "type": "object" }),
-        FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
         FieldType::Decimal => json!({ "type": "string", "format": "decimal" }),
         FieldType::Vector => json!({ "type": "array", "items": { "type": "number" } }),
         FieldType::Scalar(name) => scalar_to_json_schema(name),
         FieldType::List(inner) => {
             json!({ "type": "array", "items": field_type_to_json_schema(inner) })
         },
-        FieldType::Object(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
-        FieldType::Enum(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
-        FieldType::Input(name) => json!({ "$ref": format!("#/components/schemas/{name}") }),
+        FieldType::Object(name) | FieldType::Enum(name) | FieldType::Input(name) => {
+            json!({ "$ref": format!("#/components/schemas/{name}") })
+        },
         FieldType::Interface(name) | FieldType::Union(name) => {
             json!({ "type": "object", "description": format!("See {name}") })
         },
@@ -1177,7 +1172,6 @@ fn scalar_to_json_schema(name: &str) -> Value {
         "Email" => json!({ "type": "string", "format": "email" }),
         "URL" | "Uri" => json!({ "type": "string", "format": "uri" }),
         "PhoneNumber" => json!({ "type": "string", "format": "phone" }),
-        "IBAN" => json!({ "type": "string" }),
         _ => json!({ "type": "string" }),
     }
 }

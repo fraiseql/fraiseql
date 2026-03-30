@@ -1,6 +1,6 @@
 //! AWS S3 (and S3-compatible) storage backend.
 //!
-//! Also supports Cloudflare R2 and MinIO via the `endpoint` configuration option.
+//! Also supports Cloudflare R2 and `MinIO` via the `endpoint` configuration option.
 
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ impl S3StorageBackend {
     /// Authentication uses standard AWS credential resolution (environment
     /// variables, shared credentials file, instance profile, etc.).
     ///
-    /// Set `endpoint` for S3-compatible services like Cloudflare R2 or MinIO.
+    /// Set `endpoint` for S3-compatible services like Cloudflare R2 or `MinIO`.
     pub async fn new(bucket: &str, region: Option<&str>, endpoint: Option<&str>) -> Self {
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
         if let Some(r) = region {

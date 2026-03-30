@@ -1283,7 +1283,7 @@ mod mysql_error_tests {
         .await
         .expect("connect");
         let err = a
-            .execute_where_query("v_view_that_does_not_exist", None, Some(1), None)
+            .execute_where_query("v_view_that_does_not_exist", None, Some(1), None, None)
             .await
             .expect_err("non-existent view must return Err");
         assert!(
