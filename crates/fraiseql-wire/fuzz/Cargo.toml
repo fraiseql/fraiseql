@@ -19,7 +19,7 @@ path = ".."
 edition = "2021"
 name = "fraiseql-wire-fuzz"
 publish = false
-version = "0.0.0"
+version = "2.1.0"
 
 [package.metadata]
 cargo-fuzz = true

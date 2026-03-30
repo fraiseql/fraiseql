@@ -20,7 +20,7 @@ path = "../../fraiseql-error"
 edition = "2021"
 name = "fraiseql-federation-fuzz"
 publish = false
-version = "0.0.0"
+version = "2.1.0"
 
 [package.metadata]
 cargo-fuzz = true
