@@ -372,10 +372,62 @@ jobs:
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ PyPI upload: FAILED" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
 
+  # Build and publish TypeScript package
+  publish-typescript:
+    name: Publish TypeScript Package to npm
+    needs: create-github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies and build
+        id: build-typescript
+        working-directory: sdks/official/fraiseql-typescript
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish to npm
+        id: publish-npm
+        working-directory: sdks/official/fraiseql-typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+        continue-on-error: true
+
+      - name: Validate npm package
+        id: validate-npm
+        run: |
+          echo "Waiting for npm to index..."
+          sleep 10
+          echo "Testing npm package installation..."
+          VERSION=$(node -p "require('./sdks/official/fraiseql-typescript/package.json').version")
+          npm install "fraiseql@${VERSION}" --prefix /tmp/npm-validate
+          echo "fraiseql ${VERSION} successfully published to npm"
+        continue-on-error: true
+
+      - name: Report TypeScript publishing results
+        if: always()
+        run: |
+          echo "## TypeScript Package Publishing Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          [ "${{ steps.build-typescript.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ Build: FAILED" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-npm.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ npm upload: FAILED" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.validate-npm.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
+
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, build-binaries]
+    needs: [create-github-release, publish-crates, build-binaries, publish-python, publish-typescript]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: always()
