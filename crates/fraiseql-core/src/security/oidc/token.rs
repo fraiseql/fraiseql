@@ -158,6 +158,8 @@ impl OidcValidator {
             .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(30))
             .build()
+            // Reason: TLS backend absence is a catastrophic system misconfiguration;
+            // this constructor is #[must_use] and returns Self, not Result.
             .expect("TLS backend should always be available for reqwest HTTP client");
         Self {
             config,

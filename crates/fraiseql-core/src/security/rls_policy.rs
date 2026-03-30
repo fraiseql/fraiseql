@@ -279,7 +279,8 @@ impl RLSPolicy for DefaultRLSPolicy {
         // Combine all filters with AND and wrap in RlsWhereClause
         let clause = match filters.len() {
             0 => return Ok(None),
-            1 => filters.into_iter().next().expect("len matched == 1"),
+            // Reason: `filters.len() == 1` guarantees `.next()` yields `Some`
+            1 => filters.into_iter().next().expect("len checked == 1"),
             _ => WhereClause::And(filters),
         };
         Ok(Some(RlsWhereClause::new(clause)))

@@ -221,7 +221,10 @@ impl DatabaseAdapter for SqliteAdapter {
             return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
-        let projection = projection.expect("projection is Some; None was returned above");
+        let Some(projection) = projection else {
+            // Reason: unreachable — `is_none()` check above returns early
+            unreachable!("projection is Some; None case returned above");
+        };
 
         // Build SQL with SQLite-specific json_object projection
         // The projection_template contains the SELECT clause with json_object() calls
@@ -244,7 +247,8 @@ impl DatabaseAdapter for SqliteAdapter {
             Vec::new()
         };
 
-        // Add LIMIT/OFFSET — SQLite requires LIMIT before OFFSET
+        // Add LIMIT/OFFSET — SQLite requires LIMIT before OFFSET.
+        // Reason (expect below): fmt::Write for String is infallible.
         match (limit, offset) {
             (Some(lim), Some(off)) => {
                 write!(sql, " LIMIT {lim} OFFSET {off}").expect("write to String");

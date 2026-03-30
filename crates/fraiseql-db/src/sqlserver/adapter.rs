@@ -267,7 +267,10 @@ impl DatabaseAdapter for SqlServerAdapter {
             return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
-        let projection = projection.expect("projection is Some; None was returned above");
+        let Some(projection) = projection else {
+            // Reason: unreachable — `is_none()` check above returns early
+            unreachable!("projection is Some; None case returned above");
+        };
 
         // Build SQL with SQL Server-specific JSON projection
         // The projection_template contains the SELECT clause with JSON functions
@@ -309,12 +312,13 @@ impl DatabaseAdapter for SqlServerAdapter {
             Vec::new()
         };
 
-        // Add OFFSET/FETCH for pagination (SQL Server requires ORDER BY for OFFSET)
+        // Add OFFSET/FETCH for pagination (SQL Server requires ORDER BY for OFFSET).
+        // Reason (expect below): fmt::Write for String is infallible.
         if let Some(off) = offset {
             // SQL Server requires ORDER BY for OFFSET/FETCH NEXT syntax
-            sql.push_str(&format!(" ORDER BY (SELECT NULL) OFFSET {off} ROWS"));
+            write!(sql, " ORDER BY (SELECT NULL) OFFSET {off} ROWS").expect("write to String");
             if let Some(lim) = limit {
-                sql.push_str(&format!(" FETCH NEXT {lim} ROWS ONLY"));
+                write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String");
             }
         }
 
@@ -360,8 +364,9 @@ impl DatabaseAdapter for SqlServerAdapter {
                 (Vec::new(), 0)
             };
 
-        // Handle pagination with OFFSET...FETCH (requires ORDER BY)
-        // SQL Server uses @p1, @p2, ... for parameters
+        // Handle pagination with OFFSET...FETCH (requires ORDER BY).
+        // SQL Server uses @p1, @p2, ... for parameters.
+        // Reason (expect below): fmt::Write for String is infallible.
         if let Some(off) = offset {
             sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
             param_count += 1;

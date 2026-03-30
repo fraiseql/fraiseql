@@ -209,7 +209,10 @@ impl DatabaseAdapter for MySqlAdapter {
             return self.execute_where_query(view, where_clause, limit, offset, None).await;
         }
 
-        let projection = projection.expect("projection is Some; None was returned above");
+        let Some(projection) = projection else {
+            // Reason: unreachable — `is_none()` check above returns early
+            unreachable!("projection is Some; None case returned above");
+        };
 
         // Build SQL with MySQL-specific JSON_OBJECT projection
         // The projection_template contains the SELECT clause with JSON_OBJECT calls
@@ -231,7 +234,8 @@ impl DatabaseAdapter for MySqlAdapter {
             Vec::new()
         };
 
-        // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET
+        // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET.
+        // Reason (expect below): fmt::Write for String is infallible.
         match (limit, offset) {
             (Some(lim), Some(off)) => {
                 write!(sql, " LIMIT {lim} OFFSET {off}").expect("write to String");

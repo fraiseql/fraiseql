@@ -385,7 +385,8 @@ impl PostgresAdapter {
                 where_params.into_iter().map(QueryParam::from).collect();
             let mut param_count = typed_params.len();
 
-            // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type)
+            // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
+            // Reason (expect below): fmt::Write for String is infallible.
             if let Some(lim) = limit {
                 param_count += 1;
                 write!(sql, " LIMIT ${param_count}").expect("write to String");
@@ -409,7 +410,8 @@ impl PostgresAdapter {
 
             self.execute_raw(&sql, &param_refs).await
         } else {
-            // No WHERE clause — only LIMIT/OFFSET params
+            // No WHERE clause — only LIMIT/OFFSET params.
+            // Reason (expect below): fmt::Write for String is infallible.
             let mut typed_params: Vec<QueryParam> = Vec::new();
             let mut param_count = 0;
 
@@ -472,7 +474,8 @@ pub(super) fn build_where_select_sql(
     };
     let mut param_count = typed_params.len();
 
-    // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
+    // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT).
+    // Reason (expect below): fmt::Write for String is infallible.
     if let Some(lim) = limit {
         param_count += 1;
         write!(sql, " LIMIT ${param_count}").expect("write to String");

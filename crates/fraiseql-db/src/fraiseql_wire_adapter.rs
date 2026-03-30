@@ -128,6 +128,7 @@ impl FraiseWireAdapter {
             sql.push(' ');
         }
 
+        // Reason (expect below): fmt::Write for String is infallible.
         if let Some(offset_val) = offset {
             write!(sql, "OFFSET {offset_val} ").expect("write to String");
         }

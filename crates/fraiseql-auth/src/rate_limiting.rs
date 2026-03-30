@@ -271,11 +271,16 @@ impl KeyedRateLimiter {
             return Ok(());
         }
 
-        // CRITICAL: Acquire lock - this ensures all operations below are atomic
+        // CRITICAL: Acquire lock - this ensures all operations below are atomic.
+        // On poison, recover the inner data — the HashMap is still valid even if the
+        // thread that held the lock panicked mid-update (worst case: a stale entry).
         let mut records = self
             .records
             .lock()
-            .expect("rate limiter mutex poisoned - system in critical state");
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("rate limiter mutex was poisoned, recovering");
+                poisoned.into_inner()
+            });
         let now = (self.clock)();
 
         // Periodic expiry sweep to bound HashMap growth.
@@ -330,30 +335,26 @@ impl KeyedRateLimiter {
     }
 
     /// Get the number of active rate limiters (for monitoring).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned (a prior panic occurred
-    /// while the lock was held).
     pub fn active_limiters(&self) -> usize {
         let records = self
             .records
             .lock()
-            .expect("rate limiter mutex poisoned - system in critical state");
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("rate limiter mutex was poisoned, recovering");
+                poisoned.into_inner()
+            });
         records.len()
     }
 
     /// Clear all rate limiters (for testing or reset).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned (a prior panic occurred
-    /// while the lock was held).
     pub fn clear(&self) {
         let mut records = self
             .records
             .lock()
-            .expect("rate limiter mutex poisoned - system in critical state");
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("rate limiter mutex was poisoned, recovering");
+                poisoned.into_inner()
+            });
         records.clear();
     }
 

@@ -264,7 +264,15 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
             self.metrics.tenant_violation();
 
             // Serialize the event to raw bytes so the DLQ preserves the payload.
-            let raw = serde_json::to_vec(event).unwrap_or_default();
+            let raw = serde_json::to_vec(event).unwrap_or_else(|err| {
+                error!(
+                    error = %err,
+                    event_id = %event.id,
+                    "failed to serialize event for DLQ; storing error placeholder"
+                );
+                format!(r#"{{"error":"serialization_failed","event_id":"{}"}}"#, event.id)
+                    .into_bytes()
+            });
             let reason = violation.to_string();
             if let Err(dlq_err) = self.inner.dlq().push_raw(&raw, &reason).await {
                 error!("Failed to route tenant-violation event to DLQ: {}", dlq_err);
