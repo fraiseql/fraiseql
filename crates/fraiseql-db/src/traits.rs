@@ -164,7 +164,7 @@ pub struct RelayPageResult {
 ///
 /// // Execute query with parameters
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
 ///     .await?;
 ///
 /// println!("Found {} users matching filter", results.len());
@@ -237,7 +237,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // Simple query without WHERE clause
     /// let all_users = adapter
-    ///     .execute_where_query("v_user", None, Some(10), Some(0))
+    ///     .execute_where_query("v_user", None, Some(10), Some(0), None)
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -336,7 +336,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// };
     ///
     /// let results = adapter
-    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100), None)
+    ///     .execute_with_projection("v_user", Some(&projection), None, Some(100), None, None)
     ///     .await?;
     ///
     /// // results only contain id, name, email fields
@@ -353,7 +353,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // For debugging or when projection not available
     /// let results = adapter
-    ///     .execute_with_projection("v_user", None, None, Some(100), None)
+    ///     .execute_with_projection("v_user", None, None, Some(100), None, None)
     ///     .await?;
     ///
     /// // Equivalent to execute_where_query() - returns full objects

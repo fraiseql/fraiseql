@@ -80,7 +80,7 @@ subtle = "2.5"
 thiserror = "2.0"
 # Async runtime
 tokio = {workspace = true}
-tokio-rustls = "0.25"
+tokio-rustls = "0.26"
 # Config and paths
 toml = "0.8"
 # Arrow Flight server (optional)

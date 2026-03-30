@@ -14,8 +14,8 @@ fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-server = {workspace = true, optional = true}
 axum = {workspace = true, optional = true}
 glob = "0.3"
-prost = "0.13"
-prost-types = "0.13"
+prost = "0.14"
+prost-types = "0.14"
 reqwest = {workspace = true}
 # Serialization
 indexmap = {workspace = true}

@@ -18,7 +18,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
-    /// [`Server::with_relay_pagination`] when the adapter implements [`RelayDatabaseAdapter`]
+    /// [`Server::with_relay_pagination`] when the adapter implements
+    /// [`RelayDatabaseAdapter`](fraiseql_core::db::traits::RelayDatabaseAdapter)
     /// and relay support is required.
     ///
     /// # Arguments

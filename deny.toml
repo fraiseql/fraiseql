@@ -1,8 +1,8 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
-# Skip entries last reviewed: 2026-03-18
+# Skip entries last reviewed: 2026-03-30
 # Pending resolution:
-#   rustls 0.22  — sqlx 0.8 transitively requires (tracked: sqlx 0.9 upgrade in v2.3.0)
+#   rustls 0.22  — async-nats 0.40 transitively requires (tracked: async-nats upgrade)
 
 [advisories]
 db-path = "~/.cargo/advisory-db"
@@ -10,6 +10,8 @@ ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
+  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: dev-only dep via testcontainers 0.26; awaiting testcontainers 0.27 upgrade. Revisit by 2026-04-15."},
+  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102: transitive via async-nats 0.40 (rustls 0.22); awaiting async-nats upgrade. Revisit by 2026-04-15."},
 ]
 unmaintained = "workspace"
 
@@ -31,10 +33,6 @@ name = "rustls"
 version = "=0.21.12"
 reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
 
-[[bans.skip-tree]]
-name = "rustls"
-version = "=0.22.4"
-reason = "rustls 0.22 required by sqlx 0.8; upgrade tracked for v2.3.0"
 
 [[bans.skip-tree]]
 name = "p256"
@@ -61,17 +59,13 @@ reason = "aws-sdk-s3 via rustls 0.21 chain; upgrade tracked"
 [[bans.skip]]
 name = "rustls-native-certs"
 version = "=0.7.3"
-reason = "transitive via rustls 0.22/sqlx dependency chain"
+reason = "transitive via rustls 0.21/aws-sdk dependency chain"
 
 [[bans.skip]]
 name = "tokio-rustls"
 version = "=0.24.1"
 reason = "transitive via rustls 0.21 (aws-sdk)"
 
-[[bans.skip]]
-name = "tokio-rustls"
-version = "=0.25.0"
-reason = "transitive via rustls 0.22 (sqlx)"
 
 [[bans.skip]]
 name = "hashbrown"
@@ -153,10 +147,6 @@ name = "windows-sys"
 version = "=0.59.0"
 reason = "transitive via windows ecosystem migration"
 
-[[bans.skip]]
-name = "windows-sys"
-version = "=0.60.2"
-reason = "transitive via windows ecosystem migration"
 
 [[bans.skip]]
 name = "windows-targets"
@@ -252,6 +242,21 @@ reason = "transitive via older sqlx version"
 name = "wasite"
 version = "=0.1.0"
 reason = "transitive via whoami 1.x"
+
+[[bans.skip]]
+name = "md-5"
+version = "=0.10.6"
+reason = "transitive via aws-smithy-checksums and sqlx-mysql"
+
+[[bans.skip]]
+name = "rustls-webpki"
+version = "=0.102.8"
+reason = "transitive via async-nats 0.40 (rustls 0.22 chain); awaiting async-nats upgrade"
+
+[[bans.skip]]
+name = "winnow"
+version = "=0.7.15"
+reason = "transitive via toml_edit 0.22; ecosystem migrating to winnow 1.0"
 
 [graph]
 all-features = true

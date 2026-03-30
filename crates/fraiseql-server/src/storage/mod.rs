@@ -157,7 +157,7 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
 /// Creates a storage backend from a [`StorageConfig`](crate::config::StorageConfig).
 ///
 /// S3-compatible providers (`s3`, `r2`, `hetzner`, `scaleway`, `ovh`, `exoscale`,
-/// `backblaze`) all use [`S3StorageBackend`] under the hood.  Provider-specific
+/// `backblaze`) all use `S3StorageBackend` under the hood.  Provider-specific
 /// defaults for the endpoint URL are applied when `endpoint` is not set in the
 /// config.
 ///
