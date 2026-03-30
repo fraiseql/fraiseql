@@ -22,7 +22,10 @@ struct TestDb {
 
 impl TestDb {
     /// Create a test database and set up tables.
-    async fn setup() -> Result<Self, Box<dyn std::error::Error>> {
+    ///
+    /// Returns `Ok(None)` when `DATABASE_URL` is not set, allowing the test
+    /// to be skipped gracefully in environments without PostgreSQL.
+    async fn setup() -> Result<Option<Self>, Box<dyn std::error::Error>> {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -30,8 +33,10 @@ impl TestDb {
             )
             .try_init();
 
-        let db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
+        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return Ok(None);
+        };
 
         tracing::info!("Connecting to PostgreSQL: {}", db_url);
 
@@ -53,10 +58,10 @@ impl TestDb {
 
         Self::create_tables(&test_pool).await?;
 
-        Ok(TestDb {
+        Ok(Some(TestDb {
             pool:          test_pool,
             database_name: test_db_name,
-        })
+        }))
     }
 
     /// Create test tables.
@@ -93,12 +98,17 @@ impl TestDb {
     }
 
     /// Get the database URL for fraiseql-core adapter.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
+    /// already verified its presence.
     fn connection_string(&self) -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string())
-            .rsplit_once('/')
+        let db_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set — setup() checks this");
+        db_url.rsplit_once('/')
             .map_or_else(
-                || format!("postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/{}", self.database_name),
+                || format!("{}/{}", db_url, self.database_name),
                 |(base, _)| format!("{}/{}", base, self.database_name),
             )
     }
@@ -181,7 +191,7 @@ mod tests {
     /// 3. Service remains functional after error
     #[tokio::test]
     async fn test_invalid_view_name_error() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -226,7 +236,7 @@ mod tests {
     /// 3. Streaming can continue or fails gracefully
     #[tokio::test]
     async fn test_arrow_conversion_error() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -252,7 +262,7 @@ mod tests {
     /// 3. Service recovers and can handle subsequent requests
     #[tokio::test]
     async fn test_ipc_encoding_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -275,7 +285,7 @@ mod tests {
     /// 3. Service is ready for next request
     #[tokio::test]
     async fn test_batched_queries_empty_error() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -302,7 +312,7 @@ mod tests {
     /// 4. Error doesn't break the entire batch
     #[tokio::test]
     async fn test_batched_queries_partial_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;

@@ -32,7 +32,10 @@ struct TestDb {
 
 impl TestDb {
     /// Create a test database and set up tables.
-    async fn setup() -> Result<Self, Box<dyn std::error::Error>> {
+    ///
+    /// Returns `Ok(None)` when `DATABASE_URL` is not set, allowing the test
+    /// to be skipped gracefully in environments without PostgreSQL.
+    async fn setup() -> Result<Option<Self>, Box<dyn std::error::Error>> {
         // Initialize tracing for test output
         let _ = tracing_subscriber::fmt()
             .with_env_filter(
@@ -41,9 +44,11 @@ impl TestDb {
             )
             .try_init();
 
-        // Get or create database URL
-        let db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
+        // Skip gracefully when DATABASE_URL is not set
+        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+            eprintln!("Skipping: DATABASE_URL not set");
+            return Ok(None);
+        };
 
         tracing::info!("Connecting to PostgreSQL: {}", db_url);
 
@@ -70,10 +75,10 @@ impl TestDb {
         // Create tables
         Self::create_tables(&test_pool).await?;
 
-        Ok(TestDb {
+        Ok(Some(TestDb {
             pool:          test_pool,
             database_name: test_db_name,
-        })
+        }))
     }
 
     /// Create ta_users and ta_orders tables.
@@ -145,12 +150,17 @@ impl TestDb {
     }
 
     /// Get the database URL for fraiseql-core adapter.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
+    /// already verified its presence.
     fn connection_string(&self) -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string())
-            .rsplit_once('/')
+        let db_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set — setup() checks this");
+        db_url.rsplit_once('/')
             .map_or_else(
-                || format!("postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/{}", self.database_name),
+                || format!("{}/{}", db_url, self.database_name),
                 |(base, _)| format!("{}/{}", base, self.database_name),
             )
     }
@@ -234,7 +244,7 @@ mod tests {
     /// Test that Flight database adapter can connect and execute queries
     #[tokio::test]
     async fn test_flight_adapter_executes_query() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create and wrap adapter
@@ -266,7 +276,7 @@ mod tests {
     /// Test querying ta_users table with Flight service
     #[tokio::test]
     async fn test_query_ta_users() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapters
@@ -288,7 +298,7 @@ mod tests {
     /// Test querying ta_orders table with Flight service
     #[tokio::test]
     async fn test_query_ta_orders() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapters
@@ -310,7 +320,7 @@ mod tests {
     /// Test that adapter correctly handles pagination with LIMIT
     #[tokio::test]
     async fn test_query_with_limit() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -333,7 +343,7 @@ mod tests {
     /// Test that adapter correctly handles OFFSET for pagination
     #[tokio::test]
     async fn test_query_with_offset() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -363,7 +373,7 @@ mod tests {
     /// Test that adapter can handle WHERE clauses
     #[tokio::test]
     async fn test_query_with_filter() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -390,7 +400,7 @@ mod tests {
     /// Test that adapter returns data in correct JSON format
     #[tokio::test]
     async fn test_query_returns_json_format() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -423,7 +433,7 @@ mod tests {
     /// Test that ta_orders data is correctly persisted
     #[tokio::test]
     async fn test_orders_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -448,7 +458,7 @@ mod tests {
     /// Test that ta_users data is correctly persisted
     #[tokio::test]
     async fn test_users_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -568,7 +578,7 @@ mod tests {
     async fn test_flight_service_with_cache() -> Result<(), Box<dyn std::error::Error>> {
         use fraiseql_arrow::FraiseQLFlightService;
 
-        let test_db = TestDb::setup().await?;
+        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
         let conn_string = test_db.connection_string();
 
         // Create adapter with cache (60-second TTL)

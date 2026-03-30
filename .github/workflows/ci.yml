@@ -243,9 +243,9 @@ jobs:
           cargo test -p fraiseql-core --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
           # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
           cargo test -p fraiseql-db --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --test '*' -- --test-threads=1
-          # fraiseql-arrow flight tests have a pre-existing compilation issue (tokio rt-multi-thread)
-          # and require Arrow Flight infrastructure — skip in this job.
-          # cargo test -p fraiseql-arrow --features "test-postgres,clickhouse,testing,wire-backend" --test '*' -- --test-threads=1
+          # fraiseql-arrow Tier 3 (DB-backed) flight tests — these skip gracefully
+          # when DATABASE_URL is unset; here we run them against the PostgreSQL service.
+          cargo test -p fraiseql-arrow --test flight_integration --test flight_e2e_test --test flight_error_handling_test -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
