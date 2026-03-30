@@ -38,6 +38,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// a Redis-backed distributed store; otherwise falls back to the in-memory backend
     /// with a warning.
     #[cfg(feature = "auth")]
+    #[allow(clippy::cognitive_complexity)] // Reason: conditional backend selection (Redis vs in-memory) with feature-gated branches
     pub(super) async fn pkce_store_from_schema(
         schema: &CompiledSchema,
         state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
@@ -280,6 +281,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
     /// compiled schema, if present and `enabled = true`.
+    #[allow(clippy::cognitive_complexity)] // Reason: config parsing with multiple optional fields and validation
     pub(super) fn trusted_docs_from_schema(
         schema: &CompiledSchema,
     ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {

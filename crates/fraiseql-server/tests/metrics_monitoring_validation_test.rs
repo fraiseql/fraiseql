@@ -312,7 +312,7 @@ mod metrics_monitoring_tests {
     #[test]
     fn test_histogram_percentile_calculation() {
         // Verify percentile calculation from latencies
-        let mut latencies = vec![
+        let mut latencies = [
             0.001, 0.002, 0.003, 0.004, 0.005, 0.010, 0.015, 0.020, 0.050, 0.100, 0.500, 1.000,
         ];
 

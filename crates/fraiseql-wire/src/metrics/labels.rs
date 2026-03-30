@@ -62,10 +62,6 @@ mod tests {
 
     #[test]
     fn test_label_constants() {
-        // Verify constants are not empty and reasonable
-        assert!(!ENTITY.is_empty());
-        assert!(!ERROR_CATEGORY.is_empty());
-        assert!(!TYPE_NAME.is_empty());
         assert_eq!(ENTITY, "entity");
         assert_eq!(ERROR_CATEGORY, "error_category");
     }

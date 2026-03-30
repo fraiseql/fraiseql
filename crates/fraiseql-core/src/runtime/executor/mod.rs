@@ -170,7 +170,7 @@ use crate::db::traits::DatabaseAdapter;
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 #[cfg(test)]
-use crate::runtime::{ExecutionContext, RuntimeConfig};
+use crate::runtime::ExecutionContext;
 use crate::{
     error::{FraiseQLError, Result},
     schema::InjectedParamSource,

@@ -769,6 +769,7 @@ impl FraiseQLFlightService {
     /// # Returns
     ///
     /// Stream of `FlightData` with combined results from all queries
+    #[allow(clippy::cognitive_complexity)] // Reason: multi-query batching with per-query error handling and result aggregation
     pub(crate) async fn execute_batched_queries(
         &self,
         queries: Vec<String>,
@@ -939,6 +940,7 @@ impl FraiseQLFlightService {
     /// * `limit` - Optional row limit
     /// * `format` - Export format: "parquet", "csv", or "json" (default: "parquet")
     /// * `security_context` - Security context for RLS
+    #[allow(clippy::cognitive_complexity)] // Reason: multi-format export with format negotiation, query construction, and encoding
     pub(crate) async fn execute_bulk_export(
         &self,
         table: &str,

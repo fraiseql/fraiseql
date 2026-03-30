@@ -24,8 +24,10 @@ fn test_mutation_and_query_are_distinct() {
 
     // The key invariant: mutations and queries are separate fields in CompiledSchema
     // They cannot be confused at compile time (Rust type system enforces this)
-    let _mutations_vec: Vec<_> = schema.mutations.clone();
-    let _queries_vec: Vec<_> = schema.queries;
+    let mutations_vec: Vec<_> = schema.mutations.clone();
+    let queries_vec: Vec<_> = schema.queries;
+    drop(mutations_vec);
+    drop(queries_vec);
 
     // This test verifies the schema structure exists (no panics above)
 }
@@ -54,9 +56,6 @@ fn test_mutations_and_queries_are_separate_lists() {
     let schema = CompiledSchema::default();
 
     // Both lists should exist and be independent - they're different collection types
-    let _mutations: &Vec<_> = &schema.mutations;
-    let _queries: &Vec<_> = &schema.queries;
-
     // Both should be accessible without error (compile-time proof they're distinct fields)
     // This verifies they are separate lists, not mixed together
     assert!(schema.mutations.is_empty());

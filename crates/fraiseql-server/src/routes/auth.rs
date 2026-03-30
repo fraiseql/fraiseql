@@ -164,6 +164,7 @@ pub async fn auth_start(
 ///   when `post_login_redirect_uri` is configured.
 /// - `400` — invalid/expired state, missing parameters, or provider error.
 /// - `502` — token exchange with the OIDC provider failed.
+#[allow(clippy::cognitive_complexity)] // Reason: OAuth callback handler with state validation, token exchange, and redirect logic
 pub async fn auth_callback(
     State(state): State<Arc<AuthPkceState>>,
     Query(q): Query<AuthCallbackQuery>,

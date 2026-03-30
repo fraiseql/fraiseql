@@ -194,6 +194,7 @@ impl SchemaConverter {
         Ok(compiled)
     }
 
+    #[allow(clippy::cognitive_complexity)] // Reason: comprehensive schema validation with many field-level checks
     fn validate(schema: &CompiledSchema) -> Result<()> {
         info!("Validating compiled schema");
 

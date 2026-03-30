@@ -217,7 +217,8 @@ fn flight_adapter_latency(c: &mut Criterion) {
             let pg_adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
-            let _flight_adapter = BenchFlightAdapter { inner: pg_adapter };
+            let flight_adapter = BenchFlightAdapter { inner: pg_adapter };
+            drop(flight_adapter);
         });
     });
 

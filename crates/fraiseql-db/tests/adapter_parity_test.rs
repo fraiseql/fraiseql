@@ -46,7 +46,7 @@ fn field(field_name: &str, op: WhereOperator, val: serde_json::Value) -> WhereCl
 
 fn nested_field(path: &[&str], op: WhereOperator, val: serde_json::Value) -> WhereClause {
     WhereClause::Field {
-        path:     path.iter().map(|s| s.to_string()).collect(),
+        path:     path.iter().map(|s| (*s).to_string()).collect(),
         operator: op,
         value:    val,
     }

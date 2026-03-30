@@ -24,6 +24,7 @@ use crate::{
 };
 
 /// Process a `Query` exchange request: run GraphQL and forward Arrow-encoded results.
+#[allow(clippy::cognitive_complexity)] // Reason: multi-step protocol handler with sequential error handling branches
 async fn handle_query(
     tx: &Sender<Result<FlightData, Status>>,
     executor: &Option<Arc<dyn QueryExecutor>>,
@@ -90,6 +91,7 @@ async fn handle_query(
 }
 
 /// Process an `Upload` exchange request: decode Arrow batch and INSERT into target table.
+#[allow(clippy::cognitive_complexity)] // Reason: multi-step upload protocol with sequential validation and error handling
 async fn handle_upload(
     tx: &Sender<Result<FlightData, Status>>,
     db_adapter: &Option<Arc<dyn crate::db::ArrowDatabaseAdapter>>,

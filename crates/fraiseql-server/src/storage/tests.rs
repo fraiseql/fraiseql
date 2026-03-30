@@ -177,7 +177,7 @@ async fn create_backend_s3_feature_not_enabled() {
         "backblaze",
     ] {
         let config = crate::config::StorageConfig {
-            backend:      name.to_string(),
+            backend:      (*name).to_string(),
             bucket:       Some("bucket".to_string()),
             path:         None,
             region:       None,

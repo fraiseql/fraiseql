@@ -66,7 +66,7 @@ async fn test_postgres_adapter_with_pool_config() {
 
     // Adapter should be cloneable for use in Server
     let adapter1 = adapter.unwrap();
-    let _adapter2 = adapter1;
+    drop(adapter1);
 }
 
 /// Test server configuration defaults

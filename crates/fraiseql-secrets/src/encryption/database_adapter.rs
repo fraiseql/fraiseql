@@ -372,7 +372,7 @@ mod tests {
         let sm = Arc::new(SecretsManager::new(Arc::new(EnvBackend)));
         let mut fk = HashMap::new();
         for (field, key) in fields {
-            fk.insert(field.to_string(), key.to_string());
+            fk.insert((*field).to_string(), (*key).to_string());
         }
         DatabaseFieldAdapter::new(sm, fk)
     }

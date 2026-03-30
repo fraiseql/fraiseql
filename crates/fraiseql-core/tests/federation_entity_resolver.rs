@@ -457,7 +457,7 @@ fn test_batch_order_preservation() {
     for id in &reps {
         results.push(json!({
             "__typename": "User",
-            "id": id.to_string()
+            "id": (*id).to_string()
         }));
     }
 

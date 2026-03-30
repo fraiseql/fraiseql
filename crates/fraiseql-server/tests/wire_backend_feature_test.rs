@@ -93,7 +93,7 @@ mod postgres_adapter_tests {
 
         // Verify adapter can be cloned for use in server
         let adapter = adapter.unwrap();
-        let _cloned = adapter;
+        drop(adapter);
     }
 }
 

@@ -26,6 +26,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// # Errors
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
+    #[allow(clippy::cognitive_complexity)] // Reason: server lifecycle with TLS/non-TLS binding, signal handling, and graceful shutdown
     pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,

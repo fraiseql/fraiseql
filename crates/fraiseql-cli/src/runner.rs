@@ -10,6 +10,7 @@ use crate::cli::{
 };
 
 /// Run the FraiseQL CLI. Called from both the `fraiseql-cli` and `fraiseql` binary entry points.
+#[allow(clippy::cognitive_complexity)] // Reason: CLI dispatch with many subcommand branches
 pub async fn run() {
     use crate::{commands, output};
 

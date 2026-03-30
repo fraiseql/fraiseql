@@ -141,6 +141,7 @@ pub(super) fn extract_jwt_subject(authorization: &str) -> Option<String> {
 /// # Errors
 ///
 /// Returns `RateLimitExceeded` if the per-path, per-user, or per-IP rate limit is exceeded.
+#[allow(clippy::cognitive_complexity)] // Reason: multi-dimension rate limiting (per-path, per-user, per-IP) with config lookups
 pub async fn rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<Body>,

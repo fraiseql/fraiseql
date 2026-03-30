@@ -34,6 +34,7 @@ impl SchemaValidator {
     /// Currently infallible; always returns `Ok` containing the report.
     /// The `Result` return type is reserved for future validation that may
     /// require fallible I/O.
+    #[allow(clippy::cognitive_complexity)] // Reason: comprehensive schema validation with many cross-field constraint checks
     pub fn validate(schema: &IntermediateSchema) -> Result<ValidationReport> {
         info!("Validating schema structure");
 

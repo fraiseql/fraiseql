@@ -59,6 +59,7 @@ fn schema_to_ipc_bytes(schema: &SchemaRef) -> Bytes {
 }
 
 /// Handshake handler: JWT authentication that returns a short-lived session token.
+#[allow(clippy::cognitive_complexity)] // Reason: authentication protocol with multiple validation steps and error branches
 pub(super) async fn handshake(
     svc: &FraiseQLFlightService,
     mut request: Request<Streaming<HandshakeRequest>>,
@@ -143,7 +144,7 @@ pub(super) async fn list_flights(
         if let Ok(schema) = svc.schema_registry.get(view_name) {
             let descriptor = FlightDescriptor {
                 r#type: 1, // PATH
-                path:   vec![view_name.to_string()],
+                path:   vec![(*view_name).to_string()],
                 cmd:    b"".to_vec().into(),
             };
 

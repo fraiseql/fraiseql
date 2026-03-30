@@ -429,6 +429,7 @@ impl SchemaRegistry {
     /// This function is currently infallible. Individual view query failures are
     /// logged at debug level and skipped; default schemas are registered as a
     /// fallback if no views could be preloaded.
+    #[allow(clippy::cognitive_complexity)] // Reason: iterates over multiple view types with per-view error handling and fallback logic
     pub async fn preload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
         use tracing::info;
 

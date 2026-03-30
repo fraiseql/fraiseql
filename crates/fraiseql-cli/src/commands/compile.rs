@@ -73,6 +73,7 @@ impl<'a> CompileOptions<'a> {
 /// 2. Directory auto-discovery
 /// 3. Single types file (backward-compatible)
 /// 4. Domain discovery → TOML includes → TOML-only (fallback sequence)
+#[allow(clippy::cognitive_complexity)] // Reason: multi-strategy schema discovery with fallback chain
 fn load_intermediate_schema(
     toml_path: &str,
     type_files: &[String],
@@ -127,6 +128,7 @@ fn load_intermediate_schema(
 ///
 /// Returns error if input is missing, parsing fails, validation fails, or the database
 /// connection fails (when `database` is provided).
+#[allow(clippy::cognitive_complexity)] // Reason: end-to-end compilation pipeline with validation, introspection, and output stages
 pub async fn compile_to_schema(
     opts: CompileOptions<'_>,
 ) -> Result<(CompiledSchema, OptimizationReport)> {

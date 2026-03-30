@@ -33,6 +33,7 @@ fn test_schema_from_json_with_defaults() {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)] // Reason: comprehensive schema deserialization test with many field assertions
 fn test_schema_from_json_full() {
     let json = r#"{
         "types": [{

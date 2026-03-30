@@ -170,6 +170,7 @@ pub async fn subscription_handler(
 }
 
 /// Handle a `WebSocket` subscription connection.
+#[allow(clippy::cognitive_complexity)] // Reason: WebSocket protocol state machine with message routing and lifecycle management
 async fn handle_subscription_connection(
     socket: WebSocket,
     state: SubscriptionState,
@@ -370,6 +371,7 @@ async fn handle_subscription_connection(
 /// Handle a client message.
 ///
 /// Returns `Ok(())` on success, or `Err(CloseCode)` if the connection should be closed.
+#[allow(clippy::cognitive_complexity)] // Reason: WebSocket message dispatch with subscribe/unsubscribe/query protocol handling
 async fn handle_client_message(
     text: &str,
     connection_id: &str,

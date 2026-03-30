@@ -30,6 +30,7 @@ use tracing::{error, info};
 /// # Future Enhancement
 ///
 /// Will integrate with fraiseql-server to provide hot-reload of the GraphQL endpoint
+#[allow(clippy::cognitive_complexity)] // Reason: server startup with config loading, adapter setup, and hot-reload wiring
 pub async fn run(schema: &str, port: u16) -> Result<()> {
     info!("Starting development server");
     println!("🚀 FraiseQL Dev Server");

@@ -82,7 +82,7 @@ fn resolve_default_socket_dir() -> Option<String> {
     // Try standard locations in order (Linux convention)
     for dir in &["/run/postgresql", "/var/run/postgresql", "/tmp"] {
         if Path::new(dir).is_dir() {
-            return Some(dir.to_string());
+            return Some((*dir).to_string());
         }
     }
     None

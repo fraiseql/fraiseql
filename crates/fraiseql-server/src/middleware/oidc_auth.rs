@@ -58,6 +58,7 @@ pub struct AuthUser(pub AuthenticatedUser);
 ///     .route("/graphql", post(graphql_handler))
 ///     .layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware));
 /// ```
+#[allow(clippy::cognitive_complexity)] // Reason: OIDC authentication middleware with token parsing, validation, and claims extraction
 pub async fn oidc_auth_middleware(
     State(auth_state): State<OidcAuthState>,
     mut request: Request<Body>,

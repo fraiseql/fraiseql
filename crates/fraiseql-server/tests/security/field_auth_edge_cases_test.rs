@@ -57,14 +57,14 @@ impl TestSecurityContext {
         Self {
             user_id:   user_id.to_string(),
             tenant_id: tenant_id.to_string(),
-            roles:     roles.iter().map(|r| r.to_string()).collect(),
+            roles:     roles.iter().map(|r| (*r).to_string()).collect(),
             scopes:    HashSet::new(),
         }
     }
 
     /// Add scopes (permissions) to context
     fn with_scopes(mut self, scopes: Vec<&str>) -> Self {
-        self.scopes = scopes.iter().map(|s| s.to_string()).collect();
+        self.scopes = scopes.iter().map(|s| (*s).to_string()).collect();
         self
     }
 

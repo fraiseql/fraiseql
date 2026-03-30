@@ -45,6 +45,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
+    #[allow(clippy::cognitive_complexity)] // Reason: server construction with subsystem initialization (auth, rate-limit, observers, etc.)
     pub async fn new(
         config: ServerConfig,
         schema: CompiledSchema,
@@ -194,6 +195,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[allow(clippy::too_many_arguments)] // Reason: internal constructor that collects all pre-built subsystems; callers pass
     // already-constructed values rather than building them here, so grouping into a
     // builder struct would not reduce call-site clarity.
+    #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
     pub(super) async fn from_executor(
         config: ServerConfig,
         executor: Arc<Executor<A>>,

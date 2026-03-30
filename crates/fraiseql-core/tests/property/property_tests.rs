@@ -417,7 +417,7 @@ proptest! {
         for (i, name) in uuid_names.iter().enumerate() {
             schema.types.push(TypeDefinition::new(
                 format!("Type{}", i),
-                name.to_string(),
+                (*name).to_string(),
             ));
         }
 

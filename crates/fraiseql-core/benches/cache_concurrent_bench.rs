@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used, clippy::missing_docs_in_private_items, missing_docs, clippy::manual_is_multiple_of)] // Reason: benchmark code
+#![allow(clippy::unwrap_used, clippy::missing_docs_in_private_items, missing_docs)] // Reason: benchmark code
 
 //! Cache concurrency benchmark.
 //!

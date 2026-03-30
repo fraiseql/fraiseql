@@ -1,5 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use chrono::Utc;
 
@@ -1209,8 +1211,8 @@ mod auto_params {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -1331,13 +1333,13 @@ mod rls_composition {
             description:         None,
             auto_params:         AutoParams {
                 has_where: true,
-                ..Default::default()
+                ..AutoParams::default()
             },
             deprecation:         None,
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
+            relay_cursor_type:   CursorType::default(),
             inject_params,
             cache_ttl_seconds:   None,
             additional_views:    vec![],
@@ -1352,7 +1354,7 @@ mod rls_composition {
             roles:            vec!["viewer".to_string()],
             tenant_id:        Some("tenant-abc".to_string()),
             scopes:           vec!["read:User".to_string()],
-            attributes:       Default::default(),
+            attributes:       HashMap::default(),
             request_id:       "req-001".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),
@@ -1486,13 +1488,13 @@ mod field_rbac {
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
             description:         None,
-            auto_params:         Default::default(),
+            auto_params:         AutoParams::default(),
             deprecation:         None,
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type:   Default::default(),
-            inject_params:       Default::default(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -1571,7 +1573,7 @@ mod field_rbac {
             ],
             default_role: None,
             multi_tenant: false,
-            additional:   Default::default(),
+            additional:   HashMap::default(),
         });
 
         schema.types.push(user_type);
@@ -1584,7 +1586,7 @@ mod field_rbac {
             roles:            vec!["viewer".to_string()],
             tenant_id:        None,
             scopes:           vec!["read:User".to_string()],
-            attributes:       Default::default(),
+            attributes:       HashMap::default(),
             request_id:       "req-001".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),
@@ -1600,7 +1602,7 @@ mod field_rbac {
             roles:            vec!["admin".to_string()],
             tenant_id:        None,
             scopes:           vec!["admin:*".to_string(), "read:User.email".to_string()],
-            attributes:       Default::default(),
+            attributes:       HashMap::default(),
             request_id:       "req-002".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),
@@ -1615,9 +1617,7 @@ mod field_rbac {
     async fn test_reject_field_returns_authorization_error() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
@@ -1639,9 +1639,7 @@ mod field_rbac {
     async fn test_reject_field_allowed_for_admin() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = admin_context();
@@ -1658,9 +1656,7 @@ mod field_rbac {
         let schema = schema_with_rbac_fields();
         let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
         let adapter = Arc::new(MockAdapter::new(results));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
@@ -1693,9 +1689,7 @@ mod field_rbac {
         let schema = schema_with_rbac_fields();
         let results = vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}))];
         let adapter = Arc::new(MockAdapter::new(results));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = admin_context();
@@ -1719,9 +1713,7 @@ mod field_rbac {
     async fn test_public_fields_always_accessible() {
         let schema = schema_with_rbac_fields();
         let adapter = Arc::new(MockAdapter::new(mock_user_results()));
-        let config = RuntimeConfig {
-            ..RuntimeConfig::default()
-        };
+        let config = RuntimeConfig::default();
         let executor = Executor::with_config(schema, adapter, config);
 
         let ctx = viewer_context();
@@ -1773,7 +1765,7 @@ mod executor_paths {
             roles:            vec!["viewer".to_string()],
             tenant_id:        None,
             scopes:           vec![],
-            attributes:       Default::default(),
+            attributes:       HashMap::default(),
             request_id:       "req-001".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),
@@ -1805,7 +1797,7 @@ mod executor_paths {
             roles:            vec!["admin".to_string()],
             tenant_id:        None,
             scopes:           vec![],
-            attributes:       Default::default(),
+            attributes:       HashMap::default(),
             request_id:       "req-002".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),

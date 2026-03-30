@@ -163,6 +163,7 @@ impl EventBridge {
     }
 
     /// Run the event bridge loop (spawned in background)
+    #[allow(clippy::cognitive_complexity)] // Reason: event loop with multi-source message routing and reconnection handling
     pub async fn run(mut self) {
         info!("EventBridge started");
 

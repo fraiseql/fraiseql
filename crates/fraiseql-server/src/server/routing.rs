@@ -26,6 +26,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// The returned `AppState` is needed by the lifecycle module for
     /// SIGUSR1 schema reload handling.
+    #[allow(clippy::cognitive_complexity)] // Reason: route construction with many optional middleware layers and feature-gated endpoints
     pub(super) fn build_router(&self) -> (Router, AppState<A>) {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(

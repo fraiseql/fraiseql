@@ -244,8 +244,8 @@ pub fn metadata_extended_type(
                 resolvable: true,
             }],
             is_extends:       true,
-            external_fields:  external_fields.iter().map(|s| s.to_string()).collect(),
-            shareable_fields: shareable_fields.iter().map(|s| s.to_string()).collect(),
+            external_fields:  external_fields.iter().map(|s| (*s).to_string()).collect(),
+            shareable_fields: shareable_fields.iter().map(|s| (*s).to_string()).collect(),
             field_directives: std::collections::HashMap::new(),
         }],
     }
@@ -259,7 +259,7 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
         types:   vec![FederatedType {
             name:             type_name.to_string(),
             keys:             vec![KeyDirective {
-                fields:     key_fields.iter().map(|s| s.to_string()).collect(),
+                fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
                 resolvable: true,
             }],
             is_extends:       false,
