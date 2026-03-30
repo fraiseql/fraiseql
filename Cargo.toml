@@ -103,7 +103,7 @@ parking_lot = "0.12"
 prost = "0.14"
 prost-reflect = {version = "0.16", features = ["serde"]}
 prost-types = "0.14"
-proptest = "1.4"
+proptest = "1.11"
 # Random
 rand = "0.8"
 # Kafka
@@ -143,7 +143,7 @@ tower-http = {version = "0.5", features = ["cors", "compression-gzip"]}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 # UUID
-uuid = {version = "1.21", features = ["v4", "serde"]}
+uuid = {version = "1.23", features = ["v4", "serde"]}
 
 [workspace.lints.clippy]
 # ── Global levels ────────────────────────────────────────────────────────────
