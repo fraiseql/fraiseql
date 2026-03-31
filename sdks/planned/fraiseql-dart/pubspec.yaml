@@ -1,11 +1,14 @@
 name: fraiseql
 description: FraiseQL schema authoring SDK for Dart/Flutter
-version: 2.1.0
+version: 2.1.1
 homepage: https://github.com/fraiseql/fraiseql
 repository: https://github.com/fraiseql/fraiseql
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  http: ^1.2.0
 
 dev_dependencies:
   test: ^1.25.0

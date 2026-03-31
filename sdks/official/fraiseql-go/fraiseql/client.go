@@ -23,7 +23,7 @@ type ClientConfig struct {
 	// Timeout is the per-request timeout. Default: 30s.
 	Timeout time.Duration
 	// Retry configures automatic retries. Default: MaxAttempts=1 (no retry).
-	Retry *RetryConfig
+	Retry *ClientRetryConfig
 	// HTTPClient is an injectable HTTP client for testing. Default: http.DefaultClient.
 	HTTPClient *http.Client
 }

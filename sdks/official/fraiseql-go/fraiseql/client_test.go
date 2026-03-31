@@ -137,7 +137,7 @@ func TestQueryRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	retryCfg := fraiseql.RetryConfig{
+	retryCfg := fraiseql.ClientRetryConfig{
 		MaxAttempts: 3,
 		BaseDelay:   0, // no delay in tests
 		MaxDelay:    0,

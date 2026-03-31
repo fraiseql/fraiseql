@@ -40,7 +40,7 @@ RUN TARGET=$(cat /tmp/rust_target.txt) && \
 # Stage 2: Runtime
 FROM debian:bookworm-slim AS runtime
 
-LABEL org.opencontainers.image.version="2.1.0" \
+LABEL org.opencontainers.image.version="2.1.1" \
       org.opencontainers.image.vendor="FraiseQL" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="FraiseQL GraphQL execution engine" \

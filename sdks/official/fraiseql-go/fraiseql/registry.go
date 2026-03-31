@@ -35,6 +35,12 @@ type TypeDefinition struct {
 }
 
 // QueryDefinition represents a GraphQL query
+// RestAnnotation describes a REST endpoint mapping for a query or mutation.
+type RestAnnotation struct {
+	Path   string `json:"path"`
+	Method string `json:"method"`
+}
+
 type QueryDefinition struct {
 	Name              string                 `json:"name"`
 	ReturnType        string                 `json:"return_type"`
@@ -51,6 +57,7 @@ type QueryDefinition struct {
 	AdditionalViews   []string               `json:"additional_views,omitempty"`
 	RequiresRole      string                 `json:"requires_role,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
+	Rest              *RestAnnotation        `json:"rest,omitempty"`
 	Config            map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -69,6 +76,7 @@ type MutationDefinition struct {
 	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
 	Cascade              bool                   `json:"cascade,omitempty"`
 	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
+	Rest                 *RestAnnotation        `json:"rest,omitempty"`
 	Config               map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -113,7 +121,18 @@ type Schema struct {
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
+	Observers        []ObserverDefinition       `json:"observers,omitempty"`
 	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
+	InjectDefaults   *InjectDefaults            `json:"inject_defaults,omitempty"`
+}
+
+// InjectDefaults holds the default inject_params loaded from fraiseql.toml.
+// Base defaults apply to both queries and mutations; section-specific maps
+// override the base for their respective operation type.
+type InjectDefaults struct {
+	Base      map[string]string `json:"base,omitempty"`
+	Queries   map[string]string `json:"queries,omitempty"`
+	Mutations map[string]string `json:"mutations,omitempty"`
 }
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
@@ -125,6 +144,8 @@ type SchemaRegistry struct {
 	subscriptions    map[string]SubscriptionDefinition
 	factTables       map[string]FactTableDefinition
 	aggregateQueries map[string]AggregateQueryDefinition
+	observers        map[string]ObserverDefinition
+	injectDefaults   *InjectDefaults
 }
 
 // Global registry instance
@@ -141,6 +162,7 @@ func getInstance() *SchemaRegistry {
 			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
 			aggregateQueries: make(map[string]AggregateQueryDefinition),
+			observers:        make(map[string]ObserverDefinition),
 		}
 	})
 	return registry
@@ -279,6 +301,25 @@ func RegisterSubscription(definition SubscriptionDefinition) error {
 	return nil
 }
 
+// SetInjectDefaults stores default inject_params that are applied to queries
+// and mutations at schema export time.
+//
+// Parameters:
+//   - base: defaults applied to both queries and mutations (e.g., {"tenant_id": "jwt:tenant_id"})
+//   - queries: query-specific overrides that supplement the base defaults
+//   - mutations: mutation-specific overrides that supplement the base defaults
+func SetInjectDefaults(base, queries, mutations map[string]string) {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	reg.injectDefaults = &InjectDefaults{
+		Base:      base,
+		Queries:   queries,
+		Mutations: mutations,
+	}
+}
+
 // GetRegistry returns the singleton registry instance
 func GetRegistry() *SchemaRegistry {
 	return getInstance()
@@ -317,6 +358,14 @@ func GetSchema() Schema {
 		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
 	}
 
+	for _, observer := range reg.observers {
+		schema.Observers = append(schema.Observers, observer)
+	}
+
+	if reg.injectDefaults != nil {
+		schema.InjectDefaults = reg.injectDefaults
+	}
+
 	// Include custom scalars
 	customScalars := GetAllCustomScalars()
 	for name := range customScalars {
@@ -350,6 +399,8 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
+	reg.observers = make(map[string]ObserverDefinition)
+	reg.injectDefaults = nil
 
 	// Also clear custom scalars
 	ClearCustomScalars()

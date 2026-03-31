@@ -157,7 +157,7 @@ def test_export_schema_federation_json(tmp_path: Path):
         name: str
 
     @fraiseql.query
-    def product(id: ID) -> Product:  # noqa: A002
+    def product(id: ID) -> Product:
         """Get product."""
 
     output = tmp_path / "schema.json"
@@ -182,7 +182,7 @@ def test_export_schema_no_federation(tmp_path: Path):
         id: ID
 
     @fraiseql.query
-    def item(id: ID) -> Item:  # noqa: A002
+    def item(id: ID) -> Item:
         """Get item."""
 
     output = tmp_path / "schema.json"

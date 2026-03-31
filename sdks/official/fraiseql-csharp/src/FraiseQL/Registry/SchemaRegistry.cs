@@ -24,6 +24,9 @@ public sealed class SchemaRegistry
     private readonly List<TypeDefinition> _types = new();
     private readonly List<IntermediateQuery> _queries = new();
     private readonly List<IntermediateMutation> _mutations = new();
+    private Dictionary<string, string>? _injectDefaultsBase;
+    private Dictionary<string, string>? _injectDefaultsQueries;
+    private Dictionary<string, string>? _injectDefaultsMutations;
 
     private SchemaRegistry() { }
 
@@ -102,6 +105,41 @@ public sealed class SchemaRegistry
     }
 
     /// <summary>
+    /// Stores inject-default parameter mappings loaded from <c>fraiseql.toml</c>.
+    /// Base defaults apply to all queries and mutations; section-specific defaults
+    /// override the base for their respective operation kind.
+    /// </summary>
+    /// <param name="baseDefaults">Defaults from <c>[inject_defaults]</c>, or <see langword="null"/>.</param>
+    /// <param name="queryDefaults">Defaults from <c>[inject_defaults.queries]</c>, or <see langword="null"/>.</param>
+    /// <param name="mutationDefaults">Defaults from <c>[inject_defaults.mutations]</c>, or <see langword="null"/>.</param>
+    public void SetInjectDefaults(
+        Dictionary<string, string>? baseDefaults,
+        Dictionary<string, string>? queryDefaults,
+        Dictionary<string, string>? mutationDefaults)
+    {
+        lock (_lock)
+        {
+            _injectDefaultsBase = baseDefaults;
+            _injectDefaultsQueries = queryDefaults;
+            _injectDefaultsMutations = mutationDefaults;
+        }
+    }
+
+    /// <summary>
+    /// Returns the stored inject defaults as a tuple of (base, queries, mutations).
+    /// Any element may be <see langword="null"/> if that section was not configured.
+    /// </summary>
+    public (IReadOnlyDictionary<string, string>? Base,
+            IReadOnlyDictionary<string, string>? Queries,
+            IReadOnlyDictionary<string, string>? Mutations) GetInjectDefaults()
+    {
+        lock (_lock)
+        {
+            return (_injectDefaultsBase, _injectDefaultsQueries, _injectDefaultsMutations);
+        }
+    }
+
+    /// <summary>
     /// Returns a snapshot of all registered type definitions.
     /// </summary>
     /// <returns>An immutable list of registered types.</returns>
@@ -161,6 +199,9 @@ public sealed class SchemaRegistry
             _types.Clear();
             _queries.Clear();
             _mutations.Clear();
+            _injectDefaultsBase = null;
+            _injectDefaultsQueries = null;
+            _injectDefaultsMutations = null;
         }
     }
 

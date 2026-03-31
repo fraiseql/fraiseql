@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// RetryConfig configures automatic request retries.
-type RetryConfig struct {
+// ClientRetryConfig configures automatic request retries for the HTTP client.
+type ClientRetryConfig struct {
 	// MaxAttempts is the total number of attempts (default: 1, no retry).
 	MaxAttempts int
 	// BaseDelay is the initial delay before the first retry (default: 1s).
@@ -22,9 +22,9 @@ type RetryConfig struct {
 	RetryOn []func(error) bool
 }
 
-// DefaultRetryConfig returns a RetryConfig with no retries (safe default).
-func DefaultRetryConfig() RetryConfig {
-	return RetryConfig{
+// DefaultClientRetryConfig returns a ClientRetryConfig with no retries (safe default).
+func DefaultClientRetryConfig() ClientRetryConfig {
+	return ClientRetryConfig{
 		MaxAttempts: 1,
 		BaseDelay:   time.Second,
 		MaxDelay:    30 * time.Second,
@@ -42,7 +42,7 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
-func (r RetryConfig) shouldRetry(err error) bool {
+func (r ClientRetryConfig) shouldRetry(err error) bool {
 	for _, pred := range r.RetryOn {
 		if pred(err) {
 			return true
@@ -51,7 +51,7 @@ func (r RetryConfig) shouldRetry(err error) bool {
 	return false
 }
 
-func (r RetryConfig) delayFor(attempt int) time.Duration {
+func (r ClientRetryConfig) delayFor(attempt int) time.Duration {
 	delay := time.Duration(float64(r.BaseDelay) * math.Pow(2, float64(attempt)))
 	if delay > r.MaxDelay {
 		delay = r.MaxDelay
