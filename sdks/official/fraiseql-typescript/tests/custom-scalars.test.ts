@@ -2,7 +2,7 @@
  * End-to-end tests for custom scalar support.
  */
 
-import { describe, it, expect, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeEach } from "vitest";
 import { CustomScalar, Scalar, validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "../src";
 import { SchemaRegistry } from "../src/registry";
 
