@@ -5,6 +5,42 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-03-31
+
+### Added
+
+- **GROUP BY and aggregations in `db.find()`** (#315): `db.find()` now accepts `group_by`
+  and `aggregations` parameters, enabling SQL-level aggregation before returning results.
+  This avoids returning hundreds of MB of individual rows for high-cardinality views when
+  only aggregated measures are needed.
+
+  ```python
+  results = await db.find(
+      "v_my_view",
+      where={"date": {"gte": "2026-01-01", "lte": "2026-03-31"}},
+      group_by=["date"],
+      aggregations={"total_cost": "SUM(cost)", "total_volume": "SUM(volume)"},
+      info=info,
+  )
+  ```
+
+  Supports nested JSONB field paths (`date_info.date`), multiple aggregation functions
+  (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`, `ARRAY_AGG`, `JSON_AGG`, etc.), and both JSONB
+  and non-JSONB tables. Aggregation expressions are validated against an allowlist to
+  prevent SQL injection.
+
+### Fixed
+
+- **Rust mutation executor missing session variables** (#309): Session variables are now
+  set before the Rust executor path, fixing `NULL` values for `fraiseql.started_at` and
+  RLS policy variables on mutations.
+
+- **CI: Container Security Scan SBOM generation** (#314): Replaced broken `aquasec/trivy`
+  Docker Hub image (removed upstream) with `aquasecurity/trivy-action` for SBOM generation,
+  fixing the Container Security Scan and Security Gate CI checks.
+
+---
+
 ## [1.10.1] - 2026-03-18
 
 ### Added
