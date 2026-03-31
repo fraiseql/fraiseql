@@ -33,9 +33,9 @@ module FraiseQL
       # @param name [Symbol] field name
       # @param graphql_type [String] GraphQL type string (e.g. "String!", "ID")
       # @param description [String, nil] field description
-      # @param required [Boolean] whether the field is required (not currently used in schema output)
+      # @param _required [Boolean] whether the field is required (reserved for future use)
       # @param deprecated [Boolean] whether the field is deprecated
-      def fraiseql_field(name, graphql_type, description: nil, required: true, deprecated: false)
+      def fraiseql_field(name, graphql_type, description: nil, _required: true, deprecated: false)
         @fraiseql_fields ||= []
         field = { name: name.to_s, type: graphql_type }
         field[:description] = description if description

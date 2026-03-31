@@ -47,10 +47,18 @@ module FraiseQL
     end
 
     def execute(query_string, variables: nil, operation_name: nil)
+      body = build_body(query_string, variables, operation_name)
+      execute_with_retries(body)
+    end
+
+    def build_body(query_string, variables, operation_name)
       body = { 'query' => query_string }
       body['variables'] = variables if variables
       body['operationName'] = operation_name if operation_name
+      body
+    end
 
+    def execute_with_retries(body)
       attempt = 0
       max = @retry_config&.max_attempts || 1
 
@@ -59,24 +67,20 @@ module FraiseQL
         response = perform_request(body)
         handle_response(response)
       rescue FraiseQL::Error => e
-        if @retry_config && attempt < max && @retry_config.retryable?(e)
-          sleep(@retry_config.delay_for(attempt - 1))
-          retry
-        end
-        raise
+        raise unless retryable_attempt?(attempt, max, e)
+
+        sleep(@retry_config.delay_for(attempt - 1))
+        retry
       end
     end
 
+    def retryable_attempt?(attempt, max, error)
+      @retry_config && attempt < max && @retry_config.retryable?(error)
+    end
+
     def perform_request(body)
-      http = Net::HTTP.new(@uri.host, @uri.port)
-      http.use_ssl = @uri.scheme == 'https'
-
-      request = Net::HTTP::Post.new(@uri.request_uri)
-      request['Content-Type'] = 'application/json'
-      request['Accept'] = 'application/json'
-      request['Authorization'] = @authorization if @authorization
-
-      request.body = JSON.generate(body)
+      http = build_http
+      request = build_request(body)
       http.request(request)
     rescue Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH,
            SocketError, IOError => e
@@ -85,22 +89,43 @@ module FraiseQL
       raise TimeoutError, e.message
     end
 
-    def handle_response(response)
-      status = response.code.to_i
+    def build_http
+      http = Net::HTTP.new(@uri.host, @uri.port)
+      http.use_ssl = @uri.scheme == 'https'
+      http
+    end
 
+    def build_request(body)
+      request = Net::HTTP::Post.new(@uri.request_uri)
+      request['Content-Type'] = 'application/json'
+      request['Accept'] = 'application/json'
+      request['Authorization'] = @authorization if @authorization
+      request.body = JSON.generate(body)
+      request
+    end
+
+    def handle_response(response)
+      check_http_status(response)
+      parsed = parse_response_body(response)
+      check_graphql_errors(parsed)
+      parsed.fetch('data', {})
+    end
+
+    def check_http_status(response)
+      status = response.code.to_i
       raise AuthenticationError, status if [401, 403].include?(status)
       raise RateLimitError.new(retry_after: response['Retry-After']) if status == 429
+    end
 
-      parsed = begin
-        JSON.parse(response.body)
-      rescue JSON::ParserError, TypeError
-        raise NetworkError, "Unexpected response (HTTP #{status})"
-      end
+    def parse_response_body(response)
+      JSON.parse(response.body)
+    rescue JSON::ParserError, TypeError
+      raise NetworkError, "Unexpected response (HTTP #{response.code.to_i})"
+    end
 
+    def check_graphql_errors(parsed)
       errors = parsed['errors']
       raise GraphQLError, errors if errors.is_a?(Array) && !errors.empty?
-
-      parsed.fetch('data', {})
     end
   end
 end
