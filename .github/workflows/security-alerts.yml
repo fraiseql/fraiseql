@@ -24,23 +24,25 @@ jobs:
           docker pull gcr.io/distroless/python3-debian12:nonroot
 
       - name: Scan python:3.13-slim
-        run: |
-          docker run --rm ghcr.io/aquasecurity/trivy:latest image \
-            --severity HIGH,CRITICAL \
-            --format json \
-            --output /tmp/slim-scan.json \
-            --exit-code 0 \
-            python:3.13-slim
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          scan-ref: 'python:3.13-slim'
+          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: '/tmp/slim-scan.json'
+          exit-code: 0
         continue-on-error: true
 
       - name: Scan gcr.io/distroless/python3-debian12:nonroot
-        run: |
-          docker run --rm ghcr.io/aquasecurity/trivy:latest image \
-            --severity HIGH,CRITICAL \
-            --format json \
-            --output /tmp/distroless-scan.json \
-            --exit-code 0 \
-            gcr.io/distroless/python3-debian12:nonroot
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          scan-ref: 'gcr.io/distroless/python3-debian12:nonroot'
+          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: '/tmp/distroless-scan.json'
+          exit-code: 0
         continue-on-error: true
 
       - name: Check for new HIGH/CRITICAL vulnerabilities
