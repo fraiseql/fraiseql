@@ -200,10 +200,7 @@ export function Provides(...targets: string[]) {
 type FederatedClass = { name: string; __fraiseqlFederation__?: FederationMetadata };
 
 export function generateSchemaJson(types: FederatedClass[]): Record<string, unknown> {
-  const { SchemaRegistry: Registry } = require("./registry") as {
-    SchemaRegistry: typeof import("./registry").SchemaRegistry;
-  };
-  const base = Registry.getSchema();
+  const base = SchemaRegistry.getSchema();
 
   /** Per-field federation overlay attached to each field in the output. */
   interface FieldFederation {
@@ -297,11 +294,6 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
  * @throws If any federation constraint is violated
  */
 export function validateFederation(types: FederatedClass[]): void {
-  // Import here to avoid circular dependency
-  const { SchemaRegistry: Registry } = require("./registry") as {
-    SchemaRegistry: typeof import("./registry").SchemaRegistry;
-  };
-
   for (const cls of types) {
     const meta: FederationMetadata | undefined = cls.__fraiseqlFederation__;
     const allFields = getClassFields(cls);
@@ -310,7 +302,7 @@ export function validateFederation(types: FederatedClass[]): void {
 
     if (keys.length > 0) {
       // @Key requires @Type
-      const schema = Registry.getSchema();
+      const schema = SchemaRegistry.getSchema();
       if (!schema.types.some((t) => t.name === (cls.name))) {
         throw new Error(`@Key requires @Type decorator on class ${cls.name}`);
       }

@@ -11,10 +11,10 @@ import 'package:test/test.dart';
 
 /// Returns a 200 JSON response with the given body map.
 http.Response _jsonOk(Map<String, Object?> body) => http.Response(
-      jsonEncode(body),
-      200,
-      headers: {'content-type': 'application/json'},
-    );
+  jsonEncode(body),
+  200,
+  headers: {'content-type': 'application/json'},
+);
 
 /// Minimal success payload with no errors.
 final _successBody = _jsonOk({'data': <String, Object?>{}});
@@ -105,24 +105,29 @@ void main() {
   // Error handling
   // -------------------------------------------------------------------------
   group('Error handling', () {
-    test('throws AuthenticationException on 403 with statusCode == 403',
-        () async {
-      final mockClient = MockClient(
-        (request) async => http.Response('Forbidden', 403),
-      );
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
-      );
+    test(
+      'throws AuthenticationException on 403 with statusCode == 403',
+      () async {
+        final mockClient = MockClient(
+          (request) async => http.Response('Forbidden', 403),
+        );
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
+        );
 
-      await expectLater(
-        () => client.query('{ secret }'),
-        throwsA(
-          isA<AuthenticationException>()
-              .having((e) => e.statusCode, 'statusCode', 403),
-        ),
-      );
-      client.close();
-    });
+        await expectLater(
+          () => client.query('{ secret }'),
+          throwsA(
+            isA<AuthenticationException>().having(
+              (e) => e.statusCode,
+              'statusCode',
+              403,
+            ),
+          ),
+        );
+        client.close();
+      },
+    );
 
     test('throws RateLimitException on 429', () async {
       final mockClient = MockClient(
@@ -139,59 +144,66 @@ void main() {
       client.close();
     });
 
-    test('throws GraphQLException when 500 with valid JSON errors body',
-        () async {
-      // The client only switches on 401/403/429; a 500 falls through to JSON
-      // parsing. If the body contains a valid errors array, GraphQLException
-      // is raised.
-      final mockClient = MockClient(
-        (request) async => http.Response(
-          '{"errors": [{"message": "Internal server error"}]}',
-          500,
-          headers: {'content-type': 'application/json'},
-        ),
-      );
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
-      );
+    test(
+      'throws GraphQLException when 500 with valid JSON errors body',
+      () async {
+        // The client only switches on 401/403/429; a 500 falls through to JSON
+        // parsing. If the body contains a valid errors array, GraphQLException
+        // is raised.
+        final mockClient = MockClient(
+          (request) async => http.Response(
+            '{"errors": [{"message": "Internal server error"}]}',
+            500,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
+        );
 
-      await expectLater(
-        () => client.query('{ users { id } }'),
-        throwsA(isA<GraphQLException>()),
-      );
-      client.close();
-    });
+        await expectLater(
+          () => client.query('{ users { id } }'),
+          throwsA(isA<GraphQLException>()),
+        );
+        client.close();
+      },
+    );
 
-    test('throws NetworkException when 500 response is not valid JSON',
-        () async {
-      final mockClient = MockClient(
-        (request) async => http.Response('Internal Server Error', 500),
-      );
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
-      );
+    test(
+      'throws NetworkException when 500 response is not valid JSON',
+      () async {
+        final mockClient = MockClient(
+          (request) async => http.Response('Internal Server Error', 500),
+        );
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
+        );
 
-      await expectLater(
-        () => client.query('{ users { id } }'),
-        throwsA(isA<NetworkException>()),
-      );
-      client.close();
-    });
+        await expectLater(
+          () => client.query('{ users { id } }'),
+          throwsA(isA<NetworkException>()),
+        );
+        client.close();
+      },
+    );
 
-    test('throws NetworkException when underlying http.Client throws', () async {
-      final mockClient = MockClient(
-        (request) async => throw Exception('connection refused'),
-      );
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
-      );
+    test(
+      'throws NetworkException when underlying http.Client throws',
+      () async {
+        final mockClient = MockClient(
+          (request) async => throw Exception('connection refused'),
+        );
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
+        );
 
-      await expectLater(
-        () => client.query('{ users { id } }'),
-        throwsA(isA<NetworkException>()),
-      );
-      client.close();
-    });
+        await expectLater(
+          () => client.query('{ users { id } }'),
+          throwsA(isA<NetworkException>()),
+        );
+        client.close();
+      },
+    );
 
     test('empty errors array is NOT an error', () async {
       final mockClient = MockClient(
@@ -211,7 +223,9 @@ void main() {
 
     test('absent errors field is NOT an error', () async {
       final mockClient = MockClient(
-        (request) async => _jsonOk({'data': <String, Object?>{'ok': true}}),
+        (request) async => _jsonOk({
+          'data': <String, Object?>{'ok': true},
+        }),
       );
       final client = FraiseQLClient(
         FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
@@ -232,9 +246,9 @@ void main() {
     /// Returns a MockClient that stores the first request in [captured] and
     /// replies with an empty-data success response.
     MockClient capturingClient() => MockClient((request) async {
-          captured = request;
-          return _successBody;
-        });
+      captured = request;
+      return _successBody;
+    });
 
     test('sends query string in request body as "query" field', () async {
       final client = FraiseQLClient(
@@ -305,28 +319,33 @@ void main() {
         ),
       );
 
-      await client.query('query GetUsers { users { id } }',
-          operationName: 'GetUsers',);
+      await client.query(
+        'query GetUsers { users { id } }',
+        operationName: 'GetUsers',
+      );
 
       final body = jsonDecode(captured.body) as Map<String, Object?>;
       expect(body['operationName'], equals('GetUsers'));
       client.close();
     });
 
-    test('does NOT send operationName key when operationName is null', () async {
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(
-          url: 'http://localhost',
-          httpClient: capturingClient(),
-        ),
-      );
+    test(
+      'does NOT send operationName key when operationName is null',
+      () async {
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(
+            url: 'http://localhost',
+            httpClient: capturingClient(),
+          ),
+        );
 
-      await client.query('{ ok }');
+        await client.query('{ ok }');
 
-      final body = jsonDecode(captured.body) as Map<String, Object?>;
-      expect(body.containsKey('operationName'), isFalse);
-      client.close();
-    });
+        final body = jsonDecode(captured.body) as Map<String, Object?>;
+        expect(body.containsKey('operationName'), isFalse);
+        client.close();
+      },
+    );
 
     test('Content-Type header is application/json', () async {
       final client = FraiseQLClient(
@@ -338,10 +357,7 @@ void main() {
 
       await client.query('{ ok }');
 
-      expect(
-        captured.headers['content-type'],
-        equals('application/json'),
-      );
+      expect(captured.headers['content-type'], equals('application/json'));
       client.close();
     });
 
@@ -355,50 +371,48 @@ void main() {
 
       await client.query('{ ok }');
 
-      expect(
-        captured.headers['accept'],
-        equals('application/json'),
-      );
+      expect(captured.headers['accept'], equals('application/json'));
       client.close();
     });
 
-    test('Authorization header present when static authorization is set',
-        () async {
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(
-          url: 'http://localhost',
-          authorization: 'Bearer token-abc',
-          httpClient: capturingClient(),
-        ),
-      );
+    test(
+      'Authorization header present when static authorization is set',
+      () async {
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(
+            url: 'http://localhost',
+            authorization: 'Bearer token-abc',
+            httpClient: capturingClient(),
+          ),
+        );
 
-      await client.query('{ ok }');
+        await client.query('{ ok }');
 
-      expect(
-        captured.headers['authorization'],
-        equals('Bearer token-abc'),
-      );
-      client.close();
-    });
+        expect(captured.headers['authorization'], equals('Bearer token-abc'));
+        client.close();
+      },
+    );
 
-    test('Authorization header resolved from async authorizationFactory',
-        () async {
-      final client = FraiseQLClient(
-        FraiseQLClientConfig(
-          url: 'http://localhost',
-          authorizationFactory: () async => 'Bearer dynamic-token',
-          httpClient: capturingClient(),
-        ),
-      );
+    test(
+      'Authorization header resolved from async authorizationFactory',
+      () async {
+        final client = FraiseQLClient(
+          FraiseQLClientConfig(
+            url: 'http://localhost',
+            authorizationFactory: () async => 'Bearer dynamic-token',
+            httpClient: capturingClient(),
+          ),
+        );
 
-      await client.query('{ ok }');
+        await client.query('{ ok }');
 
-      expect(
-        captured.headers['authorization'],
-        equals('Bearer dynamic-token'),
-      );
-      client.close();
-    });
+        expect(
+          captured.headers['authorization'],
+          equals('Bearer dynamic-token'),
+        );
+        client.close();
+      },
+    );
 
     test('Authorization header absent when no auth configured', () async {
       final client = FraiseQLClient(
@@ -422,15 +436,16 @@ void main() {
     test('mutate returns data on success', () async {
       final mockClient = MockClient(
         (request) async => _jsonOk({
-          'data': {'createUser': <String, Object?>{'id': 99, 'name': 'Bob'}},
+          'data': {
+            'createUser': <String, Object?>{'id': 99, 'name': 'Bob'},
+          },
         }),
       );
       final client = FraiseQLClient(
         FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
       );
 
-      final result =
-          await client.mutate('mutation { createUser { id name } }');
+      final result = await client.mutate('mutation { createUser { id name } }');
       expect((result['createUser'] as Map<String, Object?>)['id'], equals(99));
       client.close();
     });
@@ -445,11 +460,11 @@ void main() {
         FraiseQLClientConfig(url: 'http://localhost', httpClient: mockClient),
       );
 
-      const mutation = 'mutation DeleteUser(\$id: ID!) { deleteUser(id: \$id) }';
+      const mutation =
+          'mutation DeleteUser(\$id: ID!) { deleteUser(id: \$id) }';
       await client.mutate(mutation, variables: {'id': '1'});
 
-      final body =
-          jsonDecode(captured!.body) as Map<String, Object?>;
+      final body = jsonDecode(captured!.body) as Map<String, Object?>;
       expect(body['query'], equals(mutation));
       expect(body['variables'], equals({'id': '1'}));
       client.close();
@@ -467,9 +482,11 @@ void main() {
       // We create a real http.Client stub that tracks close calls.
       var closeCalled = false;
 
-      final trackingClient = _TrackingClient(onClose: () {
-        closeCalled = true;
-      },);
+      final trackingClient = _TrackingClient(
+        onClose: () {
+          closeCalled = true;
+        },
+      );
 
       final client = FraiseQLClient(
         FraiseQLClientConfig(
@@ -499,8 +516,11 @@ void main() {
 
       client.close();
 
-      expect(closeCalled, isFalse,
-          reason: 'Injected clients must not be closed by FraiseQLClient',);
+      expect(
+        closeCalled,
+        isFalse,
+        reason: 'Injected clients must not be closed by FraiseQLClient',
+      );
     });
   });
 

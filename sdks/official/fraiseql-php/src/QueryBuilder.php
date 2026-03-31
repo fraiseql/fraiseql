@@ -43,7 +43,8 @@ final class QueryBuilder
     private ?string $restPathValue = null;
     private ?string $restMethodValue = null;
 
-    private const array VALID_REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+    /** @var string[] */
+    private const VALID_REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
     private function __construct(private readonly string $name)
     {

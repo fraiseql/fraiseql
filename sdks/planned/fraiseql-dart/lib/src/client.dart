@@ -43,13 +43,12 @@ class FraiseQLClient {
 
   /// Creates a [FraiseQLClient] from the given [config].
   FraiseQLClient(FraiseQLClientConfig config)
-      : _config = config,
-        _httpClient = config.httpClient ?? http.Client(),
-        _ownsClient = config.httpClient == null;
+    : _config = config,
+      _httpClient = config.httpClient ?? http.Client(),
+      _ownsClient = config.httpClient == null;
 
   /// Creates a [FraiseQLClient] with a minimal configuration for [url].
-  FraiseQLClient.simple(String url)
-      : this(FraiseQLClientConfig(url: url));
+  FraiseQLClient.simple(String url) : this(FraiseQLClientConfig(url: url));
 
   /// Executes a GraphQL query and returns the `data` map from the response.
   ///
@@ -60,8 +59,7 @@ class FraiseQLClient {
     String query, {
     Map<String, Object?>? variables,
     String? operationName,
-  }) =>
-      _execute(query, variables: variables, operationName: operationName);
+  }) => _execute(query, variables: variables, operationName: operationName);
 
   /// Executes a GraphQL mutation and returns the `data` map from the response.
   ///
@@ -71,8 +69,7 @@ class FraiseQLClient {
     String mutation, {
     Map<String, Object?>? variables,
     String? operationName,
-  }) =>
-      _execute(mutation, variables: variables, operationName: operationName);
+  }) => _execute(mutation, variables: variables, operationName: operationName);
 
   /// Closes the underlying HTTP client.
   ///
@@ -108,8 +105,8 @@ class FraiseQLClient {
       request.headers['accept'] = 'application/json';
 
       // Authorization
-      final auth = _config.authorization ??
-          (await _config.authorizationFactory?.call());
+      final auth =
+          _config.authorization ?? (await _config.authorizationFactory?.call());
       if (auth != null) {
         request.headers['authorization'] = auth;
       }
