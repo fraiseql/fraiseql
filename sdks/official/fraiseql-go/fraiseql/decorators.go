@@ -15,6 +15,8 @@ type operationBuilder struct {
 	arguments   []ArgumentDefinition
 	description string
 	config      map[string]interface{}
+	restPath    string
+	restMethod  string
 }
 
 func (b *operationBuilder) setReturnType(returnType interface{}) {
@@ -190,6 +192,19 @@ func (qb *QueryBuilder) RequiresRole(role string) *QueryBuilder {
 	return qb
 }
 
+// RestPath sets the REST endpoint path for this query.
+func (qb *QueryBuilder) RestPath(path string) *QueryBuilder {
+	qb.restPath = path
+	return qb
+}
+
+// RestMethod sets the REST HTTP method for this query. Defaults to GET.
+// The value is uppercased automatically.
+func (qb *QueryBuilder) RestMethod(method string) *QueryBuilder {
+	qb.restMethod = method
+	return qb
+}
+
 // Deprecated marks this query as deprecated with the given reason.
 func (qb *QueryBuilder) Deprecated(reason string) *QueryBuilder {
 	qb.deprecation = &DeprecationInfo{Reason: reason}
@@ -229,6 +244,14 @@ func (qb *QueryBuilder) Register() error {
 		AdditionalViews:   qb.additionalViews,
 		RequiresRole:      qb.requiresRole,
 		Deprecation:       qb.deprecation,
+	}
+
+	if qb.restPath != "" {
+		method := strings.ToUpper(qb.restMethod)
+		if method == "" {
+			method = "GET"
+		}
+		definition.Rest = &RestAnnotation{Path: qb.restPath, Method: method}
 	}
 
 	if len(qb.config) > 0 {
@@ -343,6 +366,19 @@ func (mb *MutationBuilder) InvalidatesFactTables(tables []string) *MutationBuild
 	return mb
 }
 
+// RestPath sets the REST endpoint path for this mutation.
+func (mb *MutationBuilder) RestPath(path string) *MutationBuilder {
+	mb.restPath = path
+	return mb
+}
+
+// RestMethod sets the REST HTTP method for this mutation. Defaults to POST.
+// The value is uppercased automatically.
+func (mb *MutationBuilder) RestMethod(method string) *MutationBuilder {
+	mb.restMethod = method
+	return mb
+}
+
 // Deprecated marks this mutation as deprecated with the given reason.
 func (mb *MutationBuilder) Deprecated(reason string) *MutationBuilder {
 	mb.deprecation = &DeprecationInfo{Reason: reason}
@@ -363,6 +399,14 @@ func (mb *MutationBuilder) Register() error {
 		InvalidatesViews:     mb.invalidatesViews,
 		InvalidatesFactTables: mb.invalidatesFactTables,
 		Deprecation:          mb.deprecation,
+	}
+
+	if mb.restPath != "" {
+		method := strings.ToUpper(mb.restMethod)
+		if method == "" {
+			method = "POST"
+		}
+		definition.Rest = &RestAnnotation{Path: mb.restPath, Method: method}
 	}
 
 	if len(mb.config) > 0 {
