@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'FraiseQL::Client HTTP headers' do
+RSpec.describe FraiseQL::Client do
   let(:url) { 'http://localhost:8000' }
   let(:success_body) { '{"data": {"ok": true}}' }
 

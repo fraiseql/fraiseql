@@ -7,9 +7,9 @@
 
 require 'json'
 
-RSpec.describe 'Parity schema generation' do
-  it 'generates the canonical parity schema' do
-    schema = {
+module ParitySchemaHelper
+  def self.canonical_schema # rubocop:disable Metrics/MethodLength
+    {
       types: [
         {
           name: 'User',
@@ -82,14 +82,16 @@ RSpec.describe 'Parity schema generation' do
         }
       ]
     }
+  end
+end
 
-    json = JSON.pretty_generate(schema)
+RSpec.describe ParitySchemaHelper do
+  it 'generates the canonical parity schema' do
+    json = JSON.pretty_generate(described_class.canonical_schema)
+
+    expect(json).not_to be_empty
+
     output_file = ENV.fetch('SCHEMA_OUTPUT_FILE', nil)
-
-    if output_file && !output_file.empty?
-      File.write(output_file, json)
-    else
-      puts json
-    end
+    File.write(output_file, json) if output_file && !output_file.empty?
   end
 end

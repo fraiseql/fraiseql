@@ -231,7 +231,7 @@ void main() {
 
     /// Returns a MockClient that stores the first request in [captured] and
     /// replies with an empty-data success response.
-    MockClient _capturingClient() => MockClient((request) async {
+    MockClient capturingClient() => MockClient((request) async {
           captured = request;
           return _successBody;
         });
@@ -240,7 +240,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -256,7 +256,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -271,7 +271,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -286,7 +286,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -301,12 +301,12 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
       await client.query('query GetUsers { users { id } }',
-          operationName: 'GetUsers');
+          operationName: 'GetUsers',);
 
       final body = jsonDecode(captured.body) as Map<String, Object?>;
       expect(body['operationName'], equals('GetUsers'));
@@ -317,7 +317,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -332,7 +332,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -349,7 +349,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -368,7 +368,7 @@ void main() {
         FraiseQLClientConfig(
           url: 'http://localhost',
           authorization: 'Bearer token-abc',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -387,7 +387,7 @@ void main() {
         FraiseQLClientConfig(
           url: 'http://localhost',
           authorizationFactory: () async => 'Bearer dynamic-token',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -404,7 +404,7 @@ void main() {
       final client = FraiseQLClient(
         FraiseQLClientConfig(
           url: 'http://localhost',
-          httpClient: _capturingClient(),
+          httpClient: capturingClient(),
         ),
       );
 
@@ -469,7 +469,7 @@ void main() {
 
       final trackingClient = _TrackingClient(onClose: () {
         closeCalled = true;
-      });
+      },);
 
       final client = FraiseQLClient(
         FraiseQLClientConfig(
@@ -500,7 +500,7 @@ void main() {
       client.close();
 
       expect(closeCalled, isFalse,
-          reason: 'Injected clients must not be closed by FraiseQLClient');
+          reason: 'Injected clients must not be closed by FraiseQLClient',);
     });
   });
 

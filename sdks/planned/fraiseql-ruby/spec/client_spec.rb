@@ -67,12 +67,12 @@ RSpec.describe FraiseQL::Client do
 
     it 'sends variables in request body' do
       client.query('query($id: ID!) { user(id: $id) { id } }', variables: { id: '42' })
-      expect(WebMock).to have_requested(:post, "#{url}/graphql")
-        .with { |req| JSON.parse(req.body)['variables'] == { 'id' => '42' } }
+      expect(WebMock).to(have_requested(:post, "#{url}/graphql")
+        .with { |req| JSON.parse(req.body)['variables'] == { 'id' => '42' } })
     end
   end
 
-  context 'mutate' do
+  context 'when using mutate' do
     let(:body) { '{"data": {"createUser": {"id": 1}}}' }
 
     it 'returns the data hash' do
@@ -129,18 +129,18 @@ RSpec.describe FraiseQL::Client do
 
     it 'sends operationName in the request body' do
       client.query('query GetUser { user { id } }', operation_name: 'GetUser')
-      expect(WebMock).to have_requested(:post, "#{url}/graphql")
-        .with { |req| JSON.parse(req.body)['operationName'] == 'GetUser' }
+      expect(WebMock).to(have_requested(:post, "#{url}/graphql")
+        .with { |req| JSON.parse(req.body)['operationName'] == 'GetUser' })
     end
   end
 
-  context 'with operationName not provided' do
+  context 'without operationName provided' do
     let(:body) { '{"data": {"user": {"id": 1}}}' }
 
     it 'does not send operationName key in the request body' do
       client.query('{ user { id } }')
-      expect(WebMock).to have_requested(:post, "#{url}/graphql")
-        .with { |req| !JSON.parse(req.body).key?('operationName') }
+      expect(WebMock).to(have_requested(:post, "#{url}/graphql")
+        .with { |req| !JSON.parse(req.body).key?('operationName') })
     end
   end
 
@@ -176,7 +176,7 @@ RSpec.describe FraiseQL::Client do
     end
   end
 
-  context 'URL path normalization' do
+  context 'with URL path normalization' do
     let(:body) { '{"data": {}}' }
 
     it 'appends /graphql when URL has no path' do
@@ -204,7 +204,7 @@ RSpec.describe FraiseQL::Client do
     end
   end
 
-  context 'request headers' do
+  context 'with request headers' do
     let(:body) { '{"data": {}}' }
 
     it 'always sends Content-Type: application/json' do

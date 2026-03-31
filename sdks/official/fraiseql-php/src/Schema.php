@@ -21,7 +21,7 @@ final class Schema
     /**
      * Register a type from a PHP class
      *
-     * @param string $className Fully qualified class name
+     * @param class-string $className Fully qualified class name
      * @return void
      */
     public static function registerType(string $className): void
@@ -81,7 +81,11 @@ final class Schema
             $flags |= JSON_PRETTY_PRINT;
         }
 
-        return json_encode($minimalSchema, $flags);
+        $json = json_encode($minimalSchema, $flags);
+        if ($json === false) {
+            throw new FraiseQLException('Failed to encode schema as JSON');
+        }
+        return $json;
     }
 
     /**
@@ -123,7 +127,7 @@ final class Schema
     /**
      * Get all registered type names
      *
-     * @return array Array of type names
+     * @return array<string> Array of type names
      */
     public static function getTypeNames(): array
     {

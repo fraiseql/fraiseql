@@ -99,10 +99,7 @@ final class SchemaRegistry
         // Register fields
         $fields = [];
         foreach ($reflection->getProperties() as $property) {
-            $fieldDef = $this->extractFieldDefinition($property, $typeName);
-            if ($fieldDef !== null) {
-                $fields[$property->getName()] = $fieldDef;
-            }
+            $fields[$property->getName()] = $this->extractFieldDefinition($property, $typeName);
         }
 
         $this->typeFields[$typeName] = $fields;
@@ -289,6 +286,67 @@ final class SchemaRegistry
         return $this->mutations;
     }
 
+    /** @var array<string, string> Base inject defaults */
+    private array $injectDefaultsBase = [];
+
+    /** @var array<string, string> Query inject defaults */
+    private array $injectDefaultsQueries = [];
+
+    /** @var array<string, string> Mutation inject defaults */
+    private array $injectDefaultsMutations = [];
+
+    /**
+     * Set inject defaults from configuration.
+     *
+     * @param array<string, string> $base Base defaults for all operations
+     * @param array<string, string> $queries Additional defaults for queries
+     * @param array<string, string> $mutations Additional defaults for mutations
+     * @return void
+     */
+    public function setInjectDefaults(array $base, array $queries, array $mutations): void
+    {
+        $this->injectDefaultsBase = $base;
+        $this->injectDefaultsQueries = $queries;
+        $this->injectDefaultsMutations = $mutations;
+    }
+
+    /**
+     * Get inject defaults.
+     *
+     * @return array{base: array<string, string>, queries: array<string, string>, mutations: array<string, string>}
+     */
+    public function getInjectDefaults(): array
+    {
+        return [
+            'base' => $this->injectDefaultsBase,
+            'queries' => $this->injectDefaultsQueries,
+            'mutations' => $this->injectDefaultsMutations,
+        ];
+    }
+
+    /**
+     * Get type metadata (sql_source, is_error) for a specific type.
+     *
+     * @param string $typeName The type name
+     * @return array{sql_source: string|null, is_error: bool}|null
+     */
+    public function getTypeMeta(string $typeName): ?array
+    {
+        return $this->typeMeta[$typeName] ?? null;
+    }
+
+    /**
+     * Set type metadata (sql_source, is_error) for a specific type.
+     *
+     * @param string $typeName The type name
+     * @param array{sql_source: string|null, is_error: bool} $meta The metadata
+     * @return void
+     */
+    public function setTypeMeta(string $typeName, array $meta): void
+    {
+        $this->typeMeta[$typeName] = $meta;
+    }
+
     /**
      * Clear all registered types (useful for testing).
      *
@@ -303,6 +361,9 @@ final class SchemaRegistry
         $this->queries = [];
         $this->mutations = [];
         $this->typeMeta = [];
+        $this->injectDefaultsBase = [];
+        $this->injectDefaultsQueries = [];
+        $this->injectDefaultsMutations = [];
 
         return $this;
     }
@@ -312,12 +373,12 @@ final class SchemaRegistry
      *
      * @param \ReflectionProperty $property The property to extract from
      * @param string $typeName The parent type name
-     * @return FieldDefinition|null The field definition, or null if not a GraphQL field
+     * @return FieldDefinition The field definition
      */
     private function extractFieldDefinition(
         \ReflectionProperty $property,
         string $typeName,
-    ): ?FieldDefinition {
+    ): FieldDefinition {
         $typeInfo = TypeConverter::fromReflectionProperty($property);
 
         return new FieldDefinition(

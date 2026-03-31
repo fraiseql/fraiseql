@@ -23,25 +23,25 @@ RSpec.describe FraiseQL::GraphQLError do
     error = described_class.new([{}])
     expect(error.message).to eq('GraphQL error')
   end
-end
 
-RSpec.describe FraiseQL::AuthenticationError do
-  it 'includes the HTTP status in the message' do
-    error = described_class.new(401)
-    expect(error.message).to eq('Authentication failed (HTTP 401)')
-    expect(error.status_code).to eq(401)
-  end
-end
-
-RSpec.describe FraiseQL::RateLimitError do
-  it 'has a default message' do
-    error = described_class.new
-    expect(error.message).to eq('Rate limit exceeded')
-    expect(error.retry_after).to be_nil
+  describe FraiseQL::AuthenticationError do
+    it 'includes the HTTP status in the message' do
+      error = described_class.new(401)
+      expect(error.message).to eq('Authentication failed (HTTP 401)')
+      expect(error.status_code).to eq(401)
+    end
   end
 
-  it 'stores retry_after when provided' do
-    error = described_class.new(retry_after: 60)
-    expect(error.retry_after).to eq(60)
+  describe FraiseQL::RateLimitError do
+    it 'has a default message' do
+      error = described_class.new
+      expect(error.message).to eq('Rate limit exceeded')
+      expect(error.retry_after).to be_nil
+    end
+
+    it 'stores retry_after when provided' do
+      error = described_class.new(retry_after: 60)
+      expect(error.retry_after).to eq(60)
+    end
   end
 end

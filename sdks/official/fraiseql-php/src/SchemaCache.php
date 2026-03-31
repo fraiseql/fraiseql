@@ -82,7 +82,9 @@ final class SchemaCache
         }
 
         $this->hits++;
-        return $this->cache->get($key);
+        $value = $this->cache->get($key);
+        assert($value instanceof JsonSchema);
+        return $value;
     }
 
     /**
@@ -122,7 +124,9 @@ final class SchemaCache
         }
 
         $this->hits++;
-        return $this->cache->get($key);
+        $value = $this->cache->get($key);
+        assert(is_bool($value));
+        return $value;
     }
 
     /**
@@ -162,7 +166,9 @@ final class SchemaCache
         }
 
         $this->hits++;
-        return $this->cache->get($key);
+        $value = $this->cache->get($key);
+        assert(is_string($value));
+        return $value;
     }
 
     /**

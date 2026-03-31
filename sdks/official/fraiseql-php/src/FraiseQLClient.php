@@ -13,12 +13,26 @@ use FraiseQL\Exceptions\TimeoutException;
 
 final class FraiseQLClient
 {
+    private readonly ?RetryConfig $retryConfig;
+
     public function __construct(
         private readonly string $url,
         private readonly ?string $authorization = null,
-        private readonly ?RetryConfig $retry = null,
+        ?RetryConfig $retry = null,
         private readonly float $timeout = 30.0,
-    ) {}
+    ) {
+        $this->retryConfig = $retry;
+    }
+
+    /**
+     * Get the retry configuration.
+     *
+     * @return RetryConfig|null
+     */
+    public function getRetryConfig(): ?RetryConfig
+    {
+        return $this->retryConfig;
+    }
 
     /**
      * Execute a GraphQL query.
@@ -120,6 +134,8 @@ final class FraiseQLClient
             throw new GraphQLException($parsed['errors']);
         }
 
-        return (array) ($parsed['data'] ?? []);
+        /** @var array<string, mixed> $data */
+        $data = (array) ($parsed['data'] ?? []);
+        return $data;
     }
 }

@@ -83,10 +83,12 @@ final class StaticAPI
         $reflection = new \ReflectionClass($registry);
         $typesProperty = $reflection->getProperty('types');
         $typesProperty->setAccessible(true);
+        /** @var array<string, GraphQLType> $types */
         $types = $typesProperty->getValue($registry);
 
         $fieldsProperty = $reflection->getProperty('typeFields');
         $fieldsProperty->setAccessible(true);
+        /** @var array<string, array<string, \FraiseQL\FieldDefinition>> $typeFields */
         $typeFields = $fieldsProperty->getValue($registry);
 
         // Store the type with a proper GraphQLType instance
@@ -234,10 +236,12 @@ final class StaticAPI
 
         $typesProperty = $reflection->getProperty('types');
         $typesProperty->setAccessible(true);
+        /** @var array<string, \FraiseQL\Attributes\GraphQLType> $types */
         $types = $typesProperty->getValue($registry);
 
         $fieldsProperty = $reflection->getProperty('typeFields');
         $fieldsProperty->setAccessible(true);
+        /** @var array<string, array<string, \FraiseQL\FieldDefinition>> $typeFields */
         $typeFields = $fieldsProperty->getValue($registry);
 
         $typeAttr = new \FraiseQL\Attributes\GraphQLType(
@@ -251,23 +255,11 @@ final class StaticAPI
         $typesProperty->setValue($registry, $types);
         $fieldsProperty->setValue($registry, $typeFields);
 
-        // Store sql_source and is_error in a side-channel registry
-        $metaProperty = null;
-        try {
-            $metaProperty = $reflection->getProperty('typeMeta');
-        } catch (\ReflectionException) {
-            // property doesn't exist yet, will be handled below
-        }
-
-        if ($metaProperty !== null) {
-            $metaProperty->setAccessible(true);
-            $meta = $metaProperty->getValue($registry);
-            $meta[$builder->getName()] = [
-                'sql_source' => $builder->getSqlSource(),
-                'is_error'   => $builder->getIsError(),
-            ];
-            $metaProperty->setValue($registry, $meta);
-        }
+        // Store sql_source and is_error metadata
+        $registry->setTypeMeta($builder->getName(), [
+            'sql_source' => $builder->getSqlSource(),
+            'is_error'   => $builder->getIsError(),
+        ]);
     }
 
     /**
@@ -356,14 +348,6 @@ final class StaticAPI
      */
     private static function getTypeMeta(SchemaRegistry $registry, string $typeName): ?array
     {
-        try {
-            $reflection   = new \ReflectionClass($registry);
-            $metaProperty = $reflection->getProperty('typeMeta');
-            $metaProperty->setAccessible(true);
-            $meta = $metaProperty->getValue($registry);
-            return $meta[$typeName] ?? null;
-        } catch (\ReflectionException) {
-            return null;
-        }
+        return $registry->getTypeMeta($typeName);
     }
 }

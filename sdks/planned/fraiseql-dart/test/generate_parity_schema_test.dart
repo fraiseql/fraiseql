@@ -2,6 +2,8 @@
 ///
 /// Usage:
 ///   SCHEMA_OUTPUT_FILE=/tmp/schema_dart.json dart test test/generate_parity_schema_test.dart
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

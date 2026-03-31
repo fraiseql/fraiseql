@@ -15,7 +15,7 @@ namespace FraiseQL;
  */
 final class PerformanceMonitor
 {
-    /** @var array<string, array> Operation metrics indexed by operation name */
+    /** @var array<string, array{count: int, total_time: float, min_time: float, max_time: float, last_time: float}> Operation metrics indexed by operation name */
     private array $metrics = [];
 
     /** @var array<string, float> Active operation start times */
@@ -104,14 +104,17 @@ final class PerformanceMonitor
     /**
      * Get all recorded metrics.
      *
-     * @return array<string, array>
+     * @return array<string, array<string, mixed>>
      */
     public function getAllMetrics(): array
     {
         $results = [];
 
         foreach (array_keys($this->metrics) as $operationName) {
-            $results[$operationName] = $this->getOperationMetrics($operationName);
+            $metrics = $this->getOperationMetrics($operationName);
+            if ($metrics !== null) {
+                $results[$operationName] = $metrics;
+            }
         }
 
         return $results;
@@ -216,11 +219,11 @@ final class PerformanceMonitor
      * Get top N slowest operations.
      *
      * @param int $count Number of operations to return
-     * @return array<string, array>
+     * @return list<array<string, mixed>>
      */
     public function getTopSlowOperations(int $count = 5): array
     {
-        $all = $this->getAllMetrics();
+        $all = array_values($this->getAllMetrics());
 
         usort($all, static fn(array $a, array $b) => $b['total_time'] <=> $a['total_time']);
 
@@ -287,22 +290,31 @@ final class PerformanceMonitor
         $report[] = '';
         $report[] = '=== Operation Breakdown ===';
 
-        foreach ($this->getAllMetrics() as $metrics) {
+        foreach ($this->metrics as $name => $metric) {
+            $avgTime = $metric['count'] > 0 ? $metric['total_time'] / $metric['count'] : 0.0;
+            $minTime = $metric['min_time'] === PHP_FLOAT_MAX ? 0.0 : $metric['min_time'];
             $report[] = sprintf(
                 '%s: %d calls, %.4f total, %.6f avg, %.6f min, %.6f max',
-                $metrics['name'],
-                $metrics['count'],
-                $metrics['total_time'],
-                $metrics['average_time'],
-                $metrics['min_time'],
-                $metrics['max_time']
+                $name,
+                $metric['count'],
+                $metric['total_time'],
+                $avgTime,
+                $minTime,
+                $metric['max_time']
             );
         }
 
-        $slowest = $this->getSlowestOperation();
-        if ($slowest !== null) {
+        $slowestName = null;
+        $slowestTime = 0.0;
+        foreach ($this->metrics as $name => $metric) {
+            if ($metric['total_time'] > $slowestTime) {
+                $slowestTime = $metric['total_time'];
+                $slowestName = $name;
+            }
+        }
+        if ($slowestName !== null) {
             $report[] = '';
-            $report[] = sprintf('Slowest: %s (%.4f seconds)', $slowest['name'], $slowest['total_time']);
+            $report[] = sprintf('Slowest: %s (%.4f seconds)', $slowestName, $slowestTime);
         }
 
         return implode("\n", $report);

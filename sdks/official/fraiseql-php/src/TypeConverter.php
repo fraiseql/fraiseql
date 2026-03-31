@@ -127,13 +127,17 @@ final class TypeConverter
         $isList = false;
 
         if ($type instanceof ReflectionUnionType) {
-            // Handle union types
+            // Handle union types — getTypes() returns ReflectionNamedType[] for union types
             $types = $type->getTypes();
-            $nonNullTypes = array_filter($types, static fn ($t) => $t->getName() !== 'null');
+            $nonNullTypes = array_values(array_filter(
+                $types,
+                static fn (\ReflectionNamedType|\ReflectionIntersectionType $t) =>
+                    $t instanceof ReflectionNamedType && $t->getName() !== 'null',
+            ));
 
             if (count($nonNullTypes) === 1) {
                 // Union with null = nullable
-                $type = current($nonNullTypes);
+                $type = $nonNullTypes[0];
                 $isNullable = true;
             } else {
                 // Multiple non-null types = use String as fallback

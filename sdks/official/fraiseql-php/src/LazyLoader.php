@@ -19,17 +19,17 @@ final class LazyLoader
     /** @var array<string, bool> Loaded types cache */
     private array $loaded = [];
 
-    /** @var SchemaRegistry Registry to load types into */
-    private SchemaRegistry $registry;
-
     /**
      * Create a new LazyLoader for a registry.
      *
+     * The registry parameter establishes context for loader callables
+     * that will register types into it when invoked.
+     *
      * @param SchemaRegistry $registry Registry to load types into
      */
-    public function __construct(SchemaRegistry $registry)
-    {
-        $this->registry = $registry;
+    public function __construct(
+        public readonly SchemaRegistry $registry,
+    ) {
     }
 
     /**
