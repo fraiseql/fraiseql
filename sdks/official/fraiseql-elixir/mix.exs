@@ -4,7 +4,7 @@ defmodule FraiseQL.MixProject do
   def project do
     [
       app: :fraiseql,
-      version: "2.1.0",
+      version: "2.1.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
