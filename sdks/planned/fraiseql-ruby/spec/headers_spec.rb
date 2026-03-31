@@ -15,7 +15,7 @@ RSpec.describe 'FraiseQL::Client HTTP headers' do
       )
   end
 
-  context 'Content-Type header' do
+  context 'with Content-Type header' do
     it 'is always application/json for query' do
       FraiseQL::Client.new(url).query('{ ok }')
       expect(WebMock).to have_requested(:post, "#{url}/graphql")
@@ -35,7 +35,7 @@ RSpec.describe 'FraiseQL::Client HTTP headers' do
     end
   end
 
-  context 'Accept header' do
+  context 'with Accept header' do
     it 'is always application/json for query' do
       FraiseQL::Client.new(url).query('{ ok }')
       expect(WebMock).to have_requested(:post, "#{url}/graphql")
@@ -49,7 +49,7 @@ RSpec.describe 'FraiseQL::Client HTTP headers' do
     end
   end
 
-  context 'Authorization header' do
+  context 'with Authorization header' do
     it 'is present when authorization string is provided' do
       FraiseQL::Client.new(url, authorization: 'Bearer mytoken').query('{ ok }')
       expect(WebMock).to have_requested(:post, "#{url}/graphql")

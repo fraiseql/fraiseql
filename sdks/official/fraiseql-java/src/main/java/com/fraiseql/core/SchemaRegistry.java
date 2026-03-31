@@ -21,6 +21,10 @@ public class SchemaRegistry {
     private final Map<String, InputTypeInfo> inputTypes;
     private final Map<String, ObserverInfo> observers;
 
+    private Map<String, String> injectDefaultsBase;
+    private Map<String, String> injectDefaultsQueries;
+    private Map<String, String> injectDefaultsMutations;
+
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
         this.queries = new ConcurrentHashMap<>();
@@ -31,6 +35,9 @@ public class SchemaRegistry {
         this.unions = new ConcurrentHashMap<>();
         this.inputTypes = new ConcurrentHashMap<>();
         this.observers = new ConcurrentHashMap<>();
+        this.injectDefaultsBase = Collections.emptyMap();
+        this.injectDefaultsQueries = Collections.emptyMap();
+        this.injectDefaultsMutations = Collections.emptyMap();
     }
 
     /**
@@ -470,6 +477,47 @@ public class SchemaRegistry {
     }
 
     /**
+     * Set inject defaults parsed from fraiseql.toml configuration.
+     * These are default inject_params applied to all queries and/or mutations.
+     *
+     * @param base defaults applied to both queries and mutations
+     * @param queries defaults applied only to queries
+     * @param mutations defaults applied only to mutations
+     */
+    public void setInjectDefaults(Map<String, String> base, Map<String, String> queries, Map<String, String> mutations) {
+        this.injectDefaultsBase = Collections.unmodifiableMap(new LinkedHashMap<>(base));
+        this.injectDefaultsQueries = Collections.unmodifiableMap(new LinkedHashMap<>(queries));
+        this.injectDefaultsMutations = Collections.unmodifiableMap(new LinkedHashMap<>(mutations));
+    }
+
+    /**
+     * Get the base inject defaults (applied to both queries and mutations).
+     *
+     * @return unmodifiable map of base inject defaults
+     */
+    public Map<String, String> getInjectDefaultsBase() {
+        return injectDefaultsBase;
+    }
+
+    /**
+     * Get the query-specific inject defaults.
+     *
+     * @return unmodifiable map of query inject defaults
+     */
+    public Map<String, String> getInjectDefaultsQueries() {
+        return injectDefaultsQueries;
+    }
+
+    /**
+     * Get the mutation-specific inject defaults.
+     *
+     * @return unmodifiable map of mutation inject defaults
+     */
+    public Map<String, String> getInjectDefaultsMutations() {
+        return injectDefaultsMutations;
+    }
+
+    /**
      * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, input types, and observers.
      * Useful for testing.
      */
@@ -483,6 +531,9 @@ public class SchemaRegistry {
         unions.clear();
         inputTypes.clear();
         observers.clear();
+        injectDefaultsBase = Collections.emptyMap();
+        injectDefaultsQueries = Collections.emptyMap();
+        injectDefaultsMutations = Collections.emptyMap();
     }
 
     /**

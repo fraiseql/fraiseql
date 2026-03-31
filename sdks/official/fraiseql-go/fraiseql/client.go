@@ -101,7 +101,7 @@ func (c *Client) execute(ctx context.Context, input ExecuteInput, v any) error {
 }
 
 func (c *Client) doRequest(ctx context.Context, input ExecuteInput, v any) error {
-	body, err := json.Marshal(GraphQLRequest{Query: input.Query, Variables: input.Variables, OperationName: input.OperationName})
+	body, err := json.Marshal(GraphQLRequest(input))
 	if err != nil {
 		return &NetworkError{FraiseQLError: FraiseQLError{Message: fmt.Sprintf("marshal request: %v", err)}}
 	}

@@ -327,8 +327,9 @@ func TestExtractFieldsNonStruct(t *testing.T) {
 func TestExtractFieldsUnexportedFields(t *testing.T) {
 	type testPrivateType struct {
 		ID   int
-		name string // unexported
+		name string
 	}
+	_ = testPrivateType{name: "unused"} // reference field to satisfy staticcheck U1000
 
 	structType := reflect.TypeOf(testPrivateType{})
 	fields, err := ExtractFields(structType)

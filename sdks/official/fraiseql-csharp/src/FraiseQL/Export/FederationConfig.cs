@@ -2,7 +2,7 @@ namespace FraiseQL.Export;
 
 /// <summary>
 /// Configuration for Apollo Federation schema export.
-/// When passed to <see cref="SchemaExporter.Export(FederationConfig, bool)"/>,
+/// When passed to <see cref="SchemaExporter"/>,
 /// a top-level <c>"federation"</c> block is emitted in the JSON with
 /// <c>enabled: true</c> and an auto-derived <c>entities</c> list.
 /// </summary>
@@ -27,7 +27,7 @@ public sealed class FederationConfig
 
     /// <summary>
     /// Gets the default key fields applied to types that do not declare their own
-    /// <see cref="Attributes.GraphQLTypeAttribute.KeyFields"/>. Defaults to <c>["id"]</c>.
+    /// <c>KeyFields</c>. Defaults to <c>["id"]</c>.
     /// </summary>
     public IReadOnlyList<string> DefaultKeyFields { get; }
 

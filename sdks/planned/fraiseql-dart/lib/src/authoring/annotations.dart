@@ -1,4 +1,5 @@
 /// Schema authoring annotations for FraiseQL.
+library;
 
 /// The current SDK version.
 const String version = '0.0.0';

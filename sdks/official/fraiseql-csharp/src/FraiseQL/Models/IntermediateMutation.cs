@@ -12,6 +12,7 @@ namespace FraiseQL.Models;
 /// <param name="Operation">The operation kind: <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="Cascade">When <see langword="true"/>, enables cascade deletion. Omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateMutation(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("return_type")] string ReturnType,

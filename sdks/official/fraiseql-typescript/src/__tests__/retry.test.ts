@@ -24,7 +24,7 @@ describe('executeWithRetry', () => {
   });
 
   it('retries NetworkError up to maxAttempts', async () => {
-    const fn = jest
+    const fn = vi
       .fn()
       .mockRejectedValueOnce(new NetworkError('fail 1'))
       .mockRejectedValueOnce(new NetworkError('fail 2'))
@@ -43,7 +43,7 @@ describe('executeWithRetry', () => {
   });
 
   it('retries TimeoutError', async () => {
-    const fn = jest
+    const fn = vi
       .fn()
       .mockRejectedValueOnce(new TimeoutError())
       .mockResolvedValue('data');
@@ -70,7 +70,7 @@ describe('executeWithRetry', () => {
 
   it('calls onRetry callback with attempt and error', async () => {
     const onRetry = vi.fn();
-    const fn = jest
+    const fn = vi
       .fn()
       .mockRejectedValueOnce(new NetworkError('err'))
       .mockResolvedValue('ok');
@@ -109,7 +109,7 @@ describe('executeWithRetry', () => {
   it('respects custom retryOn list', async () => {
     class CustomError extends FraiseQLError {}
 
-    const fn = jest
+    const fn = vi
       .fn()
       .mockRejectedValueOnce(new CustomError('custom'))
       .mockResolvedValue('recovered');

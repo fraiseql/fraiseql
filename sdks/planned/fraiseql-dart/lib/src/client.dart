@@ -56,7 +56,7 @@ class FraiseQLClient {
   /// Throws [GraphQLException] if the response contains GraphQL errors,
   /// [AuthenticationException] on 401/403, [RateLimitException] on 429,
   /// or [NetworkException] on other failures.
-  Future<Map<String, Object?>> query(
+  Future<Map<String, dynamic>> query(
     String query, {
     Map<String, Object?>? variables,
     String? operationName,
@@ -67,7 +67,7 @@ class FraiseQLClient {
   ///
   /// Behaves identically to [query]; the separate method exists for semantic
   /// clarity.
-  Future<Map<String, Object?>> mutate(
+  Future<Map<String, dynamic>> mutate(
     String mutation, {
     Map<String, Object?>? variables,
     String? operationName,
@@ -88,7 +88,7 @@ class FraiseQLClient {
   // Internal
   // ---------------------------------------------------------------------------
 
-  Future<Map<String, Object?>> _execute(
+  Future<Map<String, dynamic>> _execute(
     String query, {
     Map<String, Object?>? variables,
     String? operationName,
@@ -155,6 +155,6 @@ class FraiseQLClient {
       throw GraphQLException(errors);
     }
 
-    return (json['data'] as Map<String, Object?>?) ?? <String, Object?>{};
+    return (json['data'] as Map<String, dynamic>?) ?? <String, dynamic>{};
   }
 }

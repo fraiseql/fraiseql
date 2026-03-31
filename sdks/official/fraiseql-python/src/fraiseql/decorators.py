@@ -262,9 +262,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
 
         # Validate sql_source if provided
         if sql_source is not None:
-            _validate_sql_identifier(
-                sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}"
-            )
+            _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
 
         # Validate cascade without crud
         if cascade and not crud:

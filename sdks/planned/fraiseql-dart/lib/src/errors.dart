@@ -1,4 +1,5 @@
 /// Exception and error types for the FraiseQL Dart SDK.
+library;
 
 /// Base exception for all FraiseQL errors.
 class FraiseQLException implements Exception {
@@ -30,8 +31,10 @@ class GraphQLError {
     final message = json['message'] as String? ?? 'Unknown error';
     final rawLocations = json['locations'] as List<Object?>?;
     final locations = rawLocations
-        ?.map((loc) =>
-            GraphQLErrorLocation.fromJson(loc! as Map<String, Object?>))
+        ?.map(
+          (loc) =>
+              GraphQLErrorLocation.fromJson(loc! as Map<String, Object?>),
+        )
         .toList();
     return GraphQLError(message: message, locations: locations);
   }
