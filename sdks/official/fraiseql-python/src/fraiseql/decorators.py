@@ -207,6 +207,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     sql_source: str | None = None,
     crud: bool | list[str] = False,
     cascade: bool = False,
+    plural_name: str | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -224,6 +225,9 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``["read", "create"]`` for selective generation.
         cascade: When ``True`` and ``crud`` is enabled, generated mutations include
             ``cascade: true`` for GraphQL Cascade support (nested atomic operations).
+        plural_name: Override the auto-pluralized name for the CRUD list query.
+            Only used when ``crud`` includes ``"read"``. When ``None``, the name
+            is derived by pluralizing the snake_case class name.
 
     Returns:
         The original class (unmodified)
@@ -270,6 +274,20 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             )
             raise ValueError(msg)
 
+        # Validate plural_name without crud
+        if plural_name is not None and not crud:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: plural_name= has no effect "
+                "without crud=True (or a list of CRUD operations)."
+            )
+            raise ValueError(msg)
+
+        # Validate plural_name is a valid identifier
+        if plural_name is not None:
+            _validate_sql_identifier(
+                plural_name, "plural_name", f"@fraiseql.type on {c.__name__!r}"
+            )
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -292,6 +310,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 crud=crud,
                 sql_source=resolved_source,
                 cascade=cascade,
+                plural_name=plural_name,
             )
 
         # Return original class unmodified (no runtime behavior)

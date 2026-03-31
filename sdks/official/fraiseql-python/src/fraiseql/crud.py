@@ -54,12 +54,13 @@ def _parse_crud_ops(crud: bool | list[str]) -> set[str]:
     return set()
 
 
-def generate_crud_operations(
+def generate_crud_operations(  # noqa: PLR0913 — all parameters are meaningful
     type_name: str,
     fields: dict[str, dict[str, Any]],
     crud: bool | list[str],
     sql_source: str,
     cascade: bool = False,
+    plural_name: str | None = None,
 ) -> None:
     """Generate and register CRUD queries/mutations for a type.
 
@@ -69,6 +70,8 @@ def generate_crud_operations(
         crud: ``True`` for all ops, or a list like ``["read", "create"]``.
         sql_source: The SQL view name (e.g. "v_product").
         cascade: When ``True``, generated mutations include ``cascade: true``.
+        plural_name: Override the auto-pluralized name for the list query.
+            When ``None``, the name is derived by pluralizing the snake_case type name.
 
     Raises:
         ValueError: If no fields are defined or crud contains unknown operations.
@@ -86,7 +89,7 @@ def generate_crud_operations(
     pk_name, pk_info = field_list[0]
 
     if "read" in ops:
-        _generate_read_ops(type_name, snake, sql_source, pk_name, pk_info)
+        _generate_read_ops(type_name, snake, sql_source, pk_name, pk_info, plural_name)
 
     if "create" in ops:
         _generate_create_op(type_name, snake, field_list, cascade)
@@ -105,12 +108,13 @@ def _pascal_to_snake(name: str) -> str:
     return _CAMEL_RE.sub("_", name).lower()
 
 
-def _generate_read_ops(
+def _generate_read_ops(  # noqa: PLR0913 — all parameters are meaningful
     type_name: str,
     snake: str,
     view: str,
     pk_name: str,
     pk_info: dict[str, Any],
+    plural_name: str | None = None,
 ) -> None:
     # Get-by-ID query
     SchemaRegistry.register_query(
@@ -124,8 +128,9 @@ def _generate_read_ops(
     )
 
     # List query with auto_params
+    list_name = plural_name if plural_name is not None else _pluralize(snake)
     SchemaRegistry.register_query(
-        name=_pluralize(snake),
+        name=list_name,
         return_type=type_name,
         returns_list=True,
         nullable=False,
