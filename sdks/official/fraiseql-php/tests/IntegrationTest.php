@@ -317,7 +317,7 @@ final class IntegrationTest extends TestCase
             // Verify content is identical
             $json = $schema->toJson();
             $loadedJson = $loaded->toJson();
-            $this->assertSame(json_decode($json), json_decode($loadedJson));
+            $this->assertEquals(json_decode($json), json_decode($loadedJson));
         } finally {
             if (file_exists($tmpFile)) {
                 unlink($tmpFile);

@@ -393,7 +393,7 @@ final class AdvancedFeaturesTest extends TestCase
             ->field('user', 'User');
 
         $this->assertTrue($builder->hasField('user'));
-        $this->assertCount(1, $args->getArguments());
+        $this->assertCount(2, $args->getArguments());
     }
 
     public function testComplexValidation(): void

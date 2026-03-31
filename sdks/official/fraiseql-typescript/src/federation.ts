@@ -24,6 +24,9 @@ export { Type } from "./decorators";
 export { SchemaRegistry } from "./registry";
 export type { ID } from "./scalars";
 
+// Local import for use within this module
+import { SchemaRegistry } from "./registry";
+
 /**
  * Internal federation metadata stored on the class constructor.
  */
@@ -232,7 +235,7 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
   // Fields come from SchemaRegistry (which has explicit type/nullable info from
   // registerTypeFields). For any field names only discoverable via class
   // instantiation (no explicit registration), we append them with federation info.
-  const augmentedTypes = base.types.map((typeDef) => {
+  const augmentedTypes = base.types.map((typeDef: import("./registry").TypeDefinition) => {
     const meta = fedByName.get(typeDef.name);
     if (!meta) return typeDef;
 

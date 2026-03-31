@@ -75,7 +75,7 @@ class GraphQLException extends FraiseQLException {
   /// The [message] is derived from the first error, or falls back to
   /// `'GraphQL error'` when the list is empty.
   GraphQLException(this.errors)
-    : super(errors.isNotEmpty ? errors.first.message : 'GraphQL error');
+      : super(errors.isNotEmpty ? errors.first.message : 'GraphQL error');
 
   @override
   String toString() => 'GraphQLException: $message';
@@ -88,7 +88,7 @@ class AuthenticationException extends FraiseQLException {
 
   /// Creates an [AuthenticationException] for the given [statusCode].
   AuthenticationException(this.statusCode)
-    : super('Authentication failed with status $statusCode');
+      : super('Authentication failed with status $statusCode');
 
   @override
   String toString() => 'AuthenticationException: $message';

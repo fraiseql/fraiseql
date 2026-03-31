@@ -11,10 +11,10 @@ import 'package:test/test.dart';
 
 /// Returns a 200 JSON response with the given body map.
 http.Response _jsonOk(Map<String, Object?> body) => http.Response(
-  jsonEncode(body),
-  200,
-  headers: {'content-type': 'application/json'},
-);
+      jsonEncode(body),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
 
 /// Minimal success payload with no errors.
 final _successBody = _jsonOk({'data': <String, Object?>{}});
@@ -246,9 +246,9 @@ void main() {
     /// Returns a MockClient that stores the first request in [captured] and
     /// replies with an empty-data success response.
     MockClient capturingClient() => MockClient((request) async {
-      captured = request;
-      return _successBody;
-    });
+          captured = request;
+          return _successBody;
+        });
 
     test('sends query string in request body as "query" field', () async {
       final client = FraiseQLClient(

@@ -125,6 +125,6 @@ RSpec.describe FraiseQL::Error do
       FraiseQL::AuthenticationError.new(401),
       FraiseQL::RateLimitError.new
     ]
-    expect(errors).to all be_a(FraiseQL::Error)
+    expect(errors).to all be_a(described_class)
   end
 end
