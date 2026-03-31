@@ -251,6 +251,9 @@ export interface Schema {
  * the expected field names.  Handles all known camelCase keys used in decorator
  * config objects and performs structural transformations for inject and deprecated.
  */
+/** Valid HTTP methods for REST annotations. */
+const VALID_REST_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+
 function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
@@ -264,9 +267,30 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
     requiresRole: "requires_role",
     additionalViews: "additional_views",
   };
+
+  // REST annotation validation
+  const hasRestPath = "restPath" in config && config.restPath != null;
+  const hasRestMethod = "restMethod" in config && config.restMethod != null;
+
+  if (hasRestMethod && !hasRestPath) {
+    throw new Error("restMethod requires restPath to be set");
+  }
+
+  if (hasRestMethod) {
+    const method = String(config.restMethod).toUpperCase();
+    if (!VALID_REST_METHODS.has(method)) {
+      throw new Error(
+        `Invalid REST method '${config.restMethod}'. Must be one of: ${[...VALID_REST_METHODS].join(", ")}`
+      );
+    }
+  }
+
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
-    if (key === "inject" && value !== null && typeof value === "object") {
+    if (key === "restPath" || key === "restMethod") {
+      // Handled below as a rest block
+      continue;
+    } else if (key === "inject" && value !== null && typeof value === "object") {
       // Transform { param: "jwt:claim" } → inject_params: { param: { source: "jwt", claim: "claim" } }
       const injected: Record<string, { source: string; claim: string }> = {};
       for (const [param, spec] of Object.entries(value as Record<string, string>)) {
@@ -283,6 +307,17 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
       result[keyMap[key] ?? key] = value;
     }
   }
+
+  // Build rest block from restPath/restMethod
+  // The default method is set by the caller (registerQuery/registerMutation)
+  if (hasRestPath) {
+    const method = hasRestMethod ? String(config.restMethod).toUpperCase() : undefined;
+    result["rest"] = {
+      path: config.restPath,
+      method,
+    };
+  }
+
   return result;
 }
 
@@ -395,6 +430,14 @@ export class SchemaRegistry {
     // Normalise camelCase config keys to snake_case for the compiler
     const normalisedConfig = config ? normaliseConfig(config) : undefined;
 
+    // Default REST method to GET for queries
+    if (normalisedConfig?.rest) {
+      const rest = normalisedConfig.rest as { path: string; method?: string };
+      if (!rest.method) {
+        rest.method = "GET";
+      }
+    }
+
     this.queries.set(name, {
       name,
       return_type: cleanType,
@@ -435,6 +478,14 @@ export class SchemaRegistry {
 
     // Normalise camelCase config keys to snake_case for the compiler
     const normalisedConfig = config ? normaliseConfig(config) : undefined;
+
+    // Default REST method to POST for mutations
+    if (normalisedConfig?.rest) {
+      const rest = normalisedConfig.rest as { path: string; method?: string };
+      if (!rest.method) {
+        rest.method = "POST";
+      }
+    }
 
     this.mutations.set(name, {
       name,

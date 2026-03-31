@@ -56,6 +56,8 @@ class SchemaRegistry:
         requires_role: str | None = None,
         is_error: bool = False,
         sql_source: str | None = None,
+        key_fields: list[str] | None = None,
+        extends: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -71,6 +73,8 @@ class SchemaRegistry:
                 this role can see or query this type.
             sql_source: Override the default SQL view name. When None, defaults to
                 ``v_{snake_case(name)}``.
+            key_fields: Federation entity key fields (e.g., ``["id", "region"]``).
+            extends: Whether this type extends a type from another subgraph.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -98,6 +102,12 @@ class SchemaRegistry:
 
         if is_error:
             type_def["is_error"] = True
+
+        if key_fields:
+            type_def["key_fields"] = key_fields
+
+        if extends:
+            type_def["extends"] = True
 
         cls._types[name] = type_def
 

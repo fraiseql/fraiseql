@@ -27,6 +27,7 @@ from fraiseql.registry import SchemaRegistry, _pascal_to_snake
 from fraiseql.scope import validate_scope
 from fraiseql.types import extract_field_info, extract_function_signature
 
+_VALID_REST_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 _INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
@@ -82,6 +83,45 @@ def _validate_inject(
                 "(e.g. 'jwt:org_id', 'jwt:sub')."
             )
             raise ValueError(msg)
+
+
+def _validate_rest_annotations(
+    cfg: dict[str, Any],
+    context: str,
+    default_method: str,
+) -> None:
+    """Validate and normalise ``rest_path`` / ``rest_method`` in *cfg* (mutates in-place).
+
+    Args:
+        cfg: Mutable config dict that may contain ``rest_path`` and ``rest_method``.
+        context: Human-readable decorator description for error messages.
+        default_method: Default HTTP method when ``rest_method`` is not set
+            (e.g. ``"GET"`` for queries, ``"POST"`` for mutations).
+
+    Raises:
+        ValueError: On invalid combinations or values.
+    """
+    rest_path = cfg.pop("rest_path", None)
+    rest_method = cfg.pop("rest_method", None)
+
+    if rest_method is not None and rest_path is None:
+        msg = f"{context}: rest_method has no effect without rest_path."
+        raise ValueError(msg)
+
+    if rest_path is not None:
+        if not isinstance(rest_path, str) or not rest_path:
+            msg = f"{context}: rest_path must be a non-empty string."
+            raise ValueError(msg)
+
+        method = (rest_method or default_method).upper()
+        if method not in _VALID_REST_METHODS:
+            msg = (
+                f"{context}: rest_method={rest_method!r} is not valid. "
+                f"Choose from: {', '.join(sorted(_VALID_REST_METHODS))}."
+            )
+            raise ValueError(msg)
+
+        cfg["rest"] = {"path": rest_path, "method": method}
 
 
 if TYPE_CHECKING:
@@ -208,6 +248,8 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     crud: bool | list[str] = False,
     cascade: bool = False,
     plural_name: str | None = None,
+    key_fields: list[str] | None = None,
+    extends: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -260,6 +302,17 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
         # Extract field information from class annotations
         fields = extract_field_info(c)
 
+        # Validate key_fields if provided
+        if key_fields is not None:
+            if not isinstance(key_fields, list) or not all(isinstance(k, str) for k in key_fields):
+                msg = f"@fraiseql.type on {c.__name__!r}: key_fields must be a list of strings."
+                raise TypeError(msg)
+            if not key_fields:
+                msg = (
+                    f"@fraiseql.type on {c.__name__!r}: key_fields must not be empty when provided."
+                )
+                raise ValueError(msg)
+
         # Validate sql_source if provided
         if sql_source is not None:
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
@@ -295,6 +348,8 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             relay=relay,
             requires_role=requires_role,
             sql_source=sql_source,
+            key_fields=key_fields,
+            extends=extends,
         )
 
         # Generate CRUD operations if requested
@@ -367,6 +422,9 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
 
         # Work with a local copy so we can safely modify it
         cfg = dict(config_kwargs)
+
+        # REST annotation validation — fail fast at authoring time
+        _validate_rest_annotations(cfg, f"@fraiseql.query on {f.__name__!r}", "GET")
 
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):
@@ -530,6 +588,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # Work with a local copy so we can safely modify it
         cfg = dict(config_kwargs)
+
+        # REST annotation validation — fail fast at authoring time
+        _validate_rest_annotations(cfg, f"@fraiseql.mutation on {f.__name__!r}", "POST")
 
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):

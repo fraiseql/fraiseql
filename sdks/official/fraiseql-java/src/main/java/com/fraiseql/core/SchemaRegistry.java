@@ -192,6 +192,16 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
+    /** Register a query with all extended fields including REST annotation. */
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay, String sqlSource, Long cacheTtlSeconds,
+                              Map<String, String> injectParams, List<String> additionalViews,
+                              String restPath, String restMethod) {
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
+            sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod);
+        queries.put(queryName, queryInfo);
+    }
+
     /**
      * Register a mutation in the schema.
      *
@@ -222,6 +232,18 @@ public class SchemaRegistry {
                                  List<String> invalidatesFactTables, boolean cascade) {
         MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
             sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables, cascade);
+        mutations.put(mutationName, mutationInfo);
+    }
+
+    /** Register a mutation with all extended fields including cascade and REST annotation. */
+    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments,
+                                 String description, String sqlSource, String operation,
+                                 Map<String, String> injectParams, List<String> invalidatesViews,
+                                 List<String> invalidatesFactTables, boolean cascade,
+                                 String restPath, String restMethod) {
+        MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
+            sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables, cascade,
+            restPath, restMethod);
         mutations.put(mutationName, mutationInfo);
     }
 
@@ -592,18 +614,28 @@ public class SchemaRegistry {
         public final Long cacheTtlSeconds;
         public final Map<String, String> injectParams;
         public final List<String> additionalViews;
+        public final String restPath;
+        public final String restMethod;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, false, null, null, null, null);
+            this(name, returnType, arguments, description, false, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
-            this(name, returnType, arguments, description, relay, null, null, null, null);
+            this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews) {
+            this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
+                injectParams, additionalViews, null, null);
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay, String sqlSource, Long cacheTtlSeconds,
+                         Map<String, String> injectParams, List<String> additionalViews,
+                         String restPath, String restMethod) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -615,6 +647,8 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(injectParams)) : null;
             this.additionalViews = additionalViews != null
                 ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
+            this.restPath = restPath;
+            this.restMethod = restMethod;
         }
 
         @Override
@@ -641,21 +675,31 @@ public class SchemaRegistry {
         public final List<String> invalidatesViews;
         public final List<String> invalidatesFactTables;
         public final boolean cascade;
+        public final String restPath;
+        public final String restMethod;
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, null, null, null, null, null, false);
+            this(name, returnType, arguments, description, null, null, null, null, null, false, null, null);
         }
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
                             String sqlSource, String operation, Map<String, String> injectParams,
                             List<String> invalidatesViews, List<String> invalidatesFactTables) {
             this(name, returnType, arguments, description, sqlSource, operation, injectParams,
-                invalidatesViews, invalidatesFactTables, false);
+                invalidatesViews, invalidatesFactTables, false, null, null);
         }
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
                             String sqlSource, String operation, Map<String, String> injectParams,
                             List<String> invalidatesViews, List<String> invalidatesFactTables, boolean cascade) {
+            this(name, returnType, arguments, description, sqlSource, operation, injectParams,
+                invalidatesViews, invalidatesFactTables, cascade, null, null);
+        }
+
+        public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
+                            String sqlSource, String operation, Map<String, String> injectParams,
+                            List<String> invalidatesViews, List<String> invalidatesFactTables, boolean cascade,
+                            String restPath, String restMethod) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -669,6 +713,8 @@ public class SchemaRegistry {
             this.invalidatesFactTables = invalidatesFactTables != null
                 ? Collections.unmodifiableList(new ArrayList<>(invalidatesFactTables)) : null;
             this.cascade = cascade;
+            this.restPath = restPath;
+            this.restMethod = restMethod;
         }
 
         @Override

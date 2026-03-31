@@ -271,6 +271,13 @@ public class SchemaFormatter {
                 queryNode.set("additional_views", viewsArray);
             }
 
+            if (queryInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", queryInfo.restPath);
+                restNode.put("method", queryInfo.restMethod);
+                queryNode.set("rest", restNode);
+            }
+
             queriesNode.set(queryInfo.name, queryNode);
         }
 
@@ -341,6 +348,13 @@ public class SchemaFormatter {
 
             if (mutationInfo.cascade) {
                 mutationNode.put("cascade", true);
+            }
+
+            if (mutationInfo.restPath != null) {
+                ObjectNode restNode = mapper.createObjectNode();
+                restNode.put("path", mutationInfo.restPath);
+                restNode.put("method", mutationInfo.restMethod);
+                mutationNode.set("rest", restNode);
             }
 
             mutationsNode.set(mutationInfo.name, mutationNode);

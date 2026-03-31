@@ -27,6 +27,8 @@ public sealed class MutationBuilder
     private string _sqlSource = string.Empty;
     private string _operation = string.Empty;
     private string? _description;
+    private string? _restPath;
+    private string? _restMethod;
     private readonly List<IntermediateArgument> _arguments = new();
 
     private MutationBuilder(string name) => _name = name;
@@ -78,6 +80,16 @@ public sealed class MutationBuilder
         return this;
     }
 
+    /// <summary>Sets the REST endpoint path for this mutation.</summary>
+    /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RestPath(string path) { _restPath = path; return this; }
+
+    /// <summary>Sets the HTTP method for the REST endpoint. Defaults to <c>"POST"</c> when omitted.</summary>
+    /// <param name="method">The HTTP method (e.g. <c>"POST"</c>, <c>"PUT"</c>). Case-insensitive, stored uppercase.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RestMethod(string method) { _restMethod = method.ToUpperInvariant(); return this; }
+
     /// <summary>
     /// Builds the <see cref="IntermediateMutation"/> from the current configuration.
     /// </summary>
@@ -97,13 +109,18 @@ public sealed class MutationBuilder
             throw new InvalidOperationException(
                 $"MutationBuilder: Operation must be set before Build() (mutation: '{_name}')");
 
+        RestAnnotation? rest = _restPath is not null
+            ? new RestAnnotation(_restPath, _restMethod ?? "POST")
+            : null;
+
         return new IntermediateMutation(
             Name: _name,
             ReturnType: _returnType,
             SqlSource: _sqlSource,
             Operation: _operation,
             Arguments: _arguments.AsReadOnly(),
-            Description: _description);
+            Description: _description,
+            Rest: rest);
     }
 
     /// <summary>

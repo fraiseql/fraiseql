@@ -14,6 +14,7 @@ namespace FraiseQL.Models;
 /// <param name="Arguments">Ordered list of query arguments (always present, empty array if none).</param>
 /// <param name="CacheTtlSeconds">Optional cache TTL in seconds, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="Rest">Optional REST endpoint annotation, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
@@ -22,4 +23,5 @@ public record IntermediateQuery(
     [property: JsonPropertyName("sql_source")]        string SqlSource,
     [property: JsonPropertyName("arguments")]         IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("cache_ttl_seconds")] int? CacheTtlSeconds = null,
-    [property: JsonPropertyName("description")]       string? Description = null);
+    [property: JsonPropertyName("description")]       string? Description = null,
+    [property: JsonPropertyName("rest")]              RestAnnotation? Rest = null);

@@ -63,7 +63,7 @@ from fraiseql.errors import (
 from fraiseql.registry import SchemaRegistry, generate_schema_json
 from fraiseql.retry import RetryConfig
 from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
-from fraiseql.schema import config, export_schema, export_types
+from fraiseql.schema import Federation, config, export_schema, export_types, get_schema_dict
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
 from fraiseql.validators import (
     ScalarValidationError,
@@ -90,6 +90,7 @@ __all__ = [
     "Date",
     "DateTime",
     "Decimal",
+    "Federation",
     "FieldConfig",
     "FraiseQLAuthError",
     "FraiseQLClient",
@@ -116,6 +117,7 @@ __all__ = [
     "field",
     "generate_schema_json",
     "get_all_custom_scalars",
+    "get_schema_dict",
     "input",
     "interface",
     "mutation",

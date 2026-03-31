@@ -13,6 +13,7 @@ namespace FraiseQL.Models;
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Cascade">When <see langword="true"/>, enables cascade deletion. Omitted from JSON when <see langword="null"/>.</param>
+/// <param name="Rest">Optional REST endpoint annotation, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateMutation(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("return_type")] string ReturnType,
@@ -20,4 +21,5 @@ public record IntermediateMutation(
     [property: JsonPropertyName("operation")]   string Operation,
     [property: JsonPropertyName("arguments")]   IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("description")] string? Description = null,
-    [property: JsonPropertyName("cascade")]     bool? Cascade = null);
+    [property: JsonPropertyName("cascade")]     bool? Cascade = null,
+    [property: JsonPropertyName("rest")]        RestAnnotation? Rest = null);

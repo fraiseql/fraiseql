@@ -18,6 +18,33 @@ from typing import Any
 from fraiseql.registry import SchemaRegistry
 
 
+def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``federation`` block for schema output.
+
+    Args:
+        federation: Federation metadata from the caller.
+        schema: The full schema dict (used to iterate types).
+
+    Returns:
+        Dictionary suitable for inclusion as ``schema["federation"]``.
+    """
+    entities: list[dict[str, Any]] = []
+    for type_def in schema.get("types", []):
+        # Skip error types
+        if type_def.get("is_error"):
+            continue
+        key_fields = type_def.get("key_fields", federation.default_key_fields)
+        entities.append({"name": type_def["name"], "key_fields": key_fields})
+
+    apollo_version = 2 if federation.version == "v2" else 1
+    return {
+        "enabled": True,
+        "service_name": federation.service_name,
+        "apollo_version": apollo_version,
+        "entities": entities,
+    }
+
+
 def _validate_schema_before_export(schema: dict[str, Any]) -> None:
     """Validate schema structure before writing to disk.
 
@@ -58,11 +85,24 @@ def _validate_schema_before_export(schema: dict[str, Any]) -> None:
 
 
 class Federation:
-    """Federation metadata container."""
+    """Federation metadata for subgraph service registration.
 
-    def __init__(self, enabled: bool = False, version: str = "v2") -> None:
-        self.enabled = enabled
+    Args:
+        service_name: Name of the federated subgraph service.
+        version: Apollo Federation version (default: ``"v2"``).
+        default_key_fields: Key fields applied to types that don't declare
+            their own ``key_fields`` (default: ``["id"]``).
+    """
+
+    def __init__(
+        self,
+        service_name: str,
+        version: str = "v2",
+        default_key_fields: list[str] | None = None,
+    ) -> None:
+        self.service_name = service_name
         self.version = version
+        self.default_key_fields = default_key_fields or ["id"]
 
 
 class Schema:
@@ -261,7 +301,10 @@ def config(**kwargs: Any) -> None:
 
 
 def export_schema(
-    output_path: str, pretty: bool = True, include_custom_scalars: bool = True
+    output_path: str,
+    pretty: bool = True,
+    include_custom_scalars: bool = True,
+    federation: Federation | None = None,
 ) -> None:
     """Export the schema registry to a JSON file.
 
@@ -272,6 +315,8 @@ def export_schema(
         output_path: Path to output schema.json file
         pretty: If True, format JSON with indentation (default: True)
         include_custom_scalars: If True, include custom scalars in output (default: True)
+        federation: Optional federation metadata. When provided, the output
+            includes a ``"federation"`` block with entity information.
 
     Examples:
         >>> # At end of schema.py
@@ -284,6 +329,8 @@ def export_schema(
         - Pretty formatting is recommended for version control
     """
     schema = SchemaRegistry.get_schema()
+    if federation is not None:
+        schema["federation"] = _build_federation_block(federation, schema)
     if not include_custom_scalars:
         schema = {k: v for k, v in schema.items() if k != "custom_scalars"}
 
@@ -360,8 +407,12 @@ def export_types(output_path: str, pretty: bool = True) -> None:
     print(f"   → Use with: fraiseql compile fraiseql.toml --types {output_path}")
 
 
-def get_schema_dict() -> dict[str, Any]:
+def get_schema_dict(federation: Federation | None = None) -> dict[str, Any]:
     """Get the current schema as a dictionary (without exporting to file).
+
+    Args:
+        federation: Optional federation metadata. When provided, the returned
+            dict includes a ``"federation"`` block with entity information.
 
     Returns:
         Schema dictionary with "types", "queries", and "mutations"
@@ -371,4 +422,7 @@ def get_schema_dict() -> dict[str, Any]:
         >>> print(schema["types"])
         [{"name": "User", "fields": [...]}]
     """
-    return SchemaRegistry.get_schema()
+    schema = SchemaRegistry.get_schema()
+    if federation is not None:
+        schema["federation"] = _build_federation_block(federation, schema)
+    return schema
