@@ -111,17 +111,24 @@ public sealed class SchemaBuilder
             .ToList()
             .AsReadOnly();
 
-        var allQueries = registryQueries
+        var mergedQueries = registryQueries
             .Concat(_queries.Select(q => q.Build()))
-            .ToList()
-            .AsReadOnly();
+            .ToList();
 
-        var allMutations = registryMutations
+        var mergedMutations = registryMutations
             .Concat(_mutations.Select(m => m.Build()))
-            .ToList()
-            .AsReadOnly();
+            .ToList();
 
-        return new IntermediateSchema("2.0.0", allTypes, allQueries, allMutations);
+        // Generate CRUD operations for fluent types that have crud enabled
+        foreach (var tc in _types.Where(t => t.HasCrud))
+        {
+            var (crudQueries, crudMutations) = CrudGenerator.Generate(
+                tc.Name, tc.GetFields(), tc.GetSqlSource(), tc.HasCascade);
+            mergedQueries.AddRange(crudQueries);
+            mergedMutations.AddRange(crudMutations);
+        }
+
+        return new IntermediateSchema("2.0.0", allTypes, mergedQueries.AsReadOnly(), mergedMutations.AsReadOnly());
     }
 
     /// <summary>
@@ -173,6 +180,8 @@ public sealed class TypeConfigurator
     internal string Name { get; }
     private string _sqlSource = string.Empty;
     private string? _description;
+    private bool _crud;
+    private bool _cascade;
     private readonly List<IntermediateField> _fields = new();
 
     internal TypeConfigurator(string name) => Name = name;
@@ -186,6 +195,16 @@ public sealed class TypeConfigurator
     /// <param name="desc">The description text.</param>
     /// <returns>This configurator for chaining.</returns>
     public TypeConfigurator Description(string desc) { _description = desc; return this; }
+
+    /// <summary>Enables auto-generation of CRUD operations for this type.</summary>
+    /// <param name="crud">Whether to generate CRUD operations.</param>
+    /// <returns>This configurator for chaining.</returns>
+    public TypeConfigurator Crud(bool crud = true) { _crud = crud; return this; }
+
+    /// <summary>Enables cascade support on generated CRUD mutations.</summary>
+    /// <param name="cascade">Whether generated mutations include cascade.</param>
+    /// <returns>This configurator for chaining.</returns>
+    public TypeConfigurator Cascade(bool cascade = true) { _cascade = cascade; return this; }
 
     /// <summary>Adds a field to this type.</summary>
     /// <param name="name">The GraphQL field name.</param>
@@ -204,6 +223,11 @@ public sealed class TypeConfigurator
         _fields.Add(new IntermediateField(name, type, nullable, description, null, scope));
         return this;
     }
+
+    internal bool HasCrud => _crud;
+    internal bool HasCascade => _cascade;
+    internal IReadOnlyList<IntermediateField> GetFields() => _fields.AsReadOnly();
+    internal string GetSqlSource() => _sqlSource;
 
     internal IntermediateType Build() =>
         new(Name, _sqlSource, _description, _fields.AsReadOnly());

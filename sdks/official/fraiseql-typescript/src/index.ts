@@ -73,6 +73,9 @@ export {
   registerMutation,
   registerSubscription,
 } from "./decorators";
+
+// Export CRUD generation
+export { generateCrudOperations } from "./crud";
 export type {
   TypeConfig,
   OperationConfig,

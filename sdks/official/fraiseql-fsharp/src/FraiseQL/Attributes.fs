@@ -37,6 +37,12 @@ type GraphQLTypeAttribute() =
     /// When true, this type models a mutation error response.
     member val IsError: bool = false with get, set
 
+    /// When true, auto-generate CRUD queries and mutations for this type.
+    member val Crud: bool = false with get, set
+
+    /// When true, generated CRUD mutations include cascade support.
+    member val Cascade: bool = false with get, set
+
 /// Marks a property on a GraphQL type as a field to include in the schema.
 /// Apply this attribute to properties on classes decorated with <see cref="GraphQLTypeAttribute"/>.
 ///

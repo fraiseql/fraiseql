@@ -78,7 +78,9 @@ defmodule FraiseQL.TypeDefinition do
     fields: [],
     is_input: false,
     relay: false,
-    is_error: false
+    is_error: false,
+    crud: false,
+    cascade: false
   ]
 
   @type t :: %__MODULE__{
@@ -88,7 +90,9 @@ defmodule FraiseQL.TypeDefinition do
           fields: [FraiseQL.FieldDefinition.t()],
           is_input: boolean(),
           relay: boolean(),
-          is_error: boolean()
+          is_error: boolean(),
+          crud: boolean() | [atom()],
+          cascade: boolean()
         }
 end
 
@@ -106,6 +110,7 @@ defmodule FraiseQL.QueryDefinition do
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:cache_ttl_seconds` — optional cache TTL in seconds
     * `:description` — optional human-readable description
+    * `:auto_params` — optional map of auto-generated parameter flags (e.g. `%{where: true, order_by: true}`)
   """
 
   @enforce_keys [:name, :return_type, :sql_source]
@@ -119,7 +124,8 @@ defmodule FraiseQL.QueryDefinition do
     cache_ttl_seconds: nil,
     description: nil,
     rest_path: nil,
-    rest_method: nil
+    rest_method: nil,
+    auto_params: nil
   ]
 
   @type t :: %__MODULE__{
@@ -132,7 +138,8 @@ defmodule FraiseQL.QueryDefinition do
           cache_ttl_seconds: non_neg_integer() | nil,
           description: String.t() | nil,
           rest_path: String.t() | nil,
-          rest_method: String.t() | nil
+          rest_method: String.t() | nil,
+          auto_params: map() | nil
         }
 end
 
@@ -148,10 +155,11 @@ defmodule FraiseQL.MutationDefinition do
     * `:operation` — the mutation operation type: `"insert"`, `"update"`, or `"delete"`
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:description` — optional human-readable description
+    * `:cascade` — whether this mutation uses GraphQL cascade; defaults to `false`
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
-  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil]
+  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil, cascade: false]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -161,7 +169,8 @@ defmodule FraiseQL.MutationDefinition do
           arguments: [FraiseQL.ArgumentDefinition.t()],
           description: String.t() | nil,
           rest_path: String.t() | nil,
-          rest_method: String.t() | nil
+          rest_method: String.t() | nil,
+          cascade: boolean()
         }
 end
 

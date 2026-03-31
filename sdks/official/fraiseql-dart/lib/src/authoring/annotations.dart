@@ -19,7 +19,22 @@ class FraiseQLType {
   /// Optional description for the type.
   final String? description;
 
-  const FraiseQLType({this.name, this.description});
+  /// The SQL view backing this type. Defaults to "v_" + snake_case(name).
+  final String? sqlSource;
+
+  /// When true, auto-generate CRUD queries and mutations.
+  final bool crud;
+
+  /// When true, generated CRUD mutations use GraphQL cascade.
+  final bool cascade;
+
+  const FraiseQLType({
+    this.name,
+    this.description,
+    this.sqlSource,
+    this.crud = false,
+    this.cascade = false,
+  });
 }
 
 /// Marks a field on a [FraiseQLType] class.

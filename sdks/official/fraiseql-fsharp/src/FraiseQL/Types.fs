@@ -104,6 +104,8 @@ type MutationDefinition =
         description: string option
         /// Optional REST endpoint annotation.
         rest: RestConfig option
+        /// When true, this mutation uses cascade delete/update semantics.
+        cascade: bool option
     }
 
 /// The root schema record serialized to schema.json.

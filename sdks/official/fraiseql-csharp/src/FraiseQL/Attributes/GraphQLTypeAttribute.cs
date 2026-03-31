@@ -35,4 +35,10 @@ public sealed class GraphQLTypeAttribute : Attribute
 
     /// <summary>Gets or sets whether this type represents a mutation error variant.</summary>
     public bool IsError { get; set; } = false;
+
+    /// <summary>Gets or sets whether to auto-generate CRUD operations for this type.</summary>
+    public bool Crud { get; set; } = false;
+
+    /// <summary>Gets or sets whether generated CRUD mutations use GraphQL cascade.</summary>
+    public bool Cascade { get; set; } = false;
 }

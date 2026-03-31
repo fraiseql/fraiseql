@@ -14,13 +14,13 @@ import (
 //   - Create: mutation create_<snake> with all fields as arguments
 //   - Update: mutation update_<snake> with PK required, other fields nullable
 //   - Delete: mutation delete_<snake> with PK only
-func generateCrudOperations(typeName string, fields []FieldInfo, crud interface{}, sqlSource string) error {
+func generateCrudOperations(typeName string, fields []FieldInfo, crud interface{}, sqlSource string, cascade bool) error {
 	ops := parseCrudOps(crud)
 	if len(ops) == 0 {
 		return nil
 	}
 
-	snake := pascalToSnake(typeName)
+	snake := toSnakeCase(typeName)
 	view := sqlSource
 	if view == "" {
 		view = "v_" + snake
@@ -39,17 +39,17 @@ func generateCrudOperations(typeName string, fields []FieldInfo, crud interface{
 		}
 	}
 	if ops["create"] {
-		if err := generateCreateOp(typeName, snake, fields); err != nil {
+		if err := generateCreateOp(typeName, snake, fields, cascade); err != nil {
 			return err
 		}
 	}
 	if ops["update"] {
-		if err := generateUpdateOp(typeName, snake, pkField, fields); err != nil {
+		if err := generateUpdateOp(typeName, snake, pkField, fields, cascade); err != nil {
 			return err
 		}
 	}
 	if ops["delete"] {
-		if err := generateDeleteOp(typeName, snake, pkField); err != nil {
+		if err := generateDeleteOp(typeName, snake, pkField, cascade); err != nil {
 			return err
 		}
 	}
@@ -129,7 +129,7 @@ func generateReadOps(typeName, snake, view string, pkField FieldInfo) error {
 	})
 }
 
-func generateCreateOp(typeName, snake string, fields []FieldInfo) error {
+func generateCreateOp(typeName, snake string, fields []FieldInfo, cascade bool) error {
 	args := make([]ArgumentDefinition, len(fields))
 	for i, f := range fields {
 		args[i] = ArgumentDefinition{Name: f.Name, Type: f.Type, Nullable: f.Nullable}
@@ -143,10 +143,11 @@ func generateCreateOp(typeName, snake string, fields []FieldInfo) error {
 		Description: "Create a new " + typeName + ".",
 		SqlSource:   "fn_create_" + snake,
 		Operation:   "INSERT",
+		Cascade:     cascade,
 	})
 }
 
-func generateUpdateOp(typeName, snake string, pkField FieldInfo, fields []FieldInfo) error {
+func generateUpdateOp(typeName, snake string, pkField FieldInfo, fields []FieldInfo, cascade bool) error {
 	args := []ArgumentDefinition{
 		{Name: pkField.Name, Type: pkField.Type, Nullable: false},
 	}
@@ -162,10 +163,11 @@ func generateUpdateOp(typeName, snake string, pkField FieldInfo, fields []FieldI
 		Description: "Update an existing " + typeName + ".",
 		SqlSource:   "fn_update_" + snake,
 		Operation:   "UPDATE",
+		Cascade:     cascade,
 	})
 }
 
-func generateDeleteOp(typeName, snake string, pkField FieldInfo) error {
+func generateDeleteOp(typeName, snake string, pkField FieldInfo, cascade bool) error {
 	return RegisterMutation(MutationDefinition{
 		Name:        "delete_" + snake,
 		ReturnType:  typeName,
@@ -177,5 +179,6 @@ func generateDeleteOp(typeName, snake string, pkField FieldInfo) error {
 		Description: "Delete a " + typeName + ".",
 		SqlSource:   "fn_delete_" + snake,
 		Operation:   "DELETE",
+		Cascade:     cascade,
 	})
 }

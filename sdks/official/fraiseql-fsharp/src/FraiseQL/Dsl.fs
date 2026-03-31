@@ -262,6 +262,7 @@ module Dsl =
             arguments: ArgumentDefinition list
             description: string option
             rest: RestConfig option
+            cascade: bool option
         }
 
     /// Computation expression builder for a <see cref="MutationDefinition"/>.
@@ -285,6 +286,7 @@ module Dsl =
                 arguments = []
                 description = None
                 rest = None
+                cascade = None
             }
 
         member this.Zero() : MutationCEAccState = this.Yield(())
@@ -300,6 +302,7 @@ module Dsl =
                 arguments = s.arguments
                 description = s.description
                 rest = s.rest
+                cascade = s.cascade
             }
 
         /// Sets the GraphQL return type.
@@ -328,6 +331,11 @@ module Dsl =
         /// Sets the optional REST endpoint annotation.
         [<CustomOperation("rest")>]
         member _.Rest(s: MutationCEAccState, cfg: RestConfig) = { s with rest = Some cfg }
+
+        /// Sets cascade support for this mutation.
+        [<CustomOperation("cascade")>]
+        member _.Cascade(s: MutationCEAccState, v: bool) =
+            { s with cascade = if v then Some true else None }
 
     // -------------------------------------------------------------------------
     // FraiseQLBuilder (outer CE)

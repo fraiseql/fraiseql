@@ -23,7 +23,7 @@ from enum import Enum as PythonEnum
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from fraiseql.registry import SchemaRegistry
+from fraiseql.registry import SchemaRegistry, _pascal_to_snake
 from fraiseql.scope import validate_scope
 from fraiseql.types import extract_field_info, extract_function_signature
 
@@ -198,12 +198,15 @@ def field(
     )
 
 
-def type(
+def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     cls: type[T] | None = None,
     *,
     implements: list[str] | None = None,
     relay: bool = False,
     requires_role: str | None = None,
+    sql_source: str | None = None,
+    crud: bool | list[str] = False,
+    cascade: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -213,6 +216,14 @@ def type(
     Args:
         cls: Python class with type annotations
         implements: List of interface names this type implements
+        relay: Whether this type implements the Relay Node interface
+        requires_role: Role required to access this type
+        sql_source: Override the default SQL view name (default: ``v_{snake_case}``)
+        crud: Auto-generate CRUD queries and mutations. ``True`` generates all
+            operations (read, create, update, delete). Pass a list like
+            ``["read", "create"]`` for selective generation.
+        cascade: When ``True`` and ``crud`` is enabled, generated mutations include
+            ``cascade: true`` for GraphQL Cascade support (nested atomic operations).
 
     Returns:
         The original class (unmodified)
@@ -225,28 +236,10 @@ def type(
         ...     email: str | None
         ...     created_at: str
 
-        This generates JSON:
-        {
-            "name": "User",
-            "fields": [
-                {"name": "id", "type": "Int", "nullable": false},
-                {"name": "name", "type": "String", "nullable": false},
-                {"name": "email", "type": "String", "nullable": true},
-                {"name": "created_at", "type": "String", "nullable": false}
-            ]
-        }
-
-        >>> @fraiseql.type(implements=["Node"])
-        ... class User:
-        ...     id: str  # Required by Node interface
-        ...     name: str
-
-        This generates JSON with implements:
-        {
-            "name": "User",
-            "fields": [...],
-            "implements": ["Node"]
-        }
+        >>> @fraiseql.type(crud=True, sql_source="v_order", cascade=True)
+        ... class Order:
+        ...     id: str
+        ...     total: float
 
     Notes:
         - Class must have type annotations for all fields
@@ -263,6 +256,20 @@ def type(
         # Extract field information from class annotations
         fields = extract_field_info(c)
 
+        # Validate sql_source if provided
+        if sql_source is not None:
+            _validate_sql_identifier(
+                sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}"
+            )
+
+        # Validate cascade without crud
+        if cascade and not crud:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: cascade=True has no effect "
+                "without crud=True (or a list of CRUD operations)."
+            )
+            raise ValueError(msg)
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -271,7 +278,21 @@ def type(
             implements=implements or [],
             relay=relay,
             requires_role=requires_role,
+            sql_source=sql_source,
         )
+
+        # Generate CRUD operations if requested
+        if crud:
+            from fraiseql.crud import generate_crud_operations  # noqa: PLC0415
+
+            resolved_source = sql_source or f"v_{_pascal_to_snake(c.__name__)}"
+            generate_crud_operations(
+                type_name=c.__name__,
+                fields=fields,
+                crud=crud,
+                sql_source=resolved_source,
+                cascade=cascade,
+            )
 
         # Return original class unmodified (no runtime behavior)
         return c

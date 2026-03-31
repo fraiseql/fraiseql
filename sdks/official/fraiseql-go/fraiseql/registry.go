@@ -67,6 +67,7 @@ type MutationDefinition struct {
 	InjectParams         map[string]interface{} `json:"inject_params,omitempty"`
 	InvalidatesViews     []string               `json:"invalidates_views,omitempty"`
 	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
+	Cascade              bool                   `json:"cascade,omitempty"`
 	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
 	Config               map[string]interface{} `json:"config,omitempty"`
 }

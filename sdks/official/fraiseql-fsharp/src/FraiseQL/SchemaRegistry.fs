@@ -102,6 +102,17 @@ module SchemaRegistry =
 
         types.[name] <- typeDef
 
+        if attr.Crud then
+            let crudQueries, crudMutations =
+                CrudGenerator.generate name typeDef.fields attr.SqlSource attr.Cascade
+
+            lock lockObj (fun () ->
+                for q in crudQueries do
+                    queries.Add(q)
+
+                for m in crudMutations do
+                    mutations.Add(m))
+
     /// Returns the <see cref="TypeDefinition"/> registered under the given name,
     /// or <c>None</c> if no such type has been registered.
     let getTypeDefinition (name: string) : TypeDefinition option =

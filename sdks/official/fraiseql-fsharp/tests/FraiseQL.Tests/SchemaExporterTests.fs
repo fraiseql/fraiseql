@@ -59,6 +59,7 @@ let private singleMutation: MutationDefinition =
         arguments = []
         description = None
         rest = None
+        cascade = None
     }
 
 let private parseJson (json: string) =

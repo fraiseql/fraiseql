@@ -30,6 +30,8 @@ final class TypeBuilder
     private ?string $description = null;
     private ?string $sqlSourceValue = null;
     private bool $isErrorValue = false;
+    private bool $crudValue = false;
+    private bool $cascadeValue = false;
 
     /**
      * Create a new TypeBuilder for a type.
@@ -207,6 +209,50 @@ final class TypeBuilder
     {
         $this->isErrorValue = $isError;
         return $this;
+    }
+
+    /**
+     * Enable CRUD auto-generation for this type.
+     *
+     * @param bool $crud Whether to generate CRUD queries and mutations
+     * @return self Fluent interface
+     */
+    public function crud(bool $crud = true): self
+    {
+        $this->crudValue = $crud;
+        return $this;
+    }
+
+    /**
+     * Enable cascade on generated CRUD mutations.
+     *
+     * @param bool $cascade Whether generated mutations include cascade support
+     * @return self Fluent interface
+     */
+    public function cascade(bool $cascade = true): self
+    {
+        $this->cascadeValue = $cascade;
+        return $this;
+    }
+
+    /**
+     * Whether CRUD auto-generation is enabled.
+     *
+     * @return bool
+     */
+    public function getCrud(): bool
+    {
+        return $this->crudValue;
+    }
+
+    /**
+     * Whether cascade is enabled for generated CRUD mutations.
+     *
+     * @return bool
+     */
+    public function getCascade(): bool
+    {
+        return $this->cascadeValue;
     }
 
     /**

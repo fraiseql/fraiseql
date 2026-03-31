@@ -7,6 +7,7 @@
 
 import { SchemaRegistry, ArgumentDefinition, Field, EnumValue, FieldMetadata } from "./registry";
 import { CustomScalar } from "./scalars";
+import { generateCrudOperations } from "./crud";
 
 /**
  * Create field-level metadata for access control and deprecation.
@@ -48,6 +49,9 @@ export function field(options: FieldMetadata): FieldMetadata {
 export interface TypeConfig {
   description?: string;
   relay?: boolean;
+  sqlSource?: string;
+  crud?: boolean | string[];
+  cascade?: boolean;
 }
 
 /**
@@ -92,7 +96,10 @@ export function Type(_config?: TypeConfig) {
     // In a real implementation, you'd use TypeScript decorators with reflect-metadata
 
     // For now, register an empty type - users will need to provide metadata separately
-    SchemaRegistry.registerType(typeName, [], _config?.description);
+    SchemaRegistry.registerType(typeName, [], _config?.description, {
+      sqlSource: _config?.sqlSource,
+    });
+    // CRUD generation happens in registerTypeFields which has the fields
 
     // Return the original class unmodified
     return constructor;
@@ -451,9 +458,14 @@ export function registerTypeFields(
     isError?: boolean;
     requiresRole?: string;
     implements?: string[];
+    crud?: boolean | string[];
+    cascade?: boolean;
   }
 ): void {
   SchemaRegistry.registerType(typeName, fields, description, options);
+  if (options?.crud) {
+    generateCrudOperations(typeName, fields, options.crud, options.sqlSource, options.cascade);
+  }
 }
 
 /**

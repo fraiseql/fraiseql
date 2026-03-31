@@ -78,6 +78,7 @@ module MutationBuilder =
             arguments = s.arguments
             description = s.description
             rest = s.rest
+            cascade = None
         }
 
     /// Converts the state to a <see cref="MutationDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

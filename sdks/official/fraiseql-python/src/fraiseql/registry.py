@@ -55,6 +55,7 @@ class SchemaRegistry:
         relay: bool = False,
         requires_role: str | None = None,
         is_error: bool = False,
+        sql_source: str | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -68,12 +69,14 @@ class SchemaRegistry:
                 in the view's data JSONB.
             requires_role: Role required to access this type. If set, only users with
                 this role can see or query this type.
+            sql_source: Override the default SQL view name. When None, defaults to
+                ``v_{snake_case(name)}``.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
         type_def: dict[str, Any] = {
             "name": name,
-            "sql_source": f"v_{_pascal_to_snake(name)}",
+            "sql_source": sql_source or f"v_{_pascal_to_snake(name)}",
             "fields": field_list,
             "description": description,
         }

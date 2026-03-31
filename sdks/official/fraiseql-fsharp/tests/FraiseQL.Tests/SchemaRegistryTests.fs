@@ -175,6 +175,7 @@ let ``reset clears all mutations`` () =
             arguments = []
             description = None
             rest = None
+            cascade = None
         }
 
     SchemaRegistry.registerMutation m
@@ -235,6 +236,7 @@ let ``registerMutation adds to getAllMutations`` () =
             arguments = []
             description = None
             rest = None
+            cascade = None
         }
 
     SchemaRegistry.registerMutation m

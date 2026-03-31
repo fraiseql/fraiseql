@@ -36,6 +36,8 @@ final class MutationBuilder
     /** @var array<string> */
     private array $invalidatesFactTablesList = [];
 
+    private bool $cascadeValue = false;
+
     private ?string $restPathValue = null;
     private ?string $restMethodValue = null;
 
@@ -109,6 +111,18 @@ final class MutationBuilder
         return $this;
     }
 
+    /**
+     * Enable cascade support on this mutation.
+     *
+     * @param bool $cascade Whether this mutation uses cascade
+     * @return self Fluent interface
+     */
+    public function cascade(bool $cascade = true): self
+    {
+        $this->cascadeValue = $cascade;
+        return $this;
+    }
+
     public function restPath(string $path): self
     {
         $this->restPathValue = $path;
@@ -170,6 +184,10 @@ final class MutationBuilder
             $result['inject'] = $this->injectMap;
         }
 
+        if ($this->cascadeValue) {
+            $result['cascade'] = true;
+        }
+
         if ($this->restPathValue !== null) {
             $rest = ['path' => $this->restPathValue, 'method' => $this->restMethodValue ?? 'POST'];
             $result['rest'] = $rest;
@@ -215,6 +233,10 @@ final class MutationBuilder
 
         if (!empty($this->invalidatesFactTablesList)) {
             $result['invalidates_fact_tables'] = $this->invalidatesFactTablesList;
+        }
+
+        if ($this->cascadeValue) {
+            $result['cascade'] = true;
         }
 
         if ($this->restPathValue !== null) {

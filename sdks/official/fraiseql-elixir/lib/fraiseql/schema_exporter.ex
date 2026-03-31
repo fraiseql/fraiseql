@@ -147,6 +147,7 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
+    |> maybe_put_auto_params(q.auto_params)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
@@ -161,6 +162,7 @@ defmodule FraiseQL.SchemaExporter do
 
     base
     |> maybe_put("description", m.description)
+    |> maybe_put_bool("cascade", m.cascade)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 
@@ -180,6 +182,12 @@ defmodule FraiseQL.SchemaExporter do
   defp maybe_put_rest(map, nil, _method, _default_method), do: map
   defp maybe_put_rest(map, path, nil, default_method), do: Map.put(map, "rest", %{"path" => path, "method" => default_method})
   defp maybe_put_rest(map, path, method, _default_method), do: Map.put(map, "rest", %{"path" => path, "method" => method})
+
+  defp maybe_put_auto_params(map, nil), do: map
+  defp maybe_put_auto_params(map, params) when is_map(params) do
+    string_params = Map.new(params, fn {k, v} -> {to_string(k), v} end)
+    Map.put(map, "auto_params", string_params)
+  end
 
   # Only include boolean flags in output when they are true (avoid cluttering schema.json)
   defp maybe_put_bool(map, _key, false), do: map

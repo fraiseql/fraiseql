@@ -339,6 +339,10 @@ public class SchemaFormatter {
                 mutationNode.set("invalidates_fact_tables", tablesArray);
             }
 
+            if (mutationInfo.cascade) {
+                mutationNode.put("cascade", true);
+            }
+
             mutationsNode.set(mutationInfo.name, mutationNode);
         }
 

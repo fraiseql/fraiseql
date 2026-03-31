@@ -352,6 +352,7 @@ public class FraiseQL {
         private Map<String, String> injectParams = null;
         private List<String> invalidatesViews = null;
         private List<String> invalidatesFactTables = null;
+        private boolean cascade = false;
 
         private MutationBuilder(String name) {
             this.name = name;
@@ -482,14 +483,25 @@ public class FraiseQL {
         }
 
         /**
+         * Enable cascade support on this mutation.
+         *
+         * @param cascade whether this mutation uses cascade
+         * @return this builder for chaining
+         */
+        public MutationBuilder cascade(boolean cascade) {
+            this.cascade = cascade;
+            return this;
+        }
+
+        /**
          * Register this mutation in the schema.
          */
         public void register() {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
             if (sqlSource != null || operation != null || injectParams != null
-                    || invalidatesViews != null || invalidatesFactTables != null) {
+                    || invalidatesViews != null || invalidatesFactTables != null || cascade) {
                 registry.registerMutation(name, finalReturnType, arguments, description,
-                    sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
+                    sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables, cascade);
             } else {
                 registry.registerMutation(name, finalReturnType, arguments, description);
             }

@@ -84,6 +84,8 @@ defmodule FraiseQL.Schema do
     * `:relay` — boolean, enables Relay pagination support (default `false`)
     * `:is_input` — boolean, marks this as a GraphQL input type (default `false`)
     * `:is_error` — boolean, marks this as a mutation error shape (default `false`)
+    * `:crud` — boolean or list of atoms (e.g. `[:read, :create]`), auto-generates CRUD operations (default `false`)
+    * `:cascade` — boolean, when `true` generated CRUD mutations include `cascade: true` (default `false`)
 
   ## Examples
 
@@ -115,7 +117,9 @@ defmodule FraiseQL.Schema do
           fields: Enum.reverse(@__fraiseql_field_buffer),
           is_input: unquote(Keyword.get(type_opts, :is_input, false)),
           relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false))
+          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          cascade: unquote(Keyword.get(type_opts, :cascade, false))
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
@@ -132,7 +136,9 @@ defmodule FraiseQL.Schema do
           fields: [],
           is_input: unquote(Keyword.get(type_opts, :is_input, false)),
           relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false))
+          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
+          crud: unquote(Keyword.get(type_opts, :crud, false)),
+          cascade: unquote(Keyword.get(type_opts, :cascade, false))
         }
       end
     end
@@ -385,6 +391,18 @@ defmodule FraiseQL.Schema do
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
 
     validate_no_duplicate_types!(types, env.module)
+
+    # Expand CRUD operations for types that have crud enabled
+    {crud_queries, crud_mutations} =
+      types
+      |> Enum.filter(fn t -> t.crud != false end)
+      |> Enum.reduce({[], []}, fn t, {qs, ms} ->
+        {new_qs, new_ms} = FraiseQL.CrudGenerator.generate(t, cascade: t.cascade)
+        {qs ++ new_qs, ms ++ new_ms}
+      end)
+
+    queries = queries ++ crud_queries
+    mutations = mutations ++ crud_mutations
 
     quote do
       @doc """

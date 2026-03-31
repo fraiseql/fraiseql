@@ -17,6 +17,7 @@
     <Compile Include="Types.fs" />
     <Compile Include="Attributes.fs" />
     <Compile Include="TypeMapper.fs" />
+    <Compile Include="CrudGenerator.fs" />
     <Compile Include="SchemaRegistry.fs" />
     <Compile Include="QueryBuilder.fs" />
     <Compile Include="MutationBuilder.fs" />

@@ -18,4 +18,5 @@ public record IntermediateMutation(
     [property: JsonPropertyName("sql_source")]  string SqlSource,
     [property: JsonPropertyName("operation")]   string Operation,
     [property: JsonPropertyName("arguments")]   IReadOnlyList<IntermediateArgument> Arguments,
-    [property: JsonPropertyName("description")] string? Description = null);
+    [property: JsonPropertyName("description")] string? Description = null,
+    [property: JsonPropertyName("cascade")]     bool? Cascade = null);

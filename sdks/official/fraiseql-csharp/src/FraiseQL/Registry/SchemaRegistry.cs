@@ -58,6 +58,23 @@ public sealed class SchemaRegistry
         {
             _types.Add(definition);
         }
+
+        if (typeAttr.Crud)
+        {
+            var intermediateFields = fields
+                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver, f.Scope, f.Scopes))
+                .ToList()
+                .AsReadOnly();
+
+            var (crudQueries, crudMutations) = CrudGenerator.Generate(
+                typeName, intermediateFields, typeAttr.SqlSource, typeAttr.Cascade);
+
+            lock (_lock)
+            {
+                foreach (var q in crudQueries) _queries.Add(q);
+                foreach (var m in crudMutations) _mutations.Add(m);
+            }
+        }
     }
 
     /// <summary>

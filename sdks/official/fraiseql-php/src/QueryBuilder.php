@@ -21,6 +21,7 @@ final class QueryBuilder
 {
     private string $returnTypeValue = '';
     private bool $returnsListValue = false;
+    private bool $nullableValue = false;
     private ?string $sqlSourceValue = null;
     private ?string $descriptionValue = null;
     private bool $autoParamsValue = false;
@@ -62,6 +63,18 @@ final class QueryBuilder
     public function returnsList(bool $isList = true): self
     {
         $this->returnsListValue = $isList;
+        return $this;
+    }
+
+    /**
+     * Set whether this query can return null.
+     *
+     * @param bool $nullable Whether the result is nullable
+     * @return self Fluent interface
+     */
+    public function nullable(bool $nullable = true): self
+    {
+        $this->nullableValue = $nullable;
         return $this;
     }
 
@@ -174,7 +187,7 @@ final class QueryBuilder
             'name'         => $this->name,
             'return_type'  => $this->returnTypeValue,
             'returns_list' => $this->returnsListValue,
-            'nullable'     => false,
+            'nullable'     => $this->nullableValue,
             'arguments'    => $this->buildIntermediateArguments(),
         ];
 

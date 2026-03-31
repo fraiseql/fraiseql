@@ -61,6 +61,9 @@ public class SchemaRegistry {
         String name = typeName;
         String typeDescription = "";
         boolean relay = false;
+        String annotationSqlSource = null;
+        boolean crud = false;
+        boolean cascade = false;
         if (hasGraphQLType) {
             GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
             if (annotation.name() != null && !annotation.name().isEmpty()) {
@@ -68,6 +71,11 @@ public class SchemaRegistry {
             }
             typeDescription = annotation.description();
             relay = annotation.relay();
+            if (annotation.sqlSource() != null && !annotation.sqlSource().isEmpty()) {
+                annotationSqlSource = annotation.sqlSource();
+            }
+            crud = annotation.crud();
+            cascade = annotation.cascade();
         } else if (hasFactTable) {
             GraphQLFactTable ftAnnotation = typeClass.getAnnotation(GraphQLFactTable.class);
             typeDescription = ftAnnotation.description();
@@ -78,8 +86,8 @@ public class SchemaRegistry {
 
         Map<String, TypeConverter.GraphQLFieldInfo> fields = TypeConverter.extractFields(typeClass);
 
-        // Derive snake_case sql_source from type name (e.g. "OrderItem" -> "v_order_item")
-        String sqlSource = toSnakeCase(name);
+        // Use annotation sqlSource if provided, otherwise derive from type name
+        String sqlSource = annotationSqlSource != null ? annotationSqlSource : toSnakeCase(name);
 
         // Extract requires_role from @RequiresRole annotation (type level)
         String requiresRole = null;
@@ -99,6 +107,11 @@ public class SchemaRegistry {
         );
 
         types.put(name, typeInfo);
+
+        // Generate CRUD operations if enabled
+        if (crud) {
+            CrudGenerator.generate(name, fields, sqlSource, cascade, this);
+        }
     }
 
     /**
@@ -192,6 +205,16 @@ public class SchemaRegistry {
                                  List<String> invalidatesFactTables) {
         MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
             sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
+        mutations.put(mutationName, mutationInfo);
+    }
+
+    /** Register a mutation with all extended fields including cascade. */
+    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments,
+                                 String description, String sqlSource, String operation,
+                                 Map<String, String> injectParams, List<String> invalidatesViews,
+                                 List<String> invalidatesFactTables, boolean cascade) {
+        MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
+            sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables, cascade);
         mutations.put(mutationName, mutationInfo);
     }
 
@@ -566,14 +589,22 @@ public class SchemaRegistry {
         public final Map<String, String> injectParams;
         public final List<String> invalidatesViews;
         public final List<String> invalidatesFactTables;
+        public final boolean cascade;
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, null, null, null, null, null);
+            this(name, returnType, arguments, description, null, null, null, null, null, false);
         }
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
                             String sqlSource, String operation, Map<String, String> injectParams,
                             List<String> invalidatesViews, List<String> invalidatesFactTables) {
+            this(name, returnType, arguments, description, sqlSource, operation, injectParams,
+                invalidatesViews, invalidatesFactTables, false);
+        }
+
+        public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
+                            String sqlSource, String operation, Map<String, String> injectParams,
+                            List<String> invalidatesViews, List<String> invalidatesFactTables, boolean cascade) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -586,6 +617,7 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableList(new ArrayList<>(invalidatesViews)) : null;
             this.invalidatesFactTables = invalidatesFactTables != null
                 ? Collections.unmodifiableList(new ArrayList<>(invalidatesFactTables)) : null;
+            this.cascade = cascade;
         }
 
         @Override

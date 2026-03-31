@@ -38,4 +38,20 @@ public @interface GraphQLType {
      * Requires pk_{entity} (BIGINT) to be present in the view's data JSONB.
      */
     boolean relay() default false;
+
+    /**
+     * The SQL view backing this type (e.g. "v_user").
+     * Defaults to "v_" + snake_case(class name).
+     */
+    String sqlSource() default "";
+
+    /**
+     * When true, auto-generate CRUD queries and mutations for this type.
+     */
+    boolean crud() default false;
+
+    /**
+     * When true, generated CRUD mutations include cascade support.
+     */
+    boolean cascade() default false;
 }
