@@ -46,6 +46,12 @@ ALLOWLIST=(
     "checkpoint"
     # Wire backend marker in fraiseql-arrow
     "wire-backend"
+    # CORS — always-on middleware; feature is a downstream marker
+    "cors"
+    # Database — marker for DB dependency inclusion
+    "database"
+    # Rich filters — marker used by fuzz harness
+    "rich-filters"
 )
 
 is_allowlisted() {
