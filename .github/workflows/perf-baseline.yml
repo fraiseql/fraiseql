@@ -41,7 +41,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraiseql -d fraiseql_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -72,7 +72,7 @@ jobs:
           PGPASSWORD: fraiseql
         run: |
           psql -h localhost -U fraiseql -d fraiseql_test \
-            -f benchmarks/load/test_schema.sql 2>/dev/null \
+            -f benchmarks/load/test_schema.sql 2>&1 \
             || echo "No test schema SQL found — using empty schema"
 
       - name: Compile test schema (if available)

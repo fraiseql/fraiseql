@@ -173,7 +173,7 @@ jobs:
            security-report.md
 
      - name: Generate SBOM (Software Bill of Materials)
-       uses: aquasecurity/trivy-action@master
+       uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
        with:
          scan-type: 'image'
          scan-ref: ${{ matrix.dockerfile.tag }}

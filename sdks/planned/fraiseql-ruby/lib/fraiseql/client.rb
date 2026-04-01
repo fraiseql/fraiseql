@@ -68,7 +68,6 @@ module FraiseQL
         handle_response(response)
       rescue FraiseQL::Error => e
         raise unless retryable_attempt?(attempt, max, e)
-
         sleep(@retry_config.delay_for(attempt - 1))
         retry
       end

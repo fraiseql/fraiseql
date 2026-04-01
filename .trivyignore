@@ -178,7 +178,7 @@ CVE-2024-56433
 #   - Container-to-container communication over trusted network
 # Status: MONITORING - Update when fixed version available
 # Review Date: Weekly until patch available
-CVE-2025-9820 # KEEP VISIBLE - Do not ignore, monitor actively
+CVE-2025-9820
 
 # -----------------------------------------------------------------------------
 # CATEGORY 5b: CRITICAL/HIGH CVEs (No fix available in debian:bookworm-slim)
