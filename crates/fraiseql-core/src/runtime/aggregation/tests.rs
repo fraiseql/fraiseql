@@ -9,52 +9,52 @@ use crate::compiler::{
 
 fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![FilterColumn {
-            name:     "occurred_at".to_string(),
+            name: "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:  vec![],
+        calendar_dimensions: vec![],
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![
+        group_by: vec![
             GroupBySelection::Dimension {
-                path:  "category".to_string(),
+                path: "category".to_string(),
                 alias: "category".to_string(),
             },
             GroupBySelection::TemporalBucket {
                 column: "occurred_at".to_string(),
                 bucket: TemporalBucket::Day,
-                alias:  "day".to_string(),
+                alias: "day".to_string(),
             },
         ],
-        aggregates:   vec![
+        aggregates: vec![
             AggregateSelection::Count {
                 alias: "count".to_string(),
             },
             AggregateSelection::MeasureAggregate {
-                measure:  "revenue".to_string(),
+                measure: "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias:    "revenue_sum".to_string(),
+                alias: "revenue_sum".to_string(),
             },
         ],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        Some(10),
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: Some(10),
+        offset: None,
     };
 
     crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -115,12 +115,12 @@ fn test_having_clause() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
+            alias: "revenue_sum".to_string(),
         },
-        operator:  HavingOperator::Gt,
-        value:     serde_json::json!(1000),
+        operator: HavingOperator::Gt,
+        value: serde_json::json!(1000),
     }];
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -136,7 +136,7 @@ fn test_order_by_clause() {
 
     let mut plan = create_test_plan();
     plan.request.order_by = vec![OrderByClause {
-        field:     "revenue_sum".to_string(),
+        field: "revenue_sum".to_string(),
         direction: OrderDirection::Desc,
     }];
 
@@ -160,7 +160,7 @@ fn test_array_agg_postgres() {
 
     // Test with ORDER BY
     let order_by = vec![OrderByClause {
-        field:     "revenue".to_string(),
+        field: "revenue".to_string(),
         direction: OrderDirection::Desc,
     }];
     let sql = generator.generate_array_agg_sql("product_id", Some(&order_by));
@@ -193,7 +193,7 @@ fn test_string_agg_postgres() {
 
     // Test with ORDER BY
     let order_by = vec![OrderByClause {
-        field:     "revenue".to_string(),
+        field: "revenue".to_string(),
         direction: OrderDirection::Desc,
     }];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -205,7 +205,7 @@ fn test_string_agg_mysql() {
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
 
     let order_by = vec![OrderByClause {
-        field:     "revenue".to_string(),
+        field: "revenue".to_string(),
         direction: OrderDirection::Desc,
     }];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -217,7 +217,7 @@ fn test_string_agg_sqlserver() {
     let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
 
     let order_by = vec![OrderByClause {
-        field:     "revenue".to_string(),
+        field: "revenue".to_string(),
         direction: OrderDirection::Desc,
     }];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -232,7 +232,7 @@ fn test_json_agg_postgres() {
     assert_eq!(sql, "JSON_AGG(data)");
 
     let order_by = vec![OrderByClause {
-        field:     "created_at".to_string(),
+        field: "created_at".to_string(),
         direction: OrderDirection::Asc,
     }];
     let sql = generator.generate_json_agg_sql("data", Some(&order_by));
@@ -289,23 +289,23 @@ fn test_advanced_aggregate_full_query() {
 
     // Add an ARRAY_AGG aggregate
     plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-        column:    "product_id".to_string(),
-        function:  AggregateFunction::ArrayAgg,
-        alias:     "products".to_string(),
+        column: "product_id".to_string(),
+        function: AggregateFunction::ArrayAgg,
+        alias: "products".to_string(),
         delimiter: None,
-        order_by:  Some(vec![OrderByClause {
-            field:     "revenue".to_string(),
+        order_by: Some(vec![OrderByClause {
+            field: "revenue".to_string(),
             direction: OrderDirection::Desc,
         }]),
     });
 
     // Add a STRING_AGG aggregate
     plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-        column:    "product_name".to_string(),
-        function:  AggregateFunction::StringAgg,
-        alias:     "product_names".to_string(),
+        column: "product_name".to_string(),
+        function: AggregateFunction::StringAgg,
+        alias: "product_names".to_string(),
         delimiter: Some(", ".to_string()),
-        order_by:  None,
+        order_by: None,
     });
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -326,12 +326,12 @@ fn test_having_string_value_is_bound_not_escaped() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "label".to_string(),
+            column: "label".to_string(),
             function: AggregateFunction::Max,
-            alias:    "label_max".to_string(),
+            alias: "label_max".to_string(),
         },
-        operator:  HavingOperator::Eq,
-        value:     serde_json::json!("O'Reilly"),
+        operator: HavingOperator::Eq,
+        value: serde_json::json!("O'Reilly"),
     }];
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -499,38 +499,38 @@ fn test_stringagg_delimiter_clean_value_unchanged() {
 
 fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![FilterColumn {
-            name:     "status".to_string(),
+            name: "status".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:  vec![],
+        calendar_dimensions: vec![],
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!("test_value"),
+            value: serde_json::json!("test_value"),
         }),
-        group_by:     vec![GroupBySelection::Dimension {
-            path:  "category".to_string(),
+        group_by: vec![GroupBySelection::Dimension {
+            path: "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -561,12 +561,12 @@ fn test_generate_parameterized_having_string_becomes_placeholder() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
+            alias: "revenue_sum".to_string(),
         },
-        operator:  HavingOperator::Eq,
-        value:     serde_json::json!(injection),
+        operator: HavingOperator::Eq,
+        value: serde_json::json!(injection),
     }];
 
     let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
@@ -594,52 +594,52 @@ fn test_parameterized_postgres_placeholder_numbering() {
     // then inject a HAVING condition directly (like test_having_clause).
     let injection = "risky";
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![
             FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             },
             FilterColumn {
-                name:     "channel".to_string(),
+                name: "channel".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             },
         ],
-        calendar_dimensions:  vec![],
+        calendar_dimensions: vec![],
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["channel".to_string()],
+            path: vec!["channel".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!(injection),
+            value: serde_json::json!(injection),
         }),
-        group_by:     vec![GroupBySelection::TemporalBucket {
+        group_by: vec![GroupBySelection::TemporalBucket {
             column: "occurred_at".to_string(),
             bucket: TemporalBucket::Day,
-            alias:  "day".to_string(),
+            alias: "day".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "revenue".to_string(),
+        aggregates: vec![AggregateSelection::MeasureAggregate {
+            measure: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "total".to_string(),
+            alias: "total".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let mut plan =
@@ -647,12 +647,12 @@ fn test_parameterized_postgres_placeholder_numbering() {
     // Inject HAVING directly to avoid navigating the unvalidated HavingCondition type.
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "total".to_string(),
+            alias: "total".to_string(),
         },
-        operator:  HavingOperator::Gt,
-        value:     serde_json::json!("threshold"),
+        operator: HavingOperator::Gt,
+        value: serde_json::json!("threshold"),
     }];
 
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -691,34 +691,34 @@ fn test_parameterized_sqlserver_uses_at_p_placeholder() {
 fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     // WHERE status IN ("a","b","c") → WHERE status IN ($1,$2,$3) with 3 params
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![FilterColumn {
-            name:     "status".to_string(),
+            name: "status".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:  vec![],
+        calendar_dimensions: vec![],
     };
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::In,
-            value:    serde_json::json!(["a", "b", "c"]),
+            value: serde_json::json!(["a", "b", "c"]),
         }),
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::Count {
+        group_by: vec![],
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let plan = crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap();
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);

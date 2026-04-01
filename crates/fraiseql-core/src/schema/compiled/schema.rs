@@ -496,6 +496,7 @@ impl CompiledSchema {
     /// # Returns
     ///
     /// Federation metadata if configured in schema
+    #[cfg(feature = "federation")]
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
@@ -503,13 +504,13 @@ impl CompiledSchema {
                 .entities
                 .iter()
                 .map(|e| crate::federation::types::FederatedType {
-                    name:             e.name.clone(),
-                    keys:             vec![crate::federation::types::KeyDirective {
-                        fields:     e.key_fields.clone(),
+                    name: e.name.clone(),
+                    keys: vec![crate::federation::types::KeyDirective {
+                        fields: e.key_fields.clone(),
                         resolvable: true,
                     }],
-                    is_extends:       false,
-                    external_fields:  Vec::new(),
+                    is_extends: false,
+                    external_fields: Vec::new(),
                     shareable_fields: Vec::new(),
                     field_directives: std::collections::HashMap::new(),
                 })
@@ -521,6 +522,13 @@ impl CompiledSchema {
                 types,
             }
         })
+    }
+
+    /// Stub federation metadata when federation feature is disabled.
+    #[cfg(not(feature = "federation"))]
+    #[must_use]
+    pub fn federation_metadata(&self) -> Option<()> {
+        None
     }
 
     /// Get security configuration from schema.
@@ -775,17 +783,17 @@ mod tests {
 
     fn make_type_def(name: &str) -> TypeDefinition {
         TypeDefinition {
-            name:                name.into(),
-            sql_source:          format!("v_{}", name.to_lowercase()).as_str().into(),
-            jsonb_column:        "data".to_string(),
-            fields:              vec![],
-            description:         None,
+            name: name.into(),
+            sql_source: format!("v_{}", name.to_lowercase()).as_str().into(),
+            jsonb_column: "data".to_string(),
+            fields: vec![],
+            description: None,
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
         }
     }
 
@@ -1046,11 +1054,14 @@ mod tests {
         assert!(!schema.has_fact_tables());
 
         let meta = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            table_name: "tf_sales".to_string(),
+            measures: vec![],
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
+                paths: vec![],
+            },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         };
         schema.add_fact_table("tf_sales".to_string(), meta);
 
@@ -1064,11 +1075,14 @@ mod tests {
         use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
 
         let make_meta = |name: &str| FactTableMetadata {
-            table_name:           name.to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            table_name: name.to_string(),
+            measures: vec![],
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
+                paths: vec![],
+            },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         };
 
         let mut schema = CompiledSchema::new();
@@ -1195,7 +1209,10 @@ mod tests {
     #[test]
     fn federation_metadata_none_when_disabled() {
         let mut schema = CompiledSchema::new();
-        schema.federation = Some(FederationConfig { enabled: false, ..Default::default() });
+        schema.federation = Some(FederationConfig {
+            enabled: false,
+            ..Default::default()
+        });
         assert!(schema.federation_metadata().is_none());
     }
 
@@ -1203,10 +1220,10 @@ mod tests {
     fn federation_metadata_some_when_enabled() {
         let mut schema = CompiledSchema::new();
         schema.federation = Some(FederationConfig {
-            enabled:  true,
-            version:  Some("v2".to_string()),
+            enabled: true,
+            version: Some("v2".to_string()),
             entities: vec![FederationEntity {
-                name:       "User".to_string(),
+                name: "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],
             ..Default::default()
@@ -1257,10 +1274,7 @@ mod tests {
     fn has_rls_configured_false_when_policies_empty() {
         let mut schema = CompiledSchema::new();
         let mut sec = SecurityConfig::new();
-        sec.additional.insert(
-            "policies".to_string(),
-            serde_json::json!([]),
-        );
+        sec.additional.insert("policies".to_string(), serde_json::json!([]));
         schema.security = Some(sec);
         assert!(!schema.has_rls_configured());
     }
@@ -1369,8 +1383,10 @@ mod tests {
 
     #[test]
     fn builtin_scalar_types_pass_validation() {
-        let scalars = ["String", "Int", "Float", "Boolean", "ID", "DateTime", "Date",
-                       "Time", "JSON", "UUID", "Decimal"];
+        let scalars = [
+            "String", "Int", "Float", "Boolean", "ID", "DateTime", "Date", "Time", "JSON", "UUID",
+            "Decimal",
+        ];
         for scalar in scalars {
             let mut schema = CompiledSchema::new();
             schema.queries.push(make_query("q", scalar));

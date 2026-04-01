@@ -65,9 +65,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         })?;
 
         // Read security configs from compiled schema BEFORE schema is moved.
+        #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
+        #[cfg(not(feature = "federation"))]
+        let circuit_breaker: Option<()> = None;
+        #[cfg(not(feature = "federation"))]
+        let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(&schema)?;
@@ -192,7 +197,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)] // Reason: internal constructor that collects all pre-built subsystems; callers pass
+    #[allow(clippy::too_many_arguments)]
+    // Reason: internal constructor that collects all pre-built subsystems; callers pass
     // already-constructed values rather than building them here, so grouping into a
     // builder struct would not reduce call-site clarity.
     #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
@@ -200,9 +206,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         executor: Arc<Executor<A>>,
         subscription_manager: Arc<SubscriptionManager>,
-        circuit_breaker: Option<
+        #[cfg(feature = "federation")] circuit_breaker: Option<
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
+        #[cfg(not(feature = "federation"))] circuit_breaker: Option<()>,
         error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
         state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
         pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
@@ -313,6 +320,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             rate_limiter,
             #[cfg(feature = "secrets")]
             secrets_manager: None,
+            #[cfg(feature = "federation")]
             circuit_breaker,
             error_sanitizer,
             #[cfg(feature = "auth")]

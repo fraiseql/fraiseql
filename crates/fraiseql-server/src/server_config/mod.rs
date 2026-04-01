@@ -489,19 +489,17 @@ impl Default for ServerConfig {
                          * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
-            max_header_count: default_max_header_count(),         // 100 headers
-            max_header_bytes: default_max_header_bytes(),         // 32 KiB
+            max_header_count: default_max_header_count(), // 100 headers
+            max_header_bytes: default_max_header_bytes(), // 32 KiB
             rate_limiting: None,             // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
             pool_tuning: None,               // Pool pressure monitoring disabled by default
             admission_control: None,         // Admission control disabled by default
-            security_contact: None,              // No security.txt by default
+            security_contact: None,          // No security.txt by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
         }
     }
 }
-
-

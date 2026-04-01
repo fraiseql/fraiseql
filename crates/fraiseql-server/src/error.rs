@@ -70,7 +70,7 @@ impl ErrorCode {
             // MUST return 2xx.
             Self::ValidationError | Self::ParseError | Self::PersistedQueryNotFound => {
                 StatusCode::OK
-            }
+            },
             // Truly malformed HTTP request (missing `query` field, unparseable JSON body),
             // APQ hash mismatch, forbidden queries, or missing trusted documents.
             Self::RequestError
@@ -93,7 +93,7 @@ impl ErrorCode {
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorLocation {
     /// Line number (1-indexed).
-    pub line:   usize,
+    pub line: usize,
     /// Column number (1-indexed).
     pub column: usize,
 }
@@ -191,11 +191,11 @@ impl GraphQLError {
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         let request_id = request_id.into();
         let extensions = self.extensions.take().unwrap_or(ErrorExtensions {
-            category:         None,
-            status:           None,
-            request_id:       None,
+            category: None,
+            status: None,
+            request_id: None,
             retry_after_secs: None,
-            detail:           None,
+            detail: None,
         });
 
         self.extensions = Some(ErrorExtensions {
@@ -335,11 +335,11 @@ impl GraphQLError {
             ErrorCode::CircuitBreakerOpen,
         )
         .with_extensions(ErrorExtensions {
-            category:         Some("CIRCUIT_BREAKER".to_string()),
-            status:           Some(503),
-            request_id:       None,
+            category: Some("CIRCUIT_BREAKER".to_string()),
+            status: Some(503),
+            request_id: None,
             retry_after_secs: Some(retry_after_secs),
-            detail:           None,
+            detail: None,
         })
     }
 }
@@ -468,7 +468,7 @@ mod tests {
     fn test_from_fraiseql_error_database_maps_to_database_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Database {
-            message:   "relation \"users\" does not exist".into(),
+            message: "relation \"users\" does not exist".into(),
             sql_state: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -480,7 +480,7 @@ mod tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Validation {
             message: "field 'id' is required".into(),
-            path:    None,
+            path: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::ValidationError);
@@ -491,7 +491,7 @@ mod tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::NotFound {
             resource_type: "User".into(),
-            identifier:    "123".into(),
+            identifier: "123".into(),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::NotFound);
@@ -501,8 +501,8 @@ mod tests {
     fn test_from_fraiseql_error_authorization_maps_to_forbidden() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Authorization {
-            message:  "insufficient permissions".into(),
-            action:   Some("write".into()),
+            message: "insufficient permissions".into(),
+            action: Some("write".into()),
             resource: Some("User".into()),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -522,11 +522,11 @@ mod tests {
     #[test]
     fn test_error_extensions() {
         let extensions = ErrorExtensions {
-            category:         Some("VALIDATION".to_string()),
-            status:           Some(400),
-            request_id:       Some("req-123".to_string()),
+            category: Some("VALIDATION".to_string()),
+            status: Some(400),
+            request_id: Some("req-123".to_string()),
             retry_after_secs: None,
-            detail:           None,
+            detail: None,
         };
 
         let error = GraphQLError::validation("Invalid").with_extensions(extensions);
@@ -576,7 +576,7 @@ mod tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Timeout {
             timeout_ms: 5000,
-            query:      Some("{ users { id } }".into()),
+            query: Some("{ users { id } }".into()),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::Timeout);
@@ -586,7 +586,7 @@ mod tests {
     fn test_from_fraiseql_rate_limited_maps_to_rate_limit_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::RateLimited {
-            message:          "too many requests".into(),
+            message: "too many requests".into(),
             retry_after_secs: 60,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -607,7 +607,7 @@ mod tests {
     fn test_from_fraiseql_parse_maps_to_parse_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Parse {
-            message:  "unexpected token".into(),
+            message: "unexpected token".into(),
             location: "line 1, col 5".into(),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -619,7 +619,7 @@ mod tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Internal {
             message: "unexpected nil pointer".into(),
-            source:  None,
+            source: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::InternalServerError);

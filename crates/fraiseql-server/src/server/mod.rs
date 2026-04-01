@@ -67,6 +67,7 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "secrets")]
     pub(super) secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
+    #[cfg(feature = "federation")]
     pub(super) circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     pub(super) error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
@@ -78,7 +79,7 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
-    #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+    #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
     pub(super) revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
     pub(super) apq_store: Option<fraiseql_core::apq::ArcApqStorage>,
     pub(super) trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,

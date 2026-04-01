@@ -30,12 +30,12 @@ impl KafkaConfig {
     #[must_use]
     pub fn new(brokers: impl Into<String>, default_topic: impl Into<String>) -> Self {
         Self {
-            brokers:       brokers.into(),
+            brokers: brokers.into(),
             default_topic: default_topic.into(),
-            client_id:     "fraiseql".to_string(),
-            acks:          "all".to_string(),
-            timeout_ms:    30_000,
-            compression:   None,
+            client_id: "fraiseql".to_string(),
+            acks: "all".to_string(),
+            timeout_ms: 30_000,
+            compression: None,
         }
     }
 
@@ -105,15 +105,15 @@ impl KafkaMessage {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id:          event.event_id.clone(),
+            event_id: event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
         }
     }
 
@@ -153,7 +153,7 @@ impl KafkaMessage {
 /// ```
 #[cfg(feature = "kafka")]
 pub struct KafkaAdapter {
-    config:   KafkaConfig,
+    config: KafkaConfig,
     producer: rdkafka::producer::FutureProducer,
 }
 
@@ -264,7 +264,7 @@ impl TransportAdapter for KafkaAdapter {
                 );
                 Err(SubscriptionError::DeliveryFailed {
                     transport: "kafka".to_string(),
-                    reason:    kafka_error.to_string(),
+                    reason: kafka_error.to_string(),
                 })
             },
         }

@@ -46,7 +46,7 @@ pub struct SubgraphCircuitHealth {
     /// Entity type name as defined in the compiled schema.
     pub subgraph: String,
     /// Current circuit state.
-    pub state:    CircuitHealthState,
+    pub state: CircuitHealthState,
 }
 
 /// Internal circuit state stored behind a `Mutex`.
@@ -60,7 +60,7 @@ enum CircuitState {
     Closed { consecutive_failures: u32 },
     /// Circuit tripped; requests are rejected until `recovery_timeout` elapses.
     Open {
-        opened_at:        Instant,
+        opened_at: Instant,
         recovery_timeout: Duration,
     },
     /// Recovery probe phase.
@@ -69,8 +69,8 @@ enum CircuitState {
     /// preventing a thundering herd when the circuit first becomes eligible for recovery.
     HalfOpen {
         consecutive_failures: u32,
-        probe_in_flight:      bool,
-        successes:            u32,
+        probe_in_flight: bool,
+        successes: u32,
     },
 }
 
@@ -78,19 +78,19 @@ enum CircuitState {
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
     /// Consecutive failures required to trip the circuit open.
-    pub failure_threshold:     u32,
+    pub failure_threshold: u32,
     /// Seconds to hold the circuit open before transitioning to `HalfOpen`.
     pub recovery_timeout_secs: u64,
     /// Consecutive successes in `HalfOpen` required to close the circuit.
-    pub success_threshold:     u32,
+    pub success_threshold: u32,
 }
 
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            failure_threshold:     5,
+            failure_threshold: 5,
             recovery_timeout_secs: 30,
-            success_threshold:     2,
+            success_threshold: 2,
         }
     }
 }
@@ -100,7 +100,7 @@ struct EntityCircuitBreaker {
     config: CircuitBreakerConfig,
     /// All mutable state — including the consecutive-failure counter — lives inside
     /// this single mutex so that counter increments and state transitions are atomic.
-    state:  Mutex<CircuitState>,
+    state: Mutex<CircuitState>,
 }
 
 impl EntityCircuitBreaker {
@@ -158,8 +158,8 @@ impl EntityCircuitBreaker {
                 // This call becomes the first (and only) probe.
                 *state = CircuitState::HalfOpen {
                     consecutive_failures: 0,
-                    probe_in_flight:      true,
-                    successes:            0,
+                    probe_in_flight: true,
+                    successes: 0,
                 };
             },
             CircuitState::HalfOpen {
@@ -229,7 +229,7 @@ impl EntityCircuitBreaker {
         if new_count >= self.config.failure_threshold {
             let from_half_open = matches!(*state, CircuitState::HalfOpen { .. });
             *state = CircuitState::Open {
-                opened_at:        Instant::now(),
+                opened_at: Instant::now(),
                 recovery_timeout: Duration::from_secs(self.config.recovery_timeout_secs),
             };
             if from_half_open {
@@ -298,23 +298,23 @@ impl EntityCircuitBreaker {
 #[derive(Deserialize, Debug)]
 struct CircuitBreakerJson {
     #[serde(default)]
-    enabled:               bool,
-    failure_threshold:     Option<u32>,
+    enabled: bool,
+    failure_threshold: Option<u32>,
     recovery_timeout_secs: Option<u64>,
-    success_threshold:     Option<u32>,
+    success_threshold: Option<u32>,
     /// Per-entity overrides. Also accepts the legacy key `per_database`.
     #[serde(default, alias = "per_database")]
-    per_entity:            Vec<PerEntityJson>,
+    per_entity: Vec<PerEntityJson>,
 }
 
 #[derive(Deserialize, Debug)]
 struct PerEntityJson {
     /// Entity type name (GraphQL `__typename`). Also accepts the legacy key `database`.
     #[serde(alias = "database")]
-    entity_type:           String,
-    failure_threshold:     Option<u32>,
+    entity_type: String,
+    failure_threshold: Option<u32>,
     recovery_timeout_secs: Option<u64>,
-    success_threshold:     Option<u32>,
+    success_threshold: Option<u32>,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -326,8 +326,8 @@ struct PerEntityJson {
 /// Instantiated from the compiled schema JSON and shared via `Arc` across
 /// request handlers and the metrics endpoint.
 pub struct FederationCircuitBreakerManager {
-    breakers:          DashMap<String, Arc<EntityCircuitBreaker>>,
-    default_config:    CircuitBreakerConfig,
+    breakers: DashMap<String, Arc<EntityCircuitBreaker>>,
+    default_config: CircuitBreakerConfig,
     per_entity_config: DashMap<String, CircuitBreakerConfig>,
 }
 
@@ -350,20 +350,20 @@ impl FederationCircuitBreakerManager {
             return None;
         }
         let default_config = CircuitBreakerConfig {
-            failure_threshold:     cb.failure_threshold,
+            failure_threshold: cb.failure_threshold,
             recovery_timeout_secs: cb.recovery_timeout_secs,
-            success_threshold:     cb.success_threshold,
+            success_threshold: cb.success_threshold,
         };
         let manager = Arc::new(Self::new(default_config));
         for override_entry in &cb.per_entity {
             let entity_config = CircuitBreakerConfig {
-                failure_threshold:     override_entry
+                failure_threshold: override_entry
                     .failure_threshold
                     .unwrap_or(manager.default_config.failure_threshold),
                 recovery_timeout_secs: override_entry
                     .recovery_timeout
                     .unwrap_or(manager.default_config.recovery_timeout_secs),
-                success_threshold:     override_entry
+                success_threshold: override_entry
                     .success_threshold
                     .unwrap_or(manager.default_config.success_threshold),
             };
@@ -412,22 +412,22 @@ impl FederationCircuitBreakerManager {
         }
 
         let default_config = CircuitBreakerConfig {
-            failure_threshold:     cb_json.failure_threshold.unwrap_or(5),
+            failure_threshold: cb_json.failure_threshold.unwrap_or(5),
             recovery_timeout_secs: cb_json.recovery_timeout_secs.unwrap_or(30),
-            success_threshold:     cb_json.success_threshold.unwrap_or(2),
+            success_threshold: cb_json.success_threshold.unwrap_or(2),
         };
 
         let manager = Arc::new(Self::new(default_config));
 
         for override_entry in cb_json.per_entity {
             let entity_config = CircuitBreakerConfig {
-                failure_threshold:     override_entry
+                failure_threshold: override_entry
                     .failure_threshold
                     .unwrap_or(manager.default_config.failure_threshold),
                 recovery_timeout_secs: override_entry
                     .recovery_timeout_secs
                     .unwrap_or(manager.default_config.recovery_timeout_secs),
-                success_threshold:     override_entry
+                success_threshold: override_entry
                     .success_threshold
                     .unwrap_or(manager.default_config.success_threshold),
             };
@@ -503,7 +503,7 @@ impl FederationCircuitBreakerManager {
             .iter()
             .map(|entry| SubgraphCircuitHealth {
                 subgraph: entry.key().clone(),
-                state:    entry.value().state_for_health(),
+                state: entry.value().state_for_health(),
             })
             .collect()
     }
@@ -568,9 +568,9 @@ mod tests {
     #[test]
     fn test_state_for_health_returns_open_after_threshold() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 3600,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
         breaker.record_failure();
@@ -580,9 +580,9 @@ mod tests {
     #[test]
     fn test_state_for_health_returns_half_open_after_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0, // instant recovery for testing
-            success_threshold:     5,
+            success_threshold: 5,
         };
         let breaker = EntityCircuitBreaker::new(config);
         breaker.record_failure();
@@ -628,9 +628,9 @@ mod tests {
     #[test]
     fn test_circuit_opens_after_threshold() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     3,
+            failure_threshold: 3,
             recovery_timeout_secs: 60,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -649,9 +649,9 @@ mod tests {
     #[test]
     fn test_circuit_stays_open_before_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 3600, // very long timeout — should not auto-recover
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -663,9 +663,9 @@ mod tests {
     #[test]
     fn test_circuit_half_open_after_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0, // instant recovery for testing
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -678,9 +678,9 @@ mod tests {
     #[test]
     fn test_circuit_half_open_blocks_concurrent_probes() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     5, // high threshold to stay in HalfOpen
+            success_threshold: 5, // high threshold to stay in HalfOpen
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -695,9 +695,9 @@ mod tests {
     #[test]
     fn test_circuit_closes_after_recovery() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -716,9 +716,9 @@ mod tests {
     fn test_circuit_half_open_probe_cleared_after_success() {
         // After a successful probe, probe_in_flight is cleared so the next probe can proceed.
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     3,
+            success_threshold: 3,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -903,9 +903,9 @@ mod tests {
         // The merged counter+state mutex ensures no TOCTOU race between the old
         // AtomicU32 counter and the separate state mutex.
         let config = CircuitBreakerConfig {
-            failure_threshold:     10,
+            failure_threshold: 10,
             recovery_timeout_secs: 60,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = StdArc::new(EntityCircuitBreaker::new(config));
 

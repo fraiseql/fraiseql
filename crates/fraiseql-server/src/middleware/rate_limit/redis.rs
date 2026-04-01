@@ -39,11 +39,11 @@ pub fn redis_error_count_total() -> u64 {
 /// Internal result returned by the Redis Lua token-bucket script.
 #[cfg(feature = "redis-rate-limiting")]
 struct RedisRateLimitResult {
-    allowed:          bool,
+    allowed: bool,
     /// Remaining tokens after this request (in whole tokens, not milli-tokens).
     remaining_tokens: f64,
     /// Milliseconds until the next token becomes available; 0 when allowed.
-    retry_after_ms:   u64,
+    retry_after_ms: u64,
 }
 
 /// Atomic token-bucket Lua script for Redis.
@@ -95,8 +95,8 @@ end
 /// and exposed in the `/metrics` endpoint.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRateLimiter {
-    pool:       redis::aio::ConnectionManager,
-    config:     RateLimitConfig,
+    pool: redis::aio::ConnectionManager,
+    config: RateLimitConfig,
     path_rules: Vec<PathRateLimit>,
     /// Cached SHA of the loaded Lua script.  Cleared on `NOSCRIPT` errors so
     /// the script is transparently reloaded (e.g. after a Redis restart).
@@ -131,32 +131,32 @@ impl RedisRateLimiter {
 
         if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/start".to_string(),
+                path_prefix: "/auth/start".to_string(),
                 // Reason: window_secs is a small config value; no meaningful precision loss.
                 #[allow(clippy::cast_precision_loss)]
                 tokens_per_sec: f64::from(sec.auth_start_max_requests)
                     / sec.auth_start_window_secs as f64,
-                burst:          f64::from(sec.auth_start_max_requests),
+                burst: f64::from(sec.auth_start_max_requests),
             });
         }
         if sec.auth_callback_max_requests > 0 && sec.auth_callback_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/callback".to_string(),
+                path_prefix: "/auth/callback".to_string(),
                 // Reason: window_secs is a small config value; no meaningful precision loss.
                 #[allow(clippy::cast_precision_loss)]
                 tokens_per_sec: f64::from(sec.auth_callback_max_requests)
                     / sec.auth_callback_window_secs as f64,
-                burst:          f64::from(sec.auth_callback_max_requests),
+                burst: f64::from(sec.auth_callback_max_requests),
             });
         }
         if sec.auth_refresh_max_requests > 0 && sec.auth_refresh_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/refresh".to_string(),
+                path_prefix: "/auth/refresh".to_string(),
                 // Reason: window_secs is a small config value; no meaningful precision loss.
                 #[allow(clippy::cast_precision_loss)]
                 tokens_per_sec: f64::from(sec.auth_refresh_max_requests)
                     / sec.auth_refresh_window_secs as f64,
-                burst:          f64::from(sec.auth_refresh_max_requests),
+                burst: f64::from(sec.auth_refresh_max_requests),
             });
         }
 
@@ -249,10 +249,7 @@ impl RedisRateLimiter {
 
         let result: Vec<i64> = match do_evalsha(&sha).query_async(&mut conn).await {
             Ok(r) => r,
-            Err(e)
-                if e.kind()
-                    == redis::ErrorKind::Server(redis::ServerErrorKind::NoScript) =>
-            {
+            Err(e) if e.kind() == redis::ErrorKind::Server(redis::ServerErrorKind::NoScript) => {
                 // Script cache was cleared (e.g. Redis restart) — reload and retry.
                 *self.script_sha.write().await = None;
                 let sha2 = self.load_script().await?;
@@ -262,12 +259,12 @@ impl RedisRateLimiter {
         };
 
         Ok(RedisRateLimitResult {
-            allowed:          result[0] == 1,
+            allowed: result[0] == 1,
             // Convert milli-tokens back to whole tokens for the header.
             // Reason: milli-token counts from Redis are small integers; no meaningful precision loss.
             #[allow(clippy::cast_precision_loss)]
             remaining_tokens: result[1] as f64 / 1000.0,
-            retry_after_ms:   result[2].cast_unsigned(),
+            retry_after_ms: result[2].cast_unsigned(),
         })
     }
 

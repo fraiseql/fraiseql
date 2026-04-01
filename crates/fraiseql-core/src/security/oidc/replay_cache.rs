@@ -78,11 +78,7 @@ pub trait ReplayCacheBackend: Send + Sync {
     ///
     /// Returns [`ReplayCacheError::Replayed`] when replay is detected.
     /// Returns [`ReplayCacheError::Backend`] on storage failure.
-    async fn check_and_record(
-        &self,
-        jti: &str,
-        ttl: Duration,
-    ) -> Result<(), ReplayCacheError>;
+    async fn check_and_record(&self, jti: &str, ttl: Duration) -> Result<(), ReplayCacheError>;
 }
 
 // ============================================================================
@@ -112,7 +108,7 @@ pub fn jwt_replay_cache_errors_total() -> u64 {
 /// Prometheus-compatible counters.
 pub struct ReplayCache {
     backend: Box<dyn ReplayCacheBackend>,
-    policy:  FailurePolicy,
+    policy: FailurePolicy,
 }
 
 impl ReplayCache {
@@ -121,7 +117,7 @@ impl ReplayCache {
     pub fn new(backend: impl ReplayCacheBackend + 'static) -> Self {
         Self {
             backend: Box::new(backend),
-            policy:  FailurePolicy::FailOpen,
+            policy: FailurePolicy::FailOpen,
         }
     }
 
@@ -138,17 +134,13 @@ impl ReplayCache {
     ///
     /// Returns `Err(ReplayCacheError::Replayed)` when replay is detected.
     /// Backend errors are handled according to the configured [`FailurePolicy`].
-    pub async fn check_and_record(
-        &self,
-        jti: &str,
-        ttl: Duration,
-    ) -> Result<(), ReplayCacheError> {
+    pub async fn check_and_record(&self, jti: &str, ttl: Duration) -> Result<(), ReplayCacheError> {
         match self.backend.check_and_record(jti, ttl).await {
             Ok(()) => Ok(()),
             Err(ReplayCacheError::Replayed) => {
                 JWT_REPLAY_REJECTED_TOTAL.fetch_add(1, Ordering::Relaxed);
                 Err(ReplayCacheError::Replayed)
-            }
+            },
             Err(ReplayCacheError::Backend(msg)) => {
                 JWT_REPLAY_CACHE_ERRORS_TOTAL.fetch_add(1, Ordering::Relaxed);
                 match self.policy {
@@ -159,12 +151,10 @@ impl ReplayCache {
                              Replay protection is degraded while the backend is unavailable."
                         );
                         Ok(())
-                    }
-                    FailurePolicy::FailClosed => {
-                        Err(ReplayCacheError::Backend(msg))
-                    }
+                    },
+                    FailurePolicy::FailClosed => Err(ReplayCacheError::Backend(msg)),
                 }
-            }
+            },
         }
     }
 }
@@ -202,11 +192,7 @@ impl Default for MemoryReplayCache {
 
 #[async_trait]
 impl ReplayCacheBackend for MemoryReplayCache {
-    async fn check_and_record(
-        &self,
-        jti: &str,
-        ttl: Duration,
-    ) -> Result<(), ReplayCacheError> {
+    async fn check_and_record(&self, jti: &str, ttl: Duration) -> Result<(), ReplayCacheError> {
         let now = std::time::Instant::now();
         let expiry = now + ttl;
 
@@ -236,7 +222,7 @@ impl ReplayCacheBackend for MemoryReplayCache {
 /// the token is a replay.
 #[cfg(feature = "jwt-replay")]
 pub struct RedisReplayCache {
-    pool:       redis::aio::ConnectionManager,
+    pool: redis::aio::ConnectionManager,
     key_prefix: String,
 }
 
@@ -256,10 +242,7 @@ impl RedisReplayCache {
     /// # Errors
     ///
     /// Returns an error if the Redis URL is invalid or the connection fails.
-    pub async fn with_prefix(
-        redis_url: &str,
-        key_prefix: &str,
-    ) -> Result<Self, ReplayCacheError> {
+    pub async fn with_prefix(redis_url: &str, key_prefix: &str) -> Result<Self, ReplayCacheError> {
         let client = redis::Client::open(redis_url)
             .map_err(|e| ReplayCacheError::Backend(format!("invalid Redis URL: {e}")))?;
         let pool = client
@@ -280,11 +263,7 @@ impl RedisReplayCache {
 #[cfg(feature = "jwt-replay")]
 #[async_trait]
 impl ReplayCacheBackend for RedisReplayCache {
-    async fn check_and_record(
-        &self,
-        jti: &str,
-        ttl: Duration,
-    ) -> Result<(), ReplayCacheError> {
+    async fn check_and_record(&self, jti: &str, ttl: Duration) -> Result<(), ReplayCacheError> {
         use redis::AsyncCommands;
 
         let key = self.key(jti);
@@ -325,22 +304,15 @@ mod tests {
     #[tokio::test]
     async fn test_first_use_accepted() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        let result = cache
-            .check_and_record("jti-abc", Duration::from_secs(900))
-            .await;
+        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
         assert!(result.is_ok(), "first use should be accepted");
     }
 
     #[tokio::test]
     async fn test_replay_rejected() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache
-            .check_and_record("jti-abc", Duration::from_secs(900))
-            .await
-            .unwrap();
-        let result = cache
-            .check_and_record("jti-abc", Duration::from_secs(900))
-            .await;
+        cache.check_and_record("jti-abc", Duration::from_secs(900)).await.unwrap();
+        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
         assert!(
             matches!(result, Err(ReplayCacheError::Replayed)),
             "second use of same jti should be rejected"
@@ -350,13 +322,8 @@ mod tests {
     #[tokio::test]
     async fn test_different_jtis_accepted_independently() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache
-            .check_and_record("jti-1", Duration::from_secs(900))
-            .await
-            .unwrap();
-        let result = cache
-            .check_and_record("jti-2", Duration::from_secs(900))
-            .await;
+        cache.check_and_record("jti-1", Duration::from_secs(900)).await.unwrap();
+        let result = cache.check_and_record("jti-2", Duration::from_secs(900)).await;
         assert!(result.is_ok(), "different jti should be accepted");
     }
 
@@ -375,11 +342,8 @@ mod tests {
             }
         }
 
-        let cache =
-            ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailOpen);
-        let result = cache
-            .check_and_record("jti-xyz", Duration::from_secs(900))
-            .await;
+        let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailOpen);
+        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
         assert!(result.is_ok(), "fail-open should accept on backend error");
     }
 
@@ -398,11 +362,8 @@ mod tests {
             }
         }
 
-        let cache =
-            ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailClosed);
-        let result = cache
-            .check_and_record("jti-xyz", Duration::from_secs(900))
-            .await;
+        let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailClosed);
+        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
         assert!(result.is_err(), "fail-closed should reject on backend error");
     }
 
@@ -410,13 +371,8 @@ mod tests {
     async fn test_replay_counter_increments() {
         let before = jwt_replay_rejected_total();
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache
-            .check_and_record("jti-counter", Duration::from_secs(900))
-            .await
-            .unwrap();
-        let _ = cache
-            .check_and_record("jti-counter", Duration::from_secs(900))
-            .await;
+        cache.check_and_record("jti-counter", Duration::from_secs(900)).await.unwrap();
+        let _ = cache.check_and_record("jti-counter", Duration::from_secs(900)).await;
         let after = jwt_replay_rejected_total();
         assert_eq!(after, before + 1, "replay counter should have incremented");
     }

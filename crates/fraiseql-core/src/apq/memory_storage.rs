@@ -18,9 +18,9 @@ const DEFAULT_MAX_ENTRIES: usize = 1000;
 
 /// A stored query with metadata for TTL and LRU tracking.
 struct StoredQuery {
-    body:          String,
-    stored_at:     Instant,
-    ttl:           Duration,
+    body: String,
+    stored_at: Instant,
+    ttl: Duration,
     last_accessed: Instant,
 }
 
@@ -36,9 +36,9 @@ impl StoredQuery {
 /// and time-to-live. When capacity is reached, expired entries are
 /// purged first, then the least-recently-accessed entry is evicted.
 pub struct InMemoryApqStorage {
-    entries:     tokio::sync::Mutex<HashMap<String, StoredQuery>>,
+    entries: tokio::sync::Mutex<HashMap<String, StoredQuery>>,
     max_entries: usize,
-    ttl:         Duration,
+    ttl: Duration,
 }
 
 impl InMemoryApqStorage {
@@ -110,9 +110,9 @@ impl ApqStorage for InMemoryApqStorage {
         map.insert(
             hash,
             StoredQuery {
-                body:          query,
-                stored_at:     now,
-                ttl:           self.ttl,
+                body: query,
+                stored_at: now,
+                ttl: self.ttl,
                 last_accessed: now,
             },
         );

@@ -25,20 +25,20 @@ pub struct DesignAuditRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct DesignIssueResponse {
     /// Severity: critical, warning, info
-    pub severity:   String,
+    pub severity: String,
     /// Human-readable message
-    pub message:    String,
+    pub message: String,
     /// Actionable suggestion
     pub suggestion: String,
     /// Affected entity/field if applicable
-    pub affected:   Option<String>,
+    pub affected: Option<String>,
 }
 
 /// Category audit response with score and issues
 #[derive(Debug, Clone, Serialize)]
 pub struct CategoryAuditResponse {
     /// Category score (0-100)
-    pub score:  u8,
+    pub score: u8,
     /// Issues found in this category
     pub issues: Vec<DesignIssueResponse>,
 }
@@ -49,28 +49,28 @@ pub struct SeverityCountResponse {
     /// Critical issues count
     pub critical: usize,
     /// Warning issues count
-    pub warning:  usize,
+    pub warning: usize,
     /// Info issues count
-    pub info:     usize,
+    pub info: usize,
 }
 
 /// Complete design audit response
 #[derive(Debug, Clone, Serialize)]
 pub struct DesignAuditResponse {
     /// Overall design score (0-100)
-    pub overall_score:   u8,
+    pub overall_score: u8,
     /// Issue counts by severity
     pub severity_counts: SeverityCountResponse,
     /// Federation analysis (JSONB batching)
-    pub federation:      CategoryAuditResponse,
+    pub federation: CategoryAuditResponse,
     /// Cost analysis (compiled determinism)
-    pub cost:            CategoryAuditResponse,
+    pub cost: CategoryAuditResponse,
     /// Cache analysis (JSONB coherency)
-    pub cache:           CategoryAuditResponse,
+    pub cache: CategoryAuditResponse,
     /// Authorization analysis
-    pub authorization:   CategoryAuditResponse,
+    pub authorization: CategoryAuditResponse,
     /// Compilation analysis
-    pub compilation:     CategoryAuditResponse,
+    pub compilation: CategoryAuditResponse,
 }
 
 /// Federation audit endpoint - JSONB batching analysis
@@ -89,10 +89,10 @@ pub async fn federation_audit_handler<A: DatabaseAdapter>(
         .federation_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.entity.clone(),
+            affected: issue.entity.clone(),
         })
         .collect();
 
@@ -105,7 +105,7 @@ pub async fn federation_audit_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   CategoryAuditResponse { score, issues },
+        data: CategoryAuditResponse { score, issues },
     }))
 }
 
@@ -125,10 +125,10 @@ pub async fn cost_audit_handler<A: DatabaseAdapter>(
         .cost_warnings
         .iter()
         .map(|warning| DesignIssueResponse {
-            severity:   format!("{:?}", warning.severity).to_lowercase(),
-            message:    warning.message.clone(),
+            severity: format!("{:?}", warning.severity).to_lowercase(),
+            message: warning.message.clone(),
             suggestion: warning.suggestion.clone(),
-            affected:   warning.worst_case_complexity.map(|c| format!("complexity: {}", c)),
+            affected: warning.worst_case_complexity.map(|c| format!("complexity: {}", c)),
         })
         .collect();
 
@@ -141,7 +141,7 @@ pub async fn cost_audit_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   CategoryAuditResponse { score, issues },
+        data: CategoryAuditResponse { score, issues },
     }))
 }
 
@@ -161,10 +161,10 @@ pub async fn cache_audit_handler<A: DatabaseAdapter>(
         .cache_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected.clone(),
+            affected: issue.affected.clone(),
         })
         .collect();
 
@@ -177,7 +177,7 @@ pub async fn cache_audit_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   CategoryAuditResponse { score, issues },
+        data: CategoryAuditResponse { score, issues },
     }))
 }
 
@@ -197,10 +197,10 @@ pub async fn auth_audit_handler<A: DatabaseAdapter>(
         .auth_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected_field.clone(),
+            affected: issue.affected_field.clone(),
         })
         .collect();
 
@@ -213,7 +213,7 @@ pub async fn auth_audit_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   CategoryAuditResponse { score, issues },
+        data: CategoryAuditResponse { score, issues },
     }))
 }
 
@@ -233,10 +233,10 @@ pub async fn compilation_audit_handler<A: DatabaseAdapter>(
         .schema_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected_type.clone(),
+            affected: issue.affected_type.clone(),
         })
         .collect();
 
@@ -249,7 +249,7 @@ pub async fn compilation_audit_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   CategoryAuditResponse { score, issues },
+        data: CategoryAuditResponse { score, issues },
     }))
 }
 
@@ -270,10 +270,10 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         .federation_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.entity.clone(),
+            affected: issue.entity.clone(),
         })
         .collect();
 
@@ -282,10 +282,10 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         .cost_warnings
         .iter()
         .map(|warning| DesignIssueResponse {
-            severity:   format!("{:?}", warning.severity).to_lowercase(),
-            message:    warning.message.clone(),
+            severity: format!("{:?}", warning.severity).to_lowercase(),
+            message: warning.message.clone(),
             suggestion: warning.suggestion.clone(),
-            affected:   warning.worst_case_complexity.map(|c| format!("complexity: {}", c)),
+            affected: warning.worst_case_complexity.map(|c| format!("complexity: {}", c)),
         })
         .collect();
 
@@ -294,10 +294,10 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         .cache_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected.clone(),
+            affected: issue.affected.clone(),
         })
         .collect();
 
@@ -306,10 +306,10 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         .auth_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected_field.clone(),
+            affected: issue.affected_field.clone(),
         })
         .collect();
 
@@ -318,17 +318,17 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         .schema_issues
         .iter()
         .map(|issue| DesignIssueResponse {
-            severity:   format!("{:?}", issue.severity).to_lowercase(),
-            message:    issue.message.clone(),
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
             suggestion: issue.suggestion.clone(),
-            affected:   issue.affected_type.clone(),
+            affected: issue.affected_type.clone(),
         })
         .collect();
 
     let severity_counts = SeverityCountResponse {
         critical: audit.severity_count(IssueSeverity::Critical),
-        warning:  audit.severity_count(IssueSeverity::Warning),
-        info:     audit.severity_count(IssueSeverity::Info),
+        warning: audit.severity_count(IssueSeverity::Warning),
+        info: audit.severity_count(IssueSeverity::Info),
     };
 
     let fed_score = if federation_issues.is_empty() {
@@ -370,30 +370,30 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
         overall_score: audit.score(),
         severity_counts,
         federation: CategoryAuditResponse {
-            score:  fed_score,
+            score: fed_score,
             issues: federation_issues,
         },
         cost: CategoryAuditResponse {
-            score:  cost_score,
+            score: cost_score,
             issues: cost_issues,
         },
         cache: CategoryAuditResponse {
-            score:  cache_score,
+            score: cache_score,
             issues: cache_issues,
         },
         authorization: CategoryAuditResponse {
-            score:  auth_score,
+            score: auth_score,
             issues: auth_issues,
         },
         compilation: CategoryAuditResponse {
-            score:  comp_score,
+            score: comp_score,
             issues: compilation_issues,
         },
     };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 
@@ -415,8 +415,8 @@ mod tests {
     fn test_severity_count_response() {
         let resp = SeverityCountResponse {
             critical: 1,
-            warning:  3,
-            info:     5,
+            warning: 3,
+            info: 5,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("\"critical\":1"));

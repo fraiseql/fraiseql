@@ -20,7 +20,7 @@ pub trait Validator {
 
 /// Pattern validator using regular expressions.
 pub struct PatternValidator {
-    regex:   Regex,
+    regex: Regex,
     message: String,
 }
 
@@ -65,7 +65,7 @@ impl Validator for PatternValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "pattern", &self.message)
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -120,7 +120,7 @@ impl Validator for LengthValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "length", self.error_message())
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -205,7 +205,7 @@ impl Validator for EnumValidator {
                         format!("Must be one of: {}", allowed)
                     )
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -222,7 +222,7 @@ impl Validator for RequiredValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "required", "Field is required")
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         } else {
             Ok(())
@@ -300,7 +300,8 @@ mod tests {
     #[test]
     fn test_pattern_validator_validation() {
         let validator = PatternValidator::new_default_message("^[a-z]+$").unwrap();
-        validator.validate("hello", "name")
+        validator
+            .validate("hello", "name")
             .unwrap_or_else(|e| panic!("lowercase-only string should pass pattern: {e}"));
         assert!(
             matches!(validator.validate("Hello", "name"), Err(FraiseQLError::Validation { .. })),
@@ -346,7 +347,8 @@ mod tests {
     #[test]
     fn test_required_validator() {
         let validator = RequiredValidator;
-        validator.validate("hello", "name")
+        validator
+            .validate("hello", "name")
             .unwrap_or_else(|e| panic!("non-empty string should pass required validator: {e}"));
         assert!(
             matches!(validator.validate("", "name"), Err(FraiseQLError::Validation { .. })),

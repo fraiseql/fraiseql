@@ -40,11 +40,11 @@ pub enum RpcKind {
     /// A read query against a row-shaped view (`vr_*`).
     Query {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name:      String,
+        view_name: String,
         /// Whether this RPC returns a list.
-        returns_list:   bool,
+        returns_list: bool,
         /// Column specs for the row-shaped view.
-        columns:        Vec<ColumnSpec>,
+        columns: Vec<ColumnSpec>,
         /// Inner row message descriptor (the repeated element for list queries,
         /// or the single message for get queries).
         row_descriptor: MessageDescriptor,
@@ -56,9 +56,9 @@ pub enum RpcKind {
     /// individually as gRPC frames.
     ServerStream {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name:      String,
+        view_name: String,
         /// Column specs for the row-shaped view.
-        columns:        Vec<ColumnSpec>,
+        columns: Vec<ColumnSpec>,
         /// Row message descriptor (the entity type, e.g., `User`).
         row_descriptor: MessageDescriptor,
     },
@@ -73,11 +73,11 @@ pub enum RpcKind {
 #[derive(Debug, Clone)]
 pub struct RpcOperation {
     /// Operation name in the compiled schema (query or mutation name).
-    pub operation_name:      String,
+    pub operation_name: String,
     /// GraphQL type name (e.g., `"User"`).
-    pub type_name:           String,
+    pub type_name: String,
     /// What kind of RPC this is (query or mutation).
-    pub kind:                RpcKind,
+    pub kind: RpcKind,
     /// Response message descriptor for encoding results.
     pub response_descriptor: MessageDescriptor,
 }
@@ -120,7 +120,7 @@ pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
         .iter()
         .filter_map(|f| {
             field_type_to_column_type(&f.field_type).map(|ct| ColumnSpec {
-                name:        f.name.to_string(),
+                name: f.name.to_string(),
                 column_type: ct,
             })
         })
@@ -165,9 +165,9 @@ pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Optio
         let json_value = proto_value_to_json(&value);
 
         clauses.push(WhereClause::Field {
-            path:     vec![field_name.to_string()],
+            path: vec![field_name.to_string()],
             operator: WhereOperator::Eq,
-            value:    json_value,
+            value: json_value,
         });
     }
 
@@ -434,9 +434,9 @@ pub struct MutationResult {
     /// Whether the mutation succeeded.
     pub success: bool,
     /// Optional entity ID returned by the mutation.
-    pub id:      Option<String>,
+    pub id: Option<String>,
     /// Optional error message (when `success` is false).
-    pub error:   Option<String>,
+    pub error: Option<String>,
 }
 
 /// Encode a [`MutationResult`] into a protobuf response message.
@@ -663,9 +663,9 @@ pub fn build_dispatch_table(
             table.insert(
                 full_method,
                 RpcOperation {
-                    operation_name:      mutation_name,
-                    type_name:           mutation_def.return_type.clone(),
-                    kind:                RpcKind::Mutation { function_name },
+                    operation_name: mutation_name,
+                    type_name: mutation_def.return_type.clone(),
+                    kind: RpcKind::Mutation { function_name },
                     response_descriptor: response_desc,
                 },
             );
@@ -843,7 +843,9 @@ mod tests {
 
     #[test]
     fn uuid_encodes_as_string() {
-        let v = column_value_to_proto(&ColumnValue::Uuid("00000000-0000-0000-0000-000000000000".into()));
+        let v = column_value_to_proto(&ColumnValue::Uuid(
+            "00000000-0000-0000-0000-000000000000".into(),
+        ));
         assert_eq!(v, Some(Value::String("00000000-0000-0000-0000-000000000000".into())));
     }
 
@@ -944,15 +946,15 @@ mod tests {
 
         let columns = vec![
             ColumnSpec {
-                name:        "id".into(),
+                name: "id".into(),
                 column_type: RowViewColumnType::Uuid,
             },
             ColumnSpec {
-                name:        "name".into(),
+                name: "name".into(),
                 column_type: RowViewColumnType::Text,
             },
             ColumnSpec {
-                name:        "age".into(),
+                name: "age".into(),
                 column_type: RowViewColumnType::Int32,
             },
         ];
@@ -981,15 +983,15 @@ mod tests {
 
         let columns = vec![
             ColumnSpec {
-                name:        "id".into(),
+                name: "id".into(),
                 column_type: RowViewColumnType::Uuid,
             },
             ColumnSpec {
-                name:        "name".into(),
+                name: "name".into(),
                 column_type: RowViewColumnType::Text,
             },
             ColumnSpec {
-                name:        "age".into(),
+                name: "age".into(),
                 column_type: RowViewColumnType::Int32,
             },
         ];
@@ -1014,11 +1016,11 @@ mod tests {
 
         let columns = vec![
             ColumnSpec {
-                name:        "id".into(),
+                name: "id".into(),
                 column_type: RowViewColumnType::Uuid,
             },
             ColumnSpec {
-                name:        "name".into(),
+                name: "name".into(),
                 column_type: RowViewColumnType::Text,
             },
         ];
@@ -1040,7 +1042,7 @@ mod tests {
         let user_desc = pool.get_message_by_name("test.User").unwrap();
 
         let columns = vec![ColumnSpec {
-            name:        "id".into(),
+            name: "id".into(),
             column_type: RowViewColumnType::Uuid,
         }];
 

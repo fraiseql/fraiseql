@@ -46,20 +46,17 @@ mod tests {
     /// Helper to create a simple type with the given fields.
     fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         TypeDefinition {
-            name:                name.into(),
-            sql_source:          format!("v_{}", name.to_lowercase()).into(),
-            jsonb_column:        "data".to_string(),
-            fields:              fields
-                .into_iter()
-                .map(|(n, ft)| FieldDefinition::new(n, ft))
-                .collect(),
-            description:         None,
+            name: name.into(),
+            sql_source: format!("v_{}", name.to_lowercase()).into(),
+            jsonb_column: "data".to_string(),
+            fields: fields.into_iter().map(|(n, ft)| FieldDefinition::new(n, ft)).collect(),
+            description: None,
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
         }
     }
 
@@ -160,8 +157,8 @@ mod tests {
                 ],
             )],
             enums: vec![EnumDefinition {
-                name:        "UserStatus".to_string(),
-                values:      vec![
+                name: "UserStatus".to_string(),
+                values: vec![
                     EnumValueDefinition::new("ACTIVE"),
                     EnumValueDefinition::new("INACTIVE"),
                 ],
@@ -458,21 +455,21 @@ mod tests {
     fn test_interface_dependencies() {
         let schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "User".into(),
-                sql_source:          "v_user".into(),
-                jsonb_column:        "data".to_string(),
-                fields:              vec![FieldDefinition::new("id", FieldType::Id)],
-                description:         None,
+                name: "User".into(),
+                sql_source: "v_user".into(),
+                jsonb_column: "data".to_string(),
+                fields: vec![FieldDefinition::new("id", FieldType::Id)],
+                description: None,
                 sql_projection_hint: None,
-                implements:          vec!["Node".to_string()],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       vec![],
+                implements: vec!["Node".to_string()],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: vec![],
             }],
             interfaces: vec![InterfaceDefinition {
-                name:        "Node".to_string(),
-                fields:      vec![FieldDefinition::new("id", FieldType::Id)],
+                name: "Node".to_string(),
+                fields: vec![FieldDefinition::new("id", FieldType::Id)],
                 description: None,
             }],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -495,9 +492,9 @@ mod tests {
                 make_type("Post", vec![("title", FieldType::String)]),
             ],
             unions: vec![UnionDefinition {
-                name:         "SearchResult".to_string(),
+                name: "SearchResult".to_string(),
                 member_types: vec!["User".to_string(), "Post".to_string()],
-                description:  None,
+                description: None,
             }],
             queries: vec![QueryDefinition::new("search", "SearchResult").returning_list()],
             ..Default::default()
@@ -521,16 +518,16 @@ mod tests {
             types: vec![make_type("User", vec![("name", FieldType::String)])],
             input_types: vec![
                 InputObjectDefinition {
-                    name:        "UserFilter".to_string(),
-                    fields:      vec![InputFieldDefinition::new("status", "UserStatus")],
+                    name: "UserFilter".to_string(),
+                    fields: vec![InputFieldDefinition::new("status", "UserStatus")],
                     description: None,
-                    metadata:    None,
+                    metadata: None,
                 },
                 InputObjectDefinition {
-                    name:        "UserStatus".to_string(),
-                    fields:      vec![InputFieldDefinition::new("active", "Boolean")],
+                    name: "UserStatus".to_string(),
+                    fields: vec![InputFieldDefinition::new("active", "Boolean")],
                     description: None,
-                    metadata:    None,
+                    metadata: None,
                 },
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],

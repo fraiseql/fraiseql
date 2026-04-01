@@ -78,23 +78,20 @@ mod tests {
     fn token_count_never_exceeds_capacity() {
         // Fabricate a bucket whose last_refill is far in the past
         let bucket = TokenBucket {
-            tokens:      50.0,
-            capacity:    100.0,
+            tokens: 50.0,
+            capacity: 100.0,
             refill_rate: 1000.0,
             last_refill: Instant::now().checked_sub(Duration::from_secs(1000)).unwrap(),
         };
         // Even with 1_000_000 tokens of potential refill, count is capped at 100
-        assert!(
-            bucket.token_count() <= 100.0,
-            "token_count must never exceed capacity"
-        );
+        assert!(bucket.token_count() <= 100.0, "token_count must never exceed capacity");
     }
 
     #[test]
     fn refill_restores_tokens_after_idle_period() {
         let mut bucket = TokenBucket {
-            tokens:      0.0,
-            capacity:    10.0,
+            tokens: 0.0,
+            capacity: 10.0,
             refill_rate: 100.0, // 100 tokens/sec
             last_refill: Instant::now().checked_sub(Duration::from_millis(100)).unwrap(),
         };
@@ -105,8 +102,8 @@ mod tests {
     #[test]
     fn zero_refill_rate_never_refills() {
         let mut bucket = TokenBucket {
-            tokens:      0.0,
-            capacity:    10.0,
+            tokens: 0.0,
+            capacity: 10.0,
             refill_rate: 0.0,
             last_refill: Instant::now().checked_sub(Duration::from_secs(60)).unwrap(),
         };

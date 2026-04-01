@@ -38,7 +38,7 @@ pub fn redis_apq_error_count_total() -> u64 {
 /// `Ok(None)` / `Ok(())` so that the request pipeline falls back to
 /// requiring the full query body.
 pub struct RedisApqStorage {
-    pool:     redis::aio::ConnectionManager,
+    pool: redis::aio::ConnectionManager,
     ttl_secs: u64,
 }
 

@@ -5,24 +5,24 @@ use std::sync::Arc;
 
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
+#[cfg(all(feature = "arrow", feature = "auth"))]
+use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
 };
-#[cfg(all(feature = "arrow", feature = "auth"))]
-use fraiseql_core::security::OidcValidator;
 #[cfg(feature = "observers")]
 use tokio::sync::RwLock;
 use tracing::info;
 #[cfg(feature = "observers")]
 use tracing::warn;
 
-use super::{Result, Server, ServerConfig};
-#[cfg(feature = "arrow")]
-use super::{RateLimiter, ServerError};
 #[cfg(feature = "observers")]
 use super::{ObserverRuntime, ObserverRuntimeConfig};
+#[cfg(feature = "arrow")]
+use super::{RateLimiter, ServerError};
+use super::{Result, Server, ServerConfig};
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create a server with relay pagination support enabled.
@@ -60,9 +60,14 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
+        #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
+        #[cfg(not(feature = "federation"))]
+        let circuit_breaker: Option<()> = None;
+        #[cfg(not(feature = "federation"))]
+        let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(&schema)?;
@@ -152,14 +157,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)] // Reason: used inside #[cfg(feature = "observers")] block; unused when observers feature is off
+        #[allow(unused_variables)]
+        // Reason: used inside #[cfg(feature = "observers")] block; unused when observers feature is off
         db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
+        #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
+        #[cfg(not(feature = "federation"))]
+        let circuit_breaker: Option<()> = None;
+        #[cfg(not(feature = "federation"))]
+        let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(&schema)?;
@@ -262,6 +273,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             rate_limiter,
             #[cfg(feature = "secrets")]
             secrets_manager: None,
+            #[cfg(feature = "federation")]
             circuit_breaker,
             error_sanitizer,
             #[cfg(feature = "auth")]

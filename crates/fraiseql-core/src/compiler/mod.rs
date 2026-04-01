@@ -160,10 +160,10 @@ impl Default for CompilerConfig {
     fn default() -> Self {
         Self {
             database_target: DatabaseTarget::PostgreSQL,
-            optimize_sql:    true,
-            strict_mode:     false,
-            debug:           false,
-            database_url:    None,
+            optimize_sql: true,
+            strict_mode: false,
+            debug: false,
+            database_url: None,
         }
     }
 }
@@ -191,11 +191,11 @@ impl Default for CompilerConfig {
 /// # }
 /// ```
 pub struct Compiler {
-    config:    CompilerConfig,
-    parser:    SchemaParser,
+    config: CompilerConfig,
+    parser: SchemaParser,
     validator: SchemaValidator,
-    lowering:  SqlTemplateGenerator,
-    codegen:   CodeGenerator,
+    lowering: SqlTemplateGenerator,
+    codegen: CodeGenerator,
 }
 
 impl Compiler {
@@ -359,10 +359,10 @@ mod tests {
     fn test_compiler_with_config() {
         let config = CompilerConfig {
             database_target: DatabaseTarget::MySQL,
-            optimize_sql:    false,
-            strict_mode:     true,
-            debug:           true,
-            database_url:    None,
+            optimize_sql: false,
+            strict_mode: true,
+            debug: true,
+            database_url: None,
         };
 
         let compiler = Compiler::with_config(config);
@@ -391,9 +391,7 @@ mod tests {
             "mutations": []
         }"#;
 
-        let compiled = compiler
-            .compile(schema_json)
-            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
+        let compiled = compiler.compile(schema_json).unwrap_or_else(|e| panic!("expected Ok: {e}"));
         assert_eq!(compiled.fact_tables.len(), 0);
     }
 
@@ -404,14 +402,14 @@ mod tests {
         let mut schema = CompiledSchema::new();
 
         let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
-                name:  "data".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![],
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         };
 
         schema.add_fact_table("tf_sales".to_string(), metadata.clone());

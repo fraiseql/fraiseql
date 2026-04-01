@@ -50,7 +50,7 @@ impl AdmissionController {
         // Try to acquire permit
         if let Ok(permit) = self.semaphore.clone().try_acquire_owned() {
             Some(AdmissionPermit {
-                _permit:  permit,
+                _permit: permit,
                 _phantom: std::marker::PhantomData,
             })
         } else {
@@ -75,12 +75,11 @@ impl AdmissionController {
         self.queue_depth.fetch_add(1, Ordering::Relaxed);
 
         // Try to acquire with timeout
-        let result =
-            tokio::time::timeout(timeout, self.semaphore.clone().acquire_owned()).await;
+        let result = tokio::time::timeout(timeout, self.semaphore.clone().acquire_owned()).await;
         self.queue_depth.fetch_sub(1, Ordering::Relaxed);
         if let Ok(Ok(permit)) = result {
             Some(AdmissionPermit {
-                _permit:  permit,
+                _permit: permit,
                 _phantom: std::marker::PhantomData,
             })
         } else {
@@ -99,7 +98,7 @@ impl AdmissionController {
 /// The `'a` lifetime is bound to the [`AdmissionController`] that issued the
 /// permit, preventing the permit from outliving the controller.
 pub struct AdmissionPermit<'a> {
-    _permit:  tokio::sync::OwnedSemaphorePermit,
+    _permit: tokio::sync::OwnedSemaphorePermit,
     /// Binds the permit lifetime to the issuing `AdmissionController`.
     _phantom: std::marker::PhantomData<&'a AdmissionController>,
 }
@@ -141,10 +140,7 @@ mod tests {
             assert!(ac.try_acquire().is_none(), "at capacity: must reject");
         }
         // _p dropped — slot released
-        assert!(
-            ac.try_acquire().is_some(),
-            "after permit drop, must allow new request"
-        );
+        assert!(ac.try_acquire().is_some(), "after permit drop, must allow new request");
     }
 
     #[test]

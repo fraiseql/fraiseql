@@ -7,9 +7,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::Result;
 #[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
 use crate::error::FraiseQLError;
+use crate::error::Result;
 
 /// Tracks transitive view-to-view dependencies for cascading invalidation.
 ///
@@ -77,10 +77,10 @@ pub struct InvalidationStats {
 impl Default for InvalidationStats {
     fn default() -> Self {
         Self {
-            total_cascades:    0,
+            total_cascades: 0,
             total_invalidated: 0,
-            average_affected:  0.0,
-            max_affected:      0,
+            average_affected: 0.0,
+            max_affected: 0,
         }
     }
 }
@@ -91,8 +91,8 @@ impl CascadeInvalidator {
     pub fn new() -> Self {
         Self {
             view_dependencies: HashMap::new(),
-            dependents:        HashMap::new(),
-            stats:             InvalidationStats::default(),
+            dependents: HashMap::new(),
+            stats: InvalidationStats::default(),
         }
     }
 
@@ -124,7 +124,7 @@ impl CascadeInvalidator {
         if dependent_view == dependency_view {
             return Err(crate::error::FraiseQLError::Validation {
                 message: "View cannot depend on itself".to_string(),
-                path:    Some("cascade_invalidator::add_dependency".to_string()),
+                path: Some("cascade_invalidator::add_dependency".to_string()),
             });
         }
 
@@ -138,7 +138,7 @@ impl CascadeInvalidator {
                     "Adding dependency '{}' → '{}' would create a cycle",
                     dependent_view, dependency_view
                 ),
-                path:    Some("cascade_invalidator::add_dependency".to_string()),
+                path: Some("cascade_invalidator::add_dependency".to_string()),
             });
         }
 
@@ -252,14 +252,16 @@ impl CascadeInvalidator {
 
         // Update statistics
         self.stats.total_cascades += 1;
-        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: value is bounded; truncation cannot occur in practice
         // Reason: invalidated.len() is a usize which fits in u64 on all supported 64-bit platforms.
         {
             self.stats.total_invalidated += invalidated.len() as u64;
         }
         self.stats.max_affected = self.stats.max_affected.max(invalidated.len());
         if self.stats.total_cascades > 0 {
-            #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
+            #[allow(clippy::cast_precision_loss)]
+            // Reason: precision loss acceptable for metric/ratio calculations
             // Reason: average_affected is a display metric; f64 precision loss on u64 counters is
             // acceptable.
             {

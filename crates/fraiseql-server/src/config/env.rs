@@ -24,7 +24,7 @@ pub fn resolve_env_value(value: &str) -> Result<String, EnvError> {
         // Support required with message: ${VAR:?message}
         if let Some((name, message)) = var_name.split_once(":?") {
             return env::var(name).map_err(|_| EnvError::MissingVarWithMessage {
-                name:    name.to_string(),
+                name: name.to_string(),
                 message: message.to_string(),
             });
         }
@@ -71,12 +71,12 @@ pub fn parse_size(s: &str) -> Result<usize, ParseError> {
     };
 
     let num: usize = num_str.trim().parse().map_err(|_| ParseError::InvalidSize {
-        value:  s.to_string(),
+        value: s.to_string(),
         reason: "Invalid number".to_string(),
     })?;
 
     num.checked_mul(multiplier).ok_or_else(|| ParseError::InvalidSize {
-        value:  s.to_string(),
+        value: s.to_string(),
         reason: "Value too large".to_string(),
     })
 }
@@ -102,13 +102,13 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
         (&s[..s.len() - 1], 24 * 60 * 60 * 1000)
     } else {
         return Err(ParseError::InvalidDuration {
-            value:  s,
+            value: s,
             reason: "Missing unit (ms, s, m, h, d)".to_string(),
         });
     };
 
     let num: u64 = num_str.trim().parse().map_err(|_| ParseError::InvalidDuration {
-        value:  s.clone(),
+        value: s.clone(),
         reason: "Invalid number".to_string(),
     })?;
 
@@ -130,7 +130,7 @@ pub enum EnvError {
     #[error("Missing environment variable {name}: {message}")]
     MissingVarWithMessage {
         /// Name of the missing variable.
-        name:    String,
+        name: String,
         /// Human-readable explanation of why the variable is required.
         message: String,
     },
@@ -144,7 +144,7 @@ pub enum ParseError {
     #[error("Invalid size value '{value}': {reason}")]
     InvalidSize {
         /// The raw string that failed parsing.
-        value:  String,
+        value: String,
         /// Explanation of why parsing failed.
         reason: String,
     },
@@ -153,7 +153,7 @@ pub enum ParseError {
     #[error("Invalid duration value '{value}': {reason}")]
     InvalidDuration {
         /// The raw string that failed parsing.
-        value:  String,
+        value: String,
         /// Explanation of why parsing failed.
         reason: String,
     },
@@ -175,10 +175,7 @@ mod tests {
     #[test]
     fn env_var_reference_resolves() {
         temp_env::with_var("FRAISEQL_TEST_ENV_RS", Some("resolved"), || {
-            assert_eq!(
-                resolve_env_value("${FRAISEQL_TEST_ENV_RS}").unwrap(),
-                "resolved"
-            );
+            assert_eq!(resolve_env_value("${FRAISEQL_TEST_ENV_RS}").unwrap(), "resolved");
         });
     }
 
@@ -196,20 +193,14 @@ mod tests {
     #[test]
     fn default_syntax_uses_fallback_when_absent() {
         temp_env::with_var("FRAISEQL_ABSENT", None::<&str>, || {
-            assert_eq!(
-                resolve_env_value("${FRAISEQL_ABSENT:-fallback}").unwrap(),
-                "fallback"
-            );
+            assert_eq!(resolve_env_value("${FRAISEQL_ABSENT:-fallback}").unwrap(), "fallback");
         });
     }
 
     #[test]
     fn default_syntax_uses_real_value_when_present() {
         temp_env::with_var("FRAISEQL_PRESENT", Some("real"), || {
-            assert_eq!(
-                resolve_env_value("${FRAISEQL_PRESENT:-fallback}").unwrap(),
-                "real"
-            );
+            assert_eq!(resolve_env_value("${FRAISEQL_PRESENT:-fallback}").unwrap(), "real");
         });
     }
 
@@ -231,10 +222,7 @@ mod tests {
     #[test]
     fn required_with_message_syntax_resolves_when_present() {
         temp_env::with_var("FRAISEQL_REQUIRED_OK", Some("value"), || {
-            assert_eq!(
-                resolve_env_value("${FRAISEQL_REQUIRED_OK:?must be set}").unwrap(),
-                "value"
-            );
+            assert_eq!(resolve_env_value("${FRAISEQL_REQUIRED_OK:?must be set}").unwrap(), "value");
         });
     }
 

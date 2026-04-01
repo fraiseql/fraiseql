@@ -63,10 +63,12 @@ mod tests {
     fn test_token_bucket_refill() {
         // Fabricate a bucket whose last_refill is 200 ms in the past — no sleep needed.
         let mut bucket = token_bucket::TokenBucket {
-            tokens:      0.0,
-            capacity:    10.0,
+            tokens: 0.0,
+            capacity: 10.0,
             refill_rate: 5.0,
-            last_refill: std::time::Instant::now().checked_sub(std::time::Duration::from_millis(200)).unwrap(),
+            last_refill: std::time::Instant::now()
+                .checked_sub(std::time::Duration::from_millis(200))
+                .unwrap(),
         };
         // After 0.2 s at 5 tokens/s → 1 token refilled; should allow one consume.
         assert!(bucket.try_consume(1.0));
@@ -525,13 +527,13 @@ mod tests {
         let url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let config = RateLimitConfig {
-            enabled:               true,
-            rps_per_ip:            5,
-            rps_per_user:          5,
-            burst_size:            5,
+            enabled: true,
+            rps_per_ip: 5,
+            rps_per_user: 5,
+            burst_size: 5,
             cleanup_interval_secs: 300,
-            trust_proxy_headers:   false,
-            trusted_proxy_cidrs:   Vec::new(),
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
         };
         let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
         // Use a unique key to avoid interference between test runs
@@ -549,13 +551,13 @@ mod tests {
         let url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
         let config = RateLimitConfig {
-            enabled:               true,
-            rps_per_ip:            3,
-            rps_per_user:          3,
-            burst_size:            3,
+            enabled: true,
+            rps_per_ip: 3,
+            rps_per_user: 3,
+            burst_size: 3,
             cleanup_interval_secs: 300,
-            trust_proxy_headers:   false,
-            trusted_proxy_cidrs:   Vec::new(),
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
         };
         let suffix = uuid::Uuid::new_v4();
         let a = RateLimiter::new_redis(&url, config.clone())

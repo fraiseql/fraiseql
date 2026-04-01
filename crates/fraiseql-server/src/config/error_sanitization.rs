@@ -14,22 +14,22 @@ use crate::error::{ErrorCode, GraphQLError};
 #[serde(default)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization (default: false — opt-in for backwards compat).
-    pub enabled:                     bool,
+    pub enabled: bool,
     /// Strip stack traces, SQL fragments, file paths (default: true).
     pub hide_implementation_details: bool,
     /// Replace raw database error messages with a generic message (default: true).
-    pub sanitize_database_errors:    bool,
+    pub sanitize_database_errors: bool,
     /// Replacement message shown to clients when an internal error is sanitized.
-    pub custom_error_message:        Option<String>,
+    pub custom_error_message: Option<String>,
 }
 
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
         Self {
-            enabled:                     false,
+            enabled: false,
             hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
+            sanitize_database_errors: true,
+            custom_error_message: None,
         }
     }
 }
@@ -108,10 +108,10 @@ mod tests {
 
     fn enabled_sanitizer() -> ErrorSanitizer {
         ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:                     true,
+            enabled: true,
             hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
+            sanitize_database_errors: true,
+            custom_error_message: None,
         })
     }
 
@@ -171,11 +171,11 @@ mod tests {
         let s = enabled_sanitizer();
         let mut err = GraphQLError::internal("internal");
         err.extensions = Some(ErrorExtensions {
-            category:         None,
-            status:           None,
-            request_id:       None,
+            category: None,
+            status: None,
+            request_id: None,
             retry_after_secs: None,
-            detail:           Some("panic at line 42".to_string()),
+            detail: Some("panic at line 42".to_string()),
         });
         let out = s.sanitize(err);
         assert!(

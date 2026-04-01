@@ -48,9 +48,9 @@ pub fn generate_openapi(
 
 /// Generates an `OpenAPI` 3.0.3 spec from schema metadata.
 struct OpenApiGenerator<'a> {
-    schema:      &'a CompiledSchema,
+    schema: &'a CompiledSchema,
     route_table: &'a RestRouteTable,
-    config:      &'a RestConfig,
+    config: &'a RestConfig,
 }
 
 impl<'a> OpenApiGenerator<'a> {
@@ -1316,7 +1316,7 @@ mod tests {
             .build();
 
         schema.rest_config = Some(RestConfig {
-            enabled:      true,
+            enabled: true,
             require_auth: true,
             ..RestConfig::default()
         });
@@ -1407,15 +1407,15 @@ mod tests {
     fn enum_field_produces_ref() {
         let mut schema = rest_schema();
         schema.enums.push(fraiseql_core::schema::EnumDefinition {
-            name:        "Status".to_string(),
-            values:      vec![
+            name: "Status".to_string(),
+            values: vec![
                 fraiseql_core::schema::EnumValueDefinition {
-                    name:        "ACTIVE".to_string(),
+                    name: "ACTIVE".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 fraiseql_core::schema::EnumValueDefinition {
-                    name:        "INACTIVE".to_string(),
+                    name: "INACTIVE".to_string(),
                     description: None,
                     deprecation: None,
                 },
@@ -1700,8 +1700,8 @@ mod tests {
     fn missing_rest_config_returns_error() {
         let schema = TestSchemaBuilder::new().build();
         let route_table = RestRouteTable {
-            base_path:   "/rest/v1".to_string(),
-            resources:   vec![],
+            base_path: "/rest/v1".to_string(),
+            resources: vec![],
             diagnostics: vec![],
         };
         let result = generate_openapi(&schema, &route_table);
@@ -1716,8 +1716,8 @@ mod tests {
             ..RestConfig::default()
         });
         let route_table = RestRouteTable {
-            base_path:   "/rest/v1".to_string(),
-            resources:   vec![],
+            base_path: "/rest/v1".to_string(),
+            resources: vec![],
             diagnostics: vec![],
         };
         let spec = generate_openapi(&schema, &route_table).unwrap();

@@ -24,7 +24,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid aggregate query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
@@ -68,7 +68,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid window query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
@@ -214,8 +214,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let request = super::super::WindowQueryParser::parse(query_json, metadata)?;
 
         // 2. Generate execution plan (validates semantic names against metadata)
-        let plan =
-            crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
+        let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
 
         // 3. Generate SQL
         let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());

@@ -36,7 +36,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
                 FraiseQLError::Validation {
                     message: e.to_string(),
-                    path:    Some("query".to_string()),
+                    path: Some("query".to_string()),
                 }
             })?;
         }
@@ -55,7 +55,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     };
                     FraiseQLError::Timeout {
                         timeout_ms: self.config.query_timeout_ms,
-                        query:      Some(query_snippet),
+                        query: Some(query_snippet),
                     }
                 })?
         } else {
@@ -90,7 +90,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
                     message: "classifier returned Regular without a parsed query — this is a bug"
                         .to_string(),
-                    source:  None,
+                    source: None,
                 })?;
                 if pipeline::is_multi_root(&parsed) {
                     let pr = self.execute_parallel(&parsed, variables).await?;
@@ -98,7 +98,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     return serde_json::to_string(&serde_json::json!({ "data": data })).map_err(
                         |e| FraiseQLError::Internal {
                             message: e.to_string(),
-                            source:  None,
+                            source: None,
                         },
                     );
                 }
@@ -111,7 +111,18 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.execute_window_dispatch(&query_name, variables).await
             },
             QueryType::Federation(query_name) => {
-                self.execute_federation_query(&query_name, query, variables).await
+                #[cfg(feature = "federation")]
+                {
+                    self.execute_federation_query(&query_name, query, variables).await
+                }
+                #[cfg(not(feature = "federation"))]
+                {
+                    let _ = (query, variables);
+                    Err(FraiseQLError::Validation {
+                        message: "Federation is not enabled in this build".to_string(),
+                        path: None,
+                    })
+                }
             },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)
@@ -172,7 +183,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
                 FraiseQLError::Validation {
                     message: e.to_string(),
-                    path:    Some("query".to_string()),
+                    path: Some("query".to_string()),
                 }
             })?;
         }

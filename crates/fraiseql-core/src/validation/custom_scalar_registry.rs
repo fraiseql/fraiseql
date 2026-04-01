@@ -197,7 +197,9 @@ mod tests {
         let registry = CustomScalarRegistry::new();
         let scalar: Arc<dyn CustomScalar> = Arc::new(TestScalar);
 
-        registry.register(scalar).unwrap_or_else(|e| panic!("first registration should succeed: {e}"));
+        registry
+            .register(scalar)
+            .unwrap_or_else(|e| panic!("first registration should succeed: {e}"));
         assert!(registry.has_scalar("Test").unwrap());
     }
 
@@ -207,9 +209,14 @@ mod tests {
         let scalar1: Arc<dyn CustomScalar> = Arc::new(TestScalar);
         let scalar2: Arc<dyn CustomScalar> = Arc::new(TestScalar);
 
-        registry.register(scalar1).unwrap_or_else(|e| panic!("first registration should succeed: {e}"));
+        registry
+            .register(scalar1)
+            .unwrap_or_else(|e| panic!("first registration should succeed: {e}"));
         assert!(
-            matches!(registry.register(scalar2), Err(crate::error::FraiseQLError::Validation { .. })),
+            matches!(
+                registry.register(scalar2),
+                Err(crate::error::FraiseQLError::Validation { .. })
+            ),
             "duplicate registration should return Validation error"
         );
     }

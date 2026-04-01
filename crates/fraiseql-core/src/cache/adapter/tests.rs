@@ -13,7 +13,7 @@ use crate::{
 /// Mock database adapter for testing.
 struct MockAdapter {
     /// Number of times `execute_where_query` was called.
-    call_count:     std::sync::atomic::AtomicU32,
+    call_count: std::sync::atomic::AtomicU32,
     /// Number of times `execute_raw_query` was called.
     raw_call_count: std::sync::atomic::AtomicU32,
 }
@@ -21,7 +21,7 @@ struct MockAdapter {
 impl MockAdapter {
     fn new() -> Self {
         Self {
-            call_count:     std::sync::atomic::AtomicU32::new(0),
+            call_count: std::sync::atomic::AtomicU32::new(0),
             raw_call_count: std::sync::atomic::AtomicU32::new(0),
         }
     }
@@ -83,10 +83,10 @@ impl DatabaseAdapter for MockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   5,
+            total_connections: 10,
+            idle_connections: 5,
             active_connections: 3,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -131,9 +131,9 @@ async fn test_cache_miss_then_hit() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["active".to_string()],
+        path: vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(true),
+        value: json!(true),
     };
 
     // First query - cache miss
@@ -160,23 +160,29 @@ async fn test_different_where_clauses_produce_different_cache_entries() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     let where1 = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     let where2 = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(2),
+        value: json!(2),
     };
 
     // Query 1
-    adapter.execute_where_query("v_user", Some(&where1), None, None, None).await.expect("mock adapter must not fail");
+    adapter
+        .execute_where_query("v_user", Some(&where1), None, None, None)
+        .await
+        .expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query 2 - different WHERE - should miss cache
-    adapter.execute_where_query("v_user", Some(&where2), None, None, None).await.expect("mock adapter must not fail");
+    adapter
+        .execute_where_query("v_user", Some(&where2), None, None, None)
+        .await
+        .expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 2);
 }
 
@@ -188,9 +194,9 @@ async fn test_invalidation_clears_cache() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Query 1 - cache miss
@@ -208,7 +214,9 @@ async fn test_invalidation_clears_cache() {
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Invalidate
-    let invalidated = adapter.invalidate_views(&["v_user".to_string()]).expect("invalidate_views must succeed");
+    let invalidated = adapter
+        .invalidate_views(&["v_user".to_string()])
+        .expect("invalidate_views must succeed");
     assert_eq!(invalidated, 1);
 
     // Query 3 - cache miss again (was invalidated)
@@ -226,7 +234,10 @@ async fn test_different_limits_produce_different_cache_entries() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     // Query with limit 10
-    adapter.execute_where_query("v_user", None, Some(10), None, None).await.expect("mock adapter must not fail");
+    adapter
+        .execute_where_query("v_user", None, Some(10), None, None)
+        .await
+        .expect("mock adapter must not fail");
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Query with limit 20 - should miss cache
@@ -242,9 +253,9 @@ async fn test_cache_disabled() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // First query
@@ -284,18 +295,24 @@ async fn test_all_queries_are_cached() {
     assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
 
     // Query with small LIMIT — different cache key (different limit), so a miss
-    adapter.execute_where_query("v_user", None, Some(1000), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2);
 
     // Identical small-limit query — cache hit
-    adapter.execute_where_query("v_user", None, Some(1000), None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_user", None, Some(1000), None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 2); // Still 2 - cache hit!
 
     // Query with WHERE clause — cached normally
     let where_clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
     adapter
         .execute_where_query("v_user", Some(&where_clause), None, None, None)
@@ -319,12 +336,12 @@ async fn test_schema_version_change_invalidates_cache() {
     // Adapter with version 1.0.0
     let mock1 = MockAdapter::new();
     let adapter_v1 = CachedDatabaseAdapter {
-        adapter:             mock1,
-        cache:               Arc::clone(&cache),
-        schema_version:      "1.0.0".to_string(),
-        view_ttl_overrides:  HashMap::new(),
-        fact_table_config:   FactTableCacheConfig::default(),
-        version_provider:    Arc::clone(&version_provider),
+        adapter: mock1,
+        cache: Arc::clone(&cache),
+        schema_version: "1.0.0".to_string(),
+        view_ttl_overrides: HashMap::new(),
+        fact_table_config: FactTableCacheConfig::default(),
+        version_provider: Arc::clone(&version_provider),
         cascade_invalidator: None,
     };
 
@@ -334,12 +351,12 @@ async fn test_schema_version_change_invalidates_cache() {
     // Create new adapter with version 2.0.0 (same cache!)
     let mock2 = MockAdapter::new();
     let adapter_v2 = CachedDatabaseAdapter {
-        adapter:             mock2,
-        cache:               Arc::clone(&cache),
-        schema_version:      "2.0.0".to_string(),
-        view_ttl_overrides:  HashMap::new(),
-        fact_table_config:   FactTableCacheConfig::default(),
-        version_provider:    Arc::clone(&version_provider),
+        adapter: mock2,
+        cache: Arc::clone(&cache),
+        schema_version: "2.0.0".to_string(),
+        view_ttl_overrides: HashMap::new(),
+        fact_table_config: FactTableCacheConfig::default(),
+        version_provider: Arc::clone(&version_provider),
         cascade_invalidator: None,
     };
 
@@ -406,9 +423,9 @@ async fn test_invalidate_cascade_entities_with_single_entity() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache with query reading from v_user
@@ -462,9 +479,9 @@ async fn test_invalidate_cascade_entities_with_multiple_entities() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache with multiple views (WHERE clause required to enter cache)
@@ -527,9 +544,9 @@ async fn test_invalidate_cascade_entities_with_deleted_entities() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache with both views (WHERE clause required to enter cache)
@@ -582,9 +599,9 @@ async fn test_invalidate_cascade_entities_with_no_cascade_field() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache
@@ -626,9 +643,9 @@ async fn test_invalidate_cascade_entities_mixed_updated_and_deleted() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache (WHERE clause required to enter cache)
@@ -682,9 +699,9 @@ async fn test_cascade_invalidation_deduplicates_entity_types() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache
@@ -720,9 +737,9 @@ async fn test_cascade_invalidation_deduplicates_entity_types() {
 #[tokio::test]
 async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Test 1: Cascade-based invalidation
@@ -786,9 +803,9 @@ async fn test_cascade_invalidation_with_empty_cascade() {
 
     // WHERE clause present (exercises the cache path)
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     // Pre-populate cache
@@ -1056,9 +1073,9 @@ async fn test_cascade_invalidator_expands_transitive_views() {
         .with_cascade_invalidator(cascade);
 
     let where_clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     // Populate cache with all three views
@@ -1108,9 +1125,9 @@ async fn test_no_cascade_invalidator_only_direct_views() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
     let where_clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     adapter
@@ -1200,10 +1217,10 @@ impl DatabaseAdapter for BumpAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  1,
-            idle_connections:   1,
+            total_connections: 1,
+            idle_connections: 1,
             active_connections: 0,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 

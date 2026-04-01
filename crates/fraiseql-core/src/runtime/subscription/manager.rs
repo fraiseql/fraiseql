@@ -6,7 +6,8 @@ use std::sync::{
 use dashmap::DashMap;
 use tokio::sync::broadcast;
 
-#[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+#[allow(clippy::wildcard_imports)]
+// Reason: test module wildcard import; brings all items into test scope
 // Reason: types::* re-exports the subscription type vocabulary used throughout this module
 use super::{SubscriptionError, types::*};
 use crate::schema::CompiledSchema;
@@ -98,7 +99,13 @@ impl SubscriptionManager {
         variables: serde_json::Value,
         connection_id: &str,
     ) -> Result<SubscriptionId, SubscriptionError> {
-        self.subscribe_with_rls(subscription_name, user_context, variables, connection_id, Vec::new())
+        self.subscribe_with_rls(
+            subscription_name,
+            user_context,
+            variables,
+            connection_id,
+            Vec::new(),
+        )
     }
 
     /// Subscribe with pre-evaluated RLS conditions for event-level filtering.

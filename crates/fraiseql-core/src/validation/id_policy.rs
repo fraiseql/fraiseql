@@ -79,9 +79,9 @@ impl std::fmt::Display for IDPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IDValidationError {
     /// The invalid ID value
-    pub value:   String,
+    pub value: String,
     /// The policy that was violated
-    pub policy:  IDPolicy,
+    pub policy: IDPolicy,
     /// Error message
     pub message: String,
 }
@@ -169,8 +169,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     // UUID must be 36 characters: 8-4-4-4-12
     if id.len() != 36 {
         return Err(IDValidationError {
-            value:   id.to_string(),
-            policy:  IDPolicy::UUID,
+            value: id.to_string(),
+            policy: IDPolicy::UUID,
             message: format!(
                 "ID must be a valid UUID (36 characters), got {} characters",
                 id.len()
@@ -182,8 +182,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     let parts: Vec<&str> = id.split('-').collect();
     if parts.len() != 5 {
         return Err(IDValidationError {
-            value:   id.to_string(),
-            policy:  IDPolicy::UUID,
+            value: id.to_string(),
+            policy: IDPolicy::UUID,
             message: "ID must be a valid UUID with format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
                 .to_string(),
         });
@@ -194,8 +194,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, (part, &expected_len)) in parts.iter().zip(&expected_lengths).enumerate() {
         if part.len() != expected_len {
             return Err(IDValidationError {
-                value:   id.to_string(),
-                policy:  IDPolicy::UUID,
+                value: id.to_string(),
+                policy: IDPolicy::UUID,
                 message: format!(
                     "UUID segment {} has invalid length: expected {}, got {}",
                     i,
@@ -210,8 +210,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, part) in parts.iter().enumerate() {
         if !part.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(IDValidationError {
-                value:   id.to_string(),
-                policy:  IDPolicy::UUID,
+                value: id.to_string(),
+                policy: IDPolicy::UUID,
                 message: format!("UUID segment {i} contains non-hexadecimal characters: '{part}'"),
             });
         }
@@ -306,8 +306,8 @@ pub struct NumericIdValidator;
 impl IdValidator for NumericIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         value.parse::<i64>().map_err(|_| IDValidationError {
-            value:   value.to_string(),
-            policy:  IDPolicy::OPAQUE,
+            value: value.to_string(),
+            policy: IDPolicy::OPAQUE,
             message: format!(
                 "ID must be a valid {} (parseable as 64-bit integer)",
                 self.format_name()
@@ -332,8 +332,8 @@ impl IdValidator for UlidIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         if value.len() != 26 {
             return Err(IDValidationError {
-                value:   value.to_string(),
-                policy:  IDPolicy::OPAQUE,
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} ({} characters), got {}",
                     self.format_name(),
@@ -349,8 +349,8 @@ impl IdValidator for UlidIdValidator {
                 || (c.is_ascii_uppercase() && c != 'I' && c != 'L' && c != 'O' && c != 'U')
         }) {
             return Err(IDValidationError {
-                value:   value.to_string(),
-                policy:  IDPolicy::OPAQUE,
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} (Crockford base32: 0-9, A-Z except I, L, O, U)",
                     self.format_name()
@@ -434,7 +434,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn uuid() -> Self {
         Self {
-            name:      "uuid".to_string(),
+            name: "uuid".to_string(),
             validator: ValidationProfileType::Uuid(UuidIdValidator),
         }
     }
@@ -443,7 +443,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn numeric() -> Self {
         Self {
-            name:      "numeric".to_string(),
+            name: "numeric".to_string(),
             validator: ValidationProfileType::Numeric(NumericIdValidator),
         }
     }
@@ -452,7 +452,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn ulid() -> Self {
         Self {
-            name:      "ulid".to_string(),
+            name: "ulid".to_string(),
             validator: ValidationProfileType::Ulid(UlidIdValidator),
         }
     }
@@ -461,7 +461,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn opaque() -> Self {
         Self {
-            name:      "opaque".to_string(),
+            name: "opaque".to_string(),
             validator: ValidationProfileType::Opaque(OpaqueIdValidator),
         }
     }
@@ -544,7 +544,13 @@ mod tests {
     fn test_validate_uuid_wrong_length() {
         let result = validate_id("550e8400-e29b-41d4-a716", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "short UUID string should fail with Validation error, got: {result:?}"
         );
         let err = result.unwrap_err();
@@ -556,7 +562,13 @@ mod tests {
     fn test_validate_uuid_extra_chars() {
         let result = validate_id("550e8400-e29b-41d4-a716-446655440000x", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "extra chars should fail UUID validation, got: {result:?}"
         );
     }
@@ -566,7 +578,13 @@ mod tests {
         // 36 chars without hyphens - all hex digits, same length as UUID but no separators
         let result = validate_id("550e8400e29b41d4a716446655440000", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "UUID without hyphens should fail, got: {result:?}"
         );
         let err = result.unwrap_err();
@@ -580,7 +598,13 @@ mod tests {
         // Need 36 chars total, so pad the last segment: 550e840-e29b-41d4-a716-4466554400001
         let result = validate_id("550e840-e29b-41d4-a716-4466554400001", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "UUID with wrong segment lengths should fail, got: {result:?}"
         );
         let err = result.unwrap_err();
@@ -591,7 +615,13 @@ mod tests {
     fn test_validate_uuid_non_hex_chars() {
         let result = validate_id("550e8400-e29b-41d4-a716-44665544000g", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "UUID with non-hex chars should fail, got: {result:?}"
         );
         let err = result.unwrap_err();
@@ -602,7 +632,13 @@ mod tests {
     fn test_validate_uuid_special_chars() {
         let result = validate_id("550e8400-e29b-41d4-a716-4466554400@0", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "special chars should fail UUID validation, got: {result:?}"
         );
     }
@@ -611,7 +647,13 @@ mod tests {
     fn test_validate_uuid_empty_string() {
         let result = validate_id("", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "empty string should fail UUID validation, got: {result:?}"
         );
     }
@@ -664,7 +706,13 @@ mod tests {
         ];
         let result = validate_ids(&ids, IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "batch with invalid ID should fail, got: {result:?}"
         );
         assert_eq!(result.unwrap_err().value, "invalid-id");
@@ -709,7 +757,13 @@ mod tests {
         // UUID validation prevents malicious IDs with SQL injection
         let result = validate_id("'; DROP TABLE users; --", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "SQL injection string should fail UUID validation, got: {result:?}"
         );
     }
@@ -718,7 +772,13 @@ mod tests {
     fn test_security_prevent_path_traversal_via_uuid() {
         let result = validate_id("../../etc/passwd", IDPolicy::UUID);
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "path traversal string should fail UUID validation, got: {result:?}"
         );
     }
@@ -755,7 +815,13 @@ mod tests {
         let validator = UuidIdValidator;
         let result = validator.validate("not-a-uuid");
         assert!(
-            matches!(result, Err(IDValidationError { policy: IDPolicy::UUID, .. })),
+            matches!(
+                result,
+                Err(IDValidationError {
+                    policy: IDPolicy::UUID,
+                    ..
+                })
+            ),
             "invalid string should fail UuidIdValidator, got: {result:?}"
         );
         assert_eq!(result.unwrap_err().value, "not-a-uuid");
@@ -788,7 +854,9 @@ mod tests {
     #[test]
     fn test_numeric_validator_valid_positive() {
         let validator = NumericIdValidator;
-        validator.validate("12345").unwrap_or_else(|e| panic!("positive int should pass: {e}"));
+        validator
+            .validate("12345")
+            .unwrap_or_else(|e| panic!("positive int should pass: {e}"));
         validator.validate("0").unwrap_or_else(|e| panic!("zero should pass: {e}"));
         validator
             .validate("9223372036854775807")
@@ -798,8 +866,12 @@ mod tests {
     #[test]
     fn test_numeric_validator_valid_negative() {
         let validator = NumericIdValidator;
-        validator.validate("-1").unwrap_or_else(|e| panic!("negative int should pass: {e}"));
-        validator.validate("-12345").unwrap_or_else(|e| panic!("negative int should pass: {e}"));
+        validator
+            .validate("-1")
+            .unwrap_or_else(|e| panic!("negative int should pass: {e}"));
+        validator
+            .validate("-12345")
+            .unwrap_or_else(|e| panic!("negative int should pass: {e}"));
         validator
             .validate("-9223372036854775808")
             .unwrap_or_else(|e| panic!("i64::MIN should pass: {e}"));
@@ -990,25 +1062,41 @@ mod tests {
     #[test]
     fn test_opaque_validator_any_string() {
         let validator = OpaqueIdValidator;
-        validator.validate("anything").unwrap_or_else(|e| panic!("opaque should accept any string: {e}"));
-        validator.validate("12345").unwrap_or_else(|e| panic!("opaque should accept digits: {e}"));
-        validator.validate("special@chars!#$%").unwrap_or_else(|e| panic!("opaque should accept special chars: {e}"));
-        validator.validate("").unwrap_or_else(|e| panic!("opaque should accept empty string: {e}"));
+        validator
+            .validate("anything")
+            .unwrap_or_else(|e| panic!("opaque should accept any string: {e}"));
+        validator
+            .validate("12345")
+            .unwrap_or_else(|e| panic!("opaque should accept digits: {e}"));
+        validator
+            .validate("special@chars!#$%")
+            .unwrap_or_else(|e| panic!("opaque should accept special chars: {e}"));
+        validator
+            .validate("")
+            .unwrap_or_else(|e| panic!("opaque should accept empty string: {e}"));
     }
 
     #[test]
     fn test_opaque_validator_malicious_strings() {
         let validator = OpaqueIdValidator;
         // Opaque validator accepts anything - security is delegated to application layer
-        validator.validate("'; DROP TABLE users; --").unwrap_or_else(|e| panic!("opaque should accept SQL injection: {e}"));
-        validator.validate("../../etc/passwd").unwrap_or_else(|e| panic!("opaque should accept path traversal: {e}"));
-        validator.validate("<script>alert('xss')</script>").unwrap_or_else(|e| panic!("opaque should accept XSS: {e}"));
+        validator
+            .validate("'; DROP TABLE users; --")
+            .unwrap_or_else(|e| panic!("opaque should accept SQL injection: {e}"));
+        validator
+            .validate("../../etc/passwd")
+            .unwrap_or_else(|e| panic!("opaque should accept path traversal: {e}"));
+        validator
+            .validate("<script>alert('xss')</script>")
+            .unwrap_or_else(|e| panic!("opaque should accept XSS: {e}"));
     }
 
     #[test]
     fn test_opaque_validator_uuid() {
         let validator = OpaqueIdValidator;
-        validator.validate("550e8400-e29b-41d4-a716-446655440000").unwrap_or_else(|e| panic!("opaque should accept UUID: {e}"));
+        validator
+            .validate("550e8400-e29b-41d4-a716-446655440000")
+            .unwrap_or_else(|e| panic!("opaque should accept UUID: {e}"));
     }
 
     #[test]
@@ -1046,9 +1134,15 @@ mod tests {
         let numeric_validator = NumericIdValidator;
         let ulid_validator = UlidIdValidator;
 
-        uuid_validator.validate(uuid).unwrap_or_else(|e| panic!("UUID validator should accept UUID: {e}"));
-        numeric_validator.validate(numeric).unwrap_or_else(|e| panic!("numeric validator should accept number: {e}"));
-        ulid_validator.validate(ulid).unwrap_or_else(|e| panic!("ULID validator should accept ULID: {e}"));
+        uuid_validator
+            .validate(uuid)
+            .unwrap_or_else(|e| panic!("UUID validator should accept UUID: {e}"));
+        numeric_validator
+            .validate(numeric)
+            .unwrap_or_else(|e| panic!("numeric validator should accept number: {e}"));
+        ulid_validator
+            .validate(ulid)
+            .unwrap_or_else(|e| panic!("ULID validator should accept ULID: {e}"));
 
         // Wrong validators should fail
         assert!(
@@ -1071,7 +1165,8 @@ mod tests {
     fn test_id_validation_profile_uuid() {
         let profile = IDValidationProfile::uuid();
         assert_eq!(profile.name, "uuid");
-        profile.validate("550e8400-e29b-41d4-a716-446655440000")
+        profile
+            .validate("550e8400-e29b-41d4-a716-446655440000")
             .unwrap_or_else(|e| panic!("UUID profile should accept valid UUID: {e}"));
         assert!(
             matches!(profile.validate("not-a-uuid"), Err(IDValidationError { .. })),
@@ -1083,7 +1178,8 @@ mod tests {
     fn test_id_validation_profile_numeric() {
         let profile = IDValidationProfile::numeric();
         assert_eq!(profile.name, "numeric");
-        profile.validate("12345")
+        profile
+            .validate("12345")
             .unwrap_or_else(|e| panic!("numeric profile should accept number: {e}"));
         assert!(
             matches!(profile.validate("not-a-number"), Err(IDValidationError { .. })),
@@ -1095,7 +1191,8 @@ mod tests {
     fn test_id_validation_profile_ulid() {
         let profile = IDValidationProfile::ulid();
         assert_eq!(profile.name, "ulid");
-        profile.validate("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+        profile
+            .validate("01ARZ3NDEKTSV4RRFFQ69G5FAV")
             .unwrap_or_else(|e| panic!("ULID profile should accept valid ULID: {e}"));
         assert!(
             matches!(profile.validate("not-a-ulid"), Err(IDValidationError { .. })),
@@ -1107,11 +1204,14 @@ mod tests {
     fn test_id_validation_profile_opaque() {
         let profile = IDValidationProfile::opaque();
         assert_eq!(profile.name, "opaque");
-        profile.validate("anything")
+        profile
+            .validate("anything")
             .unwrap_or_else(|e| panic!("opaque profile should accept any string: {e}"));
-        profile.validate("12345")
+        profile
+            .validate("12345")
             .unwrap_or_else(|e| panic!("opaque profile should accept digits: {e}"));
-        profile.validate("special@chars!#$%")
+        profile
+            .validate("special@chars!#$%")
             .unwrap_or_else(|e| panic!("opaque profile should accept special chars: {e}"));
     }
 
@@ -1119,28 +1219,47 @@ mod tests {
     fn test_id_validation_profile_by_name() {
         // Test exact matches
         assert!(IDValidationProfile::by_name("uuid").is_some(), "uuid profile should exist");
-        assert!(IDValidationProfile::by_name("numeric").is_some(), "numeric profile should exist");
+        assert!(
+            IDValidationProfile::by_name("numeric").is_some(),
+            "numeric profile should exist"
+        );
         assert!(IDValidationProfile::by_name("ulid").is_some(), "ulid profile should exist");
         assert!(IDValidationProfile::by_name("opaque").is_some(), "opaque profile should exist");
 
         // Test case insensitivity
-        assert!(IDValidationProfile::by_name("UUID").is_some(), "UUID (uppercase) should resolve");
-        assert!(IDValidationProfile::by_name("NUMERIC").is_some(), "NUMERIC (uppercase) should resolve");
-        assert!(IDValidationProfile::by_name("ULID").is_some(), "ULID (uppercase) should resolve");
+        assert!(
+            IDValidationProfile::by_name("UUID").is_some(),
+            "UUID (uppercase) should resolve"
+        );
+        assert!(
+            IDValidationProfile::by_name("NUMERIC").is_some(),
+            "NUMERIC (uppercase) should resolve"
+        );
+        assert!(
+            IDValidationProfile::by_name("ULID").is_some(),
+            "ULID (uppercase) should resolve"
+        );
 
         // Test aliases
-        assert!(IDValidationProfile::by_name("integer").is_some(), "integer alias should resolve");
+        assert!(
+            IDValidationProfile::by_name("integer").is_some(),
+            "integer alias should resolve"
+        );
         assert!(IDValidationProfile::by_name("string").is_some(), "string alias should resolve");
 
         // Test invalid
-        assert!(IDValidationProfile::by_name("invalid").is_none(), "unknown name should return None");
+        assert!(
+            IDValidationProfile::by_name("invalid").is_none(),
+            "unknown name should return None"
+        );
     }
 
     #[test]
     fn test_id_validation_profile_by_name_uuid_validation() {
         let profile = IDValidationProfile::by_name("uuid").unwrap();
         assert_eq!(profile.name, "uuid");
-        profile.validate("550e8400-e29b-41d4-a716-446655440000")
+        profile
+            .validate("550e8400-e29b-41d4-a716-446655440000")
             .unwrap_or_else(|e| panic!("UUID profile by name should accept valid UUID: {e}"));
     }
 
@@ -1148,7 +1267,8 @@ mod tests {
     fn test_id_validation_profile_by_name_numeric_validation() {
         let profile = IDValidationProfile::by_name("numeric").unwrap();
         assert_eq!(profile.name, "numeric");
-        profile.validate("12345")
+        profile
+            .validate("12345")
             .unwrap_or_else(|e| panic!("numeric profile by name should accept number: {e}"));
     }
 
@@ -1158,9 +1278,11 @@ mod tests {
         let profile_integer = IDValidationProfile::by_name("integer").unwrap();
 
         // Both should validate the same way
-        profile_numeric.validate("12345")
+        profile_numeric
+            .validate("12345")
             .unwrap_or_else(|e| panic!("numeric profile should accept number: {e}"));
-        profile_integer.validate("12345")
+        profile_integer
+            .validate("12345")
             .unwrap_or_else(|e| panic!("integer alias should accept number: {e}"));
         assert!(
             matches!(profile_numeric.validate("not-a-number"), Err(IDValidationError { .. })),
@@ -1178,9 +1300,11 @@ mod tests {
         let profile_string = IDValidationProfile::by_name("string").unwrap();
 
         // Both should validate the same way
-        profile_opaque.validate("anything")
+        profile_opaque
+            .validate("anything")
             .unwrap_or_else(|e| panic!("opaque profile should accept any string: {e}"));
-        profile_string.validate("anything")
+        profile_string
+            .validate("anything")
             .unwrap_or_else(|e| panic!("string alias should accept any string: {e}"));
     }
 
@@ -1193,15 +1317,21 @@ mod tests {
             .unwrap_or_else(|e| panic!("UUID profile type should accept valid UUID: {e}"));
 
         let numeric_type = ValidationProfileType::Numeric(NumericIdValidator);
-        numeric_type.as_validator().validate("12345")
+        numeric_type
+            .as_validator()
+            .validate("12345")
             .unwrap_or_else(|e| panic!("numeric profile type should accept number: {e}"));
 
         let ulid_type = ValidationProfileType::Ulid(UlidIdValidator);
-        ulid_type.as_validator().validate("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+        ulid_type
+            .as_validator()
+            .validate("01ARZ3NDEKTSV4RRFFQ69G5FAV")
             .unwrap_or_else(|e| panic!("ULID profile type should accept valid ULID: {e}"));
 
         let opaque_type = ValidationProfileType::Opaque(OpaqueIdValidator);
-        opaque_type.as_validator().validate("any_value")
+        opaque_type
+            .as_validator()
+            .validate("any_value")
             .unwrap_or_else(|e| panic!("opaque profile type should accept any string: {e}"));
     }
 
@@ -1211,9 +1341,11 @@ mod tests {
         let profile2 = profile1.clone();
 
         assert_eq!(profile1.name, profile2.name);
-        profile1.validate("550e8400-e29b-41d4-a716-446655440000")
+        profile1
+            .validate("550e8400-e29b-41d4-a716-446655440000")
             .unwrap_or_else(|e| panic!("original profile should accept valid UUID: {e}"));
-        profile2.validate("550e8400-e29b-41d4-a716-446655440000")
+        profile2
+            .validate("550e8400-e29b-41d4-a716-446655440000")
             .unwrap_or_else(|e| panic!("cloned profile should accept valid UUID: {e}"));
     }
 

@@ -31,15 +31,15 @@ pub struct VaultConfig {
     /// Vault server address (e.g., `https://vault.example.com`)
     pub vault_addr: String,
     /// Vault authentication token
-    pub token:      String,
+    pub token: String,
     /// Transit mount path (default: "transit")
     pub mount_path: String,
     /// Optional Vault namespace
-    pub namespace:  Option<String>,
+    pub namespace: Option<String>,
     /// Verify TLS certificates (default: true)
     pub verify_tls: bool,
     /// Request timeout in seconds (default: 30)
-    pub timeout:    u64,
+    pub timeout: u64,
 }
 
 impl std::fmt::Debug for VaultConfig {
@@ -439,17 +439,18 @@ impl BaseKmsProvider for VaultKmsProvider {
         // Vault doesn't have explicit rotation policies in transit engine
         // Return disabled by default
         Ok(RotationPolicyInfo {
-            enabled:              false,
+            enabled: false,
             rotation_period_days: 0,
-            last_rotation:        None,
-            next_rotation:        None,
+            last_rotation: None,
+            next_rotation: None,
         })
     }
 }
 
 /// Encode bytes as base64.
 fn base64_encode(data: &[u8]) -> String {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.encode(data)
@@ -457,7 +458,8 @@ fn base64_encode(data: &[u8]) -> String {
 
 /// Decode base64 to bytes.
 fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: base64::prelude::* is the canonical usage pattern
     use base64::prelude::*;
     BASE64_STANDARD.decode(s)

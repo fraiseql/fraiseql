@@ -196,13 +196,13 @@ pub enum ActionConfig {
     /// HTTP webhook action
     Webhook {
         /// Target URL for the webhook POST request.
-        url:           String,
+        url: String,
         /// HTTP method (default: POST).
         #[serde(default = "default_method")]
-        method:        String,
+        method: String,
         /// Optional custom request headers.
         #[serde(default)]
-        headers:       Option<std::collections::HashMap<String, String>>,
+        headers: Option<std::collections::HashMap<String, String>>,
         /// Optional Handlebars body template.
         #[serde(default)]
         body_template: Option<String>,
@@ -211,23 +211,23 @@ pub enum ActionConfig {
     /// Email notification action
     Email {
         /// Primary recipient address.
-        to:               String,
+        to: String,
         /// Optional CC recipient address.
         #[serde(default)]
-        cc:               Option<String>,
+        cc: Option<String>,
         /// Handlebars template for the email subject.
         subject_template: String,
         /// Handlebars template for the email body.
-        body_template:    String,
+        body_template: String,
     },
 
     /// Slack message action
     Slack {
         /// Incoming webhook URL for the Slack workspace.
-        webhook_url:      String,
+        webhook_url: String,
         /// Optional target channel override.
         #[serde(default)]
-        channel:          Option<String>,
+        channel: Option<String>,
         /// Handlebars template for the Slack message text.
         message_template: String,
     },
@@ -238,14 +238,14 @@ pub enum ActionConfig {
         function_name: String,
         /// Optional JSON parameters passed to the function.
         #[serde(default)]
-        params:        Option<serde_json::Value>,
+        params: Option<serde_json::Value>,
     },
 
     /// Log action (for debugging)
     Log {
         /// Log level: "trace", "debug", "info", "warn", or "error".
         #[serde(default = "default_log_level")]
-        level:            String,
+        level: String,
         /// Handlebars template for the log message.
         message_template: String,
     },
@@ -274,10 +274,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts:     3,
-            backoff:          "exponential".to_string(),
+            max_attempts: 3,
+            backoff: "exponential".to_string(),
             initial_delay_ms: 1000,
-            max_delay_ms:     60000,
+            max_delay_ms: 60000,
         }
     }
 }
@@ -344,37 +344,37 @@ pub struct ObserverLog {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ObserverStats {
     /// Internal primary key of the observer.
-    pub pk_observer:           i64,
+    pub pk_observer: i64,
     /// External UUID of the observer.
-    pub observer_id:           Uuid,
+    pub observer_id: Uuid,
     /// Name of the observer.
-    pub observer_name:         String,
+    pub observer_name: String,
     /// Entity type filter (if set on the observer).
-    pub entity_type:           Option<String>,
+    pub entity_type: Option<String>,
     /// Event type filter (if set on the observer).
-    pub event_type:            Option<String>,
+    pub event_type: Option<String>,
     /// Whether the observer is currently enabled.
-    pub enabled:               bool,
+    pub enabled: bool,
     /// Total number of executions recorded.
-    pub total_executions:      i64,
+    pub total_executions: i64,
     /// Number of executions that completed successfully.
     pub successful_executions: i64,
     /// Number of executions that ended in failure.
-    pub failed_executions:     i64,
+    pub failed_executions: i64,
     /// Number of executions that timed out.
-    pub timeout_executions:    i64,
+    pub timeout_executions: i64,
     /// Number of executions that were skipped (condition not met).
-    pub skipped_executions:    i64,
+    pub skipped_executions: i64,
     /// Percentage of successful executions (0–100).
-    pub success_rate_pct:      Option<f64>,
+    pub success_rate_pct: Option<f64>,
     /// Average execution duration in milliseconds.
-    pub avg_duration_ms:       Option<f64>,
+    pub avg_duration_ms: Option<f64>,
     /// Maximum execution duration in milliseconds.
-    pub max_duration_ms:       Option<i32>,
+    pub max_duration_ms: Option<i32>,
     /// Minimum execution duration in milliseconds.
-    pub min_duration_ms:       Option<i32>,
+    pub min_duration_ms: Option<i32>,
     /// Timestamp of the most recent execution.
-    pub last_execution_at:     Option<DateTime<Utc>>,
+    pub last_execution_at: Option<DateTime<Utc>>,
 }
 
 /// Query parameters for listing observers.
@@ -437,11 +437,11 @@ pub struct ListObserverLogsQuery {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
     /// Items on the current page.
-    pub data:        Vec<T>,
+    pub data: Vec<T>,
     /// Current page number (1-based).
-    pub page:        i64,
+    pub page: i64,
     /// Number of items per page.
-    pub page_size:   i64,
+    pub page_size: i64,
     /// Total number of items across all pages.
     pub total_count: i64,
     /// Total number of pages.

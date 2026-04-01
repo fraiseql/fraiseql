@@ -72,31 +72,31 @@ impl AuditLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Entry ID (None for new entries)
-    pub id:             Option<i64>,
+    pub id: Option<i64>,
     /// Timestamp
-    pub timestamp:      DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Log level
-    pub level:          AuditLevel,
+    pub level: AuditLevel,
     /// User ID
-    pub user_id:        i64,
+    pub user_id: i64,
     /// Tenant ID
-    pub tenant_id:      i64,
+    pub tenant_id: i64,
     /// Operation type (query, mutation)
-    pub operation:      String,
+    pub operation: String,
     /// GraphQL query string
-    pub query:          String,
+    pub query: String,
     /// Query variables (JSONB)
-    pub variables:      serde_json::Value,
+    pub variables: serde_json::Value,
     /// Client IP address
-    pub ip_address:     String,
+    pub ip_address: String,
     /// Client user agent
-    pub user_agent:     String,
+    pub user_agent: String,
     /// Error message (if any)
-    pub error:          Option<String>,
+    pub error: Option<String>,
     /// Query duration in milliseconds (optional)
-    pub duration_ms:    Option<i32>,
+    pub duration_ms: Option<i32>,
     /// SHA256 hash of previous entry (for integrity chain)
-    pub previous_hash:  Option<String>,
+    pub previous_hash: Option<String>,
     /// SHA256 hash of this entry (for integrity verification)
     pub integrity_hash: Option<String>,
 }
@@ -237,7 +237,7 @@ const fn default_flush_interval_secs() -> u64 {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditStats {
     /// Total number of audit events recorded
-    pub total_events:  u64,
+    pub total_events: u64,
     /// Number of recent events (last 24 hours or recent window)
     pub recent_events: u64,
 }
@@ -245,7 +245,7 @@ pub struct AuditStats {
 /// Audit logger with `PostgreSQL` backend and optional export sinks.
 #[derive(Clone)]
 pub struct AuditLogger {
-    pool:      Arc<Pool>,
+    pool: Arc<Pool>,
     exporters: Arc<Vec<Box<dyn AuditExporter>>>,
 }
 
@@ -477,19 +477,19 @@ mod tests {
     #[test]
     fn test_audit_entry_integrity_hash() {
         let entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 
@@ -501,19 +501,19 @@ mod tests {
     #[test]
     fn test_audit_integrity_verification() {
         let mut entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 
@@ -599,8 +599,8 @@ mod tests {
             "syslog": { "address": "syslog.internal", "port": 514, "protocol": "tcp" },
             "webhook": { "url": "https://logs.example.com/ingest" }
         }"#;
-        let config: AuditExportConfig = serde_json::from_str(json)
-            .expect("should deserialize AuditExportConfig");
+        let config: AuditExportConfig =
+            serde_json::from_str(json).expect("should deserialize AuditExportConfig");
         assert!(config.syslog.is_some());
         assert!(config.webhook.is_some());
 

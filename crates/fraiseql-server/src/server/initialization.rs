@@ -50,12 +50,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct PkceCfgMinimal {
             #[serde(default)]
-            enabled:               bool,
+            enabled: bool,
             #[serde(default = "default_ttl")]
-            state_ttl_secs:        u64,
+            state_ttl_secs: u64,
             #[serde(default = "default_method")]
             code_challenge_method: String,
-            redis_url:             Option<String>,
+            redis_url: Option<String>,
         }
         #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
         const fn default_ttl() -> u64 {
@@ -292,14 +292,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct TdCfgMinimal {
             #[serde(default)]
-            enabled:              bool,
+            enabled: bool,
             #[serde(default)]
-            mode:                 String,
-            manifest_path:        Option<String>,
+            mode: String,
+            manifest_path: Option<String>,
             // Reason: serde deserialization target — `manifest_url` is a valid config field
             // used for hot-reload path detection; this minimal struct only reads `manifest_path`.
-            #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
-            manifest_url:         Option<String>,
+            #[allow(dead_code)]
+            // Reason: field kept for API completeness; may be used in future features
+            manifest_url: Option<String>,
             #[serde(default)]
             reload_interval_secs: u64,
         }
@@ -376,8 +377,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         tokio::spawn(async move {
-            const MANIFEST_FETCH_TIMEOUT: std::time::Duration =
-                std::time::Duration::from_secs(30);
+            const MANIFEST_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
             /// Maximum byte size accepted for a hot-reloaded trusted-documents manifest.
             /// Matches the cap enforced for file-based manifests in `trusted_documents.rs`.
             const MAX_TRUSTED_DOCS_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB

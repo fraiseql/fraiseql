@@ -90,14 +90,14 @@ const fn default_samples_before_action() -> u32 {
 impl Default for PoolPressureMonitorConfig {
     fn default() -> Self {
         Self {
-            enabled:               false,
-            min_pool_size:         default_min_pool_size(),
-            max_pool_size:         default_max_pool_size(),
-            target_queue_depth:    default_target_queue_depth(),
-            scale_up_step:         default_scale_up_step(),
-            scale_down_step:       default_scale_down_step(),
+            enabled: false,
+            min_pool_size: default_min_pool_size(),
+            max_pool_size: default_max_pool_size(),
+            target_queue_depth: default_target_queue_depth(),
+            scale_up_step: default_scale_up_step(),
+            scale_down_step: default_scale_down_step(),
             scale_down_idle_ratio: default_scale_down_idle_ratio(),
-            tuning_interval_ms:    default_tuning_interval_ms(),
+            tuning_interval_ms: default_tuning_interval_ms(),
             samples_before_action: default_samples_before_action(),
         }
     }
@@ -152,7 +152,8 @@ impl PoolPressureMonitorConfig {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     use super::*;
 
     #[test]
@@ -184,7 +185,11 @@ mod tests {
             max_pool_size: 5,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "min >= max should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "min >= max should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
@@ -194,7 +199,11 @@ mod tests {
             max_pool_size: 10,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "min == max should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "min == max should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
@@ -203,7 +212,11 @@ mod tests {
             scale_down_idle_ratio: 1.5,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "idle ratio > 1.0 should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "idle ratio > 1.0 should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
@@ -212,7 +225,11 @@ mod tests {
             scale_down_idle_ratio: -0.1,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "idle ratio < 0.0 should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "idle ratio < 0.0 should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
@@ -221,7 +238,11 @@ mod tests {
             scale_up_step: 0,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "scale_up_step == 0 should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "scale_up_step == 0 should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
@@ -230,11 +251,15 @@ mod tests {
             scale_down_step: 0,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "scale_down_step == 0 should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "scale_down_step == 0 should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 
     #[test]
-    #[allow(deprecated)]  // Reason: re-exporting deprecated alias for backward compatibility
+    #[allow(deprecated)] // Reason: re-exporting deprecated alias for backward compatibility
     fn test_pool_tuning_config_alias_works() {
         // PoolTuningConfig is a deprecated alias for PoolPressureMonitorConfig
         let _cfg: PoolTuningConfig = PoolTuningConfig::default();
@@ -246,6 +271,10 @@ mod tests {
             tuning_interval_ms: 50,
             ..Default::default()
         };
-        assert!(cfg.validate().is_err(), "tuning_interval_ms < 100 should be invalid, got: {:?}", cfg.validate());
+        assert!(
+            cfg.validate().is_err(),
+            "tuning_interval_ms < 100 should be invalid, got: {:?}",
+            cfg.validate()
+        );
     }
 }

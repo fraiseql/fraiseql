@@ -18,7 +18,8 @@ use crate::{
         DeprecationInfo, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy,
         FieldType, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
         MutationDefinition, QueryDefinition, SubscriptionDefinition, TypeDefinition,
-        UnionDefinition, domain_types::{SqlSource, TypeName},
+        UnionDefinition,
+        domain_types::{SqlSource, TypeName},
     },
     validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
 };
@@ -118,20 +119,20 @@ impl CodeGenerator {
             .iter()
             .map(|t| {
                 TypeDefinition {
-                    name:                TypeName::new(t.name.clone()),
-                    sql_source:          SqlSource::new(
+                    name: TypeName::new(t.name.clone()),
+                    sql_source: SqlSource::new(
                         t.sql_source.clone().unwrap_or_else(|| t.name.clone()),
                     ),
-                    jsonb_column:        "data".to_string(),
-                    fields:              Self::map_fields(&t.fields),
-                    description:         t.description.clone(),
+                    jsonb_column: "data".to_string(),
+                    fields: Self::map_fields(&t.fields),
+                    description: t.description.clone(),
                     sql_projection_hint: None, // Populated during optimization pass
-                    implements:          Vec::new(), /* Note: IR doesn't have interface
+                    implements: Vec::new(),    /* Note: IR doesn't have interface
                                                 * implementation yet */
-                    requires_role:       None,
-                    is_error:            false,
-                    relay:               false,
-                    relationships:       Vec::new(),
+                    requires_role: None,
+                    is_error: false,
+                    relay: false,
+                    relationships: Vec::new(),
                 }
             })
             .collect();
@@ -141,30 +142,30 @@ impl CodeGenerator {
             .iter()
             .map(|q| {
                 QueryDefinition {
-                    name:                q.name.clone(),
-                    return_type:         q.return_type.clone(),
-                    returns_list:        q.returns_list,
-                    nullable:            q.nullable,
-                    arguments:           Self::map_arguments(&q.arguments),
-                    sql_source:          q.sql_source.clone(),
-                    description:         q.description.clone(),
-                    auto_params:         SchemaAutoParams {
-                        has_where:    q.auto_params.has_where,
+                    name: q.name.clone(),
+                    return_type: q.return_type.clone(),
+                    returns_list: q.returns_list,
+                    nullable: q.nullable,
+                    arguments: Self::map_arguments(&q.arguments),
+                    sql_source: q.sql_source.clone(),
+                    description: q.description.clone(),
+                    auto_params: SchemaAutoParams {
+                        has_where: q.auto_params.has_where,
                         has_order_by: q.auto_params.has_order_by,
-                        has_limit:    q.auto_params.has_limit,
-                        has_offset:   q.auto_params.has_offset,
+                        has_limit: q.auto_params.has_limit,
+                        has_offset: q.auto_params.has_offset,
                     },
-                    deprecation:         None, // Note: IR doesn't have deprecation info yet
-                    jsonb_column:        "data".to_string(), // Default to "data" column
-                    relay:               false,
+                    deprecation: None, // Note: IR doesn't have deprecation info yet
+                    jsonb_column: "data".to_string(), // Default to "data" column
+                    relay: false,
                     relay_cursor_column: None,
-                    relay_cursor_type:   CursorType::default(),
-                    inject_params:       indexmap::IndexMap::default(),
-                    cache_ttl_seconds:   None,
-                    additional_views:    vec![],
-                    requires_role:       None,
-                    rest_path:           None,
-                    rest_method:         None,
+                    relay_cursor_type: CursorType::default(),
+                    inject_params: indexmap::IndexMap::default(),
+                    cache_ttl_seconds: None,
+                    additional_views: vec![],
+                    requires_role: None,
+                    rest_path: None,
+                    rest_method: None,
                 }
             })
             .collect();
@@ -176,15 +177,15 @@ impl CodeGenerator {
             .iter()
             .map(|s| {
                 SubscriptionDefinition {
-                    name:          s.name.clone(),
-                    return_type:   s.return_type.clone(),
-                    arguments:     Self::map_arguments(&s.arguments),
-                    description:   s.description.clone(),
-                    topic:         None, // Populated from decorator topic binding
-                    filter:        None, // Populated from decorator filters
-                    fields:        Vec::new(), // Populated from decorator field selection
+                    name: s.name.clone(),
+                    return_type: s.return_type.clone(),
+                    arguments: Self::map_arguments(&s.arguments),
+                    description: s.description.clone(),
+                    topic: None,               // Populated from decorator topic binding
+                    filter: None,              // Populated from decorator filters
+                    fields: Vec::new(),        // Populated from decorator field selection
                     filter_fields: Vec::new(), // Populated from decorator filter_fields
-                    deprecation:   None, // Note: IR subscriptions don't have deprecation yet
+                    deprecation: None,         // Note: IR subscriptions don't have deprecation yet
                 }
             })
             .collect();
@@ -193,15 +194,13 @@ impl CodeGenerator {
         let enums = ir.enums.iter().map(Self::map_enum).collect();
 
         // Map interfaces
-        let interfaces =
-            ir.interfaces.iter().map(Self::map_interface).collect();
+        let interfaces = ir.interfaces.iter().map(Self::map_interface).collect();
 
         // Map unions
         let unions = ir.unions.iter().map(Self::map_union).collect();
 
         // Map input types
-        let input_types =
-            ir.input_types.iter().map(Self::map_input_type).collect();
+        let input_types = ir.input_types.iter().map(Self::map_input_type).collect();
 
         // Build custom type registry from IRScalars
         let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;
@@ -343,8 +342,8 @@ impl CodeGenerator {
     /// Map IR enum to compiled schema enum.
     fn map_enum(e: &IREnum) -> EnumDefinition {
         EnumDefinition {
-            name:        e.name.clone(),
-            values:      e.values.iter().map(Self::map_enum_value).collect(),
+            name: e.name.clone(),
+            values: e.values.iter().map(Self::map_enum_value).collect(),
             description: e.description.clone(),
         }
     }
@@ -352,7 +351,7 @@ impl CodeGenerator {
     /// Map IR enum value to compiled schema enum value.
     fn map_enum_value(v: &IREnumValue) -> EnumValueDefinition {
         EnumValueDefinition {
-            name:        v.name.clone(),
+            name: v.name.clone(),
             description: v.description.clone(),
             deprecation: v.deprecation_reason.as_ref().map(|reason| DeprecationInfo {
                 reason: Some(reason.clone()),
@@ -363,8 +362,8 @@ impl CodeGenerator {
     /// Map IR interface to compiled schema interface.
     fn map_interface(i: &IRInterface) -> InterfaceDefinition {
         InterfaceDefinition {
-            name:        i.name.clone(),
-            fields:      Self::map_fields(&i.fields),
+            name: i.name.clone(),
+            fields: Self::map_fields(&i.fields),
             description: i.description.clone(),
         }
     }
@@ -372,19 +371,19 @@ impl CodeGenerator {
     /// Map IR union to compiled schema union.
     fn map_union(u: &IRUnion) -> UnionDefinition {
         UnionDefinition {
-            name:         u.name.clone(),
+            name: u.name.clone(),
             member_types: u.types.clone(),
-            description:  u.description.clone(),
+            description: u.description.clone(),
         }
     }
 
     /// Map IR input type to compiled schema input object.
     fn map_input_type(i: &IRInputType) -> InputObjectDefinition {
         InputObjectDefinition {
-            name:        i.name.clone(),
-            fields:      Self::map_input_fields(&i.fields),
+            name: i.name.clone(),
+            fields: Self::map_input_fields(&i.fields),
             description: i.description.clone(),
-            metadata:    None,
+            metadata: None,
         }
     }
 
@@ -394,14 +393,14 @@ impl CodeGenerator {
             .iter()
             .map(|f| {
                 InputFieldDefinition {
-                    name:             f.name.clone(),
-                    field_type:       f.field_type.clone(), /* InputFieldDefinition uses String,
-                                                             * not FieldType */
-                    description:      f.description.clone(),
-                    default_value:    f.default_value.as_ref().map(|v| v.to_json().to_string()),
-                    deprecation:      None, // Note: IR input fields don't have deprecation yet
+                    name: f.name.clone(),
+                    field_type: f.field_type.clone(), /* InputFieldDefinition uses String,
+                                                       * not FieldType */
+                    description: f.description.clone(),
+                    default_value: f.default_value.as_ref().map(|v| v.to_json().to_string()),
+                    deprecation: None, // Note: IR input fields don't have deprecation yet
                     validation_rules: Vec::new(), /* Validation rules set separately from @validate
-                                             * directives */
+                                        * directives */
                 }
             })
             .collect()
@@ -415,12 +414,12 @@ impl CodeGenerator {
 
         for ir_scalar in ir_scalars {
             let def = CustomTypeDef {
-                name:             ir_scalar.name.clone(),
-                description:      ir_scalar.description.clone(),
+                name: ir_scalar.name.clone(),
+                description: ir_scalar.description.clone(),
                 specified_by_url: ir_scalar.specified_by_url.clone(),
                 validation_rules: ir_scalar.validation_rules.clone(),
-                elo_expression:   None, // ELO expressions are handled separately
-                base_type:        ir_scalar.base_type.clone(),
+                elo_expression: None, // ELO expressions are handled separately
+                base_type: ir_scalar.base_type.clone(),
             };
 
             registry.register(ir_scalar.name.clone(), def)?;
@@ -473,31 +472,31 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "User".to_string(),
-            fields:      vec![
+            name: "User".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "id".to_string(),
-                    field_type:  "ID!".to_string(),
-                    nullable:    false,
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
                     description: Some("User ID".to_string()),
-                    sql_column:  Some("id".to_string()),
+                    sql_column: Some("id".to_string()),
                 },
                 IRField {
-                    name:        "name".to_string(),
-                    field_type:  "String".to_string(),
-                    nullable:    true,
+                    name: "name".to_string(),
+                    field_type: "String".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "age".to_string(),
-                    field_type:  "Int".to_string(),
-                    nullable:    true,
+                    name: "age".to_string(),
+                    field_type: "Int".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  Some("v_user".to_string()),
+            sql_source: Some("v_user".to_string()),
             description: Some("User type".to_string()),
         });
 
@@ -529,48 +528,48 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "User".to_string(),
-            fields:      vec![],
-            sql_source:  None,
+            name: "User".to_string(),
+            fields: vec![],
+            sql_source: None,
             description: None,
         });
 
         ir.queries.push(IRQuery {
-            name:         "user".to_string(),
-            return_type:  "User".to_string(),
+            name: "user".to_string(),
+            return_type: "User".to_string(),
             returns_list: false,
-            nullable:     true,
-            arguments:    vec![IRArgument {
-                name:          "id".to_string(),
-                arg_type:      "ID!".to_string(),
-                nullable:      false,
+            nullable: true,
+            arguments: vec![IRArgument {
+                name: "id".to_string(),
+                arg_type: "ID!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   Some("User ID to fetch".to_string()),
+                description: Some("User ID to fetch".to_string()),
             }],
-            sql_source:   Some("v_user".to_string()),
-            description:  Some("Fetch a single user".to_string()),
-            auto_params:  AutoParams::default(),
+            sql_source: Some("v_user".to_string()),
+            description: Some("Fetch a single user".to_string()),
+            auto_params: AutoParams::default(),
         });
 
         ir.queries.push(IRQuery {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
+            name: "users".to_string(),
+            return_type: "User".to_string(),
             returns_list: true,
-            nullable:     false,
-            arguments:    vec![IRArgument {
-                name:          "limit".to_string(),
-                arg_type:      "Int".to_string(),
-                nullable:      true,
+            nullable: false,
+            arguments: vec![IRArgument {
+                name: "limit".to_string(),
+                arg_type: "Int".to_string(),
+                nullable: true,
                 default_value: Some(GraphQLValue::Int(10)),
-                description:   None,
+                description: None,
             }],
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams {
-                has_where:    true,
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
+                has_where: true,
                 has_order_by: true,
-                has_limit:    true,
-                has_offset:   true,
+                has_limit: true,
+                has_offset: true,
             },
         });
 
@@ -613,18 +612,18 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.mutations.push(IRMutation {
-            name:        "createUser".to_string(),
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable:    false,
-            arguments:   vec![IRArgument {
-                name:          "name".to_string(),
-                arg_type:      "String!".to_string(),
-                nullable:      false,
+            nullable: false,
+            arguments: vec![IRArgument {
+                name: "name".to_string(),
+                arg_type: "String!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   None,
+                description: None,
             }],
             description: Some("Create a new user".to_string()),
-            operation:   IRMutationOp::Create,
+            operation: IRMutationOp::Create,
         });
 
         let schema = generator
@@ -658,14 +657,14 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.subscriptions.push(IRSubscription {
-            name:        "userCreated".to_string(),
+            name: "userCreated".to_string(),
             return_type: "User".to_string(),
-            arguments:   vec![IRArgument {
-                name:          "tenantId".to_string(),
-                arg_type:      "ID!".to_string(),
-                nullable:      false,
+            arguments: vec![IRArgument {
+                name: "tenantId".to_string(),
+                arg_type: "ID!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   None,
+                description: None,
             }],
             description: Some("Subscribe to user creation events".to_string()),
         });
@@ -688,24 +687,24 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "Post".to_string(),
-            fields:      vec![
+            name: "Post".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "tags".to_string(),
-                    field_type:  "[String]".to_string(),
-                    nullable:    true,
+                    name: "tags".to_string(),
+                    field_type: "[String]".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "comments".to_string(),
-                    field_type:  "[Comment!]!".to_string(),
-                    nullable:    false,
+                    name: "comments".to_string(),
+                    field_type: "[Comment!]!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -735,21 +734,21 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.enums.push(IREnum {
-            name:        "OrderStatus".to_string(),
-            values:      vec![
+            name: "OrderStatus".to_string(),
+            values: vec![
                 IREnumValue {
-                    name:               "PENDING".to_string(),
-                    description:        Some("Order is pending".to_string()),
+                    name: "PENDING".to_string(),
+                    description: Some("Order is pending".to_string()),
                     deprecation_reason: None,
                 },
                 IREnumValue {
-                    name:               "COMPLETED".to_string(),
-                    description:        None,
+                    name: "COMPLETED".to_string(),
+                    description: None,
                     deprecation_reason: None,
                 },
                 IREnumValue {
-                    name:               "CANCELLED".to_string(),
-                    description:        None,
+                    name: "CANCELLED".to_string(),
+                    description: None,
                     deprecation_reason: Some("Use REJECTED instead".to_string()),
                 },
             ],
@@ -777,13 +776,13 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.interfaces.push(IRInterface {
-            name:        "Node".to_string(),
-            fields:      vec![IRField {
-                name:        "id".to_string(),
-                field_type:  "ID!".to_string(),
-                nullable:    false,
+            name: "Node".to_string(),
+            fields: vec![IRField {
+                name: "id".to_string(),
+                field_type: "ID!".to_string(),
+                nullable: false,
                 description: Some("Unique identifier".to_string()),
-                sql_column:  None,
+                sql_column: None,
             }],
             description: Some("An object with an ID".to_string()),
         });
@@ -808,8 +807,8 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.unions.push(IRUnion {
-            name:        "SearchResult".to_string(),
-            types:       vec![
+            name: "SearchResult".to_string(),
+            types: vec![
                 "User".to_string(),
                 "Post".to_string(),
                 "Comment".to_string(),
@@ -836,21 +835,21 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.input_types.push(IRInputType {
-            name:        "CreateUserInput".to_string(),
-            fields:      vec![
+            name: "CreateUserInput".to_string(),
+            fields: vec![
                 IRInputField {
-                    name:          "name".to_string(),
-                    field_type:    "String!".to_string(),
-                    nullable:      false,
+                    name: "name".to_string(),
+                    field_type: "String!".to_string(),
+                    nullable: false,
                     default_value: None,
-                    description:   Some("User's name".to_string()),
+                    description: Some("User's name".to_string()),
                 },
                 IRInputField {
-                    name:          "age".to_string(),
-                    field_type:    "Int".to_string(),
-                    nullable:      true,
+                    name: "age".to_string(),
+                    field_type: "Int".to_string(),
+                    nullable: true,
                     default_value: Some(GraphQLValue::Int(18)),
-                    description:   None,
+                    description: None,
                 },
             ],
             description: Some("Input for creating a user".to_string()),
@@ -888,11 +887,11 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name:             "LibraryCode".to_string(),
-            description:      Some("Unique library book identifier".to_string()),
+            name: "LibraryCode".to_string(),
+            description: Some("Unique library book identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         });
 
         let schema = generator
@@ -915,32 +914,32 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name:             "LibraryCode".to_string(),
-            description:      None,
+            name: "LibraryCode".to_string(),
+            description: None,
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         });
 
         ir.scalars.push(IRScalar {
-            name:             "StudentID".to_string(),
-            description:      Some("University student identifier".to_string()),
+            name: "StudentID".to_string(),
+            description: Some("University student identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         });
 
         ir.scalars.push(IRScalar {
-            name:             "PatientID".to_string(),
-            description:      Some("Hospital patient identifier".to_string()),
+            name: "PatientID".to_string(),
+            description: Some("Hospital patient identifier".to_string()),
             specified_by_url: Some("https://hl7.org/".to_string()),
             validation_rules: vec![],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         });
 
-        let schema = generator
-            .generate(&ir)
-            .unwrap_or_else(|e| panic!("generate with multiple custom scalars should succeed: {e}"));
+        let schema = generator.generate(&ir).unwrap_or_else(|e| {
+            panic!("generate with multiple custom scalars should succeed: {e}")
+        });
         assert_eq!(schema.custom_scalars.count(), 3);
 
         // Verify all scalars are registered
@@ -961,16 +960,16 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name:             "Email".to_string(),
-            description:      Some("RFC 5322 compliant email address".to_string()),
+            name: "Email".to_string(),
+            description: Some("RFC 5322 compliant email address".to_string()),
             specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
             validation_rules: vec![],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         });
 
-        let schema = generator
-            .generate(&ir)
-            .unwrap_or_else(|e| panic!("generate preserving scalar description should succeed: {e}"));
+        let schema = generator.generate(&ir).unwrap_or_else(|e| {
+            panic!("generate preserving scalar description should succeed: {e}")
+        });
         let email_def = schema.custom_scalars.get("Email").unwrap();
 
         assert_eq!(email_def.description, Some("RFC 5322 compliant email address".to_string()));
@@ -989,19 +988,19 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name:             "StudentID".to_string(),
-            description:      None,
+            name: "StudentID".to_string(),
+            description: None,
             specified_by_url: None,
             validation_rules: vec![ValidationRule::Length {
                 min: Some(5),
                 max: Some(15),
             }],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         });
 
-        let schema = generator
-            .generate(&ir)
-            .unwrap_or_else(|e| panic!("generate scalars with validation rules should succeed: {e}"));
+        let schema = generator.generate(&ir).unwrap_or_else(|e| {
+            panic!("generate scalars with validation rules should succeed: {e}")
+        });
         let student_id = schema.custom_scalars.get("StudentID").unwrap();
 
         assert_eq!(student_id.validation_rules.len(), 1);

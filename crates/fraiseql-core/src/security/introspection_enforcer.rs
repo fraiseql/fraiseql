@@ -91,9 +91,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub const fn all() -> Self {
         Self {
-            detect_schema:    true,
-            detect_type:      true,
-            detect_typename:  true,
+            detect_schema: true,
+            detect_type: true,
+            detect_typename: true,
             detect_directive: true,
         }
     }
@@ -102,9 +102,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            detect_schema:    true,
-            detect_type:      true,
-            detect_typename:  false,
+            detect_schema: true,
+            detect_type: true,
+            detect_typename: false,
             detect_directive: true,
         }
     }
@@ -348,9 +348,9 @@ mod tests {
     #[test]
     fn test_allowed_policy_permits_anonymous_introspection() {
         let enforcer = IntrospectionEnforcer::allowed();
-        enforcer
-            .validate_query(introspection_schema_query(), None)
-            .unwrap_or_else(|e| panic!("expected Allowed policy to permit anonymous introspection: {e}"));
+        enforcer.validate_query(introspection_schema_query(), None).unwrap_or_else(|e| {
+            panic!("expected Allowed policy to permit anonymous introspection: {e}")
+        });
     }
 
     #[test]
@@ -370,9 +370,9 @@ mod tests {
     #[test]
     fn test_policy_allows_normal_queries_always() {
         let disabled_enforcer = IntrospectionEnforcer::disabled();
-        disabled_enforcer
-            .validate_query(normal_query(), None)
-            .unwrap_or_else(|e| panic!("expected normal queries to pass even with Disabled policy: {e}"));
+        disabled_enforcer.validate_query(normal_query(), None).unwrap_or_else(|e| {
+            panic!("expected normal queries to pass even with Disabled policy: {e}")
+        });
     }
 
     // ============================================================================
@@ -423,9 +423,9 @@ mod tests {
     #[test]
     fn test_custom_config_with_selective_detection() {
         let config = IntrospectionConfig {
-            detect_schema:    true,
-            detect_type:      false,
-            detect_typename:  false,
+            detect_schema: true,
+            detect_type: false,
+            detect_typename: false,
             detect_directive: false,
         };
 
@@ -440,9 +440,9 @@ mod tests {
 
         // __type should NOT be detected (allowed through)
         let type_query = "{ __type(name: \"User\") { name } }";
-        enforcer
-            .validate_query(type_query, None)
-            .unwrap_or_else(|e| panic!("expected __type to pass through when detect_type=false: {e}"));
+        enforcer.validate_query(type_query, None).unwrap_or_else(|e| {
+            panic!("expected __type to pass through when detect_type=false: {e}")
+        });
     }
 
     // ============================================================================
@@ -465,9 +465,9 @@ mod tests {
     #[test]
     fn test_empty_query_not_introspection() {
         let enforcer = IntrospectionEnforcer::disabled();
-        enforcer
-            .validate_query("", None)
-            .unwrap_or_else(|e| panic!("expected empty query to be allowed (not introspection): {e}"));
+        enforcer.validate_query("", None).unwrap_or_else(|e| {
+            panic!("expected empty query to be allowed (not introspection): {e}")
+        });
     }
 
     #[test]

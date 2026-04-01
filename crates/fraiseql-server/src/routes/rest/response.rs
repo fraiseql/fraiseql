@@ -24,7 +24,7 @@ use super::{
 /// Formats raw execution results into HTTP responses with correct status codes,
 /// headers, and envelope structure.
 pub struct RestResponseFormatter<'a> {
-    config:    &'a RestConfig,
+    config: &'a RestConfig,
     base_path: &'a str,
 }
 
@@ -287,10 +287,8 @@ impl<'a> RestResponseFormatter<'a> {
             } else {
                 // Graceful degradation: entity unavailable
                 if prefer.return_representation {
-                    headers.insert(
-                        "preference-applied",
-                        HeaderValue::from_static("return=minimal"),
-                    );
+                    headers
+                        .insert("preference-applied", HeaderValue::from_static("return=minimal"));
                     headers.insert(
                         "x-preference-fallback",
                         HeaderValue::from_static("entity-unavailable"),
@@ -581,7 +579,8 @@ fn extract_end_cursor(data: &serde_json::Value) -> Option<&str> {
 pub(crate) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
     let request_id = request_headers
         .get("x-request-id")
-        .and_then(|v| v.to_str().ok()).map_or_else(|| uuid::Uuid::new_v4().to_string(), |s| s.to_string());
+        .and_then(|v| v.to_str().ok())
+        .map_or_else(|| uuid::Uuid::new_v4().to_string(), |s| s.to_string());
 
     if let Ok(val) = HeaderValue::from_str(&request_id) {
         response_headers.insert("x-request-id", val);
@@ -610,8 +609,8 @@ impl RestError {
     #[must_use]
     pub fn method_not_allowed() -> Self {
         Self {
-            status:  StatusCode::METHOD_NOT_ALLOWED,
-            code:    "METHOD_NOT_ALLOWED",
+            status: StatusCode::METHOD_NOT_ALLOWED,
+            code: "METHOD_NOT_ALLOWED",
             message: "Method not allowed".to_string(),
             details: None,
         }
@@ -825,7 +824,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[{"id":1},{"id":2}]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader {
@@ -856,7 +855,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[{"id":1}]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader::default();
@@ -877,7 +876,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[{"id":1}]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 10,
         };
         let prefer = PreferHeader::default();
@@ -901,7 +900,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader::default();
@@ -922,7 +921,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 40,
         };
         let prefer = PreferHeader::default();
@@ -942,7 +941,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader::default();
@@ -966,9 +965,9 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#;
         let pagination = PaginationParams::Cursor {
-            first:  Some(5),
-            after:  None,
-            last:   None,
+            first: Some(5),
+            after: None,
+            last: None,
             before: None,
         };
         let prefer = PreferHeader::default();
@@ -989,9 +988,9 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#;
         let pagination = PaginationParams::Cursor {
-            first:  Some(10),
-            after:  None,
-            last:   None,
+            first: Some(10),
+            after: None,
+            last: None,
             before: None,
         };
         let prefer = PreferHeader::default();
@@ -1012,9 +1011,9 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"posts":{"edges":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}}"#;
         let pagination = PaginationParams::Cursor {
-            first:  Some(10),
-            after:  None,
-            last:   None,
+            first: Some(10),
+            after: None,
+            last: None,
             before: None,
         };
         let prefer = PreferHeader::default();
@@ -1037,7 +1036,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[{"id":1}]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader::default();
@@ -1055,7 +1054,7 @@ mod tests {
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let result = r#"{"data":{"users":[{"id":1}]}}"#;
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 0,
         };
         let prefer = PreferHeader::default();

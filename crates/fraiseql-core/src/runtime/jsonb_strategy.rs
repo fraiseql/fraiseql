@@ -52,7 +52,7 @@ pub struct JsonbOptimizationOptions {
 impl Default for JsonbOptimizationOptions {
     fn default() -> Self {
         Self {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         }
     }
@@ -65,7 +65,8 @@ impl JsonbOptimizationOptions {
             return self.default_strategy;
         }
 
-        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: field counts are small integers; f64 precision loss on usize is not material
         // here.
         let percent = (requested_fields as f64 / total_fields as f64) * 100.0;
@@ -135,7 +136,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_below_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -146,7 +147,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_at_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -157,7 +158,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_above_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -168,7 +169,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_respects_default() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
+            default_strategy: JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
 

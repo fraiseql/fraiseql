@@ -57,7 +57,7 @@ impl OneOfValidator {
                     present_count,
                     if present_count == 1 { "was" } else { "were" }
                 ),
-                path:    Some(field_path.to_string()),
+                path: Some(field_path.to_string()),
             });
         }
 
@@ -104,7 +104,7 @@ impl AnyOfValidator {
         if !has_any {
             return Err(FraiseQLError::Validation {
                 message: format!("At least one of [{}] must be provided", field_names.join(", ")),
-                path:    Some(field_path.to_string()),
+                path: Some(field_path.to_string()),
             });
         }
 
@@ -165,7 +165,7 @@ impl ConditionalRequiredValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path:    Some(field_path.to_string()),
+                        path: Some(field_path.to_string()),
                     });
                 }
             }
@@ -228,7 +228,7 @@ impl RequiredIfAbsentValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path:    Some(field_path.to_string()),
+                        path: Some(field_path.to_string()),
                     });
                 }
             }
@@ -302,7 +302,9 @@ mod tests {
             &["entityId".to_string(), "entityPayload".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected exactly-one to pass with one field missing from object: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected exactly-one to pass with one field missing from object: {e}")
+        });
     }
 
     #[test]
@@ -377,7 +379,9 @@ mod tests {
             &["paymentMethod".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected conditional-required to pass when requirement met: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected conditional-required to pass when requirement met: {e}")
+        });
     }
 
     #[test]
@@ -410,7 +414,9 @@ mod tests {
             &["paymentMethod".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected conditional-required to pass when condition not met: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected conditional-required to pass when condition not met: {e}")
+        });
     }
 
     #[test]
@@ -426,7 +432,9 @@ mod tests {
             &["customsCode".to_string(), "importDuties".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected conditional-required to pass with all requirements met: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected conditional-required to pass with all requirements met: {e}")
+        });
     }
 
     #[test]
@@ -462,7 +470,9 @@ mod tests {
             &["street".to_string(), "city".to_string(), "zip".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected required-if-absent to pass when requirements met: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected required-if-absent to pass when requirements met: {e}")
+        });
     }
 
     #[test]
@@ -499,7 +509,9 @@ mod tests {
             &["street".to_string(), "city".to_string(), "zip".to_string()],
             None,
         );
-        result.unwrap_or_else(|e| panic!("expected required-if-absent to pass when field present: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected required-if-absent to pass when field present: {e}")
+        });
     }
 
     #[test]

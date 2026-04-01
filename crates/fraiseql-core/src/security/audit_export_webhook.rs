@@ -150,19 +150,19 @@ mod tests {
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(42),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(42),
+            previous_hash: None,
             integrity_hash: None,
         }
     }
@@ -170,18 +170,15 @@ mod tests {
     #[test]
     fn test_buffer_accumulates_entries() {
         let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          10,
+            url: "https://example.com/audit".to_string(),
+            headers: std::collections::HashMap::new(),
+            batch_size: 10,
             flush_interval_secs: 30,
         };
 
         let exporter = WebhookAuditExporter::new(&config).unwrap();
 
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 
         // Add entries below batch_size — should not flush.
         for _ in 0..5 {
@@ -195,9 +192,9 @@ mod tests {
     #[test]
     fn test_flush_empties_buffer() {
         let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          100,
+            url: "https://example.com/audit".to_string(),
+            headers: std::collections::HashMap::new(),
+            batch_size: 100,
             flush_interval_secs: 30,
         };
 
@@ -211,10 +208,7 @@ mod tests {
             }
         }
 
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 
         // Flush will fail (no server) but should still drain the buffer.
         let _ = rt.block_on(exporter.flush());

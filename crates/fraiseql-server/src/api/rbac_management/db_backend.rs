@@ -427,11 +427,11 @@ impl RbacDbBackend {
         })?;
 
         Ok(PermissionDto {
-            id:          perm_id.to_string(),
-            resource:    resource.to_string(),
-            action:      action.to_string(),
+            id: perm_id.to_string(),
+            resource: resource.to_string(),
+            action: action.to_string(),
             description: description.map(String::from),
-            created_at:  now.to_rfc3339(),
+            created_at: now.to_rfc3339(),
         })
     }
 
@@ -570,9 +570,9 @@ impl RbacDbBackend {
         })?;
 
         Ok(UserRoleDto {
-            user_id:     user_id.to_string(),
-            role_id:     role_id.to_string(),
-            tenant_id:   tenant_uuid.map(|u| u.to_string()),
+            user_id: user_id.to_string(),
+            role_id: role_id.to_string(),
+            tenant_id: tenant_uuid.map(|u| u.to_string()),
             assigned_at: now.to_rfc3339(),
         })
     }
@@ -600,9 +600,9 @@ impl RbacDbBackend {
                 let tenant_id: Option<Uuid> = row.get("tenant_id");
                 let assigned_at: chrono::DateTime<Utc> = row.get("assigned_at");
                 UserRoleDto {
-                    user_id:     row.get::<String, _>("user_id"),
-                    role_id:     role_id.to_string(),
-                    tenant_id:   tenant_id.map(|u| u.to_string()),
+                    user_id: row.get::<String, _>("user_id"),
+                    role_id: role_id.to_string(),
+                    tenant_id: tenant_id.map(|u| u.to_string()),
                     assigned_at: assigned_at.to_rfc3339(),
                 }
             })
@@ -755,11 +755,11 @@ fn permission_dto_from_row(row: &PgRow) -> PermissionDto {
     let id: Uuid = row.get("id");
     let created_at: chrono::DateTime<Utc> = row.get("created_at");
     PermissionDto {
-        id:          id.to_string(),
-        resource:    row.get("resource"),
-        action:      row.get("action"),
+        id: id.to_string(),
+        resource: row.get("resource"),
+        action: row.get("action"),
         description: row.get("description"),
-        created_at:  created_at.to_rfc3339(),
+        created_at: created_at.to_rfc3339(),
     }
 }
 

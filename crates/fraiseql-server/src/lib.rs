@@ -32,6 +32,7 @@ pub mod token_revocation;
 pub mod api;
 pub mod error;
 pub mod extractors;
+#[cfg(feature = "federation")]
 pub mod federation;
 pub mod logging;
 pub mod middleware;
@@ -52,7 +53,18 @@ pub mod config;
 /// Resilience primitives: backpressure and retry policies.
 pub mod resilience;
 /// Utilities for distributed tracing, span propagation, and trace context formatting.
+#[cfg(feature = "federation")]
 pub mod tracing_utils;
+#[cfg(not(feature = "federation"))]
+pub mod tracing_utils {
+    //! Stub tracing utilities when federation is disabled.
+    use axum::http::HeaderMap;
+
+    /// Stub trace context extraction when federation is disabled.
+    pub fn extract_trace_context(_headers: &HeaderMap) -> Option<()> {
+        None
+    }
+}
 
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features =
@@ -163,8 +175,7 @@ pub use validation::{ComplexityValidationError, RequestValidator};
 /// ```
 pub mod prelude {
     pub use crate::{
-        ComplexityValidationError, RequestValidator, Server, ServerConfig, ServerError,
-        TlsSetup,
+        ComplexityValidationError, RequestValidator, Server, ServerConfig, ServerError, TlsSetup,
     };
     pub use fraiseql_core::schema::CompiledSchema;
 }

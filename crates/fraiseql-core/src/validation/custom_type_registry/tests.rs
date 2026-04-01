@@ -19,12 +19,12 @@ fn test_custom_type_def_new() {
 #[test]
 fn test_custom_type_def_with_all_fields() {
     let def = CustomTypeDef {
-        name:             "ISBN".to_string(),
-        description:      Some("International Standard Book Number".to_string()),
+        name: "ISBN".to_string(),
+        description: Some("International Standard Book Number".to_string()),
         specified_by_url: Some("https://www.isbn-international.org/".to_string()),
         validation_rules: vec![],
-        elo_expression:   Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
-        base_type:        Some("String".to_string()),
+        elo_expression: Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
+        base_type: Some("String".to_string()),
     };
 
     assert_eq!(def.name, "ISBN");
@@ -47,7 +47,8 @@ fn test_registry_register_and_get() {
     let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
-    registry.register("Email".to_string(), def.clone())
+    registry
+        .register("Email".to_string(), def.clone())
         .unwrap_or_else(|e| panic!("register should succeed for new type: {e}"));
     assert_eq!(registry.get("Email"), Some(def));
 }
@@ -57,7 +58,8 @@ fn test_registry_register_duplicate() {
     let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let def = CustomTypeDef::new("Email".to_string());
 
-    registry.register("Email".to_string(), def.clone())
+    registry
+        .register("Email".to_string(), def.clone())
         .unwrap_or_else(|e| panic!("first register should succeed: {e}"));
     let result = registry.register("Email".to_string(), def);
     assert!(
@@ -134,7 +136,7 @@ fn test_registry_clear() {
 #[test]
 fn test_registry_max_scalars_limit() {
     let config = CustomTypeRegistryConfig {
-        max_scalars:    Some(2),
+        max_scalars: Some(2),
         enable_caching: false,
     };
     let registry = CustomTypeRegistry::new(config);
@@ -315,7 +317,8 @@ fn test_validate_with_multiple_rules() {
 
     // Valid: matches pattern and length
     let value_valid = serde_json::json!("PAT-123456");
-    registry.validate("PatientID", &value_valid)
+    registry
+        .validate("PatientID", &value_valid)
         .unwrap_or_else(|e| panic!("valid value should pass all rules: {e}"));
 
     // Invalid: wrong pattern but right length
@@ -485,12 +488,14 @@ fn test_validate_complex_elo_expression_with_multiple_conditions() {
 
     // Valid: matches pattern
     let value1 = serde_json::json!("PAT-123456");
-    registry.validate("PatientID", &value1)
+    registry
+        .validate("PatientID", &value1)
         .unwrap_or_else(|e| panic!("pattern match should pass: {e}"));
 
     // Valid: contains substring (even though doesn't match pattern)
     let value2 = serde_json::json!("URGENT-CASE");
-    registry.validate("PatientID", &value2)
+    registry
+        .validate("PatientID", &value2)
         .unwrap_or_else(|e| panic!("contains substring should pass: {e}"));
 
     // Invalid: neither matches pattern nor contains substring

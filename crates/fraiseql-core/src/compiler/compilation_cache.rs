@@ -35,7 +35,7 @@ pub struct CompilationCacheConfig {
 impl Default for CompilationCacheConfig {
     fn default() -> Self {
         Self {
-            enabled:     true,
+            enabled: true,
             max_entries: 100,
         }
     }
@@ -48,7 +48,7 @@ impl CompilationCacheConfig {
     #[must_use]
     pub const fn disabled() -> Self {
         Self {
-            enabled:     false,
+            enabled: false,
             max_entries: 0,
         }
     }
@@ -131,10 +131,10 @@ impl CompilationCache {
                 cache: Arc::new(Mutex::new(lru::LruCache::new(max))),
                 config,
                 metrics: Arc::new(Mutex::new(CompilationCacheMetrics {
-                    hits:               0,
-                    misses:             0,
+                    hits: 0,
+                    misses: 0,
                     total_compilations: 0,
-                    size:               0,
+                    size: 0,
                 })),
             }
         } else {
@@ -145,10 +145,10 @@ impl CompilationCache {
                 cache: Arc::new(Mutex::new(lru::LruCache::new(max))),
                 config,
                 metrics: Arc::new(Mutex::new(CompilationCacheMetrics {
-                    hits:               0,
-                    misses:             0,
+                    hits: 0,
+                    misses: 0,
                     total_compilations: 0,
-                    size:               0,
+                    size: 0,
                 })),
             }
         }
@@ -216,7 +216,7 @@ impl CompilationCache {
             cache.put(
                 fingerprint,
                 CachedCompilation {
-                    schema:    Arc::clone(&schema),
+                    schema: Arc::clone(&schema),
                     hit_count: 0,
                 },
             );
@@ -265,7 +265,8 @@ impl CompilationCache {
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
-        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
         // acceptable here.
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
@@ -296,7 +297,7 @@ mod tests {
     #[test]
     fn test_cache_new_enabled() {
         let config = CompilationCacheConfig {
-            enabled:     true,
+            enabled: true,
             max_entries: 50,
         };
         let cache = CompilationCache::new(config);
@@ -350,7 +351,7 @@ mod tests {
     fn test_cache_config_max_entries_zero_when_disabled() {
         // When cache is disabled, max_entries being 0 is OK
         let config = CompilationCacheConfig {
-            enabled:     false,
+            enabled: false,
             max_entries: 0,
         };
         let cache = CompilationCache::new(config);
@@ -361,7 +362,7 @@ mod tests {
     #[should_panic(expected = "max_entries must be > 0 when cache is enabled")]
     fn test_cache_panics_on_zero_max_entries_when_enabled() {
         let config = CompilationCacheConfig {
-            enabled:     true,
+            enabled: true,
             max_entries: 0,
         };
         let _ = CompilationCache::new(config);
@@ -370,10 +371,10 @@ mod tests {
     #[test]
     fn test_cache_metrics_clone() {
         let metrics = CompilationCacheMetrics {
-            hits:               5,
-            misses:             3,
+            hits: 5,
+            misses: 3,
             total_compilations: 8,
-            size:               2,
+            size: 2,
         };
         let cloned = metrics;
         assert_eq!(cloned.hits, 5);
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn test_cache_config_serialize() {
         let config = CompilationCacheConfig {
-            enabled:     true,
+            enabled: true,
             max_entries: 50,
         };
         let json = serde_json::to_string(&config).expect("serialize should work");
@@ -396,10 +397,10 @@ mod tests {
     #[test]
     fn test_compilation_cache_metrics_serialize() {
         let metrics = CompilationCacheMetrics {
-            hits:               10,
-            misses:             5,
+            hits: 10,
+            misses: 5,
             total_compilations: 15,
-            size:               3,
+            size: 3,
         };
         let json = serde_json::to_string(&metrics).expect("serialize should work");
         let restored: CompilationCacheMetrics =

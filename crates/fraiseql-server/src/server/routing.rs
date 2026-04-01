@@ -11,8 +11,6 @@ use axum::{
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::{info, warn};
 
-#[cfg(feature = "auth")]
-use super::{auth_callback, auth_start, AuthPkceState};
 use super::{
     AppState, BearerAuthState, OidcAuthState, PlaygroundState, Server, SubscriptionState, api,
     bearer_auth_middleware, cors_layer_restricted, graphql_get_handler, graphql_handler,
@@ -20,6 +18,8 @@ use super::{
     metrics_middleware, oidc_auth_middleware, playground_handler, readiness_handler,
     require_json_content_type, subscription_handler, trace_layer,
 };
+#[cfg(feature = "auth")]
+use super::{AuthPkceState, auth_callback, auth_start};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build application router and return the shared `AppState`.
@@ -29,10 +29,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[allow(clippy::cognitive_complexity)] // Reason: route construction with many optional middleware layers and feature-gated endpoints
     pub(super) fn build_router(&self) -> (Router, AppState<A>) {
         let mut state = AppState::new(self.executor.clone())
-            .with_reload_config(
-                self.config.schema_path.clone(),
-                self.executor.adapter().clone(),
-            );
+            .with_reload_config(self.config.schema_path.clone(), self.executor.adapter().clone());
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]
@@ -71,6 +68,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Attach federation circuit breaker if configured
+        #[cfg(feature = "federation")]
         if let Some(ref cb) = self.circuit_breaker {
             state = state.with_circuit_breaker(cb.clone());
             info!("Federation circuit breaker attached to AppState");
@@ -448,9 +446,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
             let auth_state = Arc::new(AuthPkceState {
-                pkce_store:              Arc::clone(store),
-                oidc_client:             Arc::clone(client),
-                http_client:             Arc::new(
+                pkce_store: Arc::clone(store),
+                oidc_client: Arc::clone(client),
+                http_client: Arc::new(
                     reqwest::Client::builder()
                         .timeout(std::time::Duration::from_secs(30))
                         .build()
@@ -618,20 +616,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         {
             let max_header_count = self.config.max_header_count;
             let max_header_bytes = self.config.max_header_bytes;
-            info!(
-                max_header_count,
-                max_header_bytes, "HTTP header limits enabled"
-            );
-            app = app.layer(axum::middleware::from_fn(
-                move |req, next| {
-                    crate::middleware::header_limits_middleware(
-                        req,
-                        next,
-                        max_header_count,
-                        max_header_bytes,
-                    )
-                },
-            ));
+            info!(max_header_count, max_header_bytes, "HTTP header limits enabled");
+            app = app.layer(axum::middleware::from_fn(move |req, next| {
+                crate::middleware::header_limits_middleware(
+                    req,
+                    next,
+                    max_header_count,
+                    max_header_bytes,
+                )
+            }));
         }
 
         // Add per-request timeout (optional — defence against runaway DB queries).

@@ -42,9 +42,9 @@ pub use types::{
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use indexmap::IndexMap;
     use super::*;
     use crate::schema::{AutoParams, CursorType, FieldDenyPolicy, FieldType};
+    use indexmap::IndexMap;
 
     fn test_schema() -> crate::schema::CompiledSchema {
         use crate::schema::{CompiledSchema, FieldDefinition, QueryDefinition, TypeDefinition};
@@ -62,55 +62,55 @@ mod tests {
 
         // Add a users query
         schema.queries.push(QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user".to_string()),
-            description:         Some("Get all users".to_string()),
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: Some("Get all users".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
 
         // Add a user query with argument
         schema.queries.push(QueryDefinition {
-            name:                "user".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        false,
-            nullable:            true,
-            arguments:           vec![crate::schema::ArgumentDefinition {
-                name:          "id".to_string(),
-                arg_type:      FieldType::Id,
-                nullable:      false, // required
+            name: "user".to_string(),
+            return_type: "User".to_string(),
+            returns_list: false,
+            nullable: true,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name: "id".to_string(),
+                arg_type: FieldType::Id,
+                nullable: false, // required
                 default_value: None,
-                description:   Some("User ID".to_string()),
-                deprecation:   None,
+                description: Some("User ID".to_string()),
+                deprecation: None,
             }],
-            sql_source:          Some("v_user".to_string()),
-            description:         Some("Get user by ID".to_string()),
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            sql_source: Some("v_user".to_string()),
+            description: Some("Get user by ID".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
 
         schema
@@ -222,32 +222,32 @@ mod tests {
         // Create a schema with a deprecated field
         let mut schema = CompiledSchema::new();
         schema.types.push(TypeDefinition {
-            name:                "Product".into(),
-            sql_source:          "products".into(),
-            jsonb_column:        "data".to_string(),
-            description:         None,
+            name: "Product".into(),
+            sql_source: "products".into(),
+            jsonb_column: "data".to_string(),
+            description: None,
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
-            fields:              vec![
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
+            fields: vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
-                    name:           "oldSku".into(),
-                    field_type:     FieldType::String,
-                    nullable:       false,
-                    description:    Some("Legacy SKU field".to_string()),
-                    default_value:  None,
-                    vector_config:  None,
-                    alias:          None,
-                    deprecation:    Some(DeprecationInfo {
+                    name: "oldSku".into(),
+                    field_type: FieldType::String,
+                    nullable: false,
+                    description: Some("Legacy SKU field".to_string()),
+                    default_value: None,
+                    vector_config: None,
+                    alias: None,
+                    deprecation: Some(DeprecationInfo {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
                     requires_scope: None,
-                    on_deny:        FieldDenyPolicy::default(),
-                    encryption:     None,
+                    on_deny: FieldDenyPolicy::default(),
+                    encryption: None,
                 },
                 FieldDefinition::new("sku", FieldType::String),
             ],
@@ -288,26 +288,26 @@ mod tests {
 
         // Add an enum type with some values, one deprecated
         schema.enums.push(EnumDefinition {
-            name:        "OrderStatus".to_string(),
+            name: "OrderStatus".to_string(),
             description: Some("Status of an order".to_string()),
-            values:      vec![
+            values: vec![
                 EnumValueDefinition {
-                    name:        "PENDING".to_string(),
+                    name: "PENDING".to_string(),
                     description: Some("Order is pending".to_string()),
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name:        "PROCESSING".to_string(),
+                    name: "PROCESSING".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name:        "SHIPPED".to_string(),
+                    name: "SHIPPED".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name:        "CANCELLED".to_string(),
+                    name: "CANCELLED".to_string(),
                     description: Some("Order was cancelled".to_string()),
                     deprecation: Some(DeprecationInfo {
                         reason: Some("Use REFUNDED instead".to_string()),
@@ -355,35 +355,35 @@ mod tests {
 
         // Add an input object type
         schema.input_types.push(InputObjectDefinition {
-            name:        "UserFilter".to_string(),
+            name: "UserFilter".to_string(),
             description: Some("Filter for user queries".to_string()),
-            fields:      vec![
+            fields: vec![
                 InputFieldDefinition {
-                    name:             "name".to_string(),
-                    field_type:       "String".to_string(),
-                    description:      Some("Filter by name".to_string()),
-                    default_value:    None,
-                    deprecation:      None,
+                    name: "name".to_string(),
+                    field_type: "String".to_string(),
+                    description: Some("Filter by name".to_string()),
+                    default_value: None,
+                    deprecation: None,
                     validation_rules: Vec::new(),
                 },
                 InputFieldDefinition {
-                    name:             "email".to_string(),
-                    field_type:       "String".to_string(),
-                    description:      None,
-                    default_value:    None,
-                    deprecation:      None,
+                    name: "email".to_string(),
+                    field_type: "String".to_string(),
+                    description: None,
+                    default_value: None,
+                    deprecation: None,
                     validation_rules: Vec::new(),
                 },
                 InputFieldDefinition {
-                    name:             "limit".to_string(),
-                    field_type:       "Int".to_string(),
-                    description:      Some("Max results".to_string()),
-                    default_value:    Some("10".to_string()),
-                    deprecation:      None,
+                    name: "limit".to_string(),
+                    field_type: "Int".to_string(),
+                    description: Some("Max results".to_string()),
+                    default_value: Some("10".to_string()),
+                    deprecation: None,
                     validation_rules: Vec::new(),
                 },
             ],
-            metadata:    None,
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -422,9 +422,9 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name:        "Status".to_string(),
+            name: "Status".to_string(),
             description: None,
-            values:      vec![],
+            values: vec![],
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -442,10 +442,10 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.input_types.push(InputObjectDefinition {
-            name:        "CreateUserInput".to_string(),
+            name: "CreateUserInput".to_string(),
             description: None,
-            fields:      vec![],
-            metadata:    None,
+            fields: vec![],
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -465,41 +465,41 @@ mod tests {
 
         // Add a Node interface
         schema.interfaces.push(InterfaceDefinition {
-            name:        "Node".to_string(),
+            name: "Node".to_string(),
             description: Some("An object with a globally unique ID".to_string()),
-            fields:      vec![FieldDefinition::new("id", FieldType::Id)],
+            fields: vec![FieldDefinition::new("id", FieldType::Id)],
         });
 
         // Add types that implement the interface
         schema.types.push(TypeDefinition {
-            name:                "User".into(),
-            sql_source:          "users".into(),
-            jsonb_column:        "data".to_string(),
-            description:         Some("A user".to_string()),
+            name: "User".into(),
+            sql_source: "users".into(),
+            jsonb_column: "data".to_string(),
+            description: Some("A user".to_string()),
             sql_projection_hint: None,
-            implements:          vec!["Node".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
-            fields:              vec![
+            implements: vec!["Node".to_string()],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
+            fields: vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
             ],
         });
 
         schema.types.push(TypeDefinition {
-            name:                "Post".into(),
-            sql_source:          "posts".into(),
-            jsonb_column:        "data".to_string(),
-            description:         Some("A blog post".to_string()),
+            name: "Post".into(),
+            sql_source: "posts".into(),
+            jsonb_column: "data".to_string(),
+            description: Some("A blog post".to_string()),
             sql_projection_hint: None,
-            implements:          vec!["Node".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
-            fields:              vec![
+            implements: vec!["Node".to_string()],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
+            fields: vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
             ],
@@ -541,30 +541,30 @@ mod tests {
 
         // Add interfaces
         schema.interfaces.push(InterfaceDefinition {
-            name:        "Node".to_string(),
+            name: "Node".to_string(),
             description: None,
-            fields:      vec![FieldDefinition::new("id", FieldType::Id)],
+            fields: vec![FieldDefinition::new("id", FieldType::Id)],
         });
 
         schema.interfaces.push(InterfaceDefinition {
-            name:        "Timestamped".to_string(),
+            name: "Timestamped".to_string(),
             description: None,
-            fields:      vec![FieldDefinition::new("createdAt", FieldType::DateTime)],
+            fields: vec![FieldDefinition::new("createdAt", FieldType::DateTime)],
         });
 
         // Add a type that implements both interfaces
         schema.types.push(TypeDefinition {
-            name:                "Comment".into(),
-            sql_source:          "comments".into(),
-            jsonb_column:        "data".to_string(),
-            description:         None,
+            name: "Comment".into(),
+            sql_source: "comments".into(),
+            jsonb_column: "data".to_string(),
+            description: None,
             sql_projection_hint: None,
-            implements:          vec!["Node".to_string(), "Timestamped".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       vec![],
-            fields:              vec![
+            implements: vec!["Node".to_string(), "Timestamped".to_string()],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: vec![],
+            fields: vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),
                 FieldDefinition::new("text", FieldType::String),
@@ -595,9 +595,9 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.interfaces.push(InterfaceDefinition {
-            name:        "Searchable".to_string(),
+            name: "Searchable".to_string(),
             description: None,
-            fields:      vec![],
+            fields: vec![],
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -613,40 +613,40 @@ mod tests {
     fn test_filter_deprecated_fields() {
         // Create a type with some deprecated fields
         let introspection_type = IntrospectionType {
-            kind:               TypeKind::Object,
-            name:               Some("TestType".to_string()),
-            description:        None,
-            fields:             Some(vec![
+            kind: TypeKind::Object,
+            name: Some("TestType".to_string()),
+            description: None,
+            fields: Some(vec![
                 IntrospectionField {
-                    name:               "id".to_string(),
-                    description:        None,
-                    args:               vec![],
-                    field_type:         IntrospectionBuilder::type_ref("ID"),
-                    is_deprecated:      false,
+                    name: "id".to_string(),
+                    description: None,
+                    args: vec![],
+                    field_type: IntrospectionBuilder::type_ref("ID"),
+                    is_deprecated: false,
                     deprecation_reason: None,
                 },
                 IntrospectionField {
-                    name:               "oldField".to_string(),
-                    description:        None,
-                    args:               vec![],
-                    field_type:         IntrospectionBuilder::type_ref("String"),
-                    is_deprecated:      true,
+                    name: "oldField".to_string(),
+                    description: None,
+                    args: vec![],
+                    field_type: IntrospectionBuilder::type_ref("String"),
+                    is_deprecated: true,
                     deprecation_reason: Some("Use newField instead".to_string()),
                 },
                 IntrospectionField {
-                    name:               "newField".to_string(),
-                    description:        None,
-                    args:               vec![],
-                    field_type:         IntrospectionBuilder::type_ref("String"),
-                    is_deprecated:      false,
+                    name: "newField".to_string(),
+                    description: None,
+                    args: vec![],
+                    field_type: IntrospectionBuilder::type_ref("String"),
+                    is_deprecated: false,
                     deprecation_reason: None,
                 },
             ]),
-            interfaces:         None,
-            possible_types:     None,
-            enum_values:        None,
-            input_fields:       None,
-            of_type:            None,
+            interfaces: None,
+            possible_types: None,
+            enum_values: None,
+            input_fields: None,
+            of_type: None,
             specified_by_u_r_l: None,
         };
 
@@ -668,34 +668,34 @@ mod tests {
     fn test_filter_deprecated_enum_values() {
         // Create an enum type with some deprecated values
         let introspection_type = IntrospectionType {
-            kind:               TypeKind::Enum,
-            name:               Some("Status".to_string()),
-            description:        None,
-            fields:             None,
-            interfaces:         None,
-            possible_types:     None,
-            enum_values:        Some(vec![
+            kind: TypeKind::Enum,
+            name: Some("Status".to_string()),
+            description: None,
+            fields: None,
+            interfaces: None,
+            possible_types: None,
+            enum_values: Some(vec![
                 IntrospectionEnumValue {
-                    name:               "ACTIVE".to_string(),
-                    description:        None,
-                    is_deprecated:      false,
+                    name: "ACTIVE".to_string(),
+                    description: None,
+                    is_deprecated: false,
                     deprecation_reason: None,
                 },
                 IntrospectionEnumValue {
-                    name:               "INACTIVE".to_string(),
-                    description:        None,
-                    is_deprecated:      true,
+                    name: "INACTIVE".to_string(),
+                    description: None,
+                    is_deprecated: true,
                     deprecation_reason: Some("Use DISABLED instead".to_string()),
                 },
                 IntrospectionEnumValue {
-                    name:               "DISABLED".to_string(),
-                    description:        None,
-                    is_deprecated:      false,
+                    name: "DISABLED".to_string(),
+                    description: None,
+                    is_deprecated: false,
                     deprecation_reason: None,
                 },
             ]),
-            input_fields:       None,
-            of_type:            None,
+            input_fields: None,
+            of_type: None,
             specified_by_u_r_l: None,
         };
 
@@ -763,69 +763,69 @@ mod tests {
 
         // Add a deprecated query
         schema.queries.push(QueryDefinition {
-            name:                "oldUsers".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user".to_string()),
-            description:         Some("Old way to get users".to_string()),
-            auto_params:         AutoParams::default(),
-            deprecation:         Some(DeprecationInfo {
+            name: "oldUsers".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: Some("Old way to get users".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: Some(DeprecationInfo {
                 reason: Some("Use 'users' instead".to_string()),
             }),
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
 
         // Add a non-deprecated query with a deprecated argument
         schema.queries.push(QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![
                 ArgumentDefinition {
-                    name:          "first".to_string(),
-                    arg_type:      FieldType::Int,
-                    nullable:      true,
+                    name: "first".to_string(),
+                    arg_type: FieldType::Int,
+                    nullable: true,
                     default_value: None,
-                    description:   Some("Number of results to return".to_string()),
-                    deprecation:   None,
+                    description: Some("Number of results to return".to_string()),
+                    deprecation: None,
                 },
                 ArgumentDefinition {
-                    name:          "limit".to_string(),
-                    arg_type:      FieldType::Int,
-                    nullable:      true,
+                    name: "limit".to_string(),
+                    arg_type: FieldType::Int,
+                    nullable: true,
                     default_value: None,
-                    description:   Some("Old parameter for limiting results".to_string()),
-                    deprecation:   Some(DeprecationInfo {
+                    description: Some("Old parameter for limiting results".to_string()),
+                    deprecation: Some(DeprecationInfo {
                         reason: Some("Use 'first' instead".to_string()),
                     }),
                 },
             ],
-            sql_source:          Some("v_user".to_string()),
-            description:         Some("Get users with pagination".to_string()),
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            sql_source: Some("v_user".to_string()),
+            description: Some("Get users with pagination".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -873,29 +873,29 @@ mod tests {
 
         // Add an input type with a deprecated field
         schema.input_types.push(InputObjectDefinition {
-            name:        "CreateUserInput".to_string(),
+            name: "CreateUserInput".to_string(),
             description: Some("Input for creating a user".to_string()),
-            fields:      vec![
+            fields: vec![
                 InputFieldDefinition {
-                    name:             "name".to_string(),
-                    field_type:       "String!".to_string(),
-                    default_value:    None,
-                    description:      Some("User name".to_string()),
-                    deprecation:      None,
+                    name: "name".to_string(),
+                    field_type: "String!".to_string(),
+                    default_value: None,
+                    description: Some("User name".to_string()),
+                    deprecation: None,
                     validation_rules: Vec::new(),
                 },
                 InputFieldDefinition {
-                    name:             "oldEmail".to_string(),
-                    field_type:       "String".to_string(),
-                    default_value:    None,
-                    description:      Some("Legacy email field".to_string()),
-                    deprecation:      Some(DeprecationInfo {
+                    name: "oldEmail".to_string(),
+                    field_type: "String".to_string(),
+                    default_value: None,
+                    description: Some("Legacy email field".to_string()),
+                    deprecation: Some(DeprecationInfo {
                         reason: Some("Use 'email' instead".to_string()),
                     }),
                     validation_rules: Vec::new(),
                 },
             ],
-            metadata:    None,
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

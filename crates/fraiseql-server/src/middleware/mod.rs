@@ -12,8 +12,8 @@ pub mod trace;
 
 pub use auth::{BearerAuthState, bearer_auth_middleware};
 pub use content_type::require_json_content_type;
-pub use header_limits::header_limits_middleware;
 pub use cors::{cors_layer, cors_layer_restricted, security_headers_middleware};
+pub use header_limits::header_limits_middleware;
 pub use metrics::metrics_middleware;
 pub use oidc_auth::{AuthUser, OidcAuthState, oidc_auth_middleware};
 pub use rate_limit::{

@@ -408,7 +408,9 @@ mod tests {
         let token = "test_token_12345";
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let extracted = req.extract_bearer_token().unwrap_or_else(|e| panic!("expected bearer token extraction to succeed: {e}"));
+        let extracted = req
+            .extract_bearer_token()
+            .unwrap_or_else(|e| panic!("expected bearer token extraction to succeed: {e}"));
         assert_eq!(extracted, token);
     }
 
@@ -588,7 +590,9 @@ mod tests {
         let token = create_test_token("user_12345", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected user_id extraction to succeed: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected user_id extraction to succeed: {e}"));
         assert_eq!(user.user_id, "user_12345");
     }
 
@@ -598,7 +602,9 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("read write admin"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected scope extraction to succeed: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected scope extraction to succeed: {e}"));
         assert_eq!(user.scopes, vec!["read", "write", "admin"]);
     }
 
@@ -608,7 +614,9 @@ mod tests {
         let token = create_test_token("user123", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected token without scopes to be valid: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected token without scopes to be valid: {e}"));
         assert!(user.scopes.is_empty(), "expected empty scopes, got: {:?}", user.scopes);
     }
 
@@ -620,7 +628,9 @@ mod tests {
         let token = create_test_token("user123", offset_secs, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected expiry extraction to succeed: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected expiry extraction to succeed: {e}"));
         let now = Utc::now();
         let diff = (user.expires_at - now).num_seconds();
 
@@ -672,8 +682,8 @@ mod tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec!["read".to_string(), "write".to_string()],
+            user_id: "user123".to_string(),
+            scopes: vec!["read".to_string(), "write".to_string()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -685,8 +695,8 @@ mod tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
+            user_id: "user123".to_string(),
+            scopes: vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -696,8 +706,8 @@ mod tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
+            user_id: "user123".to_string(),
+            scopes: vec![],
             expires_at: Utc::now() - chrono::Duration::hours(1),
         };
 
@@ -722,8 +732,8 @@ mod tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
+            user_id: "user123".to_string(),
+            scopes: vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -772,7 +782,9 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("  read   write  admin  "));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected whitespace-heavy scopes to parse: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected whitespace-heavy scopes to parse: {e}"));
         // split_whitespace handles multiple spaces correctly
         assert_eq!(user.scopes.len(), 3);
     }
@@ -783,7 +795,9 @@ mod tests {
         let token = create_test_token("user123", 3600, Some("read"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
-        let user = middleware.validate_request(&req).unwrap_or_else(|e| panic!("expected single scope to parse: {e}"));
+        let user = middleware
+            .validate_request(&req)
+            .unwrap_or_else(|e| panic!("expected single scope to parse: {e}"));
         assert_eq!(user.scopes, vec!["read"]);
     }
 
@@ -806,9 +820,9 @@ mod tests {
 
         #[derive(serde::Serialize)]
         struct Claims {
-            sub:   String,
-            exp:   i64,
-            iat:   i64,
+            sub: String,
+            exp: i64,
+            iat: i64,
             #[serde(skip_serializing_if = "Option::is_none")]
             scope: Option<String>,
         }

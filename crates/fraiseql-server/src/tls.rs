@@ -146,9 +146,7 @@ impl TlsSetup {
     /// Get PostgreSQL SSL mode for database connections.
     #[must_use]
     pub fn postgres_ssl_mode(&self) -> &str {
-        self.db_config
-            .as_ref()
-            .map_or("prefer", |c| c.postgres_ssl_mode.as_str())
+        self.db_config.as_ref().map_or("prefer", |c| c.postgres_ssl_mode.as_str())
     }
 
     /// Check if Redis TLS is enabled.
@@ -360,12 +358,12 @@ mod tests {
     #[test]
     fn test_postgres_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
+            postgres_ssl_mode: "require".to_string(),
+            redis_ssl: false,
+            clickhouse_https: false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -380,12 +378,12 @@ mod tests {
     #[test]
     fn test_redis_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    false,
+            postgres_ssl_mode: "prefer".to_string(),
+            redis_ssl: true,
+            clickhouse_https: false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -400,12 +398,12 @@ mod tests {
     #[test]
     fn test_clickhouse_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    true,
+            postgres_ssl_mode: "prefer".to_string(),
+            redis_ssl: false,
+            clickhouse_https: true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -420,12 +418,12 @@ mod tests {
     #[test]
     fn test_elasticsearch_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
+            postgres_ssl_mode: "prefer".to_string(),
+            redis_ssl: false,
+            clickhouse_https: false,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -440,12 +438,12 @@ mod tests {
     #[test]
     fn test_all_database_tls_enabled() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    true,
+            postgres_ssl_mode: "require".to_string(),
+            redis_ssl: true,
+            clickhouse_https: true,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -465,12 +463,12 @@ mod tests {
     #[test]
     fn test_postgres_url_with_existing_params() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
+            postgres_ssl_mode: "require".to_string(),
+            redis_ssl: false,
+            clickhouse_https: false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -486,12 +484,12 @@ mod tests {
     #[test]
     fn test_database_tls_config_getters() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "verify-full".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    true,
+            postgres_ssl_mode: "verify-full".to_string(),
+            redis_ssl: true,
+            clickhouse_https: true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
+            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -521,12 +519,12 @@ mod tests {
     #[test]
     fn test_create_rustls_config_with_missing_cert() {
         let tls_config = TlsServerConfig {
-            enabled:             true,
-            cert_path:           PathBuf::from("/nonexistent/cert.pem"),
-            key_path:            PathBuf::from("/nonexistent/key.pem"),
+            enabled: true,
+            cert_path: PathBuf::from("/nonexistent/cert.pem"),
+            key_path: PathBuf::from("/nonexistent/key.pem"),
             require_client_cert: false,
-            client_ca_path:      None,
-            min_version:         "1.2".to_string(),
+            client_ca_path: None,
+            min_version: "1.2".to_string(),
         };
 
         let setup = TlsSetup::new(Some(tls_config), None)

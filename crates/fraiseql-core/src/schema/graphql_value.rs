@@ -92,7 +92,7 @@ impl GraphQLValue {
                 } else {
                     Err(FraiseQLError::Validation {
                         message: format!("default value number out of range: {n}"),
-                        path:    None,
+                        path: None,
                     })
                 }
             },

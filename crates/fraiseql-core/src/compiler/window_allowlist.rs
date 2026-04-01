@@ -78,7 +78,7 @@ impl WindowAllowlist {
                     "Field '{identifier}' is not a known {context} field for this window query. \
                      Only fields declared in the compiled schema are permitted."
                 ),
-                path:    None,
+                path: None,
             })
         }
     }
@@ -95,33 +95,33 @@ mod tests {
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "units".to_string(),
+                    name: "units".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "dimensions->>'category'".to_string(),
                     data_type: "text".to_string(),
                 }],
             },
             denormalized_filters: vec![FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -157,7 +157,10 @@ mod tests {
     fn test_unknown_field_rejected() {
         let al = WindowAllowlist::from_metadata(&test_metadata());
         assert!(
-            matches!(al.validate("secret_column", "PARTITION BY"), Err(FraiseQLError::Validation { .. })),
+            matches!(
+                al.validate("secret_column", "PARTITION BY"),
+                Err(FraiseQLError::Validation { .. })
+            ),
             "expected Validation error for unknown field"
         );
     }

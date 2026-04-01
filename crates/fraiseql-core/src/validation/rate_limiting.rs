@@ -29,7 +29,7 @@ pub struct RateLimitDimension {
     /// Maximum number of errors allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
-    pub window_secs:  u64,
+    pub window_secs: u64,
 }
 
 impl RateLimitDimension {
@@ -87,16 +87,16 @@ impl Default for ValidationRateLimitingConfig {
 #[derive(Debug, Clone)]
 struct RequestRecord {
     /// Number of errors in current window
-    count:        u32,
+    count: u32,
     /// Unix timestamp of window start
     window_start: u64,
 }
 
 /// Single dimension rate limiter
 struct DimensionRateLimiter {
-    records:   Arc<Mutex<LruCache<String, RequestRecord>>>,
+    records: Arc<Mutex<LruCache<String, RequestRecord>>>,
     dimension: RateLimitDimension,
-    clock:     Arc<dyn Clock>,
+    clock: Arc<dyn Clock>,
 }
 
 impl DimensionRateLimiter {
@@ -106,7 +106,8 @@ impl DimensionRateLimiter {
     }
 
     fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
-        #[allow(clippy::expect_used)]  // Reason: invariant holds at this point; panic would indicate a logic error
+        #[allow(clippy::expect_used)]
+        // Reason: invariant holds at this point; panic would indicate a logic error
         // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant.
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
             .expect("MAX_RATE_LIMITER_ENTRIES must be > 0");
@@ -131,7 +132,7 @@ impl DimensionRateLimiter {
         // `get_or_insert` promotes the entry to most-recently-used, evicting the
         // least-recently-used entry when the cache is at capacity.
         let record = records.get_or_insert_mut(key.to_string(), || RequestRecord {
-            count:        0,
+            count: 0,
             window_start: now,
         });
 
@@ -148,7 +149,7 @@ impl DimensionRateLimiter {
         } else {
             // Rate limited
             Err(FraiseQLError::RateLimited {
-                message:          "Rate limit exceeded for validation errors".to_string(),
+                message: "Rate limit exceeded for validation errors".to_string(),
                 retry_after_secs: self.dimension.window_secs,
             })
         }
@@ -163,9 +164,9 @@ impl DimensionRateLimiter {
 impl Clone for DimensionRateLimiter {
     fn clone(&self) -> Self {
         Self {
-            records:   Arc::clone(&self.records),
+            records: Arc::clone(&self.records),
             dimension: self.dimension.clone(),
-            clock:     Arc::clone(&self.clock),
+            clock: Arc::clone(&self.clock),
         }
     }
 }
@@ -174,10 +175,10 @@ impl Clone for DimensionRateLimiter {
 #[derive(Clone)]
 #[allow(clippy::module_name_repetitions, clippy::struct_field_names)] // Reason: RateLimiting prefix provides clarity at call sites
 pub struct ValidationRateLimiter {
-    validation_errors:       DimensionRateLimiter,
-    depth_errors:            DimensionRateLimiter,
-    complexity_errors:       DimensionRateLimiter,
-    malformed_errors:        DimensionRateLimiter,
+    validation_errors: DimensionRateLimiter,
+    depth_errors: DimensionRateLimiter,
+    complexity_errors: DimensionRateLimiter,
+    malformed_errors: DimensionRateLimiter,
     async_validation_errors: DimensionRateLimiter,
 }
 
@@ -190,22 +191,22 @@ impl ValidationRateLimiter {
     /// Create a validation rate limiter with a custom clock (for testing).
     pub fn new_with_clock(config: &ValidationRateLimitingConfig, clock: Arc<dyn Clock>) -> Self {
         Self {
-            validation_errors:       DimensionRateLimiter::new_with_clock(
+            validation_errors: DimensionRateLimiter::new_with_clock(
                 config.validation_errors_max_requests,
                 config.validation_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            depth_errors:            DimensionRateLimiter::new_with_clock(
+            depth_errors: DimensionRateLimiter::new_with_clock(
                 config.depth_errors_max_requests,
                 config.depth_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            complexity_errors:       DimensionRateLimiter::new_with_clock(
+            complexity_errors: DimensionRateLimiter::new_with_clock(
                 config.complexity_errors_max_requests,
                 config.complexity_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            malformed_errors:        DimensionRateLimiter::new_with_clock(
+            malformed_errors: DimensionRateLimiter::new_with_clock(
                 config.malformed_errors_max_requests,
                 config.malformed_errors_window_secs,
                 Arc::clone(&clock),
@@ -305,9 +306,15 @@ mod tests {
     #[test]
     fn test_dimension_rate_limiter_per_key() {
         let limiter = DimensionRateLimiter::new(2, 60);
-        limiter.check("key1").unwrap_or_else(|e| panic!("expected Ok for key1 request 1: {e}"));
-        limiter.check("key1").unwrap_or_else(|e| panic!("expected Ok for key1 request 2: {e}"));
-        limiter.check("key2").unwrap_or_else(|e| panic!("expected Ok for key2 request 1 (independent key): {e}"));
+        limiter
+            .check("key1")
+            .unwrap_or_else(|e| panic!("expected Ok for key1 request 1: {e}"));
+        limiter
+            .check("key1")
+            .unwrap_or_else(|e| panic!("expected Ok for key1 request 2: {e}"));
+        limiter
+            .check("key2")
+            .unwrap_or_else(|e| panic!("expected Ok for key2 request 1 (independent key): {e}"));
     }
 
     #[test]
@@ -352,10 +359,18 @@ mod tests {
         );
 
         // But other dimensions should still work
-        limiter.check_depth_errors(key).unwrap_or_else(|e| panic!("depth_errors should still allow: {e}"));
-        limiter.check_complexity_errors(key).unwrap_or_else(|e| panic!("complexity_errors should still allow: {e}"));
-        limiter.check_malformed_errors(key).unwrap_or_else(|e| panic!("malformed_errors should still allow: {e}"));
-        limiter.check_async_validation_errors(key).unwrap_or_else(|e| panic!("async_validation_errors should still allow: {e}"));
+        limiter
+            .check_depth_errors(key)
+            .unwrap_or_else(|e| panic!("depth_errors should still allow: {e}"));
+        limiter
+            .check_complexity_errors(key)
+            .unwrap_or_else(|e| panic!("complexity_errors should still allow: {e}"));
+        limiter
+            .check_malformed_errors(key)
+            .unwrap_or_else(|e| panic!("malformed_errors should still allow: {e}"));
+        limiter
+            .check_async_validation_errors(key)
+            .unwrap_or_else(|e| panic!("async_validation_errors should still allow: {e}"));
     }
 
     #[test]
@@ -393,8 +408,12 @@ mod tests {
         };
         let limiter = ValidationRateLimiter::new_with_clock(&config, clock_arc);
 
-        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 1st request: {e}")); // 1st
-        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok on 2nd request: {e}")); // 2nd
+        limiter
+            .check_validation_errors("u1")
+            .unwrap_or_else(|e| panic!("expected Ok on 1st request: {e}")); // 1st
+        limiter
+            .check_validation_errors("u1")
+            .unwrap_or_else(|e| panic!("expected Ok on 2nd request: {e}")); // 2nd
         assert!(
             matches!(limiter.check_validation_errors("u1"), Err(FraiseQLError::RateLimited { .. })),
             "expected RateLimited on 3rd request (over limit)"
@@ -402,7 +421,9 @@ mod tests {
 
         clock.advance(Duration::from_secs(61)); // cross the window boundary
 
-        limiter.check_validation_errors("u1").unwrap_or_else(|e| panic!("expected Ok after window rollover: {e}")); // new window, limit reset
+        limiter
+            .check_validation_errors("u1")
+            .unwrap_or_else(|e| panic!("expected Ok after window rollover: {e}")); // new window, limit reset
     }
 
     /// Sentinel: advancing by exactly `window_secs` must reset the window.

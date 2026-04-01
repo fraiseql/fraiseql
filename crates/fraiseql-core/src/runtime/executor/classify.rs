@@ -58,7 +58,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // comments, and string argument values (e.g. `{ search(q: "_service") }`
         // would be mis-routed as a federation query by a text scan).
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message:  e.to_string(),
+            message: e.to_string(),
             location: "query".to_string(),
         })?;
 

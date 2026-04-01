@@ -167,7 +167,7 @@ impl RevocationStore for InMemoryRevocationStore {
 /// Requires the `redis-rate-limiting` feature.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRevocationStore {
-    client:     redis::Client,
+    client: redis::Client,
     key_prefix: String,
 }
 
@@ -256,9 +256,9 @@ impl RevocationStore for RedisRevocationStore {
 
 /// High-level token revocation manager wrapping a backend store.
 pub struct TokenRevocationManager {
-    store:       Arc<dyn RevocationStore>,
+    store: Arc<dyn RevocationStore>,
     require_jti: bool,
-    fail_open:   bool,
+    fail_open: bool,
 }
 
 impl TokenRevocationManager {

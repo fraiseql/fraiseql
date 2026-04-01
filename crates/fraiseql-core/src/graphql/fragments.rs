@@ -136,7 +136,8 @@ impl FragmentGraph {
 
         if recursion_stack.contains(dep) {
             // Cycle found - extract cycle path
-            #[allow(clippy::expect_used)]  // Reason: invariant holds at this point; panic would indicate a logic error
+            #[allow(clippy::expect_used)]
+            // Reason: invariant holds at this point; panic would indicate a logic error
             // Reason: dep is guaranteed to be in cycle_path when found in recursion_stack
             let cycle_start = cycle_path
                 .iter()
@@ -176,7 +177,9 @@ mod tests {
                 ("FragC".to_string(), HashSet::new()),
             ]),
         };
-        graph.detect_cycles().unwrap_or_else(|c| panic!("expected no cycles, got: {c:?}"));
+        graph
+            .detect_cycles()
+            .unwrap_or_else(|c| panic!("expected no cycles, got: {c:?}"));
     }
 
     #[test]
@@ -219,7 +222,10 @@ mod tests {
         };
         let cycle = graph.detect_cycles().expect_err("expected at least one cycle to be detected");
         // Should detect one of the cycles (DFS order dependent)
-        assert!(cycle.len() >= 2, "cycle must contain at least 2 fragments (A→B or C→D), got: {cycle:?}");
+        assert!(
+            cycle.len() >= 2,
+            "cycle must contain at least 2 fragments (A→B or C→D), got: {cycle:?}"
+        );
     }
 
     #[test]
@@ -231,6 +237,9 @@ mod tests {
             )]),
         };
         let result = graph.detect_cycles();
-        assert!(result.is_err(), "expected self-reference FragA→FragA to be detected as cycle, got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected self-reference FragA→FragA to be detected as cycle, got: {result:?}"
+        );
     }
 }

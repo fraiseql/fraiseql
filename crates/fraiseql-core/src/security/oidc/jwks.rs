@@ -90,9 +90,9 @@ pub struct Jwk {
 /// Cached JWKS with expiration.
 #[derive(Debug)]
 pub(super) struct CachedJwks {
-    pub(super) jwks:       Jwks,
+    pub(super) jwks: Jwks,
     pub(super) fetched_at: Instant,
-    pub(super) ttl:        Duration,
+    pub(super) ttl: Duration,
 }
 
 impl CachedJwks {

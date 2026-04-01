@@ -38,13 +38,13 @@ use crate::security::{
 /// JWKS fetch/cache/key-selection helpers are in `impl OidcValidator` blocks
 /// defined in the `jwks` sub-module.
 pub struct OidcValidator {
-    pub(super) config:        OidcConfig,
-    pub(super) http_client:   reqwest::Client,
-    pub(super) jwks_cache:    Arc<RwLock<Option<CachedJwks>>>,
-    pub(super) jwks_uri:      String,
+    pub(super) config: OidcConfig,
+    pub(super) http_client: reqwest::Client,
+    pub(super) jwks_cache: Arc<RwLock<Option<CachedJwks>>>,
+    pub(super) jwks_uri: String,
     /// Optional JWT replay cache. When set, each validated token's `jti` is
     /// checked against the cache and rejected if it has been seen before.
-    pub(super) replay_cache:  Option<Arc<ReplayCache>>,
+    pub(super) replay_cache: Option<Arc<ReplayCache>>,
 }
 
 impl OidcValidator {
@@ -270,34 +270,34 @@ impl OidcValidator {
         if let (Some(replay_cache), Some(ref jti)) = (&self.replay_cache, &claims.jti) {
             use std::time::Duration;
             // Compute the token's remaining TTL for the cache entry.
-            let ttl = claims.exp.and_then(|exp| {
-                let remaining = exp - chrono::Utc::now().timestamp();
-                if remaining > 0 {
-                    Some(Duration::from_secs(remaining.cast_unsigned()))
-                } else {
-                    None
-                }
-            }).unwrap_or(Duration::from_secs(900)); // Fallback: 15-minute TTL
-
-            replay_cache
-                .check_and_record(jti, ttl)
-                .await
-                .map_err(|e| {
-                    use crate::security::oidc::replay_cache::ReplayCacheError;
-                    match e {
-                        ReplayCacheError::Replayed => {
-                            tracing::warn!(jti = %jti, "JWT replay detected");
-                            SecurityError::TokenReplayed
-                        }
-                        ReplayCacheError::Backend(_) => {
-                            // Backend error with fail-open is already handled inside
-                            // ReplayCache::check_and_record(); reaching here means
-                            // fail-closed is configured.
-                            tracing::warn!(jti = %jti, error = %e, "Replay cache backend error");
-                            SecurityError::InvalidToken
-                        }
+            let ttl = claims
+                .exp
+                .and_then(|exp| {
+                    let remaining = exp - chrono::Utc::now().timestamp();
+                    if remaining > 0 {
+                        Some(Duration::from_secs(remaining.cast_unsigned()))
+                    } else {
+                        None
                     }
-                })?;
+                })
+                .unwrap_or(Duration::from_secs(900)); // Fallback: 15-minute TTL
+
+            replay_cache.check_and_record(jti, ttl).await.map_err(|e| {
+                use crate::security::oidc::replay_cache::ReplayCacheError;
+                match e {
+                    ReplayCacheError::Replayed => {
+                        tracing::warn!(jti = %jti, "JWT replay detected");
+                        SecurityError::TokenReplayed
+                    },
+                    ReplayCacheError::Backend(_) => {
+                        // Backend error with fail-open is already handled inside
+                        // ReplayCache::check_and_record(); reaching here means
+                        // fail-closed is configured.
+                        tracing::warn!(jti = %jti, error = %e, "Replay cache backend error");
+                        SecurityError::InvalidToken
+                    },
+                }
+            })?;
         }
 
         // Extract scopes first (before moving claims.sub)

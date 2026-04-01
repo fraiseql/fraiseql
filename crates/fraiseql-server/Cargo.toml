@@ -139,6 +139,7 @@ gcs = []
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
 database = []
+federation = ["fraiseql-core/federation"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "tracing-opentelemetry"]

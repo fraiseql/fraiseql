@@ -108,9 +108,9 @@ impl TlsConnection {
     #[must_use]
     pub const fn new_http() -> Self {
         Self {
-            is_secure:         false,
-            version:           TlsVersion::V1_2, // Irrelevant for HTTP
-            has_client_cert:   false,
+            is_secure: false,
+            version: TlsVersion::V1_2, // Irrelevant for HTTP
+            has_client_cert: false,
             client_cert_valid: false,
         }
     }
@@ -163,9 +163,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn permissive() -> Self {
         Self {
-            tls_required:  false,
+            tls_required: false,
             mtls_required: false,
-            min_version:   TlsVersion::V1_2,
+            min_version: TlsVersion::V1_2,
         }
     }
 
@@ -177,9 +177,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn standard() -> Self {
         Self {
-            tls_required:  true,
+            tls_required: true,
             mtls_required: false,
-            min_version:   TlsVersion::V1_2,
+            min_version: TlsVersion::V1_2,
         }
     }
 
@@ -191,9 +191,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            tls_required:  true,
+            tls_required: true,
             mtls_required: true,
-            min_version:   TlsVersion::V1_3,
+            min_version: TlsVersion::V1_3,
         }
     }
 }
@@ -257,7 +257,7 @@ impl TlsEnforcer {
         // Check 2: TLS version minimum (only check if connection is secure)
         if conn.is_secure && conn.version < self.config.min_version {
             return Err(SecurityError::TlsVersionTooOld {
-                current:  conn.version,
+                current: conn.version,
                 required: self.config.min_version,
             });
         }
@@ -299,7 +299,9 @@ mod tests {
         let enforcer = TlsEnforcer::permissive();
         let conn = TlsConnection::new_http();
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected HTTP allowed when TLS not required: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected HTTP allowed when TLS not required: {e}"));
     }
 
     #[test]
@@ -316,7 +318,9 @@ mod tests {
         let enforcer = TlsEnforcer::standard();
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected HTTPS allowed when TLS required: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected HTTPS allowed when TLS required: {e}"));
     }
 
     // ============================================================================
@@ -346,7 +350,9 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // min_version = TLS 1.2
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected TLS 1.3 allowed when min 1.2: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected TLS 1.3 allowed when min 1.2: {e}"));
     }
 
     #[test]
@@ -354,7 +360,9 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // min_version = TLS 1.2
         let conn = TlsConnection::new_secure(TlsVersion::V1_2);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected TLS 1.2 allowed when min 1.2: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected TLS 1.2 allowed when min 1.2: {e}"));
     }
 
     #[test]
@@ -364,7 +372,9 @@ mod tests {
         let conn = TlsConnection::new_http();
 
         // Even though version is V1_2, this passes because is_secure=false
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected version check skipped for HTTP: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected version check skipped for HTTP: {e}"));
     }
 
     // ============================================================================
@@ -376,7 +386,9 @@ mod tests {
         let enforcer = TlsEnforcer::standard(); // mtls_required = false
         let conn = TlsConnection::new_secure(TlsVersion::V1_3);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected no client cert needed when mTLS not required: {e}"));
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| {
+            panic!("expected no client cert needed when mTLS not required: {e}")
+        });
     }
 
     #[test]
@@ -393,7 +405,9 @@ mod tests {
         let enforcer = TlsEnforcer::strict(); // mtls_required = true
         let conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected valid client cert accepted when mTLS required: {e}"));
+        enforcer.validate_connection(&conn).unwrap_or_else(|e| {
+            panic!("expected valid client cert accepted when mTLS required: {e}")
+        });
     }
 
     // ============================================================================
@@ -404,9 +418,9 @@ mod tests {
     fn test_invalid_cert_rejected() {
         let enforcer = TlsEnforcer::strict();
         let conn = TlsConnection {
-            is_secure:         true,
-            version:           TlsVersion::V1_3,
-            has_client_cert:   true,
+            is_secure: true,
+            version: TlsVersion::V1_3,
+            has_client_cert: true,
             client_cert_valid: false, // Invalid!
         };
 
@@ -419,7 +433,9 @@ mod tests {
         let enforcer = TlsEnforcer::strict();
         let conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
 
-        enforcer.validate_connection(&conn).unwrap_or_else(|e| panic!("expected valid cert accepted: {e}"));
+        enforcer
+            .validate_connection(&conn)
+            .unwrap_or_else(|e| panic!("expected valid cert accepted: {e}"));
     }
 
     // ============================================================================
@@ -433,7 +449,9 @@ mod tests {
 
         // This should pass all checks
         let valid_conn = TlsConnection::new_secure_with_client_cert(TlsVersion::V1_3);
-        enforcer.validate_connection(&valid_conn).unwrap_or_else(|e| panic!("expected all checks to pass: {e}"));
+        enforcer
+            .validate_connection(&valid_conn)
+            .unwrap_or_else(|e| panic!("expected all checks to pass: {e}"));
 
         // Fails check 1: HTTP when TLS required
         let http_conn = TlsConnection::new_http();
@@ -565,9 +583,9 @@ mod tests {
     #[test]
     fn test_custom_config_from_individual_settings() {
         let config = TlsConfig {
-            tls_required:  true,
+            tls_required: true,
             mtls_required: false,
-            min_version:   TlsVersion::V1_2,
+            min_version: TlsVersion::V1_2,
         };
 
         let enforcer = TlsEnforcer::from_config(config);
@@ -581,11 +599,15 @@ mod tests {
 
         // HTTPS with TLS 1.2 should pass
         let secure_conn = TlsConnection::new_secure(TlsVersion::V1_2);
-        enforcer.validate_connection(&secure_conn).unwrap_or_else(|e| panic!("expected HTTPS with TLS 1.2 to pass: {e}"));
+        enforcer
+            .validate_connection(&secure_conn)
+            .unwrap_or_else(|e| panic!("expected HTTPS with TLS 1.2 to pass: {e}"));
 
         // HTTPS without client cert should pass (mtls_required=false)
         let no_cert_conn = TlsConnection::new_secure(TlsVersion::V1_3);
-        enforcer.validate_connection(&no_cert_conn).unwrap_or_else(|e| panic!("expected HTTPS without client cert to pass: {e}"));
+        enforcer
+            .validate_connection(&no_cert_conn)
+            .unwrap_or_else(|e| panic!("expected HTTPS without client cert to pass: {e}"));
     }
 
     #[test]
@@ -594,9 +616,9 @@ mod tests {
 
         // Even with client cert info, HTTP should fail
         let http_with_cert_info = TlsConnection {
-            is_secure:         false, // Still HTTP
-            version:           TlsVersion::V1_2,
-            has_client_cert:   true,
+            is_secure: false, // Still HTTP
+            version: TlsVersion::V1_2,
+            has_client_cert: true,
             client_cert_valid: true,
         };
 

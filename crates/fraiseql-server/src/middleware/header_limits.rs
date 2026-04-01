@@ -25,31 +25,17 @@ pub async fn header_limits_middleware(
     let header_count = headers.len();
 
     if header_count > max_header_count {
-        warn!(
-            header_count,
-            max_header_count, "Request rejected: too many headers"
-        );
-        return (
-            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-            "Too many request headers",
-        )
+        warn!(header_count, max_header_count, "Request rejected: too many headers");
+        return (StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE, "Too many request headers")
             .into_response();
     }
 
-    let total_bytes: usize = headers
-        .iter()
-        .map(|(name, value)| name.as_str().len() + value.len())
-        .sum();
+    let total_bytes: usize =
+        headers.iter().map(|(name, value)| name.as_str().len() + value.len()).sum();
 
     if total_bytes > max_header_bytes {
-        warn!(
-            total_bytes,
-            max_header_bytes, "Request rejected: headers too large"
-        );
-        return (
-            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-            "Request headers too large",
-        )
+        warn!(total_bytes, max_header_bytes, "Request rejected: headers too large");
+        return (StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE, "Request headers too large")
             .into_response();
     }
 
@@ -58,12 +44,7 @@ pub async fn header_limits_middleware(
 
 #[cfg(test)]
 mod tests {
-    use axum::{
-        Router,
-        body::Body,
-        middleware,
-        routing::get,
-    };
+    use axum::{Router, body::Body, middleware, routing::get};
     use http::Request;
     use tower::ServiceExt;
 
@@ -74,11 +55,11 @@ mod tests {
     }
 
     fn test_app(max_count: usize, max_bytes: usize) -> Router {
-        Router::new().route("/", get(ok_handler)).layer(
-            middleware::from_fn(move |req, next| {
+        Router::new()
+            .route("/", get(ok_handler))
+            .layer(middleware::from_fn(move |req, next| {
                 header_limits_middleware(req, next, max_count, max_bytes)
-            }),
-        )
+            }))
     }
 
     #[tokio::test]
@@ -90,10 +71,7 @@ mod tests {
             .body(Body::empty())
             .expect("Reason: test request builder should not fail");
 
-        let resp = app
-            .oneshot(req)
-            .await
-            .expect("Reason: oneshot should not fail in test");
+        let resp = app.oneshot(req).await.expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -108,10 +86,7 @@ mod tests {
             .body(Body::empty())
             .expect("Reason: test request builder should not fail");
 
-        let resp = app
-            .oneshot(req)
-            .await
-            .expect("Reason: oneshot should not fail in test");
+        let resp = app.oneshot(req).await.expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
     }
 
@@ -124,10 +99,7 @@ mod tests {
             .body(Body::empty())
             .expect("Reason: test request builder should not fail");
 
-        let resp = app
-            .oneshot(req)
-            .await
-            .expect("Reason: oneshot should not fail in test");
+        let resp = app.oneshot(req).await.expect("Reason: oneshot should not fail in test");
         assert_eq!(resp.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
     }
 
@@ -143,10 +115,7 @@ mod tests {
             .body(Body::empty())
             .expect("Reason: test request builder should not fail");
 
-        let resp = app
-            .oneshot(req)
-            .await
-            .expect("Reason: oneshot should not fail in test");
+        let resp = app.oneshot(req).await.expect("Reason: oneshot should not fail in test");
         // With 5 custom headers, total is 5 which is at limit — should pass
         assert_eq!(resp.status(), StatusCode::OK);
     }

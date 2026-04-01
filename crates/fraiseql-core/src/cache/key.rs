@@ -47,7 +47,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
-use crate::db::{where_clause::WhereClause, WhereOperator};
+use crate::db::{WhereOperator, where_clause::WhereClause};
 use crate::schema::QueryDefinition;
 
 // Fixed seeds for deterministic hashing across process restarts.
@@ -161,24 +161,24 @@ fn hash_json_value(h: &mut impl Hasher, value: &JsonValue) {
         JsonValue::Bool(b) => {
             h.write_u8(1);
             b.hash(h);
-        }
+        },
         JsonValue::Number(n) => {
             h.write_u8(2);
             // Use the canonical string form so that 1.0 and 1 hash identically
             // when serde represents them the same way.
             h.write(n.to_string().as_bytes());
-        }
+        },
         JsonValue::String(s) => {
             h.write_u8(3);
             h.write(s.as_bytes());
-        }
+        },
         JsonValue::Array(arr) => {
             h.write_u8(4);
             h.write_usize(arr.len());
             for item in arr {
                 hash_json_value(h, item);
             }
-        }
+        },
         JsonValue::Object(map) => {
             h.write_u8(5);
             h.write_usize(map.len());
@@ -189,7 +189,7 @@ fn hash_json_value(h: &mut impl Hasher, value: &JsonValue) {
                 h.write(key.as_bytes());
                 hash_json_value(h, &map[key]);
             }
-        }
+        },
     }
 }
 
@@ -199,7 +199,11 @@ fn hash_json_value(h: &mut impl Hasher, value: &JsonValue) {
 /// always produce different hash contributions.
 fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
     match clause {
-        WhereClause::Field { path, operator, value } => {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => {
             h.write_u8(b'F');
             h.write_usize(path.len());
             for segment in path {
@@ -208,31 +212,31 @@ fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
             }
             hash_where_operator(h, operator);
             hash_json_value(h, value);
-        }
+        },
         WhereClause::And(clauses) => {
             h.write_u8(b'A');
             h.write_usize(clauses.len());
             for c in clauses {
                 hash_where_clause(h, c);
             }
-        }
+        },
         WhereClause::Or(clauses) => {
             h.write_u8(b'O');
             h.write_usize(clauses.len());
             for c in clauses {
                 hash_where_clause(h, c);
             }
-        }
+        },
         WhereClause::Not(inner) => {
             h.write_u8(b'N');
             hash_where_clause(h, inner);
-        }
+        },
         // WhereClause is #[non_exhaustive]; unknown variants get a distinct tag
         // plus their Debug representation as a conservative fallback.
         _ => {
             h.write_u8(b'?');
             h.write(format!("{clause:?}").as_bytes());
-        }
+        },
     }
 }
 
@@ -441,15 +445,15 @@ mod tests {
         let query = "query { users { id } }";
 
         let where1 = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("alice@example.com"),
+            value: json!("alice@example.com"),
         };
 
         let where2 = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("bob@example.com"),
+            value: json!("bob@example.com"),
         };
 
         let key1 = generate_cache_key(query, &json!({}), Some(&where1), "v1");
@@ -463,15 +467,15 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_eq = WhereClause::Field {
-            path:     vec!["age".to_string()],
+            path: vec!["age".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(30),
+            value: json!(30),
         };
 
         let where_gt = WhereClause::Field {
-            path:     vec!["age".to_string()],
+            path: vec!["age".to_string()],
             operator: WhereOperator::Gt,
-            value:    json!(30),
+            value: json!(30),
         };
 
         let key_eq = generate_cache_key(query, &json!({}), Some(&where_eq), "v1");
@@ -485,9 +489,9 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_clause = WhereClause::Field {
-            path:     vec!["active".to_string()],
+            path: vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(true),
+            value: json!(true),
         };
 
         let key_without = generate_cache_key(query, &json!({}), None, "v1");
@@ -502,14 +506,14 @@ mod tests {
 
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path:     vec!["age".to_string()],
+                path: vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value:    json!(18),
+                value: json!(18),
             },
             WhereClause::Field {
-                path:     vec!["active".to_string()],
+                path: vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!(true),
+                value: json!(true),
             },
         ]);
 
@@ -600,30 +604,30 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user".to_string()),
-            description:         None,
-            auto_params:         AutoParams {
-                has_where:    true,
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
+                has_where: true,
                 has_order_by: false,
-                has_limit:    true,
-                has_offset:   false,
+                has_limit: true,
+                has_offset: false,
             },
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -635,30 +639,30 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "customQuery".to_string(),
-            return_type:         "Custom".to_string(),
-            returns_list:        false,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          None, // No SQL source (custom resolver)
-            description:         None,
-            auto_params:         AutoParams {
-                has_where:    false,
+            name: "customQuery".to_string(),
+            return_type: "Custom".to_string(),
+            returns_list: false,
+            nullable: false,
+            arguments: vec![],
+            sql_source: None, // No SQL source (custom resolver)
+            description: None,
+            auto_params: AutoParams {
+                has_where: false,
                 has_order_by: false,
-                has_limit:    false,
-                has_offset:   false,
+                has_limit: false,
+                has_offset: false,
             },
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -670,25 +674,25 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "usersWithPosts".to_string(),
-            return_type:         "UserWithPosts".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user_with_posts".to_string()),
-            description:         None,
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            name: "usersWithPosts".to_string(),
+            return_type: "UserWithPosts".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user_with_posts".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec!["v_post".to_string(), "v_tag".to_string()],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
         };
 
         let views = extract_accessed_views(&query_def);

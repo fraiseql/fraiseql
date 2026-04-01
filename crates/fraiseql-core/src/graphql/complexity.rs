@@ -25,19 +25,19 @@ pub const MAX_VARIABLES_COUNT: usize = 1_000;
 #[derive(Debug, Clone)]
 pub struct ComplexityConfig {
     /// Maximum query depth (nesting level) — default: 10
-    pub max_depth:      usize,
+    pub max_depth: usize,
     /// Maximum complexity score — default: 100
     pub max_complexity: usize,
     /// Maximum number of field aliases per query — default: 30
-    pub max_aliases:    usize,
+    pub max_aliases: usize,
 }
 
 impl Default for ComplexityConfig {
     fn default() -> Self {
         Self {
-            max_depth:      10,
+            max_depth: 10,
             max_complexity: 100,
-            max_aliases:    DEFAULT_MAX_ALIASES,
+            max_aliases: DEFAULT_MAX_ALIASES,
         }
     }
 }
@@ -46,9 +46,9 @@ impl Default for ComplexityConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryMetrics {
     /// Maximum selection-set nesting depth.
-    pub depth:       usize,
+    pub depth: usize,
     /// Total complexity score (accounts for pagination multipliers).
-    pub complexity:  usize,
+    pub complexity: usize,
     /// Number of aliased fields in the document.
     pub alias_count: usize,
 }
@@ -61,7 +61,7 @@ pub enum ComplexityValidationError {
     #[error("Query exceeds maximum depth of {max_depth}: depth = {actual_depth}")]
     QueryTooDeep {
         /// Maximum allowed depth
-        max_depth:    usize,
+        max_depth: usize,
         /// Actual query depth
         actual_depth: usize,
     },
@@ -70,7 +70,7 @@ pub enum ComplexityValidationError {
     #[error("Query exceeds maximum complexity of {max_complexity}: score = {actual_complexity}")]
     QueryTooComplex {
         /// Maximum allowed complexity
-        max_complexity:    usize,
+        max_complexity: usize,
         /// Actual query complexity
         actual_complexity: usize,
     },
@@ -79,7 +79,7 @@ pub enum ComplexityValidationError {
     #[error("Query exceeds maximum alias count of {max_aliases}: count = {actual_aliases}")]
     TooManyAliases {
         /// Maximum allowed alias count
-        max_aliases:    usize,
+        max_aliases: usize,
         /// Actual alias count
         actual_aliases: usize,
     },
@@ -101,15 +101,15 @@ pub enum ComplexityValidationError {
 #[derive(Debug, Clone)]
 pub struct RequestValidator {
     /// Maximum query depth allowed.
-    max_depth:             usize,
+    max_depth: usize,
     /// Maximum query complexity score allowed.
-    max_complexity:        usize,
+    max_complexity: usize,
     /// Maximum number of field aliases per query (alias amplification protection).
     max_aliases_per_query: usize,
     /// Enable query depth validation.
-    validate_depth:        bool,
+    validate_depth: bool,
     /// Enable query complexity validation.
-    validate_complexity:   bool,
+    validate_complexity: bool,
 }
 
 impl RequestValidator {
@@ -123,11 +123,11 @@ impl RequestValidator {
     #[must_use]
     pub const fn from_config(config: &ComplexityConfig) -> Self {
         Self {
-            max_depth:             config.max_depth,
-            max_complexity:        config.max_complexity,
+            max_depth: config.max_depth,
+            max_complexity: config.max_complexity,
             max_aliases_per_query: config.max_aliases,
-            validate_depth:        true,
-            validate_complexity:   true,
+            validate_depth: true,
+            validate_complexity: true,
         }
     }
 
@@ -183,8 +183,8 @@ impl RequestValidator {
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
         let fragments = collect_fragments(&document);
         Ok(QueryMetrics {
-            depth:       self.calculate_depth_ast(&document, &fragments),
-            complexity:  self.calculate_complexity_ast(&document, &fragments),
+            depth: self.calculate_depth_ast(&document, &fragments),
+            complexity: self.calculate_complexity_ast(&document, &fragments),
             alias_count: self.count_aliases_ast(&document),
         })
     }
@@ -214,7 +214,7 @@ impl RequestValidator {
             let depth = self.calculate_depth_ast(&document, &fragments);
             if depth > self.max_depth {
                 return Err(ComplexityValidationError::QueryTooDeep {
-                    max_depth:    self.max_depth,
+                    max_depth: self.max_depth,
                     actual_depth: depth,
                 });
             }
@@ -224,7 +224,7 @@ impl RequestValidator {
             let complexity = self.calculate_complexity_ast(&document, &fragments);
             if complexity > self.max_complexity {
                 return Err(ComplexityValidationError::QueryTooComplex {
-                    max_complexity:    self.max_complexity,
+                    max_complexity: self.max_complexity,
                     actual_complexity: complexity,
                 });
             }
@@ -233,7 +233,7 @@ impl RequestValidator {
         let alias_count = self.count_aliases_ast(&document);
         if alias_count > self.max_aliases_per_query {
             return Err(ComplexityValidationError::TooManyAliases {
-                max_aliases:    self.max_aliases_per_query,
+                max_aliases: self.max_aliases_per_query,
                 actual_aliases: alias_count,
             });
         }
@@ -443,11 +443,11 @@ impl RequestValidator {
 impl Default for RequestValidator {
     fn default() -> Self {
         Self {
-            max_depth:             10,
-            max_complexity:        100,
+            max_depth: 10,
+            max_complexity: 100,
             max_aliases_per_query: DEFAULT_MAX_ALIASES,
-            validate_depth:        true,
-            validate_complexity:   true,
+            validate_depth: true,
+            validate_complexity: true,
         }
     }
 }
@@ -474,7 +474,8 @@ fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<S
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             if let graphql_parser::query::Value::Int(n) = value {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]  // Reason: value is bounded; truncation cannot occur in practice
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: value is bounded; truncation cannot occur in practice
                 // Reason: value is clamped to [1, 100] immediately after; truncation
                 // and sign loss are intentional and safe here.
                 let limit = n.as_i64().unwrap_or(10) as usize;
@@ -594,9 +595,7 @@ mod tests {
             fragment UserFields on User { id name email }
             query { user { ...UserFields } }
         ";
-        validator
-            .validate_query(query)
-            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
+        validator.validate_query(query).unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     // ── Complexity ──
@@ -635,9 +634,7 @@ mod tests {
     fn test_alias_count_within_limit() {
         let validator = RequestValidator::new().with_max_aliases(5);
         let query = "query { a: user { id } b: user { id } c: user { id } }";
-        validator
-            .validate_query(query)
-            .unwrap_or_else(|e| panic!("expected Ok: {e}"));
+        validator.validate_query(query).unwrap_or_else(|e| panic!("expected Ok: {e}"));
     }
 
     #[test]
@@ -904,9 +901,7 @@ mod tests {
         let validator = RequestValidator::new().with_max_aliases(3);
         assert!(
             matches!(
-                validator.validate_query(
-                    "query { a: user { id } b: user { c: name d: email } }"
-                ),
+                validator.validate_query("query { a: user { id } b: user { c: name d: email } }"),
                 Err(ComplexityValidationError::TooManyAliases {
                     actual_aliases: 4,
                     ..
@@ -921,9 +916,9 @@ mod tests {
     #[test]
     fn test_from_config() {
         let config = ComplexityConfig {
-            max_depth:      5,
+            max_depth: 5,
             max_complexity: 20,
-            max_aliases:    3,
+            max_aliases: 3,
         };
         let validator = RequestValidator::from_config(&config);
         // Depth-6 query should fail

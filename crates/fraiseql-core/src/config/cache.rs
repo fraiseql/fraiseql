@@ -28,11 +28,11 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            apq_enabled:                true,
-            apq_ttl_secs:               86400, // 24 hours
-            apq_max_entries:            10_000,
-            response_cache_enabled:     false,
-            response_cache_ttl_secs:    60,
+            apq_enabled: true,
+            apq_ttl_secs: 86400, // 24 hours
+            apq_max_entries: 10_000,
+            response_cache_enabled: false,
+            response_cache_ttl_secs: 60,
             response_cache_max_entries: 1_000,
         }
     }

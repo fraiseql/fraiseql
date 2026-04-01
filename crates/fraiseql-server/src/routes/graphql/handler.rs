@@ -261,7 +261,10 @@ pub(crate) async fn resolve_apq(
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
     mut request: GraphQLRequest,
-    _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
+    #[cfg(feature = "federation")] _trace_context: Option<
+        fraiseql_core::federation::FederationTraceContext,
+    >,
+    #[cfg(not(feature = "federation"))] _trace_context: Option<()>,
     mut security_context: Option<SecurityContext>,
     headers: &HeaderMap,
 ) -> Result<GraphQLResponse, ErrorResponse> {
@@ -388,7 +391,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
             },
-            crate::validation::ComplexityValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
+            crate::validation::ComplexityValidationError::InvalidVariables(msg) => {
+                GraphQLError::request(msg)
+            },
             crate::validation::ComplexityValidationError::TooManyAliases {
                 max_aliases,
                 actual_aliases,
@@ -426,6 +431,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     }
 
     // Check federation circuit breaker for _entities queries before execution
+    #[cfg(feature = "federation")]
     let cb_entity_types: Vec<String> = if fraiseql_core::federation::is_federation_query(&query) {
         if let Some(ref cb_manager) = state.circuit_breaker {
             let entity_types = crate::federation::circuit_breaker::extract_entity_types(
@@ -452,6 +458,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     } else {
         vec![]
     };
+    #[cfg(not(feature = "federation"))]
+    let cb_entity_types: Vec<String> = vec![];
 
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let executor = state.executor();
@@ -464,6 +472,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     };
 
     // Record circuit breaker outcome for federation entity queries
+    #[cfg(feature = "federation")]
     if !cb_entity_types.is_empty() {
         if let Some(ref cb_manager) = state.circuit_breaker {
             if exec_result.is_ok() {
@@ -513,6 +522,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     metrics.operation_metrics.record(op_name, elapsed_us, false);
 
     // Record federation-specific metrics for federation queries
+    #[cfg(feature = "federation")]
     if fraiseql_core::federation::is_federation_query(&query) {
         metrics.record_entity_resolution(elapsed_us, true);
     }
@@ -525,7 +535,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    #[allow(unused_mut)]  // Reason: mut required by conditional compilation path
+    #[allow(unused_mut)] // Reason: mut required by conditional compilation path
     // Reason: `mut` is required by `decrypt_response(&mut …)` when the `secrets` feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(

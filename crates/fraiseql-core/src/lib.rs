@@ -88,6 +88,7 @@ pub mod cache;
 pub use fraiseql_db as db;
 #[cfg(feature = "schema-lint")]
 pub mod design;
+#[cfg(feature = "federation")]
 pub use fraiseql_federation as federation;
 pub mod filters;
 pub mod security;

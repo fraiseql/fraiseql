@@ -67,13 +67,13 @@ impl std::fmt::Display for AsyncValidatorProvider {
 #[derive(Debug, Clone)]
 pub struct AsyncValidatorConfig {
     /// The provider to use
-    pub provider:       AsyncValidatorProvider,
+    pub provider: AsyncValidatorProvider,
     /// Timeout duration for the validation operation
-    pub timeout:        Duration,
+    pub timeout: Duration,
     /// Cache TTL in seconds (0 = no caching)
     pub cache_ttl_secs: u64,
     /// Field pattern this validator applies to (e.g., "*.email")
-    pub field_pattern:  String,
+    pub field_pattern: String,
 }
 
 impl AsyncValidatorConfig {
@@ -183,7 +183,7 @@ impl AsyncValidator for EmailFormatValidator {
         } else {
             Err(FraiseQLError::Validation {
                 message: format!("Invalid email format for field '{field}'"),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -258,7 +258,7 @@ impl AsyncValidator for PhoneE164Validator {
                     "Invalid E.164 phone number for field '{field}': \
                      expected '+' followed by 7–15 digits (e.g. +14155552671)"
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -278,7 +278,7 @@ impl AsyncValidator for PhoneE164Validator {
 /// Implements `AsyncValidator` for composition with other async validators,
 /// but performs no I/O.
 pub struct ChecksumAsyncValidator {
-    config:    AsyncValidatorConfig,
+    config: AsyncValidatorConfig,
     algorithm: String,
 }
 
@@ -313,7 +313,7 @@ impl AsyncValidator for ChecksumAsyncValidator {
                         "Unknown checksum algorithm '{}' for field '{}'",
                         other, field
                     ),
-                    path:    Some(field.to_string()),
+                    path: Some(field.to_string()),
                 });
             },
         };
@@ -325,7 +325,7 @@ impl AsyncValidator for ChecksumAsyncValidator {
                     "Checksum validation ({}) failed for field '{}'",
                     self.algorithm, field
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -350,21 +350,24 @@ mod tests {
     #[tokio::test]
     async fn test_email_valid_simple() {
         let v = EmailFormatValidator::new();
-        v.validate_async("user@example.com", "email").await
+        v.validate_async("user@example.com", "email")
+            .await
             .unwrap_or_else(|e| panic!("valid simple email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_valid_subdomain() {
         let v = EmailFormatValidator::new();
-        v.validate_async("user@mail.example.co.uk", "email").await
+        v.validate_async("user@mail.example.co.uk", "email")
+            .await
             .unwrap_or_else(|e| panic!("valid subdomain email should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_email_valid_plus_addressing() {
         let v = EmailFormatValidator::new();
-        v.validate_async("user+tag@example.com", "email").await
+        v.validate_async("user+tag@example.com", "email")
+            .await
             .unwrap_or_else(|e| panic!("valid plus-addressed email should pass: {e}"));
     }
 
@@ -372,9 +375,11 @@ mod tests {
     async fn test_email_valid_corporate_domain() {
         let v = EmailFormatValidator::new();
         // Must accept any valid domain, not a hardcoded allowlist
-        v.validate_async("alice@my-company.io", "email").await
+        v.validate_async("alice@my-company.io", "email")
+            .await
             .unwrap_or_else(|e| panic!("valid corporate email should pass: {e}"));
-        v.validate_async("bob@university.edu", "email").await
+        v.validate_async("bob@university.edu", "email")
+            .await
             .unwrap_or_else(|e| panic!("valid edu email should pass: {e}"));
     }
 
@@ -421,14 +426,16 @@ mod tests {
     #[tokio::test]
     async fn test_phone_valid_us() {
         let v = PhoneE164Validator::new();
-        v.validate_async("+14155552671", "phone").await
+        v.validate_async("+14155552671", "phone")
+            .await
             .unwrap_or_else(|e| panic!("valid US phone should pass: {e}"));
     }
 
     #[tokio::test]
     async fn test_phone_valid_uk() {
         let v = PhoneE164Validator::new();
-        v.validate_async("+447911123456", "phone").await
+        v.validate_async("+447911123456", "phone")
+            .await
             .unwrap_or_else(|e| panic!("valid UK phone should pass: {e}"));
     }
 
@@ -436,11 +443,14 @@ mod tests {
     async fn test_phone_valid_any_country_code() {
         let v = PhoneE164Validator::new();
         // Must accept all country codes, not a hardcoded subset
-        v.validate_async("+819012345678", "phone").await
+        v.validate_async("+819012345678", "phone")
+            .await
             .unwrap_or_else(|e| panic!("valid Japan phone should pass: {e}"));
-        v.validate_async("+5511987654321", "phone").await
+        v.validate_async("+5511987654321", "phone")
+            .await
             .unwrap_or_else(|e| panic!("valid Brazil phone should pass: {e}"));
-        v.validate_async("+27821234567", "phone").await
+        v.validate_async("+27821234567", "phone")
+            .await
             .unwrap_or_else(|e| panic!("valid South Africa phone should pass: {e}"));
     }
 

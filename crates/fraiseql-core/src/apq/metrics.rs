@@ -84,7 +84,8 @@ impl ApqMetrics {
             0.0
         } else {
             // Small precision loss is acceptable for metrics percentages
-            #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
+            #[allow(clippy::cast_precision_loss)]
+            // Reason: precision loss acceptable for metric/ratio calculations
             // Reason: APQ hit/miss counters won't exceed f64 mantissa (2^53)
             {
                 hits as f64 / (hits + misses) as f64
@@ -116,7 +117,7 @@ impl ApqMetrics {
 impl Default for ApqMetrics {
     fn default() -> Self {
         Self {
-            hits:   AtomicU64::new(0),
+            hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             stored: AtomicU64::new(0),
             errors: AtomicU64::new(0),

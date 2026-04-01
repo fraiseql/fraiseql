@@ -32,6 +32,7 @@ name = "cache_concurrent_bench"
 [[bench]]
 harness = false
 name = "federation_bench"
+required-features = ["federation"]
 
 [[bench]]
 harness = true
@@ -57,7 +58,7 @@ dhat = {version = "0.3", optional = true}
 fraiseql-db = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
 # Federation support (Apollo Federation v2)
-fraiseql-federation = {workspace = true}
+fraiseql-federation = {workspace = true, optional = true}
 futures = {workspace = true}
 # GraphQL
 graphql-parser = {workspace = true}
@@ -122,6 +123,7 @@ audit-syslog = ["dep:hostname"]
 audit-webhook = []
 default = ["postgres", "rich-filters"]
 dhat-heap = ["dhat"]
+federation = ["dep:fraiseql-federation"]
 grpc = ["fraiseql-db/grpc"]
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]

@@ -192,8 +192,8 @@ mod tests {
 
         // Simulate an authenticated user from the OIDC middleware
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec!["read:user".to_string(), "write:post".to_string()],
+            user_id: "user123".to_string(),
+            scopes: vec!["read:user".to_string(), "write:post".to_string()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         });
 
@@ -210,8 +210,10 @@ mod tests {
             let ip_address = extract_ip_address(&headers);
             let tenant_id = extract_tenant_id(&headers);
 
-            let mut context =
-                fraiseql_core::security::SecurityContext::from_user(&authenticated_user, request_id);
+            let mut context = fraiseql_core::security::SecurityContext::from_user(
+                &authenticated_user,
+                request_id,
+            );
             context.ip_address = ip_address;
             context.tenant_id = tenant_id;
             context

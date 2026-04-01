@@ -16,7 +16,7 @@ use crate::db::where_clause::{WhereClause, WhereOperator};
 #[derive(Debug, Clone)]
 pub struct TenantEnforcer {
     /// Current `org_id` for this request
-    org_id:         Option<String>,
+    org_id: Option<String>,
     /// Enforce tenant scoping (require `org_id` for all queries)
     require_tenant: bool,
 }
@@ -79,9 +79,9 @@ impl TenantEnforcer {
 
         // Build org_id filter clause
         let org_id_filter = WhereClause::Field {
-            path:     vec!["org_id".to_string()],
+            path: vec!["org_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(org_id),
+            value: json!(org_id),
         };
 
         // Combine with user's WHERE clause
@@ -183,7 +183,8 @@ mod tests {
         let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
         let result = enforcer.enforce_tenant_scope(None);
 
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope: {e}"));
+        let enforced =
+            result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope: {e}"));
         assert!(enforced.is_some());
 
         // Check that it created an org_id = 'org-123' filter
@@ -206,14 +207,15 @@ mod tests {
         let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
 
         let user_clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
 
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope with clause: {e}"));
+        let enforced = result
+            .unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope with clause: {e}"));
         assert!(enforced.is_some());
 
         // Check that it created an AND clause combining both filters
@@ -260,15 +262,16 @@ mod tests {
     fn test_enforce_tenant_scope_without_org_id() {
         let enforcer = TenantEnforcer::new(None);
         let user_clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
 
         // Should return original clause unchanged
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope without org_id: {e}"));
+        let enforced = result
+            .unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope without org_id: {e}"));
         assert!(matches!(enforced, Some(WhereClause::Field { .. })));
     }
 
@@ -305,6 +308,8 @@ mod tests {
         let enforcer = TenantEnforcer::with_requirement(Some("org-123".to_string()), true);
         let result = enforcer.enforce_tenant_scope(None);
 
-        result.unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope with org_id present: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("expected Ok for enforce_tenant_scope with org_id present: {e}")
+        });
     }
 }

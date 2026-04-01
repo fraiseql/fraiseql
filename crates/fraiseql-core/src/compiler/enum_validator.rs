@@ -67,14 +67,14 @@ impl EnumValidator {
     pub fn parse_enums(enums_value: &Value) -> Result<Vec<IREnum>> {
         let enums_arr = enums_value.as_array().ok_or_else(|| FraiseQLError::Validation {
             message: "enums must be an array".to_string(),
-            path:    Some("schema.enums".to_string()),
+            path: Some("schema.enums".to_string()),
         })?;
 
         let mut enums = Vec::new();
         for (idx, enum_def) in enums_arr.iter().enumerate() {
             let enum_obj = enum_def.as_object().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("enum at index {} must be an object", idx),
-                path:    Some(format!("schema.enums[{}]", idx)),
+                path: Some(format!("schema.enums[{}]", idx)),
             })?;
 
             let enum_type = Self::parse_single_enum(enum_obj, idx)?;
@@ -100,7 +100,7 @@ impl EnumValidator {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "enum must have a name".to_string(),
-                path:    Some(format!("schema.enums[{}].name", index)),
+                path: Some(format!("schema.enums[{}].name", index)),
             })?
             .to_string();
 
@@ -114,7 +114,7 @@ impl EnumValidator {
         // Parse enum values
         let values_value = enum_obj.get("values").ok_or_else(|| FraiseQLError::Validation {
             message: format!("enum '{}' must have 'values' field", name),
-            path:    Some(format!("schema.enums[{}].values", index)),
+            path: Some(format!("schema.enums[{}].values", index)),
         })?;
 
         let values = Self::parse_enum_values(values_value, &name)?;
@@ -123,7 +123,7 @@ impl EnumValidator {
         if values.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("enum '{}' must have at least one value", name),
-                path:    Some(format!("schema.enums[{}].values", index)),
+                path: Some(format!("schema.enums[{}].values", index)),
             });
         }
 
@@ -143,7 +143,7 @@ impl EnumValidator {
     fn parse_enum_values(values_value: &Value, enum_name: &str) -> Result<Vec<IREnumValue>> {
         let values_arr = values_value.as_array().ok_or_else(|| FraiseQLError::Validation {
             message: format!("enum '{}' values must be an array", enum_name),
-            path:    Some(format!("schema.enums.{}.values", enum_name)),
+            path: Some(format!("schema.enums.{}.values", enum_name)),
         })?;
 
         let mut values = Vec::new();
@@ -152,7 +152,7 @@ impl EnumValidator {
         for (idx, value_def) in values_arr.iter().enumerate() {
             let value_obj = value_def.as_object().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("enum '{}' value at index {} must be an object", enum_name, idx),
-                path:    Some(format!("schema.enums.{}.values[{}]", enum_name, idx)),
+                path: Some(format!("schema.enums.{}.values[{}]", enum_name, idx)),
             })?;
 
             // Extract value name
@@ -164,7 +164,7 @@ impl EnumValidator {
                         "enum '{}' value at index {} must have a name",
                         enum_name, idx
                     ),
-                    path:    Some(format!("schema.enums.{}.values[{}].name", enum_name, idx)),
+                    path: Some(format!("schema.enums.{}.values[{}].name", enum_name, idx)),
                 })?
                 .to_string();
 
@@ -175,7 +175,7 @@ impl EnumValidator {
             if !seen_names.insert(value_name.clone()) {
                 return Err(FraiseQLError::Validation {
                     message: format!("enum '{}' has duplicate value '{}'", enum_name, value_name),
-                    path:    Some(format!("schema.enums.{}.values", enum_name)),
+                    path: Some(format!("schema.enums.{}.values", enum_name)),
                 });
             }
 
@@ -206,7 +206,7 @@ impl EnumValidator {
         if name.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: "enum name cannot be empty".to_string(),
-                path:    Some("schema.enums.name".to_string()),
+                path: Some("schema.enums.name".to_string()),
             });
         }
 
@@ -218,7 +218,7 @@ impl EnumValidator {
         {
             return Err(FraiseQLError::Validation {
                 message: format!("enum name '{}' must start with a letter", name),
-                path:    Some("schema.enums.name".to_string()),
+                path: Some("schema.enums.name".to_string()),
             });
         }
 
@@ -228,7 +228,7 @@ impl EnumValidator {
                     "enum name '{}' contains invalid characters (use alphanumeric and underscore)",
                     name
                 ),
-                path:    Some("schema.enums.name".to_string()),
+                path: Some("schema.enums.name".to_string()),
             });
         }
 
@@ -242,7 +242,7 @@ impl EnumValidator {
         if name.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("enum '{}' value name cannot be empty", enum_name),
-                path:    Some(format!("schema.enums.{}.values.name", enum_name)),
+                path: Some(format!("schema.enums.{}.values.name", enum_name)),
             });
         }
 
@@ -252,7 +252,7 @@ impl EnumValidator {
                     "enum '{}' value '{}' should use SCREAMING_SNAKE_CASE (uppercase with underscores)",
                     enum_name, name
                 ),
-                path:    Some(format!("schema.enums.{}.values.name", enum_name)),
+                path: Some(format!("schema.enums.{}.values.name", enum_name)),
             });
         }
 
@@ -263,7 +263,7 @@ impl EnumValidator {
                     "enum '{}' value '{}' cannot start with underscore",
                     enum_name, name
                 ),
-                path:    Some(format!("schema.enums.{}.values.name", enum_name)),
+                path: Some(format!("schema.enums.{}.values.name", enum_name)),
             });
         }
 
@@ -558,10 +558,10 @@ mod tests {
     #[test]
     fn test_serialization_roundtrip() {
         let enum_val = IREnum {
-            name:        "Status".to_string(),
-            values:      vec![IREnumValue {
-                name:               "ACTIVE".to_string(),
-                description:        Some("Active status".to_string()),
+            name: "Status".to_string(),
+            values: vec![IREnumValue {
+                name: "ACTIVE".to_string(),
+                description: Some("Active status".to_string()),
                 deprecation_reason: None,
             }],
             description: Some("Status enum".to_string()),

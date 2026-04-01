@@ -277,7 +277,9 @@ fn test_schema_validation_builtin_types_ok() {
         ..Default::default()
     };
 
-    schema.validate().unwrap_or_else(|e| panic!("expected built-in types to pass validation: {e:?}"));
+    schema
+        .validate()
+        .unwrap_or_else(|e| panic!("expected built-in types to pass validation: {e:?}"));
 }
 
 #[test]
@@ -543,7 +545,9 @@ fn test_python_generated_json_compat() {
     assert!(schema.subscriptions.is_empty());
 
     // Verify validation passes
-    schema.validate().unwrap_or_else(|e| panic!("expected Python-generated schema to pass validation: {e:?}"));
+    schema
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Python-generated schema to pass validation: {e:?}"));
 }
 
 // ============================================================================
@@ -653,8 +657,8 @@ fn test_field_type_vector_sql_type() {
 #[test]
 fn test_vector_config_serialization() {
     let config = VectorConfig {
-        dimensions:      1536,
-        index_type:      VectorIndexType::Hnsw,
+        dimensions: 1536,
+        index_type: VectorIndexType::Hnsw,
         distance_metric: DistanceMetric::Cosine,
     };
 
@@ -861,7 +865,9 @@ fn test_python_generated_vector_schema_compat() {
     assert_eq!(config.distance_metric, DistanceMetric::Cosine);
 
     // Verify validation passes
-    schema.validate().unwrap_or_else(|e| panic!("expected Python-generated vector schema to pass validation: {e:?}"));
+    schema.validate().unwrap_or_else(|e| {
+        panic!("expected Python-generated vector schema to pass validation: {e:?}")
+    });
 }
 
 #[test]

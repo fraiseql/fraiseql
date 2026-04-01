@@ -61,7 +61,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     Err(e) => {
                         warn!(error = %e, "Failed to install SIGUSR1 handler — schema hot-reload disabled");
                         return;
-                    }
+                    },
                 };
                 loop {
                     sigusr1.recv().await;
@@ -314,5 +314,4 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             () = terminate => info!("Received SIGTERM"),
         }
     }
-
 }

@@ -150,11 +150,11 @@ pub struct QueryResultCache {
     // Metrics counters — atomic so the hot `get()` path acquires only ONE shard
     // lock, not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
-    hits:          AtomicU64,
-    misses:        AtomicU64,
-    total_cached:  AtomicU64,
+    hits: AtomicU64,
+    misses: AtomicU64,
+    total_cached: AtomicU64,
     invalidations: AtomicU64,
-    memory_bytes:  AtomicUsize,
+    memory_bytes: AtomicUsize,
 }
 
 /// Cache metrics for monitoring.
@@ -222,15 +222,18 @@ impl QueryResultCache {
 
         // Use full sharding only when capacity is large enough (≥ NUM_SHARDS).
         // Below that threshold, a single shard preserves exact global LRU ordering.
-        let num_shards = if config.max_entries >= NUM_SHARDS { NUM_SHARDS } else { 1 };
+        let num_shards = if config.max_entries >= NUM_SHARDS {
+            NUM_SHARDS
+        } else {
+            1
+        };
         let per_shard = config.max_entries.div_ceil(num_shards);
         // Reason: per_shard = max_entries.div_ceil(num_shards); max_entries > 0 is asserted above
         // and num_shards is always ≥ 1, so per_shard ≥ 1 and NonZeroUsize::new cannot return None.
         let per_shard_nz = NonZeroUsize::new(per_shard).expect("per_shard > 0");
 
-        let shards: Box<[_]> = (0..num_shards)
-            .map(|_| Mutex::new(LruCache::new(per_shard_nz)))
-            .collect();
+        let shards: Box<[_]> =
+            (0..num_shards).map(|_| Mutex::new(LruCache::new(per_shard_nz))).collect();
 
         Self {
             shards,
@@ -466,14 +469,14 @@ impl QueryResultCache {
                 .map(|(k, _)| *k)
                 .collect();
 
-            let freed_bytes: usize =
-                keys_to_remove.iter().map(|_| entry_overhead()).sum();
+            let freed_bytes: usize = keys_to_remove.iter().map(|_| entry_overhead()).sum();
 
             for key in &keys_to_remove {
                 cache.pop(key);
             }
 
-            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: key count within a shard never exceeds u64
             let count = keys_to_remove.len() as u64;
             total_invalidated += count;
             total_freed += freed_bytes;
@@ -522,14 +525,14 @@ impl QueryResultCache {
                 .map(|(k, _)| *k)
                 .collect();
 
-            let freed_bytes: usize =
-                keys_to_remove.iter().map(|_| entry_overhead()).sum();
+            let freed_bytes: usize = keys_to_remove.iter().map(|_| entry_overhead()).sum();
 
             for key in &keys_to_remove {
                 cache.pop(key);
             }
 
-            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: key count within a shard never exceeds u64
             let count = keys_to_remove.len() as u64;
             total_invalidated += count;
             total_freed += freed_bytes;
@@ -577,12 +580,12 @@ impl QueryResultCache {
         let size: usize = self.shards.iter().map(|s| s.lock().len()).sum();
 
         Ok(CacheMetrics {
-            hits:          self.hits.load(Ordering::Relaxed),
-            misses:        self.misses.load(Ordering::Relaxed),
-            total_cached:  self.total_cached.load(Ordering::Relaxed),
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            total_cached: self.total_cached.load(Ordering::Relaxed),
             invalidations: self.invalidations.load(Ordering::Relaxed),
             size,
-            memory_bytes:  self.memory_bytes.load(Ordering::Relaxed),
+            memory_bytes: self.memory_bytes.load(Ordering::Relaxed),
         })
     }
 
@@ -648,7 +651,8 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)]  // Reason: precision loss acceptable for metric/ratio calculations
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: precision loss acceptable for metric/ratio calculations
         // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
         // here.
         {
@@ -717,9 +721,7 @@ mod tests {
         let result = test_result();
 
         // Put
-        cache
-            .put(1_u64, result, vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, result, vec!["v_user".to_string()], None, None).unwrap();
 
         // Get
         let cached = cache.get(1_u64).unwrap();
@@ -736,9 +738,7 @@ mod tests {
     fn test_cache_hit_updates_hit_count() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // First hit
         cache.get(1_u64).unwrap();
@@ -763,9 +763,7 @@ mod tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Wait for expiry
         std::thread::sleep(std::time::Duration::from_secs(2));
@@ -827,9 +825,7 @@ mod tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Should still be valid
         let result = cache.get(1_u64).unwrap();
@@ -851,15 +847,9 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         // Add 3 entries (max is 2)
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(3_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(3_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // key1 should be evicted (LRU)
         assert!(cache.get(1_u64).unwrap().is_none(), "Oldest entry should be evicted");
@@ -880,20 +870,14 @@ mod tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Access key1 (makes it recently used)
         cache.get(1_u64).unwrap();
 
         // Add key3 (should evict key2, not key1)
-        cache
-            .put(3_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(3_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         assert!(cache.get(1_u64).unwrap().is_some(), "key1 should remain (recently used)");
         assert!(cache.get(2_u64).unwrap().is_none(), "key2 should be evicted (LRU)");
@@ -910,9 +894,7 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         // Put should be no-op
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Get should return None
         assert!(cache.get(1_u64).unwrap().is_none(), "Cache disabled should always miss");
@@ -929,12 +911,8 @@ mod tests {
     fn test_invalidate_single_view() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
 
         // Invalidate v_user
         let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
@@ -949,12 +927,8 @@ mod tests {
     fn test_invalidate_multiple_views() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
         cache
             .put(3_u64, test_result(), vec!["v_product".to_string()], None, None)
             .unwrap();
@@ -995,9 +969,7 @@ mod tests {
     fn test_invalidate_nonexistent_view() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Invalidate view that doesn't exist
         let invalidated = cache.invalidate_views(&["v_nonexistent".to_string()]).unwrap();
@@ -1015,12 +987,8 @@ mod tests {
     fn test_clear() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
 
         cache.clear().unwrap();
 
@@ -1043,9 +1011,7 @@ mod tests {
         cache.get(999_u64).unwrap();
 
         // Put
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Hit
         cache.get(1_u64).unwrap();
@@ -1060,12 +1026,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate() {
         let metrics = CacheMetrics {
-            hits:          80,
-            misses:        20,
-            total_cached:  100,
+            hits: 80,
+            misses: 20,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
 
         assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
@@ -1075,12 +1041,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate_zero_requests() {
         let metrics = CacheMetrics {
-            hits:          0,
-            misses:        0,
-            total_cached:  0,
+            hits: 0,
+            misses: 0,
+            total_cached: 0,
             invalidations: 0,
-            size:          0,
-            memory_bytes:  0,
+            size: 0,
+            memory_bytes: 0,
         };
 
         assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
@@ -1090,22 +1056,22 @@ mod tests {
     #[test]
     fn test_metrics_is_healthy() {
         let good = CacheMetrics {
-            hits:          70,
-            misses:        30,
-            total_cached:  100,
+            hits: 70,
+            misses: 30,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
         assert!(good.is_healthy()); // 70% > 60%
 
         let bad = CacheMetrics {
-            hits:          50,
-            misses:        50,
-            total_cached:  100,
+            hits: 50,
+            misses: 50,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
         assert!(!bad.is_healthy()); // 50% < 60%
     }
@@ -1126,22 +1092,10 @@ mod tests {
 
         // Cache User A and User B as separate entries
         cache
-            .put(
-                1_u64,
-                entity_result("uuid-a"),
-                vec!["v_user".to_string()],
-                None,
-                Some("User"),
-            )
+            .put(1_u64, entity_result("uuid-a"), vec!["v_user".to_string()], None, Some("User"))
             .unwrap();
         cache
-            .put(
-                2_u64,
-                entity_result("uuid-b"),
-                vec!["v_user".to_string()],
-                None,
-                Some("User"),
-            )
+            .put(2_u64, entity_result("uuid-b"), vec!["v_user".to_string()], None, Some("User"))
             .unwrap();
 
         // Invalidate User A — User B must remain
@@ -1160,17 +1114,12 @@ mod tests {
             JsonbValue::new(serde_json::json!({"id": "uuid-a", "name": "Alice"})),
             JsonbValue::new(serde_json::json!({"id": "uuid-b", "name": "Bob"})),
         ];
-        cache
-            .put(1_u64, list, vec!["v_user".to_string()], None, Some("User"))
-            .unwrap();
+        cache.put(1_u64, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
 
         // Invalidate by User A — the list entry contains A, so it must be evicted
         let evicted = cache.invalidate_by_entity("User", "uuid-a").unwrap();
         assert_eq!(evicted, 1);
-        assert!(
-            cache.get(1_u64).unwrap().is_none(),
-            "List containing A should be evicted"
-        );
+        assert!(cache.get(1_u64).unwrap().is_none(), "List containing A should be evicted");
     }
 
     #[test]
@@ -1212,9 +1161,7 @@ mod tests {
             JsonbValue::new(serde_json::json!({"id": "uuid-1", "name": "Alice"})),
             JsonbValue::new(serde_json::json!({"id": "uuid-2", "name": "Bob"})),
         ];
-        cache
-            .put(1_u64, rows, vec!["v_user".to_string()], None, Some("User"))
-            .unwrap();
+        cache.put(1_u64, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
 
         // Invalidating by uuid-1 should evict the entry
         let evicted = cache.invalidate_by_entity("User", "uuid-1").unwrap();
@@ -1284,7 +1231,7 @@ mod tests {
     #[test]
     fn test_cache_list_queries_false_skips_multi_row() {
         let config = CacheConfig {
-            enabled:            true,
+            enabled: true,
             cache_list_queries: false,
             ..CacheConfig::default()
         };
@@ -1295,9 +1242,7 @@ mod tests {
             JsonbValue::new(json!({"id": 1})),
             JsonbValue::new(json!({"id": 2})),
         ];
-        cache
-            .put(1_u64, two_rows, vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, two_rows, vec!["v_user".to_string()], None, None).unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_none(),
             "multi-row result must not be cached when cache_list_queries=false"
@@ -1310,7 +1255,7 @@ mod tests {
     #[test]
     fn test_cache_list_queries_false_allows_single_row() {
         let config = CacheConfig {
-            enabled:            true,
+            enabled: true,
             cache_list_queries: false,
             ..CacheConfig::default()
         };
@@ -1318,9 +1263,7 @@ mod tests {
 
         // One-row result: must be stored
         let one_row = vec![JsonbValue::new(json!({"id": 1}))];
-        cache
-            .put(1_u64, one_row, vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, one_row, vec!["v_user".to_string()], None, None).unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_some(),
             "single-row result must be cached even when cache_list_queries=false"
@@ -1333,20 +1276,15 @@ mod tests {
     #[test]
     fn test_max_entry_bytes_skips_oversized_entry() {
         let config = CacheConfig {
-            enabled:         true,
+            enabled: true,
             max_entry_bytes: Some(10), // 10 bytes — smaller than any JSON row
             ..CacheConfig::default()
         };
         let cache = QueryResultCache::new(config);
 
         // A typical row serialises to far more than 10 bytes
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
-        assert!(
-            cache.get(1_u64).unwrap().is_none(),
-            "oversized entry must be silently skipped"
-        );
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        assert!(cache.get(1_u64).unwrap().is_none(), "oversized entry must be silently skipped");
     }
 
     /// Sentinel: entries within `max_entry_bytes` must be stored normally.
@@ -1355,15 +1293,13 @@ mod tests {
     #[test]
     fn test_max_entry_bytes_allows_small_entry() {
         let config = CacheConfig {
-            enabled:         true,
+            enabled: true,
             max_entry_bytes: Some(100_000), // 100 KB — plenty for a test row
             ..CacheConfig::default()
         };
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_some(),
             "small entry must be cached when within max_entry_bytes"
@@ -1376,15 +1312,13 @@ mod tests {
     #[test]
     fn test_max_total_bytes_skips_when_budget_exhausted() {
         let config = CacheConfig {
-            enabled:        true,
+            enabled: true,
             max_total_bytes: Some(0), // 0 bytes — always exhausted
             ..CacheConfig::default()
         };
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_none(),
             "entry must be skipped when max_total_bytes budget is already exhausted"
@@ -1433,9 +1367,7 @@ mod tests {
         // Insert many entries across different shards
         for i in 0_u64..200 {
             let view = if i % 2 == 0 { "v_user" } else { "v_post" };
-            cache
-                .put(i, test_result(), vec![view.to_string()], None, None)
-                .unwrap();
+            cache.put(i, test_result(), vec![view.to_string()], None, None).unwrap();
         }
 
         // Invalidate v_user — should remove exactly 100 entries
@@ -1502,15 +1434,7 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         for i in 0_u64..200 {
-            cache
-                .put(
-                    i,
-                    test_result(),
-                    vec!["v_user".to_string()],
-                    None,
-                    None,
-                )
-                .unwrap();
+            cache.put(i, test_result(), vec!["v_user".to_string()], None, None).unwrap();
         }
 
         cache.clear().unwrap();
@@ -1532,20 +1456,14 @@ mod tests {
         };
         let cache = QueryResultCache::new(config);
 
-        cache
-            .put(1_u64, test_result(), vec!["v".to_string()], None, None)
-            .unwrap();
-        cache
-            .put(2_u64, test_result(), vec!["v".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v".to_string()], None, None).unwrap();
+        cache.put(2_u64, test_result(), vec!["v".to_string()], None, None).unwrap();
 
         let before = cache.memory_bytes.load(Ordering::Relaxed);
         assert!(before > 0, "memory_bytes should be tracked");
 
         // Evict k1 by adding k3 (same key length → memory_bytes unchanged)
-        cache
-            .put(3_u64, test_result(), vec!["v".to_string()], None, None)
-            .unwrap();
+        cache.put(3_u64, test_result(), vec!["v".to_string()], None, None).unwrap();
 
         let after = cache.memory_bytes.load(Ordering::Relaxed);
         assert_eq!(before, after, "memory_bytes should remain stable after same-size eviction");
@@ -1556,9 +1474,7 @@ mod tests {
     fn test_memory_bytes_decreases_on_invalidation() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache
-            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None)
-            .unwrap();
+        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         let before = cache.memory_bytes.load(Ordering::Relaxed);
         assert!(before > 0);

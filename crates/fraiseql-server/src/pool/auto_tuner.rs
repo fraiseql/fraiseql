@@ -34,7 +34,7 @@ pub enum PoolSizingRecommendation {
         /// New target pool size.
         new_size: u32,
         /// Human-readable reason for the recommendation.
-        reason:   String,
+        reason: String,
     },
     /// Pool should be shrunk to `new_size` connections.
     ///
@@ -43,7 +43,7 @@ pub enum PoolSizingRecommendation {
         /// New target pool size.
         new_size: u32,
         /// Human-readable reason for the recommendation.
-        reason:   String,
+        reason: String,
     },
 }
 
@@ -58,15 +58,15 @@ pub enum PoolSizingRecommendation {
 /// `max_connections` in `fraiseql.toml` and restarting the server.
 pub struct PoolSizingAdvisor {
     /// Pressure monitoring configuration.
-    pub(crate) config:  PoolPressureMonitorConfig,
+    pub(crate) config: PoolPressureMonitorConfig,
     /// Consecutive samples with high queue depth.
     high_queue_samples: AtomicU32,
     /// Consecutive samples with high idle ratio.
-    low_idle_samples:   AtomicU32,
+    low_idle_samples: AtomicU32,
     /// Total resize operations applied or recommended.
-    adjustments_total:  AtomicU64,
+    adjustments_total: AtomicU64,
     /// Current recommended/actual target pool size (0 = not yet sampled).
-    current_target:     AtomicU32,
+    current_target: AtomicU32,
 }
 
 impl PoolSizingAdvisor {
@@ -104,7 +104,7 @@ impl PoolSizingAdvisor {
                     self.current_target.store(desired, Ordering::Relaxed);
                     return PoolSizingRecommendation::RecommendScaleUp {
                         new_size: desired,
-                        reason:   format!(
+                        reason: format!(
                             "{} requests waiting (threshold {}); grown by {}",
                             metrics.waiting_requests,
                             self.config.target_queue_depth,
@@ -135,7 +135,7 @@ impl PoolSizingAdvisor {
                     self.current_target.store(desired, Ordering::Relaxed);
                     return PoolSizingRecommendation::RecommendScaleDown {
                         new_size: desired,
-                        reason:   format!(
+                        reason: format!(
                             "idle ratio {:.0}% > {:.0}% threshold; shrunk by {}",
                             idle_ratio * 100.0,
                             self.config.scale_down_idle_ratio * 100.0,
@@ -361,10 +361,10 @@ mod tests {
 
     fn metrics(total: u32, idle: u32, waiting: u32) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  total,
-            idle_connections:   idle,
+            total_connections: total,
+            idle_connections: idle,
             active_connections: total.saturating_sub(idle),
-            waiting_requests:   waiting,
+            waiting_requests: waiting,
         }
     }
 

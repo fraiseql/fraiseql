@@ -190,49 +190,49 @@ mod tests {
         use crate::compiler::fact_table::DimensionPath;
 
         let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 }],
             },
             denormalized_filters: vec![FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         };
 
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::Dimension {
-                path:  "category".to_string(),
+            group_by: vec![GroupBySelection::Dimension {
+                path: "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates:   vec![
+            aggregates: vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure:  "revenue".to_string(),
+                    measure: "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias:    "revenue_sum".to_string(),
+                    alias: "revenue_sum".to_string(),
                 },
             ],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         AggregationPlan {
@@ -240,17 +240,17 @@ mod tests {
             request,
             group_by_expressions: vec![GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "category".to_string(),
-                alias:        "category".to_string(),
+                path: "category".to_string(),
+                alias: "category".to_string(),
             }],
             aggregate_expressions: vec![
                 AggregateExpression::Count {
                     alias: "count".to_string(),
                 },
                 AggregateExpression::MeasureAggregate {
-                    column:   "revenue".to_string(),
+                    column: "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias:    "revenue_sum".to_string(),
+                    alias: "revenue_sum".to_string(),
                 },
             ],
             having_conditions: vec![],

@@ -42,8 +42,8 @@ pub enum TrustedDocumentMode {
 struct Manifest {
     // Reason: serde deserialization target — `version` is present in the manifest JSON
     // for forward-compatibility but is not consumed by the current lookup logic.
-    #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
-    version:   u32,
+    #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
+    version: u32,
     documents: HashMap<String, String>,
 }
 
@@ -51,7 +51,7 @@ struct Manifest {
 pub struct TrustedDocumentStore {
     /// hash → query body (keys stored WITHOUT "sha256:" prefix).
     documents: Arc<RwLock<HashMap<String, String>>>,
-    mode:      TrustedDocumentMode,
+    mode: TrustedDocumentMode,
 }
 
 impl TrustedDocumentStore {
@@ -112,7 +112,7 @@ impl TrustedDocumentStore {
     pub fn disabled() -> Self {
         Self {
             documents: Arc::new(RwLock::new(HashMap::new())),
-            mode:      TrustedDocumentMode::Permissive,
+            mode: TrustedDocumentMode::Permissive,
         }
     }
 

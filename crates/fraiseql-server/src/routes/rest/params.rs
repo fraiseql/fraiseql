@@ -64,23 +64,23 @@ const RESERVED_PARAMS: &[&str] = &[
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
-    pub path_params:       Vec<(String, serde_json::Value)>,
+    pub path_params: Vec<(String, serde_json::Value)>,
     /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
-    pub where_clause:      Option<serde_json::Value>,
+    pub where_clause: Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
-    pub order_by:          Option<serde_json::Value>,
+    pub order_by: Option<serde_json::Value>,
     /// Pagination parameters.
-    pub pagination:        PaginationParams,
+    pub pagination: PaginationParams,
     /// Field selection (from `?select=`).
-    pub field_selection:   RestFieldSpec,
+    pub field_selection: RestFieldSpec,
     /// Full-text search query (from `?search=`).
-    pub search_query:      Option<String>,
+    pub search_query: Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
-    pub embeddings:        Vec<EmbeddedSpec>,
+    pub embeddings: Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
     pub embedding_filters: HashMap<String, serde_json::Value>,
     /// Count-only embeddings (from `?select=id,posts.count`).
-    pub embedding_counts:  Vec<String>,
+    pub embedding_counts: Vec<String>,
 }
 
 /// Pagination mode and parameters.
@@ -89,18 +89,18 @@ pub enum PaginationParams {
     /// Offset-based pagination.
     Offset {
         /// Maximum number of rows to return.
-        limit:  u64,
+        limit: u64,
         /// Number of rows to skip.
         offset: u64,
     },
     /// Cursor-based (Relay) pagination.
     Cursor {
         /// Forward page size.
-        first:  Option<u64>,
+        first: Option<u64>,
         /// Cursor to start after.
-        after:  Option<String>,
+        after: Option<String>,
         /// Backward page size.
-        last:   Option<u64>,
+        last: Option<u64>,
         /// Cursor to start before.
         before: Option<String>,
     },
@@ -139,9 +139,9 @@ pub struct EmbeddedSpec {
     /// Relationship name (e.g., "posts") or FK column (e.g., "`fk_user`").
     pub relationship: String,
     /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
-    pub rename:       Option<String>,
+    pub rename: Option<String>,
     /// Sub-selected fields (may include nested `EmbeddedSpec`).
-    pub fields:       Vec<SelectEntry>,
+    pub fields: Vec<SelectEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -150,9 +150,9 @@ pub struct EmbeddedSpec {
 
 /// Extracts and validates REST request parameters against schema metadata.
 pub struct RestParamExtractor<'a> {
-    config:    &'a RestConfig,
+    config: &'a RestConfig,
     query_def: &'a QueryDefinition,
-    type_def:  Option<&'a TypeDefinition>,
+    type_def: Option<&'a TypeDefinition>,
 }
 
 impl<'a> RestParamExtractor<'a> {
@@ -300,8 +300,7 @@ impl<'a> RestParamExtractor<'a> {
         let search_query = if let Some(raw) = search_raw {
             if !is_list {
                 return Err(validation_error(
-                    "Full-text search not available on single-resource endpoints."
-                        .to_string(),
+                    "Full-text search not available on single-resource endpoints.".to_string(),
                 ));
             }
             if let Some(td) = self.type_def {
@@ -922,7 +921,10 @@ fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value
             let v: f64 = raw
                 .parse()
                 .map_err(|_| validation_error(format!("Expected numeric value, got '{raw}'.")))?;
-            Ok(serde_json::Number::from_f64(v).map_or_else(|| serde_json::Value::String(raw.to_string()), serde_json::Value::Number))
+            Ok(serde_json::Number::from_f64(v).map_or_else(
+                || serde_json::Value::String(raw.to_string()),
+                serde_json::Value::Number,
+            ))
         },
         FieldType::Boolean => {
             let v = match raw {
@@ -1400,7 +1402,7 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Offset {
-                limit:  10,
+                limit: 10,
                 offset: 5,
             }
         );
@@ -1417,7 +1419,7 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Offset {
-                limit:  20, // default_page_size
+                limit: 20, // default_page_size
                 offset: 0,
             }
         );
@@ -1434,7 +1436,7 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Offset {
-                limit:  100,
+                limit: 100,
                 offset: 0,
             }
         );
@@ -1455,9 +1457,9 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Cursor {
-                first:  Some(10),
-                after:  Some("abc".to_string()),
-                last:   None,
+                first: Some(10),
+                after: Some("abc".to_string()),
+                last: None,
                 before: None,
             }
         );
@@ -1474,9 +1476,9 @@ mod tests {
         assert_eq!(
             result.pagination,
             PaginationParams::Cursor {
-                first:  Some(20), // default_page_size
-                after:  None,
-                last:   None,
+                first: Some(20), // default_page_size
+                after: None,
+                last: None,
                 before: None,
             }
         );
@@ -1991,8 +1993,8 @@ mod tests {
     fn embedding_depth_within_limit() {
         let spec = EmbeddedSpec {
             relationship: "posts".to_string(),
-            rename:       None,
-            fields:       vec![SelectEntry::Field("id".to_string())],
+            rename: None,
+            fields: vec![SelectEntry::Field("id".to_string())],
         };
         assert!(validate_embedding_depth(&spec, 1, 3).is_ok());
     }
@@ -2001,13 +2003,13 @@ mod tests {
     fn embedding_depth_exceeds_limit() {
         let inner = EmbeddedSpec {
             relationship: "comments".to_string(),
-            rename:       None,
-            fields:       vec![SelectEntry::Field("id".to_string())],
+            rename: None,
+            fields: vec![SelectEntry::Field("id".to_string())],
         };
         let outer = EmbeddedSpec {
             relationship: "posts".to_string(),
-            rename:       None,
-            fields:       vec![SelectEntry::Embedded(inner)],
+            rename: None,
+            fields: vec![SelectEntry::Embedded(inner)],
         };
         // depth=1, max=1 -> inner at depth=2 should fail
         let err = validate_embedding_depth(&outer, 1, 1).unwrap_err();
@@ -2021,11 +2023,11 @@ mod tests {
     fn user_type_with_relationships() -> TypeDefinition {
         let mut td = user_type_def();
         td.relationships = vec![Relationship {
-            name:           "posts".to_string(),
-            target_type:    "Post".to_string(),
-            foreign_key:    "fk_user".to_string(),
+            name: "posts".to_string(),
+            target_type: "Post".to_string(),
+            foreign_key: "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality:    Cardinality::OneToMany,
+            cardinality: Cardinality::OneToMany,
         }];
         td
     }

@@ -147,7 +147,8 @@ impl AggregationSqlGenerator {
                 column, function, ..
             } => {
                 // Handle statistical functions with database-specific SQL
-                #[allow(clippy::enum_glob_use)]  // Reason: enum glob use in test/match context for readability
+                #[allow(clippy::enum_glob_use)]
+                // Reason: enum glob use in test/match context for readability
                 // Reason: glob import reduces noise in exhaustive match arms
                 use AggregateFunction::*;
                 match function {
@@ -182,7 +183,8 @@ impl AggregationSqlGenerator {
         delimiter: Option<&str>,
         order_by: Option<&Vec<OrderByClause>>,
     ) -> Result<String> {
-        #[allow(clippy::enum_glob_use)]  // Reason: enum glob use in test/match context for readability
+        #[allow(clippy::enum_glob_use)]
+        // Reason: enum glob use in test/match context for readability
         // Reason: glob import reduces noise in exhaustive match arms
         use AggregateFunction::*;
 

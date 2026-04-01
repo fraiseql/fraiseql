@@ -16,7 +16,7 @@ pub struct FieldAccessResult {
     /// Fields the user can access (returned as-is).
     pub allowed: Vec<String>,
     /// Fields the user cannot access but `on_deny = Mask` (nulled out).
-    pub masked:  Vec<String>,
+    pub masked: Vec<String>,
 }
 
 /// Classify requested projection fields into allowed, masked, or rejected.
@@ -150,33 +150,33 @@ mod tests {
 
     fn create_test_field(name: &str, requires_scope: Option<&str>) -> FieldDefinition {
         FieldDefinition {
-            name:           name.into(),
-            field_type:     FieldType::String,
-            nullable:       false,
-            default_value:  None,
-            description:    None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
+            name: name.into(),
+            field_type: FieldType::String,
+            nullable: false,
+            default_value: None,
+            description: None,
+            vector_config: None,
+            alias: None,
+            deprecation: None,
             requires_scope: requires_scope.map(|s| s.to_string()),
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
+            on_deny: FieldDenyPolicy::default(),
+            encryption: None,
         }
     }
 
     fn create_test_context(roles: &[&str]) -> SecurityContext {
         SecurityContext {
-            user_id:          "test-user".to_string(),
-            roles:            roles.iter().map(|&r| r.to_string()).collect(),
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       std::collections::HashMap::new(),
-            request_id:       "test-req".to_string(),
-            ip_address:       None,
+            user_id: "test-user".to_string(),
+            roles: roles.iter().map(|&r| r.to_string()).collect(),
+            tenant_id: None,
+            scopes: vec![],
+            attributes: std::collections::HashMap::new(),
+            request_id: "test-req".to_string(),
+            ip_address: None,
             authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
         }
     }
 

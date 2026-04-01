@@ -29,8 +29,8 @@ pub struct InputProcessingConfig {
 impl Default for InputProcessingConfig {
     fn default() -> Self {
         Self {
-            id_policy:      IDPolicy::default(),
-            validate_ids:   true,
+            id_policy: IDPolicy::default(),
+            validate_ids: true,
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -70,8 +70,8 @@ impl InputProcessingConfig {
     #[must_use]
     pub fn strict_uuid() -> Self {
         Self {
-            id_policy:      IDPolicy::UUID,
-            validate_ids:   true,
+            id_policy: IDPolicy::UUID,
+            validate_ids: true,
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -80,8 +80,8 @@ impl InputProcessingConfig {
     #[must_use]
     pub fn opaque() -> Self {
         Self {
-            id_policy:      IDPolicy::OPAQUE,
-            validate_ids:   false, // No validation needed for opaque
+            id_policy: IDPolicy::OPAQUE,
+            validate_ids: false, // No validation needed for opaque
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -161,7 +161,7 @@ fn process_value(
         {
             validate_id(s, config.id_policy).map_err(|e| ProcessingError {
                 field_path: field_name.to_string(),
-                reason:     format!("Invalid ID value: {e}"),
+                reason: format!("Invalid ID value: {e}"),
             })?;
             Ok(Value::String(s.clone()))
         },
@@ -203,7 +203,7 @@ pub struct ProcessingError {
     /// The field path where the error occurred
     pub field_path: String,
     /// The reason for the error
-    pub reason:     String,
+    pub reason: String,
 }
 
 impl std::fmt::Display for ProcessingError {
@@ -242,7 +242,11 @@ mod tests {
 
         let result = process_variables(&variables, &config);
         let err = result.expect_err("invalid UUID should fail validation");
-        assert!(err.field_path.contains("userId"), "expected field_path to contain 'userId', got: {}", err.field_path);
+        assert!(
+            err.field_path.contains("userId"),
+            "expected field_path to contain 'userId', got: {}",
+            err.field_path
+        );
     }
 
     #[test]
@@ -288,7 +292,11 @@ mod tests {
 
         let result = process_variables(&variables, &config);
         let err = result.expect_err("nested invalid UUID should fail");
-        assert!(err.field_path.contains("authorId"), "expected field_path to contain 'authorId', got: {}", err.field_path);
+        assert!(
+            err.field_path.contains("authorId"),
+            "expected field_path to contain 'authorId', got: {}",
+            err.field_path
+        );
     }
 
     #[test]
@@ -319,7 +327,11 @@ mod tests {
 
         let result = process_variables(&variables, &config);
         let err = result.expect_err("array with invalid UUID should fail");
-        assert!(err.field_path.contains("userIds"), "expected field_path to contain 'userIds', got: {}", err.field_path);
+        assert!(
+            err.field_path.contains("userIds"),
+            "expected field_path to contain 'userIds', got: {}",
+            err.field_path
+        );
     }
 
     #[test]
@@ -377,6 +389,8 @@ mod tests {
         });
 
         let result = process_variables(&variables, &config);
-        result.unwrap_or_else(|e| panic!("non-ID fields should pass through without validation: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("non-ID fields should pass through without validation: {e}")
+        });
     }
 }

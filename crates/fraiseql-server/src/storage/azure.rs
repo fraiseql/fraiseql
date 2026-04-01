@@ -18,10 +18,10 @@ const AZURE_API_VERSION: &str = "2023-11-03";
 
 /// Stores files in an Azure Blob Storage container.
 pub struct AzureBlobStorageBackend {
-    account:     String,
-    container:   String,
+    account: String,
+    container: String,
     account_key: Vec<u8>,
-    client:      reqwest::Client,
+    client: reqwest::Client,
 }
 
 impl AzureBlobStorageBackend {
@@ -37,12 +37,12 @@ impl AzureBlobStorageBackend {
         let key_b64 = std::env::var("AZURE_STORAGE_KEY").map_err(|_| FileError::Storage {
             message: "Azure Blob storage requires AZURE_STORAGE_KEY environment variable"
                 .to_string(),
-            source:  None,
+            source: None,
         })?;
         let account_key =
             general_purpose::STANDARD.decode(&key_b64).map_err(|e| FileError::Storage {
                 message: format!("Invalid AZURE_STORAGE_KEY (not valid base64): {e}"),
-                source:  None,
+                source: None,
             })?;
 
         Ok(Self {
@@ -96,7 +96,7 @@ impl AzureBlobStorageBackend {
 fn azure_err(op: &str, detail: impl std::fmt::Display) -> FileError {
     FileError::Storage {
         message: format!("Azure Blob {op} failed: {detail}"),
-        source:  None,
+        source: None,
     }
 }
 
@@ -234,7 +234,7 @@ impl StorageBackend for AzureBlobStorageBackend {
             message:
                 "Presigned URLs for Azure Blob require SAS token generation (not yet implemented)"
                     .to_string(),
-            source:  None,
+            source: None,
         })
     }
 }

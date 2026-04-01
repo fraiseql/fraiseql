@@ -205,15 +205,15 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:    true,
-            max_query_depth:      10,
+            cache_query_plans: true,
+            max_query_depth: 10,
             max_query_complexity: 1000,
-            enable_tracing:       false,
-            field_filter:         None,
-            rls_policy:           None,
-            query_timeout_ms:     30_000, // 30 second default timeout
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
-            query_validation:     None,
+            enable_tracing: false,
+            field_filter: None,
+            rls_policy: None,
+            query_timeout_ms: 30_000, // 30 second default timeout
+            jsonb_optimization: JsonbOptimizationOptions::default(),
+            query_validation: None,
         }
     }
 }
